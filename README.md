@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # PDF Transaction Processor
 
 A ReactJS SPA with Python backend for processing PDF files, extracting transactions, and storing them in MySQL.
@@ -36,3 +37,7 @@ CREATE DATABASE transactions_db;
 - Automatic PDF parsing and transaction extraction
 - Editable transaction data before saving
 - MySQL storage with transaction metadata
+=======
+# myAdmin
+My new administrative tooling Frontend (reactjs) and Backend (python and mysql)
+>>>>>>> cccf35fb5e5e67cb972ecddaaff895c53d5098e8
