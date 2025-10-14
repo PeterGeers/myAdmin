@@ -1,10 +1,11 @@
 import mysql.connector
 from typing import List, Dict
-from database import Database
+from database import DatabaseManager
 
-class STRDatabase(Database):
+class STRDatabase(DatabaseManager):
     def __init__(self, test_mode: bool = False):
         super().__init__(test_mode)
+        self.connection = self.get_connection()
         # Uses existing tables: bnb, bnbplanned, bnbfuture
     
     def insert_realised_bookings(self, bookings: List[Dict]) -> int:
@@ -12,9 +13,15 @@ class STRDatabase(Database):
         if not bookings:
             return 0
         
-        # Get existing reservation codes to avoid duplicates
-        existing_codes = self._get_existing_reservation_codes()
-        new_bookings = [b for b in bookings if b.get('reservationCode') not in existing_codes]
+        # Get existing reservation codes by channel to avoid duplicates
+        new_bookings = []
+        
+        for booking in bookings:
+            channel = booking.get('channel', '')
+            code = booking.get('reservationCode', '')
+            existing_codes = self.get_existing_reservation_codes_for_channel(channel)
+            if code not in existing_codes:
+                new_bookings.append(booking)
         
         if not new_bookings:
             return 0
@@ -22,15 +29,18 @@ class STRDatabase(Database):
         insert_query = """
         INSERT INTO bnb 
         (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
-         amountGross, amountChannelFee, guestName, reservationCode, reservationDate,
-         status, addInfo, amountVat, amountTouristTax, amountNett, pricePerNight,
-         year, quarter, month, daysBeforeReservation)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
+         guestName, phone, reservationCode, reservationDate, status, pricePerNight,
+         daysBeforeReservation, addInfo, year, q, m)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         try:
             cursor = self.connection.cursor()
             inserted = 0
+            
+            # Check table structure first
+            available_columns = self.check_bnb_table_structure()
             
             for booking in new_bookings:
                 values = (
@@ -42,20 +52,21 @@ class STRDatabase(Database):
                     booking.get('nights', 0),
                     booking.get('guests', 0),
                     booking.get('amountGross', 0),
+                    booking.get('amountNett', 0),
                     booking.get('amountChannelFee', 0),
+                    booking.get('amountTouristTax', 0),
+                    booking.get('amountVat', 0),
                     booking.get('guestName', ''),
+                    booking.get('phone', ''),
                     booking.get('reservationCode', ''),
                     booking.get('reservationDate', ''),
                     booking.get('status', ''),
-                    booking.get('addInfo', ''),
-                    booking.get('amountVat', 0),
-                    booking.get('amountTouristTax', 0),
-                    booking.get('amountNett', 0),
                     booking.get('pricePerNight', 0),
+                    booking.get('daysBeforeReservation', 0),
+                    booking.get('addInfo', ''),
                     booking.get('year', 0),
-                    booking.get('quarter', 0),
-                    booking.get('month', 0),
-                    booking.get('daysBeforeReservation', 0)
+                    booking.get('q', 0),
+                    booking.get('m', 0)
                 )
                 
                 cursor.execute(insert_query, values)
@@ -66,29 +77,31 @@ class STRDatabase(Database):
             return inserted
             
         except mysql.connector.Error as e:
-            print(f"Error inserting realised bookings: {e}")
             return 0
     
     def insert_planned_bookings(self, bookings: List[Dict]) -> int:
-        """Insert planned bookings into bnbplanned table (clear first like R script)"""
+        """Insert planned bookings into bnbplanned table (delete by channel/listing first)"""
         try:
             cursor = self.connection.cursor()
             
-            # Clear bnbplanned table first (like R script)
-            cursor.execute("DELETE FROM bnbplanned")
-            
             if not bookings:
-                self.connection.commit()
                 cursor.close()
                 return 0
+            
+            # Get unique channel/listing combinations from new bookings
+            channel_listings = set((booking.get('channel', ''), booking.get('listing', '')) for booking in bookings)
+            
+            # Delete existing records for these channel/listing combinations
+            for channel, listing in channel_listings:
+                cursor.execute("DELETE FROM bnbplanned WHERE channel = %s AND listing = %s", (channel, listing))
             
             insert_query = """
             INSERT INTO bnbplanned 
             (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
-             amountGross, amountChannelFee, guestName, reservationCode, reservationDate,
-             status, addInfo, amountVat, amountTouristTax, amountNett, pricePerNight,
-             year, quarter, month, daysBeforeReservation)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
+             guestName, phone, reservationCode, reservationDate, status, pricePerNight,
+             daysBeforeReservation, addInfo, year, q, m)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
             inserted = 0
@@ -102,20 +115,21 @@ class STRDatabase(Database):
                     booking.get('nights', 0),
                     booking.get('guests', 0),
                     booking.get('amountGross', 0),
+                    booking.get('amountNett', 0),
                     booking.get('amountChannelFee', 0),
+                    booking.get('amountTouristTax', 0),
+                    booking.get('amountVat', 0),
                     booking.get('guestName', ''),
+                    booking.get('phone', ''),
                     booking.get('reservationCode', ''),
                     booking.get('reservationDate', ''),
                     booking.get('status', ''),
-                    booking.get('addInfo', ''),
-                    booking.get('amountVat', 0),
-                    booking.get('amountTouristTax', 0),
-                    booking.get('amountNett', 0),
                     booking.get('pricePerNight', 0),
+                    booking.get('daysBeforeReservation', 0),
+                    booking.get('addInfo', ''),
                     booking.get('year', 0),
-                    booking.get('quarter', 0),
-                    booking.get('month', 0),
-                    booking.get('daysBeforeReservation', 0)
+                    booking.get('q', 0),
+                    booking.get('m', 0)
                 )
                 
                 cursor.execute(insert_query, values)
@@ -126,7 +140,6 @@ class STRDatabase(Database):
             return inserted
             
         except mysql.connector.Error as e:
-            print(f"Error inserting planned bookings: {e}")
             return 0
     
     def insert_future_summary(self, summary_data: List[Dict]) -> int:
@@ -160,20 +173,94 @@ class STRDatabase(Database):
             return inserted
             
         except mysql.connector.Error as e:
-            print(f"Error inserting future summary: {e}")
             return 0
     
-    def _get_existing_reservation_codes(self) -> set:
-        """Get existing reservation codes from bnb table"""
+    def get_existing_reservation_codes_for_channel(self, channel: str) -> set:
+        """Get existing reservation codes for a specific channel from bnb table"""
         try:
             cursor = self.connection.cursor()
-            cursor.execute("SELECT DISTINCT reservationCode FROM bnb WHERE reservationCode IS NOT NULL")
-            codes = {row[0] for row in cursor.fetchall()}
+            cursor.execute("SELECT DISTINCT reservationCode FROM bnb WHERE channel = %s AND reservationCode IS NOT NULL", (channel,))
+            codes = {str(row[0]) for row in cursor.fetchall()}
             cursor.close()
             return codes
         except mysql.connector.Error as e:
-            print(f"Error getting existing codes: {e}")
             return set()
+    
+    def check_bnb_table_structure(self):
+        """Check the actual structure of the bnb table"""
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("DESCRIBE bnb")
+            columns = cursor.fetchall()
+            cursor.close()
+            
+
+            
+            return [col[0] for col in columns]
+        except mysql.connector.Error as e:
+            return []
+    
+    def write_bnb_future_summary(self) -> Dict:
+        """Write current planned BNB data summary to bnbfuture table"""
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            
+            # Get current planned bookings summary by channel and listing
+            query = """
+            SELECT 
+                channel,
+                listing,
+                SUM(amountGross) as amount,
+                COUNT(*) as items
+            FROM bnbplanned 
+            GROUP BY channel, listing
+            """
+            
+            cursor.execute(query)
+            results = cursor.fetchall()
+            
+            if not results:
+                cursor.close()
+                return {'success': False, 'message': 'No planned bookings found'}
+            
+            # Get current date
+            from datetime import date
+            current_date = date.today().strftime('%Y-%m-%d')
+            
+            # Check for existing records with same date and delete them
+            delete_query = "DELETE FROM bnbfuture WHERE date = %s"
+            cursor.execute(delete_query, (current_date,))
+            
+            # Insert new records
+            insert_query = """
+            INSERT INTO bnbfuture (date, channel, listing, amount, items)
+            VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            inserted = 0
+            for row in results:
+                values = (
+                    current_date,
+                    row['channel'],
+                    row['listing'],
+                    round(float(row['amount']), 2),
+                    row['items']
+                )
+                cursor.execute(insert_query, values)
+                inserted += 1
+            
+            self.connection.commit()
+            cursor.close()
+            
+            return {
+                'success': True,
+                'inserted': inserted,
+                'date': current_date,
+                'summary': results
+            }
+            
+        except mysql.connector.Error as e:
+            return {'success': False, 'error': str(e)}
     
     def get_str_summary(self, start_date: str = None, end_date: str = None) -> Dict:
         """Get STR performance summary from bnb table"""
@@ -214,5 +301,4 @@ class STRDatabase(Database):
             return summary
             
         except mysql.connector.Error as e:
-            print(f"Error getting STR summary: {e}")
             return {}

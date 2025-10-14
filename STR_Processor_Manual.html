@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myAdmin STR Processor - User Manual</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+
+        h3 {
+            color: #2c3e50;
+            margin-top: 25px;
+        }
+
+        .toc {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            margin: 5px 0;
+        }
+
+        .toc a {
+            text-decoration: none;
+            color: #2980b9;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        .business-logic {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .business-logic h4 {
+            color: #856404;
+            margin-top: 0;
+        }
+
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .feature-box {
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+        }
+
+        .warning {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .workflow {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+
+        .workflow-step {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            margin: 0 5px;
+            background: #3498db;
+            color: white;
+            border-radius: 5px;
+        }
+
+        .workflow-arrow {
+            align-self: center;
+            font-size: 24px;
+            color: #3498db;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>myAdmin STR Processor - User Manual</h1>
+        <p><strong>Version:</strong> 1.0 | <strong>Date:</strong> October 2025 | <strong>Author:</strong> JaBaKi Studios
+        </p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">1. System Overview</a></li>
+                <li><a href="#architecture">2. System Architecture</a></li>
+                <li><a href="#str-processor">3. STR Processor Module</a></li>
+                <li><a href="#data-import">4. Data Import Process</a></li>
+                <li><a href="#business-logic">5. Business Logic & Calculations</a></li>
+                <li><a href="#database-structure">6. Database Structure</a></li>
+                <li><a href="#user-interface">7. User Interface Guide</a></li>
+                <li><a href="#workflows">8. Standard Workflows</a></li>
+                <li><a href="#troubleshooting">9. Troubleshooting</a></li>
+                <li><a href="#maintenance">10. Maintenance & Updates</a></li>
+            </ul>
+        </div>
+
+        <h2 id="overview">1. System Overview</h2>
+        <p>The myAdmin STR (Short Term Rental) Processor is a comprehensive administrative tool designed for managing
+            vacation rental properties across multiple booking platforms. The system processes booking data from Airbnb,
+            Booking.com, and direct bookings, applying sophisticated business logic for financial calculations and tax
+            management.</p>
+
+        <div class="feature-box">
+            <h3>Key Features</h3>
+            <ul>
+                <li><strong>Multi-Platform Integration:</strong> Airbnb, Booking.com, Direct bookings</li>
+                <li><strong>Automated Financial Calculations:</strong> VAT, Tourist Tax, Channel Fees</li>
+                <li><strong>Dual Processing Modes:</strong> Test and Production environments</li>
+                <li><strong>Real-time Data Processing:</strong> Upload and process files instantly</li>
+                <li><strong>Future Revenue Tracking:</strong> Planned bookings analysis</li>
+                <li><strong>Duplicate Detection:</strong> Prevents data duplication across imports</li>
+            </ul>
+        </div>
+
+        <h2 id="architecture">2. System Architecture</h2>
+
+        <div class="workflow">
+            <div class="workflow-step">Frontend<br>(React + Chakra UI)</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Backend<br>(Python Flask)</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Database<br>(MySQL)</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">R Scripts<br>(Legacy Processing)</div>
+        </div>
+
+        <h3>Technology Stack</h3>
+        <table>
+            <tr>
+                <th>Component</th>
+                <th>Technology</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>Frontend</td>
+                <td>React.js + TypeScript + Chakra UI</td>
+                <td>User interface and data visualization</td>
+            </tr>
+            <tr>
+                <td>Backend</td>
+                <td>Python Flask + pandas</td>
+                <td>API endpoints and data processing</td>
+            </tr>
+            <tr>
+                <td>Database</td>
+                <td>MySQL</td>
+                <td>Data storage and retrieval</td>
+            </tr>
+            <tr>
+                <td>Legacy Scripts</td>
+                <td>R + RMariaDB</td>
+                <td>Historical processing logic</td>
+            </tr>
+            <tr>
+                <td>File Processing</td>
+                <td>pandas + openpyxl</td>
+                <td>CSV/Excel file parsing</td>
+            </tr>
+        </table>
+
+        <h2 id="str-processor">3. STR Processor Module</h2>
+
+        <h3>Core Processing Classes</h3>
+
+        <div class="business-logic">
+            <h4>STRProcessor Class</h4>
+            <p><strong>Location:</strong> <code>backend/str_processor.py</code></p>
+            <p><strong>Purpose:</strong> Main processing engine for STR data from all platforms</p>
+            <p><strong>Key Parameters:</strong></p>
+            <ul>
+                <li><strong>VAT Rate:</strong> 9% (configurable annually)</li>
+                <li><strong>VAT Base:</strong> 109 (100 + VAT rate)</li>
+                <li><strong>Tourist Tax Rate:</strong> 6% (configurable annually)</li>
+                <li><strong>Tourist Tax Base:</strong> 106 (100 + tourist tax rate)</li>
+                <li><strong>Price Uplift:</strong> 5.4409% (commission to total price conversion)</li>
+            </ul>
+        </div>
+
+        <h3>Platform-Specific Processing</h3>
+
+        <h4>Airbnb Processing</h4>
+        <div class="business-logic">
+            <h4>Business Logic</h4>
+            <p><strong>Input Format:</strong> CSV export from Airbnb host dashboard</p>
+            <p><strong>Key Calculations:</strong></p>
+            <div class="code-block">
+                # Airbnb earnings are net payouts
+                paid_out = earnings_from_csv
+                channel_fee_factor = 0.15 # 15% commission
+                amount_channel_fee = paid_out * channel_fee_factor
+                gross_amount = paid_out + amount_channel_fee
+
+                # Apply VAT and tourist tax
+                amount_vat = (gross_amount / 115) * 9
+                amount_tourist_tax = (gross_amount / 115) * 6
+                amount_nett = gross_amount - amount_tourist_tax - amount_vat - amount_channel_fee
+            </div>
+            <p><strong>Status Determination:</strong></p>
+            <ul>
+                <li><strong>Cancelled:</strong> Status contains "Geannuleerd" with zero earnings</li>
+                <li><strong>Planned:</strong> Check-in date > today</li>
+                <li><strong>Realised:</strong> Check-in date ≤ today</li>
+            </ul>
+        </div>
+
+        <h4>Booking.com Processing</h4>
+        <div class="business-logic">
+            <h4>Business Logic</h4>
+            <p><strong>Input Format:</strong> Excel/CSV export from Booking.com extranet</p>
+            <p><strong>Key Calculations:</strong></p>
+            <div class="code-block">
+                # Booking.com price includes tourist tax
+                base_price = price_from_excel
+                tourist_tax_amount = (base_price / 100) * 6
+                gross_amount = base_price + tourist_tax_amount
+
+                # Calculate channel fees and net amount
+                channel_fee_factor = 0.15
+                paid_out = gross_amount / (1 + channel_fee_factor)
+                amount_channel_fee = paid_out * channel_fee_factor
+                amount_vat = (gross_amount / 109) * 9
+                amount_nett = gross_amount - amount_vat - tourist_tax_amount - amount_channel_fee
+            </div>
+        </div>
+
+        <h4>Direct Bookings Processing</h4>
+        <div class="business-logic">
+            <h4>Business Logic</h4>
+            <p><strong>Input Format:</strong> Excel file with reservation records</p>
+            <p><strong>Channel Determination:</strong></p>
+            <ul>
+                <li><strong>dfDirect:</strong> typeTrade contains "goodwin"</li>
+                <li><strong>VRBO:</strong> typeTrade contains "vrbo"</li>
+                <li><strong>dfZwart:</strong> All other direct bookings</li>
+            </ul>
+            <p><strong>Financial Calculations:</strong> Same VAT/tourist tax logic as other platforms</p>
+        </div>
+
+        <h2 id="data-import">4. Data Import Process</h2>
+
+        <h3>Import Links Configuration</h3>
+        <p>The system generates dynamic URLs for data export from booking platforms:</p>
+
+        <div class="info">
+            <strong>Current Period:</strong> September 1, 2025 to November 1, 2026<br>
+            <strong>Configuration:</strong> Located in both R Markdown and React components
+        </div>
+
+        <table>
+            <tr>
+                <th>Platform</th>
+                <th>Property</th>
+                <th>Hotel ID</th>
+                <th>Export Format</th>
+            </tr>
+            <tr>
+                <td>Booking.com</td>
+                <td>Red Studio</td>
+                <td>5615303</td>
+                <td>Excel (.xlsx)</td>
+            </tr>
+            <tr>
+                <td>Booking.com</td>
+                <td>Green Studio</td>
+                <td>5620035</td>
+                <td>Excel (.xlsx)</td>
+            </tr>
+            <tr>
+                <td>Booking.com</td>
+                <td>Child Friendly</td>
+                <td>4392906</td>
+                <td>Excel (.xlsx)</td>
+            </tr>
+            <tr>
+                <td>Airbnb</td>
+                <td>All Properties</td>
+                <td>N/A</td>
+                <td>CSV (.csv)</td>
+            </tr>
+            <tr>
+                <td>Direct</td>
+                <td>All Properties</td>
+                <td>N/A</td>
+                <td>Excel (.xlsx)</td>
+            </tr>
+        </table>
+
+        <h3>File Processing Workflow</h3>
+        <div class="workflow">
+            <div class="workflow-step">1. Scan Files</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">2. Parse Data</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">3. Apply Logic</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">4. Review & Save</div>
+        </div>
+
+        <h2 id="business-logic">5. Business Logic & Calculations</h2>
+
+        <h3>Financial Calculations</h3>
+
+        <div class="business-logic">
+            <h4>VAT Calculation (Netherlands)</h4>
+            <p><strong>Rate:</strong> 9% (reduced rate for accommodation)</p>
+            <div class="code-block">
+                amount_vat = (gross_amount / vat_base) * vat_rate
+                # Where vat_base = 109 (100 + 9%)
+            </div>
+        </div>
+
+        <div class="business-logic">
+            <h4>Tourist Tax Calculation</h4>
+            <p><strong>Rate:</strong> 6% (municipal tax)</p>
+            <div class="code-block">
+                amount_tourist_tax = (gross_amount / tourist_tax_base) * tourist_tax_rate
+                # Where tourist_tax_base = 106 (100 + 6%)
+            </div>
+        </div>
+
+        <div class="business-logic">
+            <h4>Net Revenue Calculation</h4>
+            <div class="code-block">
+                amount_nett = gross_amount - amount_vat - amount_tourist_tax - amount_channel_fee
+                price_per_night = amount_nett / nights
+            </div>
+        </div>
+
+        <h3>Property Name Normalization</h3>
+        <div class="business-logic">
+            <h4>Listing Name Standardization</h4>
+            <p>The system normalizes property names across platforms using regex patterns:</p>
+            <div class="code-block">
+                # Green Studio patterns
+                if re.search(r'One|groen|Groen|green|Green', listing):
+                return 'Green Studio'
+
+                # Child Friendly patterns
+                if re.search(r'^Apartment$|Tuinhuis|[Gg]arden|[Cc]hild', listing):
+                return 'Child Friendly'
+
+                # Red Studio patterns
+                if re.search(r'Rode|rode|Red|Rood|rood|red', listing):
+                return 'Red Studio'
+            </div>
+        </div>
+
+        <h3>Booking Status Logic</h3>
+        <table>
+            <tr>
+                <th>Status</th>
+                <th>Condition</th>
+                <th>Database Table</th>
+            </tr>
+            <tr>
+                <td>Realised</td>
+                <td>Check-in date ≤ today OR cancelled with revenue</td>
+                <td>bnb</td>
+            </tr>
+            <tr>
+                <td>Planned</td>
+                <td>Check-in date > today</td>
+                <td>bnbplanned</td>
+            </tr>
+            <tr>
+                <td>Already Loaded</td>
+                <td>Reservation code exists in database</td>
+                <td>Skipped</td>
+            </tr>
+        </table>
+
+        <h2 id="database-structure">6. Database Structure</h2>
+
+        <h3>Core Tables</h3>
+
+        <h4>bnb Table (Realised Bookings)</h4>
+        <table>
+            <tr>
+                <th>Column</th>
+                <th>Type</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td>sourceFile</td>
+                <td>VARCHAR</td>
+                <td>Original import file name with date</td>
+            </tr>
+            <tr>
+                <td>channel</td>
+                <td>VARCHAR</td>
+                <td>Booking platform (airbnb, booking.com, etc.)</td>
+            </tr>
+            <tr>
+                <td>listing</td>
+                <td>VARCHAR</td>
+                <td>Normalized property name</td>
+            </tr>
+            <tr>
+                <td>checkinDate</td>
+                <td>DATE</td>
+                <td>Guest check-in date</td>
+            </tr>
+            <tr>
+                <td>checkoutDate</td>
+                <td>DATE</td>
+                <td>Guest check-out date</td>
+            </tr>
+            <tr>
+                <td>nights</td>
+                <td>INT</td>
+                <td>Number of nights stayed</td>
+            </tr>
+            <tr>
+                <td>guests</td>
+                <td>INT</td>
+                <td>Total number of guests</td>
+            </tr>
+            <tr>
+                <td>amountGross</td>
+                <td>DECIMAL(10,2)</td>
+                <td>Total booking amount including taxes</td>
+            </tr>
+            <tr>
+                <td>amountNett</td>
+                <td>DECIMAL(10,2)</td>
+                <td>Net revenue after taxes and fees</td>
+            </tr>
+            <tr>
+                <td>amountChannelFee</td>
+                <td>DECIMAL(10,2)</td>
+                <td>Platform commission</td>
+            </tr>
+            <tr>
+                <td>amountVat</td>
+                <td>DECIMAL(10,2)</td>
+                <td>VAT amount (9%)</td>
+            </tr>
+            <tr>
+                <td>amountTouristTax</td>
+                <td>DECIMAL(10,2)</td>
+                <td>Tourist tax amount (6%)</td>
+            </tr>
+            <tr>
+                <td>reservationCode</td>
+                <td>VARCHAR</td>
+                <td>Unique booking reference</td>
+            </tr>
+            <tr>
+                <td>guestName</td>
+                <td>VARCHAR</td>
+                <td>Primary guest name</td>
+            </tr>
+            <tr>
+                <td>year</td>
+                <td>INT</td>
+                <td>Check-in year</td>
+            </tr>
+            <tr>
+                <td>q</td>
+                <td>INT</td>
+                <td>Check-in quarter (1-4)</td>
+            </tr>
+            <tr>
+                <td>m</td>
+                <td>INT</td>
+                <td>Check-in month (1-12)</td>
+            </tr>
+        </table>
+
+        <h4>bnbplanned Table (Future Bookings)</h4>
+        <p>Same structure as bnb table, but for bookings with future check-in dates. This table is cleared and
+            repopulated on each import to maintain current future revenue projections.</p>
+
+        <h4>bnbfuture Table (Revenue Tracking)</h4>
+        <table>
+            <tr>
+                <th>Column</th>
+                <th>Type</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td>date</td>
+                <td>DATE</td>
+                <td>Snapshot date</td>
+            </tr>
+            <tr>
+                <td>channel</td>
+                <td>VARCHAR</td>
+                <td>Booking platform</td>
+            </tr>
+            <tr>
+                <td>listing</td>
+                <td>VARCHAR</td>
+                <td>Property name</td>
+            </tr>
+            <tr>
+                <td>amount</td>
+                <td>DECIMAL(10,2)</td>
+                <td>Total future revenue</td>
+            </tr>
+            <tr>
+                <td>items</td>
+                <td>INT</td>
+                <td>Number of future bookings</td>
+            </tr>
+        </table>
+
+        <h2 id="user-interface">7. User Interface Guide</h2>
+
+        <h3>Main STR Processor Interface</h3>
+
+        <div class="feature-box">
+            <h4>File Processing Section</h4>
+            <ul>
+                <li><strong>Import Links Button:</strong> Opens popup with platform-specific export links</li>
+                <li><strong>Write BNB Future Button:</strong> Creates snapshot of current planned bookings</li>
+                <li><strong>Scan Download Folder:</strong> Automatically detects STR files in Downloads</li>
+                <li><strong>Upload Single File:</strong> Manual file upload with platform selection</li>
+            </ul>
+        </div>
+
+        <div class="feature-box">
+            <h4>Review Bookings Section</h4>
+            <ul>
+                <li><strong>Realised Tab:</strong> Completed bookings ready for database</li>
+                <li><strong>Planned Tab:</strong> Future bookings for revenue projection</li>
+                <li><strong>Already Loaded Tab:</strong> Duplicate bookings (skipped)</li>
+            </ul>
+        </div>
+
+        <h3>Import Links Popup</h3>
+        <p>The Import Links popup provides direct access to platform export pages:</p>
+        <ul>
+            <li><strong>Booking.com Studios:</strong> Pre-configured URLs with correct date ranges and property IDs</li>
+            <li><strong>Airbnb:</strong> Link to reservations page with export instructions</li>
+            <li><strong>JaBaKi Direct:</strong> File location information for direct bookings</li>
+        </ul>
+
+        <div class="info">
+            <strong>Period Display:</strong> Shows current configured date range (2025-09-01 to 2026-11-01)
+        </div>
+
+        <h2 id="workflows">8. Standard Workflows</h2>
+
+        <h3>Monthly Data Import Workflow</h3>
+        <div class="workflow">
+            <div class="workflow-step">1. Click Import Links</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">2. Export from Platforms</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">3. Scan/Upload Files</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">4. Review & Approve</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">5. Save to Database</div>
+        </div>
+
+        <h3>Future Revenue Tracking</h3>
+        <ol>
+            <li>Process planned bookings from all platforms</li>
+            <li>Click "Write BNB Future" to create revenue snapshot</li>
+            <li>Data is stored in bnbfuture table for trend analysis</li>
+            <li>Previous snapshots for the same date are replaced</li>
+        </ol>
+
+        <h3>End-of-Month Processing</h3>
+        <div class="warning">
+            <strong>Important:</strong> After STR processing, move to R Finance project for:
+            <ul>
+                <li>LoadBookingComChannelFee.R (monthly invoice processing)</li>
+                <li>loadAirbnbTax.r (tax income processing)</li>
+                <li>LoadBnBChannelRevenue.R (revenue and tax loading)</li>
+            </ul>
+        </div>
+
+        <h2 id="troubleshooting">9. Troubleshooting</h2>
+
+        <h3>Common Issues</h3>
+
+        <div class="warning">
+            <h4>File Processing Errors</h4>
+            <ul>
+                <li><strong>CSV Encoding Issues:</strong> Ensure files are UTF-8 encoded</li>
+                <li><strong>Date Format Problems:</strong> Check date formats match expected patterns</li>
+                <li><strong>Missing Columns:</strong> Verify export includes all required fields</li>
+            </ul>
+        </div>
+
+        <div class="warning">
+            <h4>Database Connection Issues</h4>
+            <ul>
+                <li><strong>Test Mode:</strong> Uses mutaties_test table and local storage</li>
+                <li><strong>Production Mode:</strong> Uses mutaties table and Google Drive</li>
+                <li><strong>Configuration:</strong> Check .env file for database credentials</li>
+            </ul>
+        </div>
+
+        <h3>Data Validation</h3>
+        <ul>
+            <li><strong>Duplicate Detection:</strong> System checks reservation codes against existing records</li>
+            <li><strong>Amount Validation:</strong> Negative amounts or zero nights trigger warnings</li>
+            <li><strong>Date Validation:</strong> Future dates for realised bookings are flagged</li>
+        </ul>
+
+        <h2 id="maintenance">10. Maintenance & Updates</h2>
+
+        <h3>Annual Tax Rate Updates</h3>
+        <p>Update tax rates in <code>STRProcessor.__init__()</code>:</p>
+        <div class="code-block">
+            # Update these values annually (January 1st)
+            self.vat_rate = 9 # VAT percentage
+            self.tourist_tax_rate = 6 # Tourist tax percentage
+        </div>
+
+        <h3>Date Range Updates</h3>
+        <p>Update import date ranges in two locations:</p>
+        <ol>
+            <li><strong>R Markdown:</strong> <code>str R-Code/ImportData.rmd</code></li>
+            <li><strong>React Component:</strong> <code>frontend/src/components/STRProcessor.tsx</code></li>
+        </ol>
+
+        <h3>Database Maintenance</h3>
+        <ul>
+            <li><strong>Regular Backups:</strong> Backup bnb, bnbplanned, and bnbfuture tables</li>
+            <li><strong>Performance:</strong> Index on reservationCode and checkinDate columns</li>
+            <li><strong>Cleanup:</strong> Archive old bnbfuture records (keep 2+ years for trends)</li>
+        </ul>
+
+        <h3>System Monitoring</h3>
+        <ul>
+            <li><strong>Log Files:</strong> Monitor Flask application logs for errors</li>
+            <li><strong>File Processing:</strong> Verify all platform files are processed correctly</li>
+            <li><strong>Revenue Tracking:</strong> Compare bnbfuture trends with actual bookings</li>
+        </ul>
+
+        <div class="info">
+            <strong>Support:</strong> For technical issues, check the GitHub repository or contact JaBaKi Studios.<br>
+            <strong>Version:</strong> This manual covers myAdmin STR Processor v1.0 (October 2025)
+        </div>
+    </div>
+</body>
+
+</html>
