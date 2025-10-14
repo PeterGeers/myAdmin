@@ -1,0 +1,10 @@
+{
+  "name": "myadmin-mcp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MCP server for myAdmin project",
+  "main": "mcp-server.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.19.1"
+  }
+}

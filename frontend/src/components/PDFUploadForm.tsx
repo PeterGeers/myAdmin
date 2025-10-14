@@ -9,22 +9,22 @@ import axios from 'axios';
 
 
 
-interface Transaction {
-  date: string;
-  description: string;
-  amount: number;
-  debet: number;
-  credit: number;
-}
+// interface Transaction {
+//   date: string;
+//   description: string;
+//   amount: number;
+//   debet: number;
+//   credit: number;
+// }
 
-interface Folder {
-  id: string;
-  name: string;
-  url: string;
-}
+// interface Folder {
+//   id: string;
+//   name: string;
+//   url: string;
+// }
 
 const validationSchema = Yup.object({
-  file: Yup.mixed().required('PDF file is required'),
+  file: Yup.mixed().required('File is required'),
   folderId: Yup.string().required('Folder selection is required')
 });
 
@@ -34,9 +34,9 @@ const PDFUploadForm: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [parsedData, setParsedData] = useState<any>(null);
   const [vendorData, setVendorData] = useState<any>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [preparedTransactions, setPreparedTransactions] = useState<any[]>([]);
-  const [templateTransactions, setTemplateTransactions] = useState<any[]>([]);
+  // const [templateTransactions, setTemplateTransactions] = useState<any[]>([]);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
 
@@ -78,9 +78,9 @@ const PDFUploadForm: React.FC = () => {
       };
       setParsedData(fileData);
       setVendorData(response.data.vendorData);
-      setTransactions(response.data.transactions || []);
+      // setTransactions(response.data.transactions || []);
       setPreparedTransactions(response.data.preparedTransactions || []);
-      setTemplateTransactions(response.data.templateTransactions || []);
+      // setTemplateTransactions(response.data.templateTransactions || []);
       console.log('Parsed data set:', fileData);
       console.log('Vendor data set:', response.data.vendorData);
       console.log('Transactions set:', response.data.transactions);
@@ -118,9 +118,9 @@ const PDFUploadForm: React.FC = () => {
             };
             setParsedData(fileData);
             setVendorData(response.data.vendorData);
-            setTransactions(response.data.transactions || []);
+            // setTransactions(response.data.transactions || []);
             setPreparedTransactions(response.data.preparedTransactions || []);
-            setTemplateTransactions(response.data.templateTransactions || []);
+            // setTemplateTransactions(response.data.templateTransactions || []);
           } catch (retryError) {
             console.error('Retry upload error:', retryError);
           }
@@ -164,8 +164,8 @@ const PDFUploadForm: React.FC = () => {
   };
 
   return (
-    <Box maxW="800px" mx="auto" p={6}>
-      <Text fontSize="2xl" mb={6}>PDF Transaction Processor</Text>
+    <Box maxW="800px" mx="auto">
+      <Text fontSize="2xl" mb={6} color="white">PDF Transaction Processor</Text>
       
       <Formik
         initialValues={{ file: null, folderId: '' }}
@@ -176,10 +176,10 @@ const PDFUploadForm: React.FC = () => {
           <Form>
             <VStack spacing={4}>
               <FormControl isInvalid={!!(errors.file && touched.file)}>
-                <FormLabel>Select PDF File</FormLabel>
+                <FormLabel>Select File (PDF, JPG, PNG)</FormLabel>
                 <Input
                   type="file"
-                  accept=".pdf"
+                  accept=".pdf,.jpg,.jpeg,.png"
                   onChange={(e) => setFieldValue('file', e.target.files?.[0])}
                 />
                 {errors.file && touched.file && <Text color="red.500">{errors.file}</Text>}

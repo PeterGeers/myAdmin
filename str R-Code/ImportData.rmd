@@ -1,0 +1,81 @@
+---
+title: "import DataSets"
+author: "JaBaKi Studios"
+date: "28-9-2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Booking.com
+
+Here we list the 3 studios from which to download the data :
+
+```{r bdc}
+
+
+url <- "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/search_reservations.html?upcoming_reservations=1&source=nav&hotel_id=4392906&lang=en&ses=3e915e852e81630c46774e403f6c181e&date_from=2021-09-01&date_to=2022-12-31&date_type=arrival"
+
+## First change start date String in url to change
+patFrom <- "2021-09-01" ## Old From date
+patTo   <- "2022-12-31" ## Old to date
+
+dateFrom <- "2025-08-01" ## New From Date 
+dateTo   <- "2026-10-01" ## New to date, Max 20 months in future else error in bdc
+
+## Date-from en date-to kunnen in link worden aangepast. 
+url <- sub(patFrom, dateFrom, url, ignore.case = FALSE, perl = FALSE,
+           fixed = FALSE, useBytes = FALSE)
+url <- sub(patTo, dateTo, url, ignore.case = FALSE, perl = FALSE,
+           fixed = FALSE, useBytes = FALSE)
+
+## Dit geldt ook voor accommodatie id
+patListing <- "4392906"
+CF <- "4392906" ## Accomodation ID to change
+RS <- "5615303" ## Accomodation ID to change
+GS <- "5620035" ## Accomodation ID to change
+
+
+urlRS <- sub(patListing, RS, url, ignore.case = FALSE, perl = FALSE,
+           fixed = FALSE, useBytes = FALSE) 
+urlGS <- sub(patListing, GS, url, ignore.case = FALSE, perl = FALSE,
+           fixed = FALSE, useBytes = FALSE) 
+urlCF <- sub(patListing, CF, url, ignore.case = FALSE, perl = FALSE,
+           fixed = FALSE, useBytes = FALSE) 
+
+
+```
+<a href=`r urlRS`>Red Studio (RS)</a>
+
+<a href=`r urlGS`>Green Studio (GS)</a>
+
+<a href=`r urlCF`>Child Friendly (CF)</a>
+
+## airBnB
+
+En de volgende van airBnB:
+
+<a href=https://www.airbnb.nl/hosting/reservations/all> Alles
+Letop: selecteer juiste periode en Alles. Verder selecteer BTW factuur downloaden om kosten van AirBNB te kunnen boeken</a>
+
+
+## JaBaKi Rechtstreeks 
+
+Dit bestand staat al op de goede plek "C:\\Users\\peter\\OneDrive\\R\\AirBnB\\data"
+
+## Further processing
+
+Run writeJaBaKiMySQL.R\
+If wanted Run CreateJabakiResult.R to update existing xlsx file.\
+
+<b>Move to R Finance project for end of Month processing</b>\
+Run LoadBookingComChannelFee.R monthly basis based on received monthly invoice\
+Run loadAirbnbTax.r monthly basis based on tax income\
+Run LoadBnBChannelRevenue.R monthly basis to load revenue and tax based on 1600 acciounts into finance>mutaties
+
+
+
+
+
