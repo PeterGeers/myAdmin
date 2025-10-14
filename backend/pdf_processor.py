@@ -4,13 +4,37 @@ import re
 from datetime import datetime
 from vendor_parsers import VendorParsers
 from config import Config
+import os
+import subprocess
+from PIL import Image
+try:
+    import pytesseract
+    # Configure Tesseract path for Windows
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+except ImportError:
+    pytesseract = None
 
 class PDFProcessor:
     def __init__(self, test_mode: bool = False):
         self.vendor_parsers = VendorParsers()
         self.config = Config(test_mode=test_mode)
         
+    def process_file(self, file_path, drive_result, folder_name='Unknown'):
+        """Process PDF or image file"""
+        file_ext = os.path.splitext(file_path)[1].lower()
+        
+        if file_ext == '.pdf':
+            return self._process_pdf(file_path, drive_result, folder_name)
+        elif file_ext in ['.jpg', '.jpeg', '.png']:
+            return self._process_image(file_path, drive_result, folder_name)
+        else:
+            raise ValueError(f"Unsupported file type: {file_ext}")
+    
     def process_pdf(self, file_path, drive_result, folder_name='Unknown'):
+        """Legacy method for backward compatibility"""
+        return self.process_file(file_path, drive_result, folder_name)
+    
+    def _process_pdf(self, file_path, drive_result, folder_name='Unknown'):
         text_lines = []
         
         # Try PyPDF2 first
@@ -43,6 +67,62 @@ class PDFProcessor:
                 text_lines = [f"[Error reading PDF with both libraries: {str(e)}]"]
         else:
             print(f"PyPDF2 extracted {len(text_lines)} lines")
+        
+        # Use configured folder structure
+        storage_folder = self.config.get_storage_folder(folder_name)
+        self.config.ensure_folder_exists(storage_folder)
+        
+        return {
+            'name': drive_result['id'],
+            'url': drive_result['url'],
+            'txt': '\n'.join(text_lines),
+            'folder': storage_folder
+        }
+    
+    def _process_image(self, file_path, drive_result, folder_name='Unknown'):
+        """Process image file using OCR"""
+        text_lines = []
+        
+        try:
+            # Check if Tesseract is available
+            try:
+                import subprocess
+                subprocess.run([r'C:\Program Files\Tesseract-OCR\tesseract.exe', '--version'], capture_output=True, check=True)
+                tesseract_available = True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                tesseract_available = False
+            
+            if tesseract_available:
+                # Open image and perform OCR
+                image = Image.open(file_path)
+                
+                # Convert to RGB if necessary
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                
+                # Perform OCR
+                text = pytesseract.image_to_string(image)
+                if text.strip():
+                    text_lines.extend(text.split('\n'))
+                else:
+                    text_lines = ["[No text extracted from image]"]
+                    
+                print(f"OCR extracted {len(text_lines)} lines from image")
+            else:
+                # Tesseract not available, provide basic image info
+                image = Image.open(file_path)
+                text_lines = [
+                    f"[Image file processed: {os.path.basename(file_path)}]",
+                    f"[Image size: {image.size[0]}x{image.size[1]}]",
+                    f"[Image mode: {image.mode}]",
+                    "[OCR not available - Tesseract not installed]",
+                    "[Manual text extraction required]"
+                ]
+                print(f"Image processed without OCR: {len(text_lines)} info lines")
+            
+        except Exception as e:
+            print(f"Image processing error: {e}")
+            text_lines = [f"[Error processing image: {str(e)}]"]
         
         # Use configured folder structure
         storage_folder = self.config.get_storage_folder(folder_name)

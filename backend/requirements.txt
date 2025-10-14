@@ -8,3 +8,6 @@ google-api-python-client==2.100.0
 google-auth-httplib2==0.1.1
 google-auth-oauthlib==1.0.0
 Werkzeug==2.3.7
+Pillow>=8.0.0
+pytesseract==0.3.13
+pandas==2.0.3
