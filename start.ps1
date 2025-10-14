@@ -1,27 +1,17 @@
-Write-Host "Starting PDF Transaction Processor..." -ForegroundColor Green
-Write-Host ""
+# Start myAdmin application in virtual environment
+Write-Host "Starting myAdmin application..." -ForegroundColor Green
 
-Write-Host "Installing Backend Dependencies..." -ForegroundColor Yellow
-Set-Location backend
-pip install -r requirements.txt
-Write-Host ""
+# Activate virtual environment and start backend
+Write-Host "Starting backend server..." -ForegroundColor Yellow
+Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot'; .\.venv\Scripts\Activate.ps1; cd backend; python app.py"
 
-Write-Host "Starting Backend Server..." -ForegroundColor Yellow
-$backend = Start-Process powershell -ArgumentList "-NoExit", "-Command", "python app.py" -PassThru
-Set-Location ..
-
-Write-Host "Waiting for backend to initialize..." -ForegroundColor Yellow
+# Wait a moment for backend to start
 Start-Sleep -Seconds 3
 
-Write-Host "Starting Frontend Server..." -ForegroundColor Yellow
-Set-Location frontend
-$frontend = Start-Process powershell -ArgumentList "-NoExit", "-Command", "npm start" -PassThru
-Set-Location ..
+# Start frontend
+Write-Host "Starting frontend server..." -ForegroundColor Yellow
+Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\frontend'; npm start"
 
-Write-Host ""
-Write-Host "Both servers are starting:" -ForegroundColor Green
-Write-Host "Backend: http://localhost:5000 (PID: $($backend.Id))" -ForegroundColor Cyan
-Write-Host "Frontend: http://localhost:3000 (PID: $($frontend.Id))" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Press any key to exit this window..." -ForegroundColor Yellow
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Write-Host "Both servers starting..." -ForegroundColor Green
+Write-Host "Backend: http://localhost:5000" -ForegroundColor Cyan
+Write-Host "Frontend: http://localhost:3000" -ForegroundColor Cyan

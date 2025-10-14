@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myAdmin Banking Processor - User Manual</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #e74c3c;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #e74c3c;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #2c3e50;
+            margin-top: 25px;
+        }
+        .toc {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 5px 0;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #c0392b;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .business-logic {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .business-logic h4 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .feature-box {
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+        }
+        .warning {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #e74c3c;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .workflow {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .workflow-step {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            margin: 0 5px;
+            background: #e74c3c;
+            color: white;
+            border-radius: 5px;
+        }
+        .workflow-arrow {
+            align-self: center;
+            font-size: 24px;
+            color: #e74c3c;
+        }
+        .bank-format {
+            background: #e8f4f8;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>myAdmin Banking Processor - User Manual</h1>
+        <p><strong>Version:</strong> 1.0 | <strong>Date:</strong> December 2024 | <strong>Author:</strong> JaBaKi Studios</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">1. System Overview</a></li>
+                <li><a href="#architecture">2. System Architecture</a></li>
+                <li><a href="#file-formats">3. Supported File Formats</a></li>
+                <li><a href="#business-logic">4. Business Logic & Processing Rules</a></li>
+                <li><a href="#pattern-matching">5. Pattern Matching System</a></li>
+                <li><a href="#duplicate-detection">6. Duplicate Detection</a></li>
+                <li><a href="#user-interface">7. User Interface Guide</a></li>
+                <li><a href="#workflows">8. Standard Workflows</a></li>
+                <li><a href="#database-structure">9. Database Structure</a></li>
+                <li><a href="#troubleshooting">10. Troubleshooting</a></li>
+                <li><a href="#maintenance">11. Maintenance & Updates</a></li>
+            </ul>
+        </div>
+
+        <h2 id="overview">1. System Overview</h2>
+        <p>The myAdmin Banking Processor is a sophisticated transaction processing system designed to automate the import and categorization of bank transactions from multiple financial institutions. The system processes CSV and TSV files, applies intelligent pattern matching for account classification, and maintains comprehensive duplicate detection.</p>
+
+        <div class="feature-box">
+            <h3>Key Features</h3>
+            <ul>
+                <li><strong>Multi-Bank Support:</strong> Rabobank CSV, Revolut TSV, Generic CSV formats</li>
+                <li><strong>Intelligent Pattern Matching:</strong> Automatic debit/credit account assignment</li>
+                <li><strong>Duplicate Prevention:</strong> Sequence-based duplicate detection per IBAN</li>
+                <li><strong>Test/Production Modes:</strong> Safe testing environment with separate database tables</li>
+                <li><strong>Real-time Validation:</strong> Field validation and error highlighting</li>
+                <li><strong>Historical Pattern Learning:</strong> Learns from previous transaction categorizations</li>
+            </ul>
+        </div>
+
+        <h2 id="architecture">2. System Architecture</h2>
+        
+        <div class="workflow">
+            <div class="workflow-step">File Upload<br>(CSV/TSV)</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Format Detection<br>& Parsing</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Pattern Matching<br>& Classification</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Duplicate Check<br>& Validation</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Database Storage<br>(MySQL)</div>
+        </div>
+
+        <h3>Technology Stack</h3>
+        <table>
+            <tr><th>Component</th><th>Technology</th><th>Purpose</th></tr>
+            <tr><td>Frontend</td><td>React.js + TypeScript + Chakra UI</td><td>Transaction review and editing interface</td></tr>
+            <tr><td>Backend</td><td>Python Flask + pandas</td><td>File processing and business logic</td></tr>
+            <tr><td>Database</td><td>MySQL</td><td>Transaction storage and pattern history</td></tr>
+            <tr><td>File Processing</td><td>pandas + CSV parsing</td><td>Multi-format file parsing</td></tr>
+        </table>
+
+        <h2 id="file-formats">3. Supported File Formats</h2>
+
+        <h3>Rabobank CSV Format</h3>
+        <div class="bank-format">
+            <h4>File Pattern: CSV_[O|A]*.csv</h4>
+            <p><strong>Encoding:</strong> Latin-1 (ISO-8859-1)</p>
+            <p><strong>Column Structure:</strong> 22+ columns with specific positioning</p>
+            
+            <div class="business-logic">
+                <h4>Key Column Mappings</h4>
+                <table>
+                    <tr><th>Column Index</th><th>Field Name</th><th>Usage</th></tr>
+                    <tr><td>0</td><td>IBAN</td><td>Account identification (Ref1)</td></tr>
+                    <tr><td>3</td><td>Volgnr</td><td>Sequence number (Ref2)</td></tr>
+                    <tr><td>4</td><td>Datum</td><td>Transaction date</td></tr>
+                    <tr><td>6</td><td>Bedrag</td><td>Amount with +/- sign</td></tr>
+                    <tr><td>7</td><td>Saldo na trn</td><td>Balance after transaction</td></tr>
+                    <tr><td>8</td><td>Tegenrekening</td><td>Counter-party account</td></tr>
+                    <tr><td>9</td><td>Naam tegenpartij</td><td>Counter-party name</td></tr>
+                    <tr><td>15</td><td>Kenmerk</td><td>Reference number</td></tr>
+                    <tr><td>18-21</td><td>Omschrijving 1-4</td><td>Description fields</td></tr>
+                </table>
+            </div>
+
+            <div class="business-logic">
+                <h4>Processing Logic</h4>
+                <div class="code-block">
+# Amount processing
+amount_str = columns[6]  # e.g., "+123.45" or "-67.89"
+is_negative = amount_str.startswith('-')
+clean_amount = amount_str.replace(/[+-]/g, '').replace(',', '.')
+amount = parseFloat(clean_amount)
+
+# Debit/Credit assignment
+if is_negative:
+    credit = bank_account  # Money going out
+    debet = ''
+else:
+    debet = bank_account   # Money coming in
+    credit = ''
+                </div>
+            </div>
+        </div>
+
+        <h3>Revolut TSV Format</h3>
+        <div class="bank-format">
+            <h4>File Pattern: *.tsv</h4>
+            <p><strong>Encoding:</strong> UTF-8</p>
+            <p><strong>Separator:</strong> Tab-delimited</p>
+            
+            <div class="business-logic">
+                <h4>Key Column Mappings</h4>
+                <table>
+                    <tr><th>Column Index</th><th>Field Name</th><th>Usage</th></tr>
+                    <tr><td>0</td><td>Type</td><td>Transaction type</td></tr>
+                    <tr><td>1</td><td>Product</td><td>Account product</td></tr>
+                    <tr><td>2</td><td>Startdatum</td><td>Transaction date</td></tr>
+                    <tr><td>4</td><td>Beschrijving</td><td>Description</td></tr>
+                    <tr><td>5</td><td>Bedrag</td><td>Transaction amount</td></tr>
+                    <tr><td>6</td><td>Kosten</td><td>Fee amount</td></tr>
+                    <tr><td>7</td><td>Valuta</td><td>Currency</td></tr>
+                    <tr><td>8</td><td>Status</td><td>Transaction status</td></tr>
+                    <tr><td>9</td><td>Saldo</td><td>Account balance</td></tr>
+                </table>
+            </div>
+
+            <div class="business-logic">
+                <h4>Status Filtering Logic</h4>
+                <div class="code-block">
+# Skip problematic transactions (following R script logic)
+status = columns[8]
+if status.includes('REVERTED') or status.includes('PENDING'):
+    return  # Skip this transaction
+
+# Process main transaction
+amount = parseFloat(columns[5].replace(',', '.'))
+fee = parseFloat(columns[6].replace(',', '.'))
+
+# Create separate fee transaction if fee > 0
+if fee > 0:
+    create_fee_transaction(fee, 'Revo Charges')
+                </div>
+            </div>
+
+            <div class="info">
+                <strong>Hardcoded IBAN:</strong> NL08REVO7549383472 (Revolut files don't contain IBAN)
+            </div>
+        </div>
+
+        <h2 id="business-logic">4. Business Logic & Processing Rules</h2>
+
+        <h3>Transaction Number Generation</h3>
+        <div class="business-logic">
+            <h4>Bank-Specific Prefixes</h4>
+            <div class="code-block">
+# Rabobank transactions
+if iban.includes('RABO'):
+    transaction_number = f"RABO {current_date}"
+else:
+    transaction_number = f"BANK {current_date}"
+
+# Revolut transactions
+transaction_number = f"Revolut {current_date}"
+            </div>
+        </div>
+
+        <h3>Description Field Construction</h3>
+        <div class="business-logic">
+            <h4>Rabobank Description Logic</h4>
+            <div class="code-block">
+# Combine multiple description fields
+description_parts = [
+    columns[9],   # Naam tegenpartij
+    columns[19],  # Omschrijving-1
+    columns[20],  # Omschrijving-2
+    columns[21],  # Omschrijving-3
+    columns[18],  # Betalingskenmerk
+    columns[8],   # Tegenrekening IBAN/BBAN
+    columns[7]    # Saldo na trn
+]
+
+# Filter and clean
+description = ' '.join([
+    field for field in description_parts 
+    if field.strip() and field.strip() != 'NA'
+]).replace(/\s+/g, ' ')
+ .replace(/Google Pay/g, 'GPay')
+ .trim()
+            </div>
+        </div>
+
+        <h3>Reference Field Logic</h3>
+        <div class="business-logic">
+            <h4>Ref2 Generation (Revolut)</h4>
+            <p>Following R script logic: paste_cols_by_index(df, c(1, 5, 7, 6, 8, 9, 1, 3, 2), "_")</p>
+            <div class="code-block">
+# Create structured reference from multiple columns
+ref2_parts = [
+    columns[0],  # Type
+    columns[4],  # Beschrijving
+    columns[6],  # Kosten
+    columns[5],  # Bedrag
+    columns[7],  # Valuta
+    columns[8],  # Status
+    columns[0],  # Type (again)
+    columns[2],  # Startdatum
+    columns[1]   # Product
+]
+ref2 = '_'.join(ref2_parts)
+            </div>
+        </div>
+
+        <h3>Account Lookup Integration</h3>
+        <div class="business-logic">
+            <h4>Bank Account Mapping</h4>
+            <p>System queries database for IBAN-to-account mappings:</p>
+            <div class="code-block">
+# Query bank_accounts table
+bank_lookup = db.query(
+    "SELECT Account, Administration FROM bank_accounts WHERE rekeningNummer = %s",
+    iban
+)
+
+# Apply defaults if not found
+account = bank_lookup.Account if bank_lookup else default_account
+administration = bank_lookup.Administration if bank_lookup else default_admin
+            </div>
+            
+            <table>
+                <tr><th>Bank</th><th>Default Account</th><th>Default Administration</th></tr>
+                <tr><td>Rabobank</td><td>1000</td><td>GoodwinSolutions</td></tr>
+                <tr><td>Revolut</td><td>1023</td><td>PeterPrive</td></tr>
+                <tr><td>Other</td><td>1000</td><td>GoodwinSolutions</td></tr>
+            </table>
+        </div>
+
+        <h2 id="pattern-matching">5. Pattern Matching System</h2>
+
+        <h3>Historical Pattern Learning</h3>
+        <div class="business-logic">
+            <h4>Pattern Storage Logic</h4>
+            <p>System learns from historical transactions to automatically assign debit/credit accounts:</p>
+            <div class="code-block">
+# Query historical patterns
+patterns = db.query("""
+    SELECT referenceNumber, debet, credit, administration
+    FROM mutaties 
+    WHERE administration = %s 
+    AND referenceNumber IS NOT NULL
+    GROUP BY referenceNumber, debet, credit
+""", administration)
+
+# Build pattern groups
+for pattern in patterns:
+    if pattern.debet and pattern.debet < '1300':
+        debet_patterns[pattern.referenceNumber] = {
+            'debet': pattern.debet,
+            'credit': pattern.credit
+        }
+            </div>
+        </div>
+
+        <h3>Pattern Application</h3>
+        <div class="business-logic">
+            <h4>Automatic Account Assignment</h4>
+            <div class="code-block">
+# Apply patterns to new transactions
+for transaction in transactions:
+    description = transaction.TransactionDescription
+    
+    # If Credit is empty, try debet patterns
+    if not transaction.Credit:
+        for reference, accounts in debet_patterns.items():
+            if re.search(reference, description, re.IGNORECASE):
+                transaction.ReferenceNumber = reference
+                transaction.Credit = accounts.credit
+                break
+    
+    # If Debet is empty, try credit patterns
+    elif not transaction.Debet:
+        for reference, accounts in credit_patterns.items():
+            if re.search(reference, description, re.IGNORECASE):
+                transaction.ReferenceNumber = reference
+                transaction.Debet = accounts.debet
+                break
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>Pattern Scope:</strong> Patterns are administration-specific and only apply to accounts below 1300 (operational accounts, not bank accounts)
+        </div>
+
+        <h2 id="duplicate-detection">6. Duplicate Detection</h2>
+
+        <h3>Sequence-Based Detection</h3>
+        <div class="business-logic">
+            <h4>IBAN-Specific Sequence Tracking</h4>
+            <p>Each bank account (IBAN) maintains its own sequence numbering:</p>
+            <div class="code-block">
+# Check existing sequences for specific IBAN
+existing_sequences = db.query("""
+    SELECT DISTINCT Ref2 
+    FROM mutaties 
+    WHERE Ref1 = %s 
+    AND Ref2 IS NOT NULL
+""", iban)
+
+# Filter out duplicates
+new_transactions = [
+    t for t in transactions 
+    if t.Ref2 not in existing_sequences
+]
+            </div>
+        </div>
+
+        <h3>Duplicate Handling Logic</h3>
+        <table>
+            <tr><th>Detection Method</th><th>Field Used</th><th>Scope</th></tr>
+            <tr><td>Rabobank</td><td>Ref2 (Volgnr)</td><td>Per IBAN</td></tr>
+            <tr><td>Revolut</td><td>Ref2 (Composite)</td><td>Per IBAN</td></tr>
+            <tr><td>Generic</td><td>Ref2 (Generated)</td><td>Per IBAN</td></tr>
+        </table>
+
+        <div class="warning">
+            <strong>Important:</strong> Duplicate detection is IBAN-specific. The same sequence number can exist for different bank accounts without conflict.
+        </div>
+
+        <h2 id="user-interface">7. User Interface Guide</h2>
+
+        <h3>Main Interface Components</h3>
+
+        <div class="feature-box">
+            <h4>Mode Selection</h4>
+            <ul>
+                <li><strong>TEST Mode:</strong> Uses mutaties_test table (safe for testing)</li>
+                <li><strong>PRODUCTION Mode:</strong> Uses mutaties table (live data)</li>
+                <li><strong>Toggle:</strong> Switch between modes with visual indicator</li>
+            </ul>
+        </div>
+
+        <div class="feature-box">
+            <h4>File Selection</h4>
+            <ul>
+                <li><strong>Multi-File Upload:</strong> Select multiple CSV/TSV files simultaneously</li>
+                <li><strong>File Validation:</strong> Only accepts .csv and .tsv formats</li>
+                <li><strong>File Information:</strong> Shows filename and size for each selected file</li>
+            </ul>
+        </div>
+
+        <div class="feature-box">
+            <h4>Transaction Review Table</h4>
+            <ul>
+                <li><strong>Editable Fields:</strong> All transaction fields can be modified before saving</li>
+                <li><strong>Validation Indicators:</strong> Required fields highlighted in red if empty</li>
+                <li><strong>Account Suggestions:</strong> Dropdown lists with historical account codes</li>
+                <li><strong>Dual-Row Layout:</strong> Main fields on top row, reference fields on bottom</li>
+            </ul>
+        </div>
+
+        <h3>Action Buttons</h3>
+        <table>
+            <tr><th>Button</th><th>Function</th><th>When Available</th></tr>
+            <tr><td>Process Files</td><td>Parse selected files and load transactions</td><td>When files selected</td></tr>
+            <tr><td>Apply Patterns</td><td>Run pattern matching on loaded transactions</td><td>When transactions loaded</td></tr>
+            <tr><td>Save to Database</td><td>Store approved transactions in database</td><td>When transactions loaded</td></tr>
+            <tr><td>Clear Selection</td><td>Remove all selected files</td><td>When files selected</td></tr>
+        </table>
+
+        <h2 id="workflows">8. Standard Workflows</h2>
+
+        <h3>Monthly Bank Import Workflow</h3>
+        <div class="workflow">
+            <div class="workflow-step">1. Download Bank Files</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">2. Select Files in UI</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">3. Process & Review</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">4. Apply Patterns</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">5. Save to Database</div>
+        </div>
+
+        <h3>New Bank Account Setup</h3>
+        <ol>
+            <li>Add IBAN to bank_accounts table with account code and administration</li>
+            <li>Test with sample file in TEST mode</li>
+            <li>Verify account assignments and descriptions</li>
+            <li>Switch to PRODUCTION mode for live processing</li>
+        </ol>
+
+        <h3>Pattern Training Workflow</h3>
+        <ol>
+            <li>Process transactions with manual account assignments</li>
+            <li>Save transactions to build pattern history</li>
+            <li>Future transactions with similar descriptions will auto-assign accounts</li>
+            <li>Review and adjust patterns as needed</li>
+        </ol>
+
+        <h2 id="database-structure">9. Database Structure</h2>
+
+        <h3>Main Transaction Tables</h3>
+
+        <h4>mutaties / mutaties_test Tables</h4>
+        <table>
+            <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+            <tr><td>TransactionNumber</td><td>VARCHAR</td><td>Bank prefix + date (e.g., "RABO 2024-12-15")</td></tr>
+            <tr><td>TransactionDate</td><td>DATE</td><td>Transaction execution date</td></tr>
+            <tr><td>TransactionDescription</td><td>TEXT</td><td>Combined description from multiple fields</td></tr>
+            <tr><td>TransactionAmount</td><td>DECIMAL(10,2)</td><td>Transaction amount (always positive)</td></tr>
+            <tr><td>Debet</td><td>VARCHAR(10)</td><td>Debit account code</td></tr>
+            <tr><td>Credit</td><td>VARCHAR(10)</td><td>Credit account code</td></tr>
+            <tr><td>ReferenceNumber</td><td>VARCHAR</td><td>Pattern matching reference</td></tr>
+            <tr><td>Ref1</td><td>VARCHAR</td><td>IBAN or account identifier</td></tr>
+            <tr><td>Ref2</td><td>VARCHAR</td><td>Sequence number or composite reference</td></tr>
+            <tr><td>Ref3</td><td>VARCHAR</td><td>Balance or additional reference</td></tr>
+            <tr><td>Ref4</td><td>VARCHAR</td><td>Source filename</td></tr>
+            <tr><td>Administration</td><td>VARCHAR</td><td>Business unit (GoodwinSolutions, PeterPrive)</td></tr>
+        </table>
+
+        <h4>bank_accounts Table (Lookup)</h4>
+        <table>
+            <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+            <tr><td>rekeningNummer</td><td>VARCHAR</td><td>IBAN or account number</td></tr>
+            <tr><td>Account</td><td>VARCHAR(10)</td><td>Chart of accounts code</td></tr>
+            <tr><td>Administration</td><td>VARCHAR</td><td>Business unit assignment</td></tr>
+        </table>
+
+        <h3>Pattern Learning Logic</h3>
+        <div class="business-logic">
+            <h4>Pattern Extraction Query</h4>
+            <div class="code-block">
+SELECT 
+    referenceNumber,
+    debet,
+    credit,
+    administration,
+    COUNT(*) as frequency
+FROM mutaties 
+WHERE administration = %s 
+    AND referenceNumber IS NOT NULL
+    AND (debet < '1300' OR credit < '1300')  -- Operational accounts only
+GROUP BY referenceNumber, debet, credit, administration
+HAVING COUNT(*) >= 2  -- Minimum frequency for pattern
+ORDER BY frequency DESC
+            </div>
+        </div>
+
+        <h2 id="troubleshooting">10. Troubleshooting</h2>
+
+        <h3>Common File Processing Issues</h3>
+
+        <div class="warning">
+            <h4>Encoding Problems</h4>
+            <ul>
+                <li><strong>Rabobank CSV:</strong> Must be Latin-1 encoded (not UTF-8)</li>
+                <li><strong>Revolut TSV:</strong> Must be UTF-8 encoded</li>
+                <li><strong>Symptoms:</strong> Garbled characters, parsing errors</li>
+                <li><strong>Solution:</strong> Check file encoding in text editor</li>
+            </ul>
+        </div>
+
+        <div class="warning">
+            <h4>Column Mismatch Errors</h4>
+            <ul>
+                <li><strong>Cause:</strong> Bank changed export format</li>
+                <li><strong>Symptoms:</strong> Wrong data in fields, missing descriptions</li>
+                <li><strong>Solution:</strong> Update column mappings in processor code</li>
+            </ul>
+        </div>
+
+        <h3>Database Connection Issues</h3>
+        <div class="warning">
+            <ul>
+                <li><strong>Check .env file:</strong> Verify database credentials</li>
+                <li><strong>Test connection:</strong> Use database client to verify connectivity</li>
+                <li><strong>Table permissions:</strong> Ensure user has INSERT/SELECT rights</li>
+            </ul>
+        </div>
+
+        <h3>Pattern Matching Problems</h3>
+        <div class="info">
+            <ul>
+                <li><strong>No patterns applied:</strong> Check if historical data exists for administration</li>
+                <li><strong>Wrong accounts assigned:</strong> Review pattern history and clean up duplicates</li>
+                <li><strong>Missing reference numbers:</strong> Manually assign and save to build patterns</li>
+            </ul>
+        </div>
+
+        <h2 id="maintenance">11. Maintenance & Updates</h2>
+
+        <h3>Regular Maintenance Tasks</h3>
+
+        <div class="success">
+            <h4>Monthly Tasks</h4>
+            <ul>
+                <li><strong>Pattern Review:</strong> Check pattern effectiveness and clean up obsolete patterns</li>
+                <li><strong>Account Validation:</strong> Verify new account codes are properly categorized</li>
+                <li><strong>Duplicate Check:</strong> Monitor for any duplicate detection failures</li>
+            </ul>
+        </div>
+
+        <div class="success">
+            <h4>Quarterly Tasks</h4>
+            <ul>
+                <li><strong>Bank Format Updates:</strong> Check for changes in bank export formats</li>
+                <li><strong>Performance Review:</strong> Analyze processing times and optimize if needed</li>
+                <li><strong>Database Cleanup:</strong> Archive old test data from mutaties_test table</li>
+            </ul>
+        </div>
+
+        <h3>Adding New Bank Support</h3>
+        <ol>
+            <li><strong>Analyze Format:</strong> Study new bank's CSV/TSV structure</li>
+            <li><strong>Update Parser:</strong> Add format detection and column mapping</li>
+            <li><strong>Test Processing:</strong> Use TEST mode to verify parsing accuracy</li>
+            <li><strong>Add Lookup Entry:</strong> Insert IBAN mapping in bank_accounts table</li>
+            <li><strong>Document Changes:</strong> Update this manual with new format details</li>
+        </ol>
+
+        <h3>System Monitoring</h3>
+        <ul>
+            <li><strong>Error Logs:</strong> Monitor Flask application logs for processing errors</li>
+            <li><strong>Database Growth:</strong> Track transaction table size and performance</li>
+            <li><strong>Pattern Accuracy:</strong> Review manual corrections to improve patterns</li>
+            <li><strong>User Feedback:</strong> Collect feedback on interface usability and accuracy</li>
+        </ul>
+
+        <div class="info">
+            <strong>Support:</strong> For technical issues, check the GitHub repository or contact JaBaKi Studios.<br>
+            <strong>Version:</strong> This manual covers myAdmin Banking Processor v1.0 (December 2024)
+        </div>
+    </div>
+</body>
+</html>

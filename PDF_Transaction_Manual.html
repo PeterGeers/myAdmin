@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myAdmin PDF Transaction Processor - User Manual</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #f39c12;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #f39c12;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #2c3e50;
+            margin-top: 25px;
+        }
+        .toc {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 5px 0;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #d68910;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .business-logic {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .business-logic h4 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .feature-box {
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+        }
+        .warning {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f39c12;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .workflow {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .workflow-step {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            margin: 0 5px;
+            background: #f39c12;
+            color: white;
+            border-radius: 5px;
+        }
+        .workflow-arrow {
+            align-self: center;
+            font-size: 24px;
+            color: #f39c12;
+        }
+        .vendor-parser {
+            background: #e8f4f8;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .parser-example {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>myAdmin PDF Transaction Processor - User Manual</h1>
+        <p><strong>Version:</strong> 1.0 | <strong>Date:</strong> December 2024 | <strong>Author:</strong> JaBaKi Studios</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">1. System Overview</a></li>
+                <li><a href="#architecture">2. System Architecture</a></li>
+                <li><a href="#file-processing">3. File Processing Engine</a></li>
+                <li><a href="#vendor-parsers">4. Vendor-Specific Parsers</a></li>
+                <li><a href="#transaction-logic">5. Transaction Logic & Business Rules</a></li>
+                <li><a href="#database-integration">6. Database Integration</a></li>
+                <li><a href="#user-interface">7. User Interface Guide</a></li>
+                <li><a href="#workflows">8. Standard Workflows</a></li>
+                <li><a href="#google-drive">9. Google Drive Integration</a></li>
+                <li><a href="#troubleshooting">10. Troubleshooting</a></li>
+                <li><a href="#maintenance">11. Maintenance & Updates</a></li>
+            </ul>
+        </div>
+
+        <h2 id="overview">1. System Overview</h2>
+        <p>The myAdmin PDF Transaction Processor is an intelligent document processing system that automates the extraction and categorization of financial transactions from PDF invoices and image receipts. The system combines OCR technology, vendor-specific parsing logic, and smart transaction preparation to streamline accounting workflows.</p>
+
+        <div class="feature-box">
+            <h3>Key Features</h3>
+            <ul>
+                <li><strong>Multi-Format Support:</strong> PDF, JPG, PNG files with OCR capability</li>
+                <li><strong>Vendor-Specific Parsing:</strong> Specialized extractors for 12+ vendors</li>
+                <li><strong>Smart Transaction Preparation:</strong> Template-based transaction generation</li>
+                <li><strong>Google Drive Integration:</strong> Automatic cloud storage and organization</li>
+                <li><strong>VAT Calculation:</strong> Automatic 21% VAT computation and separate transactions</li>
+                <li><strong>Database Lookup Integration:</strong> Accommodation and account code resolution</li>
+                <li><strong>Test/Production Modes:</strong> Safe testing environment</li>
+            </ul>
+        </div>
+
+        <h2 id="architecture">2. System Architecture</h2>
+        
+        <div class="workflow">
+            <div class="workflow-step">File Upload<br>(PDF/Image)</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Text Extraction<br>(PyPDF2/OCR)</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Vendor Parsing<br>& Data Extraction</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Transaction<br>Preparation</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Database<br>Storage</div>
+        </div>
+
+        <h3>Technology Stack</h3>
+        <table>
+            <tr><th>Component</th><th>Technology</th><th>Purpose</th></tr>
+            <tr><td>PDF Processing</td><td>PyPDF2 + pdfplumber</td><td>Text extraction with fallback support</td></tr>
+            <tr><td>OCR Engine</td><td>Tesseract + pytesseract</td><td>Image-to-text conversion</td></tr>
+            <tr><td>Vendor Parsing</td><td>Python regex + custom logic</td><td>Structured data extraction</td></tr>
+            <tr><td>Cloud Storage</td><td>Google Drive API</td><td>File organization and access</td></tr>
+            <tr><td>Database</td><td>MySQL</td><td>Transaction storage and lookups</td></tr>
+            <tr><td>Frontend</td><td>React.js + Chakra UI</td><td>User interface and transaction review</td></tr>
+        </table>
+
+        <h2 id="file-processing">3. File Processing Engine</h2>
+
+        <h3>PDF Text Extraction</h3>
+        <div class="business-logic">
+            <h4>Dual-Engine Approach</h4>
+            <p>The system uses a fallback strategy for maximum text extraction success:</p>
+            <div class="code-block">
+# Primary: PyPDF2 (fast, handles most PDFs)
+try:
+    with open(file_path, 'rb') as file:
+        pdf_reader = PyPDF2.PdfReader(file)
+        for page in pdf_reader.pages:
+            text = page.extract_text()
+            text_lines.extend(text.split('\n'))
+except Exception:
+    # Fallback: pdfplumber (slower, better for complex layouts)
+    with pdfplumber.open(file_path) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text()
+            text_lines.extend(text.split('\n'))
+            </div>
+        </div>
+
+        <h3>Image Processing & OCR</h3>
+        <div class="business-logic">
+            <h4>Tesseract OCR Integration</h4>
+            <p><strong>Supported Formats:</strong> JPG, JPEG, PNG</p>
+            <p><strong>OCR Path:</strong> C:\Program Files\Tesseract-OCR\tesseract.exe</p>
+            <div class="code-block">
+# Image preprocessing and OCR
+image = Image.open(file_path)
+if image.mode != 'RGB':
+    image = image.convert('RGB')
+
+# Perform OCR with Tesseract
+text = pytesseract.image_to_string(image)
+text_lines = text.split('\n')
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>OCR Fallback:</strong> If Tesseract is not installed, the system provides basic image metadata without text extraction.
+        </div>
+
+        <h2 id="vendor-parsers">4. Vendor-Specific Parsers</h2>
+
+        <h3>Booking.com Parser</h3>
+        <div class="vendor-parser">
+            <h4>Business Logic</h4>
+            <p><strong>Key Extractions:</strong> Date, Total Amount, VAT Amount, Accommodation Number, Invoice Number, Commission Type</p>
+            
+            <div class="business-logic">
+                <h4>Date Extraction</h4>
+                <div class="code-block">
+# Look for "Datum:" or "Date:" followed by DD/MM/YYYY
+if 'datum:' in line_lower or 'date:' in line_lower:
+    date_match = re.search(r'(\d{2}/\d{2}/\d{4})', line)
+    if date_match:
+        day, month, year = date_str.split('/')
+        data['date'] = f"{year}-{month}-{day}"
+                </div>
+            </div>
+
+            <div class="business-logic">
+                <h4>Amount Extraction</h4>
+                <div class="code-block">
+# Total amount: "Totaal EUR 123.45" or "Total amount due EUR 123.45"
+if 'totaal eur' in line_lower or 'total amount due eur' in line_lower:
+    amount_match = re.search(r'eur\s+(\d+[,.]d+)', line_lower)
+    data['total_amount'] = float(amount_match.group(1).replace(',', '.'))
+
+# VAT calculation: 21% of total/121*21 if not found explicitly
+if data['vat_amount'] == 0 and data['total_amount'] > 0:
+    data['vat_amount'] = round((data['total_amount'] / 121) * 21, 2)
+                </div>
+            </div>
+
+            <div class="business-logic">
+                <h4>Database Lookup Integration</h4>
+                <div class="code-block">
+# Accommodation name lookup from bnblookup table
+if data['accommodation_number']:
+    bnb_lookup = db.get_bnb_lookup('bdc')
+    for entry in bnb_lookup:
+        if str(entry.get('id', '')) == data['accommodation_number']:
+            data['accommodation_name'] = entry.get('name', '')
+            break
+                </div>
+            </div>
+
+            <div class="parser-example">
+<strong>Example Input:</strong>
+Datum: 15/12/2024
+Accommodation number: 4392906
+Invoice number: INV123456
+Description: Room Sales Commission
+Totaal EUR 121.00
+VAT EUR 21.00
+
+<strong>Parsed Output:</strong>
+{
+  "date": "2024-12-15",
+  "accommodation_number": "4392906",
+  "accommodation_name": "Garden House",
+  "invoice_number": "INV123456",
+  "commission_type": "Room Sales Commission",
+  "total_amount": 121.00,
+  "vat_amount": 21.00,
+  "description": "Garden House INV123456 Room Sales Commission 2024-12-15"
+}
+            </div>
+        </div>
+
+        <h3>Netflix Parser</h3>
+        <div class="vendor-parser">
+            <h4>Business Logic</h4>
+            <p><strong>Key Extractions:</strong> Receipt Number, Service Period, Net Amount, VAT Amount, Total Amount</p>
+            
+            <div class="business-logic">
+                <h4>Structured Data Extraction</h4>
+                <div class="code-block">
+# Look for header: "Date Description Service Period Amount VAT % VAT Total"
+if ('date' in line_lower and 'description' in line_lower and 
+    ('service' in line_lower or 'period' in line_lower)):
+    
+    # Next line contains data: "17/09/2025 Streaming Service 17/09/2025–16/10/2025 €15.69 21% €3.30 €18.99"
+    data_line = lines[i + 1]
+    
+    # Extract amounts: €15.69 (net), €3.30 (VAT), €18.99 (total)
+    amounts = re.findall(r'€([\d,.]+)', data_line)
+    if len(amounts) >= 3:
+        net_amount = float(amounts[0].replace(',', '.'))
+        data['vat_amount'] = float(amounts[1].replace(',', '.'))
+        data['total_amount'] = float(amounts[2].replace(',', '.'))
+                </div>
+            </div>
+
+            <div class="parser-example">
+<strong>Example Input:</strong>
+Receipt No. 94822-1FD20-77BF4-18517
+Date Description Service Period Amount VAT % VAT Total
+17/09/2025 Streaming Service 17/09/2025–16/10/2025 €15.69 21% €3.30 €18.99
+
+<strong>Parsed Output:</strong>
+{
+  "date": "2025-09-17",
+  "receipt_number": "94822-1FD20-77BF4-18517",
+  "subscription_period": "17/09/2025–16/10/2025",
+  "total_amount": 18.99,
+  "vat_amount": 3.30,
+  "description": "Netflix Streaming Service 17/09/2025–16/10/2025 Receipt No. 94822-1FD20-77BF4-18517"
+}
+            </div>
+        </div>
+
+        <h3>BTW (Tax) Parser</h3>
+        <div class="vendor-parser">
+            <h4>Business Logic</h4>
+            <p><strong>Special Rule:</strong> BTW invoices are government tax payments and contain NO additional VAT</p>
+            
+            <div class="business-logic">
+                <h4>Amount Extraction with European Formatting</h4>
+                <div class="code-block">
+# Handle "Totaal te betalen € 1.866" format (European thousands separator)
+if 'totaal' in line_lower and 'betalen' in line_lower:
+    amount_match = re.search(r'€\s*([\d\.,]+)', line)
+    amount_str = amount_match.group(1)
+    
+    # Convert European format: 1.866 = 1866 (thousands separator)
+    if '.' in amount_str and ',' not in amount_str and len(amount_str.split('.')[-1]) == 3:
+        amount_str = amount_str.replace('.', '')
+    else:
+        amount_str = amount_str.replace(',', '.')
+    
+    data['total_amount'] = float(amount_str)
+    data['vat_amount'] = 0.0  # BTW payments have NO additional VAT
+                </div>
+            </div>
+
+            <div class="parser-example">
+<strong>Example Input:</strong>
+Belastingdienst
+Aangiftenummer: 2024Q4001
+Betalingskenmerk: 1234567890123456
+Afgedrukt op
+15-12-2024
+Totaal te betalen € 1.866
+
+<strong>Parsed Output:</strong>
+{
+  "date": "2024-12-15",
+  "aangiftenummer": "2024Q4001",
+  "betalingskenmerk": "1234567890123456",
+  "total_amount": 1866.00,
+  "vat_amount": 0.00,
+  "description": "Aangiftenummer 2024Q4001 betalingskenmerk 1234567890123456 Belastingdienst"
+}
+            </div>
+        </div>
+
+        <h3>Supported Vendors</h3>
+        <table>
+            <tr><th>Vendor</th><th>Parser Status</th><th>Key Features</th></tr>
+            <tr><td>Booking.com</td><td>Full Implementation</td><td>Accommodation lookup, commission parsing</td></tr>
+            <tr><td>Netflix</td><td>Full Implementation</td><td>Receipt tracking, service period extraction</td></tr>
+            <tr><td>BTW/Tax</td><td>Full Implementation</td><td>European number format, zero VAT handling</td></tr>
+            <tr><td>Coursera</td><td>Full Implementation</td><td>Order number, product details extraction</td></tr>
+            <tr><td>Avance</td><td>Basic Implementation</td><td>Amount extraction</td></tr>
+            <tr><td>Action</td><td>Stub Implementation</td><td>Ready for enhancement</td></tr>
+            <tr><td>Mastercard</td><td>Stub Implementation</td><td>Ready for enhancement</td></tr>
+            <tr><td>Visa</td><td>Stub Implementation</td><td>Ready for enhancement</td></tr>
+            <tr><td>Bol.com</td><td>Stub Implementation</td><td>Ready for enhancement</td></tr>
+            <tr><td>Picnic</td><td>Stub Implementation</td><td>Ready for enhancement</td></tr>
+            <tr><td>Temu</td><td>Stub Implementation</td><td>Ready for enhancement</td></tr>
+            <tr><td>Ziggo</td><td>Stub Implementation</td><td>Ready for enhancement</td></tr>
+        </table>
+
+        <h2 id="transaction-logic">5. Transaction Logic & Business Rules</h2>
+
+        <h3>Template-Based Transaction Generation</h3>
+        <div class="business-logic">
+            <h4>Historical Template Lookup</h4>
+            <p>System queries database for the most recent transactions matching the vendor folder name:</p>
+            <div class="code-block">
+# Query for last transactions by vendor name and max date
+query = """
+    SELECT * FROM mutaties 
+    WHERE TransactionNumber LIKE %s 
+    AND TransactionDate = (SELECT MAX(TransactionDate) FROM mutaties WHERE TransactionNumber LIKE %s)
+    ORDER BY Debet DESC
+"""
+cursor.execute(query, (f"{vendor_name}%", f"{vendor_name}%"))
+            </div>
+        </div>
+
+        <h3>Transaction Duplication Logic</h3>
+        <div class="business-logic">
+            <h4>Debit/Credit Pair Generation</h4>
+            <p>For vendors with single template transactions, system creates debit/credit pairs:</p>
+            <div class="code-block">
+# If only 1 template transaction found, create credit entry
+if len(results) == 1:
+    credit_transaction = results[0].copy()
+    credit_transaction['Debet'] = '2010'  # VAT account
+    credit_transaction['Credit'] = results[0]['Debet']  # Original debit account
+    
+    # Vendor-specific account assignments
+    if vendor_name.lower() == 'coursera':
+        results[0]['Debet'] = '6200'  # Training/Education expense
+        results[0]['Credit'] = '1600'  # Bank account
+        credit_transaction['Debet'] = '2010'  # VAT
+        credit_transaction['Credit'] = '6200'  # Training expense
+            </div>
+        </div>
+
+        <h3>Amount and Description Assignment</h3>
+        <div class="business-logic">
+            <h4>Vendor Data Integration</h4>
+            <div class="code-block">
+# Use vendor-parsed data for amounts and descriptions
+for i, template in enumerate(template_transactions):
+    if vendor_data:
+        if i == 0:  # First transaction - main amount
+            amount = vendor_data.get('total_amount', template.get('TransactionAmount', 0))
+            description = vendor_data.get('description', template.get('TransactionDescription', ''))
+        elif i == 1:  # Second transaction - VAT
+            amount = vendor_data.get('vat_amount', template.get('TransactionAmount', 0))
+            description = vendor_data.get('description', '') + ' BTW'
+            </div>
+        </div>
+
+        <h3>Reference Field Population</h3>
+        <table>
+            <tr><th>Field</th><th>Source</th><th>Example</th></tr>
+            <tr><td>Ref1</td><td>Accommodation name or vendor-specific</td><td>"Garden House"</td></tr>
+            <tr><td>Ref2</td><td>Invoice number or identifier</td><td>"INV123456"</td></tr>
+            <tr><td>Ref3</td><td>Google Drive URL</td><td>"https://drive.google.com/file/d/..."</td></tr>
+            <tr><td>Ref4</td><td>Original filename</td><td>"booking_invoice_20241215.pdf"</td></tr>
+        </table>
+
+        <h2 id="database-integration">6. Database Integration</h2>
+
+        <h3>Transaction Storage</h3>
+        <div class="business-logic">
+            <h4>Dual-Mode Operation</h4>
+            <table>
+                <tr><th>Mode</th><th>Table</th><th>Purpose</th></tr>
+                <tr><td>Test</td><td>mutaties_test</td><td>Safe testing without affecting production data</td></tr>
+                <tr><td>Production</td><td>mutaties</td><td>Live transaction storage</td></tr>
+            </table>
+        </div>
+
+        <h3>Database Schema</h3>
+        <table>
+            <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+            <tr><td>TransactionNumber</td><td>VARCHAR</td><td>Vendor folder name (e.g., "Booking.com")</td></tr>
+            <tr><td>TransactionDate</td><td>DATE</td><td>Invoice date from vendor parsing</td></tr>
+            <tr><td>TransactionDescription</td><td>TEXT</td><td>Vendor-specific description with details</td></tr>
+            <tr><td>TransactionAmount</td><td>DECIMAL(10,2)</td><td>Transaction amount (total or VAT)</td></tr>
+            <tr><td>Debet</td><td>VARCHAR(10)</td><td>Debit account code</td></tr>
+            <tr><td>Credit</td><td>VARCHAR(10)</td><td>Credit account code</td></tr>
+            <tr><td>ReferenceNumber</td><td>VARCHAR</td><td>Base transaction reference</td></tr>
+            <tr><td>Ref1-Ref4</td><td>VARCHAR</td><td>Vendor-specific references and file info</td></tr>
+            <tr><td>Administration</td><td>VARCHAR</td><td>Business unit (default: "GoodwinSolutions")</td></tr>
+        </table>
+
+        <h3>Lookup Table Integration</h3>
+        <div class="business-logic">
+            <h4>BNB Lookup (Booking.com)</h4>
+            <div class="code-block">
+# Query bnblookup table for accommodation names
+SELECT id, name FROM bnblookup WHERE lookUp = 'bdc'
+
+# Match accommodation number to property name
+accommodation_lookup = {
+    "4392906": "Garden House",
+    "5615303": "Red Apartment", 
+    "5620035": "Green Apartment"
+}
+            </div>
+        </div>
+
+        <h2 id="user-interface">7. User Interface Guide</h2>
+
+        <h3>Upload Interface</h3>
+        <div class="feature-box">
+            <h4>File Selection</h4>
+            <ul>
+                <li><strong>Supported Formats:</strong> PDF, JPG, JPEG, PNG</li>
+                <li><strong>Folder Selection:</strong> Dropdown with vendor folders</li>
+                <li><strong>New Folder Creation:</strong> Dynamic folder creation capability</li>
+                <li><strong>Progress Tracking:</strong> Upload progress bar with percentage</li>
+            </ul>
+        </div>
+
+        <h3>Processing Results Display</h3>
+        <div class="feature-box">
+            <h4>Three-Section Layout</h4>
+            <ol>
+                <li><strong>Parsed PDF Data:</strong> Raw extracted text and file metadata</li>
+                <li><strong>Parsed Vendor Data:</strong> Structured data from vendor-specific parsing</li>
+                <li><strong>New Transaction Records:</strong> Database-ready transactions for approval</li>
+            </ol>
+        </div>
+
+        <h3>Transaction Review & Editing</h3>
+        <div class="feature-box">
+            <h4>Editable Fields</h4>
+            <ul>
+                <li><strong>All Fields Editable:</strong> Every transaction field can be modified</li>
+                <li><strong>Real-time Updates:</strong> Changes reflected immediately</li>
+                <li><strong>Validation:</strong> Required field highlighting</li>
+                <li><strong>Approval Workflow:</strong> Explicit approval before database save</li>
+            </ul>
+        </div>
+
+        <h2 id="workflows">8. Standard Workflows</h2>
+
+        <h3>Invoice Processing Workflow</h3>
+        <div class="workflow">
+            <div class="workflow-step">1. Upload PDF/Image</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">2. Select Vendor Folder</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">3. Review Parsed Data</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">4. Edit Transactions</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">5. Approve & Save</div>
+        </div>
+
+        <h3>New Vendor Setup Workflow</h3>
+        <ol>
+            <li><strong>Create Folder:</strong> Add new vendor folder in interface</li>
+            <li><strong>Upload Sample:</strong> Process sample invoice in TEST mode</li>
+            <li><strong>Review Parsing:</strong> Check generic parsing results</li>
+            <li><strong>Enhance Parser:</strong> Add vendor-specific logic if needed</li>
+            <li><strong>Test & Validate:</strong> Verify parsing accuracy</li>
+            <li><strong>Production Deploy:</strong> Switch to production mode</li>
+        </ol>
+
+        <h3>Monthly Processing Routine</h3>
+        <ol>
+            <li><strong>Collect Invoices:</strong> Gather PDF invoices from email/downloads</li>
+            <li><strong>Batch Upload:</strong> Process multiple files by vendor</li>
+            <li><strong>Review Transactions:</strong> Verify amounts and account codes</li>
+            <li><strong>Approve Batches:</strong> Save approved transactions to database</li>
+            <li><strong>Verify Storage:</strong> Confirm files are properly organized in Google Drive</li>
+        </ol>
+
+        <h2 id="google-drive">9. Google Drive Integration</h2>
+
+        <h3>Authentication Setup</h3>
+        <div class="business-logic">
+            <h4>Service Account Configuration</h4>
+            <ol>
+                <li><strong>Create Google Cloud Project</strong></li>
+                <li><strong>Enable Google Drive API</strong></li>
+                <li><strong>Download credentials.json</strong> to backend folder</li>
+                <li><strong>Run application</strong> and authenticate when prompted</li>
+            </ol>
+        </div>
+
+        <h3>File Organization</h3>
+        <div class="business-logic">
+            <h4>Folder Structure</h4>
+            <div class="code-block">
+Google Drive Root/
+├── Action/
+├── Avance/
+├── Booking.com/
+├── BTW/
+├── Coursera/
+├── Netflix/
+├── Temu/
+├── Ziggo/
+└── [Custom Folders]/
+            </div>
+        </div>
+
+        <h3>Duplicate File Handling</h3>
+        <div class="business-logic">
+            <h4>Conflict Resolution</h4>
+            <div class="code-block">
+# Check if file exists in target folder
+existing_file = drive_service.check_file_exists(filename, folder_id)
+
+if existing_file['exists']:
+    # Option 1: Use existing file
+    if use_existing:
+        drive_result = existing_file['file']
+    else:
+        # Option 2: Rename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_filename = f"{name}_{timestamp}{ext}"
+        drive_result = drive_service.upload_file(temp_path, new_filename, folder_id)
+            </div>
+        </div>
+
+        <h2 id="troubleshooting">10. Troubleshooting</h2>
+
+        <h3>PDF Processing Issues</h3>
+        <div class="warning">
+            <h4>Text Extraction Failures</h4>
+            <ul>
+                <li><strong>Scanned PDFs:</strong> Use image conversion + OCR</li>
+                <li><strong>Password Protected:</strong> Remove password before upload</li>
+                <li><strong>Corrupted Files:</strong> Re-download or use alternative format</li>
+                <li><strong>Complex Layouts:</strong> pdfplumber fallback should handle most cases</li>
+            </ul>
+        </div>
+
+        <h3>OCR Problems</h3>
+        <div class="warning">
+            <h4>Tesseract Issues</h4>
+            <ul>
+                <li><strong>Installation:</strong> Verify Tesseract is installed at C:\Program Files\Tesseract-OCR\</li>
+                <li><strong>Path Configuration:</strong> Update tesseract_cmd path if different installation</li>
+                <li><strong>Image Quality:</strong> Higher resolution images produce better OCR results</li>
+                <li><strong>Language Support:</strong> Install additional language packs if needed</li>
+            </ul>
+        </div>
+
+        <h3>Vendor Parsing Errors</h3>
+        <div class="info">
+            <ul>
+                <li><strong>Format Changes:</strong> Vendors may change invoice layouts - update regex patterns</li>
+                <li><strong>Missing Data:</strong> Check if required fields are present in PDF</li>
+                <li><strong>Amount Parsing:</strong> Verify number format handling (European vs US)</li>
+                <li><strong>Date Formats:</strong> Update date parsing patterns for new formats</li>
+            </ul>
+        </div>
+
+        <h3>Database Connection Issues</h3>
+        <div class="warning">
+            <ul>
+                <li><strong>Credentials:</strong> Verify .env file contains correct database settings</li>
+                <li><strong>Table Access:</strong> Ensure user has INSERT/SELECT permissions</li>
+                <li><strong>Test Mode:</strong> Use mutaties_test table for safe testing</li>
+                <li><strong>Connection Timeout:</strong> Check network connectivity to database server</li>
+            </ul>
+        </div>
+
+        <h2 id="maintenance">11. Maintenance & Updates</h2>
+
+        <h3>Regular Maintenance Tasks</h3>
+        <div class="success">
+            <h4>Weekly Tasks</h4>
+            <ul>
+                <li><strong>Parser Accuracy:</strong> Review parsing results for new vendor formats</li>
+                <li><strong>File Organization:</strong> Verify Google Drive folder structure</li>
+                <li><strong>Error Monitoring:</strong> Check application logs for processing errors</li>
+            </ul>
+        </div>
+
+        <div class="success">
+            <h4>Monthly Tasks</h4>
+            <ul>
+                <li><strong>Database Cleanup:</strong> Archive old test transactions</li>
+                <li><strong>Template Updates:</strong> Review and update transaction templates</li>
+                <li><strong>Vendor Parser Enhancement:</strong> Add new vendor parsers as needed</li>
+            </ul>
+        </div>
+
+        <h3>Adding New Vendor Parsers</h3>
+        <ol>
+            <li><strong>Analyze Invoice Format:</strong> Study PDF structure and key data locations</li>
+            <li><strong>Create Parser Method:</strong> Add new method to VendorParsers class</li>
+            <li><strong>Update Router:</strong> Add folder name mapping in _parse_vendor_specific</li>
+            <li><strong>Test Parsing:</strong> Use TEST mode to verify data extraction</li>
+            <li><strong>Document Parser:</strong> Update this manual with new vendor details</li>
+        </ol>
+
+        <h3>System Updates</h3>
+        <ul>
+            <li><strong>Dependency Updates:</strong> Keep PyPDF2, pdfplumber, and Tesseract current</li>
+            <li><strong>Security Patches:</strong> Update Google Drive API credentials periodically</li>
+            <li><strong>Performance Monitoring:</strong> Track processing times and optimize bottlenecks</li>
+            <li><strong>Backup Procedures:</strong> Regular backup of database and Google Drive credentials</li>
+        </ul>
+
+        <div class="info">
+            <strong>Support:</strong> For technical issues, check the GitHub repository or contact JaBaKi Studios.<br>
+            <strong>Version:</strong> This manual covers myAdmin PDF Transaction Processor v1.0 (December 2024)
+        </div>
+    </div>
+</body>
+</html>

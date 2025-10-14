@@ -61,6 +61,17 @@ def test():
     print("Test endpoint called", flush=True)
     return jsonify({'status': 'Server is working'})
 
+@app.route('/api/str/test', methods=['GET'])
+def str_test():
+    """STR test endpoint"""
+    print("STR test endpoint called", flush=True)
+    return jsonify({'status': 'STR endpoints working', 'openpyxl_available': True})
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'endpoints': ['str/upload', 'str/scan-files', 'str/process-files', 'str/save', 'str/write-future']})
+
 @app.route('/api/upload', methods=['OPTIONS'])
 def upload_options():
     """Handle preflight OPTIONS request"""
@@ -474,14 +485,14 @@ def banking_lookups():
         db = DatabaseManager(test_mode=flag)
         
         # Get bank account lookups
-        print("Fetching bank account lookups...", flush=True)
+
         bank_accounts = db.get_bank_account_lookups()
-        print(f"Found {len(bank_accounts)} bank accounts", flush=True)
+
         
         # Get recent transactions for account mapping
-        print("Fetching recent transactions...", flush=True)
+
         recent_transactions = db.get_recent_transactions(limit=100)
-        print(f"Found {len(recent_transactions)} recent transactions", flush=True)
+
         
         # Extract unique account codes and descriptions
         accounts = set()
@@ -503,21 +514,26 @@ def banking_lookups():
         })
         
     except Exception as e:
-        print(f"Banking lookups error: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
+
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # STR (Short Term Rental) routes
-@app.route('/api/str/upload', methods=['POST'])
+@app.route('/api/str/upload', methods=['POST', 'OPTIONS'])
 def str_upload():
     """Upload and process single STR file"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'OK'})
+        
     try:
+
+        
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file provided'}), 400
         
         file = request.files['file']
         platform = request.form.get('platform', 'airbnb')
+        
+
         
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
@@ -526,8 +542,13 @@ def str_upload():
         temp_path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(temp_path)
         
+
+        
         str_processor = STRProcessor(test_mode=flag)
+
+        
         bookings = str_processor.process_str_files([temp_path], platform)
+
         
         if bookings:
             separated = str_processor.separate_by_status(bookings)
@@ -538,20 +559,35 @@ def str_upload():
         
         os.remove(temp_path)  # Clean up
         
-        return jsonify({
+        # Convert numpy types to native Python types for JSON serialization
+        def convert_types(obj):
+            if hasattr(obj, 'item'):
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {k: convert_types(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_types(v) for v in obj]
+            return obj
+        
+        response_data = {
             'success': True,
-            'realised': separated['realised'],
-            'planned': separated['planned'],
-            'summary': summary,
+            'realised': convert_types(separated['realised']),
+            'planned': convert_types(separated['planned']),
+            'already_loaded': convert_types(separated.get('already_loaded', [])),
+            'summary': convert_types(summary),
             'platform': platform
-        })
+        }
+        
+        return jsonify(response_data)
         
     except Exception as e:
+
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/str/scan-files', methods=['GET'])
 def str_scan_files():
     """Scan download folder for STR files"""
+
     str_processor = STRProcessor(test_mode=flag)
     folder_path = request.args.get('folder', str_processor.download_folder)
     
@@ -568,6 +604,7 @@ def str_scan_files():
 @app.route('/api/str/process-files', methods=['POST'])
 def str_process_files():
     """Process selected STR files"""
+
     data = request.get_json()
     platform = data.get('platform')
     file_paths = data.get('files', [])
@@ -598,6 +635,7 @@ def str_process_files():
 @app.route('/api/str/save', methods=['POST'])
 def str_save():
     """Save STR bookings to database like R script"""
+
     try:
         data = request.get_json()
         realised_bookings = data.get('realised', [])
@@ -632,6 +670,29 @@ def str_save():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/str/write-future', methods=['POST'])
+def str_write_future():
+    """Write current BNB planned data to bnbfuture table"""
+
+    try:
+        str_db = STRDatabase(test_mode=flag)
+        result = str_db.write_bnb_future_summary()
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': f"Written {result['inserted']} future records for {result['date']}",
+                'summary': result['summary']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', result.get('message', 'Unknown error'))
+            }), 400
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/str/summary', methods=['GET'])
 def str_summary():
     """Get STR performance summary"""
@@ -649,6 +710,8 @@ def str_summary():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 if __name__ == '__main__':
     print("Starting Flask server...")
