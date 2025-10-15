@@ -164,8 +164,7 @@ const PDFUploadForm: React.FC = () => {
   };
 
   return (
-    <Box maxW="800px" mx="auto">
-      <Text fontSize="2xl" mb={6} color="white">PDF Transaction Processor</Text>
+    <Box maxW="800px" mx="auto" p={4}>
       
       <Formik
         initialValues={{ file: null, folderId: '' }}

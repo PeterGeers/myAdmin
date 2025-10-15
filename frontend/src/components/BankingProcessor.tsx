@@ -378,8 +378,7 @@ const BankingProcessor: React.FC = () => {
   };
 
   return (
-    <Box maxW="1200px" mx="auto">
-      <Heading mb={6} color="white" fontSize="2xl">Banking Transaction Processor</Heading>
+    <Box maxW="1200px" mx="auto" p={4}>
 
       {/* Mode Selection */}
       <FormControl mb={6}>

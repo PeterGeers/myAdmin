@@ -231,7 +231,6 @@ const STRProcessor: React.FC = () => {
   return (
     <Box p={4} bg="gray.800" minH="100vh">
       <VStack spacing={6} align="stretch">
-        <Heading color="orange.400">STR Processor</Heading>
 
         {error && (
           <Alert status="error">
