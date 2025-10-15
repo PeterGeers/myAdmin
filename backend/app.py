@@ -8,6 +8,7 @@ from banking_processor import BankingProcessor
 from str_processor import STRProcessor
 from str_database import STRDatabase
 from database import DatabaseManager
+from reporting_routes import reporting_bp
 import os
 from werkzeug.utils import secure_filename
 
@@ -19,6 +20,12 @@ CORS(app, resources={
         "allow_headers": ["Content-Type"]
     }
 })
+
+# Register reporting blueprint
+app.register_blueprint(reporting_bp, url_prefix='/api/reports')
+
+# In-memory cache for uploaded files to prevent duplicates during session
+upload_cache = {}
 
 # MODE CONFIGURATION
 # Set flag = True for TEST mode (uses mutaties_test table, local storage)
@@ -41,17 +48,24 @@ def allowed_file(filename):
 @app.route('/api/folders', methods=['GET'])
 def get_folders():
     """Return available vendor folders"""
+    print(f"get_folders called, flag={flag}", flush=True)
     if flag:  # Test mode - use local folders
         folders = list(config.vendor_folders.values())
+        print(f"Test mode: returning {len(folders)} local folders", flush=True)
     else:  # Production mode - use Google Drive folders
         try:
+            print("Production mode: fetching Google Drive folders", flush=True)
             drive_service = GoogleDriveService()
             drive_folders = drive_service.list_subfolders()
             folders = [folder['name'] for folder in drive_folders]
+            print(f"Google Drive: found {len(folders)} folders", flush=True)
         except Exception as e:
             print(f"Google Drive error: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             # Fallback to local folders if Google Drive fails
             folders = list(config.vendor_folders.values())
+            print(f"Fallback: returning {len(folders)} local folders", flush=True)
     
     return jsonify(folders)
 
@@ -133,53 +147,48 @@ def upload_file():
                 }
             else:  # Production mode - Google Drive upload
                 try:
-                    drive_service = GoogleDriveService()
-                    drive_folders = drive_service.list_subfolders()
-                    print(f"Available Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
-                    
-                    # Find the folder ID for the selected folder
-                    folder_id = None
-                    for folder in drive_folders:
-                        print(f"Checking folder: '{folder['name']}' vs '{folder_name}'", flush=True)
-                        if folder['name'] == folder_name:
-                            folder_id = folder['id']
-                            print(f"Found matching folder ID: {folder_id}", flush=True)
-                            break
-                    
-                    if folder_id:
-                        # Check if file already exists
-                        existing_file = drive_service.check_file_exists(filename, folder_id)
+                    # Check cache first
+                    cache_key = f"{folder_name}_{filename}"
+                    if cache_key in upload_cache:
+                        print(f"Using cached file info for {filename}", flush=True)
+                        drive_result = upload_cache[cache_key]
+                    else:
+                        drive_service = GoogleDriveService()
+                        drive_folders = drive_service.list_subfolders()
+                        print(f"Available Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
                         
-                        if existing_file['exists']:
-                            print(f"File {filename} already exists in Google Drive", flush=True)
+                        # Find the folder ID for the selected folder
+                        folder_id = None
+                        for folder in drive_folders:
+                            print(f"Checking folder: '{folder['name']}' vs '{folder_name}'", flush=True)
+                            if folder['name'] == folder_name:
+                                folder_id = folder['id']
+                                print(f"Found matching folder ID: {folder_id}", flush=True)
+                                break
+                        
+                        if folder_id:
+                            # Check if file already exists
+                            existing_file = drive_service.check_file_exists(filename, folder_id)
                             
-                            # Option 1: Use existing file
-                            use_existing = request.form.get('useExisting', 'false').lower() == 'true'
-                            if use_existing:
-                                print("Using existing file from Google Drive", flush=True)
+                            if existing_file['exists']:
+                                print(f"File {filename} already exists in Google Drive", flush=True)
                                 drive_result = existing_file['file']
                             else:
-                                # Option 2: Rename with timestamp
-                                from datetime import datetime
-                                name, ext = os.path.splitext(filename)
-                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                new_filename = f"{name}_{timestamp}{ext}"
-                                print(f"Renaming file to: {new_filename}", flush=True)
-                                
-                                drive_result = drive_service.upload_file(temp_path, new_filename, folder_id)
-                                filename = new_filename  # Update filename for later use
-                        else:
-                            print(f"Uploading new file to Google Drive folder: {folder_name} (ID: {folder_id})", flush=True)
-                            drive_result = drive_service.upload_file(temp_path, filename, folder_id)
+                                print(f"Uploading new file to Google Drive folder: {folder_name} (ID: {folder_id})", flush=True)
+                                drive_result = drive_service.upload_file(temp_path, filename, folder_id)
+                            
+                            # Cache the result
+                            upload_cache[cache_key] = drive_result
+                            print(f"Cached file info for {cache_key}", flush=True)
                         
-                        print(f"File result: {drive_result['url']}", flush=True)
-                    else:
-                        print(f"Folder '{folder_name}' not found in Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
-                        print("Using local storage as fallback", flush=True)
-                        drive_result = {
-                            'id': filename,
-                            'url': f'http://localhost:5000/uploads/{filename}'
-                        }
+                            print(f"File result: {drive_result['url']}", flush=True)
+                        else:
+                            print(f"Folder '{folder_name}' not found in Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
+                            print("Using local storage as fallback", flush=True)
+                            drive_result = {
+                                'id': filename,
+                                'url': f'http://localhost:5000/uploads/{filename}'
+                            }
                 except Exception as e:
                     print(f"Google Drive upload failed: {type(e).__name__}: {str(e)}", flush=True)
                     import traceback

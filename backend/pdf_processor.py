@@ -174,6 +174,8 @@ class PDFProcessor:
         elif 'btw' in folder_name:
             print(f"BTW: Calling BTW parser for folder: {folder_name}", flush=True)
             return self.vendor_parsers.parse_btw(lines)
+        elif 'vodafone' in folder_name:
+            return self.vendor_parsers.parse_vodafone(lines)
         return None
     
     def _format_vendor_transactions(self, vendor_data, file_data):
