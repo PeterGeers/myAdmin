@@ -18,6 +18,8 @@ pip-delete-this-directory.txt
 # Environment variables
 .env
 *.env
+### github
+git
 
 # Database
 *.db

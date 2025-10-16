@@ -3,8 +3,32 @@ from datetime import datetime
 from database import DatabaseManager
 
 class VendorParsers:
+    def _parse_date(self, date_str):
+        """Convert DD/MM/YYYY to YYYY-MM-DD"""
+        try:
+            if '/' in date_str:
+                day, month, year = date_str.split('/')
+            else:
+                day, month, year = date_str.split('-')
+            return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            return datetime.now().strftime('%Y-%m-%d')
+    
+    def _parse_amount(self, amount_str):
+        """Convert amount string to float"""
+        return float(amount_str.replace(',', '.'))
+    
+    def _create_basic_data(self, description):
+        """Create basic data structure for simple parsers"""
+        return {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': description,
+            'total_amount': 0.0,
+            'vat_amount': 0.0
+        }
+
     def parse_booking(self, lines):
-        """Parse Booking.com invoices based on R script logic"""
+        """Parse Booking.com invoices"""
         data = {
             'date': datetime.now().strftime('%Y-%m-%d'),
             'description': 'Booking.com invoice',
@@ -19,51 +43,37 @@ class VendorParsers:
         for line in lines:
             line_lower = line.lower()
             
-            # Extract date (Datum:|Date:)
             if 'datum:' in line_lower or 'date:' in line_lower:
                 date_match = re.search(r'(\d{2}/\d{2}/\d{4})', line)
                 if date_match:
-                    date_str = date_match.group(1)
-                    try:
-                        # Convert DD/MM/YYYY to YYYY-MM-DD
-                        day, month, year = date_str.split('/')
-                        data['date'] = f"{year}-{month}-{day}"
-                    except:
-                        pass
+                    data['date'] = self._parse_date(date_match.group(1))
             
-            # Extract total amount (Totaal EUR|Total amount due EUR)
             if 'totaal eur' in line_lower or 'total amount due eur' in line_lower:
                 amount_match = re.search(r'eur\s+(\d+[,.]\d+)', line_lower)
                 if amount_match:
-                    data['total_amount'] = float(amount_match.group(1).replace(',', '.'))
+                    data['total_amount'] = self._parse_amount(amount_match.group(1))
             
-            # Extract VAT amount (VAT|BTW)
             if ('vat' in line_lower or 'btw' in line_lower) and 'eur' in line_lower:
                 vat_match = re.search(r'eur\s+(\d+[,.]\d+)', line_lower)
                 if vat_match:
-                    data['vat_amount'] = float(vat_match.group(1).replace(',', '.'))
+                    data['vat_amount'] = self._parse_amount(vat_match.group(1))
             
-            # Extract accommodation number
             if 'accommodation number:' in line_lower or 'accommodatie id:' in line_lower:
                 accom_match = re.search(r'(\d+)', line)
                 if accom_match:
                     data['accommodation_number'] = accom_match.group(1)
             
-            # Extract invoice number
             if 'invoice number:' in line_lower or 'factuurnummer:' in line_lower:
                 invoice_match = re.search(r'(\d+)', line)
                 if invoice_match:
                     data['invoice_number'] = invoice_match.group(1)
             
-            # Extract commission type from Description line
             if 'description:' in line_lower and 'room sales commission' in line_lower:
                 data['commission_type'] = 'Room Sales Commission'
         
-        # Calculate VAT if not found (21% of total/121*21)
         if data['vat_amount'] == 0 and data['total_amount'] > 0:
             data['vat_amount'] = round((data['total_amount'] / 121) * 21, 2)
         
-        # Lookup accommodation name from database
         if data['accommodation_number']:
             try:
                 db = DatabaseManager()
@@ -75,7 +85,6 @@ class VendorParsers:
             except Exception as e:
                 print(f"Error looking up accommodation name: {e}")
         
-        # Build description with accommodation name and commission type
         desc_parts = []
         if data['accommodation_name']:
             desc_parts.append(data['accommodation_name'])
@@ -84,10 +93,8 @@ class VendorParsers:
         
         if data['invoice_number']:
             desc_parts.append(data['invoice_number'])
-        
         if data['commission_type']:
             desc_parts.append(data['commission_type'])
-        
         desc_parts.append(data['date'])
         data['description'] = ' '.join(desc_parts)
         
@@ -95,37 +102,14 @@ class VendorParsers:
     
     def parse_avance(self, lines):
         """Parse Avance invoices"""
-        data = {
-            'date': datetime.now().strftime('%Y-%m-%d'),
-            'description': 'Avance invoice',
-            'total_amount': 0.0,
-            'vat_amount': 0.0
-        }
+        data = self._create_basic_data('Avance invoice')
         
         for line in lines:
-            # Look for amounts
             amount_match = re.search(r'€?\s*(\d+[,.]?\d*)', line)
-            if amount_match:
-                amount = float(amount_match.group(1).replace(',', '.'))
-                if data['total_amount'] == 0:
-                    data['total_amount'] = amount
+            if amount_match and data['total_amount'] == 0:
+                data['total_amount'] = self._parse_amount(amount_match.group(1))
         
         return data
-    
-    def parse_action(self, lines):
-        return {'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Action invoice', 'total_amount': 0.0}
-    
-    def parse_mastercard(self, lines):
-        return {'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Mastercard transaction', 'total_amount': 0.0}
-    
-    def parse_visa(self, lines):
-        return {'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Visa transaction', 'total_amount': 0.0}
-    
-    def parse_bolcom(self, lines):
-        return {'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Bol.com order', 'total_amount': 0.0}
-    
-    def parse_picnic(self, lines):
-        return {'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Picnic order', 'total_amount': 0.0}
     
     def parse_netflix(self, lines):
         """Parse Netflix invoices"""
@@ -138,74 +122,45 @@ class VendorParsers:
             'receipt_number': ''
         }
         
-        print(f"Netflix parser processing {len(lines)} lines", flush=True)
-        
         for i, line in enumerate(lines):
             line_lower = line.lower()
-            print(f"Line {i}: {line}", flush=True)
             
-            # Extract receipt number: "Receipt No. 94822-1FD20-77BF4-18517"
             if 'receipt no.' in line_lower:
                 receipt_match = re.search(r'receipt no\.\s*([A-Z0-9\-]+)', line, re.IGNORECASE)
                 if receipt_match:
                     data['receipt_number'] = receipt_match.group(1)
-                    print(f"Found receipt number: {data['receipt_number']}", flush=True)
             
-            # Look for header line "Date Description Service Period Amount VAT % VAT Total"
             if ('date' in line_lower and 'description' in line_lower and 
-                ('service' in line_lower or 'p eriod' in line_lower)):
-                print(f"Found header line at {i}: {line}", flush=True)
-                # Check next line for data: "17/09/2025 Streaming Service 17/09/2025–16/10/2025 €15.69 21% €3.30 €18.99"
+                ('service' in line_lower or 'period' in line_lower)):
                 if i + 1 < len(lines):
                     data_line = lines[i + 1]
-                    print(f"Processing data line: {data_line}", flush=True)
                     
-                    # Extract first date (DD/MM/YYYY format)
                     date_match = re.search(r'(\d{2}/\d{2}/\d{4})', data_line)
                     if date_match:
-                        date_str = date_match.group(1)
-                        print(f"Found date: {date_str}", flush=True)
+                        data['date'] = self._parse_date(date_match.group(1))
+                    
+                    amounts = re.findall(r'€([\d,\.]+)', data_line)
+                    if len(amounts) >= 3:
                         try:
-                            # Convert DD/MM/YYYY to YYYY-MM-DD
-                            day, month, year = date_str.split('/')
-                            data['date'] = f"{year}-{month}-{day}"
+                            data['vat_amount'] = self._parse_amount(amounts[1])
+                            data['total_amount'] = self._parse_amount(amounts[2])
                         except:
                             pass
                     
-                    # Extract amounts: €15.69 (net), €3.30 (VAT), €18.99 (total)
-                    amounts = re.findall(r'€([\d,\.]+)', data_line)
-                    print(f"Found amounts: {amounts}", flush=True)
-                    if len(amounts) >= 3:
-                        try:
-                            net_amount = float(amounts[0].replace(',', '.'))
-                            data['vat_amount'] = float(amounts[1].replace(',', '.'))
-                            data['total_amount'] = float(amounts[2].replace(',', '.'))
-                            print(f"Parsed amounts - Net: {net_amount}, VAT: {data['vat_amount']}, Total: {data['total_amount']}", flush=True)
-                        except Exception as e:
-                            print(f"Error parsing amounts: {e}", flush=True)
-                    
-                    # Extract service period for description
                     period_match = re.search(r'(\d{2}/\d{2}/\d{4}–\d{2}/\d{2}/\d{4})', data_line)
                     if period_match:
                         data['subscription_period'] = period_match.group(1)
                     
-                    # Build description with receipt number and period
-                    desc_parts = ["Netflix Streaming Service"]
-                    if data['subscription_period']:
-                        desc_parts.append(data['subscription_period'])
-                    if data['receipt_number']:
-                        desc_parts.append(f"Receipt No. {data['receipt_number']}")
-                    
-                    data['description'] = ' '.join(desc_parts)
-                    print(f"Built description: {data['description']}", flush=True)
-                    
                     break
         
-        print(f"Final Netflix data: {data}", flush=True)
+        desc_parts = ["Netflix Streaming Service"]
+        if data['subscription_period']:
+            desc_parts.append(data['subscription_period'])
+        if data['receipt_number']:
+            desc_parts.append(f"Receipt No. {data['receipt_number']}")
+        
+        data['description'] = ' '.join(desc_parts)
         return data
-    
-    def parse_temu(self, lines):
-        return {'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Temu order', 'total_amount': 0.0}
     
     def parse_ziggo(self, lines):
         """Parse Ziggo VT invoices"""
@@ -215,117 +170,37 @@ class VendorParsers:
             'total_amount': 0.0,
             'vat_amount': 0.0,
             'invoice_number': '',
-            'customer_number': '',
-            'service_period': ''
+            'customer_number': ''
         }
         
-        for i, line in enumerate(lines):
+        for line in lines:
             line_lower = line.lower()
             
-            # Extract invoice number
             if 'factuurnummer' in line_lower or 'invoice number' in line_lower:
-                invoice_match = re.search(r'(?:factuurnummer|invoice number)[:\s]*([\w\-]+)', line, re.IGNORECASE)
+                invoice_match = re.search(r'(?:factuurnummer|invoice number)[:\s]*([\\w\\-]+)', line, re.IGNORECASE)
                 if invoice_match:
                     data['invoice_number'] = invoice_match.group(1)
             
-            # Extract customer numbers - "Klantnummer: 519239178 /405421201"
             if 'klantnummer:' in line_lower:
                 customer_match = re.search(r'klantnummer:\s*([\d\s/]+)', line, re.IGNORECASE)
                 if customer_match:
                     data['customer_number'] = customer_match.group(1).strip()
             
-            # Extract amounts from "Totaal" line with 3 values: €72,00 €15,12 €87,12
             if 'totaal' in line_lower:
                 amounts = re.findall(r'€\s*([\d,\.]+)', line)
                 if len(amounts) == 3:
-                    # First amount is net, second is VAT, third is total
-                    data['vat_amount'] = float(amounts[1].replace(',', '.'))
-                    data['total_amount'] = float(amounts[2].replace(',', '.'))
+                    data['vat_amount'] = self._parse_amount(amounts[1])
+                    data['total_amount'] = self._parse_amount(amounts[2])
                 elif len(amounts) == 1:
-                    # Fallback for single amount in totaal line
-                    data['total_amount'] = float(amounts[0].replace(',', '.'))
+                    data['total_amount'] = self._parse_amount(amounts[0])
             
-            # Extract date from invoice
             if 'factuurdatum' in line_lower or 'invoice date' in line_lower:
                 date_match = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})', line)
                 if date_match:
-                    date_str = date_match.group(1)
-                    try:
-                        if '/' in date_str:
-                            day, month, year = date_str.split('/')
-                        else:
-                            day, month, year = date_str.split('-')
-                        data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                    except:
-                        pass
+                    data['date'] = self._parse_date(date_match.group(1))
             
-            # Extract description from line starting with "Abonnementskosten"
             if line.startswith('Abonnementskosten'):
                 data['description'] = line.strip()
-        
-        return data
-    
-    def parse_coursera(self, lines):
-        """Parse Coursera invoices"""
-        data = {
-            'date': datetime.now().strftime('%Y-%m-%d'),
-            'description': 'Coursera subscription',
-            'total_amount': 0.0,
-            'vat_amount': 0.0,
-            'order_number': '',
-            'product_details': ''
-        }
-        
-        for i, line in enumerate(lines):
-            line_lower = line.lower()
-            
-            # Extract VAT amount: VAT (EUR): 7.12
-            if 'vat (eur):' in line_lower:
-                vat_match = re.search(r'vat \(eur\):\s*([\d,\.]+)', line_lower)
-                if vat_match:
-                    data['vat_amount'] = float(vat_match.group(1).replace(',', '.'))
-            
-            # Extract total amount: TOTAL (EUR): 41.00
-            if 'total (eur):' in line_lower:
-                total_match = re.search(r'total \(eur\):\s*([\d,\.]+)', line_lower)
-                if total_match:
-                    data['total_amount'] = float(total_match.group(1).replace(',', '.'))
-            
-            # Extract order number: Order Number: 405249340
-            if 'order number:' in line_lower:
-                order_match = re.search(r'order number:\s*(\d+)', line_lower)
-                if order_match:
-                    data['order_number'] = order_match.group(1)
-            
-            # Extract product details (line after "Product Details Price Qty")
-            if 'product details' in line_lower and 'price' in line_lower and 'qty' in line_lower:
-                if i + 1 < len(lines):
-                    data['product_details'] = lines[i + 1].strip()
-            
-            # Extract date (line after "Mountain View, CA 94041 USA")
-            if 'mountain view' in line_lower and 'ca 94041 usa' in line_lower:
-                if i + 1 < len(lines):
-                    date_line = lines[i + 1].strip()
-                    # Look for date patterns like MM/DD/YYYY or Month DD, YYYY
-                    date_match = re.search(r'(\d{1,2}/\d{1,2}/\d{4})', date_line)
-                    if date_match:
-                        date_str = date_match.group(1)
-                        try:
-                            # Convert MM/DD/YYYY to YYYY-MM-DD
-                            month, day, year = date_str.split('/')
-                            data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                        except:
-                            pass
-        
-        # Build description with order number and product details
-        desc_parts = []
-        if data['order_number']:
-            desc_parts.append(f"Order Number: {data['order_number']}")
-        if data['product_details']:
-            desc_parts.append(data['product_details'])
-        
-        if desc_parts:
-            data['description'] = ' '.join(desc_parts)
         
         return data
     
@@ -343,45 +218,31 @@ class VendorParsers:
         for line in lines:
             line_lower = line.lower()
             
-            # Extract invoice number
             if 'factuurnummer' in line_lower or 'invoice number' in line_lower:
-                invoice_match = re.search(r'(?:factuurnummer|invoice number)[:\s]*([\w\-]+)', line, re.IGNORECASE)
+                invoice_match = re.search(r'(?:factuurnummer|invoice number)[:\s]*([\\w\\-]+)', line, re.IGNORECASE)
                 if invoice_match:
                     data['invoice_number'] = invoice_match.group(1)
             
-            # Extract customer number
             if 'klantnummer' in line_lower or 'customer number' in line_lower:
                 customer_match = re.search(r'(?:klantnummer|customer number)[:\s]*([\d\s/]+)', line, re.IGNORECASE)
                 if customer_match:
                     data['customer_number'] = customer_match.group(1).strip()
             
-            # Extract VAT amount from "Totaal btw-bedrag" line
             if line.startswith('Totaal btw-bedrag'):
                 vat_match = re.search(r'([\d,\.]+)', line)
                 if vat_match:
-                    data['vat_amount'] = float(vat_match.group(1).replace(',', '.'))
+                    data['vat_amount'] = self._parse_amount(vat_match.group(1))
             
-            # Extract amount from "Totaal te betalen" line
             if line.startswith('Totaal te betalen'):
                 amount_match = re.search(r'¤\s*([\d,\.]+)', line)
                 if amount_match:
-                    data['total_amount'] = float(amount_match.group(1).replace(',', '.'))
+                    data['total_amount'] = self._parse_amount(amount_match.group(1))
             
-            # Extract date
             if 'factuurdatum' in line_lower or 'invoice date' in line_lower:
                 date_match = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})', line)
                 if date_match:
-                    date_str = date_match.group(1)
-                    try:
-                        if '/' in date_str:
-                            day, month, year = date_str.split('/')
-                        else:
-                            day, month, year = date_str.split('-')
-                        data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                    except:
-                        pass
-            
-        # Build description from full Klantnummer and Factuurnummer lines (first instance only)
+                    data['date'] = self._parse_date(date_match.group(1))
+        
         desc_parts = []
         factuurnummer_found = False
         for line in lines:
@@ -396,14 +257,65 @@ class VendorParsers:
         
         return data
     
+    def parse_coursera(self, lines):
+        """Parse Coursera invoices"""
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Coursera subscription',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'order_number': '',
+            'product_details': ''
+        }
+        
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            
+            if 'vat (eur):' in line_lower:
+                vat_match = re.search(r'vat \(eur\):\s*([\d,\.]+)', line_lower)
+                if vat_match:
+                    data['vat_amount'] = self._parse_amount(vat_match.group(1))
+            
+            if 'total (eur):' in line_lower:
+                total_match = re.search(r'total \(eur\):\s*([\d,\.]+)', line_lower)
+                if total_match:
+                    data['total_amount'] = self._parse_amount(total_match.group(1))
+            
+            if 'order number:' in line_lower:
+                order_match = re.search(r'order number:\s*(\d+)', line_lower)
+                if order_match:
+                    data['order_number'] = order_match.group(1)
+            
+            if 'product details' in line_lower and 'price' in line_lower and 'qty' in line_lower:
+                if i + 1 < len(lines):
+                    data['product_details'] = lines[i + 1].strip()
+            
+            if 'mountain view' in line_lower and 'ca 94041 usa' in line_lower:
+                if i + 1 < len(lines):
+                    date_line = lines[i + 1].strip()
+                    date_match = re.search(r'(\d{1,2}/\d{1,2}/\d{4})', date_line)
+                    if date_match:
+                        month, day, year = date_match.group(1).split('/')
+                        data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        
+        desc_parts = []
+        if data['order_number']:
+            desc_parts.append(f"Order Number: {data['order_number']}")
+        if data['product_details']:
+            desc_parts.append(data['product_details'])
+        
+        if desc_parts:
+            data['description'] = ' '.join(desc_parts)
+        
+        return data
+    
     def parse_btw(self, lines):
         """Parse BTW invoices - government VAT payments have no additional VAT"""
-        print(f"BTW: Processing {len(lines)} lines", flush=True)
         data = {
             'date': datetime.now().strftime('%Y-%m-%d'),
             'description': 'BTW invoice',
             'total_amount': 0.0,
-            'vat_amount': 0.0,  # Always 0 for BTW payments to government
+            'vat_amount': 0.0,
             'btw_number': '',
             'invoice_number': '',
             'vendor_name': '',
@@ -414,92 +326,52 @@ class VendorParsers:
         for i, line in enumerate(lines):
             line_lower = line.lower()
             
-            # Extract BTW number: BTW: NL123456789B01
             if 'btw' in line_lower and re.search(r'[a-z]{2}\d{9}b\d{2}', line_lower):
                 btw_match = re.search(r'([a-z]{2}\d{9}b\d{2})', line_lower)
                 if btw_match:
                     data['btw_number'] = btw_match.group(1).upper()
             
-            # Extract invoice number
             if 'factuur' in line_lower or 'invoice' in line_lower:
-                invoice_match = re.search(r'(?:factuur|invoice)[:\s#]*([\w\-]+)', line, re.IGNORECASE)
+                invoice_match = re.search(r'(?:factuur|invoice)[:\s#]*([\\w\\-]+)', line, re.IGNORECASE)
                 if invoice_match:
                     data['invoice_number'] = invoice_match.group(1)
             
-            # Extract total amount - handle "Totaal te betalen € 1.866" format
             if ('totaal' in line_lower and ('betalen' in line_lower or 'te betalen' in line_lower)) or 'total' in line_lower:
-                print(f"BTW: Found total line: {line}", flush=True)
                 amount_match = re.search(r'€\s*([\d\.\,]+)', line)
                 if amount_match:
                     amount_str = amount_match.group(1)
-                    print(f"BTW: Extracted amount string: {amount_str}", flush=True)
-                    # Handle European number format (1.866 = 1866)
                     if '.' in amount_str and ',' not in amount_str and len(amount_str.split('.')[-1]) == 3:
                         amount_str = amount_str.replace('.', '')
-                        print(f"BTW: Converted thousands separator: {amount_str}", flush=True)
                     else:
                         amount_str = amount_str.replace(',', '.')
                     data['total_amount'] = float(amount_str)
-                    print(f"BTW: Final amount: {data['total_amount']}", flush=True)
             
-            # BTW invoices never have VAT (they ARE the VAT payment)
-            # Skip VAT extraction for BTW folder
-            
-            # Extract date - look for "Afgedrukt op" followed by date
             if 'afgedrukt op' in line_lower:
-                print(f"BTW: Found 'Afgedrukt op' line: {line}", flush=True)
-                # Check next line for date
                 if i + 1 < len(lines):
                     next_line = lines[i + 1].strip()
-                    print(f"BTW: Next line for date: {next_line}", flush=True)
                     date_match = re.search(r'(\d{1,2}-\d{1,2}-\d{4})', next_line)
                     if date_match:
-                        date_str = date_match.group(1)
-                        print(f"BTW: Found date: {date_str}", flush=True)
-                        try:
-                            day, month, year = date_str.split('-')
-                            data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                            print(f"BTW: Converted date: {data['date']}", flush=True)
-                        except Exception as e:
-                            print(f"BTW: Date conversion error: {e}", flush=True)
+                        data['date'] = self._parse_date(date_match.group(1))
             
-            # Fallback date extraction
             elif 'datum' in line_lower or 'date' in line_lower:
                 date_match = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})', line)
                 if date_match:
-                    date_str = date_match.group(1)
-                    try:
-                        # Handle different date formats
-                        if '/' in date_str:
-                            day, month, year = date_str.split('/')
-                        else:
-                            day, month, year = date_str.split('-')
-                        
-                        if len(year) == 2:
-                            year = '20' + year
-                        
-                        data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                    except:
-                        pass
+                    data['date'] = self._parse_date(date_match.group(1))
             
-            # Extract aangiftenummer
             if 'aangiftenummer' in line_lower:
-                aangifte_match = re.search(r'aangiftenummer\s*([\w]+)', line, re.IGNORECASE)
+                aangifte_match = re.search(r'aangiftenummer\s*([\\w]+)', line, re.IGNORECASE)
                 if aangifte_match:
                     data['aangiftenummer'] = aangifte_match.group(1)
             
-            # Extract betalingskenmerk
             if 'betalingskenmerk' in line_lower:
                 betaling_match = re.search(r'betalingskenmerk\s*([\d\s]+)', line, re.IGNORECASE)
                 if betaling_match:
                     data['betalingskenmerk'] = betaling_match.group(1).strip()
             
-            # Extract vendor name (first meaningful line)
             if i < 5 and len(line.strip()) > 3 and not any(x in line_lower for x in ['factuur', 'invoice', 'datum', 'date', 'btw', 'aangiftenummer', 'betalingskenmerk']):
                 if not data['vendor_name']:
                     data['vendor_name'] = line.strip()
         
-        # Build description with aangiftenummer and betalingskenmerk
         desc_parts = []
         if data['aangiftenummer']:
             desc_parts.append(f"Aangiftenummer {data['aangiftenummer']}")
@@ -514,5 +386,165 @@ class VendorParsers:
         
         if desc_parts:
             data['description'] = ' '.join(desc_parts)
+        
+        return data
+
+    # Simple parsers for vendors without complex logic
+    def parse_action(self, lines):
+        return self._create_basic_data('Action invoice')
+    
+    def parse_mastercard(self, lines):
+        return self._create_basic_data('Mastercard transaction')
+    
+    def parse_visa(self, lines):
+        return self._create_basic_data('Visa transaction')
+    
+    def parse_bolcom(self, lines):
+        """Parse Bol.com invoices - extract factuurnummer and klantnummer from specific lines"""
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Bol.com order',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'factuurnummer': '',
+            'klantnummer': ''
+        }
+        
+        # Look for factuurnummer and klantnummer in specific line positions
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            
+            # Extract date from "Aankoopdatum" line
+            if 'aankoopdatum' in line_lower:
+                parts = line.split()
+                if len(parts) >= 6:
+                    try:
+                        day = parts[5] if len(parts) > 5 else parts[-1]
+                        month = parts[4] if len(parts) > 4 else parts[-2]
+                        year = parts[3] if len(parts) > 3 else parts[-3]
+                        
+                        month_names = {
+                            'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
+                            'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
+                            'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
+                        }
+                        if month.lower() in month_names:
+                            month = month_names[month.lower()]
+                        elif month.isdigit():
+                            month = month.zfill(2)
+                        
+                        data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                    except:
+                        pass
+            
+            # Extract amounts from "Totaalbedrag" line
+            if 'totaalbedrag' in line_lower:
+                amounts = re.findall(r'([\d,\.]+)', line)
+                if len(amounts) >= 3:
+                    data['total_amount'] = self._parse_amount(amounts[0])
+                    data['vat_amount'] = self._parse_amount(amounts[2])
+                elif len(amounts) >= 1:
+                    data['total_amount'] = self._parse_amount(amounts[0])
+            
+            # Extract VAT from "21% BTW €" line
+            if '21% btw €' in line_lower:
+                btw_parts = line.split('BTW')
+                if len(btw_parts) > 1:
+                    vat_match = re.search(r'([\d,\.]+)', btw_parts[1])
+                    if vat_match:
+                        data['vat_amount'] = self._parse_amount(vat_match.group(1))
+        
+        # Extract factuurnummer and klantnummer from lines 14 and 11 (0-indexed: 13 and 10)
+        if len(lines) > 13:
+            # Line 14 should contain factuurnummer
+            line_14 = lines[13].strip()
+            factuurnummer_match = re.search(r'(\d+)', line_14)
+            if factuurnummer_match:
+                data['factuurnummer'] = factuurnummer_match.group(1)
+        
+        if len(lines) > 10:
+            # Line 11 should contain klantnummer
+            line_11 = lines[10].strip()
+            klantnummer_match = re.search(r'(\d+)', line_11)
+            if klantnummer_match:
+                data['klantnummer'] = klantnummer_match.group(1)
+        
+        # Build description in the expected format: "Factuurnummer [number] Klantnummer [number]"
+        desc_parts = []
+        if data['factuurnummer']:
+            desc_parts.append(f"Factuurnummer {data['factuurnummer']}")
+        if data['klantnummer']:
+            desc_parts.append(f"Klantnummer {data['klantnummer']}")
+        
+        if desc_parts:
+            data['description'] = ' '.join(desc_parts)
+        
+        return data
+    
+    def parse_picnic(self, lines):
+        return self._create_basic_data('Picnic order')
+    
+    def parse_temu(self, lines):
+        return self._create_basic_data('Temu order')
+    
+    def parse_q8(self, lines):
+        """Parse Q8 fuel invoices"""
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Q8 fuel invoice',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'invoice_number': '',
+            'station_number': '9429002351'
+        }
+        
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            
+            # Extract date from "^ Datum :" line
+            if line.strip().startswith('Datum :'):
+                date_part = line.split('9429002351')[0] if '9429002351' in line else line
+                date_match = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})', date_part)
+                if date_match:
+                    data['date'] = self._parse_date(date_match.group(1))
+            
+            # Extract amounts from "TOTAAL FACTUUR :" line
+            if 'TOTAAL FACTUUR :' in line:
+                amounts_part = line.split(' : ')[1] if ' : ' in line else line
+                amounts = re.findall(r'([\d,\.]+)', amounts_part)
+                if len(amounts) >= 2:
+                    try:
+                        # Based on R script: amounts[3] is VAT, amounts[4] is total
+                        if len(amounts) >= 4:
+                            data['vat_amount'] = self._parse_amount(amounts[2])  # Third amount (index 2)
+                            data['total_amount'] = self._parse_amount(amounts[3])  # Fourth amount (index 3)
+                        elif len(amounts) >= 2:
+                            data['vat_amount'] = self._parse_amount(amounts[0])
+                            data['total_amount'] = self._parse_amount(amounts[1])
+                    except:
+                        pass
+            
+            # Extract invoice number from "FACTUUR NR :" line
+            if 'FACTUUR NR :' in line:
+                invoice_match = re.search(r'FACTUUR NR :\s*([\w\-]+)', line)
+                if invoice_match:
+                    data['invoice_number'] = invoice_match.group(1)
+        
+        # Build description: concatenate FACTUUR NR and TOTAAL FACTUUR lines
+        factuur_nr_line = ''
+        totaal_factuur_line = ''
+        
+        for line in lines:
+            if 'FACTUUR NR :' in line:
+                factuur_nr_line = line.strip()
+            elif 'TOTAAL FACTUUR :' in line:
+                # Extract only the part starting from TOTAAL FACTUUR
+                totaal_part = line[line.find('TOTAAL FACTUUR'):].strip()
+                totaal_factuur_line = totaal_part
+        
+        if factuur_nr_line and totaal_factuur_line:
+            # Concatenate and remove double spaces
+            description = f"{factuur_nr_line}; {totaal_factuur_line}"
+            data['description'] = re.sub(r'\s+', ' ', description)
         
         return data

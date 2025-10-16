@@ -5,7 +5,7 @@ import {
   Table, Thead, Tbody, Tr, Th, Td, TableContainer,
   Tabs, TabList, TabPanels, Tab, TabPanel, Badge
 } from '@chakra-ui/react';
-import { Chart } from 'react-google-charts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -632,27 +632,41 @@ const ProfitLoss: React.FC = () => {
                 <HStack spacing={4} align="start">
                   <Card bg="gray.700">
                     <CardBody>
-                      <Chart
-                        chartType="PieChart"
-                        data={[
-                          ['Ledger', 'Amount'],
-                          ...balanceData.map(row => [
-                            row.ledger || 'N/A',
-                            Math.abs(Number(row.total_amount || 0))
-                          ])
-                        ]}
-                        options={{
-                          pieHole: 0.4,
-                          backgroundColor: 'transparent',
-                          legend: { textStyle: { color: '#fff' } },
-                          pieSliceTextStyle: { color: '#000' },
-                          tooltip: { textStyle: { color: '#000', fontSize: 12 }, trigger: 'both' },
-                          focusTarget: 'category',
-                          chartArea: { width: '90%', height: '98%' }
-                        }}
-                        width="500px"
-                        height="400px"
-                      />
+                      <ResponsiveContainer width={500} height={400}>
+                        <PieChart>
+                          <Pie
+                            data={balanceData.map(row => ({
+                              name: row.ledger || 'N/A',
+                              value: Math.abs(Number(row.total_amount || 0))
+                            }))}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={80}
+                            outerRadius={160}
+                            paddingAngle={2}
+                            dataKey="value"
+                          >
+                            {balanceData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            content={({ active, payload }: any) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <Box bg="gray.700" p={2} border="1px solid" borderColor="gray.500" borderRadius="md">
+                                    <Text color="white" fontSize="sm">{payload[0].name}</Text>
+                                    <Text color="white" fontSize="sm">
+                                      €{Number(payload[0].value).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                    </Text>
+                                  </Box>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </CardBody>
                   </Card>
 
