@@ -3,11 +3,11 @@ import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text } from '@cha
 import PDFUploadForm from './components/PDFUploadForm';
 import BankingProcessor from './components/BankingProcessor';
 import STRProcessor from './components/STRProcessor';
-import ReportingDashboard from './components/ReportingDashboard';
-import PowerBIReports from './components/PowerBIReports';
+
+import MyAdminReports from './components/myAdminReports';
 import theme from './theme';
 
-type PageType = 'menu' | 'pdf' | 'banking' | 'str' | 'reporting' | 'powerbi';
+type PageType = 'menu' | 'pdf' | 'banking' | 'str' | 'powerbi';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
@@ -50,28 +50,17 @@ function App() {
             <STRProcessor />
           </Box>
         );
-      case 'reporting':
-        return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack>
-                <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                <Heading color="orange.400" size="lg">📊 Reporting Dashboard</Heading>
-              </HStack>
-            </Box>
-            <ReportingDashboard />
-          </Box>
-        );
+
       case 'powerbi':
         return (
           <Box minH="100vh" bg="gray.900">
             <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
               <HStack>
                 <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                <Heading color="orange.400" size="lg">📈 PowerBI Reports</Heading>
+                <Heading color="orange.400" size="lg">📈 myAdmin Reports</Heading>
               </HStack>
             </Box>
-            <PowerBIReports />
+            <MyAdminReports />
           </Box>
         );
 
@@ -92,11 +81,9 @@ function App() {
                 <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
                   🏠 STR Processor
                 </Button>
-                <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('reporting')}>
-                  📊 Reporting Dashboard
-                </Button>
+
                 <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
-                  📈 PowerBI Reports
+                  📈 myAdmin Reports
                 </Button>
               </VStack>
             </VStack>

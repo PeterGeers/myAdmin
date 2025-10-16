@@ -198,3 +198,55 @@ class DatabaseManager:
         conn.close()
         
         return results
+    
+    def get_last_transactions(self, reference_number, table_name='mutaties'):
+        """Get last transactions for a specific reference number - matches R getLastTransactions exactly"""
+        conn = self.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # First query: get transactions with matching TransactionNumber and max date
+        query = f"""
+            SELECT * FROM {table_name} 
+            WHERE TransactionNumber LIKE %s 
+            AND TransactionDate = (
+                SELECT MAX(TransactionDate) 
+                FROM {table_name} 
+                WHERE TransactionNumber LIKE %s
+            ) 
+            ORDER BY Debet DESC
+        """
+        cursor.execute(query, (f"{reference_number}%", f"{reference_number}%"))
+        results = cursor.fetchall()
+        
+        # If no results, fallback to Gamma like R script
+        if not results:
+            cursor.execute(query, ("Gamma%", "Gamma%"))
+            results = cursor.fetchall()
+            # Update TransactionNumber and ReferenceNumber
+            for result in results:
+                result['TransactionNumber'] = reference_number
+                result['ReferenceNumber'] = reference_number
+        
+        # If less than 2 records, duplicate and modify like R script
+        if len(results) < 2:
+            if results:
+                second_record = results[0].copy()
+                second_record['Debet'] = '2010'
+                second_record['Credit'] = results[0]['Debet']
+                results.append(second_record)
+            else:
+                # Create default records if none found
+                default_record = {
+                    'Debet': '4000', 'Credit': '1300',
+                    'TransactionNumber': reference_number,
+                    'ReferenceNumber': reference_number
+                }
+                results = [default_record, {
+                    'Debet': '2010', 'Credit': '4000',
+                    'TransactionNumber': reference_number,
+                    'ReferenceNumber': reference_number
+                }]
+        
+        cursor.close()
+        conn.close()
+        return results

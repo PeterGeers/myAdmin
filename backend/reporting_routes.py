@@ -487,3 +487,172 @@ def get_bnb_table():
             'success': False,
             'error': str(e)
         }), 500
+
+@reporting_bp.route('/trends-data', methods=['GET'])
+def get_trends_data():
+    """Get P&L trends data by year"""
+    try:
+        years = request.args.get('years', str(datetime.now().year)).split(',')
+        administration = request.args.get('administration', 'all')
+        profit_loss = request.args.get('profitLoss', 'Y')
+        test_mode = request.args.get('testMode', 'false').lower() == 'true'
+        
+        service = ReportingService(test_mode=test_mode)
+        connection = service.db.get_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        where_conditions = []
+        params = []
+        
+        # Add year filtering
+        year_conditions = []
+        for year in years:
+            year_conditions.append("YEAR(TransactionDate) = %s")
+            params.append(int(year))
+        
+        if year_conditions:
+            where_conditions.append(f"({' OR '.join(year_conditions)})")
+        
+        if administration != 'all':
+            where_conditions.append("Administration = %s")
+            params.append(administration)
+        
+        if profit_loss == 'Y':
+            where_conditions.append("VW = 'Y'")
+        elif profit_loss == 'N':
+            where_conditions.append("VW = 'N'")
+        
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        
+        query = f"""
+            SELECT 
+                Parent,
+                ledger,
+                YEAR(TransactionDate) as year,
+                SUM(Amount) as total_amount
+            FROM vw_mutaties
+            WHERE {where_clause}
+            GROUP BY Parent, ledger, YEAR(TransactionDate)
+            ORDER BY Parent, ledger, year
+        """
+        
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'data': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@reporting_bp.route('/filter-options', methods=['GET'])
+def get_filter_options():
+    """Get all distinct combinations for filter dropdowns"""
+    try:
+        service = ReportingService()
+        connection = service.db.get_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        query = """
+            SELECT DISTINCT Administration, ledger, ReferenceNumber
+            FROM vw_mutaties
+            WHERE Administration IS NOT NULL AND Administration != ''
+                AND ledger IS NOT NULL AND ledger != ''
+                AND ReferenceNumber IS NOT NULL AND ReferenceNumber != ''
+            ORDER BY Administration, ledger, ReferenceNumber
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'combinations': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@reporting_bp.route('/check-reference', methods=['GET'])
+def get_check_reference():
+    """Get check reference data with transactions and summary"""
+    try:
+        reference_number = request.args.get('referenceNumber', 'all')
+        ledger = request.args.get('ledger', 'all')
+        administration = request.args.get('administration', 'all')
+        test_mode = request.args.get('testMode', 'false').lower() == 'true'
+        
+        service = ReportingService(test_mode=test_mode)
+        connection = service.db.get_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        where_conditions = []
+        params = []
+        
+        if administration != 'all':
+            where_conditions.append("Administration = %s")
+            params.append(administration)
+        
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        
+        # Get transactions
+        transactions_query = f"""
+            SELECT 
+                TransactionDate,
+                TransactionNumber,
+                ReferenceNumber,
+                Amount,
+                TransactionDescription,
+                ledger
+            FROM vw_mutaties
+            WHERE {where_clause}
+            ORDER BY TransactionDate DESC
+        """
+        
+        cursor.execute(transactions_query, params)
+        transactions = cursor.fetchall()
+        
+        # Get reference summary
+        summary_query = f"""
+            SELECT 
+                ReferenceNumber,
+                ledger,
+                SUM(Amount) as total_amount
+            FROM vw_mutaties
+            WHERE {where_clause}
+            GROUP BY ReferenceNumber, ledger
+            HAVING SUM(Amount) != 0
+            ORDER BY ABS(SUM(Amount)) DESC
+        """
+        
+        cursor.execute(summary_query, params)
+        summary = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({
+            'success': True,
+            'transactions': transactions,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

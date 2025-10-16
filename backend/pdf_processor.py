@@ -176,11 +176,32 @@ class PDFProcessor:
             return self.vendor_parsers.parse_btw(lines)
         elif 'vodafone' in folder_name:
             return self.vendor_parsers.parse_vodafone(lines)
+        elif 'q8' in folder_name:
+            return self.vendor_parsers.parse_q8(lines)
         return None
     
     def _format_vendor_transactions(self, vendor_data, file_data):
         """Format vendor-specific data into standard transaction format"""
         transactions = []
+        
+        # Get reference number from folder name
+        folder_name = file_data['folder'].split('/')[-1] if '/' in file_data['folder'] else file_data['folder']
+        reference_number = folder_name.replace('testFacturen/', '').replace('Facturen/', '')
+        
+        # Get last transactions to copy debit/credit accounts like R script
+        try:
+            from database import DatabaseManager
+            db = DatabaseManager()
+            last_transactions = db.get_last_transactions(reference_number)
+            # Use first transaction for main amount, second for VAT (like R script df[1] and df[2])
+            main_debet = last_transactions[0]['Debet'] if last_transactions else '4000'
+            main_credit = last_transactions[0]['Credit'] if last_transactions else '1300'
+            vat_debet = last_transactions[1]['Debet'] if len(last_transactions) > 1 else '2010'
+            vat_credit = last_transactions[1]['Credit'] if len(last_transactions) > 1 else main_debet
+        except Exception as e:
+            print(f"Error getting last transactions: {e}")
+            main_debet, main_credit = '4000', '1300'
+            vat_debet, vat_credit = '2010', '4000'
         
         if isinstance(vendor_data, list):  # Multiple transactions (e.g., credit cards)
             for item in vendor_data:
@@ -188,8 +209,8 @@ class PDFProcessor:
                     'date': item['date'],
                     'description': item['description'],
                     'amount': item['amount'],
-                    'debet': item['amount'] if item['is_debit'] else 0,
-                    'credit': item['amount'] if not item['is_debit'] else 0,
+                    'debet': main_debet,
+                    'credit': main_credit,
                     'ref': file_data['folder'],
                     'ref3': file_data['url'],
                     'ref4': file_data['name']
@@ -200,8 +221,8 @@ class PDFProcessor:
                     'date': vendor_data['date'],
                     'description': vendor_data['description'],
                     'amount': vendor_data['total_amount'],
-                    'debet': vendor_data['total_amount'],
-                    'credit': 0,
+                    'debet': main_debet,
+                    'credit': main_credit,
                     'ref': file_data['folder'],
                     'ref3': file_data['url'],
                     'ref4': file_data['name']
@@ -212,8 +233,8 @@ class PDFProcessor:
                     'date': vendor_data['date'],
                     'description': f"VAT - {vendor_data['description']}",
                     'amount': vendor_data['vat_amount'],
-                    'debet': vendor_data['vat_amount'],
-                    'credit': 0,
+                    'debet': vat_debet,
+                    'credit': vat_credit,
                     'ref': file_data['folder'],
                     'ref3': file_data['url'],
                     'ref4': file_data['name']
