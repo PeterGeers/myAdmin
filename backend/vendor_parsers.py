@@ -455,17 +455,17 @@ class VendorParsers:
                         data['vat_amount'] = self._parse_amount(vat_match.group(1))
         
         # Extract factuurnummer and klantnummer from lines 14 and 11 (0-indexed: 13 and 10)
-        if len(lines) > 13:
+        if 'factuurnummer' in line_lower:
             # Line 14 should contain factuurnummer
-            line_14 = lines[13].strip()
-            factuurnummer_match = re.search(r'(\d+)', line_14)
+            line_lower = line_lower.strip()
+            factuurnummer_match = re.search(r'(\d+)', line_lower)
             if factuurnummer_match:
                 data['factuurnummer'] = factuurnummer_match.group(1)
         
-        if len(lines) > 10:
+        if 'klantnemmuer' in line_lower:
             # Line 11 should contain klantnummer
-            line_11 = lines[10].strip()
-            klantnummer_match = re.search(r'(\d+)', line_11)
+            line_lower = line_lower.strip()
+            klantnummer_match = re.search(r'(\d+)', line_lower)
             if klantnummer_match:
                 data['klantnummer'] = klantnummer_match.group(1)
         
