@@ -1,74 +1,62 @@
-<<<<<<< HEAD
-# PDF Transaction Processor
-
-A ReactJS SPA with Python backend for processing PDF files, extracting transactions, and storing them in MySQL.
-
-## Setup
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm start
-```
-
-### Backend
-```bash
-cd backend
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your database credentials
-python app.py
-```
-
-### Google Drive Setup
-1. Create a Google Cloud project
-2. Enable Google Drive API
-3. Download credentials.json to backend folder
-4. Run the app and authenticate when prompted
-
-### Database Setup
-```sql
-CREATE DATABASE transactions_db;
-```
-
-## Features
-- PDF file upload to Google Drive
-- Automatic PDF parsing and transaction extraction
-- Editable transaction data before saving
-- MySQL storage with transaction metadata
-=======
 # myAdmin
-My new administrative tooling Frontend (reactjs) and Backend (python and mysql)
 
-Perfect! I've set up MCP servers for your myAdmin project. Here's what I've created:
+Comprehensive administrative tooling with ReactJS frontend and Python backend for financial transaction processing.
 
-MCP Configuration Complete ✅
-1. Claude Desktop Config - %APPDATA%\Claude\claude_desktop_config.json
+## Quick Start
 
-Filesystem server - Access to your entire myAdmin project
+```psh
+# Start both servers
+.\start.ps1
 
-Sequential thinking server - Enhanced reasoning capabilities
+# Or manually:
+cd backend && python app.py  # Port 5000
+cd frontend && npm start     # Port 3000
+```
 
-Custom myAdmin server - Project-specific tools
+## Components
 
-2. Custom MCP Server - mcp-server.js
+### 📄 PDF Transaction Processor
+- Upload PDFs to Google Drive or local storage
+- Extract transactions from 251+ vendor formats
+- Edit and approve transactions before saving
+- MySQL storage with metadata
 
-check_database_status - Reads your .env database config
+### 🏦 Banking Processor
+- Process CSV bank statements (Rabobank format)
+- Pattern matching for automatic account assignment
+- Duplicate detection and filtering
+- Bulk transaction import
 
-list_pdf_files - Lists PDFs in storage folders
+### 🏠 STR (Short Term Rental) Processor
+- Process Airbnb/Booking.com revenue files
+- Separate realized vs planned bookings
+- Generate future revenue summaries
+- Multi-platform support
 
-3. Installed Servers:
+### 📊 myAdmin Reports
+- Interactive dashboards with Recharts
+- P&L statements and balance sheets
+- BNB revenue analytics
+- Reference number validation
 
-@modelcontextprotocol/sdk - Core MCP functionality
+## Database
 
-@modelcontextprotocol/server-sequential-thinking - Advanced reasoning
+- **MySQL**: Main transaction storage
+- **Tables**: mutaties, bnb, bnbplanned, bnbfuture
+- **Config**: `.env` file with credentials
 
-Next Steps
-Restart Claude Desktop to load the new MCP configuration
+## Git Management
 
-Test the connection by asking Claude to list files in your project
+```bash
+# Commit with timestamp
+.\gitUpdate.ps1
 
-Use the tools - Ask Claude to check your database status or list PDF files
+# Commit with custom message
+.\gitUpdate.ps1 "Your message here"
+```
 
-The MCP servers will give Claude direct access to your project files and custom tools for managing your PDF transaction processor.
+## Tech Stack
+
+- **Frontend**: React, TypeScript, Chakra UI, Recharts
+- **Backend**: Python, Flask, MySQL, Google Drive API
+- **Processing**: PyPDF2, pdfplumber, pandas, openpyxl
