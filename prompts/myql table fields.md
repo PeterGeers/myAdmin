@@ -1,24 +1,24 @@
 vw_mutaties fields
 ---
-| Field | Type | Null | Key | Default | Extra | 
-| Aangifte | varchar(255) | YES |  | \N |  | 
-| TransactionNumber | char(50) | YES |  | \N |  | 
-| TransactionDate | date | YES |  | \N |  | 
-| TransactionDescription | varchar(512) | YES |  | \N |  | 
-| Amount | decimal(21,2) | YES |  | \N |  | 
-| Reknum | char(10) | YES |  | \N |  | 
-| AccountName | varchar(255) | YES |  | \N |  | 
-| ledger | varchar(266) | YES |  | \N |  | 
-| Parent | char(20) | YES |  | \N |  | 
-| VW | char(1) | YES |  | \N |  | 
-| jaar | int | YES |  | \N |  | 
-| kwartaal | int | YES |  | \N |  | 
-| maand | int | YES |  | \N |  | 
-| week | int | YES |  | \N |  | 
-| ReferenceNumber | varchar(255) | YES |  | \N |  | 
-| Administration | char(20) | YES |  | \N |  | 
-| Ref3 | text | YES |  | \N |  | 
-| Ref4 | varchar(255) | YES |  | \N |  | 
+| Field | Type 
+| Aangifte | varchar(255) 
+| TransactionNumber | char(50) 
+| TransactionDate | date 
+| TransactionDescription | varchar(512) 
+| Amount | decimal(21,2) 
+| Reknum | char(10) 
+| AccountName | varchar(255)
+| ledger | varchar(266) 
+| Parent | char(20) 
+| VW | char(1)
+| jaar | int 
+| kwartaal | int 
+| maand | int 
+| week | int 
+| ReferenceNumber | varchar(255) 
+| Administration | char(20)
+| Ref3 | text
+| Ref4 | varchar(255) 
 
 
 bnbtotal fields:

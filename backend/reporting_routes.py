@@ -555,30 +555,79 @@ def get_trends_data():
 
 @reporting_bp.route('/filter-options', methods=['GET'])
 def get_filter_options():
-    """Get all distinct combinations for filter dropdowns"""
+    """Get distinct values for each filter dropdown with cascading support"""
     try:
+        administration = request.args.get('administration', 'all')
+        ledger = request.args.get('ledger', 'all')
+        
         service = ReportingService()
         connection = service.db.get_connection()
         cursor = connection.cursor(dictionary=True)
         
-        query = """
+        # Always get distinct administrations
+        cursor.execute("""
+            SELECT DISTINCT Administration
+            FROM vw_mutaties
+            WHERE Administration IS NOT NULL AND Administration != ''
+            ORDER BY Administration
+        """)
+        administrations = [row['Administration'] for row in cursor.fetchall()]
+        
+        # Get ledgers filtered by administration
+        ledger_where = ["ledger IS NOT NULL AND ledger != ''"]
+        ledger_params = []
+        if administration != 'all':
+            ledger_where.append("Administration = %s")
+            ledger_params.append(administration)
+        
+        ledger_query = f"""
+            SELECT DISTINCT ledger
+            FROM vw_mutaties
+            WHERE {' AND '.join(ledger_where)}
+            ORDER BY ledger
+        """
+        cursor.execute(ledger_query, ledger_params)
+        ledgers = [row['ledger'] for row in cursor.fetchall()]
+        
+        # Get references filtered by administration and ledger
+        ref_where = ["ReferenceNumber IS NOT NULL AND ReferenceNumber != ''"]
+        ref_params = []
+        if administration != 'all':
+            ref_where.append("Administration = %s")
+            ref_params.append(administration)
+        if ledger != 'all':
+            ref_where.append("ledger = %s")
+            ref_params.append(ledger)
+        
+        ref_query = f"""
+            SELECT DISTINCT ReferenceNumber
+            FROM vw_mutaties
+            WHERE {' AND '.join(ref_where)}
+            ORDER BY ReferenceNumber
+        """
+        cursor.execute(ref_query, ref_params)
+        references = [row['ReferenceNumber'] for row in cursor.fetchall()]
+        
+        # For backward compatibility, also provide combinations
+        cursor.execute("""
             SELECT DISTINCT Administration, ledger, ReferenceNumber
             FROM vw_mutaties
             WHERE Administration IS NOT NULL AND Administration != ''
                 AND ledger IS NOT NULL AND ledger != ''
                 AND ReferenceNumber IS NOT NULL AND ReferenceNumber != ''
             ORDER BY Administration, ledger, ReferenceNumber
-        """
-        
-        cursor.execute(query)
-        results = cursor.fetchall()
+        """)
+        combinations = cursor.fetchall()
         
         cursor.close()
         connection.close()
         
         return jsonify({
             'success': True,
-            'combinations': results
+            'administrations': administrations,
+            'ledgers': ledgers,
+            'references': references,
+            'combinations': combinations  # Keep for backward compatibility
         })
         
     except Exception as e:
@@ -606,41 +655,46 @@ def get_check_reference():
         if administration != 'all':
             where_conditions.append("Administration = %s")
             params.append(administration)
+        if ledger != 'all':
+            where_conditions.append("ledger = %s")
+            params.append(ledger)
+        if reference_number != 'all':
+            where_conditions.append("ReferenceNumber = %s")
+            params.append(reference_number)
         
         where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
         
-        # Get transactions
-        transactions_query = f"""
-            SELECT 
-                TransactionDate,
-                TransactionNumber,
-                ReferenceNumber,
-                Amount,
-                TransactionDescription,
-                ledger
-            FROM vw_mutaties
-            WHERE {where_clause}
-            ORDER BY TransactionDate DESC
-        """
-        
-        cursor.execute(transactions_query, params)
-        transactions = cursor.fetchall()
-        
-        # Get reference summary
+        # Get reference summary (Table 1)
         summary_query = f"""
             SELECT 
                 ReferenceNumber,
-                ledger,
                 SUM(Amount) as total_amount
             FROM vw_mutaties
             WHERE {where_clause}
-            GROUP BY ReferenceNumber, ledger
+            GROUP BY ReferenceNumber
             HAVING SUM(Amount) != 0
-            ORDER BY ABS(SUM(Amount)) DESC
+            ORDER BY ReferenceNumber
         """
         
         cursor.execute(summary_query, params)
         summary = cursor.fetchall()
+        
+        # Get detailed transactions (Table 2) - only if specific reference is selected
+        transactions = []
+        if reference_number != 'all':
+            transactions_query = f"""
+                SELECT 
+                    TransactionDate,
+                    TransactionNumber,
+                    Amount,
+                    TransactionDescription
+                FROM vw_mutaties
+                WHERE {where_clause}
+                ORDER BY TransactionDate DESC
+            """
+            
+            cursor.execute(transactions_query, params)
+            transactions = cursor.fetchall()
         
         cursor.close()
         connection.close()
