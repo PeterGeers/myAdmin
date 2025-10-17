@@ -3,9 +3,14 @@ import {
   Box, VStack, HStack, Heading, Select, Button, Text,
   Card, CardBody, CardHeader, Grid, GridItem, Input,
   Table, Thead, Tbody, Tr, Th, Td, TableContainer,
-  Tabs, TabList, TabPanels, Tab, TabPanel, Badge, Stack
+  Tabs, TabList, TabPanels, Tab, TabPanel, Badge, Stack,
+  Menu, MenuButton, MenuList, MenuItem, Checkbox
 } from '@chakra-ui/react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Sector } from 'recharts';
+// @ts-ignore
+import GridLayout from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -34,6 +39,7 @@ interface BalanceRecord {
   Parent: string;
   ledger: string;
   total_amount: number;
+  [key: string]: any;
 }
 
 const MyAdminReports: React.FC = () => {
@@ -117,6 +123,189 @@ const MyAdminReports: React.FC = () => {
     referenceNumber: '',
     ledger: ''
   });
+
+  // Actuals Dashboard State
+  const [actualsFilters, setActualsFilters] = useState({
+    years: ['2024'],
+    administration: 'all',
+    displayFormat: '2dec'
+  });
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+
+  // Format amount based on display format
+  const formatAmount = (amount: number, format: string): string => {
+    const num = Number(amount) || 0;
+    
+    switch (format) {
+      case '2dec':
+        return `€${num.toLocaleString('nl-NL', {minimumFractionDigits: 2})}`;
+      case '0dec':
+        return `€${Math.round(num).toLocaleString('nl-NL')}`;
+      case 'k':
+        return `€${(num / 1000).toFixed(1)}K`;
+      case 'm':
+        return `€${(num / 1000000).toFixed(1)}M`;
+      default:
+        return `€${num.toLocaleString('nl-NL', {minimumFractionDigits: 2})}`;
+    }
+  };
+
+  // Render hierarchical data with Parent totals and indented ledgers
+  const renderHierarchicalData = (data: any[], years: string[], displayFormat: string) => {
+    const sortedYears = [...years].sort((a, b) => parseInt(a) - parseInt(b));
+    const grouped = data.reduce((acc, row) => {
+      if (!acc[row.Parent]) {
+        acc[row.Parent] = { parent: row.Parent, ledgers: {}, totals: {} };
+      }
+      
+      // Group ledgers by name and accumulate amounts by year
+      if (!acc[row.Parent].ledgers[row.ledger]) {
+        acc[row.Parent].ledgers[row.ledger] = {};
+        years.forEach(year => {
+          acc[row.Parent].ledgers[row.ledger][year] = 0;
+        });
+      }
+      
+      acc[row.Parent].ledgers[row.ledger][row.jaar] = (acc[row.Parent].ledgers[row.ledger][row.jaar] || 0) + (Number(row.Amount) || 0);
+      
+      // Calculate parent totals
+      years.forEach(year => {
+        const key = `amount_${year}`;
+        if (!acc[row.Parent].totals[key]) acc[row.Parent].totals[key] = 0;
+        if (row.jaar == year) {
+          acc[row.Parent].totals[key] += Number(row.Amount) || 0;
+        }
+      });
+      
+      return acc;
+    }, {} as any);
+
+    const rows: React.ReactElement[] = [];
+    let totalIndex = 0;
+    const grandTotals: { [key: string]: number } = {};
+
+    // Initialize grand totals
+    years.forEach(year => {
+      grandTotals[`amount_${year}`] = 0;
+    });
+
+    Object.values(grouped).forEach((group: any) => {
+      // Add to grand totals
+      sortedYears.forEach(year => {
+        grandTotals[`amount_${year}`] += group.totals[`amount_${year}`] || 0;
+      });
+      
+      // Parent row with totals
+      rows.push(
+        <Tr key={`parent-${totalIndex}`} bg="gray.600">
+          <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
+            {group.parent}
+          </Td>
+          {sortedYears.map(year => (
+            <Td key={year} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
+              {formatAmount(group.totals[`amount_${year}`] || 0, displayFormat)}
+            </Td>
+          ))}
+        </Tr>
+      );
+      
+      // Ledger rows consolidated by ledger name with 2-character indent
+      Object.entries(group.ledgers).forEach(([ledgerName, ledgerAmounts]: [string, any], ledgerIndex: number) => {
+        rows.push(
+          <Tr key={`ledger-${totalIndex}-${ledgerIndex}`}>
+            <Td color="white" fontSize="sm" width="120px" paddingLeft="16px" border="none" py={1}>
+              {ledgerName}
+            </Td>
+            {sortedYears.map(year => (
+              <Td key={year} color="white" fontSize="sm" width="60px" textAlign="right" border="none" py={1}>
+                {formatAmount(ledgerAmounts[year] || 0, displayFormat)}
+              </Td>
+            ))}
+          </Tr>
+        );
+      });
+      
+      totalIndex++;
+    });
+
+    // Add grand total row
+    rows.push(
+      <Tr key="grand-total" bg="orange.600">
+        <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
+          TOTAL
+        </Td>
+        {sortedYears.map(year => (
+          <Td key={year} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
+            {formatAmount(grandTotals[`amount_${year}`] || 0, displayFormat)}
+          </Td>
+        ))}
+      </Tr>
+    );
+
+    return rows;
+  };
+
+  // Render Balance data (aggregated across all years)
+  const renderBalanceData = (data: any[], displayFormat: string) => {
+    const grouped = data.reduce((acc, row) => {
+      if (!acc[row.Parent]) {
+        acc[row.Parent] = { parent: row.Parent, ledgers: [], total: 0 };
+      }
+      acc[row.Parent].ledgers.push(row);
+      acc[row.Parent].total += Number(row.Amount) || 0;
+      return acc;
+    }, {} as any);
+
+    const rows: React.ReactElement[] = [];
+    let totalIndex = 0;
+    let grandTotal = 0;
+
+    Object.values(grouped).forEach((group: any) => {
+      grandTotal += group.total;
+      
+      // Parent row with total
+      rows.push(
+        <Tr key={`parent-${totalIndex}`} bg="gray.600">
+          <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
+            {group.parent}
+          </Td>
+          <Td color="white" fontSize="sm" width="100px" textAlign="right" fontWeight="bold" border="none" py={1}>
+            {formatAmount(group.total, displayFormat)}
+          </Td>
+        </Tr>
+      );
+      
+      // Ledger rows indented under parent with 2-character indent
+      group.ledgers.forEach((ledger: any, ledgerIndex: number) => {
+        rows.push(
+          <Tr key={`ledger-${totalIndex}-${ledgerIndex}`}>
+            <Td color="white" fontSize="sm" width="120px" paddingLeft="16px" border="none" py={1}>
+              {ledger.ledger}
+            </Td>
+            <Td color="white" fontSize="sm" width="100px" textAlign="right" border="none" py={1}>
+              {formatAmount(Number(ledger.Amount) || 0, displayFormat)}
+            </Td>
+          </Tr>
+        );
+      });
+      
+      totalIndex++;
+    });
+
+    // Add grand total row
+    rows.push(
+      <Tr key="grand-total" bg="orange.600">
+        <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
+          TOTAL
+        </Td>
+        <Td color="white" fontSize="sm" width="100px" textAlign="right" fontWeight="bold" border="none" py={1}>
+          {formatAmount(grandTotal, displayFormat)}
+        </Td>
+      </Tr>
+    );
+
+    return rows;
+  };
 
   const handleSort = (field: string) => {
     const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
@@ -342,12 +531,54 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
+  const fetchAvailableYears = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/reports/available-years');
+      const data = await response.json();
+      if (data.success) {
+        setAvailableYears(data.years);
+      }
+    } catch (err) {
+      console.error('Error fetching available years:', err);
+    }
+  };
+
+  const fetchActualsData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        years: actualsFilters.years.join(','),
+        administration: actualsFilters.administration
+      });
+      
+      // Balance data (VW = N)
+      const balanceResponse = await fetch(`http://localhost:5000/api/reports/actuals-balance?${params}`);
+      const balanceResult = await balanceResponse.json();
+      if (balanceResult.success) {
+        setBalanceData(balanceResult.data);
+      }
+
+      // Profit/Loss data (VW = Y)
+      const profitLossResponse = await fetch(`http://localhost:5000/api/reports/actuals-profitloss?${params}`);
+      const profitLossResult = await profitLossResponse.json();
+      if (profitLossResult.success) {
+        setProfitLossData(profitLossResult.data);
+      }
+    } catch (err) {
+      console.error('Error fetching actuals data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchMutatiesData();
     fetchBnbData();
     fetchBalanceData();
     fetchProfitLossData();
     fetchFilterOptions();
+    fetchAvailableYears();
+    fetchActualsData();
   }, []);
 
   const exportMutatiesCsv = () => {
@@ -404,8 +635,7 @@ const MyAdminReports: React.FC = () => {
           <TabList>
             <Tab color="white">💰 Mutaties (P&L)</Tab>
             <Tab color="white">🏠 BNB Revenue</Tab>
-            <Tab color="white">📊 Balance</Tab>
-            <Tab color="white">💰 Profit/Loss</Tab>
+            <Tab color="white">📊 Actuals</Tab>
             <Tab color="white">📈 P&L Trends</Tab>
             <Tab color="white">🔍 Check Reference</Tab>
           </TabList>
@@ -643,211 +873,230 @@ const MyAdminReports: React.FC = () => {
               </VStack>
             </TabPanel>
 
-            {/* Balance Tab */}
+            {/* Actuals Dashboard Tab */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
                 <Card bg="gray.700">
                   <CardBody>
-                    <HStack spacing={4} wrap="wrap">
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Date To</Text>
-                        <Input
-                          type="date"
-                          value={balanceFilters.dateTo}
-                          onChange={(e) => setBalanceFilters(prev => ({...prev, dateTo: e.target.value}))}
+                    <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
+                      <GridItem>
+                        <Text color="white" mb={2}>Select Years</Text>
+                        <Menu closeOnSelect={false}>
+                          <MenuButton
+                            as={Button}
+                            bg="orange.500"
+                            color="white"
+                            size="sm"
+                            width="100%"
+                            textAlign="left"
+                            rightIcon={<span>▼</span>}
+                            _hover={{ bg: "orange.600" }}
+                            _active={{ bg: "orange.600" }}
+                          >
+                            {actualsFilters.years.length > 0 ? actualsFilters.years.join(', ') : 'Select years...'}
+                          </MenuButton>
+                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                            {availableYears.map(year => (
+                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                <Checkbox
+                                  isChecked={actualsFilters.years.includes(year)}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    setActualsFilters(prev => ({
+                                      ...prev,
+                                      years: isChecked 
+                                        ? [...prev.years, year]
+                                        : prev.years.filter(y => y !== year)
+                                    }));
+                                  }}
+                                  colorScheme="orange"
+                                >
+                                  <Text color="white" ml={2}>{year}</Text>
+                                </Checkbox>
+                              </MenuItem>
+                            ))}
+                          </MenuList>
+                        </Menu>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Administration</Text>
+                        <Select
+                          value={actualsFilters.administration}
+                          onChange={(e) => setActualsFilters(prev => ({...prev, administration: e.target.value}))}
                           bg="gray.600"
                           color="white"
                           size="sm"
-                          w="150px"
-                        />
-                      </VStack>
-                      <Button colorScheme="orange" onClick={fetchBalanceData} isLoading={loading} size="sm">
-                        Update Balance
-                      </Button>
-                    </HStack>
+                        >
+                          <option value="all">All</option>
+                          <option value="GoodwinSolutions">GoodwinSolutions</option>
+                          <option value="PeterPrive">PeterPrive</option>
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Display Format</Text>
+                        <Select
+                          value={actualsFilters.displayFormat}
+                          onChange={(e) => setActualsFilters(prev => ({...prev, displayFormat: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          <option value="2dec">€1,234.56 (2 decimals)</option>
+                          <option value="0dec">€1,235 (whole numbers)</option>
+                          <option value="k">€1.2K (thousands)</option>
+                          <option value="m">€1.2M (millions)</option>
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Button colorScheme="orange" onClick={fetchActualsData} isLoading={loading} size="sm">
+                          Update Data
+                        </Button>
+                      </GridItem>
+                    </Grid>
                   </CardBody>
                 </Card>
 
-                <Stack spacing={4} direction={{ base: 'column', lg: 'row' }} align="start">
-                  <Card bg="gray.700">
-                    <CardHeader>
-                      <Heading size="md" color="white">Balance Overview</Heading>
-                    </CardHeader>
-                    <CardBody>
-                      <ResponsiveContainer width="100%" height={400}>
-                        <PieChart>
-                          <Pie
-                            data={balanceData.map(row => ({
-                              name: row.ledger || 'N/A',
-                              value: Math.abs(Number(row.total_amount || 0))
-                            }))}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={80}
-                            outerRadius={160}
-                            paddingAngle={2}
-                            dataKey="value"
-                          >
-                            {balanceData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            content={({ active, payload }: any) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <Box bg="gray.700" p={2} border="1px solid" borderColor="gray.500" borderRadius="md">
-                                    <Text color="white" fontSize="sm">{payload[0].name}</Text>
-                                    <Text color="white" fontSize="sm">
-                                      €{Number(payload[0].value).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
-                                    </Text>
-                                  </Box>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardBody>
-                  </Card>
-
-                  <Card bg="gray.700" flex="1">
-                    <CardHeader>
-                      <Heading size="md" color="white">Balance Details</Heading>
-                    </CardHeader>
-                    <CardBody>
-                      <TableContainer>
-                        <Table size="sm" variant="simple">
-                          <Thead>
-                            <Tr>
-                              <Th color="white">Ledger</Th>
-                              <Th color="white">Amount</Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {balanceData.map((row, index) => (
-                              <Tr key={index}>
-                                <Td color="white" fontSize="sm">{row.ledger}</Td>
-                                <Td color="white" fontSize="sm">€{Number(row.total_amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                {/* Balance Table and Pie Chart */}
+                <Grid templateColumns={{ base: "1fr", lg: "1fr 400px" }} gap={4}>
+                  <GridItem>
+                    <Card bg="gray.700">
+                      <CardHeader pb={2}>
+                        <Heading size="md" color="white">Balance (VW = N) - All Years Total</Heading>
+                      </CardHeader>
+                      <CardBody pt={0}>
+                        <TableContainer>
+                          <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
+                            <Thead>
+                              <Tr>
+                                <Th color="white" width="120px" border="none">Account</Th>
+                                <Th color="white" width="100px" textAlign="right" border="none">Total Amount</Th>
                               </Tr>
-                            ))}
-                          </Tbody>
-                        </Table>
-                      </TableContainer>
-                    </CardBody>
-                  </Card>
-                </Stack>
-              </VStack>
-            </TabPanel>
+                            </Thead>
+                            <Tbody>
+                              {renderBalanceData(balanceData, actualsFilters.displayFormat)}
+                            </Tbody>
+                          </Table>
+                        </TableContainer>
+                      </CardBody>
+                    </Card>
+                  </GridItem>
+                  
+                  <GridItem>
+                    <Card bg="gray.700">
+                      <CardHeader pb={2}>
+                        <Heading size="md" color="white">Balance Distribution</Heading>
+                      </CardHeader>
+                      <CardBody pt={0}>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={balanceData.reduce((acc, row) => {
+                                const existing = acc.find(item => item.name === row.ledger);
+                                const value = Math.abs(Number(row.Amount) || 0);
+                                if (existing) {
+                                  existing.value += value;
+                                } else {
+                                  acc.push({ name: row.ledger, value });
+                                }
+                                return acc;
+                              }, [] as any[]).filter(item => item.value > 0)}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                              label={(entry) => entry.name}
+                            >
+                              {balanceData.reduce((acc, row) => {
+                                const existing = acc.find(item => item.name === row.ledger);
+                                const value = Math.abs(Number(row.Amount) || 0);
+                                if (existing) {
+                                  existing.value += value;
+                                } else {
+                                  acc.push({ name: row.ledger, value });
+                                }
+                                return acc;
+                              }, [] as any[]).filter(item => item.value > 0).map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => formatAmount(Number(value), actualsFilters.displayFormat)} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardBody>
+                    </Card>
+                  </GridItem>
+                </Grid>
 
-            {/* Profit/Loss Tab */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Card bg="gray.700">
-                  <CardBody>
-                    <HStack spacing={4} wrap="wrap">
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Date From</Text>
-                        <Input
-                          type="date"
-                          value={profitLossFilters.dateFrom}
-                          onChange={(e) => setProfitLossFilters(prev => ({...prev, dateFrom: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="150px"
-                        />
-                      </VStack>
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Date To</Text>
-                        <Input
-                          type="date"
-                          value={profitLossFilters.dateTo}
-                          onChange={(e) => setProfitLossFilters(prev => ({...prev, dateTo: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="150px"
-                        />
-                      </VStack>
-                      <Button colorScheme="orange" onClick={fetchProfitLossData} isLoading={loading} size="sm">
-                        Update Profit/Loss
-                      </Button>
-                    </HStack>
-                  </CardBody>
-                </Card>
-
-                <Stack spacing={4} direction={{ base: 'column', lg: 'row' }} align="start">
-                  <Card bg="gray.700">
-                    <CardHeader>
-                      <Heading size="md" color="white">P&L Overview</Heading>
-                    </CardHeader>
-                    <CardBody>
-                      <ResponsiveContainer width="100%" height={400}>
-                        <PieChart>
-                          <Pie
-                            data={profitLossData.map(row => ({
-                              name: row.ledger || 'N/A',
-                              value: Math.abs(Number(row.total_amount || 0))
-                            }))}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={80}
-                            outerRadius={160}
-                            paddingAngle={2}
-                            dataKey="value"
-                          >
-                            {profitLossData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            content={({ active, payload }: any) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <Box bg="gray.700" p={2} border="1px solid" borderColor="gray.500" borderRadius="md">
-                                    <Text color="white" fontSize="sm">{payload[0].name}</Text>
-                                    <Text color="white" fontSize="sm">
-                                      €{Number(payload[0].value).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
-                                    </Text>
-                                  </Box>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardBody>
-                  </Card>
-
-                  <Card bg="gray.700" flex="1">
-                    <CardHeader>
-                      <Heading size="md" color="white">P&L Details</Heading>
-                    </CardHeader>
-                    <CardBody>
-                      <TableContainer>
-                        <Table size="sm" variant="simple">
-                          <Thead>
-                            <Tr>
-                              <Th color="white">Ledger</Th>
-                              <Th color="white">Amount</Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {profitLossData.map((row, index) => (
-                              <Tr key={index}>
-                                <Td color="white" fontSize="sm">{row.ledger}</Td>
-                                <Td color="white" fontSize="sm">€{Number(row.total_amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                {/* Profit/Loss Table and Bar Chart */}
+                <Grid templateColumns={{ base: "1fr", lg: "1fr 1.5fr" }} gap={4}>
+                  <GridItem>
+                    <Card bg="gray.700">
+                      <CardHeader pb={2}>
+                        <Heading size="md" color="white">Profit/Loss (VW = Y)</Heading>
+                      </CardHeader>
+                      <CardBody pt={0}>
+                        <TableContainer>
+                          <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
+                            <Thead>
+                              <Tr>
+                                <Th color="white" width="120px" border="none">Account</Th>
+                                {[...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => (
+                                  <Th key={year} color="white" width="60px" textAlign="right" border="none">{year}</Th>
+                                ))}
                               </Tr>
+                            </Thead>
+                            <Tbody>
+                              {renderHierarchicalData(profitLossData, actualsFilters.years, actualsFilters.displayFormat)}
+                            </Tbody>
+                          </Table>
+                        </TableContainer>
+                      </CardBody>
+                    </Card>
+                  </GridItem>
+                  
+                  <GridItem>
+                    <Card bg="gray.700">
+                      <CardHeader pb={2}>
+                        <Heading size="md" color="white">P&L Distribution</Heading>
+                      </CardHeader>
+                      <CardBody pt={0}>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart
+                            data={profitLossData
+                              .filter(row => row.ledger !== '8099')
+                              .reduce((acc, row) => {
+                                const existing = acc.find(item => item.name === row.ledger);
+                                const value = Number(row.Amount) || 0;
+                                if (existing) {
+                                  existing[row.jaar] = (existing[row.jaar] || 0) + value;
+                                } else {
+                                  const newItem: any = { name: row.ledger };
+                                  actualsFilters.years.forEach(year => {
+                                    newItem[year] = 0;
+                                  });
+                                  newItem[row.jaar] = value;
+                                  acc.push(newItem);
+                                }
+                                return acc;
+                              }, [] as any[])
+                              .filter(item => actualsFilters.years.some(year => Math.abs(item[year] || 0) > 0))}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={10} tick={{fill: 'white'}} />
+                            <YAxis tick={{fill: 'white'}} />
+                            <Tooltip formatter={(value) => formatAmount(Number(value), actualsFilters.displayFormat)} />
+                            {[...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map((year, index) => (
+                              <Bar key={year} dataKey={year} fill={`hsl(${index * 60}, 70%, 60%)`} />
                             ))}
-                          </Tbody>
-                        </Table>
-                      </TableContainer>
-                    </CardBody>
-                  </Card>
-                </Stack>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardBody>
+                    </Card>
+                  </GridItem>
+                </Grid>
               </VStack>
             </TabPanel>
 
