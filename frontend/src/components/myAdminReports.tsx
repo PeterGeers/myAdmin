@@ -47,11 +47,16 @@ const MyAdminReports: React.FC = () => {
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
   const [profitLossData, setProfitLossData] = useState<BalanceRecord[]>([]);
-  const [trendsData, setTrendsData] = useState<any[]>([]);
   const [checkRefData, setCheckRefData] = useState<any[]>([]);
   const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
+  const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
+  const [selectedReference, setSelectedReference] = useState<string>('');
   const [filterCombinations, setFilterCombinations] = useState<any[]>([]);
-  const [selectedReference, setSelectedReference] = useState<string | null>(null);
+  const [filterOptions, setFilterOptions] = useState({
+    administrations: [],
+    ledgers: [],
+    references: []
+  });
   const [loading, setLoading] = useState(false);
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -103,14 +108,6 @@ const MyAdminReports: React.FC = () => {
     profitLoss: 'all'
   });
 
-  // P&L Trends Filters
-  const [trendsFilters, setTrendsFilters] = useState({
-    administration: 'all',
-    years: [new Date().getFullYear().toString()],
-    vwAccount: 'Y',
-    displayFormat: '2decimals'
-  });
-
   // Check Reference Filters
   const [checkRefFilters, setCheckRefFilters] = useState({
     referenceNumber: 'all',
@@ -131,6 +128,9 @@ const MyAdminReports: React.FC = () => {
     displayFormat: '2dec'
   });
   const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [drillDownLevel, setDrillDownLevel] = useState<'year' | 'quarter' | 'month'>('year');
+  const [expandedYear, setExpandedYear] = useState<string | null>(null);
+  const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
 
   // Format amount based on display format
   const formatAmount = (amount: number, format: string): string => {
@@ -153,26 +153,59 @@ const MyAdminReports: React.FC = () => {
   // Render hierarchical data with Parent totals and indented ledgers
   const renderHierarchicalData = (data: any[], years: string[], displayFormat: string) => {
     const sortedYears = [...years].sort((a, b) => parseInt(a) - parseInt(b));
+    
+
+    
+    // Generate column keys based on drill-down level
+    const getColumnKeys = () => {
+      if (drillDownLevel === 'year') {
+        return sortedYears;
+      } else if (drillDownLevel === 'quarter') {
+        return sortedYears.flatMap(year => ['Q1', 'Q2', 'Q3', 'Q4'].map(q => `${year}-${q}`));
+      } else {
+        return sortedYears.flatMap(year => 
+          ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            .map(m => `${year}-${m}`)
+        );
+      }
+    };
+    
+    const columnKeys = getColumnKeys();
+    
     const grouped = data.reduce((acc, row) => {
       if (!acc[row.Parent]) {
         acc[row.Parent] = { parent: row.Parent, ledgers: {}, totals: {} };
       }
       
-      // Group ledgers by name and accumulate amounts by year
+      // Group ledgers by name and accumulate amounts by period
       if (!acc[row.Parent].ledgers[row.ledger]) {
         acc[row.Parent].ledgers[row.ledger] = {};
-        years.forEach(year => {
-          acc[row.Parent].ledgers[row.ledger][year] = 0;
+        columnKeys.forEach(key => {
+          acc[row.Parent].ledgers[row.ledger][key] = 0;
         });
       }
       
-      acc[row.Parent].ledgers[row.ledger][row.jaar] = (acc[row.Parent].ledgers[row.ledger][row.jaar] || 0) + (Number(row.Amount) || 0);
+      // Determine the key based on drill-down level
+      let periodKey = '';
+      if (drillDownLevel === 'year') {
+        periodKey = String(row.jaar);
+      } else if (drillDownLevel === 'quarter') {
+        const quarter = row.kwartaal || 1;
+        periodKey = `${row.jaar}-Q${quarter}`;
+      } else {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = row.maand || 1;
+        periodKey = `${row.jaar}-${monthNames[month - 1]}`;
+      }
+      
+      if (columnKeys.includes(periodKey)) {
+        acc[row.Parent].ledgers[row.ledger][periodKey] = (acc[row.Parent].ledgers[row.ledger][periodKey] || 0) + (Number(row.Amount) || 0);
+      }
       
       // Calculate parent totals
-      years.forEach(year => {
-        const key = `amount_${year}`;
+      columnKeys.forEach(key => {
         if (!acc[row.Parent].totals[key]) acc[row.Parent].totals[key] = 0;
-        if (row.jaar == year) {
+        if (key === periodKey) {
           acc[row.Parent].totals[key] += Number(row.Amount) || 0;
         }
       });
@@ -185,14 +218,14 @@ const MyAdminReports: React.FC = () => {
     const grandTotals: { [key: string]: number } = {};
 
     // Initialize grand totals
-    years.forEach(year => {
-      grandTotals[`amount_${year}`] = 0;
+    columnKeys.forEach(key => {
+      grandTotals[key] = 0;
     });
 
     Object.values(grouped).forEach((group: any) => {
       // Add to grand totals
-      sortedYears.forEach(year => {
-        grandTotals[`amount_${year}`] += group.totals[`amount_${year}`] || 0;
+      columnKeys.forEach(key => {
+        grandTotals[key] = (grandTotals[key] || 0) + (group.totals[key] || 0);
       });
       
       // Parent row with totals
@@ -201,9 +234,9 @@ const MyAdminReports: React.FC = () => {
           <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
             {group.parent}
           </Td>
-          {sortedYears.map(year => (
-            <Td key={year} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
-              {formatAmount(group.totals[`amount_${year}`] || 0, displayFormat)}
+          {columnKeys.map(key => (
+            <Td key={key} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
+              {formatAmount(Math.round((group.totals[key] || 0) * 100) / 100, displayFormat)}
             </Td>
           ))}
         </Tr>
@@ -216,9 +249,9 @@ const MyAdminReports: React.FC = () => {
             <Td color="white" fontSize="sm" width="120px" paddingLeft="16px" border="none" py={1}>
               {ledgerName}
             </Td>
-            {sortedYears.map(year => (
-              <Td key={year} color="white" fontSize="sm" width="60px" textAlign="right" border="none" py={1}>
-                {formatAmount(ledgerAmounts[year] || 0, displayFormat)}
+            {columnKeys.map(key => (
+              <Td key={key} color="white" fontSize="sm" width="60px" textAlign="right" border="none" py={1}>
+                {formatAmount(Math.round((ledgerAmounts[key] || 0) * 100) / 100, displayFormat)}
               </Td>
             ))}
           </Tr>
@@ -234,9 +267,9 @@ const MyAdminReports: React.FC = () => {
         <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
           TOTAL
         </Td>
-        {sortedYears.map(year => (
-          <Td key={year} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
-            {formatAmount(grandTotals[`amount_${year}`] || 0, displayFormat)}
+        {columnKeys.map(key => (
+          <Td key={key} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
+            {formatAmount(Math.round((grandTotals[key] || 0) * 100) / 100, displayFormat)}
           </Td>
         ))}
       </Tr>
@@ -444,35 +477,24 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
-  const fetchTrendsData = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        years: trendsFilters.years.join(','),
-        administration: trendsFilters.administration,
-        profitLoss: trendsFilters.vwAccount
-      });
-      
-      const response = await fetch(`http://localhost:5000/api/reports/trends-data?${params}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setTrendsData(data.data);
-      }
-    } catch (err) {
-      console.error('Error fetching trends data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchFilterOptions = async () => {
+
+  const fetchFilterOptions = async (administration = 'all', ledger = 'all') => {
     try {
-      const response = await fetch(`http://localhost:5000/api/reports/filter-options`);
+      const params = new URLSearchParams();
+      if (administration !== 'all') params.append('administration', administration);
+      if (ledger !== 'all') params.append('ledger', ledger);
+      
+      const response = await fetch(`http://localhost:5000/api/reports/filter-options?${params}`);
       const data = await response.json();
       
       if (data.success) {
-        setFilterCombinations(data.combinations);
+        setFilterCombinations(data.combinations); // Keep for backward compatibility
+        setFilterOptions({
+          administrations: data.administrations || [],
+          ledgers: data.ledgers || [],
+          references: data.references || []
+        });
       }
     } catch (err) {
       console.error('Error fetching filter options:', err);
@@ -483,7 +505,7 @@ const MyAdminReports: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        referenceNumber: checkRefFilters.referenceNumber,
+        referenceNumber: 'all', // Always get summary for all references
         ledger: checkRefFilters.ledger,
         administration: checkRefFilters.administration
       });
@@ -492,12 +514,9 @@ const MyAdminReports: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        setCheckRefData(data.transactions);
         const filteredSummary = data.summary.filter((row: any) => {
           const amount = parseFloat(row.total_amount || 0);
-          const isZero = amount === 0 || Math.abs(amount) < 0.01;
-          const ledgerMatch = checkRefFilters.ledger === 'all' || row.ledger === checkRefFilters.ledger;
-          return !isZero && ledgerMatch;
+          return Math.abs(amount) > 0.01;
         });
         setRefSummaryData(filteredSummary);
       }
@@ -505,6 +524,26 @@ const MyAdminReports: React.FC = () => {
       console.error('Error fetching check reference data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchReferenceDetails = async (referenceNumber: string) => {
+    try {
+      const params = new URLSearchParams({
+        referenceNumber: referenceNumber,
+        ledger: checkRefFilters.ledger,
+        administration: checkRefFilters.administration
+      });
+      
+      const response = await fetch(`http://localhost:5000/api/reports/check-reference?${params}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSelectedReferenceDetails(data.transactions);
+        setSelectedReference(referenceNumber);
+      }
+    } catch (err) {
+      console.error('Error fetching reference details:', err);
     }
   };
 
@@ -548,7 +587,8 @@ const MyAdminReports: React.FC = () => {
     try {
       const params = new URLSearchParams({
         years: actualsFilters.years.join(','),
-        administration: actualsFilters.administration
+        administration: actualsFilters.administration,
+        groupBy: drillDownLevel // 'year', 'quarter', or 'month'
       });
       
       // Balance data (VW = N)
@@ -580,6 +620,11 @@ const MyAdminReports: React.FC = () => {
     fetchAvailableYears();
     fetchActualsData();
   }, []);
+
+  // Refetch data when drill-down level changes
+  useEffect(() => {
+    fetchActualsData();
+  }, [drillDownLevel]);
 
   const exportMutatiesCsv = () => {
     const csvContent = [
@@ -636,7 +681,6 @@ const MyAdminReports: React.FC = () => {
             <Tab color="white">💰 Mutaties (P&L)</Tab>
             <Tab color="white">🏠 BNB Revenue</Tab>
             <Tab color="white">📊 Actuals</Tab>
-            <Tab color="white">📈 P&L Trends</Tab>
             <Tab color="white">🔍 Check Reference</Tab>
           </TabList>
 
@@ -948,9 +992,40 @@ const MyAdminReports: React.FC = () => {
                         </Select>
                       </GridItem>
                       <GridItem>
+                        <Text color="white" mb={2}>Drill Down</Text>
+                        <HStack>
+                          <Button 
+                            size="sm" 
+                            colorScheme={drillDownLevel === 'year' ? 'orange' : 'gray'}
+                            onClick={() => setDrillDownLevel('year')}
+                          >
+                            Year
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            colorScheme={drillDownLevel === 'quarter' ? 'orange' : 'gray'}
+                            onClick={() => setDrillDownLevel('quarter')}
+                          >
+                            Quarter
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            colorScheme={drillDownLevel === 'month' ? 'orange' : 'gray'}
+                            onClick={() => setDrillDownLevel('month')}
+                          >
+                            Month
+                          </Button>
+                        </HStack>
+                      </GridItem>
+                      <GridItem>
                         <Button colorScheme="orange" onClick={fetchActualsData} isLoading={loading} size="sm">
                           Update Data
                         </Button>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="gray.400" fontSize="xs">
+                          Grouping: {drillDownLevel === 'year' ? 'By Year' : drillDownLevel === 'quarter' ? 'By Quarter (Backend API Update Required)' : 'By Month (Backend API Update Required)'}
+                        </Text>
                       </GridItem>
                     </Grid>
                   </CardBody>
@@ -1042,9 +1117,23 @@ const MyAdminReports: React.FC = () => {
                             <Thead>
                               <Tr>
                                 <Th color="white" width="120px" border="none">Account</Th>
-                                {[...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => (
+                                {drillDownLevel === 'year' && [...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => (
                                   <Th key={year} color="white" width="60px" textAlign="right" border="none">{year}</Th>
                                 ))}
+                                {drillDownLevel === 'quarter' && [...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => 
+                                  ['Q1', 'Q2', 'Q3', 'Q4'].map(quarter => (
+                                    <Th key={`${year}-${quarter}`} color="white" width="60px" textAlign="right" border="none">
+                                      {year} {quarter}
+                                    </Th>
+                                  ))
+                                ).flat()}
+                                {drillDownLevel === 'month' && [...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => 
+                                  ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(month => (
+                                    <Th key={`${year}-${month}`} color="white" width="60px" textAlign="right" border="none">
+                                      {year} {month}
+                                    </Th>
+                                  ))
+                                ).flat()}
                               </Tr>
                             </Thead>
                             <Tbody>
@@ -1093,6 +1182,9 @@ const MyAdminReports: React.FC = () => {
                             ))}
                           </BarChart>
                         </ResponsiveContainer>
+                        <Text color="gray.400" fontSize="xs" mt={2} textAlign="center">
+                          * 8099 Bijzondere baten en lasten not included
+                        </Text>
                       </CardBody>
                     </Card>
                   </GridItem>
@@ -1100,37 +1192,7 @@ const MyAdminReports: React.FC = () => {
               </VStack>
             </TabPanel>
 
-            {/* P&L Trends Tab */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Card bg="gray.700">
-                  <CardBody>
-                    <HStack spacing={4} wrap="wrap">
-                      <Button colorScheme="orange" onClick={fetchTrendsData} isLoading={loading} size="sm">
-                        Update Trends
-                      </Button>
-                    </HStack>
-                  </CardBody>
-                </Card>
 
-                <Card bg="gray.700">
-                  <CardHeader>
-                    <Heading size="md" color="white">P&L Trends</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <LineChart data={trendsData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="amount" stroke="#8884d8" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardBody>
-                </Card>
-              </VStack>
-            </TabPanel>
 
             {/* Check Reference Tab */}
             <TabPanel>
@@ -1138,6 +1200,55 @@ const MyAdminReports: React.FC = () => {
                 <Card bg="gray.700">
                   <CardBody>
                     <HStack spacing={4} wrap="wrap">
+                      <VStack spacing={1}>
+                        <Text color="white" fontSize="sm">Administration</Text>
+                        <Select
+                          value={checkRefFilters.administration}
+                          onChange={(e) => {
+                            const newAdmin = e.target.value;
+                            setCheckRefFilters(prev => ({
+                              ...prev, 
+                              administration: newAdmin,
+                              ledger: 'all',
+                              referenceNumber: 'all'
+                            }));
+                            fetchFilterOptions(newAdmin, 'all');
+                          }}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                          w="200px"
+                        >
+                          <option value="all">All</option>
+                          {filterOptions.administrations.map((admin, index) => (
+                            <option key={index} value={admin}>{admin}</option>
+                          ))}
+                        </Select>
+                      </VStack>
+                      <VStack spacing={1}>
+                        <Text color="white" fontSize="sm">Ledger</Text>
+                        <Select
+                          value={checkRefFilters.ledger}
+                          onChange={(e) => {
+                            const newLedger = e.target.value;
+                            setCheckRefFilters(prev => ({
+                              ...prev, 
+                              ledger: newLedger,
+                              referenceNumber: 'all'
+                            }));
+                            fetchFilterOptions(checkRefFilters.administration, newLedger);
+                          }}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                          w="200px"
+                        >
+                          <option value="all">All Ledgers</option>
+                          {filterOptions.ledgers.map((ledger, index) => (
+                            <option key={index} value={ledger}>{ledger}</option>
+                          ))}
+                        </Select>
+                      </VStack>
                       <VStack spacing={1}>
                         <Text color="white" fontSize="sm">Reference Number</Text>
                         <Select
@@ -1149,24 +1260,8 @@ const MyAdminReports: React.FC = () => {
                           w="200px"
                         >
                           <option value="all">All References</option>
-                          {filterCombinations.map((combo, index) => (
-                            <option key={index} value={combo.ReferenceNumber}>{combo.ReferenceNumber}</option>
-                          ))}
-                        </Select>
-                      </VStack>
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Ledger</Text>
-                        <Select
-                          value={checkRefFilters.ledger}
-                          onChange={(e) => setCheckRefFilters(prev => ({...prev, ledger: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="200px"
-                        >
-                          <option value="all">All Ledgers</option>
-                          {filterCombinations.map((combo, index) => (
-                            <option key={index} value={combo.ledger}>{combo.ledger}</option>
+                          {filterOptions.references.map((reference, index) => (
+                            <option key={index} value={reference}>{reference}</option>
                           ))}
                         </Select>
                       </VStack>
@@ -1177,33 +1272,108 @@ const MyAdminReports: React.FC = () => {
                   </CardBody>
                 </Card>
 
+                {/* Table 1: Reference Summary */}
                 <Card bg="gray.700">
-                  <CardHeader>
-                    <Heading size="md" color="white">Reference Summary</Heading>
+                  <CardHeader pb={2}>
+                    <Heading size="md" color="white">Table 1: Reference Summary</Heading>
                   </CardHeader>
-                  <CardBody>
+                  <CardBody pt={0}>
                     <TableContainer>
-                      <Table size="sm" variant="simple">
+                      <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
                         <Thead>
                           <Tr>
-                            <Th color="white">Reference</Th>
-                            <Th color="white">Ledger</Th>
-                            <Th color="white">Amount</Th>
+                            <Th color="white" width="200px" border="none">Reference Number</Th>
+                            <Th color="white" width="120px" textAlign="right" border="none">Amount</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {refSummaryData.slice(0, 100).map((row, index) => (
-                            <Tr key={index}>
-                              <Td color="white" fontSize="sm">{row.referenceNumber}</Td>
-                              <Td color="white" fontSize="sm">{row.ledger}</Td>
-                              <Td color="white" fontSize="sm">€{Number(row.total_amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                          {refSummaryData.map((row, index) => (
+                            <Tr 
+                              key={index} 
+                              cursor="pointer" 
+                              _hover={{ bg: "gray.600" }}
+                              bg={selectedReference === row.ReferenceNumber ? "gray.600" : "transparent"}
+                              onClick={() => fetchReferenceDetails(row.ReferenceNumber)}
+                            >
+                              <Td color="white" fontSize="sm" border="none" py={1}>
+                                {row.ReferenceNumber}
+                              </Td>
+                              <Td color="white" fontSize="sm" textAlign="right" border="none" py={1}>
+                                {formatAmount(Number(row.total_amount) || 0, '2dec')}
+                              </Td>
                             </Tr>
                           ))}
+                          {/* Total Row */}
+                          <Tr bg="orange.600">
+                            <Td color="white" fontSize="sm" fontWeight="bold" border="none" py={1}>
+                              TOTAL
+                            </Td>
+                            <Td color="white" fontSize="sm" textAlign="right" fontWeight="bold" border="none" py={1}>
+                              {formatAmount(
+                                refSummaryData.reduce((sum, row) => sum + (Number(row.total_amount) || 0), 0),
+                                '2dec'
+                              )}
+                            </Td>
+                          </Tr>
                         </Tbody>
                       </Table>
                     </TableContainer>
                   </CardBody>
                 </Card>
+
+                {/* Table 2: Transaction Details */}
+                {selectedReferenceDetails.length > 0 && (
+                  <Card bg="gray.700">
+                    <CardHeader pb={2}>
+                      <Heading size="md" color="white">Table 2: Transaction Details</Heading>
+                    </CardHeader>
+                    <CardBody pt={0}>
+                      <TableContainer>
+                        <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
+                          <Thead>
+                            <Tr>
+                              <Th color="white" width="120px" border="none">Transaction Date</Th>
+                              <Th color="white" width="120px" border="none">Transaction Number</Th>
+                              <Th color="white" width="100px" textAlign="right" border="none">Amount</Th>
+                              <Th color="white" border="none">Description</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {selectedReferenceDetails.map((row, index) => (
+                              <Tr key={index}>
+                                <Td color="white" fontSize="sm" border="none" py={1}>
+                                  {new Date(row.TransactionDate).toISOString().split('T')[0]}
+                                </Td>
+                                <Td color="white" fontSize="sm" border="none" py={1}>
+                                  {row.TransactionNumber}
+                                </Td>
+                                <Td color="white" fontSize="sm" textAlign="right" border="none" py={1}>
+                                  {formatAmount(Number(row.Amount) || 0, '2dec')}
+                                </Td>
+                                <Td color="white" fontSize="sm" border="none" py={1}>
+                                  {row.TransactionDescription}
+                                </Td>
+                              </Tr>
+                            ))}
+                            {/* Total Row */}
+                            <Tr bg="orange.600">
+                              <Td color="white" fontSize="sm" fontWeight="bold" border="none" py={1} colSpan={2}>
+                                TOTAL
+                              </Td>
+                              <Td color="white" fontSize="sm" textAlign="right" fontWeight="bold" border="none" py={1}>
+                                {formatAmount(
+                                  selectedReferenceDetails.reduce((sum, row) => sum + (Number(row.Amount) || 0), 0),
+                                  '2dec'
+                                )}
+                              </Td>
+                              <Td border="none"></Td>
+                            </Tr>
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                    </CardBody>
+                  </Card>
+                )}
               </VStack>
             </TabPanel>
           </TabPanels>

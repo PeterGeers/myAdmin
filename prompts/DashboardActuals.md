@@ -12,10 +12,11 @@
 **** fields: Parent, ledger, VW, jaar, kwartaal, maand, summarized(Amount)
 *** Profit/Loss: This need the contain the data to be summarized by ledger for the selected Year where VW == Y)
 **** fields: Parent, ledger, VW, jaar, kwartaal, maand, summarized(Amount)
+*** The option to expand to kwartaal and to month
 
 *** Table layout 
 **** Y-Axis: width (120px),  1 column with Parent, indent 2 characters for ledger
-**** X-Axis: width (60 px for each column presented ) A column for each year selected. The option to expand to kwartaal and to month
+**** X-Axis: width (60 px for each column presented ) A column for each year selected. 
 ***** Align Can the year column headers  in the  Profit/Loss table be right aligned woth the amounts
 **** Cells: Summarized Amount with the option 
 **** It is the intention that 1 Parent has 1-N ledgers and the Amount per Parent is summarized as well as the Total amount for all ledgers.  
@@ -35,4 +36,5 @@
 *** Add to the same row as the Profit/Loss table but with phone support it should move below
 *** Ledger text as legenda bij de vlakken
 *** Leave ledger 8099 Bijzondere baten en lasten out of the Graph
-***graph for each selected yearcompare year by year
+*** graph for each selected yearcompare year by year
+*** Add message to bar chart 8099 Bijzondere baten en lasten not included

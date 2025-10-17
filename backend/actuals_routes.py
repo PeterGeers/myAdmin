@@ -73,6 +73,7 @@ def get_actuals_profitloss():
     try:
         years = request.args.get('years', '2024').split(',')
         administration = request.args.get('administration', 'all')
+        group_by = request.args.get('groupBy', 'year')
         
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -89,20 +90,54 @@ def get_actuals_profitloss():
         year_placeholders = ','.join(['%s'] * len(years))
         where_conditions.append(f"jaar IN ({year_placeholders})")
         params.extend(years)
-            
-        where_clause = " AND ".join(where_conditions)
         
-        query = f"""
-        SELECT 
-            Parent,
-            ledger,
-            jaar,
-            SUM(Amount) as Amount
-        FROM vw_mutaties 
-        WHERE {where_clause}
-        GROUP BY Parent, ledger, jaar
-        ORDER BY Parent, ledger, jaar
-        """
+        # Build query based on groupBy parameter
+        if group_by == 'quarter':
+            where_conditions.append("kwartaal IS NOT NULL")
+            where_clause = " AND ".join(where_conditions)
+            query = f"""
+            SELECT 
+                Parent,
+                ledger,
+                jaar,
+                kwartaal,
+                SUM(Amount) as Amount
+            FROM vw_mutaties 
+            WHERE {where_clause}
+            GROUP BY Parent, ledger, jaar, kwartaal
+            HAVING SUM(Amount) != 0
+            ORDER BY Parent, ledger, jaar, kwartaal
+            """
+        elif group_by == 'month':
+            where_conditions.append("maand IS NOT NULL")
+            where_clause = " AND ".join(where_conditions)
+            query = f"""
+            SELECT 
+                Parent,
+                ledger,
+                jaar,
+                maand,
+                SUM(Amount) as Amount
+            FROM vw_mutaties 
+            WHERE {where_clause}
+            GROUP BY Parent, ledger, jaar, maand
+            HAVING SUM(Amount) != 0
+            ORDER BY Parent, ledger, jaar, maand
+            """
+        else:  # Default to year
+            where_clause = " AND ".join(where_conditions)
+            query = f"""
+            SELECT 
+                Parent,
+                ledger,
+                jaar,
+                SUM(Amount) as Amount
+            FROM vw_mutaties 
+            WHERE {where_clause}
+            GROUP BY Parent, ledger, jaar
+            HAVING SUM(Amount) != 0
+            ORDER BY Parent, ledger, jaar
+            """
         
         cursor.execute(query, params)
         results = cursor.fetchall()

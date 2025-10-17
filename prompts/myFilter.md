@@ -1,5 +1,6 @@
 # myFilter.md - Filter Implementation Guide
 
+*** The filters should be cascading - when you select an Administration, the Ledger dropdown should only show ledgers that exist for that specific Administration. Let me update the backend to support filtered options and the frontend to implement cascading filters.
 ## Multi-Select Years Filter
 Custom multi-select dropdown using Menu with checkboxes that looks like a standard dropdown:
 - Orange background with white text for visibility
