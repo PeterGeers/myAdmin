@@ -10,6 +10,7 @@ from str_database import STRDatabase
 from database import DatabaseManager
 from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
+from bnb_routes import bnb_bp
 import os
 from werkzeug.utils import secure_filename
 
@@ -25,6 +26,7 @@ CORS(app, resources={
 # Register reporting blueprint
 app.register_blueprint(reporting_bp, url_prefix='/api/reports')
 app.register_blueprint(actuals_bp)
+app.register_blueprint(bnb_bp, url_prefix='/api/reports')
 
 # In-memory cache for uploaded files to prevent duplicates during session
 upload_cache = {}
