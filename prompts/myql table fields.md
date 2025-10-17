@@ -1,3 +1,21 @@
+mutaties fields:
+---
+| Field | Type |
+|-------|------|
+| ID | int |
+| TransactionNumber | char(50) |
+| TransactionDate | date |
+| TransactionDescription | varchar(512) |
+| TransactionAmount | decimal(20,2) |
+| Debet | char(10) |
+| Credit | char(10) |
+| ReferenceNumber | varchar(255) |
+| Ref1 | varchar(255) |
+| Ref2 | varchar(255) |
+| Ref3 | varchar(1020) |
+| Ref4 | varchar(255) |
+| Administration | char(20) |
+
 vw_mutaties fields
 ---
 | Field | Type 
@@ -21,32 +39,72 @@ vw_mutaties fields
 | Ref4 | varchar(255) 
 
 
-bnbtotal fields:
-{
-  "fields": [
-    "id",
-    "sourceFile",
-    "channel",
-    "listing",
-    "checkinDate",
-    "checkoutDate",
-    "nights",
-    "guests",
-    "amountGross",
-    "amountNett",
-    "amountChannelFee",
-    "amountTouristTax",
-    "amountVat",
-    "guestName",
-    "phone",
-    "reservationCode",
-    "reservationDate",
-    "status",
-    "pricePerNight",
-    "daysBeforeReservation",
-    "addInfo",
-    "year",
-    "q",
-    "m"
-  ],
-  "success": true
+bnb fields:
+---
+| Field | Type |
+|-------|------|
+| id | int |
+| sourceFile | varchar(128) |
+| channel | varchar(128) |
+| listing | varchar(128) |
+| checkinDate | date |
+| checkoutDate | date |
+| nights | int |
+| guests | int |
+| amountGross | double |
+| amountNett | double |
+| amountChannelFee | double |
+| amountTouristTax | double |
+| amountVat | double |
+| guestName | varchar(128) |
+| phone | varchar(20) |
+| reservationCode | varchar(128) |
+| reservationDate | date |
+| status | varchar(128) |
+| pricePerNight | double |
+| daysBeforeReservation | int |
+| addInfo | varchar(2048) |
+| year | int |
+| q | int |
+| m | int |
+
+bnbplanned fields:
+---
+| Field | Type |
+|-------|------|
+| id | int |
+| sourceFile | varchar(128) |
+| channel | varchar(128) |
+| listing | varchar(128) |
+| checkinDate | date |
+| checkoutDate | date |
+| nights | int |
+| guests | int |
+| amountGross | double |
+| amountNett | double |
+| amountChannelFee | double |
+| amountTouristTax | double |
+| amountVat | double |
+| guestName | varchar(128) |
+| phone | varchar(20) |
+| reservationCode | varchar(128) |
+| reservationDate | date |
+| status | varchar(128) |
+| pricePerNight | double |
+| daysBeforeReservation | int |
+| addInfo | varchar(1024) |
+| year | int |
+| q | int |
+| m | int |
+
+bnbfuture fields:
+---
+| Field | Type |
+|-------|------|
+| id | int |
+| date | char(12) |
+| channel | varchar(128) |
+| listing | varchar(128) |
+| amount | double |
+| addInfo | varchar(1024) |
+| items | int |

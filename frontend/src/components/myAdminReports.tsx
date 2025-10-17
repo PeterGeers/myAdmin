@@ -3,14 +3,10 @@ import {
   Box, VStack, HStack, Heading, Select, Button, Text,
   Card, CardBody, CardHeader, Grid, GridItem, Input,
   Table, Thead, Tbody, Tr, Th, Td, TableContainer,
-  Tabs, TabList, TabPanels, Tab, TabPanel, Badge, Stack,
+  Tabs, TabList, TabPanels, Tab, TabPanel,
   Menu, MenuButton, MenuList, MenuItem, Checkbox
 } from '@chakra-ui/react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Sector } from 'recharts';
-// @ts-ignore
-import GridLayout from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie } from 'recharts';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -47,11 +43,9 @@ const MyAdminReports: React.FC = () => {
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
   const [profitLossData, setProfitLossData] = useState<BalanceRecord[]>([]);
-  const [checkRefData, setCheckRefData] = useState<any[]>([]);
   const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
   const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
   const [selectedReference, setSelectedReference] = useState<string>('');
-  const [filterCombinations, setFilterCombinations] = useState<any[]>([]);
   const [filterOptions, setFilterOptions] = useState({
     administrations: [],
     ledgers: [],
@@ -92,21 +86,7 @@ const MyAdminReports: React.FC = () => {
     listing: 'all'
   });
 
-  // Balance Filters
-  const [balanceFilters, setBalanceFilters] = useState({
-    dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
-    dateTo: new Date().toISOString().split('T')[0],
-    administration: 'all',
-    profitLoss: 'all'
-  });
 
-  // Profit/Loss Filters
-  const [profitLossFilters, setProfitLossFilters] = useState({
-    dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
-    dateTo: new Date().toISOString().split('T')[0],
-    administration: 'all',
-    profitLoss: 'all'
-  });
 
   // Check Reference Filters
   const [checkRefFilters, setCheckRefFilters] = useState({
@@ -115,11 +95,7 @@ const MyAdminReports: React.FC = () => {
     administration: 'all'
   });
 
-  // Check Reference Search Filters
-  const [checkRefSearchFilters, setCheckRefSearchFilters] = useState({
-    referenceNumber: '',
-    ledger: ''
-  });
+
 
   // Actuals Dashboard State
   const [actualsFilters, setActualsFilters] = useState({
@@ -128,9 +104,27 @@ const MyAdminReports: React.FC = () => {
     displayFormat: '2dec'
   });
   const [availableYears, setAvailableYears] = useState<string[]>([]);
+
+  // BNB Actuals State
+  const [bnbActualsFilters, setBnbActualsFilters] = useState({
+    years: ['2024'],
+    listings: 'all',
+    channels: 'all',
+    period: 'year',
+    displayFormat: '2dec',
+    viewType: 'listing' // 'listing' or 'channel'
+  });
+  const [bnbAvailableYears, setBnbAvailableYears] = useState<string[]>([]);
+  const [bnbFilterOptions, setBnbFilterOptions] = useState({
+    years: [],
+    listings: [],
+    channels: []
+  });
+  const [bnbListingData, setBnbListingData] = useState<any[]>([]);
+  const [bnbChannelData, setBnbChannelData] = useState<any[]>([]);
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
+  const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
   const [drillDownLevel, setDrillDownLevel] = useState<'year' | 'quarter' | 'month'>('year');
-  const [expandedYear, setExpandedYear] = useState<string | null>(null);
-  const [expandedQuarter, setExpandedQuarter] = useState<string | null>(null);
 
   // Format amount based on display format
   const formatAmount = (amount: number, format: string): string => {
@@ -148,6 +142,226 @@ const MyAdminReports: React.FC = () => {
       default:
         return `€${num.toLocaleString('nl-NL', {minimumFractionDigits: 2})}`;
     }
+  };
+
+  // Render BNB listing data
+  const renderBnbListingData = (data: any[], years: string[], displayFormat: string) => {
+    const sortedYears = [...years].sort((a, b) => parseInt(a) - parseInt(b));
+    
+    const grouped = data.reduce((acc, row) => {
+      if (!acc[row.listing]) {
+        acc[row.listing] = {};
+        sortedYears.forEach(year => {
+          acc[row.listing][year] = {
+            amountGross: 0,
+            amountNett: 0,
+            amountChannelFee: 0,
+            amountTouristTax: 0,
+            amountVat: 0
+          };
+        });
+      }
+      
+      const year = String(row.year);
+      if (sortedYears.includes(year)) {
+        acc[row.listing][year].amountGross += Number(row.amountGross) || 0;
+        acc[row.listing][year].amountNett += Number(row.amountNett) || 0;
+        acc[row.listing][year].amountChannelFee += Number(row.amountChannelFee) || 0;
+        acc[row.listing][year].amountTouristTax += Number(row.amountTouristTax) || 0;
+        acc[row.listing][year].amountVat += Number(row.amountVat) || 0;
+      }
+      
+      return acc;
+    }, {} as any);
+
+    return Object.entries(grouped).map(([listing, yearData]: [string, any]) => (
+      <Tr key={listing}>
+        <Td color="white" fontSize="sm" w="120px">{listing}</Td>
+        {sortedYears.map(year => (
+          <Td key={year} color="white" fontSize="sm" w="60px" textAlign="right">
+            {formatAmount(yearData[year].amountGross, displayFormat)}
+          </Td>
+        ))}
+      </Tr>
+    ));
+  };
+
+  // Render expandable BNB data with Listing/Channel as columns (X-axis) and Period as rows (Y-axis)
+  const renderExpandableBnbData = (data: any[], viewType: 'listing' | 'channel', displayFormat: string) => {
+    const groupField = viewType === 'listing' ? 'listing' : 'channel';
+    const headers = viewType === 'listing' ? bnbFilterOptions.listings : bnbFilterOptions.channels;
+    
+    // Group data by period first, then by listing/channel
+    const periodData = data.reduce((acc, row) => {
+      const year = row.year;
+      const quarter = row.q || 1;
+      const month = row.m || 1;
+      
+      if (!acc[year]) acc[year] = {};
+      
+      // Initialize all quarters for this year
+      for (let q = 1; q <= 4; q++) {
+        if (!acc[year][q]) acc[year][q] = {};
+        for (let m = 1; m <= 12; m++) {
+          if (!acc[year][q][m]) acc[year][q][m] = {};
+        }
+      }
+      
+      if (!acc[year][quarter][month][row[groupField]]) {
+        acc[year][quarter][month][row[groupField]] = {
+          amountGross: 0, amountNett: 0, amountChannelFee: 0, amountTouristTax: 0, amountVat: 0
+        };
+      }
+      
+      acc[year][quarter][month][row[groupField]].amountGross += Number(row.amountGross) || 0;
+      acc[year][quarter][month][row[groupField]].amountNett += Number(row.amountNett) || 0;
+      acc[year][quarter][month][row[groupField]].amountChannelFee += Number(row.amountChannelFee) || 0;
+      acc[year][quarter][month][row[groupField]].amountTouristTax += Number(row.amountTouristTax) || 0;
+      acc[year][quarter][month][row[groupField]].amountVat += Number(row.amountVat) || 0;
+      
+      return acc;
+    }, {} as any);
+
+    const rows: React.ReactElement[] = [];
+    
+    Object.entries(periodData).sort(([a], [b]) => parseInt(a) - parseInt(b)).forEach(([year, quarterData]: [string, any]) => {
+      const yearKey = year;
+      const isYearExpanded = expandedYears.has(yearKey);
+      
+      // Calculate year totals for each listing/channel
+      const yearTotals: any = {};
+      headers.forEach(header => {
+        yearTotals[header] = { amountGross: 0, amountNett: 0, amountChannelFee: 0, amountTouristTax: 0, amountVat: 0 };
+      });
+      
+      Object.values(quarterData).forEach((qData: any) => {
+        Object.values(qData).forEach((mData: any) => {
+          Object.entries(mData).forEach(([header, amounts]: [string, any]) => {
+            if (yearTotals[header]) {
+              yearTotals[header].amountGross += amounts.amountGross;
+              yearTotals[header].amountNett += amounts.amountNett;
+              yearTotals[header].amountChannelFee += amounts.amountChannelFee;
+              yearTotals[header].amountTouristTax += amounts.amountTouristTax;
+              yearTotals[header].amountVat += amounts.amountVat;
+            }
+          });
+        });
+      });
+      
+      // Year row
+      rows.push(
+        <Tr key={yearKey} bg="gray.600">
+          <Td color="white" fontSize="sm" w="120px">
+            <HStack>
+              <Button
+                size="xs"
+                variant="ghost"
+                color="white"
+                onClick={() => {
+                  const newExpanded = new Set(expandedYears);
+                  if (isYearExpanded) {
+                    newExpanded.delete(yearKey);
+                  } else {
+                    newExpanded.add(yearKey);
+                  }
+                  setExpandedYears(newExpanded);
+                }}
+              >
+                {isYearExpanded ? '−' : '+'}
+              </Button>
+              <Text>{year}</Text>
+            </HStack>
+          </Td>
+          {headers.map(header => (
+            <Td key={header} color="white" fontSize="sm" w="80px" textAlign="right">
+              {formatAmount(yearTotals[header]?.amountGross || 0, displayFormat)}
+            </Td>
+          ))}
+        </Tr>
+      );
+      
+      // Quarter rows (if year expanded) - ensure all quarters 1-4 are shown
+      if (isYearExpanded) {
+        [1, 2, 3, 4].forEach(quarterNum => {
+          const quarter = quarterNum.toString();
+          const monthData = quarterData[quarter] || {};
+          const quarterKey = `${yearKey}-Q${quarter}`;
+          const isQuarterExpanded = expandedQuarters.has(quarterKey);
+          
+          // Calculate quarter totals - ensure all headers are included
+          const quarterTotals: any = {};
+          headers.forEach(header => {
+            quarterTotals[header] = { amountGross: 0, amountNett: 0, amountChannelFee: 0, amountTouristTax: 0, amountVat: 0 };
+          });
+          
+          // Sum all months in this quarter for each header
+          Object.values(monthData).forEach((mData: any) => {
+            headers.forEach(header => {
+              if (mData[header]) {
+                quarterTotals[header].amountGross += mData[header].amountGross || 0;
+                quarterTotals[header].amountNett += mData[header].amountNett || 0;
+                quarterTotals[header].amountChannelFee += mData[header].amountChannelFee || 0;
+                quarterTotals[header].amountTouristTax += mData[header].amountTouristTax || 0;
+                quarterTotals[header].amountVat += mData[header].amountVat || 0;
+              }
+            });
+          });
+          
+          // Quarter row
+          rows.push(
+            <Tr key={quarterKey}>
+              <Td color="white" fontSize="sm" w="120px" pl={8}>
+                <HStack>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    color="white"
+                    onClick={() => {
+                      const newExpanded = new Set(expandedQuarters);
+                      if (isQuarterExpanded) {
+                        newExpanded.delete(quarterKey);
+                      } else {
+                        newExpanded.add(quarterKey);
+                      }
+                      setExpandedQuarters(newExpanded);
+                    }}
+                  >
+                    {isQuarterExpanded ? '−' : '+'}
+                  </Button>
+                  <Text>Q{quarter}</Text>
+                </HStack>
+              </Td>
+              {headers.map(header => (
+                <Td key={header} color="white" fontSize="sm" w="80px" textAlign="right">
+                  {formatAmount(quarterTotals[header]?.amountGross || 0, displayFormat)}
+                </Td>
+              ))}
+            </Tr>
+          );
+          
+          // Month rows (if quarter expanded)
+          if (isQuarterExpanded) {
+            Object.entries(monthData).sort(([a], [b]) => parseInt(a) - parseInt(b)).forEach(([month, mData]: [string, any]) => {
+              const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              rows.push(
+                <Tr key={`${quarterKey}-M${month}`}>
+                  <Td color="white" fontSize="sm" w="120px" pl={16}>
+                    {monthNames[parseInt(month)]}
+                  </Td>
+                  {headers.map(header => (
+                    <Td key={header} color="white" fontSize="sm" w="80px" textAlign="right">
+                      {formatAmount(mData[header]?.amountGross || 0, displayFormat)}
+                    </Td>
+                  ))}
+                </Tr>
+              );
+            });
+          }
+        });
+      }
+    });
+    
+    return { rows, headers };
   };
 
   // Render hierarchical data with Parent totals and indented ledgers
@@ -430,9 +644,9 @@ const MyAdminReports: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        dateTo: balanceFilters.dateTo,
-        administration: balanceFilters.administration,
-        profitLoss: balanceFilters.profitLoss
+        dateTo: new Date().toISOString().split('T')[0],
+        administration: 'all',
+        profitLoss: 'all'
       });
       
       const response = await fetch(`http://localhost:5000/api/reports/balance-data?${params}`);
@@ -455,10 +669,10 @@ const MyAdminReports: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        dateFrom: profitLossFilters.dateFrom,
-        dateTo: profitLossFilters.dateTo,
-        administration: profitLossFilters.administration,
-        profitLoss: profitLossFilters.profitLoss
+        dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
+        dateTo: new Date().toISOString().split('T')[0],
+        administration: 'all',
+        profitLoss: 'all'
       });
       
       const response = await fetch(`http://localhost:5000/api/reports/balance-data?${params}`);
@@ -489,7 +703,6 @@ const MyAdminReports: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        setFilterCombinations(data.combinations); // Keep for backward compatibility
         setFilterOptions({
           administrations: data.administrations || [],
           ledgers: data.ledgers || [],
@@ -582,6 +795,53 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
+  const fetchBnbFilterOptions = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/reports/bnb-filter-options');
+      const data = await response.json();
+      if (data.success) {
+        setBnbFilterOptions({
+          years: data.years || [],
+          listings: data.listings || [],
+          channels: data.channels || []
+        });
+        setBnbAvailableYears(data.years || []);
+      }
+    } catch (err) {
+      console.error('Error fetching BNB filter options:', err);
+    }
+  };
+
+  const fetchBnbActualsData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        years: bnbActualsFilters.years.join(','),
+        listings: bnbActualsFilters.listings,
+        channels: bnbActualsFilters.channels,
+        period: bnbActualsFilters.period
+      });
+      
+      // Fetch listing data
+      const listingResponse = await fetch(`http://localhost:5000/api/reports/bnb-listing-data?${params}`);
+      const listingResult = await listingResponse.json();
+      if (listingResult.success) {
+        setBnbListingData(listingResult.data);
+      }
+
+      // Fetch channel data
+      const channelResponse = await fetch(`http://localhost:5000/api/reports/bnb-channel-data?${params}`);
+      const channelResult = await channelResponse.json();
+      if (channelResult.success) {
+        setBnbChannelData(channelResult.data);
+      }
+    } catch (err) {
+      console.error('Error fetching BNB actuals data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchActualsData = async () => {
     setLoading(true);
     try {
@@ -619,6 +879,8 @@ const MyAdminReports: React.FC = () => {
     fetchFilterOptions();
     fetchAvailableYears();
     fetchActualsData();
+    fetchBnbFilterOptions();
+    fetchBnbActualsData();
   }, []);
 
   // Refetch data when drill-down level changes
@@ -681,6 +943,7 @@ const MyAdminReports: React.FC = () => {
             <Tab color="white">💰 Mutaties (P&L)</Tab>
             <Tab color="white">🏠 BNB Revenue</Tab>
             <Tab color="white">📊 Actuals</Tab>
+            <Tab color="white">🏡 BNB Actuals</Tab>
             <Tab color="white">🔍 Check Reference</Tab>
           </TabList>
 
@@ -1193,6 +1456,160 @@ const MyAdminReports: React.FC = () => {
             </TabPanel>
 
 
+
+            {/* BNB Actuals Tab */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Card bg="gray.700">
+                  <CardBody>
+                    <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
+                      <GridItem>
+                        <Text color="white" mb={2}>Select Years</Text>
+                        <Menu closeOnSelect={false}>
+                          <MenuButton
+                            as={Button}
+                            bg="orange.500"
+                            color="white"
+                            size="sm"
+                            width="100%"
+                            textAlign="left"
+                            rightIcon={<span>▼</span>}
+                            _hover={{ bg: "orange.600" }}
+                            _active={{ bg: "orange.600" }}
+                          >
+                            {bnbActualsFilters.years.length > 0 ? bnbActualsFilters.years.join(', ') : 'Select years...'}
+                          </MenuButton>
+                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                            {bnbAvailableYears.map(year => (
+                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                <Checkbox
+                                  isChecked={bnbActualsFilters.years.includes(year)}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    setBnbActualsFilters(prev => ({
+                                      ...prev,
+                                      years: isChecked 
+                                        ? [...prev.years, year]
+                                        : prev.years.filter(y => y !== year)
+                                    }));
+                                  }}
+                                  colorScheme="orange"
+                                >
+                                  <Text color="white" ml={2}>{year}</Text>
+                                </Checkbox>
+                              </MenuItem>
+                            ))}
+                          </MenuList>
+                        </Menu>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Listing</Text>
+                        <Select 
+                          value={bnbActualsFilters.listings}
+                          onChange={(e) => setBnbActualsFilters(prev => ({...prev, listings: e.target.value}))}
+                          bg="gray.600" 
+                          color="white" 
+                          size="sm"
+                        >
+                          <option value="all">All Listings</option>
+                          {bnbFilterOptions.listings.map(listing => (
+                            <option key={listing} value={listing}>{listing}</option>
+                          ))}
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Channel</Text>
+                        <Select 
+                          value={bnbActualsFilters.channels}
+                          onChange={(e) => setBnbActualsFilters(prev => ({...prev, channels: e.target.value}))}
+                          bg="gray.600" 
+                          color="white" 
+                          size="sm"
+                        >
+                          <option value="all">All Channels</option>
+                          {bnbFilterOptions.channels.map(channel => (
+                            <option key={channel} value={channel}>{channel}</option>
+                          ))}
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>View Type</Text>
+                        <HStack>
+                          <Button 
+                            size="sm" 
+                            colorScheme={bnbActualsFilters.viewType === 'listing' ? 'orange' : 'gray'}
+                            onClick={() => setBnbActualsFilters(prev => ({...prev, viewType: 'listing'}))}
+                          >
+                            Listing
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            colorScheme={bnbActualsFilters.viewType === 'channel' ? 'orange' : 'gray'}
+                            onClick={() => setBnbActualsFilters(prev => ({...prev, viewType: 'channel'}))}
+                          >
+                            Channel
+                          </Button>
+                        </HStack>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Display Format</Text>
+                        <Select bg="gray.600" color="white" size="sm">
+                          <option value="2dec">€1,234.56 (2 decimals)</option>
+                          <option value="0dec">€1,235 (whole numbers)</option>
+                          <option value="k">€1.2K (thousands)</option>
+                          <option value="m">€1.2M (millions)</option>
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Button colorScheme="orange" onClick={fetchBnbActualsData} isLoading={loading} size="sm">
+                          Update Data
+                        </Button>
+                      </GridItem>
+                    </Grid>
+                  </CardBody>
+                </Card>
+
+                {/* Expandable BNB Table */}
+                <Card bg="gray.700">
+                  <CardHeader>
+                    <Heading size="md" color="white">
+                      {bnbActualsFilters.viewType === 'listing' ? 'Listing' : 'Channel'} Summary
+                    </Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <TableContainer>
+                      <Table size="sm" variant="simple">
+                        <Thead>
+                          <Tr>
+                            <Th color="white" w="120px">Period</Th>
+                            {(() => {
+                              const result = renderExpandableBnbData(
+                                bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData,
+                                bnbActualsFilters.viewType as 'listing' | 'channel',
+                                bnbActualsFilters.displayFormat
+                              );
+                              return result.headers.map(header => (
+                                <Th key={header} color="white" w="80px" textAlign="right">{header}</Th>
+                              ));
+                            })()}
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {(() => {
+                            const result = renderExpandableBnbData(
+                              bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData,
+                              bnbActualsFilters.viewType as 'listing' | 'channel',
+                              bnbActualsFilters.displayFormat
+                            );
+                            return result.rows;
+                          })()}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+                  </CardBody>
+                </Card>
+              </VStack>
+            </TabPanel>
 
             {/* Check Reference Tab */}
             <TabPanel>
