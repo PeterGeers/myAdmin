@@ -6,7 +6,7 @@ import {
   Tabs, TabList, TabPanels, Tab, TabPanel,
   Menu, MenuButton, MenuList, MenuItem, Checkbox
 } from '@chakra-ui/react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend } from 'recharts';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -124,6 +124,7 @@ const MyAdminReports: React.FC = () => {
   const [bnbChannelData, setBnbChannelData] = useState<any[]>([]);
   const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
   const [drillDownLevel, setDrillDownLevel] = useState<'year' | 'quarter' | 'month'>('year');
 
   // Format amount based on display format
@@ -339,14 +340,24 @@ const MyAdminReports: React.FC = () => {
             </Tr>
           );
           
-          // Month rows (if quarter expanded)
+          // Month rows (if quarter expanded) - only show months for this quarter
           if (isQuarterExpanded) {
-            Object.entries(monthData).sort(([a], [b]) => parseInt(a) - parseInt(b)).forEach(([month, mData]: [string, any]) => {
-              const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const quarterMonths = {
+              '1': [1, 2, 3],
+              '2': [4, 5, 6], 
+              '3': [7, 8, 9],
+              '4': [10, 11, 12]
+            };
+            const monthsInQuarter = quarterMonths[quarter as keyof typeof quarterMonths] || [];
+            const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            monthsInQuarter.forEach(monthNum => {
+              const month = monthNum.toString();
+              const mData = monthData[month] || {};
               rows.push(
                 <Tr key={`${quarterKey}-M${month}`}>
                   <Td color="white" fontSize="sm" w="120px" pl={16}>
-                    {monthNames[parseInt(month)]}
+                    {monthNames[monthNum]}
                   </Td>
                   {headers.map(header => (
                     <Td key={header} color="white" fontSize="sm" w="80px" textAlign="right">
@@ -442,11 +453,32 @@ const MyAdminReports: React.FC = () => {
         grandTotals[key] = (grandTotals[key] || 0) + (group.totals[key] || 0);
       });
       
-      // Parent row with totals
+      const isExpanded = expandedParents.has(`profitloss-${group.parent}`);
+      
+      // Parent row with totals and expand/collapse button
       rows.push(
         <Tr key={`parent-${totalIndex}`} bg="gray.600">
           <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
-            {group.parent}
+            <HStack>
+              <Button
+                size="xs"
+                variant="ghost"
+                color="white"
+                onClick={() => {
+                  const newExpanded = new Set(expandedParents);
+                  const key = `profitloss-${group.parent}`;
+                  if (isExpanded) {
+                    newExpanded.delete(key);
+                  } else {
+                    newExpanded.add(key);
+                  }
+                  setExpandedParents(newExpanded);
+                }}
+              >
+                {isExpanded ? '−' : '+'}
+              </Button>
+              <Text>{group.parent}</Text>
+            </HStack>
           </Td>
           {columnKeys.map(key => (
             <Td key={key} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
@@ -456,21 +488,23 @@ const MyAdminReports: React.FC = () => {
         </Tr>
       );
       
-      // Ledger rows consolidated by ledger name with 2-character indent
-      Object.entries(group.ledgers).forEach(([ledgerName, ledgerAmounts]: [string, any], ledgerIndex: number) => {
-        rows.push(
-          <Tr key={`ledger-${totalIndex}-${ledgerIndex}`}>
-            <Td color="white" fontSize="sm" width="120px" paddingLeft="16px" border="none" py={1}>
-              {ledgerName}
-            </Td>
-            {columnKeys.map(key => (
-              <Td key={key} color="white" fontSize="sm" width="60px" textAlign="right" border="none" py={1}>
-                {formatAmount(Math.round((ledgerAmounts[key] || 0) * 100) / 100, displayFormat)}
+      // Ledger rows consolidated by ledger name (only if expanded)
+      if (isExpanded) {
+        Object.entries(group.ledgers).forEach(([ledgerName, ledgerAmounts]: [string, any], ledgerIndex: number) => {
+          rows.push(
+            <Tr key={`ledger-${totalIndex}-${ledgerIndex}`}>
+              <Td color="white" fontSize="sm" width="120px" paddingLeft="32px" border="none" py={1}>
+                {ledgerName}
               </Td>
-            ))}
-          </Tr>
-        );
-      });
+              {columnKeys.map(key => (
+                <Td key={key} color="white" fontSize="sm" width="60px" textAlign="right" border="none" py={1}>
+                  {formatAmount(Math.round((ledgerAmounts[key] || 0) * 100) / 100, displayFormat)}
+                </Td>
+              ))}
+            </Tr>
+          );
+        });
+      }
       
       totalIndex++;
     });
@@ -509,12 +543,32 @@ const MyAdminReports: React.FC = () => {
 
     Object.values(grouped).forEach((group: any) => {
       grandTotal += group.total;
+      const isExpanded = expandedParents.has(`balance-${group.parent}`);
       
-      // Parent row with total
+      // Parent row with total and expand/collapse button
       rows.push(
         <Tr key={`parent-${totalIndex}`} bg="gray.600">
           <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
-            {group.parent}
+            <HStack>
+              <Button
+                size="xs"
+                variant="ghost"
+                color="white"
+                onClick={() => {
+                  const newExpanded = new Set(expandedParents);
+                  const key = `balance-${group.parent}`;
+                  if (isExpanded) {
+                    newExpanded.delete(key);
+                  } else {
+                    newExpanded.add(key);
+                  }
+                  setExpandedParents(newExpanded);
+                }}
+              >
+                {isExpanded ? '−' : '+'}
+              </Button>
+              <Text>{group.parent}</Text>
+            </HStack>
           </Td>
           <Td color="white" fontSize="sm" width="100px" textAlign="right" fontWeight="bold" border="none" py={1}>
             {formatAmount(group.total, displayFormat)}
@@ -522,19 +576,21 @@ const MyAdminReports: React.FC = () => {
         </Tr>
       );
       
-      // Ledger rows indented under parent with 2-character indent
-      group.ledgers.forEach((ledger: any, ledgerIndex: number) => {
-        rows.push(
-          <Tr key={`ledger-${totalIndex}-${ledgerIndex}`}>
-            <Td color="white" fontSize="sm" width="120px" paddingLeft="16px" border="none" py={1}>
-              {ledger.ledger}
-            </Td>
-            <Td color="white" fontSize="sm" width="100px" textAlign="right" border="none" py={1}>
-              {formatAmount(Number(ledger.Amount) || 0, displayFormat)}
-            </Td>
-          </Tr>
-        );
-      });
+      // Ledger rows indented under parent (only if expanded)
+      if (isExpanded) {
+        group.ledgers.forEach((ledger: any, ledgerIndex: number) => {
+          rows.push(
+            <Tr key={`ledger-${totalIndex}-${ledgerIndex}`}>
+              <Td color="white" fontSize="sm" width="120px" paddingLeft="32px" border="none" py={1}>
+                {ledger.ledger}
+              </Td>
+              <Td color="white" fontSize="sm" width="100px" textAlign="right" border="none" py={1}>
+                {formatAmount(Number(ledger.Amount) || 0, displayFormat)}
+              </Td>
+            </Tr>
+          );
+        });
+      }
       
       totalIndex++;
     });
@@ -669,20 +725,16 @@ const MyAdminReports: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
-        dateTo: new Date().toISOString().split('T')[0],
-        administration: 'all',
-        profitLoss: 'all'
+        years: actualsFilters.years.join(','),
+        administration: actualsFilters.administration,
+        groupBy: drillDownLevel
       });
       
-      const response = await fetch(`http://localhost:5000/api/reports/balance-data?${params}`);
+      const response = await fetch(`http://localhost:5000/api/reports/actuals-profitloss?${params}`);
       const data = await response.json();
       
       if (data.success) {
-        const filteredData = data.data.filter((row: BalanceRecord) => 
-          Math.abs(Number(row.total_amount || 0)) > 0.01
-        );
-        setProfitLossData(filteredData);
+        setProfitLossData(data.data);
       }
     } catch (err) {
       console.error('Error fetching profit/loss data:', err);
@@ -887,6 +939,13 @@ const MyAdminReports: React.FC = () => {
   useEffect(() => {
     fetchActualsData();
   }, [drillDownLevel]);
+
+  // Refetch BNB actuals data when filters change
+  useEffect(() => {
+    if (bnbActualsFilters.years.length > 0) {
+      fetchBnbActualsData();
+    }
+  }, [bnbActualsFilters.years, bnbActualsFilters.listings, bnbActualsFilters.channels, bnbActualsFilters.viewType]);
 
   const exportMutatiesCsv = () => {
     const csvContent = [
@@ -1328,16 +1387,34 @@ const MyAdminReports: React.FC = () => {
                         <ResponsiveContainer width="100%" height={300}>
                           <PieChart>
                             <Pie
-                              data={balanceData.reduce((acc, row) => {
-                                const existing = acc.find(item => item.name === row.ledger);
-                                const value = Math.abs(Number(row.Amount) || 0);
-                                if (existing) {
-                                  existing.value += value;
+                              data={(() => {
+                                const hasExpandedParents = Array.from(expandedParents).some(key => key.startsWith('balance-'));
+                                if (hasExpandedParents) {
+                                  // Show ledger data for expanded parents only
+                                  return balanceData.filter(row => expandedParents.has(`balance-${row.Parent}`)).reduce((acc, row) => {
+                                    const existing = acc.find(item => item.name === row.ledger);
+                                    const value = Math.abs(Number(row.Amount) || 0);
+                                    if (existing) {
+                                      existing.value += value;
+                                    } else {
+                                      acc.push({ name: row.ledger, value });
+                                    }
+                                    return acc;
+                                  }, [] as any[]).filter(item => item.value > 0);
                                 } else {
-                                  acc.push({ name: row.ledger, value });
+                                  // Show parent data
+                                  return balanceData.reduce((acc, row) => {
+                                    const existing = acc.find(item => item.name === row.Parent);
+                                    const value = Math.abs(Number(row.Amount) || 0);
+                                    if (existing) {
+                                      existing.value += value;
+                                    } else {
+                                      acc.push({ name: row.Parent, value });
+                                    }
+                                    return acc;
+                                  }, [] as any[]).filter(item => item.value > 0);
                                 }
-                                return acc;
-                              }, [] as any[]).filter(item => item.value > 0)}
+                              })()}
                               cx="50%"
                               cy="50%"
                               labelLine={false}
@@ -1346,18 +1423,33 @@ const MyAdminReports: React.FC = () => {
                               dataKey="value"
                               label={(entry) => entry.name}
                             >
-                              {balanceData.reduce((acc, row) => {
-                                const existing = acc.find(item => item.name === row.ledger);
-                                const value = Math.abs(Number(row.Amount) || 0);
-                                if (existing) {
-                                  existing.value += value;
-                                } else {
-                                  acc.push({ name: row.ledger, value });
-                                }
-                                return acc;
-                              }, [] as any[]).filter(item => item.value > 0).map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
-                              ))}
+                              {(() => {
+                                const hasExpandedParents = Array.from(expandedParents).some(key => key.startsWith('balance-'));
+                                const data = hasExpandedParents 
+                                  ? balanceData.filter(row => expandedParents.has(`balance-${row.Parent}`)).reduce((acc, row) => {
+                                      const existing = acc.find(item => item.name === row.ledger);
+                                      const value = Math.abs(Number(row.Amount) || 0);
+                                      if (existing) {
+                                        existing.value += value;
+                                      } else {
+                                        acc.push({ name: row.ledger, value });
+                                      }
+                                      return acc;
+                                    }, [] as any[]).filter(item => item.value > 0)
+                                  : balanceData.reduce((acc, row) => {
+                                      const existing = acc.find(item => item.name === row.Parent);
+                                      const value = Math.abs(Number(row.Amount) || 0);
+                                      if (existing) {
+                                        existing.value += value;
+                                      } else {
+                                        acc.push({ name: row.Parent, value });
+                                      }
+                                      return acc;
+                                    }, [] as any[]).filter(item => item.value > 0);
+                                return data.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
+                                ));
+                              })()}
                             </Pie>
                             <Tooltip formatter={(value) => formatAmount(Number(value), actualsFilters.displayFormat)} />
                           </PieChart>
@@ -1416,30 +1508,58 @@ const MyAdminReports: React.FC = () => {
                       <CardBody pt={0}>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
-                            data={profitLossData
-                              .filter(row => row.ledger !== '8099')
-                              .reduce((acc, row) => {
-                                const existing = acc.find(item => item.name === row.ledger);
-                                const value = Number(row.Amount) || 0;
-                                if (existing) {
-                                  existing[row.jaar] = (existing[row.jaar] || 0) + value;
-                                } else {
-                                  const newItem: any = { name: row.ledger };
-                                  actualsFilters.years.forEach(year => {
-                                    newItem[year] = 0;
-                                  });
-                                  newItem[row.jaar] = value;
-                                  acc.push(newItem);
-                                }
-                                return acc;
-                              }, [] as any[])
-                              .filter(item => actualsFilters.years.some(year => Math.abs(item[year] || 0) > 0))}
+                            data={(() => {
+                              const hasExpandedParents = Array.from(expandedParents).some(key => key.startsWith('profitloss-'));
+                              const filteredData = profitLossData.filter(row => row.ledger !== '8099');
+                              
+                              if (hasExpandedParents) {
+                                // Show ledger data for expanded parents only
+                                return filteredData
+                                  .filter(row => expandedParents.has(`profitloss-${row.Parent}`))
+                                  .reduce((acc, row) => {
+                                    const existing = acc.find(item => item.name === row.ledger);
+                                    const value = Number(row.Amount) || 0;
+                                    if (existing) {
+                                      existing[row.jaar] = (existing[row.jaar] || 0) + value;
+                                    } else {
+                                      const newItem: any = { name: row.ledger };
+                                      actualsFilters.years.forEach(year => {
+                                        newItem[year] = 0;
+                                      });
+                                      newItem[row.jaar] = value;
+                                      acc.push(newItem);
+                                    }
+                                    return acc;
+                                  }, [] as any[])
+                                  .filter(item => actualsFilters.years.some(year => Math.abs(item[year] || 0) > 0));
+                              } else {
+                                // Show parent data
+                                return filteredData
+                                  .reduce((acc, row) => {
+                                    const existing = acc.find(item => item.name === row.Parent);
+                                    const value = Number(row.Amount) || 0;
+                                    if (existing) {
+                                      existing[row.jaar] = (existing[row.jaar] || 0) + value;
+                                    } else {
+                                      const newItem: any = { name: row.Parent };
+                                      actualsFilters.years.forEach(year => {
+                                        newItem[year] = 0;
+                                      });
+                                      newItem[row.jaar] = value;
+                                      acc.push(newItem);
+                                    }
+                                    return acc;
+                                  }, [] as any[])
+                                  .filter(item => actualsFilters.years.some(year => Math.abs(item[year] || 0) > 0));
+                              }
+                            })()}
                             margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
                           >
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={10} tick={{fill: 'white'}} />
                             <YAxis tick={{fill: 'white'}} />
                             <Tooltip formatter={(value) => formatAmount(Number(value), actualsFilters.displayFormat)} />
+                            <Legend wrapperStyle={{color: 'white', paddingTop: '5px'}} />
                             {[...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map((year, index) => (
                               <Bar key={year} dataKey={year} fill={`hsl(${index * 60}, 70%, 60%)`} />
                             ))}
