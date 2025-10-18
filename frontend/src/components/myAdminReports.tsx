@@ -107,7 +107,7 @@ const MyAdminReports: React.FC = () => {
 
   // BNB Actuals State
   const [bnbActualsFilters, setBnbActualsFilters] = useState({
-    years: ['2024'],
+    years: [new Date().getFullYear().toString()],
     listings: 'all',
     channels: 'all',
     period: 'year',
@@ -278,6 +278,9 @@ const MyAdminReports: React.FC = () => {
               {formatAmount(yearTotals[header]?.amountGross || 0, displayFormat)}
             </Td>
           ))}
+          <Td color="white" fontSize="sm" w="80px" textAlign="right" fontWeight="bold">
+            {formatAmount(Object.values(yearTotals).reduce((sum: number, total: any) => sum + (total?.amountGross || 0), 0), displayFormat)}
+          </Td>
         </Tr>
       );
       
@@ -337,6 +340,9 @@ const MyAdminReports: React.FC = () => {
                   {formatAmount(quarterTotals[header]?.amountGross || 0, displayFormat)}
                 </Td>
               ))}
+              <Td color="white" fontSize="sm" w="80px" textAlign="right">
+                {formatAmount(Object.values(quarterTotals).reduce((sum: number, total: any) => sum + (total?.amountGross || 0), 0), displayFormat)}
+              </Td>
             </Tr>
           );
           
@@ -364,6 +370,9 @@ const MyAdminReports: React.FC = () => {
                       {formatAmount(mData[header]?.amountGross || 0, displayFormat)}
                     </Td>
                   ))}
+                  <Td color="white" fontSize="sm" w="80px" textAlign="right">
+                    {formatAmount(headers.reduce((sum, header) => sum + (mData[header]?.amountGross || 0), 0), displayFormat)}
+                  </Td>
                 </Tr>
               );
             });
@@ -1402,17 +1411,19 @@ const MyAdminReports: React.FC = () => {
                                     return acc;
                                   }, [] as any[]).filter(item => item.value > 0);
                                 } else {
-                                  // Show parent data
-                                  return balanceData.reduce((acc, row) => {
-                                    const existing = acc.find(item => item.name === row.Parent);
-                                    const value = Math.abs(Number(row.Amount) || 0);
-                                    if (existing) {
-                                      existing.value += value;
-                                    } else {
-                                      acc.push({ name: row.Parent, value });
+                                  // Show parent data - use same logic as renderBalanceData
+                                  const grouped = balanceData.reduce((acc, row) => {
+                                    if (!acc[row.Parent]) {
+                                      acc[row.Parent] = { parent: row.Parent, ledgers: [], total: 0 };
                                     }
+                                    acc[row.Parent].ledgers.push(row);
+                                    acc[row.Parent].total += Number(row.Amount) || 0;
                                     return acc;
-                                  }, [] as any[]).filter(item => item.value > 0);
+                                  }, {} as any);
+                                  return Object.values(grouped).map((group: any) => ({
+                                    name: group.parent,
+                                    value: Math.abs(group.total)
+                                  })).filter(item => item.value > 0);
                                 }
                               })()}
                               cx="50%"
@@ -1436,16 +1447,20 @@ const MyAdminReports: React.FC = () => {
                                       }
                                       return acc;
                                     }, [] as any[]).filter(item => item.value > 0)
-                                  : balanceData.reduce((acc, row) => {
-                                      const existing = acc.find(item => item.name === row.Parent);
-                                      const value = Math.abs(Number(row.Amount) || 0);
-                                      if (existing) {
-                                        existing.value += value;
-                                      } else {
-                                        acc.push({ name: row.Parent, value });
-                                      }
-                                      return acc;
-                                    }, [] as any[]).filter(item => item.value > 0);
+                                  : (() => {
+                                      const grouped = balanceData.reduce((acc, row) => {
+                                        if (!acc[row.Parent]) {
+                                          acc[row.Parent] = { parent: row.Parent, ledgers: [], total: 0 };
+                                        }
+                                        acc[row.Parent].ledgers.push(row);
+                                        acc[row.Parent].total += Number(row.Amount) || 0;
+                                        return acc;
+                                      }, {} as any);
+                                      return Object.values(grouped).map((group: any) => ({
+                                        name: group.parent,
+                                        value: Math.abs(group.total)
+                                      })).filter(item => item.value > 0);
+                                    })();
                                 return data.map((entry, index) => (
                                   <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
                                 ));
@@ -1506,7 +1521,7 @@ const MyAdminReports: React.FC = () => {
                         <Heading size="md" color="white">P&L Distribution</Heading>
                       </CardHeader>
                       <CardBody pt={0}>
-                        <ResponsiveContainer width="100%" height={300}>
+                        <ResponsiveContainer width="100%" height={480}>
                           <BarChart
                             data={(() => {
                               const hasExpandedParents = Array.from(expandedParents).some(key => key.startsWith('profitloss-'));
@@ -1553,7 +1568,7 @@ const MyAdminReports: React.FC = () => {
                                   .filter(item => actualsFilters.years.some(year => Math.abs(item[year] || 0) > 0));
                               }
                             })()}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                            margin={{ top: 0, right: 15, left: 15, bottom: 10 }}
                           >
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={10} tick={{fill: 'white'}} />
@@ -1654,22 +1669,16 @@ const MyAdminReports: React.FC = () => {
                       </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>View Type</Text>
-                        <HStack>
-                          <Button 
-                            size="sm" 
-                            colorScheme={bnbActualsFilters.viewType === 'listing' ? 'orange' : 'gray'}
-                            onClick={() => setBnbActualsFilters(prev => ({...prev, viewType: 'listing'}))}
-                          >
-                            Listing
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            colorScheme={bnbActualsFilters.viewType === 'channel' ? 'orange' : 'gray'}
-                            onClick={() => setBnbActualsFilters(prev => ({...prev, viewType: 'channel'}))}
-                          >
-                            Channel
-                          </Button>
-                        </HStack>
+                        <Select 
+                          value={bnbActualsFilters.viewType}
+                          onChange={(e) => setBnbActualsFilters(prev => ({...prev, viewType: e.target.value as 'listing' | 'channel'}))}
+                          bg="gray.600" 
+                          color="white" 
+                          size="sm"
+                        >
+                          <option value="listing">Listing</option>
+                          <option value="channel">Channel</option>
+                        </Select>
                       </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>Display Format</Text>
@@ -1712,6 +1721,7 @@ const MyAdminReports: React.FC = () => {
                                 <Th key={header} color="white" w="80px" textAlign="right">{header}</Th>
                               ));
                             })()}
+                            <Th color="white" w="80px" textAlign="right">Total</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
