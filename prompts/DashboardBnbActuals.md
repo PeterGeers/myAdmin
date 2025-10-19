@@ -42,3 +42,45 @@
 *** Add to the same row as the table but with phone support it should move below
 *** Ledger text as legend bij de vlakken
 *** graph for each selected period compare year by year
+
+
+1. Revenue Trend Over Time
+Line Chart (LineChart from Recharts)
+
+X-axis: Time periods (months/quarters/years)
+
+Y-axis: Revenue amounts
+
+Multiple lines: Different amount types (Gross, Net, etc.)
+
+Benefits: Shows clear trends, seasonality, growth patterns
+
+Alternative: Area Chart for cumulative view
+
+2. Relative Value of Listings/Channels
+Pie Chart (already implemented) + Treemap Chart
+
+Pie Chart: Good for showing proportional distribution
+
+Treemap: Better for many listings/channels - shows size and hierarchy
+
+Donut Chart: Alternative to pie with center space for totals
+
+Benefits: Immediate visual comparison of relative contributions
+
+3. Current Year vs Previous Year Gauge
+Radial Bar Chart or Semi-Circle Gauge
+
+Gauge range: 0% to 150% (or dynamic based on data)
+
+Current position: (Current Year / Previous Year) × 100
+
+Color coding:
+
+Green: >100% (growth)
+
+Yellow: 90-100% (slight decline)
+
+Red: <90% (significant decline)
+
+Center display: Actual percentage and absolute difference
