@@ -6,7 +6,7 @@ import {
   Tabs, TabList, TabPanels, Tab, TabPanel,
   Menu, MenuButton, MenuList, MenuItem, Checkbox
 } from '@chakra-ui/react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line, RadialBarChart, RadialBar } from 'recharts';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -26,6 +26,9 @@ interface BnbRecord {
   nights: number;
   amountGross: number;
   amountNett: number;
+  amountChannelFee?: number;
+  amountTouristTax?: number;
+  amountVat?: number;
   guestName: string;
   guests: number;
   reservationCode: string;
@@ -83,7 +86,8 @@ const MyAdminReports: React.FC = () => {
     dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
     dateTo: new Date().toISOString().split('T')[0],
     channel: 'all',
-    listing: 'all'
+    listing: 'all',
+    selectedAmounts: ['amountGross', 'amountNett'] // Default selection
   });
 
 
@@ -112,7 +116,8 @@ const MyAdminReports: React.FC = () => {
     channels: 'all',
     period: 'year',
     displayFormat: '2dec',
-    viewType: 'listing' // 'listing' or 'channel'
+    viewType: 'listing', // 'listing' or 'channel'
+    selectedAmounts: ['amountGross', 'amountNett'] // Default selection
   });
   const [bnbAvailableYears, setBnbAvailableYears] = useState<string[]>([]);
   const [bnbFilterOptions, setBnbFilterOptions] = useState({
@@ -188,7 +193,7 @@ const MyAdminReports: React.FC = () => {
   };
 
   // Render expandable BNB data with Listing/Channel as columns (X-axis) and Period as rows (Y-axis)
-  const renderExpandableBnbData = (data: any[], viewType: 'listing' | 'channel', displayFormat: string) => {
+  const renderExpandableBnbData = (data: any[], viewType: 'listing' | 'channel', displayFormat: string, selectedAmounts: string[] = ['amountGross']) => {
     const groupField = viewType === 'listing' ? 'listing' : 'channel';
     const headers = viewType === 'listing' ? bnbFilterOptions.listings : bnbFilterOptions.channels;
     
@@ -273,14 +278,21 @@ const MyAdminReports: React.FC = () => {
               <Text>{year}</Text>
             </HStack>
           </Td>
-          {headers.map(header => (
-            <Td key={header} color="white" fontSize="sm" w="80px" textAlign="right">
-              {formatAmount(yearTotals[header]?.amountGross || 0, displayFormat)}
+          {headers.flatMap(header => 
+            selectedAmounts.map(amount => (
+              <Td key={`${header}-${amount}`} color="white" fontSize="sm" w="60px" textAlign="right">
+                {formatAmount(yearTotals[header]?.[amount] || 0, displayFormat)}
+              </Td>
+            ))
+          )}
+          {selectedAmounts.map(amount => (
+            <Td key={`year-total-${amount}`} color="white" fontSize="sm" w="80px" textAlign="right" fontWeight="bold">
+              {formatAmount(
+                headers.reduce((sum, header) => sum + (yearTotals[header]?.[amount] || 0), 0),
+                displayFormat
+              )}
             </Td>
           ))}
-          <Td color="white" fontSize="sm" w="80px" textAlign="right" fontWeight="bold">
-            {formatAmount(Object.values(yearTotals).reduce((sum: number, total: any) => sum + (total?.amountGross || 0), 0), displayFormat)}
-          </Td>
         </Tr>
       );
       
@@ -335,14 +347,21 @@ const MyAdminReports: React.FC = () => {
                   <Text>Q{quarter}</Text>
                 </HStack>
               </Td>
-              {headers.map(header => (
-                <Td key={header} color="white" fontSize="sm" w="80px" textAlign="right">
-                  {formatAmount(quarterTotals[header]?.amountGross || 0, displayFormat)}
+              {headers.flatMap(header => 
+                selectedAmounts.map(amount => (
+                  <Td key={`${header}-${amount}`} color="white" fontSize="sm" w="60px" textAlign="right">
+                    {formatAmount(quarterTotals[header]?.[amount] || 0, displayFormat)}
+                  </Td>
+                ))
+              )}
+              {selectedAmounts.map(amount => (
+                <Td key={`quarter-total-${amount}`} color="white" fontSize="sm" w="80px" textAlign="right">
+                  {formatAmount(
+                    headers.reduce((sum, header) => sum + (quarterTotals[header]?.[amount] || 0), 0),
+                    displayFormat
+                  )}
                 </Td>
               ))}
-              <Td color="white" fontSize="sm" w="80px" textAlign="right">
-                {formatAmount(Object.values(quarterTotals).reduce((sum: number, total: any) => sum + (total?.amountGross || 0), 0), displayFormat)}
-              </Td>
             </Tr>
           );
           
@@ -365,14 +384,21 @@ const MyAdminReports: React.FC = () => {
                   <Td color="white" fontSize="sm" w="120px" pl={16}>
                     {monthNames[monthNum]}
                   </Td>
-                  {headers.map(header => (
-                    <Td key={header} color="white" fontSize="sm" w="80px" textAlign="right">
-                      {formatAmount(mData[header]?.amountGross || 0, displayFormat)}
+                  {headers.flatMap(header => 
+                    selectedAmounts.map(amount => (
+                      <Td key={`${header}-${amount}`} color="white" fontSize="sm" w="60px" textAlign="right">
+                        {formatAmount(mData[header]?.[amount] || 0, displayFormat)}
+                      </Td>
+                    ))
+                  )}
+                  {selectedAmounts.map(amount => (
+                    <Td key={`month-total-${amount}`} color="white" fontSize="sm" w="80px" textAlign="right">
+                      {formatAmount(
+                        headers.reduce((sum, header) => sum + (mData[header]?.[amount] || 0), 0),
+                        displayFormat
+                      )}
                     </Td>
                   ))}
-                  <Td color="white" fontSize="sm" w="80px" textAlign="right">
-                    {formatAmount(headers.reduce((sum, header) => sum + (mData[header]?.amountGross || 0), 0), displayFormat)}
-                  </Td>
                 </Tr>
               );
             });
@@ -653,13 +679,17 @@ const MyAdminReports: React.FC = () => {
       if (field === 'checkinDate' || field === 'checkoutDate') {
         aVal = new Date(aVal as string).getTime();
         bVal = new Date(bVal as string).getTime();
-      } else if (field === 'nights' || field === 'guests' || field === 'amountGross' || field === 'amountNett') {
+      } else if (field === 'nights' || field === 'guests' || field === 'amountGross' || field === 'amountNett' || field === 'amountChannelFee' || field === 'amountTouristTax' || field === 'amountVat') {
         aVal = Number(aVal) || 0;
         bVal = Number(bVal) || 0;
       }
       
-      if (aVal < bVal) return newDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return newDirection === 'asc' ? 1 : -1;
+      // Ensure values are not undefined
+      const safeAVal = aVal ?? '';
+      const safeBVal = bVal ?? '';
+      
+      if (safeAVal < safeBVal) return newDirection === 'asc' ? -1 : 1;
+      if (safeAVal > safeBVal) return newDirection === 'asc' ? 1 : -1;
       return 0;
     });
     
@@ -1163,6 +1193,51 @@ const MyAdminReports: React.FC = () => {
                         Export CSV
                       </Button>
                     </HStack>
+                    
+                    {/* Amount Selection Filter */}
+                    <HStack spacing={4} wrap="wrap" mt={4}>
+                      <Text color="white" fontSize="sm">Show Amounts:</Text>
+                      <Menu closeOnSelect={false}>
+                        <MenuButton
+                          as={Button}
+                          bg="orange.500"
+                          color="white"
+                          size="sm"
+                          rightIcon={<span>▼</span>}
+                          _hover={{ bg: "orange.600" }}
+                          _active={{ bg: "orange.600" }}
+                        >
+                          {bnbFilters.selectedAmounts.length > 0 ? `${bnbFilters.selectedAmounts.length} selected` : 'Select amounts...'}
+                        </MenuButton>
+                        <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                          {[
+                            { key: 'amountGross', label: 'Gross Amount' },
+                            { key: 'amountNett', label: 'Net Amount' },
+                            { key: 'amountChannelFee', label: 'Channel Fee' },
+                            { key: 'amountTouristTax', label: 'Tourist Tax' },
+                            { key: 'amountVat', label: 'VAT Amount' }
+                          ].map(amount => (
+                            <MenuItem key={amount.key} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                              <Checkbox
+                                isChecked={bnbFilters.selectedAmounts.includes(amount.key)}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
+                                  setBnbFilters(prev => ({
+                                    ...prev,
+                                    selectedAmounts: isChecked 
+                                      ? [...prev.selectedAmounts, amount.key]
+                                      : prev.selectedAmounts.filter(a => a !== amount.key)
+                                  }));
+                                }}
+                                colorScheme="orange"
+                              >
+                                <Text color="white" ml={2}>{amount.label}</Text>
+                              </Checkbox>
+                            </MenuItem>
+                          ))}
+                        </MenuList>
+                      </Menu>
+                    </HStack>
                   </CardBody>
                 </Card>
 
@@ -1216,12 +1291,31 @@ const MyAdminReports: React.FC = () => {
                             <Th color="white" cursor="pointer" onClick={() => handleBnbSort('nights')}>
                               Nights {bnbSortField === 'nights' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                             </Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountGross')}>
-                              Gross {bnbSortField === 'amountGross' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                            </Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountNett')}>
-                              Net {bnbSortField === 'amountNett' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                            </Th>
+                            {bnbFilters.selectedAmounts.includes('amountGross') && (
+                              <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountGross')}>
+                                Gross {bnbSortField === 'amountGross' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                              </Th>
+                            )}
+                            {bnbFilters.selectedAmounts.includes('amountNett') && (
+                              <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountNett')}>
+                                Net {bnbSortField === 'amountNett' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                              </Th>
+                            )}
+                            {bnbFilters.selectedAmounts.includes('amountChannelFee') && (
+                              <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountChannelFee')}>
+                                Channel Fee {bnbSortField === 'amountChannelFee' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                              </Th>
+                            )}
+                            {bnbFilters.selectedAmounts.includes('amountTouristTax') && (
+                              <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountTouristTax')}>
+                                Tourist Tax {bnbSortField === 'amountTouristTax' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                              </Th>
+                            )}
+                            {bnbFilters.selectedAmounts.includes('amountVat') && (
+                              <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountVat')}>
+                                VAT {bnbSortField === 'amountVat' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                              </Th>
+                            )}
                             <Th color="white" cursor="pointer" onClick={() => handleBnbSort('guestName')}>
                               Guest {bnbSortField === 'guestName' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                             </Th>
@@ -1235,8 +1329,21 @@ const MyAdminReports: React.FC = () => {
                               <Td color="white" fontSize="sm">{row.channel}</Td>
                               <Td color="white" fontSize="sm">{row.listing}</Td>
                               <Td color="white" fontSize="sm">{row.nights}</Td>
-                              <Td color="white" fontSize="sm">€{Number(row.amountGross).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
-                              <Td color="white" fontSize="sm">€{Number(row.amountNett).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                              {bnbFilters.selectedAmounts.includes('amountGross') && (
+                                <Td color="white" fontSize="sm">€{Number(row.amountGross || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                              )}
+                              {bnbFilters.selectedAmounts.includes('amountNett') && (
+                                <Td color="white" fontSize="sm">€{Number(row.amountNett || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                              )}
+                              {bnbFilters.selectedAmounts.includes('amountChannelFee') && (
+                                <Td color="white" fontSize="sm">€{Number(row.amountChannelFee || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                              )}
+                              {bnbFilters.selectedAmounts.includes('amountTouristTax') && (
+                                <Td color="white" fontSize="sm">€{Number(row.amountTouristTax || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                              )}
+                              {bnbFilters.selectedAmounts.includes('amountVat') && (
+                                <Td color="white" fontSize="sm">€{Number(row.amountVat || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                              )}
                               <Td color="white" fontSize="sm">{row.guestName}</Td>
                             </Tr>
                           ))}
@@ -1682,12 +1789,63 @@ const MyAdminReports: React.FC = () => {
                       </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>Display Format</Text>
-                        <Select bg="gray.600" color="white" size="sm">
+                        <Select 
+                          value={bnbActualsFilters.displayFormat}
+                          onChange={(e) => setBnbActualsFilters(prev => ({...prev, displayFormat: e.target.value}))}
+                          bg="gray.600" 
+                          color="white" 
+                          size="sm"
+                        >
                           <option value="2dec">€1,234.56 (2 decimals)</option>
                           <option value="0dec">€1,235 (whole numbers)</option>
                           <option value="k">€1.2K (thousands)</option>
                           <option value="m">€1.2M (millions)</option>
                         </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Show Amounts</Text>
+                        <Menu closeOnSelect={false}>
+                          <MenuButton
+                            as={Button}
+                            bg="orange.500"
+                            color="white"
+                            size="sm"
+                            width="100%"
+                            textAlign="left"
+                            rightIcon={<span>▼</span>}
+                            _hover={{ bg: "orange.600" }}
+                            _active={{ bg: "orange.600" }}
+                          >
+                            {bnbActualsFilters.selectedAmounts.length > 0 ? `${bnbActualsFilters.selectedAmounts.length} selected` : 'Select amounts...'}
+                          </MenuButton>
+                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                            {[
+                              { key: 'amountGross', label: 'Gross Amount' },
+                              { key: 'amountNett', label: 'Net Amount' },
+                              { key: 'amountChannelFee', label: 'Channel Fee' },
+                              { key: 'amountTouristTax', label: 'Tourist Tax' },
+                              { key: 'amountVat', label: 'VAT Amount' }
+                            ].map(amount => (
+                              <MenuItem key={amount.key} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                <Checkbox
+                                  isChecked={bnbActualsFilters.selectedAmounts.includes(amount.key)}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    setBnbActualsFilters(prev => ({
+                                      ...prev,
+                                      selectedAmounts: isChecked 
+                                        ? [...prev.selectedAmounts, amount.key]
+                                        : prev.selectedAmounts.filter(a => a !== amount.key)
+                                    }));
+                                  }}
+                                  colorScheme="orange"
+                                >
+                                  <Text color="white" ml={2}>{amount.label}</Text>
+                                </Checkbox>
+                              </MenuItem>
+                            ))}
+                          </MenuList>
+                        </Menu>
                       </GridItem>
                       <GridItem>
                         <Button colorScheme="orange" onClick={fetchBnbActualsData} isLoading={loading} size="sm">
@@ -1697,6 +1855,217 @@ const MyAdminReports: React.FC = () => {
                     </Grid>
                   </CardBody>
                 </Card>
+
+                {/* Revenue Trend Chart */}
+                <Card bg="gray.700">
+                  <CardHeader>
+                    <Heading size="md" color="white">Revenue Trend Over Time</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart
+                        data={(() => {
+                          const data = bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData;
+                          const trendData = data.reduce((acc, row) => {
+                            const period = `${row.year}-Q${row.q || 1}`;
+                            if (!acc[period]) {
+                              acc[period] = { period, year: row.year, quarter: row.q || 1 };
+                              bnbActualsFilters.selectedAmounts.forEach(amount => {
+                                acc[period][amount] = 0;
+                              });
+                            }
+                            bnbActualsFilters.selectedAmounts.forEach(amount => {
+                              acc[period][amount] += Number(row[amount]) || 0;
+                            });
+                            return acc;
+                          }, {} as any);
+                          return Object.values(trendData).sort((a: any, b: any) => {
+                            if (a.year !== b.year) return a.year - b.year;
+                            return a.quarter - b.quarter;
+                          });
+                        })()}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="period" tick={{fill: 'white'}} />
+                        <YAxis tick={{fill: 'white'}} />
+                        <Tooltip formatter={(value) => formatAmount(Number(value), bnbActualsFilters.displayFormat)} />
+                        <Legend wrapperStyle={{color: 'white'}} />
+                        {bnbActualsFilters.selectedAmounts.map((amount, index) => {
+                          const amountLabel = {
+                            'amountGross': 'Gross Revenue',
+                            'amountNett': 'Net Revenue',
+                            'amountChannelFee': 'Channel Fees',
+                            'amountTouristTax': 'Tourist Tax',
+                            'amountVat': 'VAT'
+                          }[amount] || amount;
+                          return (
+                            <Line
+                              key={amount}
+                              type="monotone"
+                              dataKey={amount}
+                              stroke={`hsl(${index * 60}, 70%, 60%)`}
+                              strokeWidth={2}
+                              name={amountLabel}
+                            />
+                          );
+                        })}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardBody>
+                </Card>
+
+                {/* Charts Grid */}
+                <Grid templateColumns={{ base: "1fr", lg: "1fr 400px" }} gap={4}>
+                  <GridItem>
+                    <Card bg="gray.700">
+                      <CardHeader>
+                        <Heading size="md" color="white">
+                          {bnbActualsFilters.viewType === 'listing' ? 'Listing' : 'Channel'} Distribution
+                        </Heading>
+                      </CardHeader>
+                      <CardBody>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <PieChart>
+                            <Pie
+                              data={(() => {
+                                const data = bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData;
+                                const primaryAmount = bnbActualsFilters.selectedAmounts[0] || 'amountGross';
+                                const grouped = data.reduce((acc, row) => {
+                                  const key = row[bnbActualsFilters.viewType];
+                                  if (!acc[key]) acc[key] = 0;
+                                  acc[key] += Number(row[primaryAmount]) || 0;
+                                  return acc;
+                                }, {} as any);
+                                return Object.entries(grouped)
+                                  .map(([name, value]) => ({ name, value: Math.abs(Number(value)) }))
+                                  .filter(item => item.value > 0)
+                                  .sort((a, b) => b.value - a.value);
+                              })()}
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                              label={(entry: any) => `${entry.name}: ${(entry.percent * 100).toFixed(1)}%`}
+                            >
+                              {(() => {
+                                const data = bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData;
+                                const primaryAmount = bnbActualsFilters.selectedAmounts[0] || 'amountGross';
+                                const grouped = data.reduce((acc, row) => {
+                                  const key = row[bnbActualsFilters.viewType];
+                                  if (!acc[key]) acc[key] = 0;
+                                  acc[key] += Number(row[primaryAmount]) || 0;
+                                  return acc;
+                                }, {} as any);
+                                return Object.entries(grouped)
+                                  .map(([name, value]) => ({ name, value: Math.abs(Number(value)) }))
+                                  .filter(item => item.value > 0)
+                                  .sort((a, b) => b.value - a.value)
+                                  .map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
+                                  ));
+                              })()}
+                            </Pie>
+                            <Tooltip formatter={(value) => formatAmount(Number(value), bnbActualsFilters.displayFormat)} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardBody>
+                    </Card>
+                  </GridItem>
+                  
+                  <GridItem>
+                    <Card bg="gray.700">
+                      <CardHeader>
+                        <Heading size="md" color="white">Year-over-Year Performance</Heading>
+                      </CardHeader>
+                      <CardBody>
+                        {(() => {
+                          const data = bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData;
+                          const primaryAmount = bnbActualsFilters.selectedAmounts[0] || 'amountGross';
+                          const years = Array.from(new Set(data.map(row => row.year))).sort((a, b) => b - a);
+                          const currentYear = years[0];
+                          const previousYear = years[1];
+                          
+                          const currentTotal = data
+                            .filter(row => row.year === currentYear)
+                            .reduce((sum, row) => sum + (Number(row[primaryAmount]) || 0), 0);
+                          const previousTotal = data
+                            .filter(row => row.year === previousYear)
+                            .reduce((sum, row) => sum + (Number(row[primaryAmount]) || 0), 0);
+                          
+                          const percentage = previousTotal > 0 ? (currentTotal / previousTotal) * 100 : 0;
+                          const difference = currentTotal - previousTotal;
+                          
+                          const getColor = (pct: number) => {
+                            if (pct >= 100) return '#22c55e'; // Green
+                            if (pct >= 90) return '#eab308';  // Yellow
+                            return '#ef4444'; // Red
+                          };
+                          
+                          const gaugeData = [{
+                            name: 'Performance',
+                            value: Math.min(percentage, 150),
+                            fill: getColor(percentage)
+                          }];
+                          
+                          return (
+                            <VStack spacing={4}>
+                              <ResponsiveContainer width="100%" height={200}>
+                                <RadialBarChart
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius="60%"
+                                  outerRadius="90%"
+                                  startAngle={180}
+                                  endAngle={0}
+                                  data={[
+                                    { name: 'background', value: 150, fill: '#1f2937' },
+                                    { name: 'performance', value: Math.min(percentage, 150), fill: getColor(percentage) }
+                                  ]}
+                                >
+                                  <RadialBar dataKey="value" />
+                                  {/* Custom Needle */}
+                                  <g>
+                                    <line
+                                      x1="50%"
+                                      y1="50%"
+                                      x2={`${50 + 35 * Math.cos((180 - (percentage / 150) * 180) * Math.PI / 180)}%`}
+                                      y2={`${50 - 35 * Math.sin((180 - (percentage / 150) * 180) * Math.PI / 180)}%`}
+                                      stroke="white"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                    />
+                                    <circle
+                                      cx="50%"
+                                      cy="50%"
+                                      r="4"
+                                      fill="white"
+                                    />
+                                  </g>
+                                </RadialBarChart>
+                              </ResponsiveContainer>
+                              <VStack spacing={2} textAlign="center">
+                                <Text color="white" fontSize="2xl" fontWeight="bold">
+                                  {percentage.toFixed(1)}%
+                                </Text>
+                                <Text color="white" fontSize="sm">
+                                  {currentYear} vs {previousYear}
+                                </Text>
+                                <Text color={difference >= 0 ? 'green.400' : 'red.400'} fontSize="sm">
+                                  {difference >= 0 ? '+' : ''}{formatAmount(difference, bnbActualsFilters.displayFormat)}
+                                </Text>
+                                <Text color="gray.400" fontSize="xs">
+                                  {percentage >= 100 ? 'Growth' : percentage >= 90 ? 'Slight Decline' : 'Significant Decline'}
+                                </Text>
+                              </VStack>
+                            </VStack>
+                          );
+                        })()}
+                      </CardBody>
+                    </Card>
+                  </GridItem>
+                </Grid>
 
                 {/* Expandable BNB Table */}
                 <Card bg="gray.700">
@@ -1711,28 +2080,45 @@ const MyAdminReports: React.FC = () => {
                         <Thead>
                           <Tr>
                             <Th color="white" w="120px">Period</Th>
-                            {(() => {
-                              const result = renderExpandableBnbData(
-                                bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData,
-                                bnbActualsFilters.viewType as 'listing' | 'channel',
-                                bnbActualsFilters.displayFormat
+                            {(bnbActualsFilters.viewType === 'listing' ? bnbFilterOptions.listings : bnbFilterOptions.channels).flatMap(header => 
+                              bnbActualsFilters.selectedAmounts.map(amount => {
+                                const amountLabel = {
+                                  'amountGross': 'Gross',
+                                  'amountNett': 'Net', 
+                                  'amountChannelFee': 'Fee',
+                                  'amountTouristTax': 'Tax',
+                                  'amountVat': 'VAT'
+                                }[amount] || amount;
+                                return (
+                                  <Th key={`${header}-${amount}`} color="white" w="60px" textAlign="right">
+                                    {header} {amountLabel}
+                                  </Th>
+                                );
+                              })
+                            )}
+                            {bnbActualsFilters.selectedAmounts.map(amount => {
+                              const amountLabel = {
+                                'amountGross': 'Total Gross',
+                                'amountNett': 'Total Net', 
+                                'amountChannelFee': 'Total Fee',
+                                'amountTouristTax': 'Total Tax',
+                                'amountVat': 'Total VAT'
+                              }[amount] || `Total ${amount}`;
+                              return (
+                                <Th key={`total-${amount}`} color="white" w="80px" textAlign="right">
+                                  {amountLabel}
+                                </Th>
                               );
-                              return result.headers.map(header => (
-                                <Th key={header} color="white" w="80px" textAlign="right">{header}</Th>
-                              ));
-                            })()}
-                            <Th color="white" w="80px" textAlign="right">Total</Th>
+                            })}
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {(() => {
-                            const result = renderExpandableBnbData(
-                              bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData,
-                              bnbActualsFilters.viewType as 'listing' | 'channel',
-                              bnbActualsFilters.displayFormat
-                            );
-                            return result.rows;
-                          })()}
+                          {renderExpandableBnbData(
+                            bnbActualsFilters.viewType === 'listing' ? bnbListingData : bnbChannelData,
+                            bnbActualsFilters.viewType as 'listing' | 'channel',
+                            bnbActualsFilters.displayFormat,
+                            bnbActualsFilters.selectedAmounts
+                          ).rows}
                         </Tbody>
                       </Table>
                     </TableContainer>
