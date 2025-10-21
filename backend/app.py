@@ -12,6 +12,7 @@ from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
 import os
+from datetime import datetime
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -382,29 +383,32 @@ def banking_apply_patterns():
         credit_patterns = {}
         
         for pattern in patterns_data:
-            ref_num = pattern['referenceNumber']
+            ref_num = pattern.get('referenceNumber')
             if not ref_num:
                 continue
                 
             # Escape special regex characters
-            escaped_ref = ref_num.replace('/', '\\/')
+            escaped_ref = str(ref_num).replace('/', '\\/')
             
-            if pattern['debet'] and pattern['debet'] < '1300':
-                key = f"{pattern['administration']}_{pattern['debet']}_{pattern['credit']}"
+            debet_val = pattern.get('debet')
+            credit_val = pattern.get('credit')
+            
+            if debet_val and str(debet_val) < '1300':
+                key = f"{pattern.get('administration')}_{debet_val}_{credit_val}"
                 if key not in debet_patterns:
                     debet_patterns[key] = {
-                        'debet': pattern['debet'],
-                        'credit': pattern['credit'],
+                        'debet': debet_val,
+                        'credit': credit_val,
                         'patterns': []
                     }
                 debet_patterns[key]['patterns'].append(escaped_ref)
                 
-            if pattern['credit'] and pattern['credit'] < '1300':
-                key = f"{pattern['administration']}_{pattern['debet']}_{pattern['credit']}"
+            if credit_val and str(credit_val) < '1300':
+                key = f"{pattern.get('administration')}_{debet_val}_{credit_val}"
                 if key not in credit_patterns:
                     credit_patterns[key] = {
-                        'debet': pattern['debet'],
-                        'credit': pattern['credit'],
+                        'debet': debet_val,
+                        'credit': credit_val,
                         'patterns': []
                     }
                 credit_patterns[key]['patterns'].append(escaped_ref)
@@ -413,27 +417,35 @@ def banking_apply_patterns():
         import re
         
         for transaction in transactions:
-            description = transaction.get('TransactionDescription', '')
+            description = str(transaction.get('TransactionDescription', ''))
             
             # If Credit is empty, try debet patterns
             if not transaction.get('Credit'):
                 for pattern_group in debet_patterns.values():
-                    pattern_regex = '|'.join(pattern_group['patterns'])
-                    match = re.search(pattern_regex, description, re.IGNORECASE)
-                    if match:
-                        transaction['ReferenceNumber'] = match.group(0)
-                        transaction['Credit'] = pattern_group['credit']
-                        break
+                    if pattern_group['patterns']:
+                        pattern_regex = '|'.join(pattern_group['patterns'])
+                        try:
+                            match = re.search(pattern_regex, description, re.IGNORECASE)
+                            if match:
+                                transaction['ReferenceNumber'] = match.group(0)
+                                transaction['Credit'] = pattern_group['credit']
+                                break
+                        except re.error:
+                            continue
             
             # If Debet is empty, try credit patterns  
             elif not transaction.get('Debet'):
                 for pattern_group in credit_patterns.values():
-                    pattern_regex = '|'.join(pattern_group['patterns'])
-                    match = re.search(pattern_regex, description, re.IGNORECASE)
-                    if match:
-                        transaction['ReferenceNumber'] = match.group(0)
-                        transaction['Debet'] = pattern_group['debet']
-                        break
+                    if pattern_group['patterns']:
+                        pattern_regex = '|'.join(pattern_group['patterns'])
+                        try:
+                            match = re.search(pattern_regex, description, re.IGNORECASE)
+                            if match:
+                                transaction['ReferenceNumber'] = match.group(0)
+                                transaction['Debet'] = pattern_group['debet']
+                                break
+                        except re.error:
+                            continue
         
         return jsonify({
             'success': True,
@@ -498,14 +510,10 @@ def banking_lookups():
         db = DatabaseManager(test_mode=flag)
         
         # Get bank account lookups
-
         bank_accounts = db.get_bank_account_lookups()
-
         
         # Get recent transactions for account mapping
-
         recent_transactions = db.get_recent_transactions(limit=100)
-
         
         # Extract unique account codes and descriptions
         accounts = set()
@@ -527,7 +535,165 @@ def banking_lookups():
         })
         
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/banking/mutaties', methods=['GET'])
+def banking_mutaties():
+    """Get mutaties with filters"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        table_name = 'mutaties_test' if flag else 'mutaties'
+        
+        # Get filter parameters
+        years = request.args.get('years', str(datetime.now().year)).split(',')
+        administration = request.args.get('administration', 'all')
+        
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Build WHERE clause
+        where_conditions = []
+        params = []
+        
+        # Years filter
+        if years and years != ['']:
+            year_placeholders = ','.join(['%s'] * len(years))
+            where_conditions.append(f"YEAR(TransactionDate) IN ({year_placeholders})")
+            params.extend(years)
+        
+        # Administration filter
+        if administration != 'all':
+            where_conditions.append("Administration = %s")
+            params.append(administration)
+        
+        where_clause = 'WHERE ' + ' AND '.join(where_conditions) if where_conditions else ''
+        
+        query = f"""
+            SELECT ID, TransactionNumber, TransactionDate, TransactionDescription, 
+                   TransactionAmount, Debet, Credit, ReferenceNumber, 
+                   Ref1, Ref2, Ref3, Ref4, Administration
+            FROM {table_name} 
+            {where_clause}
+            ORDER BY TransactionDate DESC, ID DESC
+        """
+        cursor.execute(query, params)
+        
+        results = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'mutaties': results,
+            'count': len(results),
+            'table': table_name
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/filter-options', methods=['GET'])
+def banking_filter_options():
+    """Get filter options for mutaties"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        table_name = 'mutaties_test' if flag else 'mutaties'
+        
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get distinct years
+        cursor.execute(f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL ORDER BY year DESC")
+        years = [str(row['year']) for row in cursor.fetchall()]
+        
+        # Get distinct administrations
+        cursor.execute(f"SELECT DISTINCT Administration FROM {table_name} WHERE Administration IS NOT NULL ORDER BY Administration")
+        administrations = [row['Administration'] for row in cursor.fetchall()]
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'years': years,
+            'administrations': administrations
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/update-mutatie', methods=['POST'])
+def banking_update_mutatie():
+    """Update a mutatie record"""
+    try:
+        data = request.get_json()
+        record_id = data.get('ID')
+        
+        print(f"Update request for ID: {record_id}", flush=True)
+        print(f"Data received: {data}", flush=True)
+        
+        if not record_id:
+            return jsonify({'success': False, 'error': 'No ID provided'}), 400
+        
+        db = DatabaseManager(test_mode=flag)
+        table_name = 'mutaties_test' if flag else 'mutaties'
+        
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Update the record
+        update_query = f"""
+            UPDATE {table_name} SET 
+                TransactionNumber = %s,
+                TransactionDate = %s,
+                TransactionDescription = %s,
+                TransactionAmount = %s,
+                Debet = %s,
+                Credit = %s,
+                ReferenceNumber = %s,
+                Ref1 = %s,
+                Ref2 = %s,
+                Ref3 = %s,
+                Ref4 = %s,
+                Administration = %s
+            WHERE ID = %s
+        """
+        
+        # Convert date to proper format
+        transaction_date = data.get('TransactionDate')
+        if transaction_date and 'GMT' in str(transaction_date):
+            from datetime import datetime
+            transaction_date = datetime.strptime(transaction_date, '%a, %d %b %Y %H:%M:%S %Z').strftime('%Y-%m-%d')
+        
+        cursor.execute(update_query, (
+            data.get('TransactionNumber'),
+            transaction_date,
+            data.get('TransactionDescription'),
+            data.get('TransactionAmount'),
+            data.get('Debet'),
+            data.get('Credit'),
+            data.get('ReferenceNumber'),
+            data.get('Ref1'),
+            data.get('Ref2'),
+            data.get('Ref3'),
+            data.get('Ref4'),
+            data.get('Administration'),
+            record_id
+        ))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Record {record_id} updated successfully'
+        })
+        
+    except Exception as e:
+        print(f"Update error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # STR (Short Term Rental) routes

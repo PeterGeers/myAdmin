@@ -18,7 +18,7 @@ import {
 ### State Management
 ```typescript
 const [selectedFilters, setSelectedFilters] = useState({
-  years: ['2024'], // Array for multiple years
+  years: ['2025'], // Array for multiple years
   // other filters...
 });
 ```
