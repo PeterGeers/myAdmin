@@ -1,5 +1,8 @@
 param([string]$message)
 
+# Change to project root directory
+Set-Location ..
+
 git add .
 if ($message) {
     git commit -m "$message - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"

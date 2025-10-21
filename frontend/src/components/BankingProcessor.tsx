@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -18,11 +18,38 @@ import {
   AlertIcon,
   VStack,
   HStack,
-  Text
+  Text,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  TableContainer,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  Checkbox,
+  Grid,
+  GridItem,
+  Card,
+  CardBody,
+  CardHeader,
+  Select,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Textarea
 } from '@chakra-ui/react';
 import { Formik, Form } from 'formik';
 
 interface Transaction {
+  ID?: number;
   row_id: number;
   TransactionNumber: string;
   TransactionDate: string;
@@ -43,14 +70,112 @@ interface Transaction {
 const BankingProcessor: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [mutaties, setMutaties] = useState<Transaction[]>([]);
   const [testMode, setTestMode] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [lookupData, setLookupData] = useState<{accounts: string[], descriptions: string[], bank_accounts: any[]}>({accounts: [], descriptions: [], bank_accounts: []});
+  const [filterOptions, setFilterOptions] = useState<{years: string[], administrations: string[]}>({years: [], administrations: []});
+  const [mutatiesFilters, setMutatiesFilters] = useState({
+    years: [new Date().getFullYear().toString()],
+    administration: 'all'
+  });
+  const [columnFilters, setColumnFilters] = useState({
+    ID: '',
+    TransactionNumber: '',
+    TransactionDate: '',
+    TransactionDescription: '',
+    TransactionAmount: '',
+    Debet: '',
+    Credit: '',
+    ReferenceNumber: '',
+    Ref1: '',
+    Ref2: '',
+    Ref3: '',
+    Ref4: '',
+    Administration: ''
+  });
+  const [debouncedFilters, setDebouncedFilters] = useState(columnFilters);
+  const [displayLimit, setDisplayLimit] = useState(100);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(columnFilters);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [columnFilters]);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [editingRecord, setEditingRecord] = useState<Transaction | null>(null);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setMessage('Copied to clipboard!');
+      setTimeout(() => setMessage(''), 2000);
+    });
+  };
+
+  const handleRef3Click = (ref3: string) => {
+    if (ref3.startsWith('https://drive.goo')) {
+      window.open(ref3, '_blank');
+    } else {
+      copyToClipboard(ref3);
+    }
+  };
+
+  const filteredMutaties = useMemo(() => {
+    const filtered = mutaties.filter(mutatie => {
+      return Object.entries(debouncedFilters).every(([key, filterValue]) => {
+        if (!filterValue) return true;
+        try {
+          const regex = new RegExp(filterValue, 'i');
+          const fieldValue = String(mutatie[key as keyof Transaction] || '');
+          return regex.test(fieldValue);
+        } catch {
+          return String(mutatie[key as keyof Transaction] || '').toLowerCase().includes(filterValue.toLowerCase());
+        }
+      });
+    });
+    return filtered.slice(0, displayLimit);
+  }, [mutaties, debouncedFilters, displayLimit]);
+
+  const openEditModal = (record: Transaction) => {
+    setEditingRecord({...record});
+    onOpen();
+  };
+
+  const updateRecord = async () => {
+    if (!editingRecord) return;
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:5000/api/banking/update-mutatie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingRecord)
+      });
+      const data = await response.json();
+      if (data.success) {
+        setMessage('Record updated successfully!');
+        fetchMutaties();
+        onClose();
+      } else {
+        setMessage(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      setMessage(`Error updating record: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchLookupData();
+    fetchFilterOptions();
+    fetchMutaties();
   }, [testMode]);
+
+  useEffect(() => {
+    fetchMutaties();
+  }, [mutatiesFilters]);
 
   const fetchLookupData = async () => {
     try {
@@ -61,6 +186,34 @@ const BankingProcessor: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching lookup data:', error);
+    }
+  };
+
+  const fetchMutaties = async () => {
+    try {
+      const params = new URLSearchParams({
+        years: mutatiesFilters.years.join(','),
+        administration: mutatiesFilters.administration
+      });
+      const response = await fetch(`http://localhost:5000/api/banking/mutaties?${params}`);
+      const data = await response.json();
+      if (data.success) {
+        setMutaties(data.mutaties);
+      }
+    } catch (error) {
+      console.error('Error fetching mutaties:', error);
+    }
+  };
+
+  const fetchFilterOptions = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/banking/filter-options');
+      const data = await response.json();
+      if (data.success) {
+        setFilterOptions(data);
+      }
+    } catch (error) {
+      console.error('Error fetching filter options:', error);
     }
   };
 
@@ -378,7 +531,15 @@ const BankingProcessor: React.FC = () => {
   };
 
   return (
-    <Box maxW="1200px" mx="auto" p={4}>
+    <Box w="100%" p={4}>
+      <Tabs variant="enclosed" colorScheme="blue">
+        <TabList>
+          <Tab>Process Files</Tab>
+          <Tab>Mutaties</Tab>
+        </TabList>
+
+        <TabPanels>
+          <TabPanel>
 
       {/* Mode Selection */}
       <FormControl mb={6}>
@@ -638,7 +799,217 @@ const BankingProcessor: React.FC = () => {
         </Formik>
       )}
 
+          </TabPanel>
 
+          <TabPanel>
+            <VStack align="stretch" spacing={4}>
+              {/* Filters */}
+              <Card bg="gray.700">
+                <CardBody>
+                  <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
+                    <GridItem>
+                      <Text color="white" mb={2}>Select Years</Text>
+                      <Menu closeOnSelect={false}>
+                        <MenuButton
+                          as={Button}
+                          bg="orange.500"
+                          color="white"
+                          size="sm"
+                          width="100%"
+                          textAlign="left"
+                          rightIcon={<span>▼</span>}
+                          _hover={{ bg: "orange.600" }}
+                          _active={{ bg: "orange.600" }}
+                        >
+                          {mutatiesFilters.years.length > 0 ? mutatiesFilters.years.join(', ') : 'Select years...'}
+                        </MenuButton>
+                        <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                          {filterOptions.years.map(year => (
+                            <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                              <Checkbox
+                                isChecked={mutatiesFilters.years.includes(year)}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
+                                  setMutatiesFilters(prev => ({
+                                    ...prev,
+                                    years: isChecked 
+                                      ? [...prev.years, year]
+                                      : prev.years.filter(y => y !== year)
+                                  }));
+                                }}
+                                colorScheme="orange"
+                              >
+                                <Text color="white" ml={2}>{year}</Text>
+                              </Checkbox>
+                            </MenuItem>
+                          ))}
+                        </MenuList>
+                      </Menu>
+                    </GridItem>
+                    <GridItem>
+                      <Text color="white" mb={2}>Administration</Text>
+                      <Select
+                        value={mutatiesFilters.administration}
+                        onChange={(e) => setMutatiesFilters(prev => ({...prev, administration: e.target.value}))}
+                        bg="gray.600"
+                        color="white"
+                        size="sm"
+                      >
+                        <option value="all">All</option>
+                        {filterOptions.administrations.map((admin, index) => (
+                          <option key={index} value={admin}>{admin}</option>
+                        ))}
+                      </Select>
+                    </GridItem>
+                    <GridItem>
+                      <Button onClick={fetchMutaties} size="sm" colorScheme="blue">
+                        Refresh
+                      </Button>
+                    </GridItem>
+                  </Grid>
+                </CardBody>
+              </Card>
+              
+              <HStack justify="space-between">
+                <Heading size="md">Mutaties ({filteredMutaties.length} of {mutaties.length})</Heading>
+                <HStack>
+                  <Text color="white" fontSize="sm">Show:</Text>
+                  <Select size="sm" value={displayLimit} onChange={(e) => setDisplayLimit(Number(e.target.value))} bg="gray.600" color="white" w="100px">
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={250}>250</option>
+                    <option value={500}>500</option>
+                    <option value={1000}>1000</option>
+                  </Select>
+                </HStack>
+              </HStack>
+              
+              <TableContainer maxH="600px" overflowY="auto" overflowX="auto">
+                <Table size="sm" variant="simple">
+                  <Thead position="sticky" top={0} bg="gray.700" zIndex={1}>
+                    <Tr>
+                      <Th color="white">ID</Th>
+                      <Th color="white">TrxNumber</Th>
+                      <Th color="white">Date</Th>
+                      <Th color="white" maxW="225px">Description</Th>
+                      <Th color="white">Amount</Th>
+                      <Th color="white">Debet</Th>
+                      <Th color="white">Credit</Th>
+                      <Th color="white" maxW="100px">Reference</Th>
+                      <Th color="white" maxW="100px">Ref1</Th>
+                      <Th color="white" maxW="100px">Ref2</Th>
+                      <Th color="white" maxW="100px">Ref3</Th>
+                      <Th color="white" maxW="100px">Ref4</Th>
+                      <Th color="white">Admin</Th>
+                    </Tr>
+                    <Tr>
+                      <Th p={1}><Input size="xs" placeholder="ID" value={columnFilters.ID} onChange={(e) => setColumnFilters(prev => ({...prev, ID: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="TrxNumber" value={columnFilters.TransactionNumber} onChange={(e) => setColumnFilters(prev => ({...prev, TransactionNumber: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Date" value={columnFilters.TransactionDate} onChange={(e) => setColumnFilters(prev => ({...prev, TransactionDate: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="225px"><Input size="xs" placeholder="Description" value={columnFilters.TransactionDescription} onChange={(e) => setColumnFilters(prev => ({...prev, TransactionDescription: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Amount" value={columnFilters.TransactionAmount} onChange={(e) => setColumnFilters(prev => ({...prev, TransactionAmount: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Debet" value={columnFilters.Debet} onChange={(e) => setColumnFilters(prev => ({...prev, Debet: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Credit" value={columnFilters.Credit} onChange={(e) => setColumnFilters(prev => ({...prev, Credit: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Reference" value={columnFilters.ReferenceNumber} onChange={(e) => setColumnFilters(prev => ({...prev, ReferenceNumber: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref1" value={columnFilters.Ref1} onChange={(e) => setColumnFilters(prev => ({...prev, Ref1: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref2" value={columnFilters.Ref2} onChange={(e) => setColumnFilters(prev => ({...prev, Ref2: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref3" value={columnFilters.Ref3} onChange={(e) => setColumnFilters(prev => ({...prev, Ref3: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref4" value={columnFilters.Ref4} onChange={(e) => setColumnFilters(prev => ({...prev, Ref4: e.target.value}))} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Admin" value={columnFilters.Administration} onChange={(e) => setColumnFilters(prev => ({...prev, Administration: e.target.value}))} bg="gray.600" color="white" /></Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {filteredMutaties.map((mutatie, index) => (
+                      <Tr key={mutatie.ID}>
+                        <Td color="white" fontSize="sm" cursor="pointer" _hover={{bg: "gray.600"}} onClick={() => openEditModal(mutatie)}>{mutatie.ID}</Td>
+                        <Td color="white" fontSize="sm">{mutatie.TransactionNumber}</Td>
+                        <Td color="white" fontSize="sm">{new Date(mutatie.TransactionDate).toLocaleDateString('nl-NL')}</Td>
+                        <Td color="white" fontSize="sm" maxW="225px" isTruncated title={mutatie.TransactionDescription} cursor="pointer" onClick={() => copyToClipboard(mutatie.TransactionDescription)}>{mutatie.TransactionDescription}</Td>
+                        <Td color="white" fontSize="sm">€{Number(mutatie.TransactionAmount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                        <Td color="white" fontSize="sm">{mutatie.Debet}</Td>
+                        <Td color="white" fontSize="sm">{mutatie.Credit}</Td>
+                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.ReferenceNumber} cursor="pointer" onClick={() => copyToClipboard(mutatie.ReferenceNumber)}>{mutatie.ReferenceNumber}</Td>
+                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref1} cursor="pointer" onClick={() => copyToClipboard(mutatie.Ref1)}>{mutatie.Ref1}</Td>
+                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref2} cursor="pointer" onClick={() => copyToClipboard(mutatie.Ref2)}>{mutatie.Ref2}</Td>
+                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref3} cursor="pointer" onClick={() => handleRef3Click(mutatie.Ref3)}>{mutatie.Ref3}</Td>
+                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref4} cursor="pointer" onClick={() => copyToClipboard(mutatie.Ref4)}>{mutatie.Ref4}</Td>
+                        <Td color="white" fontSize="sm">{mutatie.Administration}</Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            </VStack>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+
+      {/* Edit Record Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="xl">
+        <ModalOverlay />
+        <ModalContent bg="gray.700">
+          <ModalHeader color="white">Edit Record - ID: {editingRecord?.ID}</ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody>
+            {editingRecord && (
+              <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                <FormControl>
+                  <FormLabel color="white">Transaction Number</FormLabel>
+                  <Input value={editingRecord.TransactionNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, TransactionNumber: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Transaction Date</FormLabel>
+                  <Input type="date" value={editingRecord.TransactionDate ? new Date(editingRecord.TransactionDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, TransactionDate: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl gridColumn="span 2">
+                  <FormLabel color="white">Description</FormLabel>
+                  <Textarea value={editingRecord.TransactionDescription || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, TransactionDescription: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Amount</FormLabel>
+                  <Input type="number" step="0.01" value={editingRecord.TransactionAmount || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, TransactionAmount: parseFloat(e.target.value) || 0} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Administration</FormLabel>
+                  <Input value={editingRecord.Administration || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, Administration: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Debet</FormLabel>
+                  <Input value={editingRecord.Debet || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, Debet: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Credit</FormLabel>
+                  <Input value={editingRecord.Credit || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, Credit: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Reference Number</FormLabel>
+                  <Input value={editingRecord.ReferenceNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, ReferenceNumber: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Ref1</FormLabel>
+                  <Input value={editingRecord.Ref1 || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, Ref1: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Ref2</FormLabel>
+                  <Input value={editingRecord.Ref2 || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, Ref2: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl gridColumn="span 2">
+                  <FormLabel color="white">Ref3</FormLabel>
+                  <Textarea value={editingRecord.Ref3 || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, Ref3: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+                <FormControl>
+                  <FormLabel color="white">Ref4</FormLabel>
+                  <Input value={editingRecord.Ref4 || ''} onChange={(e) => setEditingRecord(prev => prev ? {...prev, Ref4: e.target.value} : prev)} bg="gray.600" color="white" />
+                </FormControl>
+              </Grid>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="gray" mr={3} onClick={onClose}>Cancel</Button>
+            <Button colorScheme="orange" onClick={updateRecord} isLoading={loading}>Update Record</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };
