@@ -176,8 +176,8 @@ class PDFProcessor:
             return self.vendor_parsers.parse_btw(lines)
         elif 'vodafone' in folder_name:
             return self.vendor_parsers.parse_vodafone(lines)
-        elif 'q8' in folder_name:
-            return self.vendor_parsers.parse_q8(lines)
+        elif 'Kuwait' in folder_name:
+            return self.vendor_parsers.parse_kuwait(lines)
         return None
     
     def _format_vendor_transactions(self, vendor_data, file_data):

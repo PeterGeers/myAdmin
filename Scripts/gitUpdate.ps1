@@ -1,7 +1,14 @@
 param([string]$message)
 
-# Change to project root directory
-Set-Location ..
+# Change to myAdmin project root directory
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location (Join-Path $scriptPath "..")
+
+# Verify we're in the correct directory (should contain .git folder)
+if (-not (Test-Path ".git")) {
+    Write-Error "Not in a git repository. Current location: $(Get-Location)"
+    exit 1
+}
 
 git add .
 if ($message) {

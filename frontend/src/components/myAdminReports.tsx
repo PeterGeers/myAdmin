@@ -103,7 +103,7 @@ const MyAdminReports: React.FC = () => {
 
   // Actuals Dashboard State
   const [actualsFilters, setActualsFilters] = useState({
-    years: ['2024'],
+    years: [new Date().getFullYear().toString()],
     administration: 'all',
     displayFormat: '2dec'
   });
@@ -150,47 +150,7 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
-  // Render BNB listing data
-  const renderBnbListingData = (data: any[], years: string[], displayFormat: string) => {
-    const sortedYears = [...years].sort((a, b) => parseInt(a) - parseInt(b));
-    
-    const grouped = data.reduce((acc, row) => {
-      if (!acc[row.listing]) {
-        acc[row.listing] = {};
-        sortedYears.forEach(year => {
-          acc[row.listing][year] = {
-            amountGross: 0,
-            amountNett: 0,
-            amountChannelFee: 0,
-            amountTouristTax: 0,
-            amountVat: 0
-          };
-        });
-      }
-      
-      const year = String(row.year);
-      if (sortedYears.includes(year)) {
-        acc[row.listing][year].amountGross += Number(row.amountGross) || 0;
-        acc[row.listing][year].amountNett += Number(row.amountNett) || 0;
-        acc[row.listing][year].amountChannelFee += Number(row.amountChannelFee) || 0;
-        acc[row.listing][year].amountTouristTax += Number(row.amountTouristTax) || 0;
-        acc[row.listing][year].amountVat += Number(row.amountVat) || 0;
-      }
-      
-      return acc;
-    }, {} as any);
 
-    return Object.entries(grouped).map(([listing, yearData]: [string, any]) => (
-      <Tr key={listing}>
-        <Td color="white" fontSize="sm" w="120px">{listing}</Td>
-        {sortedYears.map(year => (
-          <Td key={year} color="white" fontSize="sm" w="60px" textAlign="right">
-            {formatAmount(yearData[year].amountGross, displayFormat)}
-          </Td>
-        ))}
-      </Tr>
-    ));
-  };
 
   // Render expandable BNB data with Listing/Channel as columns (X-axis) and Period as rows (Y-axis)
   const renderExpandableBnbData = (data: any[], viewType: 'listing' | 'channel', displayFormat: string, selectedAmounts: string[] = ['amountGross']) => {
@@ -972,11 +932,13 @@ const MyAdminReports: React.FC = () => {
     fetchActualsData();
     fetchBnbFilterOptions();
     fetchBnbActualsData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refetch data when drill-down level changes
   useEffect(() => {
     fetchActualsData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drillDownLevel]);
 
   // Refetch BNB actuals data when filters change
@@ -984,6 +946,7 @@ const MyAdminReports: React.FC = () => {
     if (bnbActualsFilters.years.length > 0) {
       fetchBnbActualsData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bnbActualsFilters.years, bnbActualsFilters.listings, bnbActualsFilters.channels, bnbActualsFilters.viewType]);
 
   const exportMutatiesCsv = () => {
@@ -1430,28 +1393,40 @@ const MyAdminReports: React.FC = () => {
                         </Select>
                       </GridItem>
                       <GridItem>
-                        <Text color="white" mb={2}>Drill Down</Text>
+                        <Text color="white" mb={2}>Drill Down Level</Text>
                         <HStack>
                           <Button 
                             size="sm" 
                             colorScheme={drillDownLevel === 'year' ? 'orange' : 'gray'}
-                            onClick={() => setDrillDownLevel('year')}
+                            onClick={() => {
+                              setDrillDownLevel('year');
+                              setExpandedParents(new Set()); // Reset expanded state
+                            }}
+                            isLoading={loading && drillDownLevel !== 'year'}
                           >
-                            Year
+                            📅 Year
                           </Button>
                           <Button 
                             size="sm" 
                             colorScheme={drillDownLevel === 'quarter' ? 'orange' : 'gray'}
-                            onClick={() => setDrillDownLevel('quarter')}
+                            onClick={() => {
+                              setDrillDownLevel('quarter');
+                              setExpandedParents(new Set()); // Reset expanded state
+                            }}
+                            isLoading={loading && drillDownLevel !== 'quarter'}
                           >
-                            Quarter
+                            📊 Quarter
                           </Button>
                           <Button 
                             size="sm" 
                             colorScheme={drillDownLevel === 'month' ? 'orange' : 'gray'}
-                            onClick={() => setDrillDownLevel('month')}
+                            onClick={() => {
+                              setDrillDownLevel('month');
+                              setExpandedParents(new Set()); // Reset expanded state
+                            }}
+                            isLoading={loading && drillDownLevel !== 'month'}
                           >
-                            Month
+                            📈 Month
                           </Button>
                         </HStack>
                       </GridItem>
@@ -1461,9 +1436,14 @@ const MyAdminReports: React.FC = () => {
                         </Button>
                       </GridItem>
                       <GridItem>
-                        <Text color="gray.400" fontSize="xs">
-                          Grouping: {drillDownLevel === 'year' ? 'By Year' : drillDownLevel === 'quarter' ? 'By Quarter (Backend API Update Required)' : 'By Month (Backend API Update Required)'}
-                        </Text>
+                        <VStack align="start" spacing={1}>
+                          <Text color="gray.400" fontSize="xs">
+                            Current View: {drillDownLevel === 'year' ? '📅 Yearly Summary' : drillDownLevel === 'quarter' ? '📊 Quarterly Breakdown' : '📈 Monthly Detail'}
+                          </Text>
+                          <Text color="gray.500" fontSize="xs">
+                            {drillDownLevel === 'year' ? 'Shows annual totals' : drillDownLevel === 'quarter' ? 'Shows quarterly data' : 'Shows monthly granularity'}
+                          </Text>
+                        </VStack>
                       </GridItem>
                     </Grid>
                   </CardBody>
@@ -2003,11 +1983,7 @@ const MyAdminReports: React.FC = () => {
                             return '#ef4444'; // Red
                           };
                           
-                          const gaugeData = [{
-                            name: 'Performance',
-                            value: Math.min(percentage, 150),
-                            fill: getColor(percentage)
-                          }];
+
                           
                           return (
                             <VStack spacing={4}>

@@ -487,11 +487,11 @@ class VendorParsers:
     def parse_temu(self, lines):
         return self._create_basic_data('Temu order')
     
-    def parse_q8(self, lines):
-        """Parse Q8 fuel invoices"""
+    def parse_kuwait(self, lines):
+        """Parse kuwait petroleum fuel invoices"""
         data = {
             'date': datetime.now().strftime('%Y-%m-%d'),
-            'description': 'Q8 fuel invoice',
+            'description': 'Kuwait Petroleum fuel invoice',
             'total_amount': 0.0,
             'vat_amount': 0.0,
             'invoice_number': '',

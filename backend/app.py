@@ -696,6 +696,45 @@ def banking_update_mutatie():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/banking/check-accounts', methods=['GET'])
+def banking_check_accounts():
+    """Check banking account balances"""
+    try:
+        processor = BankingProcessor(test_mode=flag)
+        end_date = request.args.get('end_date')
+        balances = processor.check_banking_accounts(end_date=end_date)
+        
+        return jsonify({
+            'success': True,
+            'balances': balances,
+            'count': len(balances),
+            'end_date': end_date
+        })
+        
+    except Exception as e:
+        print(f"Check accounts error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/check-sequence', methods=['GET'])
+def banking_check_sequence():
+    """Check sequence numbers for account"""
+    try:
+        processor = BankingProcessor(test_mode=flag)
+        account_code = request.args.get('account_code')
+        administration = request.args.get('administration')
+        start_date = request.args.get('start_date', '2025-01-01')
+        
+        result = processor.check_sequence_numbers(account_code, administration, start_date)
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Check sequence error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # STR (Short Term Rental) routes
 @app.route('/api/str/upload', methods=['POST', 'OPTIONS'])
 def str_upload():
