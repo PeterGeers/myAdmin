@@ -18,6 +18,8 @@ pip-delete-this-directory.txt
 .env
 *.env
 
+#### cache
+h-dcn
 # Database
 *.db
 *.sqlite3
@@ -41,6 +43,9 @@ storage/
 # OS
 .DS_Store
 Thumbs.db
+
+# External platforms/repositories
+h-dcn/
 
 # Google Drive credentials (ALL FOLDERS)
 credentials.json

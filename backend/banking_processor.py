@@ -180,6 +180,196 @@ class BankingProcessor:
                 print(f"Error saving transaction: {e}")
         
         return saved_count
+    
+    def check_banking_accounts(self, end_date=None):
+        """Check banking account balances based on internal calculation vs last transaction"""
+        conn = self.db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get bank accounts to validate
+        cursor.execute("SELECT * FROM lookupbankaccounts_r")
+        accounts = cursor.fetchall()
+        
+        if not accounts:
+            return []
+        
+        # Get administrations and account patterns
+        administrations = list(set([acc['Administration'] for acc in accounts]))
+        account_codes = list(set([acc['Account'] for acc in accounts]))
+        
+        # Build WHERE clauses
+        admin_pattern = '|'.join(administrations)
+        account_pattern = '|'.join(account_codes)
+        
+        # Get calculated balances from vw_mutaties with account names
+        if end_date:
+            cursor.execute("""
+                SELECT Reknum, Administration, 
+                       ROUND(SUM(Amount), 2) as calculated_balance,
+                       MAX(AccountName) as account_name
+                FROM vw_mutaties 
+                WHERE Administration REGEXP %s 
+                AND Reknum REGEXP %s
+                AND TransactionDate <= %s
+                GROUP BY Reknum, Administration
+            """, (admin_pattern, account_pattern, end_date))
+        else:
+            cursor.execute("""
+                SELECT Reknum, Administration, 
+                       ROUND(SUM(Amount), 2) as calculated_balance,
+                       MAX(AccountName) as account_name
+                FROM vw_mutaties 
+                WHERE Administration REGEXP %s 
+                AND Reknum REGEXP %s
+                GROUP BY Reknum, Administration
+            """, (admin_pattern, account_pattern))
+        
+        balances = cursor.fetchall()
+        
+        # For each balance, find the last transaction description
+        for balance in balances:
+            # Get all transactions for the last transaction date (up to end_date if specified)
+            if end_date:
+                cursor.execute("""
+                    SELECT TransactionDate, TransactionDescription, TransactionAmount, Debet, Credit, Ref2, Ref3
+                    FROM mutaties 
+                    WHERE Administration = %s 
+                    AND (Debet = %s OR Credit = %s)
+                    AND TransactionDate <= %s
+                    AND TransactionDate = (
+                        SELECT MAX(TransactionDate) 
+                        FROM mutaties 
+                        WHERE Administration = %s 
+                        AND (Debet = %s OR Credit = %s)
+                        AND TransactionDate <= %s
+                    )
+                    ORDER BY Ref2 DESC
+                """, (
+                    balance['Administration'], balance['Reknum'], balance['Reknum'], end_date,
+                    balance['Administration'], balance['Reknum'], balance['Reknum'], end_date
+                ))
+            else:
+                cursor.execute("""
+                    SELECT TransactionDate, TransactionDescription, TransactionAmount, Debet, Credit, Ref2, Ref3
+                    FROM mutaties 
+                    WHERE Administration = %s 
+                    AND (Debet = %s OR Credit = %s)
+                    AND TransactionDate = (
+                        SELECT MAX(TransactionDate) 
+                        FROM mutaties 
+                        WHERE Administration = %s 
+                        AND (Debet = %s OR Credit = %s)
+                    )
+                    ORDER BY Ref2 DESC
+                """, (
+                    balance['Administration'], balance['Reknum'], balance['Reknum'],
+                    balance['Administration'], balance['Reknum'], balance['Reknum']
+                ))
+            
+            last_transactions = cursor.fetchall()
+            
+            if last_transactions:
+                balance['last_transaction_date'] = last_transactions[0]['TransactionDate']
+                balance['last_transaction_description'] = last_transactions[0]['TransactionDescription']
+                balance['last_transaction_amount'] = last_transactions[0]['TransactionAmount']
+                # Ensure Ref3 is included in each transaction
+                for tx in last_transactions:
+                    if 'Ref3' not in tx:
+                        tx['Ref3'] = ''
+                balance['last_transactions'] = last_transactions
+            else:
+                balance['last_transaction_date'] = None
+                balance['last_transaction_description'] = 'No transactions found'
+                balance['last_transaction_amount'] = 0
+                balance['last_transactions'] = []
+        
+        cursor.close()
+        conn.close()
+        
+        return balances
+    
+    def check_sequence_numbers(self, account_code=None, administration=None, start_date='2025-01-01'):
+        """Check if Ref2 sequence numbers are consecutive for specific accounts since start_date"""
+        conn = self.db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # If account_code and administration provided, get IBAN from lookup
+        if account_code and administration:
+            cursor.execute("""
+                SELECT rekeningNummer FROM lookupbankaccounts_r 
+                WHERE Account = %s AND Administration = %s
+            """, (account_code, administration))
+            lookup_result = cursor.fetchone()
+            if not lookup_result:
+                cursor.close()
+                conn.close()
+                return {'success': False, 'message': f'No IBAN found for account {account_code} in {administration}'}
+            iban = lookup_result['rekeningNummer']
+        else:
+            iban = 'NL80RABO0107936917'  # Default
+        
+        # Get all transactions for the IBAN since start_date, ordered by Ref2
+        cursor.execute("""
+            SELECT TransactionDate, TransactionDescription, Ref2, TransactionAmount
+            FROM mutaties 
+            WHERE Ref1 = %s 
+            AND TransactionDate >= %s
+            AND Ref2 IS NOT NULL 
+            AND Ref2 != ''
+            ORDER BY CAST(Ref2 AS UNSIGNED)
+        """, (iban, start_date))
+        
+        transactions = cursor.fetchall()
+        
+        if not transactions:
+            cursor.close()
+            conn.close()
+            return {'success': False, 'message': 'No transactions found'}
+        
+        # Check for sequence gaps
+        sequence_issues = []
+        expected_next = None
+        
+        for i, tx in enumerate(transactions):
+            try:
+                current_seq = int(tx['Ref2'])
+                
+                if i == 0:
+                    expected_next = current_seq + 1
+                else:
+                    if current_seq != expected_next:
+                        sequence_issues.append({
+                            'expected': expected_next,
+                            'found': current_seq,
+                            'gap': current_seq - expected_next,
+                            'date': tx['TransactionDate'],
+                            'description': tx['TransactionDescription'],
+                            'amount': tx['TransactionAmount']
+                        })
+                    expected_next = current_seq + 1
+                    
+            except ValueError:
+                sequence_issues.append({
+                    'error': f"Invalid sequence number: {tx['Ref2']}",
+                    'date': tx['TransactionDate'],
+                    'description': tx['TransactionDescription']
+                })
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            'success': True,
+            'iban': iban,
+            'account_code': account_code,
+            'administration': administration,
+            'start_date': start_date,
+            'total_transactions': len(transactions),
+            'first_sequence': int(transactions[0]['Ref2']) if transactions else None,
+            'last_sequence': int(transactions[-1]['Ref2']) if transactions else None,
+            'sequence_issues': sequence_issues,
+            'has_gaps': len(sequence_issues) > 0
+        }
 
 # Flask routes for the banking processor
 app = Flask(__name__)
@@ -247,6 +437,40 @@ def save_transactions():
             'saved_count': saved_count,
             'table': 'mutaties_test' if test_mode else 'mutaties'
         })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/check-accounts', methods=['GET'])
+def check_banking_accounts():
+    """Check banking account balances"""
+    test_mode = request.args.get('test_mode', 'false').lower() == 'true'
+    processor = BankingProcessor(test_mode=test_mode)
+    
+    try:
+        balances = processor.check_banking_accounts()
+        
+        return jsonify({
+            'success': True,
+            'balances': balances,
+            'count': len(balances)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/check-sequence', methods=['GET'])
+def check_sequence_numbers():
+    """Check sequence numbers for IBAN"""
+    test_mode = request.args.get('test_mode', 'false').lower() == 'true'
+    iban = request.args.get('iban', 'NL80RABO0107936917')
+    start_date = request.args.get('start_date', '2025-01-01')
+    
+    processor = BankingProcessor(test_mode=test_mode)
+    
+    try:
+        result = processor.check_sequence_numbers(iban, start_date)
+        return jsonify(result)
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
