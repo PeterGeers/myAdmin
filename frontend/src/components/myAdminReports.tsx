@@ -131,6 +131,29 @@ const MyAdminReports: React.FC = () => {
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
   const [drillDownLevel, setDrillDownLevel] = useState<'year' | 'quarter' | 'month'>('year');
+  
+  // BTW State
+  const [btwFilters, setBtwFilters] = useState({
+    administration: 'GoodwinSolutions',
+    year: new Date().getFullYear().toString(),
+    quarter: '1'
+  });
+  const [btwReport, setBtwReport] = useState<string>('');
+  const [btwTransaction, setBtwTransaction] = useState<any>(null);
+  const [btwLoading, setBtwLoading] = useState(false);
+  
+  // Reference Analysis State
+  const [refAnalysisFilters, setRefAnalysisFilters] = useState({
+    years: [new Date().getFullYear().toString()],
+    administration: 'all',
+    referenceNumber: '',
+    accounts: [] as string[]
+  });
+  const [refAnalysisData, setRefAnalysisData] = useState<any[]>([]);
+  const [refTrendData, setRefTrendData] = useState<any[]>([]);
+  const [availableReferences, setAvailableReferences] = useState<string[]>([]);
+  const [availableRefAccounts, setAvailableRefAccounts] = useState<any[]>([]);
+  const [refAnalysisLoading, setRefAnalysisLoading] = useState(false);
 
   // Format amount based on display format
   const formatAmount = (amount: number, format: string): string => {
@@ -922,6 +945,112 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
+  const generateBtwReport = async () => {
+    setBtwLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/btw/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(btwFilters)
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setBtwReport(data.html_report);
+        setBtwTransaction(data.transaction);
+      } else {
+        console.error('BTW report generation failed:', data.error);
+      }
+    } catch (err) {
+      console.error('Error generating BTW report:', err);
+    } finally {
+      setBtwLoading(false);
+    }
+  };
+
+  const saveBtwTransaction = async () => {
+    if (!btwTransaction) return;
+    
+    setBtwLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/btw/save-transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaction: btwTransaction })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Upload report to Google Drive
+        const filename = `BTW_${btwFilters.administration}_${btwFilters.year}_Q${btwFilters.quarter}.html`;
+        
+        const uploadResponse = await fetch('http://localhost:5000/api/btw/upload-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            html_content: btwReport, 
+            filename: filename 
+          })
+        });
+        
+        const uploadData = await uploadResponse.json();
+        
+        if (uploadData.success) {
+          alert(`BTW transaction saved successfully! Report uploaded to ${uploadData.location}.`);
+        } else {
+          alert('BTW transaction saved, but report upload failed: ' + uploadData.error);
+        }
+      } else {
+        alert('Failed to save BTW transaction: ' + data.error);
+      }
+    } catch (err) {
+      console.error('Error saving BTW transaction:', err);
+      alert('Error saving BTW transaction: ' + err);
+    } finally {
+      setBtwLoading(false);
+    }
+  };
+
+  const fetchReferenceAnalysis = async () => {
+    setRefAnalysisLoading(true);
+    try {
+      const params = new URLSearchParams({
+        years: refAnalysisFilters.years.join(','),
+        administration: refAnalysisFilters.administration,
+        reference_number: refAnalysisFilters.referenceNumber,
+        accounts: refAnalysisFilters.accounts.join(',')
+      });
+      
+      const response = await fetch(`http://localhost:5000/api/reports/reference-analysis?${params}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setRefAnalysisData(data.transactions);
+        setRefTrendData(data.trend_data);
+        setAvailableReferences(data.reference_numbers);
+        setAvailableRefAccounts(data.available_accounts);
+      }
+    } catch (err) {
+      console.error('Error fetching reference analysis:', err);
+    } finally {
+      setRefAnalysisLoading(false);
+    }
+  };
+
+  const fetchAvailableReferences = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/reports/reference-analysis');
+      const data = await response.json();
+      if (data.success) {
+        setAvailableReferences(data.reference_numbers);
+      }
+    } catch (err) {
+      console.error('Error fetching available references:', err);
+    }
+  };
+
   useEffect(() => {
     fetchMutatiesData();
     fetchBnbData();
@@ -932,6 +1061,7 @@ const MyAdminReports: React.FC = () => {
     fetchActualsData();
     fetchBnbFilterOptions();
     fetchBnbActualsData();
+    fetchAvailableReferences();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1006,6 +1136,8 @@ const MyAdminReports: React.FC = () => {
             <Tab color="white">📊 Actuals</Tab>
             <Tab color="white">🏡 BNB Actuals</Tab>
             <Tab color="white">🔍 Check Reference</Tab>
+            <Tab color="white">🧾 BTW aangifte</Tab>
+            <Tab color="white">📈 View ReferenceNumber</Tab>
           </TabList>
 
           <TabPanels>
@@ -2280,6 +2412,429 @@ const MyAdminReports: React.FC = () => {
                           </Tbody>
                         </Table>
                       </TableContainer>
+                    </CardBody>
+                  </Card>
+                )}
+              </VStack>
+            </TabPanel>
+
+            {/* BTW aangifte Tab */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Card bg="gray.700">
+                  <CardBody>
+                    <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
+                      <GridItem>
+                        <Text color="white" mb={2}>Administration</Text>
+                        <Select
+                          value={btwFilters.administration}
+                          onChange={(e) => setBtwFilters(prev => ({...prev, administration: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          <option value="GoodwinSolutions">GoodwinSolutions</option>
+                          <option value="PeterPrive">PeterPrive</option>
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Year</Text>
+                        <Select
+                          value={btwFilters.year}
+                          onChange={(e) => setBtwFilters(prev => ({...prev, year: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          {[2023, 2024, 2025, 2026].map(year => (
+                            <option key={year} value={year.toString()}>{year}</option>
+                          ))}
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Quarter</Text>
+                        <Select
+                          value={btwFilters.quarter}
+                          onChange={(e) => setBtwFilters(prev => ({...prev, quarter: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          <option value="1">Q1</option>
+                          <option value="2">Q2</option>
+                          <option value="3">Q3</option>
+                          <option value="4">Q4</option>
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Button 
+                          colorScheme="orange" 
+                          onClick={generateBtwReport} 
+                          isLoading={btwLoading}
+                          size="sm"
+                        >
+                          Generate BTW Report
+                        </Button>
+                      </GridItem>
+                    </Grid>
+                  </CardBody>
+                </Card>
+
+                {/* BTW Report Display */}
+                {btwReport && (
+                  <Card bg="gray.700">
+                    <CardHeader>
+                      <HStack justify="space-between">
+                        <Heading size="md" color="white">BTW Declaration Report</Heading>
+                        {btwTransaction && (
+                          <Button 
+                            colorScheme="green" 
+                            onClick={saveBtwTransaction}
+                            isLoading={btwLoading}
+                            size="sm"
+                          >
+                            Save Transaction & Upload Report
+                          </Button>
+                        )}
+                      </HStack>
+                    </CardHeader>
+                    <CardBody>
+                      <Box 
+                        bg="white" 
+                        p={4} 
+                        borderRadius="md" 
+                        maxH="600px" 
+                        overflowY="auto"
+                        dangerouslySetInnerHTML={{ __html: btwReport }}
+                      />
+                    </CardBody>
+                  </Card>
+                )}
+
+                {/* Transaction Preview */}
+                {btwTransaction && (
+                  <Card bg="gray.700">
+                    <CardHeader>
+                      <Heading size="md" color="white">Transaction Preview</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                        <GridItem>
+                          <Text color="white" fontSize="sm"><strong>Transaction Number:</strong> {btwTransaction.TransactionNumber}</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text color="white" fontSize="sm"><strong>Date:</strong> {btwTransaction.TransactionDate}</Text>
+                        </GridItem>
+                        <GridItem colSpan={2}>
+                          <Text color="white" fontSize="sm"><strong>Description:</strong> {btwTransaction.TransactionDescription}</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text color="white" fontSize="sm"><strong>Amount:</strong> €{Math.round(Number(btwTransaction.TransactionAmount)).toLocaleString('nl-NL')}</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text color="white" fontSize="sm"><strong>Administration:</strong> {btwTransaction.Administration}</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text color="white" fontSize="sm"><strong>Debet:</strong> {btwTransaction.Debet}</Text>
+                        </GridItem>
+                        <GridItem>
+                          <Text color="white" fontSize="sm"><strong>Credit:</strong> {btwTransaction.Credit}</Text>
+                        </GridItem>
+                        <GridItem colSpan={2}>
+                          <Text color="white" fontSize="sm"><strong>Reference:</strong> {btwTransaction.ReferenceNumber}</Text>
+                        </GridItem>
+                      </Grid>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {/* Instructions */}
+                {!btwReport && (
+                  <Card bg="gray.700">
+                    <CardBody>
+                      <VStack spacing={3} align="start">
+                        <Heading size="md" color="white">BTW Declaration Instructions</Heading>
+                        <Text color="white" fontSize="sm">
+                          1. Select the administration, year, and quarter for the BTW declaration
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          2. Click "Generate BTW Report" to create the declaration based on your financial data
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          3. Review the generated report and transaction details
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          4. Click "Save Transaction & Upload Report" to save the BTW transaction and upload the report to Google Drive
+                        </Text>
+                        <Text color="gray.400" fontSize="xs">
+                          The system will automatically calculate BTW amounts based on accounts 2010, 2020, and 2021.
+                        </Text>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                )}
+              </VStack>
+            </TabPanel>
+
+            {/* View ReferenceNumber Tab */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Card bg="gray.700">
+                  <CardBody>
+                    <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
+                      <GridItem>
+                        <Text color="white" mb={2}>Administration</Text>
+                        <Select
+                          value={refAnalysisFilters.administration}
+                          onChange={(e) => setRefAnalysisFilters(prev => ({...prev, administration: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          <option value="all">All</option>
+                          <option value="GoodwinSolutions">GoodwinSolutions</option>
+                          <option value="PeterPrive">PeterPrive</option>
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Select Years</Text>
+                        <Menu closeOnSelect={false}>
+                          <MenuButton
+                            as={Button}
+                            bg="orange.500"
+                            color="white"
+                            size="sm"
+                            width="100%"
+                            textAlign="left"
+                            rightIcon={<span>▼</span>}
+                            _hover={{ bg: "orange.600" }}
+                            _active={{ bg: "orange.600" }}
+                          >
+                            {refAnalysisFilters.years.length > 0 ? refAnalysisFilters.years.join(', ') : 'Select years...'}
+                          </MenuButton>
+                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                            {availableYears.map(year => (
+                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                <Checkbox
+                                  isChecked={refAnalysisFilters.years.includes(year)}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    setRefAnalysisFilters(prev => ({
+                                      ...prev,
+                                      years: isChecked 
+                                        ? [...prev.years, year]
+                                        : prev.years.filter(y => y !== year)
+                                    }));
+                                  }}
+                                  colorScheme="orange"
+                                >
+                                  <Text color="white" ml={2}>{year}</Text>
+                                </Checkbox>
+                              </MenuItem>
+                            ))}
+                          </MenuList>
+                        </Menu>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Reference Number (Regex)</Text>
+                        <Input
+                          value={refAnalysisFilters.referenceNumber}
+                          onChange={(e) => setRefAnalysisFilters(prev => ({...prev, referenceNumber: e.target.value}))}
+                          placeholder="Enter regex pattern or select from list"
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                          list="reference-list"
+                        />
+                        <datalist id="reference-list">
+                          {availableReferences.map((ref, index) => (
+                            <option key={index} value={ref} />
+                          ))}
+                        </datalist>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Accounts</Text>
+                        <Menu closeOnSelect={false}>
+                          <MenuButton
+                            as={Button}
+                            bg="orange.500"
+                            color="white"
+                            size="sm"
+                            width="100%"
+                            textAlign="left"
+                            rightIcon={<span>▼</span>}
+                            _hover={{ bg: "orange.600" }}
+                            _active={{ bg: "orange.600" }}
+                          >
+                            {refAnalysisFilters.accounts.length > 0 ? `${refAnalysisFilters.accounts.length} selected` : 'Select accounts...'}
+                          </MenuButton>
+                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                            {availableRefAccounts.map(account => (
+                              <MenuItem key={account.Reknum} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                <Checkbox
+                                  isChecked={refAnalysisFilters.accounts.includes(account.Reknum)}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    setRefAnalysisFilters(prev => ({
+                                      ...prev,
+                                      accounts: isChecked 
+                                        ? [...prev.accounts, account.Reknum]
+                                        : prev.accounts.filter(a => a !== account.Reknum)
+                                    }));
+                                  }}
+                                  colorScheme="orange"
+                                >
+                                  <Text color="white" ml={2}>{account.Reknum} - {account.AccountName}</Text>
+                                </Checkbox>
+                              </MenuItem>
+                            ))}
+                          </MenuList>
+                        </Menu>
+                      </GridItem>
+                      <GridItem>
+                        <Button 
+                          colorScheme="orange" 
+                          onClick={fetchReferenceAnalysis} 
+                          isLoading={refAnalysisLoading}
+                          size="sm"
+                        >
+                          Analyze Reference
+                        </Button>
+                      </GridItem>
+                    </Grid>
+                  </CardBody>
+                </Card>
+
+                {/* Trend Chart */}
+                {refTrendData.length > 0 && (
+                  <Card bg="gray.700">
+                    <CardHeader>
+                      <Heading size="md" color="white">Expense Trend by Quarter</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <LineChart
+                          data={refTrendData.map(item => ({
+                            period: `${item.jaar}-Q${item.kwartaal}`,
+                            amount: Math.abs(Number(item.total_amount)),
+                            label: `€${Math.abs(Number(item.total_amount)).toLocaleString('nl-NL', {minimumFractionDigits: 0})}`
+                          }))}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="period" tick={{fill: 'white'}} />
+                          <YAxis tick={{fill: 'white'}} />
+                          <Tooltip formatter={(value) => [`€${Number(value).toLocaleString('nl-NL')}`, 'Amount']} />
+                          <Line 
+                            type="monotone" 
+                            dataKey="amount" 
+                            stroke="#f56500" 
+                            strokeWidth={3}
+                            dot={{ fill: '#f56500', strokeWidth: 2, r: 6 }}
+                          />
+                          {/* Add labels on top of each point */}
+                          {refTrendData.map((item, index) => {
+                            const x = (index / (refTrendData.length - 1)) * 100;
+                            return (
+                              <text
+                                key={index}
+                                x={`${x}%`}
+                                y="15"
+                                textAnchor="middle"
+                                fill="white"
+                                fontSize="12"
+                              >
+                                €{Math.abs(Number(item.total_amount)).toLocaleString('nl-NL', {minimumFractionDigits: 0})}
+                              </text>
+                            );
+                          })}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {/* Transactions Table */}
+                {refAnalysisData.length > 0 && (
+                  <Card bg="gray.700">
+                    <CardHeader>
+                      <Heading size="md" color="white">Transactions ({refAnalysisData.length})</Heading>
+                    </CardHeader>
+                    <CardBody>
+                      <TableContainer maxH="600px" overflowY="auto">
+                        <Table size="sm" variant="simple">
+                          <Thead position="sticky" top={0} bg="gray.700" zIndex={1}>
+                            <Tr>
+                              <Th color="white">Date</Th>
+                              <Th color="white">Description</Th>
+                              <Th color="white" isNumeric>Amount</Th>
+                              <Th color="white">Account</Th>
+                              <Th color="white">Reference</Th>
+                              <Th color="white">Administration</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {refAnalysisData.map((row, index) => (
+                              <Tr key={index}>
+                                <Td color="white" fontSize="sm">
+                                  {new Date(row.TransactionDate).toLocaleDateString('nl-NL')}
+                                </Td>
+                                <Td color="white" fontSize="sm" maxW="300px" isTruncated title={row.TransactionDescription}>
+                                  {row.TransactionDescription}
+                                </Td>
+                                <Td color="white" fontSize="sm" isNumeric>
+                                  €{Number(row.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                </Td>
+                                <Td color="white" fontSize="sm">
+                                  {row.Reknum} - {row.AccountName}
+                                </Td>
+                                <Td color="white" fontSize="sm" maxW="150px" isTruncated title={row.ReferenceNumber}>
+                                  {row.ReferenceNumber}
+                                </Td>
+                                <Td color="white" fontSize="sm">
+                                  {row.Administration}
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                      
+                      {/* Summary */}
+                      <Box mt={4} p={3} bg="gray.600" borderRadius="md">
+                        <Text color="white" fontWeight="bold">
+                          Total: €{refAnalysisData.reduce((sum, row) => sum + Math.abs(Number(row.Amount)), 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                        </Text>
+                      </Box>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {/* Instructions */}
+                {refAnalysisData.length === 0 && !refAnalysisLoading && (
+                  <Card bg="gray.700">
+                    <CardBody>
+                      <VStack spacing={3} align="start">
+                        <Heading size="md" color="white">Reference Number Analysis Instructions</Heading>
+                        <Text color="white" fontSize="sm">
+                          1. Select administration (or All for combined analysis)
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          2. Choose one or more years to include in the analysis
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          3. Enter a reference number or regex pattern (e.g., "AMZN" or ".*Amazon.*")
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          4. Optionally filter by specific accounts
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          5. Click "Analyze Reference" to view trends and transactions
+                        </Text>
+                        <Text color="gray.400" fontSize="xs">
+                          The trend chart shows quarterly spending patterns with amounts displayed above each data point.
+                        </Text>
+                      </VStack>
                     </CardBody>
                   </Card>
                 )}
