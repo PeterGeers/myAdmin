@@ -8,6 +8,7 @@ from banking_processor import BankingProcessor
 from str_processor import STRProcessor
 from str_database import STRDatabase
 from database import DatabaseManager
+from btw_processor import BTWProcessor
 from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
@@ -929,6 +930,170 @@ def str_summary():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# BTW (VAT) Declaration routes
+@app.route('/api/btw/generate-report', methods=['POST'])
+def btw_generate_report():
+    """Generate BTW declaration report"""
+    try:
+        data = request.get_json()
+        administration = data.get('administration')
+        year = data.get('year')
+        quarter = data.get('quarter')
+        
+        if not all([administration, year, quarter]):
+            return jsonify({
+                'success': False, 
+                'error': 'Administration, year, and quarter are required'
+            }), 400
+        
+        btw_processor = BTWProcessor(test_mode=flag)
+        result = btw_processor.generate_btw_report(administration, year, quarter)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/btw/save-transaction', methods=['POST'])
+def btw_save_transaction():
+    """Save BTW transaction to database"""
+    try:
+        data = request.get_json()
+        transaction = data.get('transaction')
+        
+        if not transaction:
+            return jsonify({'success': False, 'error': 'Transaction data required'}), 400
+        
+        btw_processor = BTWProcessor(test_mode=flag)
+        result = btw_processor.save_btw_transaction(transaction)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/btw/upload-report', methods=['POST'])
+def btw_upload_report():
+    """Upload BTW report to Google Drive"""
+    try:
+        data = request.get_json()
+        html_content = data.get('html_content')
+        filename = data.get('filename')
+        
+        if not all([html_content, filename]):
+            return jsonify({
+                'success': False, 
+                'error': 'HTML content and filename are required'
+            }), 400
+        
+        btw_processor = BTWProcessor(test_mode=flag)
+        result = btw_processor.upload_report_to_drive(html_content, filename)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/reports/reference-analysis', methods=['GET'])
+def reference_analysis():
+    """Get reference number analysis data"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        
+        # Get parameters
+        years = request.args.get('years', '').split(',') if request.args.get('years') else []
+        administration = request.args.get('administration', 'all')
+        reference_number = request.args.get('reference_number', '')
+        accounts = request.args.get('accounts', '').split(',') if request.args.get('accounts') else []
+        
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Build WHERE conditions
+        where_conditions = []
+        params = []
+        
+        if years and years != ['']:
+            year_placeholders = ','.join(['%s'] * len(years))
+            where_conditions.append(f"jaar IN ({year_placeholders})")
+            params.extend(years)
+        
+        if administration != 'all':
+            where_conditions.append("Administration LIKE %s")
+            params.append(f"{administration}%")
+        
+        if reference_number:
+            where_conditions.append("ReferenceNumber REGEXP %s")
+            params.append(reference_number)
+        
+        if accounts and accounts != ['']:
+            account_placeholders = ','.join(['%s'] * len(accounts))
+            where_conditions.append(f"Reknum IN ({account_placeholders})")
+            params.extend(accounts)
+        
+        where_clause = 'WHERE ' + ' AND '.join(where_conditions) if where_conditions else ''
+        
+        # Get transactions
+        transactions_query = f"""
+            SELECT TransactionDate, TransactionDescription, Amount, Reknum, 
+                   AccountName, Administration, ReferenceNumber, jaar, kwartaal
+            FROM vw_mutaties 
+            {where_clause}
+            ORDER BY TransactionDate DESC
+        """
+        
+        cursor.execute(transactions_query, params)
+        transactions = cursor.fetchall()
+        
+        # Get trend data (quarterly summaries)
+        trend_query = f"""
+            SELECT jaar, kwartaal, SUM(Amount) as total_amount
+            FROM vw_mutaties 
+            {where_clause}
+            GROUP BY jaar, kwartaal
+            ORDER BY jaar, kwartaal
+        """
+        
+        cursor.execute(trend_query, params)
+        trend_data = cursor.fetchall()
+        
+        # Get available reference numbers for dropdown
+        ref_query = f"""
+            SELECT DISTINCT ReferenceNumber
+            FROM vw_mutaties 
+            WHERE ReferenceNumber IS NOT NULL AND ReferenceNumber != ''
+            ORDER BY ReferenceNumber
+        """
+        
+        cursor.execute(ref_query)
+        reference_numbers = [row['ReferenceNumber'] for row in cursor.fetchall()]
+        
+        # Get available accounts for the selected reference
+        if reference_number:
+            accounts_query = f"""
+                SELECT DISTINCT Reknum, AccountName
+                FROM vw_mutaties 
+                WHERE ReferenceNumber REGEXP %s
+                ORDER BY Reknum
+            """
+            cursor.execute(accounts_query, [reference_number])
+            available_accounts = cursor.fetchall()
+        else:
+            available_accounts = []
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'transactions': transactions,
+            'trend_data': trend_data,
+            'reference_numbers': reference_numbers,
+            'available_accounts': available_accounts
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':
