@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from config import Config
 from pdf_processor import PDFProcessor
@@ -9,17 +9,21 @@ from str_processor import STRProcessor
 from str_database import STRDatabase
 from database import DatabaseManager
 from btw_processor import BTWProcessor
+from pdf_validation import PDFValidator
 from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
+from xlsx_export import XLSXExportProcessor
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
+# Configure Flask to serve static files from React build
+build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+app = Flask(__name__, static_folder=build_folder, static_url_path='')
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000"],
+        "origins": ["http://localhost:3000", "http://127.0.0.1:5000"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
@@ -27,8 +31,8 @@ CORS(app, resources={
 
 # Register reporting blueprint
 app.register_blueprint(reporting_bp, url_prefix='/api/reports')
-app.register_blueprint(actuals_bp)
-app.register_blueprint(bnb_bp, url_prefix='/api/reports')
+app.register_blueprint(actuals_bp, url_prefix='/api/reports')
+app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
 
 # In-memory cache for uploaded files to prevent duplicates during session
 upload_cache = {}
@@ -51,29 +55,70 @@ if not os.path.exists(UPLOAD_FOLDER):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# Serve static files
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static files from React build"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+    static_folder = os.path.join(build_folder, 'static')
+    
+    # Handle nested paths like css/main.css or js/main.js
+    if '/' in filename:
+        return send_from_directory(static_folder, filename)
+    else:
+        return send_from_directory(static_folder, filename)
+
+# Serve React build files
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react_app(path):
+    """Serve React build files"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+    
+    # Skip API routes
+    if path.startswith('api/'):
+        return jsonify({'error': 'API endpoint not found'}), 404
+    
+    # Check if build folder exists
+    if not os.path.exists(build_folder):
+        return jsonify({
+            'error': 'Frontend not built', 
+            'message': 'Run npm run build in frontend folder first',
+            'build_folder': build_folder
+        }), 404
+    
+    if path != "" and os.path.exists(os.path.join(build_folder, path)):
+        return send_from_directory(build_folder, path)
+    else:
+        return send_from_directory(build_folder, 'index.html')
+
 @app.route('/api/folders', methods=['GET'])
 def get_folders():
     """Return available vendor folders"""
-    print(f"get_folders called, flag={flag}", flush=True)
-    if flag:  # Test mode - use local folders
-        folders = list(config.vendor_folders.values())
-        print(f"Test mode: returning {len(folders)} local folders", flush=True)
-    else:  # Production mode - use Google Drive folders
-        try:
-            print("Production mode: fetching Google Drive folders", flush=True)
-            drive_service = GoogleDriveService()
-            drive_folders = drive_service.list_subfolders()
-            folders = [folder['name'] for folder in drive_folders]
-            print(f"Google Drive: found {len(folders)} folders", flush=True)
-        except Exception as e:
-            print(f"Google Drive error: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
-            # Fallback to local folders if Google Drive fails
+    try:
+        print(f"get_folders called, flag={flag}", flush=True)
+        if flag:  # Test mode - use local folders
             folders = list(config.vendor_folders.values())
-            print(f"Fallback: returning {len(folders)} local folders", flush=True)
-    
-    return jsonify(folders)
+            print(f"Test mode: returning {len(folders)} local folders", flush=True)
+        else:  # Production mode - use Google Drive folders
+            try:
+                print("Production mode: fetching Google Drive folders", flush=True)
+                drive_service = GoogleDriveService()
+                drive_folders = drive_service.list_subfolders()
+                folders = [folder['name'] for folder in drive_folders]
+                print(f"Google Drive: found {len(folders)} folders", flush=True)
+            except Exception as e:
+                print(f"Google Drive error: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Fallback to local folders if Google Drive fails
+                folders = list(config.vendor_folders.values())
+                print(f"Fallback: returning {len(folders)} local folders", flush=True)
+        
+        return jsonify(folders)
+    except Exception as e:
+        print(f"Error in get_folders: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/test', methods=['GET'])
 def test():
@@ -124,7 +169,7 @@ def upload_file():
         print("=== UPLOAD REQUEST START ===", flush=True)
         print(f"Request method: {request.method}", flush=True)
         print(f"Request files: {list(request.files.keys())}", flush=True)
-        print(f"Request form: {dict(request.form)}", flush=True)
+        print(f"Request form field count: {len(request.form)}", flush=True)
         
         if 'file' not in request.files:
             print("ERROR: No file in request", flush=True)
@@ -239,8 +284,14 @@ def upload_file():
             if not os.path.exists(final_folder):
                 os.makedirs(final_folder, exist_ok=True)
             final_path = os.path.join(final_folder, filename)
-            shutil.move(temp_path, final_path)
-            print(f"File moved to: {final_path}", flush=True)
+            try:
+                shutil.move(temp_path, final_path)
+                print(f"File moved to: {final_path}", flush=True)
+            except Exception as move_error:
+                print(f"Error moving file: {move_error}", flush=True)
+                # Clean up temp file if move fails
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
             
             # vendor_data already extracted above
             
@@ -297,10 +348,10 @@ def approve_transactions():
 @app.route('/api/banking/scan-files', methods=['GET'])
 def banking_scan_files():
     """Scan download folder for CSV files"""
-    processor = BankingProcessor(test_mode=flag)
-    folder_path = request.args.get('folder', processor.download_folder)
-    
     try:
+        processor = BankingProcessor(test_mode=flag)
+        folder_path = request.args.get('folder', processor.download_folder)
+        
         files = processor.get_csv_files(folder_path)
         return jsonify({
             'success': True,
@@ -308,18 +359,18 @@ def banking_scan_files():
             'folder': folder_path
         })
     except Exception as e:
+        print(f"Banking scan files error: {e}", flush=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/process-files', methods=['POST'])
 def banking_process_files():
     """Process selected CSV files"""
-    data = request.get_json()
-    file_paths = data.get('files', [])
-    test_mode = data.get('test_mode', True)
-    
-    processor = BankingProcessor(test_mode=test_mode)
-    
     try:
+        data = request.get_json()
+        file_paths = data.get('files', [])
+        test_mode = data.get('test_mode', True)
+        
+        processor = BankingProcessor(test_mode=test_mode)
         df = processor.process_csv_files(file_paths)
         
         if df.empty:
@@ -335,6 +386,7 @@ def banking_process_files():
         })
         
     except Exception as e:
+        print(f"Banking process files error: {e}", flush=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-sequences', methods=['POST'])
@@ -463,11 +515,11 @@ def banking_apply_patterns():
 @app.route('/api/banking/save-transactions', methods=['POST'])
 def banking_save_transactions():
     """Save approved transactions to database with duplicate filtering"""
-    data = request.get_json()
-    transactions = data.get('transactions', [])
-    test_mode = data.get('test_mode', True)
-    
     try:
+        data = request.get_json()
+        transactions = data.get('transactions', [])
+        test_mode = data.get('test_mode', True)
+        
         db = DatabaseManager(test_mode=test_mode)
         table_name = 'mutaties_test' if test_mode else 'mutaties'
         
@@ -502,6 +554,7 @@ def banking_save_transactions():
         })
         
     except Exception as e:
+        print(f"Banking save transactions error: {e}", flush=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/lookups', methods=['GET'])
@@ -536,6 +589,7 @@ def banking_lookups():
         })
         
     except Exception as e:
+        print(f"Banking lookups error: {e}", flush=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/mutaties', methods=['GET'])
@@ -707,15 +761,11 @@ def banking_check_accounts():
         
         return jsonify({
             'success': True,
-            'balances': balances,
-            'count': len(balances),
-            'end_date': end_date
+            'balances': balances
         })
         
     except Exception as e:
-        print(f"Check accounts error: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
+        print(f"Banking check accounts error: {e}", flush=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-sequence', methods=['GET'])
@@ -1068,21 +1118,32 @@ def reference_analysis():
         cursor.execute(ref_query)
         reference_numbers = [row['ReferenceNumber'] for row in cursor.fetchall()]
         
-        # Get available accounts for the selected reference
+        # Get available accounts for the selected reference and years
         if reference_number:
+            accounts_where = ["ReferenceNumber REGEXP %s"]
+            accounts_params = [reference_number]
+            
+            if years and years != ['']:
+                year_placeholders = ','.join(['%s'] * len(years))
+                accounts_where.append(f"jaar IN ({year_placeholders})")
+                accounts_params.extend(years)
+            
+            if administration != 'all':
+                accounts_where.append("Administration LIKE %s")
+                accounts_params.append(f"{administration}%")
+            
+            accounts_where_clause = ' AND '.join(accounts_where)
+            
             accounts_query = f"""
                 SELECT DISTINCT Reknum, AccountName
                 FROM vw_mutaties 
-                WHERE ReferenceNumber REGEXP %s
+                WHERE {accounts_where_clause}
                 ORDER BY Reknum
             """
-            cursor.execute(accounts_query, [reference_number])
+            cursor.execute(accounts_query, accounts_params)
             available_accounts = cursor.fetchall()
         else:
             available_accounts = []
-        
-        cursor.close()
-        conn.close()
         
         return jsonify({
             'success': True,
@@ -1094,8 +1155,470 @@ def reference_analysis():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+@app.route('/api/reports/aangifte-ib', methods=['GET'])
+def aangifte_ib():
+    """Get Aangifte IB data grouped by Parent and Aangifte"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        
+        # Get parameters
+        year = request.args.get('year')
+        administration = request.args.get('administration', 'all')
+        
+        if not year:
+            return jsonify({'success': False, 'error': 'Year is required'}), 400
+        
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Build WHERE conditions based on VW logic
+        # VW = N (Balance): all records up to end of selected year
+        # VW = Y (P&L): only records from selected year
+        where_conditions = [
+            "((VW = 'N' AND TransactionDate <= %s) OR (VW = 'Y' AND jaar = %s))"
+        ]
+        params = [f"{year}-12-31", year]
+        
+        if administration != 'all':
+            where_conditions.append("Administration LIKE %s")
+            params.append(f"{administration}%")
+        
+        where_clause = ' AND '.join(where_conditions)
+        
+        # Get summary data grouped by Parent and Aangifte
+        summary_query = f"""
+            SELECT Parent, Aangifte, SUM(Amount) as Amount
+            FROM vw_mutaties 
+            WHERE {where_clause}
+            GROUP BY Parent, Aangifte
+            ORDER BY Parent, Aangifte
+        """
+        
+        cursor.execute(summary_query, params)
+        summary_data = cursor.fetchall()
+        
+        # Get available years
+        years_query = "SELECT DISTINCT jaar FROM vw_mutaties WHERE jaar IS NOT NULL ORDER BY jaar DESC"
+        cursor.execute(years_query)
+        available_years = [str(row['jaar']) for row in cursor.fetchall()]
+        
+        # Get available administrations for the selected year
+        admin_query = "SELECT DISTINCT Administration FROM vw_mutaties WHERE jaar = %s AND Administration IS NOT NULL ORDER BY Administration"
+        cursor.execute(admin_query, [year])
+        available_administrations = [row['Administration'] for row in cursor.fetchall()]
+        
+        return jsonify({
+            'success': True,
+            'data': summary_data,
+            'available_years': available_years,
+            'available_administrations': available_administrations
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+@app.route('/api/reports/aangifte-ib-details', methods=['GET'])
+def aangifte_ib_details():
+    """Get underlying accounts for a specific Parent and Aangifte"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        
+        # Get parameters
+        year = request.args.get('year')
+        administration = request.args.get('administration', 'all')
+        parent = request.args.get('parent')
+        aangifte = request.args.get('aangifte')
+        
+        if not all([year, parent, aangifte]):
+            return jsonify({'success': False, 'error': 'Year, parent, and aangifte are required'}), 400
+        
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Build WHERE conditions based on VW logic
+        where_conditions = [
+            "((VW = 'N' AND TransactionDate <= %s) OR (VW = 'Y' AND jaar = %s))",
+            "Parent = %s", 
+            "Aangifte = %s"
+        ]
+        params = [f"{year}-12-31", year, parent, aangifte]
+        
+        if administration != 'all':
+            where_conditions.append("Administration LIKE %s")
+            params.append(f"{administration}%")
+        
+        where_clause = ' AND '.join(where_conditions)
+        
+        # Get detailed account data
+        details_query = f"""
+            SELECT Reknum, AccountName, SUM(Amount) as Amount
+            FROM vw_mutaties 
+            WHERE {where_clause}
+            GROUP BY Reknum, AccountName
+            ORDER BY Reknum
+        """
+        
+        cursor.execute(details_query, params)
+        details_data = cursor.fetchall()
+        
+        return jsonify({
+            'success': True,
+            'data': details_data,
+            'parent': parent,
+            'aangifte': aangifte
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+@app.route('/api/reports/aangifte-ib-export', methods=['POST'])
+def aangifte_ib_export():
+    """Generate HTML export for Aangifte IB report"""
+    try:
+        data = request.get_json()
+        year = data.get('year')
+        administration = data.get('administration', 'all')
+        report_data = data.get('data', [])
+        
+        if not year:
+            return jsonify({'success': False, 'error': 'Year is required'}), 400
+        
+        # Calculate totals
+        parent_totals = {}
+        grand_total = 0
+        for row in report_data:
+            parent = row['Parent']
+            amount = float(row['Amount'])
+            if parent not in parent_totals:
+                parent_totals[parent] = 0
+            parent_totals[parent] += amount
+            grand_total += amount
+        
+        parent4000_total = parent_totals.get('4000', 0)
+        parent8000_total = parent_totals.get('8000', 0)
+        resultaat = parent4000_total + parent8000_total
+        
+        # Generate HTML
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aangifte IB - {year}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        h1 {{ color: #333; }}
+        table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; font-weight: bold; }}
+        .parent-row {{ background-color: #e6e6e6; font-weight: bold; }}
+        .resultaat-positive {{ background-color: #ffcccc; font-weight: bold; }}
+        .resultaat-negative {{ background-color: #ccffcc; font-weight: bold; }}
+        .grand-total {{ background-color: #ffa500; font-weight: bold; color: white; }}
+        .amount {{ text-align: right; }}
+        .indent {{ padding-left: 30px; }}
+    </style>
+</head>
+<body>
+    <h1>Aangifte Inkomstenbelasting - {year}</h1>
+    <p><strong>Administration:</strong> {administration if administration != 'all' else 'All'}</p>
+    <p><strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Parent</th>
+                <th>Aangifte</th>
+                <th class="amount">Amount (€)</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+        
+        # Group data by parent
+        grouped = {}
+        for row in report_data:
+            parent = row['Parent']
+            if parent not in grouped:
+                grouped[parent] = []
+            grouped[parent].append(row)
+        
+        # Add rows
+        for parent, items in sorted(grouped.items()):
+            parent_total = sum(float(item['Amount']) for item in items)
+            html_content += f'<tr class="parent-row"><td>{parent}</td><td></td><td class="amount">{parent_total:,.2f}</td></tr>'
+            
+            for item in items:
+                amount = float(item['Amount'])
+                html_content += f'<tr><td class="indent"></td><td>{item["Aangifte"]}</td><td class="amount">{amount:,.2f}</td></tr>'
+        
+        # Add resultaat row
+        resultaat_class = 'resultaat-positive' if resultaat >= 0 else 'resultaat-negative'
+        html_content += f'<tr class="{resultaat_class}"><td>RESULTAAT</td><td></td><td class="amount">{resultaat:,.2f}</td></tr>'
+        
+        # Add grand total
+        html_content += f'<tr class="grand-total"><td>GRAND TOTAL</td><td></td><td class="amount">{grand_total:,.2f}</td></tr>'
+        
+        html_content += """
+        </tbody>
+    </table>
+</body>
+</html>
+"""
+        
+        return jsonify({
+            'success': True,
+            'html': html_content,
+            'filename': f'Aangifte_IB_{administration}_{year}.html'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/reports/aangifte-ib-xlsx-export', methods=['POST'])
+def aangifte_ib_xlsx_export():
+    """Generate XLSX export for Aangifte IB"""
+    try:
+        data = request.get_json()
+        administrations = data.get('administrations', [])
+        years = data.get('years', [])
+        
+        if not administrations or not years:
+            return jsonify({'success': False, 'error': 'Administrations and years are required'}), 400
+        
+        # Debug: Check available administrations
+        db = DatabaseManager(test_mode=flag)
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT DISTINCT Administration FROM vw_mutaties WHERE Administration IS NOT NULL ORDER BY Administration")
+        available_admins = [row['Administration'] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        
+        xlsx_processor = XLSXExportProcessor(test_mode=flag)
+        results = xlsx_processor.generate_xlsx_export(administrations, years)
+        
+        successful_results = [r for r in results if r['success']]
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'available_administrations': available_admins,
+            'message': f'Generated {len(successful_results)} XLSX files out of {len(results)} requested'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# PDF Validation routes
+@app.route('/api/pdf/validate-urls-stream', methods=['GET'])
+def pdf_validate_urls_stream():
+    """Stream PDF validation progress with Server-Sent Events"""
+    from flask import Response
+    import json
+    
+    validator = PDFValidator(test_mode=flag)
+    year = request.args.get('year', '2025')
+    administration = request.args.get('administration', 'all')
+    
+    def generate_progress():
+        try:
+            for progress_data in validator.validate_pdf_urls_with_progress(year, administration):
+                if progress_data.get('validation_results') is not None:
+                    validation_results = progress_data['validation_results']
+                    for result in validation_results:
+                        if 'record' in result and 'TransactionDate' in result['record']:
+                            if result['record']['TransactionDate']:
+                                date_obj = result['record']['TransactionDate']
+                                if hasattr(date_obj, 'strftime'):
+                                    result['record']['TransactionDate'] = date_obj.strftime('%Y-%m-%d')
+                                else:
+                                    result['record']['TransactionDate'] = str(date_obj)[:10]
+                    
+                    yield f"data: {json.dumps({'type': 'complete', 'validation_results': validation_results, 'total_records': progress_data['total'], 'ok_count': progress_data['ok_count'], 'failed_count': progress_data['failed_count']}, default=str)}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'progress', **progress_data}, default=str)}\n\n"
+                    
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+    
+    return Response(generate_progress(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    })
+
+@app.route('/api/pdf/validate-urls', methods=['GET'])
+def pdf_validate_urls():
+    """Validate all Google Drive URLs in mutaties table"""
+    import json
+    
+    def generate_progress():
+        with app.app_context():
+            try:
+                validator = PDFValidator(test_mode=flag)
+                
+                # Parse range parameter
+                range_param = request.args.get('range', '1-100')
+                start_record, end_record = map(int, range_param.split('-'))
+                print(f"Starting validation for range: {range_param}")
+                
+                # Send initial message
+                yield f"data: {json.dumps({'type': 'progress', 'current': 0, 'total': 0, 'ok_count': 0, 'failed_count': 0}, default=str)}\n\n"
+                
+                # Use the generator method for progress updates
+                for progress_data in validator.validate_pdf_urls_with_progress(start_record, end_record):
+                    if progress_data.get('validation_results') is not None:
+                        # Convert dates to strings for JSON serialization
+                        validation_results = progress_data['validation_results']
+                        for result in validation_results:
+                            if 'record' in result and 'TransactionDate' in result['record']:
+                                if result['record']['TransactionDate']:
+                                    result['record']['TransactionDate'] = str(result['record']['TransactionDate'])
+                        
+                        # Final result
+                        yield f"data: {json.dumps({'type': 'complete', 'validation_results': validation_results, 'total_records': progress_data['total'], 'ok_count': progress_data['ok_count'], 'failed_count': progress_data['failed_count']}, default=str)}\n\n"
+                    else:
+                        # Progress update
+                        yield f"data: {json.dumps({'type': 'progress', **progress_data}, default=str)}\n\n"
+                
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+    
+    # Regular non-streaming response with range support
+    try:
+        validator = PDFValidator(test_mode=flag)
+        
+        # Parse year and administration parameters
+        year = request.args.get('year', '2025')
+        administration = request.args.get('administration', 'all')
+        print(f"Validating year: {year}, administration: {administration}")
+        
+        # Get results from the year-specific method
+        results = []
+        for progress_data in validator.validate_pdf_urls_with_progress(year, administration):
+            if progress_data.get('validation_results') is not None:
+                results = progress_data
+                break
+        
+        # Format dates in validation results
+        validation_results = results.get('validation_results', [])
+        for result in validation_results:
+            if 'record' in result and 'TransactionDate' in result['record']:
+                if result['record']['TransactionDate']:
+                    # Convert datetime to YYYY-MM-DD format
+                    date_obj = result['record']['TransactionDate']
+                    if hasattr(date_obj, 'strftime'):
+                        result['record']['TransactionDate'] = date_obj.strftime('%Y-%m-%d')
+                    else:
+                        result['record']['TransactionDate'] = str(date_obj)[:10]
+        
+        return jsonify({
+            'success': True,
+            'validation_results': validation_results,
+            'total_records': results.get('total', 0),
+            'ok_count': results.get('ok_count', 0),
+            'failed_count': results.get('failed_count', 0)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pdf/update-record', methods=['POST'])
+def pdf_update_record():
+    """Update all records with matching Ref3/Ref4"""
+    try:
+        data = request.get_json()
+        old_ref3 = data.get('old_ref3')
+        old_ref4 = data.get('old_ref4')
+        reference_number = data.get('reference_number')
+        ref3 = data.get('ref3')
+        ref4 = data.get('ref4')
+        
+        print(f"Update request: old_ref3={old_ref3}, ref3={ref3}, ref_num={reference_number}")
+        
+        if not old_ref3:
+            return jsonify({'success': False, 'error': 'Original Ref3 is required'}), 400
+        
+        validator = PDFValidator(test_mode=flag)
+        success = validator.update_record(old_ref3, reference_number, ref3, ref4)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Records updated successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'No records found to update or no changes made'}), 400
+        
+    except Exception as e:
+        print(f"Update error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pdf/get-administrations', methods=['GET'])
+def pdf_get_administrations():
+    """Get available administrations for a specific year"""
+    try:
+        year = request.args.get('year', '2025')
+        validator = PDFValidator(test_mode=flag)
+        administrations = validator.get_administrations_for_year(year)
+        
+        return jsonify({
+            'success': True,
+            'administrations': administrations
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pdf/validate-single-url', methods=['GET'])
+def pdf_validate_single_url():
+    """Validate a single Google Drive URL"""
+    try:
+        url = request.args.get('url')
+        if not url:
+            return jsonify({'success': False, 'error': 'URL parameter is required'}), 400
+        
+        validator = PDFValidator(test_mode=flag)
+        
+        # Create a mock record for validation
+        mock_record = {
+            'ID': 0,
+            'TransactionNumber': '',
+            'TransactionDate': '',
+            'TransactionDescription': '',
+            'TransactionAmount': 0,
+            'ReferenceNumber': '',
+            'Ref3': url,
+            'Ref4': '',
+            'Administration': ''
+        }
+        
+        result = validator._validate_single_record(mock_record)
+        
+        return jsonify({
+            'success': True,
+            'status': result['status']
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':
-    print("Starting Flask server...")
+    print("Starting Flask development server...")
+    print("For production, use: waitress-serve --host=127.0.0.1 --port=5000 wsgi:app")
     app.run(debug=True, port=5000, host='127.0.0.1')

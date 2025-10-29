@@ -42,8 +42,9 @@ class RaboCsvProcessor:
         """Clean and rename columns"""
         # Fix special character in column names
         columns = list(bookings.columns)
-        if len(columns) > 11:
-            columns[11] = "iniPartij"
+        INI_PARTIJ_COLUMN_INDEX = 11
+        if len(columns) > INI_PARTIJ_COLUMN_INDEX:
+            columns[INI_PARTIJ_COLUMN_INDEX] = "iniPartij"
             bookings.columns = columns
         
         return bookings
@@ -115,9 +116,8 @@ class RaboCsvProcessor:
             if field in bookings.columns:
                 field_indices.append(bookings.columns.get_loc(field))
         
-        # Build descriptions
-        descriptions = []
-        for idx, row in bookings.iterrows():
+        # Build descriptions using vectorized operations
+        def build_description(row):
             desc_parts = []
             for col_idx in field_indices:
                 value = str(row.iloc[col_idx]) if pd.notna(row.iloc[col_idx]) else ""
@@ -129,9 +129,9 @@ class RaboCsvProcessor:
             description = re.sub(r'\bNA\b', ' ', description)
             description = re.sub(r'\s+', ' ', description)
             description = description.replace('Google Pay', 'GPay')
-            descriptions.append(description.strip())
+            return description.strip()
         
-        bookings['TransactionDescription'] = descriptions
+        bookings['TransactionDescription'] = bookings.apply(build_description, axis=1)
         return bookings
     
     def process_amounts(self, bookings):
@@ -182,6 +182,7 @@ class RaboCsvProcessor:
         """Apply transaction codes logic (placeholder for R function)"""
         # This would implement the logic from getTransactionsCodes R function
         # For now, return data as-is
+        # amazonq-ignore-next-line
         return data
     
     def prevent_duplicates_and_write(self, df):

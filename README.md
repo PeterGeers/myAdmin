@@ -36,13 +36,25 @@ cd frontend && npm start     # Port 3000
 ### 📊 myAdmin Reports
 - Interactive dashboards with Recharts
 - P&L statements and balance sheets
-- BNB revenue analytics
+- BNB revenue analytics with violin/box plots
+- BNB returning guests analysis
+- Aangifte IB (Income Tax) declarations with VW logic
+- HTML/XLSX export functionality
 - Reference number validation
+
+### 🔍 PDF Validation System
+- Validate Google Drive URLs in transaction records
+- Real-time progress tracking with dynamic progress bar
+- Year and administration filtering
+- Automatic file/folder URL resolution
+- Manual update functionality for broken links
+- Gmail URL detection for manual verification
 
 ## Database
 
 - **MySQL**: Main transaction storage
 - **Tables**: mutaties, bnb, bnbplanned, bnbfuture
+- **Views**: vw_mutaties for reporting with VW logic
 - **Config**: `.env` file with credentials
 
 ## Git Management
@@ -58,5 +70,7 @@ cd frontend && npm start     # Port 3000
 ## Tech Stack
 
 - **Frontend**: React, TypeScript, Chakra UI, Recharts
-- **Backend**: Python, Flask, MySQL, Google Drive API
+- **Backend**: Python, Flask, MySQL, Google Drive API, Gmail API
 - **Processing**: PyPDF2, pdfplumber, pandas, openpyxl
+- **Export**: HTML generation, XLSX with R script logic
+- **Real-time**: Server-Sent Events for progress tracking

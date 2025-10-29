@@ -21,29 +21,30 @@ def show_duplicates():
     cursor = conn.cursor(dictionary=True)
     
     # Query Goodwin administration data
-    query = "SELECT * FROM vw_mutaties WHERE Administration LIKE 'Goodwin%'"
+    query = "SELECT * FROM mutaties WHERE Administration LIKE 'Goodwin%'"
     cursor.execute(query)
     results = cursor.fetchall()
     
     df = pd.DataFrame(results)
     
-    # Find duplicates based on date, description, and amount
-    duplicate_mask = df.duplicated(subset=['TransactionDate', 'TransactionDescription', 'Amount'], keep=False)
-    duplicates = df[duplicate_mask].sort_values(['TransactionDate', 'TransactionDescription', 'Amount'])
+    # Find duplicates based on date, description, amount, debet, and credit
+    duplicate_mask = df.duplicated(subset=['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit', 'ReferenceNumber'], keep=False)
+    duplicates = df[duplicate_mask].sort_values(['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit', 'ReferenceNumber'])
     
     print(f"=== DUPLICATE TRANSACTIONS ({len(duplicates)} records) ===\n")
     
     # Group duplicates for better display
-    grouped = duplicates.groupby(['TransactionDate', 'TransactionDescription', 'Amount'])
+    grouped = duplicates.groupby(['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit', 'ReferenceNumber'])
     
-    for (date, desc, amount), group in grouped:
+    for (date, desc, amount, debet, credit, ref), group in grouped:
         print(f"Date: {date}")
         print(f"Description: {desc}")
         print(f"Amount: ${amount}")
+        print(f"Debet: {debet} | Credit: {credit}")
         print(f"Duplicate Count: {len(group)}")
         print("Records:")
         for _, row in group.iterrows():
-            print(f"  - Account: {row['Reknum']} ({row['AccountName']})")
+            print(f"  - ID: {row['ID']}")
             print(f"    Ref: {row['ReferenceNumber']}")
             print(f"    Transaction#: {row['TransactionNumber']}")
         print("-" * 80)

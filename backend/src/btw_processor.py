@@ -3,6 +3,7 @@ from google_drive_service import GoogleDriveService
 import os
 from datetime import datetime
 import tempfile
+import html
 
 class BTWProcessor:
     def __init__(self, test_mode=False):
@@ -57,80 +58,105 @@ class BTWProcessor:
     
     def _get_balance_data(self, administration, end_date):
         """Get balance data for BTW accounts up to end date"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        query = """
-            SELECT Reknum, AccountName, SUM(Amount) as amount
-            FROM vw_mutaties 
-            WHERE TransactionDate <= %s 
-            AND Administration LIKE %s
-            AND Reknum IN ('2010', '2020', '2021')
-            GROUP BY Reknum, AccountName
-        """
-        
-        cursor.execute(query, (end_date, f"{administration}%"))
-        results = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        return results
+        conn = None
+        cursor = None
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            query = """
+                SELECT Reknum, AccountName, SUM(Amount) as amount
+                FROM vw_mutaties 
+                WHERE TransactionDate <= %s 
+                AND Administration LIKE %s
+                AND Reknum IN ('2010', '2020', '2021')
+                GROUP BY Reknum, AccountName
+            """
+            
+            cursor.execute(query, (end_date, f"{administration}%"))
+            results = cursor.fetchall()
+            
+            return results
+        except Exception as e:
+            print(f"Error getting balance data: {e}", flush=True)
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
     
     def _get_quarter_data(self, administration, year, quarter):
         """Get quarter data for BTW and revenue accounts"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        query = """
-            SELECT Reknum, AccountName, SUM(Amount) as amount
-            FROM vw_mutaties 
-            WHERE jaar = %s
-            AND Administration LIKE %s
-            AND kwartaal = %s
-            AND Reknum IN ('2010', '2020', '2021', '8001', '8002', '8003')
-            GROUP BY Reknum, AccountName
-        """
-        
-        cursor.execute(query, (year, f"{administration}%", quarter))
-        results = cursor.fetchall()
-        
-        cursor.close()
-        conn.close()
-        
-        return results
+        conn = None
+        cursor = None
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            query = """
+                SELECT Reknum, AccountName, SUM(Amount) as amount
+                FROM vw_mutaties 
+                WHERE jaar = %s
+                AND Administration LIKE %s
+                AND kwartaal = %s
+                AND Reknum IN ('2010', '2020', '2021', '8001', '8002', '8003')
+                GROUP BY Reknum, AccountName
+            """
+            
+            cursor.execute(query, (year, f"{administration}%", quarter))
+            results = cursor.fetchall()
+            
+            return results
+        except Exception as e:
+            print(f"Error getting quarter data: {e}", flush=True)
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
     
     def _calculate_btw_amounts(self, balance_data, quarter_data):
         """Calculate BTW amounts based on R script logic"""
-        # Calculate total balance (te betalen/ontvangen)
-        total_balance = sum(row['amount'] for row in balance_data)
-        
-        # Calculate received BTW (accounts 2020, 2021)
-        received_btw = sum(
-            row['amount'] for row in quarter_data 
-            if row['Reknum'] in ['2020', '2021']
-        )
-        
-        # Calculate prepaid BTW
-        prepaid_btw = received_btw - total_balance
-        
-        # Determine payment instruction
-        if total_balance >= 0:
-            payment_instruction = f"€{abs(total_balance):.0f} te ontvangen"
-        else:
-            payment_instruction = f"€{abs(total_balance):.0f} te betalen"
-        
-        return {
-            'total_balance': total_balance,
-            'received_btw': received_btw,
-            'prepaid_btw': prepaid_btw,
-            'payment_instruction': payment_instruction
-        }
+        try:
+            # Calculate total balance (te betalen/ontvangen)
+            total_balance = sum(row['amount'] for row in balance_data)
+            
+            # Calculate received BTW (accounts 2020, 2021)
+            received_btw = sum(
+                row['amount'] for row in quarter_data 
+                if row['Reknum'] in ['2020', '2021']
+            )
+            
+            # Calculate prepaid BTW
+            prepaid_btw = received_btw - total_balance
+            
+            # Determine payment instruction
+            if total_balance >= 0:
+                payment_instruction = f"€{abs(total_balance):.0f} te ontvangen"
+            else:
+                payment_instruction = f"€{abs(total_balance):.0f} te betalen"
+            
+            return {
+                'total_balance': total_balance,
+                'received_btw': received_btw,
+                'prepaid_btw': prepaid_btw,
+                'payment_instruction': payment_instruction
+            }
+        except Exception as e:
+            print(f"Error calculating BTW amounts: {e}", flush=True)
+            return {
+                'total_balance': 0,
+                'received_btw': 0,
+                'prepaid_btw': 0,
+                'payment_instruction': '€0 te betalen'
+            }
     
     def _generate_html_report(self, administration, year, quarter, end_date, 
                             balance_data, quarter_data, calculations):
         """Generate HTML report similar to R markdown output"""
-        html = f"""
+        html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
@@ -165,15 +191,15 @@ class BTWProcessor:
         """
         
         for row in balance_data:
-            html += f"""
+            html_content += f"""
                     <tr>
-                        <td>{row['Reknum']}</td>
-                        <td>{row['AccountName']}</td>
+                        <td>{html.escape(str(row['Reknum']))}</td>
+                        <td>{html.escape(str(row['AccountName']))}</td>
                         <td class="amount">€{row['amount']:,.2f}</td>
                     </tr>
             """
         
-        html += f"""
+        html_content += f"""
                 </tbody>
             </table>
             
@@ -190,15 +216,15 @@ class BTWProcessor:
         """
         
         for row in quarter_data:
-            html += f"""
+            html_content += f"""
                     <tr>
-                        <td>{row['Reknum']}</td>
-                        <td>{row['AccountName']}</td>
+                        <td>{html.escape(str(row['Reknum']))}</td>
+                        <td>{html.escape(str(row['AccountName']))}</td>
                         <td class="amount">€{row['amount']:,.2f}</td>
                     </tr>
             """
         
-        html += f"""
+        html_content += f"""
                 </tbody>
             </table>
             
@@ -219,7 +245,7 @@ class BTWProcessor:
         </html>
         """
         
-        return html
+        return html_content
     
     def _prepare_btw_transaction(self, administration, year, quarter, calculations):
         """Prepare BTW transaction for saving to mutaties table"""
@@ -244,7 +270,7 @@ class BTWProcessor:
             'TransactionAmount': round(abs(total_balance)),
             'Debet': debet,
             'Credit': credit,
-            'ReferenceNumber': f'BTW-{year}-Q{quarter}',
+            'ReferenceNumber': 'BTW',
             'Ref1': f'BTW aangifte {administration}',
             'Ref2': f'{year}-Q{quarter}',
             'Ref3': calculations['payment_instruction'],
@@ -256,29 +282,39 @@ class BTWProcessor:
     
     def _get_last_btw_transaction(self, administration):
         """Get last BTW transaction for reference"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        table_name = 'mutaties_test' if self.test_mode else 'mutaties'
-        
-        query = f"""
-            SELECT * FROM {table_name}
-            WHERE TransactionNumber = 'BTW'
-            AND Administration = %s
-            ORDER BY TransactionDate DESC, ID DESC
-            LIMIT 1
-        """
-        
-        cursor.execute(query, (administration,))
-        result = cursor.fetchone()
-        
-        cursor.close()
-        conn.close()
-        
-        return result
+        conn = None
+        cursor = None
+        try:
+            conn = self.db.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            table_name = 'mutaties_test' if self.test_mode else 'mutaties'
+            
+            query = f"""
+                SELECT * FROM {table_name}
+                WHERE TransactionNumber = 'BTW'
+                AND Administration = %s
+                ORDER BY TransactionDate DESC, ID DESC
+                LIMIT 1
+            """
+            
+            cursor.execute(query, (administration,))
+            result = cursor.fetchone()
+            
+            return result
+        except Exception as e:
+            print(f"Error getting last BTW transaction: {e}", flush=True)
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
     
     def save_btw_transaction(self, transaction):
         """Save BTW transaction to database"""
+        conn = None
+        cursor = None
         try:
             conn = self.db.get_connection()
             cursor = conn.cursor()
@@ -311,25 +347,30 @@ class BTWProcessor:
             conn.commit()
             transaction_id = cursor.lastrowid
             
-            cursor.close()
-            conn.close()
-            
             return {'success': True, 'transaction_id': transaction_id}
             
         except Exception as e:
+            if conn:
+                conn.rollback()
             return {'success': False, 'error': str(e)}
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
     
     def upload_report_to_drive(self, html_content, filename):
         """Upload HTML report to Google Drive BTW folder"""
         try:
             if self.test_mode:
                 # In test mode, save locally
-                local_path = os.path.join('uploads', filename)
+                safe_filename = os.path.basename(filename)
+                local_path = os.path.join('uploads', safe_filename)
                 with open(local_path, 'w', encoding='utf-8') as f:
                     f.write(html_content)
                 return {
                     'success': True,
-                    'url': f'http://localhost:5000/uploads/{filename}',
+                    'url': f'http://localhost:5000/uploads/{safe_filename}',
                     'location': 'local'
                 }
             else:

@@ -46,14 +46,7 @@ const MyAdminReports: React.FC = () => {
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
   const [profitLossData, setProfitLossData] = useState<BalanceRecord[]>([]);
-  const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
-  const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
-  const [selectedReference, setSelectedReference] = useState<string>('');
-  const [filterOptions, setFilterOptions] = useState({
-    administrations: [],
-    ledgers: [],
-    references: []
-  });
+
   const [loading, setLoading] = useState(false);
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -92,12 +85,7 @@ const MyAdminReports: React.FC = () => {
 
 
 
-  // Check Reference Filters
-  const [checkRefFilters, setCheckRefFilters] = useState({
-    referenceNumber: 'all',
-    ledger: 'all',
-    administration: 'all'
-  });
+
 
 
 
@@ -121,6 +109,11 @@ const MyAdminReports: React.FC = () => {
   });
   const [bnbAvailableYears, setBnbAvailableYears] = useState<string[]>([]);
   const [bnbFilterOptions, setBnbFilterOptions] = useState({
+    years: [],
+    listings: [],
+    channels: []
+  });
+  const [bnbViolinFilterOptions, setBnbViolinFilterOptions] = useState({
     years: [],
     listings: [],
     channels: []
@@ -151,9 +144,43 @@ const MyAdminReports: React.FC = () => {
   });
   const [refAnalysisData, setRefAnalysisData] = useState<any[]>([]);
   const [refTrendData, setRefTrendData] = useState<any[]>([]);
-  const [availableReferences, setAvailableReferences] = useState<string[]>([]);
+
   const [availableRefAccounts, setAvailableRefAccounts] = useState<any[]>([]);
   const [refAnalysisLoading, setRefAnalysisLoading] = useState(false);
+
+  // BNB Violins State
+  const [bnbViolinFilters, setBnbViolinFilters] = useState({
+    years: [new Date().getFullYear().toString()],
+    listings: 'all',
+    channels: 'all',
+    metric: 'pricePerNight' // 'pricePerNight' or 'nightsPerStay'
+  });
+  const [bnbViolinData, setBnbViolinData] = useState<any[]>([]);
+  const [bnbViolinLoading, setBnbViolinLoading] = useState(false);
+
+  // BNB Returning Guests State
+  const [returningGuests, setReturningGuests] = useState<any[]>([]);
+  const [selectedGuestBookings, setSelectedGuestBookings] = useState<any[]>([]);
+  const [selectedGuestName, setSelectedGuestName] = useState<string>('');
+  const [returningGuestsLoading, setReturningGuestsLoading] = useState(false);
+
+  // Aangifte IB State
+  const [aangifteIbData, setAangifteIbData] = useState<any[]>([]);
+  const [aangifteIbDetails, setAangifteIbDetails] = useState<any[]>([]);
+  const [aangifteIbFilters, setAangifteIbFilters] = useState({
+    year: new Date().getFullYear().toString(),
+    administration: 'all'
+  });
+  const [aangifteIbAvailableYears, setAangifteIbAvailableYears] = useState<string[]>([]);
+  const [aangifteIbAvailableAdmins, setAangifteIbAvailableAdmins] = useState<string[]>([]);
+  const [aangifteIbLoading, setAangifteIbLoading] = useState(false);
+  const [selectedAangifteRow, setSelectedAangifteRow] = useState<{parent: string, aangifte: string} | null>(null);
+  const [expandedAangifteRows, setExpandedAangifteRows] = useState<Set<string>>(new Set());
+  const [xlsxExportLoading, setXlsxExportLoading] = useState(false);
+  const [xlsxExportFilters, setXlsxExportFilters] = useState({
+    administrations: [] as string[],
+    years: [] as string[]
+  });
 
   // Format amount based on display format
   const formatAmount = (amount: number, format: string): string => {
@@ -727,7 +754,7 @@ const MyAdminReports: React.FC = () => {
         profitLoss: 'all'
       });
       
-      const response = await fetch(`http://localhost:5000/api/reports/balance-data?${params}`);
+      const response = await fetch(`/api/reports/balance-data?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -767,72 +794,9 @@ const MyAdminReports: React.FC = () => {
 
 
 
-  const fetchFilterOptions = async (administration = 'all', ledger = 'all') => {
-    try {
-      const params = new URLSearchParams();
-      if (administration !== 'all') params.append('administration', administration);
-      if (ledger !== 'all') params.append('ledger', ledger);
-      
-      const response = await fetch(`http://localhost:5000/api/reports/filter-options?${params}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setFilterOptions({
-          administrations: data.administrations || [],
-          ledgers: data.ledgers || [],
-          references: data.references || []
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching filter options:', err);
-    }
-  };
 
-  const fetchCheckRefData = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        referenceNumber: 'all', // Always get summary for all references
-        ledger: checkRefFilters.ledger,
-        administration: checkRefFilters.administration
-      });
-      
-      const response = await fetch(`http://localhost:5000/api/reports/check-reference?${params}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        const filteredSummary = data.summary.filter((row: any) => {
-          const amount = parseFloat(row.total_amount || 0);
-          return Math.abs(amount) > 0.01;
-        });
-        setRefSummaryData(filteredSummary);
-      }
-    } catch (err) {
-      console.error('Error fetching check reference data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchReferenceDetails = async (referenceNumber: string) => {
-    try {
-      const params = new URLSearchParams({
-        referenceNumber: referenceNumber,
-        ledger: checkRefFilters.ledger,
-        administration: checkRefFilters.administration
-      });
-      
-      const response = await fetch(`http://localhost:5000/api/reports/check-reference?${params}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setSelectedReferenceDetails(data.transactions);
-        setSelectedReference(referenceNumber);
-      }
-    } catch (err) {
-      console.error('Error fetching reference details:', err);
-    }
-  };
+
 
   const fetchBnbData = async () => {
     setLoading(true);
@@ -844,7 +808,7 @@ const MyAdminReports: React.FC = () => {
         listing: bnbFilters.listing
       });
       
-      const response = await fetch(`http://localhost:5000/api/reports/bnb-table?${params}`);
+      const response = await fetch(`/api/reports/bnb-table?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -859,7 +823,7 @@ const MyAdminReports: React.FC = () => {
 
   const fetchAvailableYears = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/reports/available-years');
+      const response = await fetch('/api/reports/available-years');
       const data = await response.json();
       if (data.success) {
         setAvailableYears(data.years);
@@ -926,14 +890,14 @@ const MyAdminReports: React.FC = () => {
       });
       
       // Balance data (VW = N)
-      const balanceResponse = await fetch(`http://localhost:5000/api/reports/actuals-balance?${params}`);
+      const balanceResponse = await fetch(`/api/reports/actuals-balance?${params}`);
       const balanceResult = await balanceResponse.json();
       if (balanceResult.success) {
         setBalanceData(balanceResult.data);
       }
 
       // Profit/Loss data (VW = Y)
-      const profitLossResponse = await fetch(`http://localhost:5000/api/reports/actuals-profitloss?${params}`);
+      const profitLossResponse = await fetch(`/api/reports/actuals-profitloss?${params}`);
       const profitLossResult = await profitLossResponse.json();
       if (profitLossResult.success) {
         setProfitLossData(profitLossResult.data);
@@ -948,7 +912,7 @@ const MyAdminReports: React.FC = () => {
   const generateBtwReport = async () => {
     setBtwLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/btw/generate-report', {
+      const response = await fetch('/api/btw/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(btwFilters)
@@ -974,7 +938,7 @@ const MyAdminReports: React.FC = () => {
     
     setBtwLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/btw/save-transaction', {
+      const response = await fetch('/api/btw/save-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transaction: btwTransaction })
@@ -986,7 +950,7 @@ const MyAdminReports: React.FC = () => {
         // Upload report to Google Drive
         const filename = `BTW_${btwFilters.administration}_${btwFilters.year}_Q${btwFilters.quarter}.html`;
         
-        const uploadResponse = await fetch('http://localhost:5000/api/btw/upload-report', {
+        const uploadResponse = await fetch('/api/btw/upload-report', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -1013,6 +977,8 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
+
+
   const fetchReferenceAnalysis = async () => {
     setRefAnalysisLoading(true);
     try {
@@ -1029,7 +995,6 @@ const MyAdminReports: React.FC = () => {
       if (data.success) {
         setRefAnalysisData(data.transactions);
         setRefTrendData(data.trend_data);
-        setAvailableReferences(data.reference_numbers);
         setAvailableRefAccounts(data.available_accounts);
       }
     } catch (err) {
@@ -1039,29 +1004,166 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
-  const fetchAvailableReferences = async () => {
+  const fetchBnbViolinData = async () => {
+    setBnbViolinLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/reports/reference-analysis');
+      const params = new URLSearchParams({
+        years: bnbViolinFilters.years.join(','),
+        listings: bnbViolinFilters.listings,
+        channels: bnbViolinFilters.channels,
+        metric: bnbViolinFilters.metric
+      });
+      
+      const response = await fetch(`http://localhost:5000/api/bnb/bnb-violin-data?${params}`);
       const data = await response.json();
+      
       if (data.success) {
-        setAvailableReferences(data.reference_numbers);
+        setBnbViolinData(data.data);
       }
     } catch (err) {
-      console.error('Error fetching available references:', err);
+      console.error('Error fetching BNB violin data:', err);
+    } finally {
+      setBnbViolinLoading(false);
     }
   };
 
+  const fetchBnbViolinFilterOptions = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/bnb/bnb-filter-options');
+      const data = await response.json();
+      if (data.success) {
+        setBnbViolinFilterOptions({
+          years: data.years || [],
+          listings: data.listings || [],
+          channels: data.channels || []
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching BNB violin filter options:', err);
+    }
+  };
+
+  const fetchReturningGuests = async () => {
+    setReturningGuestsLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/bnb/bnb-returning-guests');
+      const data = await response.json();
+      
+      if (data.success) {
+        setReturningGuests(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching returning guests:', err);
+    } finally {
+      setReturningGuestsLoading(false);
+    }
+  };
+
+  const fetchGuestBookings = async (guestName: string) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/bnb/bnb-guest-bookings?guestName=${encodeURIComponent(guestName)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setSelectedGuestBookings(data.data);
+        setSelectedGuestName(guestName);
+      }
+    } catch (err) {
+      console.error('Error fetching guest bookings:', err);
+    }
+  };
+
+  const fetchAangifteIbData = async () => {
+    setAangifteIbLoading(true);
+    try {
+      const params = new URLSearchParams({
+        year: aangifteIbFilters.year,
+        administration: aangifteIbFilters.administration
+      });
+      
+      const response = await fetch(`/api/reports/aangifte-ib?${params}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setAangifteIbData(data.data);
+        setAangifteIbAvailableYears(data.available_years);
+        setAangifteIbAvailableAdmins(data.available_administrations);
+      }
+    } catch (err) {
+      console.error('Error fetching Aangifte IB data:', err);
+    } finally {
+      setAangifteIbLoading(false);
+    }
+  };
+
+  const fetchAangifteIbDetails = async (parent: string, aangifte: string) => {
+    try {
+      const params = new URLSearchParams({
+        year: aangifteIbFilters.year,
+        administration: aangifteIbFilters.administration,
+        parent: parent,
+        aangifte: aangifte
+      });
+      
+      const response = await fetch(`/api/reports/aangifte-ib-details?${params}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setAangifteIbDetails(data.data);
+        setSelectedAangifteRow({parent, aangifte});
+      }
+    } catch (err) {
+      console.error('Error fetching Aangifte IB details:', err);
+    }
+  };
+
+  const exportXlsxFiles = async () => {
+    setXlsxExportLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/reports/aangifte-ib-xlsx-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          administrations: xlsxExportFilters.administrations,
+          years: xlsxExportFilters.years
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        alert(`Successfully generated ${data.results.filter((r: any) => r.success).length} XLSX files`);
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('Error exporting XLSX:', err);
+      alert('Error exporting XLSX files');
+    } finally {
+      setXlsxExportLoading(false);
+    }
+  };
+
+
+
   useEffect(() => {
-    fetchMutatiesData();
-    fetchBnbData();
-    fetchBalanceData();
-    fetchProfitLossData();
-    fetchFilterOptions();
-    fetchAvailableYears();
-    fetchActualsData();
-    fetchBnbFilterOptions();
-    fetchBnbActualsData();
-    fetchAvailableReferences();
+    const initializeData = async () => {
+      await Promise.all([
+        fetchMutatiesData(),
+        fetchBnbData(),
+        fetchBalanceData(),
+        fetchProfitLossData(),
+
+        fetchAvailableYears(),
+        fetchActualsData(),
+        fetchBnbFilterOptions(),
+        fetchBnbActualsData(),
+        fetchBnbViolinFilterOptions(),
+        fetchReturningGuests(),
+        fetchAangifteIbData()
+      ]);
+    };
+    initializeData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1072,14 +1174,36 @@ const MyAdminReports: React.FC = () => {
   }, [drillDownLevel]);
 
   // Refetch BNB actuals data when filters change
+  const bnbFilterDeps = React.useMemo(() => [
+    bnbActualsFilters.years.join(','),
+    bnbActualsFilters.listings,
+    bnbActualsFilters.channels,
+    bnbActualsFilters.viewType
+  ], [bnbActualsFilters.years, bnbActualsFilters.listings, bnbActualsFilters.channels, bnbActualsFilters.viewType]);
+  
   useEffect(() => {
     if (bnbActualsFilters.years.length > 0) {
       fetchBnbActualsData();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bnbActualsFilters.years, bnbActualsFilters.listings, bnbActualsFilters.channels, bnbActualsFilters.viewType]);
+  }, bnbFilterDeps);
 
-  const exportMutatiesCsv = () => {
+  // Refetch BNB violin data when filters change
+  const bnbViolinFilterDeps = React.useMemo(() => [
+    bnbViolinFilters.years.join(','),
+    bnbViolinFilters.listings,
+    bnbViolinFilters.channels,
+    bnbViolinFilters.metric
+  ], [bnbViolinFilters.years, bnbViolinFilters.listings, bnbViolinFilters.channels, bnbViolinFilters.metric]);
+  
+  useEffect(() => {
+    if (bnbViolinFilters.years.length > 0) {
+      fetchBnbViolinData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, bnbViolinFilterDeps);
+
+  const exportMutatiesCsv = React.useCallback(() => {
     const csvContent = [
       ['Date', 'Reference', 'Description', 'Amount', 'Debet', 'Credit', 'Administration'],
       ...mutatiesData.map(row => [
@@ -1099,9 +1223,9 @@ const MyAdminReports: React.FC = () => {
     a.href = url;
     a.download = `mutaties-${mutatiesFilters.dateFrom}-${mutatiesFilters.dateTo}.csv`;
     a.click();
-  };
+  }, [mutatiesData, mutatiesFilters.dateFrom, mutatiesFilters.dateTo]);
 
-  const exportBnbCsv = () => {
+  const exportBnbCsv = React.useCallback(() => {
     const csvContent = [
       ['Check-in Date', 'Check-out Date', 'Channel', 'Listing', 'Nights', 'Guests', 'Gross Amount', 'Net Amount', 'Guest Name', 'Reservation Code'],
       ...bnbData.map(row => [
@@ -1124,6 +1248,184 @@ const MyAdminReports: React.FC = () => {
     a.href = url;
     a.download = `bnb-${bnbFilters.dateFrom}-${bnbFilters.dateTo}.csv`;
     a.click();
+  }, [bnbData, bnbFilters.dateFrom, bnbFilters.dateTo]);
+
+  // Violin Chart Component
+  const ViolinChart: React.FC<{ data: any[], metric: string, groupBy: string }> = ({ data, metric, groupBy }) => {
+    const processedData = React.useMemo(() => {
+      if (!data.length) return [];
+      
+      // Group data by the specified field (listing or channel)
+      const grouped = data.reduce((acc, item) => {
+        const key = item[groupBy];
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(Number(item.value) || 0);
+        return acc;
+      }, {} as any);
+      
+      // Calculate statistics and distribution for each group
+      return Object.entries(grouped).map(([name, values]: [string, any]) => {
+        const sortedValues = values.sort((a: number, b: number) => a - b);
+        const len = sortedValues.length;
+        
+        const min = sortedValues[0];
+        const max = sortedValues[len - 1];
+        const median = len % 2 === 0 
+          ? (sortedValues[len / 2 - 1] + sortedValues[len / 2]) / 2
+          : sortedValues[Math.floor(len / 2)];
+        const q1 = sortedValues[Math.floor(len * 0.25)];
+        const q3 = sortedValues[Math.floor(len * 0.75)];
+        const mean = values.reduce((sum: number, val: number) => sum + val, 0) / len;
+        
+        // Create histogram bins for violin shape
+        const binCount = Math.min(10, Math.max(5, Math.floor(len / 5)));
+        const binSize = (max - min) / binCount;
+        const bins = Array(binCount).fill(0);
+        
+        values.forEach((value: number) => {
+          const binIndex = Math.min(binCount - 1, Math.floor((value - min) / binSize));
+          bins[binIndex]++;
+        });
+        
+        const maxBinCount = Math.max(...bins);
+        const normalizedBins = bins.map(count => count / maxBinCount);
+        
+        return {
+          name,
+          min,
+          q1,
+          median,
+          q3,
+          max,
+          mean,
+          count: len,
+          values: sortedValues,
+          bins: normalizedBins,
+          binSize,
+          range: max - min
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+    }, [data, groupBy]);
+    
+    if (!processedData.length) {
+      return (
+        <Box p={4} textAlign="center">
+          <Text color="white">No data available for violin chart</Text>
+        </Box>
+      );
+    }
+    
+    const metricLabel = metric === 'pricePerNight' ? 'Price per Night (€)' : 'Nights per Stay';
+    
+    return (
+      <VStack spacing={4}>
+        {/* Box Plot Chart */}
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart
+            data={processedData.map((item, index) => ({ ...item, index }))}
+            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="name" 
+              angle={-45} 
+              textAnchor="end" 
+              height={80} 
+              fontSize={10} 
+              tick={{fill: 'white'}} 
+            />
+            <YAxis 
+              tick={{fill: 'white'}} 
+              label={{ value: metricLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'white' } }}
+            />
+            <Tooltip 
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  const item = processedData.find(d => d.name === label);
+                  if (!item) return null;
+                  
+                  return (
+                    <div style={{ backgroundColor: 'white', padding: '10px', border: '1px solid #ccc', borderRadius: '5px' }}>
+                      <div><strong>{item.name}</strong></div>
+                      <div>Count: {item.count}</div>
+                      <div>Min: {metric === 'pricePerNight' ? `€${item.min.toFixed(2)}` : item.min}</div>
+                      <div>Q1: {metric === 'pricePerNight' ? `€${item.q1.toFixed(2)}` : item.q1}</div>
+                      <div>Median: {metric === 'pricePerNight' ? `€${item.median.toFixed(2)}` : item.median}</div>
+                      <div>Mean: {metric === 'pricePerNight' ? `€${item.mean.toFixed(2)}` : item.mean.toFixed(1)}</div>
+                      <div>Q3: {metric === 'pricePerNight' ? `€${item.q3.toFixed(2)}` : item.q3}</div>
+                      <div>Max: {metric === 'pricePerNight' ? `€${item.max.toFixed(2)}` : item.max}</div>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            {/* Whiskers - from min to Q1 and Q3 to max */}
+            <Bar dataKey="min" fill="transparent" stroke="white" strokeWidth="2" strokeDasharray="3,3" />
+            <Bar dataKey="max" fill="transparent" stroke="white" strokeWidth="2" strokeDasharray="3,3" />
+            {/* IQR Box - Q1 to Q3 */}
+            <Bar dataKey="q1" fill="#3182ce" fillOpacity="0.3" />
+            <Bar dataKey="q3" fill="#3182ce" fillOpacity="0.6" />
+            {/* Median line */}
+            <Bar dataKey="median" fill="#2d3748" />
+            {/* Mean marker */}
+            <Bar dataKey="mean" fill="#f56500" />
+          </BarChart>
+        </ResponsiveContainer>
+        
+        {/* Statistics Summary Table */}
+        <Card bg="gray.600" w="100%">
+          <CardBody>
+            <TableContainer>
+              <Table size="sm" variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th color="white">{groupBy === 'listing' ? 'Listing' : 'Channel'}</Th>
+                    <Th color="white" isNumeric>Count</Th>
+                    <Th color="white" isNumeric>Min</Th>
+                    <Th color="white" isNumeric>Q1</Th>
+                    <Th color="white" isNumeric>Median</Th>
+                    <Th color="white" isNumeric>Mean</Th>
+                    <Th color="white" isNumeric>Q3</Th>
+                    <Th color="white" isNumeric>Max</Th>
+                    <Th color="white" isNumeric>Range</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {processedData.map((item, index) => (
+                    <Tr key={index}>
+                      <Td color="white" fontSize="sm">{item.name}</Td>
+                      <Td color="white" fontSize="sm" isNumeric>{item.count}</Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        {metric === 'pricePerNight' ? `€${item.min.toFixed(2)}` : item.min}
+                      </Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        {metric === 'pricePerNight' ? `€${item.q1.toFixed(2)}` : item.q1}
+                      </Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        {metric === 'pricePerNight' ? `€${item.median.toFixed(2)}` : item.median}
+                      </Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        {metric === 'pricePerNight' ? `€${item.mean.toFixed(2)}` : item.mean.toFixed(1)}
+                      </Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        {metric === 'pricePerNight' ? `€${item.q3.toFixed(2)}` : item.q3}
+                      </Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        {metric === 'pricePerNight' ? `€${item.max.toFixed(2)}` : item.max}
+                      </Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        {metric === 'pricePerNight' ? `€${item.range.toFixed(2)}` : item.range.toFixed(1)}
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </TableContainer>
+          </CardBody>
+        </Card>
+      </VStack>
+    );
   };
 
   return (
@@ -1135,9 +1437,12 @@ const MyAdminReports: React.FC = () => {
             <Tab color="white">🏠 BNB Revenue</Tab>
             <Tab color="white">📊 Actuals</Tab>
             <Tab color="white">🏡 BNB Actuals</Tab>
-            <Tab color="white">🔍 Check Reference</Tab>
+
             <Tab color="white">🧾 BTW aangifte</Tab>
             <Tab color="white">📈 View ReferenceNumber</Tab>
+            <Tab color="white">🎻 BNB Violins</Tab>
+            <Tab color="white">🔄 BNB Terugkerend</Tab>
+            <Tab color="white">📋 Aangifte IB</Tab>
           </TabList>
 
           <TabPanels>
@@ -2235,188 +2540,7 @@ const MyAdminReports: React.FC = () => {
               </VStack>
             </TabPanel>
 
-            {/* Check Reference Tab */}
-            <TabPanel>
-              <VStack spacing={4} align="stretch">
-                <Card bg="gray.700">
-                  <CardBody>
-                    <HStack spacing={4} wrap="wrap">
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Administration</Text>
-                        <Select
-                          value={checkRefFilters.administration}
-                          onChange={(e) => {
-                            const newAdmin = e.target.value;
-                            setCheckRefFilters(prev => ({
-                              ...prev, 
-                              administration: newAdmin,
-                              ledger: 'all',
-                              referenceNumber: 'all'
-                            }));
-                            fetchFilterOptions(newAdmin, 'all');
-                          }}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="200px"
-                        >
-                          <option value="all">All</option>
-                          {filterOptions.administrations.map((admin, index) => (
-                            <option key={index} value={admin}>{admin}</option>
-                          ))}
-                        </Select>
-                      </VStack>
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Ledger</Text>
-                        <Select
-                          value={checkRefFilters.ledger}
-                          onChange={(e) => {
-                            const newLedger = e.target.value;
-                            setCheckRefFilters(prev => ({
-                              ...prev, 
-                              ledger: newLedger,
-                              referenceNumber: 'all'
-                            }));
-                            fetchFilterOptions(checkRefFilters.administration, newLedger);
-                          }}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="200px"
-                        >
-                          <option value="all">All Ledgers</option>
-                          {filterOptions.ledgers.map((ledger, index) => (
-                            <option key={index} value={ledger}>{ledger}</option>
-                          ))}
-                        </Select>
-                      </VStack>
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Reference Number</Text>
-                        <Select
-                          value={checkRefFilters.referenceNumber}
-                          onChange={(e) => setCheckRefFilters(prev => ({...prev, referenceNumber: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="200px"
-                        >
-                          <option value="all">All References</option>
-                          {filterOptions.references.map((reference, index) => (
-                            <option key={index} value={reference}>{reference}</option>
-                          ))}
-                        </Select>
-                      </VStack>
-                      <Button colorScheme="orange" onClick={fetchCheckRefData} isLoading={loading} size="sm">
-                        Check References
-                      </Button>
-                    </HStack>
-                  </CardBody>
-                </Card>
 
-                {/* Table 1: Reference Summary */}
-                <Card bg="gray.700">
-                  <CardHeader pb={2}>
-                    <Heading size="md" color="white">Table 1: Reference Summary</Heading>
-                  </CardHeader>
-                  <CardBody pt={0}>
-                    <TableContainer>
-                      <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
-                        <Thead>
-                          <Tr>
-                            <Th color="white" width="200px" border="none">Reference Number</Th>
-                            <Th color="white" width="120px" textAlign="right" border="none">Amount</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {refSummaryData.map((row, index) => (
-                            <Tr 
-                              key={index} 
-                              cursor="pointer" 
-                              _hover={{ bg: "gray.600" }}
-                              bg={selectedReference === row.ReferenceNumber ? "gray.600" : "transparent"}
-                              onClick={() => fetchReferenceDetails(row.ReferenceNumber)}
-                            >
-                              <Td color="white" fontSize="sm" border="none" py={1}>
-                                {row.ReferenceNumber}
-                              </Td>
-                              <Td color="white" fontSize="sm" textAlign="right" border="none" py={1}>
-                                {formatAmount(Number(row.total_amount) || 0, '2dec')}
-                              </Td>
-                            </Tr>
-                          ))}
-                          {/* Total Row */}
-                          <Tr bg="orange.600">
-                            <Td color="white" fontSize="sm" fontWeight="bold" border="none" py={1}>
-                              TOTAL
-                            </Td>
-                            <Td color="white" fontSize="sm" textAlign="right" fontWeight="bold" border="none" py={1}>
-                              {formatAmount(
-                                refSummaryData.reduce((sum, row) => sum + (Number(row.total_amount) || 0), 0),
-                                '2dec'
-                              )}
-                            </Td>
-                          </Tr>
-                        </Tbody>
-                      </Table>
-                    </TableContainer>
-                  </CardBody>
-                </Card>
-
-                {/* Table 2: Transaction Details */}
-                {selectedReferenceDetails.length > 0 && (
-                  <Card bg="gray.700">
-                    <CardHeader pb={2}>
-                      <Heading size="md" color="white">Table 2: Transaction Details</Heading>
-                    </CardHeader>
-                    <CardBody pt={0}>
-                      <TableContainer>
-                        <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
-                          <Thead>
-                            <Tr>
-                              <Th color="white" width="120px" border="none">Transaction Date</Th>
-                              <Th color="white" width="120px" border="none">Transaction Number</Th>
-                              <Th color="white" width="100px" textAlign="right" border="none">Amount</Th>
-                              <Th color="white" border="none">Description</Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {selectedReferenceDetails.map((row, index) => (
-                              <Tr key={index}>
-                                <Td color="white" fontSize="sm" border="none" py={1}>
-                                  {new Date(row.TransactionDate).toISOString().split('T')[0]}
-                                </Td>
-                                <Td color="white" fontSize="sm" border="none" py={1}>
-                                  {row.TransactionNumber}
-                                </Td>
-                                <Td color="white" fontSize="sm" textAlign="right" border="none" py={1}>
-                                  {formatAmount(Number(row.Amount) || 0, '2dec')}
-                                </Td>
-                                <Td color="white" fontSize="sm" border="none" py={1}>
-                                  {row.TransactionDescription}
-                                </Td>
-                              </Tr>
-                            ))}
-                            {/* Total Row */}
-                            <Tr bg="orange.600">
-                              <Td color="white" fontSize="sm" fontWeight="bold" border="none" py={1} colSpan={2}>
-                                TOTAL
-                              </Td>
-                              <Td color="white" fontSize="sm" textAlign="right" fontWeight="bold" border="none" py={1}>
-                                {formatAmount(
-                                  selectedReferenceDetails.reduce((sum, row) => sum + (Number(row.Amount) || 0), 0),
-                                  '2dec'
-                                )}
-                              </Td>
-                              <Td border="none"></Td>
-                            </Tr>
-                          </Tbody>
-                        </Table>
-                      </TableContainer>
-                    </CardBody>
-                  </Card>
-                )}
-              </VStack>
-            </TabPanel>
 
             {/* BTW aangifte Tab */}
             <TabPanel>
@@ -2505,8 +2629,11 @@ const MyAdminReports: React.FC = () => {
                         borderRadius="md" 
                         maxH="600px" 
                         overflowY="auto"
-                        dangerouslySetInnerHTML={{ __html: btwReport }}
-                      />
+                        color="black"
+                        fontSize="sm"
+                      >
+                        <div dangerouslySetInnerHTML={{ __html: btwReport }} />
+                      </Box>
                     </CardBody>
                   </Card>
                 )}
@@ -2586,7 +2713,9 @@ const MyAdminReports: React.FC = () => {
                         <Text color="white" mb={2}>Administration</Text>
                         <Select
                           value={refAnalysisFilters.administration}
-                          onChange={(e) => setRefAnalysisFilters(prev => ({...prev, administration: e.target.value}))}
+                          onChange={(e) => {
+                            setRefAnalysisFilters(prev => ({...prev, administration: e.target.value}));
+                          }}
                           bg="gray.600"
                           color="white"
                           size="sm"
@@ -2623,7 +2752,7 @@ const MyAdminReports: React.FC = () => {
                                       ...prev,
                                       years: isChecked 
                                         ? [...prev.years, year]
-                                        : prev.years.filter(y => y !== year)
+                                        : prev.years.filter((y: string) => y !== year)
                                     }));
                                   }}
                                   colorScheme="orange"
@@ -2640,17 +2769,17 @@ const MyAdminReports: React.FC = () => {
                         <Input
                           value={refAnalysisFilters.referenceNumber}
                           onChange={(e) => setRefAnalysisFilters(prev => ({...prev, referenceNumber: e.target.value}))}
-                          placeholder="Enter regex pattern or select from list"
+                          placeholder="Enter regex pattern (e.g. AMZN or .*Amazon.*)"
                           bg="gray.600"
                           color="white"
                           size="sm"
-                          list="reference-list"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
+                          name="reference-regex-input"
+                          id="reference-regex-input"
                         />
-                        <datalist id="reference-list">
-                          {availableReferences.map((ref, index) => (
-                            <option key={index} value={ref} />
-                          ))}
-                        </datalist>
                       </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>Accounts</Text>
@@ -2838,6 +2967,656 @@ const MyAdminReports: React.FC = () => {
                     </CardBody>
                   </Card>
                 )}
+              </VStack>
+            </TabPanel>
+
+            {/* BNB Violins Tab */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Card bg="gray.700">
+                  <CardBody>
+                    <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
+                      <GridItem>
+                        <Text color="white" mb={2}>Report Type</Text>
+                        <Select
+                          value={bnbViolinFilters.metric}
+                          onChange={(e) => setBnbViolinFilters(prev => ({...prev, metric: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          <option value="pricePerNight">Price per Night</option>
+                          <option value="nightsPerStay">Days per Stay</option>
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Select Years</Text>
+                        <Menu closeOnSelect={false}>
+                          <MenuButton
+                            as={Button}
+                            bg="orange.500"
+                            color="white"
+                            size="sm"
+                            width="100%"
+                            textAlign="left"
+                            rightIcon={<span>▼</span>}
+                            _hover={{ bg: "orange.600" }}
+                            _active={{ bg: "orange.600" }}
+                          >
+                            {bnbViolinFilters.years.length > 0 ? bnbViolinFilters.years.join(', ') : 'Select years...'}
+                          </MenuButton>
+                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                            {bnbViolinFilterOptions.years.map(year => (
+                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                <Checkbox
+                                  isChecked={bnbViolinFilters.years.includes(year)}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked;
+                                    setBnbViolinFilters(prev => ({
+                                      ...prev,
+                                      years: isChecked 
+                                        ? [...prev.years, year]
+                                        : prev.years.filter(y => y !== year)
+                                    }));
+                                  }}
+                                  colorScheme="orange"
+                                >
+                                  <Text color="white" ml={2}>{year}</Text>
+                                </Checkbox>
+                              </MenuItem>
+                            ))}
+                          </MenuList>
+                        </Menu>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Listings</Text>
+                        <Select
+                          value={bnbViolinFilters.listings}
+                          onChange={(e) => setBnbViolinFilters(prev => ({...prev, listings: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          <option value="all">All Listings</option>
+                          {bnbViolinFilterOptions.listings.map(listing => (
+                            <option key={listing} value={listing}>{listing}</option>
+                          ))}
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="white" mb={2}>Channels</Text>
+                        <Select
+                          value={bnbViolinFilters.channels}
+                          onChange={(e) => setBnbViolinFilters(prev => ({...prev, channels: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                        >
+                          <option value="all">All Channels</option>
+                          {bnbViolinFilterOptions.channels.map(channel => (
+                            <option key={channel} value={channel}>{channel}</option>
+                          ))}
+                        </Select>
+                      </GridItem>
+                      <GridItem>
+                        <Button 
+                          colorScheme="orange" 
+                          onClick={fetchBnbViolinData} 
+                          isLoading={bnbViolinLoading}
+                          size="sm"
+                        >
+                          Generate Violin Charts
+                        </Button>
+                      </GridItem>
+                    </Grid>
+                  </CardBody>
+                </Card>
+
+                {/* Violin Charts */}
+                {bnbViolinData.length > 0 && (
+                  <>
+                    {/* By Listing */}
+                    <Card bg="gray.700">
+                      <CardHeader>
+                        <Heading size="md" color="white">
+                          {bnbViolinFilters.metric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Listing
+                        </Heading>
+                      </CardHeader>
+                      <CardBody>
+                        <ViolinChart 
+                          data={bnbViolinData} 
+                          metric={bnbViolinFilters.metric} 
+                          groupBy="listing" 
+                        />
+                      </CardBody>
+                    </Card>
+
+                    {/* By Channel */}
+                    <Card bg="gray.700">
+                      <CardHeader>
+                        <Heading size="md" color="white">
+                          {bnbViolinFilters.metric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Channel
+                        </Heading>
+                      </CardHeader>
+                      <CardBody>
+                        <ViolinChart 
+                          data={bnbViolinData} 
+                          metric={bnbViolinFilters.metric} 
+                          groupBy="channel" 
+                        />
+                      </CardBody>
+                    </Card>
+                  </>
+                )}
+
+                {/* Instructions */}
+                {bnbViolinData.length === 0 && !bnbViolinLoading && (
+                  <Card bg="gray.700">
+                    <CardBody>
+                      <VStack spacing={3} align="start">
+                        <Heading size="md" color="white">BNB Violin Charts Instructions</Heading>
+                        <Text color="white" fontSize="sm">
+                          1. Select the report type: "Price per Night" or "Days per Stay"
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          2. Choose one or more years to include in the analysis
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          3. Optionally filter by specific listings or channels
+                        </Text>
+                        <Text color="white" fontSize="sm">
+                          4. Click "Generate Violin Charts" to view the distribution analysis
+                        </Text>
+                        <Text color="gray.400" fontSize="xs">
+                          Violin charts show the distribution of values with box plot statistics (min, Q1, median, mean, Q3, max).
+                        </Text>
+                        <Text color="gray.400" fontSize="xs">
+                          Blue bars represent quartiles, orange bars show the mean, and tooltips display detailed statistics.
+                        </Text>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                )}
+              </VStack>
+            </TabPanel>
+
+            {/* BNB Terugkerend Tab */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Card bg="gray.700">
+                  <CardHeader>
+                    <HStack justify="space-between">
+                      <Heading size="md" color="white">Returning Guests (Aantal &gt; 1)</Heading>
+                      <Text color="orange.300" fontSize="sm" fontWeight="bold">
+                        {returningGuests.length} guests found
+                      </Text>
+                    </HStack>
+                  </CardHeader>
+                  <CardBody>
+                    <Button 
+                      colorScheme="orange" 
+                      onClick={fetchReturningGuests} 
+                      isLoading={returningGuestsLoading}
+                      size="sm"
+                      mb={4}
+                    >
+                      Refresh Data
+                    </Button>
+                    
+                    <TableContainer>
+                      <Table size="sm" variant="simple">
+                        <Thead>
+                          <Tr>
+                            <Th color="white" w="50px"></Th>
+                            <Th color="white" w="80px">Aantal</Th>
+                            <Th color="white">Guest Name</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {returningGuests.map((guest, index) => (
+                            <React.Fragment key={index}>
+                              <Tr 
+                                cursor="pointer"
+                                _hover={{ bg: "gray.600" }}
+                                bg={selectedGuestName === guest.guestName ? "gray.600" : "transparent"}
+                                onClick={() => {
+                                  if (selectedGuestName === guest.guestName) {
+                                    setSelectedGuestName('');
+                                    setSelectedGuestBookings([]);
+                                  } else {
+                                    fetchGuestBookings(guest.guestName);
+                                  }
+                                }}
+                              >
+                                <Td color="white" fontSize="sm" w="50px">
+                                  <Button size="xs" variant="ghost" color="white">
+                                    {selectedGuestName === guest.guestName ? '−' : '+'}
+                                  </Button>
+                                </Td>
+                                <Td color="white" fontSize="sm">{guest.aantal}</Td>
+                                <Td color="white" fontSize="sm">{guest.guestName}</Td>
+                              </Tr>
+                              {selectedGuestName === guest.guestName && selectedGuestBookings.length > 0 && (
+                                <Tr>
+                                  <Td colSpan={3} p={0}>
+                                    <Box bg="gray.800" p={4}>
+                                      <Text color="white" fontWeight="bold" mb={3}>
+                                        Bookings for {selectedGuestName}
+                                      </Text>
+                                      <Table size="sm" variant="simple">
+                                        <Thead>
+                                          <Tr>
+                                            <Th color="white" fontSize="xs">Check-in</Th>
+                                            <Th color="white" fontSize="xs">Check-out</Th>
+                                            <Th color="white" fontSize="xs">Channel</Th>
+                                            <Th color="white" fontSize="xs">Listing</Th>
+                                            <Th color="white" fontSize="xs">Nights</Th>
+                                            <Th color="white" fontSize="xs" isNumeric>Gross</Th>
+                                            <Th color="white" fontSize="xs" isNumeric>Net</Th>
+                                            <Th color="white" fontSize="xs">Reservation</Th>
+                                          </Tr>
+                                        </Thead>
+                                        <Tbody>
+                                          {selectedGuestBookings.map((booking, bookingIndex) => (
+                                            <Tr key={bookingIndex}>
+                                              <Td color="white" fontSize="xs">
+                                                {new Date(booking.checkinDate).toLocaleDateString('nl-NL')}
+                                              </Td>
+                                              <Td color="white" fontSize="xs">
+                                                {new Date(booking.checkoutDate).toLocaleDateString('nl-NL')}
+                                              </Td>
+                                              <Td color="white" fontSize="xs">{booking.channel}</Td>
+                                              <Td color="white" fontSize="xs">{booking.listing}</Td>
+                                              <Td color="white" fontSize="xs">{booking.nights}</Td>
+                                              <Td color="white" fontSize="xs" isNumeric>
+                                                €{Number(booking.amountGross || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                              </Td>
+                                              <Td color="white" fontSize="xs" isNumeric>
+                                                €{Number(booking.amountNett || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                              </Td>
+                                              <Td color="white" fontSize="xs">{booking.reservationCode}</Td>
+                                            </Tr>
+                                          ))}
+                                        </Tbody>
+                                      </Table>
+                                      <Box mt={3} p={2} bg="gray.700" borderRadius="md">
+                                        <Text color="white" fontSize="sm" fontWeight="bold">
+                                          Total: {selectedGuestBookings.length} bookings | 
+                                          {selectedGuestBookings.reduce((sum, b) => sum + (Number(b.nights) || 0), 0)} nights | 
+                                          €{selectedGuestBookings.reduce((sum, b) => sum + (Number(b.amountGross) || 0), 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                        </Text>
+                                      </Box>
+                                    </Box>
+                                  </Td>
+                                </Tr>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+                  </CardBody>
+                </Card>
+
+
+              </VStack>
+            </TabPanel>
+
+            {/* Aangifte IB Tab */}
+            <TabPanel>
+              <VStack spacing={4} align="stretch">
+                <Card bg="gray.700">
+                  <CardBody>
+                    <HStack spacing={4} wrap="wrap">
+                      <VStack spacing={1}>
+                        <Text color="white" fontSize="sm">Year</Text>
+                        <Select
+                          value={aangifteIbFilters.year}
+                          onChange={(e) => setAangifteIbFilters(prev => ({...prev, year: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                          w="150px"
+                        >
+                          {aangifteIbAvailableYears.map(year => (
+                            <option key={year} value={year}>{year}</option>
+                          ))}
+                        </Select>
+                      </VStack>
+                      <VStack spacing={1}>
+                        <Text color="white" fontSize="sm">Administration</Text>
+                        <Select
+                          value={aangifteIbFilters.administration}
+                          onChange={(e) => setAangifteIbFilters(prev => ({...prev, administration: e.target.value}))}
+                          bg="gray.600"
+                          color="white"
+                          size="sm"
+                          w="200px"
+                        >
+                          <option value="all">All</option>
+                          {aangifteIbAvailableAdmins.map(admin => (
+                            <option key={admin} value={admin}>{admin}</option>
+                          ))}
+                        </Select>
+                      </VStack>
+                      <Button 
+                        colorScheme="orange" 
+                        onClick={fetchAangifteIbData} 
+                        isLoading={aangifteIbLoading}
+                        size="sm"
+                      >
+                        Update Data
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          const exportData = {
+                            year: aangifteIbFilters.year,
+                            administration: aangifteIbFilters.administration,
+                            data: aangifteIbData
+                          };
+                          
+                          fetch('http://localhost:5000/api/reports/aangifte-ib-export', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(exportData)
+                          })
+                          .then(response => response.json())
+                          .then(data => {
+                            if (data.success) {
+                              const blob = new Blob([data.html], { type: 'text/html' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = data.filename;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            }
+                          })
+                          .catch(err => console.error('Export error:', err));
+                        }}
+                        size="sm"
+                        isDisabled={aangifteIbData.length === 0}
+                      >
+                        Export HTML
+                      </Button>
+                    </HStack>
+                  </CardBody>
+                </Card>
+
+                <Card bg="gray.700">
+                  <CardHeader>
+                    <Heading size="md" color="white">Export XLSX Jaarrapportage</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack spacing={4} align="stretch">
+                      <HStack spacing={4} wrap="wrap">
+                        <VStack spacing={1}>
+                          <Text color="white" fontSize="sm">Administrations</Text>
+                          <Menu closeOnSelect={false}>
+                            <MenuButton
+                              as={Button}
+                              bg="orange.500"
+                              color="white"
+                              size="sm"
+                              w="200px"
+                              rightIcon={<span>▼</span>}
+                              _hover={{ bg: "orange.600" }}
+                              _active={{ bg: "orange.600" }}
+                            >
+                              {xlsxExportFilters.administrations.length > 0 ? `${xlsxExportFilters.administrations.length} selected` : 'Select administrations...'}
+                            </MenuButton>
+                            <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                              {aangifteIbAvailableAdmins.map(admin => (
+                                <MenuItem key={admin} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                  <Checkbox
+                                    isChecked={xlsxExportFilters.administrations.includes(admin)}
+                                    onChange={(e) => {
+                                      const isChecked = e.target.checked;
+                                      setXlsxExportFilters(prev => ({
+                                        ...prev,
+                                        administrations: isChecked 
+                                          ? [...prev.administrations, admin]
+                                          : prev.administrations.filter(a => a !== admin)
+                                      }));
+                                    }}
+                                    colorScheme="orange"
+                                  >
+                                    <Text color="white" ml={2}>{admin}</Text>
+                                  </Checkbox>
+                                </MenuItem>
+                              ))}
+                            </MenuList>
+                          </Menu>
+                        </VStack>
+                        <VStack spacing={1}>
+                          <Text color="white" fontSize="sm">Years</Text>
+                          <Menu closeOnSelect={false}>
+                            <MenuButton
+                              as={Button}
+                              bg="orange.500"
+                              color="white"
+                              size="sm"
+                              w="200px"
+                              rightIcon={<span>▼</span>}
+                              _hover={{ bg: "orange.600" }}
+                              _active={{ bg: "orange.600" }}
+                            >
+                              {xlsxExportFilters.years.length > 0 ? xlsxExportFilters.years.join(', ') : 'Select years...'}
+                            </MenuButton>
+                            <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                              {aangifteIbAvailableYears.map(year => (
+                                <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                  <Checkbox
+                                    isChecked={xlsxExportFilters.years.includes(year)}
+                                    onChange={(e) => {
+                                      const isChecked = e.target.checked;
+                                      setXlsxExportFilters(prev => ({
+                                        ...prev,
+                                        years: isChecked 
+                                          ? [...prev.years, year]
+                                          : prev.years.filter(y => y !== year)
+                                      }));
+                                    }}
+                                    colorScheme="orange"
+                                  >
+                                    <Text color="white" ml={2}>{year}</Text>
+                                  </Checkbox>
+                                </MenuItem>
+                              ))}
+                            </MenuList>
+                          </Menu>
+                        </VStack>
+                        <Button 
+                          colorScheme="green" 
+                          onClick={exportXlsxFiles}
+                          isLoading={xlsxExportLoading}
+                          size="sm"
+                          isDisabled={xlsxExportFilters.administrations.length === 0 || xlsxExportFilters.years.length === 0}
+                        >
+                          Generate XLSX Files
+                        </Button>
+                      </HStack>
+                      <Text color="gray.400" fontSize="xs">
+                        Creates one XLSX file per administration/year combination in C:\Users\peter\OneDrive\Admin\reports\
+                      </Text>
+                    </VStack>
+                  </CardBody>
+                </Card>
+
+                <Card bg="gray.700">
+                  <CardHeader>
+                    <Heading size="md" color="white">Aangifte IB Summary</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <TableContainer>
+                      <Table size="sm" variant="simple">
+                        <Thead>
+                          <Tr>
+                            <Th color="white" w="50px"></Th>
+                            <Th color="white">Parent</Th>
+                            <Th color="white">Aangifte</Th>
+                            <Th color="white" isNumeric>Amount</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {(() => {
+                            const grouped = aangifteIbData.reduce((acc, row) => {
+                              if (!acc[row.Parent]) {
+                                acc[row.Parent] = { parent: row.Parent, items: [], total: 0 };
+                              }
+                              acc[row.Parent].items.push(row);
+                              acc[row.Parent].total += Number(row.Amount) || 0;
+                              return acc;
+                            }, {} as any);
+                            
+                            const rows: React.ReactElement[] = [];
+                            
+                            Object.values(grouped).forEach((group: any) => {
+                              const isExpanded = expandedAangifteRows.has(group.parent);
+                              
+                              // Parent row
+                              rows.push(
+                                <Tr key={group.parent} bg="gray.600">
+                                  <Td color="white" fontSize="sm" w="50px">
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      color="white"
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedAangifteRows);
+                                        if (isExpanded) {
+                                          newExpanded.delete(group.parent);
+                                        } else {
+                                          newExpanded.add(group.parent);
+                                        }
+                                        setExpandedAangifteRows(newExpanded);
+                                      }}
+                                    >
+                                      {isExpanded ? '−' : '+'}
+                                    </Button>
+                                  </Td>
+                                  <Td color="white" fontSize="sm" fontWeight="bold">{group.parent}</Td>
+                                  <Td color="white" fontSize="sm"></Td>
+                                  <Td color="white" fontSize="sm" isNumeric fontWeight="bold">
+                                    €{group.total.toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                  </Td>
+                                </Tr>
+                              );
+                              
+                              // Detail rows
+                              if (isExpanded) {
+                                group.items.forEach((item: any, index: number) => {
+                                  const rowKey = `${group.parent}-${item.Aangifte}`;
+                                  const isDetailExpanded = selectedAangifteRow?.parent === group.parent && selectedAangifteRow?.aangifte === item.Aangifte;
+                                  
+                                  rows.push(
+                                    <Tr 
+                                      key={rowKey}
+                                      cursor="pointer"
+                                      _hover={{ bg: "gray.500" }}
+                                      bg={isDetailExpanded ? "gray.500" : "transparent"}
+                                      onClick={() => {
+                                        if (isDetailExpanded) {
+                                          setSelectedAangifteRow(null);
+                                          setAangifteIbDetails([]);
+                                        } else {
+                                          fetchAangifteIbDetails(group.parent, item.Aangifte);
+                                        }
+                                      }}
+                                    >
+                                      <Td color="white" fontSize="sm" w="50px" pl={8}>
+                                        <Button size="xs" variant="ghost" color="white">
+                                          {isDetailExpanded ? '−' : '+'}
+                                        </Button>
+                                      </Td>
+                                      <Td color="white" fontSize="sm" pl={8}></Td>
+                                      <Td color="white" fontSize="sm">{item.Aangifte}</Td>
+                                      <Td color="white" fontSize="sm" isNumeric>
+                                        €{Number(item.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                      </Td>
+                                    </Tr>
+                                  );
+                                  
+                                  // Account details
+                                  if (isDetailExpanded && aangifteIbDetails.length > 0) {
+                                    rows.push(
+                                      <Tr key={`${rowKey}-details`}>
+                                        <Td colSpan={4} p={0}>
+                                          <Box bg="gray.800" p={4}>
+                                            <Text color="white" fontWeight="bold" mb={3}>
+                                              Accounts for {selectedAangifteRow?.parent} - {selectedAangifteRow?.aangifte}
+                                            </Text>
+                                            <Table size="sm" variant="simple">
+                                              <Thead>
+                                                <Tr>
+                                                  <Th color="white" fontSize="xs">Account</Th>
+                                                  <Th color="white" fontSize="xs">Description</Th>
+                                                  <Th color="white" fontSize="xs" isNumeric>Amount</Th>
+                                                </Tr>
+                                              </Thead>
+                                              <Tbody>
+                                                {aangifteIbDetails.map((detail, detailIndex) => (
+                                                  <Tr key={detailIndex}>
+                                                    <Td color="white" fontSize="xs">{detail.Reknum}</Td>
+                                                    <Td color="white" fontSize="xs">{detail.AccountName}</Td>
+                                                    <Td color="white" fontSize="xs" isNumeric>
+                                                      €{Number(detail.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                                    </Td>
+                                                  </Tr>
+                                                ))}
+                                              </Tbody>
+                                            </Table>
+                                            <Box mt={3} p={2} bg="gray.700" borderRadius="md">
+                                              <Text color="white" fontSize="sm" fontWeight="bold">
+                                                Total: €{aangifteIbDetails.reduce((sum, d) => sum + (Number(d.Amount) || 0), 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                              </Text>
+                                            </Box>
+                                          </Box>
+                                        </Td>
+                                      </Tr>
+                                    );
+                                  }
+                                });
+                              }
+                            });
+                            
+                            // Add Resultaat row (Parent 4000 - Parent 8000)
+                            const parent4000Total = aangifteIbData.filter(row => row.Parent === '4000').reduce((sum, row) => sum + (Number(row.Amount) || 0), 0);
+                            const parent8000Total = aangifteIbData.filter(row => row.Parent === '8000').reduce((sum, row) => sum + (Number(row.Amount) || 0), 0);
+                            const resultaat = parent4000Total + parent8000Total;
+                            
+                            rows.push(
+                              <Tr key="resultaat" bg={resultaat >= 0 ? "red.600" : "green.600"}>
+                                <Td color="white" fontSize="sm" w="50px"></Td>
+                                <Td color="white" fontSize="sm" fontWeight="bold">RESULTAAT</Td>
+                                <Td color="white" fontSize="sm"></Td>
+                                <Td color="white" fontSize="sm" isNumeric fontWeight="bold">
+                                  €{resultaat.toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                </Td>
+                              </Tr>
+                            );
+                            
+                            // Add grand total row
+                            const grandTotal = aangifteIbData.reduce((sum, row) => sum + (Number(row.Amount) || 0), 0);
+                            rows.push(
+                              <Tr key="grand-total" bg="orange.600">
+                                <Td color="white" fontSize="sm" w="50px"></Td>
+                                <Td color="white" fontSize="sm" fontWeight="bold">GRAND TOTAL</Td>
+                                <Td color="white" fontSize="sm"></Td>
+                                <Td color="white" fontSize="sm" isNumeric fontWeight="bold">
+                                  €{grandTotal.toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                </Td>
+                              </Tr>
+                            );
+                            
+                            return rows;
+                          })()}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+                  </CardBody>
+                </Card>
               </VStack>
             </TabPanel>
           </TabPanels>
