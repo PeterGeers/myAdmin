@@ -25,7 +25,7 @@ def analyze_goodwin_data():
     cursor = conn.cursor(dictionary=True)
     
     # Query Goodwin administration data
-    query = "SELECT * FROM vw_mutaties WHERE Administration LIKE 'Goodwin%'"
+    query = "SELECT * FROM mutaties WHERE Administration LIKE 'Goodwin%'"
     cursor.execute(query)
     results = cursor.fetchall()
     
@@ -44,31 +44,30 @@ def analyze_goodwin_data():
     print("=== BASIC STATISTICS ===")
     print(f"Date Range: {df['TransactionDate'].min()} to {df['TransactionDate'].max()}")
     
-    # Use Amount column from vw_mutaties
-    amount_col = 'Amount'
+    # Use TransactionAmount column from mutaties table
+    amount_col = 'TransactionAmount'
     
-    if amount_col:
+    if amount_col in df.columns:
         print(f"Total Transaction Amount: ${df[amount_col].sum():,.2f}")
         print(f"Average Transaction: ${df[amount_col].mean():.2f}")
     else:
-        print("Amount column not found in data")
+        print("TransactionAmount column not found in data")
     print()
     
     # Account distribution
     print("=== ACCOUNT USAGE ===")
-    account_usage = df['Reknum'].value_counts().head(10)
-    parent_usage = df['Parent'].value_counts().head(10)
+    debet_usage = df['Debet'].value_counts().head(10)
+    credit_usage = df['Credit'].value_counts().head(10)
     
-    print("Top Account Numbers (Reknum):")
-    for account, count in account_usage.items():
+    print("Top Debet Accounts:")
+    for account, count in debet_usage.items():
         if pd.notna(account):
-            account_name = df[df['Reknum'] == account]['AccountName'].iloc[0] if not df[df['Reknum'] == account].empty else 'Unknown'
-            print(f"  {account} ({account_name}): {count} transactions")
+            print(f"  {account}: {count} transactions")
     
-    print("\nTop Parent Categories:")
-    for parent, count in parent_usage.items():
-        if pd.notna(parent):
-            print(f"  {parent}: {count} transactions")
+    print("\nTop Credit Accounts:")
+    for account, count in credit_usage.items():
+        if pd.notna(account):
+            print(f"  {account}: {count} transactions")
     print()
     
     # Transaction patterns
@@ -78,17 +77,19 @@ def analyze_goodwin_data():
     df['TransactionDate'] = pd.to_datetime(df['TransactionDate'])
     
     # Yearly summary
-    yearly_summary = df.groupby('jaar').agg({
-        'Amount': ['count', 'sum']
+    df['Year'] = df['TransactionDate'].dt.year
+    df['Month'] = df['TransactionDate'].dt.month
+    yearly_summary = df.groupby('Year').agg({
+        amount_col: ['count', 'sum']
     }).round(2)
     print("Yearly Activity:")
     print(yearly_summary.tail(10))
     
     # Monthly summary for recent years
-    recent_data = df[df['jaar'] >= 2020]
+    recent_data = df[df['Year'] >= 2020]
     if not recent_data.empty:
-        monthly_summary = recent_data.groupby(['jaar', 'maand']).agg({
-            'Amount': ['count', 'sum']
+        monthly_summary = recent_data.groupby(['Year', 'Month']).agg({
+            amount_col: ['count', 'sum']
         }).round(2)
         print("\nMonthly Activity (2020+):")
         print(monthly_summary.tail(12))
@@ -98,15 +99,15 @@ def analyze_goodwin_data():
     print("=== DATA QUALITY FINDINGS ===")
     
     # Missing values
-    missing_reknum = df['Reknum'].isna().sum()
+    missing_debet = df['Debet'].isna().sum()
+    missing_credit = df['Credit'].isna().sum()
     missing_ref = df['ReferenceNumber'].isna().sum()
     empty_description = (df['TransactionDescription'].isna() | (df['TransactionDescription'] == '')).sum()
-    missing_aangifte = df['Aangifte'].isna().sum()
     
-    print(f"Missing Account Numbers (Reknum): {missing_reknum}")
+    print(f"Missing Debet Accounts: {missing_debet}")
+    print(f"Missing Credit Accounts: {missing_credit}")
     print(f"Missing Reference Numbers: {missing_ref}")
     print(f"Empty Descriptions: {empty_description}")
-    print(f"Missing Aangifte (Tax Category): {missing_aangifte}")
     
     # Duplicate detection
     dup_cols = ['TransactionDate', 'TransactionDescription']
@@ -137,6 +138,25 @@ def analyze_goodwin_data():
             print(f"  {ref}: {count} times")
     print()
     
+    # Show duplicate transactions if any
+    dup_cols = ['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit']
+    duplicates_mask = df.duplicated(subset=dup_cols, keep=False)
+    if duplicates_mask.sum() > 0:
+        print("=== DUPLICATE TRANSACTIONS ===")
+        duplicate_transactions = df[duplicates_mask].sort_values(dup_cols)
+        for _, row in duplicate_transactions.iterrows():
+            print(f"ID: {row['ID']} | Date: {row['TransactionDate']} | Amount: ${row['TransactionAmount']:.2f} | Debet: {row['Debet']} | Credit: {row['Credit']} | Desc: {row['TransactionDescription'][:30]}...")
+        print()
+    
+    # Show transactions missing reference numbers
+    missing_ref_mask = df['ReferenceNumber'].isna() | (df['ReferenceNumber'] == '')
+    if missing_ref_mask.sum() > 0:
+        print("=== TRANSACTIONS MISSING REFERENCE NUMBERS ===")
+        missing_ref_transactions = df[missing_ref_mask].sort_values('TransactionDate')
+        for _, row in missing_ref_transactions.iterrows():
+            print(f"ID: {row['ID']} | Date: {row['TransactionDate']} | Amount: ${row['TransactionAmount']:.2f} | Debet: {row['Debet']} | Credit: {row['Credit']} | Desc: {row['TransactionDescription'][:40]}...")
+        print()
+    
     cursor.close()
     conn.close()
     
@@ -148,17 +168,17 @@ def generate_recommendations(df):
     recommendations = []
     
     # Data quality recommendations
-    missing_reknum = df['Reknum'].isna().sum()
-    missing_aangifte = df['Aangifte'].isna().sum()
+    missing_debet = df['Debet'].isna().sum()
+    missing_credit = df['Credit'].isna().sum()
     
-    if missing_reknum > 0:
-        recommendations.append(f"1. Fix {missing_reknum} transactions with missing account numbers")
+    if missing_debet > 0:
+        recommendations.append(f"1. Fix {missing_debet} transactions with missing debet accounts")
     
-    if missing_aangifte > 0:
-        recommendations.append(f"2. Add tax categories (Aangifte) to {missing_aangifte} transactions")
+    if missing_credit > 0:
+        recommendations.append(f"2. Fix {missing_credit} transactions with missing credit accounts")
     
     # Duplicate recommendations
-    dup_cols = ['TransactionDate', 'TransactionDescription', 'Amount']
+    dup_cols = ['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit']
     duplicates = df.duplicated(subset=dup_cols).sum()
     if duplicates > 0:
         recommendations.append(f"3. Review {duplicates} potential duplicate transactions")
@@ -169,13 +189,13 @@ def generate_recommendations(df):
         recommendations.append(f"4. Add reference numbers to {missing_ref} transactions for better tracking")
     
     # Account code recommendations
-    if 'Reknum' in df.columns:
-        unusual_accounts = df[df['Reknum'].str.len() > 4]['Reknum'].nunique()
-        if unusual_accounts > 0:
-            recommendations.append("5. Review account codes longer than 4 digits for consistency")
+    if 'Debet' in df.columns:
+        unusual_debet = df[df['Debet'].str.len() > 4]['Debet'].nunique() if df['Debet'].dtype == 'object' else 0
+        if unusual_debet > 0:
+            recommendations.append("5. Review debet account codes longer than 4 digits for consistency")
     
     # Amount recommendations
-    zero_amounts = (df['Amount'] == 0).sum()
+    zero_amounts = (df['TransactionAmount'] == 0).sum()
     if zero_amounts > 0:
         recommendations.append(f"6. Investigate {zero_amounts} zero-amount transactions")
     

@@ -15,7 +15,7 @@ def get_db_connection():
         database=os.getenv('DB_NAME', 'myadmin')
     )
 
-@actuals_bp.route('/api/reports/actuals-balance', methods=['GET'])
+@actuals_bp.route('/actuals-balance', methods=['GET'])
 def get_actuals_balance():
     try:
         years = request.args.get('years', '2024').split(',')
@@ -68,7 +68,7 @@ def get_actuals_balance():
             'error': str(e)
         }), 500
 
-@actuals_bp.route('/api/reports/actuals-profitloss', methods=['GET'])
+@actuals_bp.route('/actuals-profitloss', methods=['GET'])
 def get_actuals_profitloss():
     try:
         years = request.args.get('years', '2024').split(',')
@@ -156,28 +156,3 @@ def get_actuals_profitloss():
             'error': str(e)
         }), 500
 
-@actuals_bp.route('/api/reports/available-years', methods=['GET'])
-def get_available_years():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        query = "SELECT DISTINCT jaar FROM vw_mutaties WHERE jaar IS NOT NULL ORDER BY jaar DESC"
-        cursor.execute(query)
-        results = cursor.fetchall()
-        
-        years = [str(row[0]) for row in results]
-        
-        cursor.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'years': years
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500

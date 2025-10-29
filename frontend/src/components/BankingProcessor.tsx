@@ -210,6 +210,18 @@ const BankingProcessor: React.FC = () => {
   const [checkingSequence, setCheckingSequence] = useState(false);
   const [sequenceStartDate, setSequenceStartDate] = useState('2025-01-01');
   const [selectedAccount, setSelectedAccount] = useState('1002-GoodwinSolutions');
+  
+  // Check Reference state
+  const [checkRefFilters, setCheckRefFilters] = useState({
+    administration: 'all',
+    ledger: 'all',
+    referenceNumber: 'all'
+  });
+  const [availableLedgers, setAvailableLedgers] = useState<string[]>([]);
+  const [availableReferences, setAvailableReferences] = useState<string[]>([]);
+  const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
+  const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
+  const [selectedReference, setSelectedReference] = useState<string>('');
 
   const toggleRowExpansion = (key: string) => {
     const newExpanded = new Set(expandedRows);
@@ -378,6 +390,84 @@ const BankingProcessor: React.FC = () => {
       setCheckingSequence(false);
     }
   }, [testMode, selectedAccount, sequenceStartDate]);
+
+  const fetchCheckRefOptions = async () => {
+    try {
+      const params = new URLSearchParams({
+        administration: checkRefFilters.administration,
+        ledger: checkRefFilters.ledger
+      });
+      const response = await fetch(`http://localhost:5000/api/reports/filter-options?${params}`);
+      const data = await response.json();
+      if (data.success) {
+        setAvailableLedgers(data.ledgers || []);
+        setAvailableReferences(data.references || []);
+      }
+    } catch (err) {
+      console.error('Error fetching filter options:', err);
+    }
+  };
+
+  const fetchCheckRefData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        referenceNumber: 'all',
+        ledger: checkRefFilters.ledger,
+        administration: checkRefFilters.administration
+      });
+      
+      const response = await fetch(`http://localhost:5000/api/reports/check-reference?${params}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        const filteredSummary = data.summary.filter((row: any) => {
+          const amount = parseFloat(row.total_amount || 0);
+          return Math.abs(amount) > 0.01;
+        });
+        setRefSummaryData(filteredSummary);
+        setMessage(`Found ${filteredSummary.length} references with non-zero amounts`);
+      } else {
+        setMessage(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('Error fetching check reference data:', err);
+      setMessage(`Error fetching data: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchReferenceDetails = async (referenceNumber: string) => {
+    try {
+      const params = new URLSearchParams({
+        referenceNumber: referenceNumber,
+        ledger: checkRefFilters.ledger,
+        administration: checkRefFilters.administration
+      });
+      
+      const response = await fetch(`http://localhost:5000/api/reports/check-reference?${params}`);
+      const data = await response.json();
+      
+      console.log('Reference details response:', data);
+      
+      if (data.success) {
+        setSelectedReferenceDetails(data.transactions);
+        setSelectedReference(referenceNumber);
+      }
+    } catch (err) {
+      console.error('Error fetching reference details:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCheckRefOptions();
+  }, [checkRefFilters.administration, checkRefFilters.ledger]);
+
+  const formatAmount = (amount: number): string => {
+    const num = Number(amount) || 0;
+    return `€${num.toLocaleString('nl-NL', {minimumFractionDigits: 2})}`;
+  };
 
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -548,7 +638,7 @@ const BankingProcessor: React.FC = () => {
         <TabList>
           <Tab>Process Files</Tab>
           <Tab>Mutaties</Tab>
-          <Tab>Check Accounts</Tab>
+          <Tab>Check Accounts & References</Tab>
         </TabList>
 
         <TabPanels>
@@ -958,7 +1048,7 @@ const BankingProcessor: React.FC = () => {
           <TabPanel>
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
-                <Heading size="md">Check Banking Accounts</Heading>
+                <Heading size="md">Check Banking Accounts & References</Heading>
                 <HStack wrap="wrap" spacing={3}>
                   <Button
                     onClick={checkBankingAccounts}
@@ -1153,9 +1243,134 @@ const BankingProcessor: React.FC = () => {
                 </Box>
               )}
 
-              {bankingBalances.length === 0 && !checkingAccounts && !sequenceResult && (
+              {/* Check Reference Section */}
+              <Box bg="gray.800" p={4} borderRadius="md">
+                <Heading size="sm" color="white" mb={4}>Check Reference Numbers</Heading>
+                <HStack spacing={4} mb={4} wrap="wrap">
+                  <FormControl maxW="180px">
+                    <FormLabel color="white" fontSize="sm">Administration</FormLabel>
+                    <Select
+                      value={checkRefFilters.administration}
+                      onChange={(e) => {
+                        setCheckRefFilters(prev => ({...prev, administration: e.target.value, ledger: 'all'}));
+                        setRefSummaryData([]);
+                        setSelectedReferenceDetails([]);
+                      }}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                    >
+                      <option value="all">All</option>
+                      <option value="GoodwinSolutions">GoodwinSolutions</option>
+                      <option value="PeterPrive">PeterPrive</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl maxW="150px">
+                    <FormLabel color="white" fontSize="sm">Ledger</FormLabel>
+                    <Select
+                      value={checkRefFilters.ledger}
+                      onChange={(e) => {
+                        setCheckRefFilters(prev => ({...prev, ledger: e.target.value}));
+                        setRefSummaryData([]);
+                        setSelectedReferenceDetails([]);
+                      }}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                    >
+                      <option value="all">All</option>
+                      {availableLedgers.map(ledger => (
+                        <option key={ledger} value={ledger}>{ledger}</option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button
+                    onClick={fetchCheckRefData}
+                    isLoading={loading}
+                    colorScheme="green"
+                    size="sm"
+                    alignSelf="flex-end"
+                  >
+                    Check References
+                  </Button>
+                </HStack>
+
+                {refSummaryData.length > 0 && (
+                  <VStack align="stretch" spacing={4}>
+                    <Heading size="xs" color="white">Reference Summary ({refSummaryData.length})</Heading>
+                    <TableContainer maxH="300px" overflowY="auto">
+                      <Table size="sm" variant="simple">
+                        <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                          <Tr>
+                            <Th color="white" fontSize="xs">Reference</Th>
+                            <Th color="white" fontSize="xs" isNumeric>Count</Th>
+                            <Th color="white" fontSize="xs" isNumeric>Total Amount</Th>
+                            <Th color="white" fontSize="xs">Actions</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {refSummaryData.map((row, index) => (
+                            <Tr key={index}>
+                              <Td color="white" fontSize="xs" maxW="200px" isTruncated title={row.ReferenceNumber}>
+                                {row.ReferenceNumber}
+                              </Td>
+                              <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
+                              <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
+                              <Td>
+                                <Button
+                                  size="xs"
+                                  colorScheme="blue"
+                                  onClick={() => fetchReferenceDetails(row.ReferenceNumber)}
+                                >
+                                  Details
+                                </Button>
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+
+                    {selectedReferenceDetails.length > 0 && (
+                      <Box>
+                        <Heading size="xs" color="white" mb={2}>
+                          Transactions for Reference: {selectedReference} ({selectedReferenceDetails.length})
+                        </Heading>
+                        <TableContainer maxH="300px" overflowY="auto">
+                          <Table size="sm" variant="simple">
+                            <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                              <Tr>
+                                <Th color="white" fontSize="xs">Transaction Number</Th>
+                                <Th color="white" fontSize="xs">Date</Th>
+                                <Th color="white" fontSize="xs" isNumeric>Amount</Th>
+                                <Th color="white" fontSize="xs">Description</Th>
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {selectedReferenceDetails.map((transaction, index) => (
+                                <Tr key={index}>
+                                  <Td color="white" fontSize="xs">{transaction.TransactionNumber || '-'}</Td>
+                                  <Td color="white" fontSize="xs">
+                                    {new Date(transaction.TransactionDate).toISOString().split('T')[0]}
+                                  </Td>
+                                  <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.Amount)}</Td>
+                                  <Td color="white" fontSize="xs" maxW="300px" isTruncated title={transaction.TransactionDescription}>
+                                    {transaction.TransactionDescription}
+                                  </Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        </TableContainer>
+                      </Box>
+                    )}
+                  </VStack>
+                )}
+              </Box>
+
+              {bankingBalances.length === 0 && !checkingAccounts && !sequenceResult && refSummaryData.length === 0 && (
                 <Text color="white" textAlign="center" py={8}>
-                  Click "Check Account Balances" to validate banking account balances or "Check Rabo Sequence" to validate transaction sequence numbers
+                  Use the buttons above to check account balances, sequence numbers, or reference numbers
                 </Text>
               )}
             </VStack>
