@@ -638,7 +638,8 @@ const BankingProcessor: React.FC = () => {
         <TabList>
           <Tab>Process Files</Tab>
           <Tab>Mutaties</Tab>
-          <Tab>Check Accounts & References</Tab>
+          <Tab>Check Account Balances</Tab>
+          <Tab>Check Reference Numbers</Tab>
         </TabList>
 
         <TabPanels>
@@ -1048,7 +1049,7 @@ const BankingProcessor: React.FC = () => {
           <TabPanel>
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
-                <Heading size="md">Check Banking Accounts & References</Heading>
+                <Heading size="md">Check Account Balances</Heading>
                 <HStack wrap="wrap" spacing={3}>
                   <Button
                     onClick={checkBankingAccounts}
@@ -1243,7 +1244,16 @@ const BankingProcessor: React.FC = () => {
                 </Box>
               )}
 
-              {/* Check Reference Section */}
+              {bankingBalances.length === 0 && !checkingAccounts && !sequenceResult && (
+                <Text color="white" textAlign="center" py={8}>
+                  Use the buttons above to check account balances or sequence numbers
+                </Text>
+              )}
+            </VStack>
+          </TabPanel>
+
+          <TabPanel>
+            <VStack align="stretch" spacing={4}>
               <Box bg="gray.800" p={4} borderRadius="md">
                 <Heading size="sm" color="white" mb={4}>Check Reference Numbers</Heading>
                 <HStack spacing={4} mb={4} wrap="wrap">
@@ -1368,9 +1378,9 @@ const BankingProcessor: React.FC = () => {
                 )}
               </Box>
 
-              {bankingBalances.length === 0 && !checkingAccounts && !sequenceResult && refSummaryData.length === 0 && (
+              {refSummaryData.length === 0 && (
                 <Text color="white" textAlign="center" py={8}>
-                  Use the buttons above to check account balances, sequence numbers, or reference numbers
+                  Use the button above to check reference numbers
                 </Text>
               )}
             </VStack>

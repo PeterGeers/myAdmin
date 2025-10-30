@@ -57,6 +57,32 @@ cd frontend && npm start     # Port 3000
 - **Views**: vw_mutaties for reporting with VW logic
 - **Config**: `.env` file with credentials
 
+## Test/Production Mode
+
+### Environment Switching
+Switch between test and production environments using `.env`:
+
+```env
+# Production Mode (default)
+TEST_MODE=false
+DB_NAME=finance
+FACTUREN_FOLDER_ID=your_production_folder_id
+FACTUREN_FOLDER_NAME=Facturen
+
+# Test Mode
+TEST_MODE=true
+TEST_DB_NAME=testfinance
+TEST_FACTUREN_FOLDER_ID=your_test_folder_id
+TEST_FACTUREN_FOLDER_NAME=testFacturen
+```
+
+### Features
+- **Database**: Automatic switching between `finance` and `testfinance`
+- **Google Drive**: Separate folders for test and production
+- **Status Display**: Mode indicator in all function headers
+- **Route Validation**: Prevents conflicts at startup
+- **Schema Validation**: Ensures API consistency
+
 ## Git Management
 
 ```bash

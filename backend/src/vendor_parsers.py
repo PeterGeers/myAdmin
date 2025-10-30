@@ -7,9 +7,11 @@ class VendorParsers:
         """Convert DD/MM/YYYY to YYYY-MM-DD"""
         try:
             if '/' in date_str:
-                day, month, year = date_str.split('/')
+                parts = date_str.split('/')
             else:
-                day, month, year = date_str.split('-')
+                parts = date_str.split('-')
+            
+            day, month, year = parts[0], parts[1], parts[2]
             return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
         except:
             return datetime.now().strftime('%Y-%m-%d')
@@ -501,10 +503,9 @@ class VendorParsers:
         for i, line in enumerate(lines):
             line_lower = line.lower()
             
-            # Extract date from "^ Datum :" line
-            if line.strip().startswith('Datum :'):
-                date_part = line.split('9429002351')[0] if '9429002351' in line else line
-                date_match = re.search(r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})', date_part)
+            # Extract date from "Datum :" line
+            if 'Datum :' in line:
+                date_match = re.search(r'Datum :\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})', line)
                 if date_match:
                     data['date'] = self._parse_date(date_match.group(1))
             

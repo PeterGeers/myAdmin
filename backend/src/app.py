@@ -14,6 +14,7 @@ from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
 from xlsx_export import XLSXExportProcessor
+from route_validator import check_route_conflicts
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -126,6 +127,19 @@ def test():
     print("Test endpoint called", flush=True)
     return jsonify({'status': 'Server is working'})
 
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    """Get environment status"""
+    use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
+    db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', 'finance')
+    folder_name = os.getenv('TEST_FACTUREN_FOLDER_NAME', 'testFacturen') if use_test else os.getenv('FACTUREN_FOLDER_NAME', 'Facturen')
+    
+    return jsonify({
+        'mode': 'Test' if use_test else 'Production',
+        'database': db_name,
+        'folder': folder_name
+    })
+
 @app.route('/api/str/test', methods=['GET'])
 def str_test():
     """STR test endpoint"""
@@ -137,33 +151,47 @@ def health():
     """Health check endpoint"""
     return jsonify({'status': 'healthy', 'endpoints': ['str/upload', 'str/scan-files', 'str/process-files', 'str/save', 'str/write-future']})
 
-@app.route('/api/upload', methods=['OPTIONS'])
-def upload_options():
-    """Handle preflight OPTIONS request"""
-    print("OPTIONS request received", flush=True)
-    response = jsonify({'status': 'OK'})
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-    return response
+
 
 @app.route('/api/create-folder', methods=['POST'])
 def create_folder():
-    """Create a new folder"""
+    """Create a new folder in Google Drive"""
     try:
         data = request.get_json()
         folder_name = data.get('folderName')
         if folder_name:
+            # Create local folder
             folder_path = config.get_storage_folder(folder_name)
             config.ensure_folder_exists(folder_path)
+            
+            # Create Google Drive folder in correct parent
+            try:
+                drive_service = GoogleDriveService()
+                use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
+                parent_folder_id = os.getenv('TEST_FACTUREN_FOLDER_ID') if use_test else os.getenv('FACTUREN_FOLDER_ID')
+                
+                if parent_folder_id:
+                    drive_result = drive_service.create_folder(folder_name, parent_folder_id)
+                    print(f"Created Google Drive folder: {folder_name} in {'test' if use_test else 'production'} parent", flush=True)
+                    return jsonify({'success': True, 'path': folder_path, 'drive_folder': drive_result})
+            except Exception as drive_error:
+                print(f"Google Drive folder creation failed: {drive_error}", flush=True)
+            
             return jsonify({'success': True, 'path': folder_path})
         return jsonify({'success': False, 'error': 'No folder name provided'}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/upload', methods=['POST'])
+@app.route('/api/upload', methods=['POST', 'OPTIONS'])
 def upload_file():
     """Upload and process PDF file"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        return response
+        
     print("\n*** UPLOAD ENDPOINT CALLED ***", flush=True)
     try:
         print("=== UPLOAD REQUEST START ===", flush=True)
@@ -207,6 +235,7 @@ def upload_file():
                         drive_service = GoogleDriveService()
                         drive_folders = drive_service.list_subfolders()
                         print(f"Available Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
+                        print(f"Test mode: {flag}, looking for folder: {folder_name}", flush=True)
                         
                         # Find the folder ID for the selected folder
                         folder_id = None
@@ -1044,122 +1073,8 @@ def btw_upload_report():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/reports/reference-analysis', methods=['GET'])
-def reference_analysis():
-    """Get reference number analysis data"""
-    try:
-        db = DatabaseManager(test_mode=flag)
-        
-        # Get parameters
-        years = request.args.get('years', '').split(',') if request.args.get('years') else []
-        administration = request.args.get('administration', 'all')
-        reference_number = request.args.get('reference_number', '')
-        accounts = request.args.get('accounts', '').split(',') if request.args.get('accounts') else []
-        
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Build WHERE conditions
-        where_conditions = []
-        params = []
-        
-        if years and years != ['']:
-            year_placeholders = ','.join(['%s'] * len(years))
-            where_conditions.append(f"jaar IN ({year_placeholders})")
-            params.extend(years)
-        
-        if administration != 'all':
-            where_conditions.append("Administration LIKE %s")
-            params.append(f"{administration}%")
-        
-        if reference_number:
-            where_conditions.append("ReferenceNumber REGEXP %s")
-            params.append(reference_number)
-        
-        if accounts and accounts != ['']:
-            account_placeholders = ','.join(['%s'] * len(accounts))
-            where_conditions.append(f"Reknum IN ({account_placeholders})")
-            params.extend(accounts)
-        
-        where_clause = 'WHERE ' + ' AND '.join(where_conditions) if where_conditions else ''
-        
-        # Get transactions
-        transactions_query = f"""
-            SELECT TransactionDate, TransactionDescription, Amount, Reknum, 
-                   AccountName, Administration, ReferenceNumber, jaar, kwartaal
-            FROM vw_mutaties 
-            {where_clause}
-            ORDER BY TransactionDate DESC
-        """
-        
-        cursor.execute(transactions_query, params)
-        transactions = cursor.fetchall()
-        
-        # Get trend data (quarterly summaries)
-        trend_query = f"""
-            SELECT jaar, kwartaal, SUM(Amount) as total_amount
-            FROM vw_mutaties 
-            {where_clause}
-            GROUP BY jaar, kwartaal
-            ORDER BY jaar, kwartaal
-        """
-        
-        cursor.execute(trend_query, params)
-        trend_data = cursor.fetchall()
-        
-        # Get available reference numbers for dropdown
-        ref_query = f"""
-            SELECT DISTINCT ReferenceNumber
-            FROM vw_mutaties 
-            WHERE ReferenceNumber IS NOT NULL AND ReferenceNumber != ''
-            ORDER BY ReferenceNumber
-        """
-        
-        cursor.execute(ref_query)
-        reference_numbers = [row['ReferenceNumber'] for row in cursor.fetchall()]
-        
-        # Get available accounts for the selected reference and years
-        if reference_number:
-            accounts_where = ["ReferenceNumber REGEXP %s"]
-            accounts_params = [reference_number]
-            
-            if years and years != ['']:
-                year_placeholders = ','.join(['%s'] * len(years))
-                accounts_where.append(f"jaar IN ({year_placeholders})")
-                accounts_params.extend(years)
-            
-            if administration != 'all':
-                accounts_where.append("Administration LIKE %s")
-                accounts_params.append(f"{administration}%")
-            
-            accounts_where_clause = ' AND '.join(accounts_where)
-            
-            accounts_query = f"""
-                SELECT DISTINCT Reknum, AccountName
-                FROM vw_mutaties 
-                WHERE {accounts_where_clause}
-                ORDER BY Reknum
-            """
-            cursor.execute(accounts_query, accounts_params)
-            available_accounts = cursor.fetchall()
-        else:
-            available_accounts = []
-        
-        return jsonify({
-            'success': True,
-            'transactions': transactions,
-            'trend_data': trend_data,
-            'reference_numbers': reference_numbers,
-            'available_accounts': available_accounts
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if 'cursor' in locals() and cursor:
-            cursor.close()
-        if 'conn' in locals() and conn:
-            conn.close()
+
+
 
 @app.route('/api/reports/aangifte-ib', methods=['GET'])
 def aangifte_ib():
@@ -1621,4 +1536,10 @@ def pdf_validate_single_url():
 if __name__ == '__main__':
     print("Starting Flask development server...")
     print("For production, use: waitress-serve --host=127.0.0.1 --port=5000 wsgi:app")
+    
+    # Validate routes before starting
+    if not check_route_conflicts(app):
+        print("❌ Route conflicts detected. Fix before starting.")
+        exit(1)
+    
     app.run(debug=True, port=5000, host='127.0.0.1')

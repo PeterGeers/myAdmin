@@ -176,7 +176,7 @@ class PDFProcessor:
             return self.vendor_parsers.parse_btw(lines)
         elif 'vodafone' in folder_name:
             return self.vendor_parsers.parse_vodafone(lines)
-        elif 'Kuwait' in folder_name:
+        elif 'kuwait' in folder_name.lower():
             return self.vendor_parsers.parse_kuwait(lines)
         return None
     

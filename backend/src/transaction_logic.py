@@ -8,12 +8,17 @@ load_dotenv()
 class TransactionLogic:
     def __init__(self, test_mode=False):
         self.test_mode = test_mode
-        self.table_name = 'mutaties_test' if test_mode else 'mutaties'
+        
+        # Use test database if test_mode is True or TEST_MODE env var is set
+        use_test = test_mode or os.getenv('TEST_MODE', 'false').lower() == 'true'
+        self.table_name = 'mutaties'  # Use same table name in both databases
+        db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', 'finance')
+        
         self.config = {
             'host': os.getenv('DB_HOST', 'localhost'),
             'user': os.getenv('DB_USER', 'root'),
             'password': os.getenv('DB_PASSWORD', ''),
-            'database': os.getenv('DB_NAME', 'transactions_db')
+            'database': db_name
         }
     
     def get_connection(self):
