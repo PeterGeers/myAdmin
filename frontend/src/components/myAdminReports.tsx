@@ -779,7 +779,7 @@ const MyAdminReports: React.FC = () => {
         groupBy: drillDownLevel
       });
       
-      const response = await fetch(`http://localhost:5000/api/reports/actuals-profitloss?${params}`);
+      const response = await fetch(`/api/reports/actuals-profitloss?${params}`);
       const data = await response.json();
       
       if (data.success) {

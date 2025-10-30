@@ -4,6 +4,9 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.http import MediaFileUpload
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
@@ -29,8 +32,9 @@ class GoogleDriveService:
         return build('drive', 'v3', credentials=creds)
     
     def list_subfolders(self):
-        # Use the specific Facturen folder ID from environment
-        facturen_folder_id = os.getenv('FACTUREN_FOLDER_ID', '0B9OBNkcEDqv1YWQzZDkyM2YtMTE4Yy00ODUzLWIzZmEtMTQ1NzEzMDQ1N2Ix')
+        # Use test or production folder based on TEST_MODE
+        use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        facturen_folder_id = os.getenv('TEST_FACTUREN_FOLDER_ID') if use_test else os.getenv('FACTUREN_FOLDER_ID', '0B9OBNkcEDqv1YWQzZDkyM2YtMTE4Yy00ODUzLWIzZmEtMTQ1NzEzMDQ1N2Ix')
         
         try:
             all_subfolders = []

@@ -460,34 +460,7 @@ def get_filter_options():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@reporting_bp.route('/actuals-profitloss', methods=['GET'])
-def get_actuals_profitloss():
-    """Get actuals profit/loss data"""
-    try:
-        service = ReportingService(request.args.get('testMode', 'false').lower() == 'true')
-        years = [y for y in request.args.get('years', str(datetime.now().year)).split(',') if y]
-        group_by = request.args.get('groupBy', 'year')
-        
-        conditions = {
-            'years': years,
-            'administration': request.args.get('administration', 'all'),
-            'profit_loss': 'Y'
-        }
-        
-        where_clause, params = service.build_where_clause(conditions)
-        
-        if group_by == 'year':
-            query = f"SELECT jaar as period, SUM(Amount) as total_amount FROM vw_mutaties WHERE {where_clause} GROUP BY jaar ORDER BY jaar"
-        else:
-            query = f"SELECT Parent, ledger, SUM(Amount) as total_amount FROM vw_mutaties WHERE {where_clause} GROUP BY Parent, ledger ORDER BY Parent, ledger"
-        
-        with service.get_cursor() as cursor:
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-        
-        return jsonify({'success': True, 'data': results})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @reporting_bp.route('/available-<data_type>', methods=['GET'])
 def get_available_data(data_type):

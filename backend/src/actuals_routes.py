@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import mysql.connector
 import os
 from dotenv import load_dotenv
+from api_schemas import validate_response_schema
 
 load_dotenv()
 
@@ -18,7 +19,7 @@ def get_db_connection():
 @actuals_bp.route('/actuals-balance', methods=['GET'])
 def get_actuals_balance():
     try:
-        years = request.args.get('years', '2024').split(',')
+        years = request.args.get('years', '2025').split(',')
         administration = request.args.get('administration', 'all')
         
         conn = get_db_connection()
@@ -71,7 +72,7 @@ def get_actuals_balance():
 @actuals_bp.route('/actuals-profitloss', methods=['GET'])
 def get_actuals_profitloss():
     try:
-        years = request.args.get('years', '2024').split(',')
+        years = request.args.get('years', '2025').split(',')
         administration = request.args.get('administration', 'all')
         group_by = request.args.get('groupBy', 'year')
         
@@ -91,10 +92,10 @@ def get_actuals_profitloss():
         where_conditions.append(f"jaar IN ({year_placeholders})")
         params.extend(years)
         
+        where_clause = " AND ".join(where_conditions)
+        
         # Build query based on groupBy parameter
         if group_by == 'quarter':
-            where_conditions.append("kwartaal IS NOT NULL")
-            where_clause = " AND ".join(where_conditions)
             query = f"""
             SELECT 
                 Parent,
@@ -109,8 +110,6 @@ def get_actuals_profitloss():
             ORDER BY Parent, ledger, jaar, kwartaal
             """
         elif group_by == 'month':
-            where_conditions.append("maand IS NOT NULL")
-            where_clause = " AND ".join(where_conditions)
             query = f"""
             SELECT 
                 Parent,
@@ -125,7 +124,6 @@ def get_actuals_profitloss():
             ORDER BY Parent, ledger, jaar, maand
             """
         else:  # Default to year
-            where_clause = " AND ".join(where_conditions)
             query = f"""
             SELECT 
                 Parent,
@@ -144,6 +142,9 @@ def get_actuals_profitloss():
         
         cursor.close()
         conn.close()
+        
+        # Validate response schema
+        validate_response_schema('/api/reports/actuals-profitloss', results)
         
         return jsonify({
             'success': True,
