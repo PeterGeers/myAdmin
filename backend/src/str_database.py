@@ -203,6 +203,9 @@ class STRDatabase(DatabaseManager):
     def write_bnb_future_summary(self) -> Dict:
         """Write current planned BNB data summary to bnbfuture table"""
         try:
+            # First ensure the table structure is correct
+            self._ensure_bnbfuture_structure()
+            
             cursor = self.connection.cursor(dictionary=True)
             
             # Get current planned bookings summary by channel and listing
@@ -231,7 +234,7 @@ class STRDatabase(DatabaseManager):
             delete_query = "DELETE FROM bnbfuture WHERE date = %s"
             cursor.execute(delete_query, (current_date,))
             
-            # Insert new records
+            # Insert new records (exclude id field to use AUTO_INCREMENT)
             insert_query = """
             INSERT INTO bnbfuture (date, channel, listing, amount, items)
             VALUES (%s, %s, %s, %s, %s)
@@ -261,6 +264,43 @@ class STRDatabase(DatabaseManager):
             
         except mysql.connector.Error as e:
             return {'success': False, 'error': str(e)}
+    
+    def _ensure_bnbfuture_structure(self):
+        """Ensure bnbfuture table has proper AUTO_INCREMENT id field"""
+        try:
+            cursor = self.connection.cursor()
+            
+            # Check if table exists and get structure
+            cursor.execute("SHOW TABLES LIKE 'bnbfuture'")
+            if not cursor.fetchone():
+                # Create table if it doesn't exist
+                create_query = """
+                CREATE TABLE bnbfuture (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    date DATE,
+                    channel VARCHAR(50),
+                    listing VARCHAR(100),
+                    amount DECIMAL(10,2),
+                    items INT
+                )
+                """
+                cursor.execute(create_query)
+            else:
+                # Check if id field has AUTO_INCREMENT
+                cursor.execute("SHOW CREATE TABLE bnbfuture")
+                create_statement = cursor.fetchone()[1]
+                
+                if 'AUTO_INCREMENT' not in create_statement:
+                    # Add AUTO_INCREMENT to id field
+                    cursor.execute("ALTER TABLE bnbfuture MODIFY id INT AUTO_INCREMENT PRIMARY KEY")
+            
+            self.connection.commit()
+            cursor.close()
+            
+        except mysql.connector.Error as e:
+            print(f"Error ensuring bnbfuture structure: {e}")
+            if cursor:
+                cursor.close()
     
     def get_str_summary(self, start_date: str = None, end_date: str = None) -> Dict:
         """Get STR performance summary from bnb table"""

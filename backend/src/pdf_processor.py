@@ -1,4 +1,4 @@
-import PyPDF2
+from pypdf import PdfReader
 import pdfplumber
 import re
 from datetime import datetime
@@ -40,7 +40,7 @@ class PDFProcessor:
         # Try PyPDF2 first
         try:
             with open(file_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PdfReader(file)
                 
                 for page in pdf_reader.pages:
                     try:
