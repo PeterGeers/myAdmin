@@ -50,14 +50,18 @@ switch ($TestType.ToLower()) {
         Write-Host "Running Environment Mode tests..." -ForegroundColor Green
         .\venv\Scripts\python.exe -m pytest test/test_environment.py -v
     }
+    "infrastructure" {
+        Write-Host "Running Test Infrastructure tests..." -ForegroundColor Green
+        .\venv\Scripts\python.exe -m pytest test/test_infrastructure.py -v
+    }
     "all" {
         Write-Host "Running all tests..." -ForegroundColor Green
         .\venv\Scripts\python.exe -m pytest test/ -v
     }
     default {
-        Write-Host "Usage: .\run_tests.ps1 [database|pdf|transaction|banking|str|drive|xlsx|reporting|validation|api|environment|all]" -ForegroundColor Yellow
+        Write-Host "Usage: .\run_tests.ps1 [database|pdf|transaction|banking|str|drive|xlsx|reporting|validation|api|environment|infrastructure|all]" -ForegroundColor Yellow
         Write-Host "Examples:" -ForegroundColor Yellow
-        Write-Host "  .\run_tests.ps1 environment" -ForegroundColor Yellow
+        Write-Host "  .\run_tests.ps1 infrastructure" -ForegroundColor Yellow
         Write-Host "  .\run_tests.ps1 all" -ForegroundColor Yellow
     }
 }
