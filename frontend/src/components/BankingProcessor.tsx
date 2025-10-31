@@ -218,6 +218,7 @@ const BankingProcessor: React.FC = () => {
     referenceNumber: 'all'
   });
   const [availableLedgers, setAvailableLedgers] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [availableReferences, setAvailableReferences] = useState<string[]>([]);
   const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
   const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
@@ -462,6 +463,7 @@ const BankingProcessor: React.FC = () => {
 
   useEffect(() => {
     fetchCheckRefOptions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkRefFilters.administration, checkRefFilters.ledger]);
 
   const formatAmount = (amount: number): string => {

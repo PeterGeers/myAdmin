@@ -6,7 +6,7 @@ $rootDir = Split-Path -Parent $PSScriptRoot
 
 # Activate virtual environment and start backend
 Write-Host "Starting backend server..." -ForegroundColor Yellow
-Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$rootDir'; .\.venv\Scripts\Activate.ps1; cd backend; python src/app.py"
+Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$rootDir\backend'; .\.venv\Scripts\Activate.ps1; cd src; python app.py"
 
 # Wait a moment for backend to start
 Start-Sleep -Seconds 3

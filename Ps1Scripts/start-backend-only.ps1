@@ -5,8 +5,11 @@ Write-Host "Starting myAdmin backend server..." -ForegroundColor Green
 Write-Host "Stopping existing Python processes..." -ForegroundColor Yellow
 taskkill /f /im python.exe 2>$null
 
+# Get the parent directory (myAdmin root)
+$rootDir = Split-Path -Parent $PSScriptRoot
+
 # Activate virtual environment and start backend
-Set-Location $PSScriptRoot
+Set-Location "$rootDir\backend"
 .\.venv\Scripts\Activate.ps1
-Set-Location backend
+Set-Location src
 python app.py
