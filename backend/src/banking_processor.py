@@ -358,6 +358,19 @@ class BankingProcessor:
         cursor.close()
         conn.close()
         
+        # Handle first and last sequence safely
+        first_sequence = None
+        last_sequence = None
+        if transactions:
+            try:
+                first_sequence = int(transactions[0]['Ref2'])
+            except ValueError:
+                pass
+            try:
+                last_sequence = int(transactions[-1]['Ref2'])
+            except ValueError:
+                pass
+        
         return {
             'success': True,
             'iban': iban,
@@ -365,8 +378,8 @@ class BankingProcessor:
             'administration': administration,
             'start_date': start_date,
             'total_transactions': len(transactions),
-            'first_sequence': int(transactions[0]['Ref2']) if transactions else None,
-            'last_sequence': int(transactions[-1]['Ref2']) if transactions else None,
+            'first_sequence': first_sequence,
+            'last_sequence': last_sequence,
             'sequence_issues': sequence_issues,
             'has_gaps': len(sequence_issues) > 0
         }
