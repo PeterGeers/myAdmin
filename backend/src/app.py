@@ -13,15 +13,23 @@ from pdf_validation import PDFValidator
 from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
+from str_channel_routes import str_channel_bp
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
-# Configure Flask to serve static files from React build
-build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
-app = Flask(__name__, static_folder=build_folder, static_url_path='')
+# Create Flask app without static folder to prevent route conflicts
+app = Flask(__name__, static_folder=None)
+build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+
+# Register API blueprints IMMEDIATELY after app creation
+app.register_blueprint(reporting_bp, url_prefix='/api/reports')
+app.register_blueprint(actuals_bp, url_prefix='/api/reports')
+app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
+app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
+
 CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:3000", "http://127.0.0.1:5000"],
@@ -29,11 +37,6 @@ CORS(app, resources={
         "allow_headers": ["Content-Type"]
     }
 })
-
-# Register reporting blueprint
-app.register_blueprint(reporting_bp, url_prefix='/api/reports')
-app.register_blueprint(actuals_bp, url_prefix='/api/reports')
-app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
 
 # In-memory cache for uploaded files to prevent duplicates during session
 upload_cache = {}
@@ -60,7 +63,7 @@ def allowed_file(filename):
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     """Serve static files from React build"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
     static_folder = os.path.join(build_folder, 'static')
     
     # Handle nested paths like css/main.css or js/main.js
@@ -69,29 +72,54 @@ def serve_static(filename):
     else:
         return send_from_directory(static_folder, filename)
 
+@app.route('/manifest.json')
+def serve_manifest():
+    """Serve React manifest.json"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    return send_from_directory(build_folder, 'manifest.json')
+
+@app.route('/favicon.ico')
+def serve_favicon():
+    """Serve React favicon"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    return send_from_directory(build_folder, 'favicon.ico')
+
+@app.route('/logo192.png')
+def serve_logo192():
+    """Serve React logo192.png"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    return send_from_directory(build_folder, 'logo192.png')
+
+@app.route('/logo512.png')
+def serve_logo512():
+    """Serve React logo512.png"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    return send_from_directory(build_folder, 'logo512.png')
+
+
+
 # Serve React build files
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve_react_app(path):
-    """Serve React build files"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
-    
-    # Skip API routes
-    if path.startswith('api/'):
-        return jsonify({'error': 'API endpoint not found'}), 404
-    
-    # Check if build folder exists
+@app.route('/')
+def serve_index():
+    """Serve React index.html"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
     if not os.path.exists(build_folder):
-        return jsonify({
-            'error': 'Frontend not built', 
-            'message': 'Run npm run build in frontend folder first',
-            'build_folder': build_folder
-        }), 404
+        return jsonify({'error': 'Frontend not built'}), 404
+    return send_from_directory(build_folder, 'index.html')
+
+@app.errorhandler(404)
+def handle_404(e):
+    """Handle 404 errors by serving React app for non-API routes"""
+    # For API routes, return JSON error - DO NOT serve HTML
+    if request.path.startswith('/api/'):
+        print(f"404 API route: {request.path}", flush=True)
+        return jsonify({'error': 'API endpoint not found', 'path': request.path}), 404
     
-    if path != "" and os.path.exists(os.path.join(build_folder, path)):
-        return send_from_directory(build_folder, path)
-    else:
-        return send_from_directory(build_folder, 'index.html')
+    # Only serve React app for non-API routes
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    if not os.path.exists(build_folder):
+        return jsonify({'error': 'Frontend not built'}), 404
+    return send_from_directory(build_folder, 'index.html')
 
 @app.route('/api/folders', methods=['GET'])
 def get_folders():
@@ -1532,14 +1560,19 @@ def pdf_validate_single_url():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
 if __name__ == '__main__':
     print("Starting Flask development server...")
     print("For production, use: waitress-serve --host=127.0.0.1 --port=5000 wsgi:app")
     
     # Validate routes before starting
     if not check_route_conflicts(app):
-        print("❌ Route conflicts detected. Fix before starting.")
+        print("ERROR: Route conflicts detected. Fix before starting.")
         exit(1)
+    
+    # Add request logging
+    @app.before_request
+    def log_request():
+        if request.path.startswith('/api/'):
+            print(f"API Request: {request.method} {request.path}", flush=True)
     
     app.run(debug=True, port=5000, host='127.0.0.1')
