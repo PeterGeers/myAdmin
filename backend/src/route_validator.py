@@ -13,7 +13,7 @@ def check_route_conflicts(app):
             routes[route] = endpoint
     
     if conflicts:
-        print("⚠️  ROUTE CONFLICTS DETECTED:")
+        print("WARNING: ROUTE CONFLICTS DETECTED:")
         for conflict in conflicts:
             print(f"   {conflict}")
         return False

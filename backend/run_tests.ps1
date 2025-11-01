@@ -1,4 +1,7 @@
 #!/usr/bin/env pwsh
+# Individual Component Test Runner
+# For comprehensive testing with detailed reporting, use: .\test_all_comprehensive.ps1
+
 param(
     [string]$TestType = "all"
 )
@@ -46,6 +49,11 @@ switch ($TestType.ToLower()) {
         Write-Host "Running API Endpoints tests..." -ForegroundColor Green
         .\venv\Scripts\python.exe -m pytest test/test_api_endpoints.py -v
     }
+    "alignment" {
+        Write-Host "Running API Alignment tests..." -ForegroundColor Green
+        Write-Host "(Checks if frontend API calls match backend routes)" -ForegroundColor Gray
+        .\venv\Scripts\python.exe test/test_api_alignment.py
+    }
     "environment" {
         Write-Host "Running Environment Mode tests..." -ForegroundColor Green
         .\venv\Scripts\python.exe -m pytest test/test_environment.py -v
@@ -54,14 +62,41 @@ switch ($TestType.ToLower()) {
         Write-Host "Running Test Infrastructure tests..." -ForegroundColor Green
         .\venv\Scripts\python.exe -m pytest test/test_infrastructure.py -v
     }
+    "str-channel" {
+        Write-Host "Running STR Channel Revenue tests..." -ForegroundColor Green
+        .\venv\Scripts\python.exe -m pytest test/test_str_channel.py -v
+    }
     "all" {
         Write-Host "Running all tests..." -ForegroundColor Green
         .\venv\Scripts\python.exe -m pytest test/ -v
     }
     default {
-        Write-Host "Usage: .\run_tests.ps1 [database|pdf|transaction|banking|str|drive|xlsx|reporting|validation|api|environment|infrastructure|all]" -ForegroundColor Yellow
-        Write-Host "Examples:" -ForegroundColor Yellow
-        Write-Host "  .\run_tests.ps1 infrastructure" -ForegroundColor Yellow
-        Write-Host "  .\run_tests.ps1 all" -ForegroundColor Yellow
+        Write-Host "=== Individual Component Test Runner ===" -ForegroundColor Cyan
+        Write-Host "Usage: .\run_tests.ps1 [component]" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Available components:" -ForegroundColor White
+        Write-Host "  database     - Database operations and connections" -ForegroundColor Gray
+        Write-Host "  pdf          - PDF text extraction and parsing" -ForegroundColor Gray
+        Write-Host "  transaction  - Business logic and validation" -ForegroundColor Gray
+        Write-Host "  banking      - CSV processing and pattern matching" -ForegroundColor Gray
+        Write-Host "  str          - Short-term rental data processing" -ForegroundColor Gray
+        Write-Host "  drive        - Google Drive integration" -ForegroundColor Gray
+        Write-Host "  xlsx         - Excel report generation" -ForegroundColor Gray
+        Write-Host "  reporting    - API reporting endpoints" -ForegroundColor Gray
+        Write-Host "  validation   - URL validation and tracking" -ForegroundColor Gray
+        Write-Host "  api          - Flask route testing" -ForegroundColor Gray
+        Write-Host "  alignment    - Frontend-backend API route matching" -ForegroundColor Yellow
+        Write-Host "  environment  - Mode switching and configuration" -ForegroundColor Gray
+        Write-Host "  infrastructure - Test framework validation" -ForegroundColor Gray
+        Write-Host "  str-channel  - STR Channel Revenue calculations" -ForegroundColor Gray
+        Write-Host "  all          - Run all pytest tests" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "Examples:" -ForegroundColor White
+        Write-Host "  .\run_tests.ps1 alignment    # Check API route alignment" -ForegroundColor Yellow
+        Write-Host "  .\run_tests.ps1 api          # Test Flask routes" -ForegroundColor Gray
+        Write-Host "  .\run_tests.ps1 all          # Run all pytest tests" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "For comprehensive testing with detailed reporting:" -ForegroundColor Cyan
+        Write-Host "  .\test_all_comprehensive.ps1" -ForegroundColor Green
     }
 }

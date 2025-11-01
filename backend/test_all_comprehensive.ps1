@@ -15,11 +15,13 @@ $TestSuites = @(
     @{Name="Transaction Logic"; File="test_transaction_logic.py"; Description="Business logic and validation"},
     @{Name="Banking Processor"; File="test_banking_processor.py"; Description="CSV processing and pattern matching"},
     @{Name="STR Processor"; File="test_str_processor.py"; Description="Short-term rental data processing"},
+    @{Name="STR Channel Revenue"; File="test_str_channel.py"; Description="STR channel revenue calculations"},
     @{Name="Google Drive"; File="test_google_drive.py"; Description="Google Drive integration"},
     @{Name="XLSX Export"; File="test_xlsx_export.py"; Description="Excel report generation"},
     @{Name="Reporting Routes"; File="test_reporting_routes.py"; Description="API reporting endpoints"},
     @{Name="PDF Validation"; File="test_pdf_validation.py"; Description="URL validation and tracking"},
     @{Name="API Endpoints"; File="test_api_endpoints.py"; Description="Flask route testing"},
+    @{Name="API Alignment"; File="test_api_alignment.py"; Description="Frontend-backend API route alignment"},
     @{Name="Environment"; File="test_environment.py"; Description="Mode switching and configuration"}
 )
 
@@ -125,6 +127,7 @@ Write-Host "✅ XLSX Export: Excel generation, R script logic, balance calculati
 Write-Host "✅ Reporting Routes: API endpoints, data aggregation, filtering" -ForegroundColor Green
 Write-Host "✅ PDF Validation: URL validation, progress tracking, record updates" -ForegroundColor Green
 Write-Host "✅ API Endpoints: Flask routes, request handling, error responses" -ForegroundColor Green
+Write-Host "✅ API Alignment: Frontend-backend route matching, prevents '<!doctype' errors" -ForegroundColor Green
 Write-Host "✅ Environment: Mode switching, configuration, variable handling" -ForegroundColor Green
 Write-Host "✅ Test Infrastructure: Fixtures, mocking, temporary files, isolation" -ForegroundColor Green
 Write-Host ""

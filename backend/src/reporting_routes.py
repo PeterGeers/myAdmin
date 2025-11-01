@@ -760,3 +760,16 @@ def get_bnb_channel_data():
         return jsonify({'success': True, 'data': results})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@reporting_bp.route('/available-years', methods=['GET'])
+def get_available_years():
+    """Get available years from vw_mutaties"""
+    try:
+        service = ReportingService()
+        with service.get_cursor() as cursor:
+            cursor.execute("SELECT DISTINCT jaar as value FROM vw_mutaties WHERE jaar IS NOT NULL ORDER BY jaar DESC")
+            years = [str(row['value']) for row in cursor.fetchall()]
+        
+        return jsonify({'success': True, 'years': years})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

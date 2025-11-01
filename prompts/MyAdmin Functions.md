@@ -1,5 +1,12 @@
 Implemented functions
 
+* STR Channel revenue
+** Add a tab to the BankingProcessor with the name: STR Channel Revenue.
+** Monthly calculation of the STR revenue based on the amounts received in ledger account 1600 in line with the logic in LoadBnBChannelRevenue.R
+** Before loading the data the proposed transactions will be shown in a table and after confirmation will be written to the table mutaties
+** Make sure the logic of apis will ne used and the relevant testplans have to be updated
+** Filters for years and months: Current year minus 1 to curerent year +1 and months 1:12 Administration
+
 * Create a tab bnb-violins in myAdminReports with violin diagrams
 ** showing either the Price per Night or the Nr of nights per stay
 ** Drop down selection report Price per Night or Days per Stay

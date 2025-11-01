@@ -223,6 +223,16 @@ const BankingProcessor: React.FC = () => {
   const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
   const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
   const [selectedReference, setSelectedReference] = useState<string>('');
+  
+  // STR Channel Revenue state
+  const [strChannelFilters, setStrChannelFilters] = useState({
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    administration: 'GoodwinSolutions'
+  });
+  const [strChannelPreview, setStrChannelPreview] = useState<any[]>([]);
+  const [strChannelTransactions, setStrChannelTransactions] = useState<any[]>([]);
+  const [strChannelSummary, setStrChannelSummary] = useState<any>(null);
 
   const toggleRowExpansion = (key: string) => {
     const newExpanded = new Set(expandedRows);
@@ -283,7 +293,8 @@ const BankingProcessor: React.FC = () => {
     if (!editingRecord) return;
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/banking/update-mutatie', {
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch('/api/banking/update-mutatie', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingRecord)
@@ -305,7 +316,8 @@ const BankingProcessor: React.FC = () => {
 
   const fetchLookupData = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/banking/lookups');
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch('/api/banking/lookups');
       const data = await response.json();
       if (data.success) setLookupData(data);
     } catch (error) {
@@ -319,7 +331,8 @@ const BankingProcessor: React.FC = () => {
         years: mutatiesFilters.years.join(','),
         administration: mutatiesFilters.administration
       });
-      const response = await fetch(`http://localhost:5000/api/banking/mutaties?${params}`);
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch(`/api/banking/mutaties?${params}`);
       const data = await response.json();
       if (data.success) setMutaties(data.mutaties);
     } catch (error) {
@@ -329,7 +342,8 @@ const BankingProcessor: React.FC = () => {
 
   const fetchFilterOptions = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/banking/filter-options');
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch('/api/banking/filter-options');
       const data = await response.json();
       if (data.success) setFilterOptions(data);
     } catch (error) {
@@ -344,7 +358,8 @@ const BankingProcessor: React.FC = () => {
       if (endDate) params.append('end_date', endDate);
       
       console.log('Calling API with params:', params.toString());
-      const response = await fetch(`http://localhost:5000/api/banking/check-accounts?${params}`);
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch(`/api/banking/check-accounts?${params}`);
       const data = await response.json();
       console.log('API response:', data);
       
@@ -375,7 +390,8 @@ const BankingProcessor: React.FC = () => {
         start_date: sequenceStartDate
       });
       
-      const response = await fetch(`http://localhost:5000/api/banking/check-sequence?${params}`);
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch(`/api/banking/check-sequence?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -398,7 +414,8 @@ const BankingProcessor: React.FC = () => {
         administration: checkRefFilters.administration,
         ledger: checkRefFilters.ledger
       });
-      const response = await fetch(`http://localhost:5000/api/reports/filter-options?${params}`);
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch(`/api/reports/filter-options?${params}`);
       const data = await response.json();
       if (data.success) {
         setAvailableLedgers(data.ledgers || []);
@@ -418,7 +435,8 @@ const BankingProcessor: React.FC = () => {
         administration: checkRefFilters.administration
       });
       
-      const response = await fetch(`http://localhost:5000/api/reports/check-reference?${params}`);
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch(`/api/reports/check-reference?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -447,7 +465,8 @@ const BankingProcessor: React.FC = () => {
         administration: checkRefFilters.administration
       });
       
-      const response = await fetch(`http://localhost:5000/api/reports/check-reference?${params}`);
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch(`/api/reports/check-reference?${params}`);
       const data = await response.json();
       
       console.log('Reference details response:', data);
@@ -471,6 +490,96 @@ const BankingProcessor: React.FC = () => {
     return `€${num.toLocaleString('nl-NL', {minimumFractionDigits: 2})}`;
   };
 
+  // STR Channel Revenue functions
+  const fetchStrChannelPreview = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        year: strChannelFilters.year.toString(),
+        month: strChannelFilters.month.toString(),
+        administration: strChannelFilters.administration,
+        test_mode: testMode.toString()
+      });
+      
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch(`/api/str-channel/preview?${params}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setStrChannelPreview(data.preview_data);
+        setMessage(`Found ${data.preview_data.length} STR channels for ${strChannelFilters.month}/${strChannelFilters.year}`);
+      } else {
+        setMessage(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      setMessage(`Error fetching STR channel preview: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateStrChannelRevenue = async () => {
+    try {
+      setLoading(true);
+      
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch('/api/str-channel/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: strChannelFilters.year,
+          month: strChannelFilters.month,
+          administration: strChannelFilters.administration,
+          test_mode: testMode
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setStrChannelTransactions(data.transactions);
+        setStrChannelSummary(data.summary);
+        setMessage(`Generated ${data.transactions.length} STR channel revenue transactions`);
+      } else {
+        setMessage(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      setMessage(`Error calculating STR channel revenue: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveStrChannelTransactions = async () => {
+    try {
+      setLoading(true);
+      
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch('/api/str-channel/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactions: strChannelTransactions,
+          test_mode: testMode
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setMessage(`Successfully saved ${data.saved_count} STR channel transactions to ${data.table}`);
+        setStrChannelTransactions([]);
+        setStrChannelSummary(null);
+      } else {
+        setMessage(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      setMessage(`Error saving STR channel transactions: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     const csvTsvFiles = files.filter(file =>
@@ -491,7 +600,8 @@ const BankingProcessor: React.FC = () => {
       setLoading(true);
 
       if (lookupData.bank_accounts.length === 0) {
-        const response = await fetch('http://localhost:5000/api/banking/lookups');
+        // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+        const response = await fetch('/api/banking/lookups');
         const data = await response.json();
         if (data.success) setLookupData(data);
       }
@@ -531,7 +641,8 @@ const BankingProcessor: React.FC = () => {
       const sequences = allTransactions.map(t => t.Ref2).filter(Boolean);
 
       if (iban && sequences.length > 0) {
-        const response = await fetch('http://localhost:5000/api/banking/check-sequences', {
+        // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+        const response = await fetch('/api/banking/check-sequences', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ iban, sequences, test_mode: testMode })
@@ -561,7 +672,8 @@ const BankingProcessor: React.FC = () => {
   const handleSaveTransactions = async (values: any) => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/banking/save-transactions', {
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch('/api/banking/save-transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -600,7 +712,8 @@ const BankingProcessor: React.FC = () => {
   const applyPatterns = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/banking/apply-patterns', {
+      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+      const response = await fetch('/api/banking/apply-patterns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -642,6 +755,7 @@ const BankingProcessor: React.FC = () => {
           <Tab>Mutaties</Tab>
           <Tab>Check Account Balances</Tab>
           <Tab>Check Reference Numbers</Tab>
+          <Tab>STR Channel Revenue</Tab>
         </TabList>
 
         <TabPanels>
@@ -1383,6 +1497,172 @@ const BankingProcessor: React.FC = () => {
               {refSummaryData.length === 0 && (
                 <Text color="white" textAlign="center" py={8}>
                   Use the button above to check reference numbers
+                </Text>
+              )}
+            </VStack>
+          </TabPanel>
+
+          <TabPanel>
+            <VStack align="stretch" spacing={4}>
+              <Box bg="gray.800" p={4} borderRadius="md">
+                <Heading size="sm" color="white" mb={4}>STR Channel Revenue Calculator</Heading>
+                <Text color="gray.300" fontSize="sm" mb={4}>
+                  Calculate monthly STR revenue based on account 1600 transactions
+                </Text>
+                
+                <HStack spacing={4} mb={4} wrap="wrap">
+                  <FormControl maxW="120px">
+                    <FormLabel color="white" fontSize="sm">Year</FormLabel>
+                    <Input
+                      type="number"
+                      value={strChannelFilters.year}
+                      onChange={(e) => setStrChannelFilters(prev => ({...prev, year: parseInt(e.target.value) || new Date().getFullYear()}))}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                    />
+                  </FormControl>
+                  <FormControl maxW="120px">
+                    <FormLabel color="white" fontSize="sm">Month</FormLabel>
+                    <Select
+                      value={strChannelFilters.month}
+                      onChange={(e) => setStrChannelFilters(prev => ({...prev, month: parseInt(e.target.value)}))}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                    >
+                      {Array.from({length: 12}, (_, i) => i + 1).map(month => (
+                        <option key={month} value={month}>
+                          {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl maxW="180px">
+                    <FormLabel color="white" fontSize="sm">Administration</FormLabel>
+                    <Select
+                      value={strChannelFilters.administration}
+                      onChange={(e) => setStrChannelFilters(prev => ({...prev, administration: e.target.value}))}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                    >
+                      <option value="GoodwinSolutions">GoodwinSolutions</option>
+                      <option value="PeterPrive">PeterPrive</option>
+                    </Select>
+                  </FormControl>
+                  <Button
+                    onClick={fetchStrChannelPreview}
+                    isLoading={loading}
+                    colorScheme="blue"
+                    size="sm"
+                    alignSelf="flex-end"
+                  >
+                    Preview Data
+                  </Button>
+                  <Button
+                    onClick={calculateStrChannelRevenue}
+                    isLoading={loading}
+                    colorScheme="green"
+                    size="sm"
+                    alignSelf="flex-end"
+                    isDisabled={strChannelPreview.length === 0}
+                  >
+                    Calculate Revenue
+                  </Button>
+                </HStack>
+
+                {strChannelPreview.length > 0 && (
+                  <VStack align="stretch" spacing={4}>
+                    <Heading size="xs" color="white">Channel Data Preview ({strChannelPreview.length})</Heading>
+                    <TableContainer maxH="200px" overflowY="auto">
+                      <Table size="sm" variant="simple">
+                        <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                          <Tr>
+                            <Th color="white" fontSize="xs">Channel</Th>
+                            <Th color="white" fontSize="xs">Account</Th>
+                            <Th color="white" fontSize="xs" isNumeric>Transactions</Th>
+                            <Th color="white" fontSize="xs" isNumeric>Total Amount</Th>
+                            <Th color="white" fontSize="xs">Date Range</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {strChannelPreview.map((row, index) => (
+                            <Tr key={index}>
+                              <Td color="white" fontSize="xs">{row.ReferenceNumber}</Td>
+                              <Td color="white" fontSize="xs">{row.Reknum}</Td>
+                              <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
+                              <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
+                              <Td color="white" fontSize="xs">
+                                {new Date(row.first_date).toLocaleDateString('nl-NL')} - {new Date(row.last_date).toLocaleDateString('nl-NL')}
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+                  </VStack>
+                )}
+
+                {strChannelTransactions.length > 0 && (
+                  <VStack align="stretch" spacing={4}>
+                    <HStack justify="space-between">
+                      <Heading size="xs" color="white">Proposed Transactions ({strChannelTransactions.length})</Heading>
+                      <Button
+                        onClick={saveStrChannelTransactions}
+                        isLoading={loading}
+                        colorScheme="orange"
+                        size="sm"
+                      >
+                        Save to Database
+                      </Button>
+                    </HStack>
+                    
+                    {strChannelSummary && (
+                      <Box bg="gray.700" p={3} borderRadius="md">
+                        <Text color="white" fontSize="sm">
+                          <strong>Reference:</strong> {strChannelSummary.ref1} | 
+                          <strong>Period:</strong> {strChannelSummary.month}/{strChannelSummary.year} | 
+                          <strong>End Date:</strong> {strChannelSummary.end_date}
+                        </Text>
+                      </Box>
+                    )}
+                    
+                    <TableContainer maxH="400px" overflowY="auto">
+                      <Table size="sm" variant="simple">
+                        <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                          <Tr>
+                            <Th color="white" fontSize="xs">Date</Th>
+                            <Th color="white" fontSize="xs">Description</Th>
+                            <Th color="white" fontSize="xs" isNumeric>Amount</Th>
+                            <Th color="white" fontSize="xs">Debet</Th>
+                            <Th color="white" fontSize="xs">Credit</Th>
+                            <Th color="white" fontSize="xs">Reference</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {strChannelTransactions.map((transaction, index) => (
+                            <Tr key={index}>
+                              <Td color="white" fontSize="xs">{transaction.TransactionDate}</Td>
+                              <Td color="white" fontSize="xs" maxW="200px" isTruncated title={transaction.TransactionDescription}>
+                                {transaction.TransactionDescription}
+                              </Td>
+                              <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.TransactionAmount)}</Td>
+                              <Td color="white" fontSize="xs">{transaction.Debet}</Td>
+                              <Td color="white" fontSize="xs">{transaction.Credit}</Td>
+                              <Td color="white" fontSize="xs">{transaction.ReferenceNumber}</Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </TableContainer>
+                  </VStack>
+                )}
+              </Box>
+
+              {strChannelPreview.length === 0 && strChannelTransactions.length === 0 && (
+                <Text color="white" textAlign="center" py={8}>
+                  Select year, month, and administration, then click "Preview Data" to see available STR channel data
                 </Text>
               )}
             </VStack>

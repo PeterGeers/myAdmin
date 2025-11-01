@@ -1,6 +1,36 @@
 # myAdmin Backend Test Infrastructure Summary
 
-## 🎯 Complete Test Coverage: 293 Tests Across 12 Components
+## 🚀 Quick Test Execution
+
+### **Run All Tests** (Comprehensive with detailed reporting)
+```powershell
+.\test_all_comprehensive.ps1
+```
+**Features:**
+- Runs ALL 293+ tests systematically
+- Detailed timing and success rate reporting
+- Component-by-component breakdown
+- Test coverage summary
+- Failed test identification with guidance
+- Professional CI/CD ready output
+
+### **Run Specific Component Tests** (Quick individual testing)
+```powershell
+.\run_tests.ps1 [component]
+# Available: database, pdf, transaction, banking, str, drive, xlsx, reporting, validation, api, alignment, environment, infrastructure, all
+```
+**Features:**
+- Fast execution for single components
+- Simple pass/fail output
+- Good for development workflow
+- **Special**: `alignment` test runs directly (not via pytest)
+
+### **Run API Alignment Test** (Prevents "<!doctype" errors)
+```powershell
+.\run_tests.ps1 alignment
+```
+
+## 🎯 Complete Test Coverage: 300+ Tests Across 14 Components
 
 ### ✅ All Tests Passing - 100% Success Rate
 
@@ -43,11 +73,13 @@
 | **Transaction Logic** | 20 | Business rules, validation |
 | **Banking Processor** | 24 | CSV processing, pattern matching |
 | **STR Processor** | 31 | Multi-platform file processing |
+| **STR Channel Revenue** | 7 | Monthly revenue calculations |
 | **Google Drive** | 11 | Authentication, file operations |
 | **XLSX Export** | 19 | Excel generation, R script logic |
 | **Reporting Routes** | 33 | API endpoints, data aggregation |
 | **PDF Validation** | 31 | URL validation, progress tracking |
 | **API Endpoints** | 38 | Flask routes, request handling |
+| **API Alignment** | NEW | Frontend-backend route matching |
 | **Environment** | 28 | Mode switching, configuration |
 
 ## 🛠 Key Infrastructure Features
@@ -81,13 +113,13 @@
 ### **Individual Test Runners**
 ```powershell
 .\run_tests.ps1 [component]
-# Available: database, pdf, transaction, banking, str, drive, xlsx, reporting, validation, api, environment, infrastructure, all
+# Available: database, pdf, transaction, banking, str, drive, xlsx, reporting, validation, api, alignment, environment, infrastructure, all
 ```
 
 ### **Comprehensive Test Suite**
 ```powershell
 .\test_all_comprehensive.ps1
-# Runs all 293 tests with detailed reporting and coverage summary
+# Runs all 293+ tests with detailed reporting and coverage summary
 ```
 
 ## 📊 Test Categories
@@ -148,9 +180,9 @@
 
 ## 🎉 Results Summary
 
-- **Total Tests**: 293
+- **Total Tests**: 300+
 - **Success Rate**: 100%
-- **Components Covered**: 12
+- **Components Covered**: 14 (including API Alignment and STR Channel Revenue)
 - **Infrastructure Features**: 8 major categories
 - **Execution Time**: ~15 seconds for full suite
 - **Isolation**: Complete test-to-test isolation
