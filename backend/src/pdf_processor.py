@@ -20,13 +20,15 @@ class PDFProcessor:
         self.config = Config(test_mode=test_mode)
         
     def process_file(self, file_path, drive_result, folder_name='Unknown'):
-        """Process PDF or image file"""
+        """Process PDF, image, or CSV file"""
         file_ext = os.path.splitext(file_path)[1].lower()
         
         if file_ext == '.pdf':
             return self._process_pdf(file_path, drive_result, folder_name)
         elif file_ext in ['.jpg', '.jpeg', '.png']:
             return self._process_image(file_path, drive_result, folder_name)
+        elif file_ext == '.csv':
+            return self._process_csv(file_path, drive_result, folder_name)
         else:
             raise ValueError(f"Unsupported file type: {file_ext}")
     
@@ -135,6 +137,49 @@ class PDFProcessor:
             'folder': storage_folder
         }
     
+    def _process_csv(self, file_path, drive_result, folder_name='Unknown'):
+        """Process CSV file (e.g., AirBnB tax files)"""
+        import pandas as pd
+        text_lines = []
+        
+        try:
+            # Read CSV file
+            df = pd.read_csv(file_path)
+            print(f"CSV loaded: {len(df)} rows, columns: {list(df.columns)}")
+            
+            # Convert DataFrame to text representation for processing
+            text_lines.append(f"[CSV File: {os.path.basename(file_path)}]")
+            text_lines.append(f"[Rows: {len(df)}, Columns: {len(df.columns)}]")
+            text_lines.append(f"[Columns: {', '.join(df.columns)}]")
+            
+            # Add sample data
+            if len(df) > 0:
+                text_lines.append("[Sample Data:]")
+                for i, row in df.head(3).iterrows():
+                    text_lines.append(f"Row {i+1}: {dict(row)}")
+            
+            # Store CSV data for vendor-specific processing
+            text_lines.append("[CSV_DATA_START]")
+            text_lines.append(df.to_json(orient='records'))
+            text_lines.append("[CSV_DATA_END]")
+            
+            print(f"CSV processed: {len(text_lines)} info lines")
+            
+        except Exception as e:
+            print(f"CSV processing error: {e}")
+            text_lines = [f"[Error processing CSV: {str(e)}]"]
+        
+        # Use configured folder structure
+        storage_folder = self.config.get_storage_folder(folder_name)
+        self.config.ensure_folder_exists(storage_folder)
+        
+        return {
+            'name': drive_result['id'],
+            'url': drive_result['url'],
+            'txt': '\n'.join(text_lines),
+            'folder': storage_folder
+        }
+    
     def extract_transactions(self, file_data):
         lines = file_data['txt'].split('\n')
         folder_name = file_data['folder'].lower()
@@ -178,6 +223,12 @@ class PDFProcessor:
             return self.vendor_parsers.parse_vodafone(lines)
         elif 'kuwait' in folder_name.lower():
             return self.vendor_parsers.parse_kuwait(lines)
+        elif 'amazon' in folder_name.lower():
+            return self.vendor_parsers.parse_amazon(lines)
+        elif 'google' in folder_name.lower():
+            return self.vendor_parsers.parse_google(lines)
+        elif 'airbnb' in folder_name.lower():
+            return self.vendor_parsers.parse_airbnb_csv(lines)
         return None
     
     def _format_vendor_transactions(self, vendor_data, file_data):
@@ -212,6 +263,8 @@ class PDFProcessor:
                     'debet': main_debet,
                     'credit': main_credit,
                     'ref': file_data['folder'],
+                    'ref1': None,
+                    'ref2': None,
                     'ref3': file_data['url'],
                     'ref4': file_data['name']
                 })
@@ -224,6 +277,8 @@ class PDFProcessor:
                     'debet': main_debet,
                     'credit': main_credit,
                     'ref': file_data['folder'],
+                    'ref1': None,
+                    'ref2': None,
                     'ref3': file_data['url'],
                     'ref4': file_data['name']
                 })
@@ -236,6 +291,8 @@ class PDFProcessor:
                     'debet': vat_debet,
                     'credit': vat_credit,
                     'ref': file_data['folder'],
+                    'ref1': None,
+                    'ref2': None,
                     'ref3': file_data['url'],
                     'ref4': file_data['name']
                 })
@@ -286,6 +343,8 @@ class PDFProcessor:
                     'debet': amount if is_negative else 0,
                     'credit': amount if not is_negative else 0,
                     'ref': file_data['folder'],
+                    'ref1': None,
+                    'ref2': None,
                     'ref3': file_data['url'],
                     'ref4': file_data['name']
                 })

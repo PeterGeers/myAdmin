@@ -137,10 +137,13 @@ def save_str_channel_transactions():
         if not transactions:
             return jsonify({'success': False, 'error': 'No transactions to save'}), 400
         
-        # Get database connection
-        table_name = 'mutaties_test' if test_mode else 'mutaties'
-        
+        # Get database connection and determine correct table
         db = DatabaseManager(test_mode=test_mode)
+        
+        # Use mutaties table in both test and production databases
+        # Test mode uses testfinance.mutaties, production uses finance.mutaties
+        table_name = 'mutaties'
+        
         conn = db.get_connection()
         cursor = conn.cursor()
         
