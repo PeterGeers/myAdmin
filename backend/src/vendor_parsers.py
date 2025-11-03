@@ -549,3 +549,201 @@ class VendorParsers:
             data['description'] = re.sub(r'\s+', ' ', description)
         
         return data
+    
+    def parse_amazon(self, lines):
+        """Parse Amazon invoices"""
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Amazon invoice',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'account_number': '',
+            'invoice_number': '',
+            'billing_period': ''
+        }
+        
+        for line in lines:
+            line_lower = line.lower()
+            
+            if 'vat invoice date:' in line_lower:
+                date_match = re.search(r'vat invoice date:\s*(\w+\s+\d{1,2},\s+\d{4})', line, re.IGNORECASE)
+                if date_match:
+                    date_str = date_match.group(1)
+                    try:
+                        parsed_date = datetime.strptime(date_str, '%B %d, %Y')
+                        data['date'] = parsed_date.strftime('%Y-%m-%d')
+                    except:
+                        pass
+            
+            if 'total amount eur' in line_lower:
+                amount_match = re.search(r'total amount eur\s+([\d,\.]+)', line_lower)
+                if amount_match:
+                    data['total_amount'] = self._parse_amount(amount_match.group(1))
+            
+            if 'total vat eur' in line_lower:
+                vat_match = re.search(r'total vat eur\s+([\d,\.]+)', line_lower)
+                if vat_match:
+                    data['vat_amount'] = self._parse_amount(vat_match.group(1))
+            
+            if 'account number:' in line_lower:
+                account_match = re.search(r'account number:\s*(\d+)', line_lower)
+                if account_match:
+                    data['account_number'] = account_match.group(1)
+            
+            if 'vat invoice number:' in line_lower:
+                invoice_match = re.search(r'vat invoice number:\s*([\w\-]+)', line_lower)
+                if invoice_match:
+                    data['invoice_number'] = invoice_match.group(1)
+            
+            if 'billing period' in line_lower:
+                period_match = re.search(r'billing period\s+([\w\s,\-]+)', line_lower)
+                if period_match:
+                    data['billing_period'] = period_match.group(1).strip()
+        
+        desc_parts = []
+        if data['account_number']:
+            desc_parts.append(f"Account: {data['account_number']}")
+        if data['invoice_number']:
+            desc_parts.append(f"Invoice: {data['invoice_number']}")
+        if data['billing_period']:
+            desc_parts.append(f"billing period {data['billing_period']}")
+        
+        if desc_parts:
+            data['description'] = ' '.join(desc_parts)
+        
+        return data
+    
+    def parse_google(self, lines):
+        """Parse Google invoices"""
+        print(f"Google parser called with {len(lines)} lines", flush=True)
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Google invoice',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'invoice_number': '',
+            'period': ''
+        }
+        
+        for i, line in enumerate(lines):
+            # Look for date on line 4 (index 4)
+            if i == 4 and 'okt 2025' in line:
+                date_match = re.search(r'(\d{1,2})\s+okt\s+(\d{4})', line)
+                if date_match:
+                    day = date_match.group(1)
+                    year = date_match.group(2)
+                    data['date'] = f"{year}-10-{day.zfill(2)}"
+            
+            # Extract amount from line after 'Totaal in EUR'
+            if line == 'Totaal in EUR' and i + 1 < len(lines):
+                next_line = lines[i + 1]
+                if '€' in next_line:
+                    amount_str = next_line.replace('€', '').replace(' ', '').replace(',', '.')
+                    try:
+                        data['total_amount'] = float(amount_str)
+                    except ValueError:
+                        pass
+            
+            if 'factuurnummer:' in line.lower():
+                invoice_match = re.search(r'factuurnummer:\s*(\d+)', line.lower())
+                if invoice_match:
+                    data['invoice_number'] = invoice_match.group(1)
+            
+            if 'overzicht voor' in line.lower():
+                data['period'] = line.strip()
+        
+        desc_parts = []
+        if data['invoice_number']:
+            desc_parts.append(f"Factuurnummer: {data['invoice_number']}")
+        if data['period']:
+            desc_parts.append(data['period'])
+        
+        if desc_parts:
+            data['description'] = '  '.join(desc_parts)
+        
+        return data
+    
+    def parse_airbnb_csv(self, lines):
+        """Parse AirBnB CSV tax files based on R script logic"""
+        import json
+        import pandas as pd
+        from datetime import datetime
+        
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'AirBnB Hosting Fee',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'filename': ''
+        }
+        
+        # Extract CSV data from lines
+        csv_data = None
+        for i, line in enumerate(lines):
+            if line == '[CSV_DATA_START]' and i + 1 < len(lines):
+                try:
+                    csv_data = json.loads(lines[i + 1])
+                    break
+                except:
+                    pass
+        
+        if not csv_data:
+            return data
+        
+        # Convert to DataFrame for processing
+        df = pd.DataFrame(csv_data)
+        
+        # Extract filename from lines
+        for line in lines:
+            if line.startswith('[CSV File:'):
+                filename_match = re.search(r'\[CSV File: (.+)\]', line)
+                if filename_match:
+                    data['filename'] = filename_match.group(1)
+                    break
+        
+        # Process based on R script logic
+        try:
+            # hostFee <- sum(na.omit(airBnB$Nettobedag))
+            if 'Nettobedag' in df.columns:
+                host_fee = df['Nettobedag'].dropna().sum()
+                data['total_amount'] = float(host_fee)
+            
+            # df$TransactionDate <- max(airBnB$`Datum van dienst`)
+            if 'Datum van dienst' in df.columns:
+                max_date = df['Datum van dienst'].max()
+                if pd.notna(max_date):
+                    # Convert to YYYY-MM-DD format
+                    try:
+                        if isinstance(max_date, str):
+                            # Parse YYYY-MM-DD format from CSV
+                            parsed_date = pd.to_datetime(max_date)
+                            data['date'] = parsed_date.strftime('%Y-%m-%d')
+                        else:
+                            data['date'] = max_date.strftime('%Y-%m-%d')
+                    except:
+                        # Fallback: try manual parsing
+                        try:
+                            if '-' in str(max_date):
+                                date_parts = str(max_date).split('-')
+                                if len(date_parts) == 3 and len(date_parts[0]) == 4:
+                                    # Already YYYY-MM-DD format
+                                    data['date'] = str(max_date)
+                                elif len(date_parts) == 3:
+                                    # DD-MM-YYYY format
+                                    data['date'] = f"{date_parts[2]}-{date_parts[1].zfill(2)}-{date_parts[0].zfill(2)}"
+                        except:
+                            pass
+            
+            # Build description: "Hosting Fee; filename"
+            desc_parts = ['Hosting Fee']
+            if data['filename']:
+                desc_parts.append(data['filename'])
+            data['description'] = '; '.join(desc_parts)
+            
+            # VAT is 0 for AirBnB hosting fees (as per R script comment)
+            data['vat_amount'] = 0.0
+            
+        except Exception as e:
+            print(f"Error processing AirBnB CSV: {e}")
+        
+        return data

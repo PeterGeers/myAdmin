@@ -61,7 +61,7 @@ class STRProcessor:
                 if os.path.isfile(file_path):
                     if 'reservation' in file.lower() and file.endswith('.csv'):
                         files['airbnb'].append(file_path)
-                    elif 'check-in' in file.lower() and file.endswith(('.xls', '.xlsx')):
+                    elif ('check-in' in file.lower() or 'booking' in file.lower()) and file.endswith(('.xls', '.xlsx')):
                         files['booking'].append(file_path)
                     elif 'jabakirechtstreeks' in file.lower() and file.endswith(('.xlsx')):
                         files['direct'].append(file_path)
@@ -86,6 +86,7 @@ class STRProcessor:
     def _process_single_file(self, file_path: str, platform: str) -> List[Dict]:
         """Process single STR file based on platform"""
         platform = platform.lower()
+        print(f"Processing file: {file_path} as platform: {platform}")
         
         if platform == 'airbnb':
             return self._process_airbnb(file_path)
@@ -120,13 +121,24 @@ class STRProcessor:
                 babies = row.get("# baby's", 0) or 0
                 reservation_date = row.get('Gereserveerd', '')
                 
-                # Parse earnings "€ 190,10" format like R getAmount() function
+                # Parse earnings "€ 190,10" or "€ 1.841,18" format like R getAmount() function
                 try:
                     if pd.isna(earnings_str) or earnings_str == '':
                         earnings = 0
                     else:
-                        # Remove € symbol, spaces, and convert comma to dot
-                        clean_amount = str(earnings_str).replace('€', '').replace(' ', '').replace(',', '.')
+                        # Remove € symbol and spaces
+                        clean_amount = str(earnings_str).replace('€', '').replace(' ', '')
+                        # Handle European format: thousands separator (.) and decimal separator (,)
+                        if ',' in clean_amount:
+                            # Split on comma to separate decimal part
+                            parts = clean_amount.split(',')
+                            if len(parts) == 2:
+                                # Remove dots from integer part (thousands separator)
+                                integer_part = parts[0].replace('.', '')
+                                decimal_part = parts[1]
+                                clean_amount = f"{integer_part}.{decimal_part}"
+                            else:
+                                clean_amount = clean_amount.replace(',', '.')
                         earnings = float(clean_amount) if clean_amount else 0
                 except (ValueError, TypeError):
                     earnings = 0
@@ -222,28 +234,39 @@ class STRProcessor:
     
     def _process_booking(self, file_path: str) -> List[Dict]:
         """Process Booking.com Excel/CSV export"""
+        print(f"Starting booking.com processing for: {file_path}")
         try:
             # Handle both .xls/.xlsx and .csv files
             if file_path.endswith(('.xls', '.xlsx')):
+                print(f"Reading Excel file: {file_path}")
                 df = pd.read_excel(file_path)
             else:
+                print(f"Reading CSV file: {file_path}")
                 df = pd.read_csv(file_path)
             
-
+            print(f"Booking.com file loaded: {len(df)} rows")
+            print(f"Columns: {list(df.columns)}")
+            if len(df) > 0:
+                print(f"First row sample: {dict(df.iloc[0])}")
+            else:
+                print("No data rows found in file")
+                return []
             
             transactions = []
             
             for _, row in df.iterrows():
-                # Map actual Booking.com columns
-                checkin_date = row.get('Check-in', '')
-                checkout_date = row.get('Check-out', '')
-                guest_name = row.get('Guest name(s)', '')
-                unit_type = row.get('Unit type', '')
-                nights = row.get('Duration (nights)', 0)
-                price_str = row.get('Price', '0')
-                booking_id = row.get('Book number', '')
+                # Map Booking.com columns with flexible matching
+                checkin_date = row.get('Check-in', row.get('Checkin', row.get('Check in', '')))
+                checkout_date = row.get('Check-out', row.get('Checkout', row.get('Check out', '')))
+                guest_name = row.get('Guest name(s)', row.get('Guest name', row.get('Guest', '')))
+                unit_type = row.get('Unit type', row.get('Property', row.get('Accommodation', '')))
+                nights = row.get('Duration (nights)', row.get('Nights', row.get('Duration', 0)))
+                price_str = row.get('Price', row.get('Total price', row.get('Amount', '0')))
+                booking_id = row.get('Book number', row.get('Booking number', row.get('Reservation', '')))
                 status = row.get('Status', 'ok')
-                commission_amount = row.get('Commission amount', '')
+                commission_amount = row.get('Commission amount', row.get('Commission', ''))
+                
+                print(f"Processing booking: {booking_id}, checkin: {checkin_date}, price: {price_str}")
                 
                 # Skip cancelled bookings with no commission (no revenue)
                 if status == 'cancelled_by_guest' and (pd.isna(commission_amount) or commission_amount == '' or commission_amount is None):
@@ -343,8 +366,12 @@ class STRProcessor:
                 }
                 transactions.append(transaction)
             
+            print(f"Booking.com processing completed: {len(transactions)} transactions")
             return transactions
         except Exception as e:
+            print(f"Error processing booking.com file: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def _process_direct(self, file_path: str) -> List[Dict]:

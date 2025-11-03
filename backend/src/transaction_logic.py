@@ -147,8 +147,8 @@ class TransactionLogic:
             print(f"Transaction {i}: Using date {transaction_date} from vendor_data: {vendor_data.get('date') if vendor_data else 'None'}", flush=True)
             
             # Set Ref1 and Ref2 based on vendor data
-            ref1 = 'NA'
-            ref2 = 'NA'
+            ref1 = None
+            ref2 = None
             
             if vendor_data:
                 # For Booking.com, use accommodation name in Ref1 and invoice number in Ref2
@@ -157,7 +157,8 @@ class TransactionLogic:
                 elif 'accommodation_number' in vendor_data and vendor_data['accommodation_number']:
                     ref1 = f"Accommodation {vendor_data['accommodation_number']}"
                 
-                if 'invoice_number' in vendor_data and vendor_data['invoice_number']:
+                # Only set ref2 for Booking.com, not Amazon
+                if 'invoice_number' in vendor_data and vendor_data['invoice_number'] and new_data['folder_name'].lower() != 'amazon':
                     ref2 = vendor_data['invoice_number']
                 
                 # Update description to include commission type if available

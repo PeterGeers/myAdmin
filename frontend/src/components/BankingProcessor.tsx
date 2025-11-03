@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Box, Button, Heading, Table, Thead, Tbody, Tr, Th, Td, Input, Switch,
+  Box, Button, Heading, Table, Thead, Tbody, Tr, Th, Td, Input,
   FormControl, FormLabel, FormErrorMessage, Alert, AlertIcon, VStack, HStack,
   Text, Tabs, TabList, TabPanels, Tab, TabPanel, TableContainer, Menu,
   MenuButton, MenuList, MenuItem, Checkbox, Grid, GridItem, Card, CardBody,
@@ -134,6 +134,39 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
   return transactions;
 };
 
+const processCreditCardTransaction = (columns: string[], index: number, lookupData: LookupData, fileName: string): Transaction | null => {
+  if (columns.length < 13) return null;
+
+  const amountStr = columns[8] || '0';
+  const amount = Math.abs(parseFloat(amountStr.replace(',', '.')));
+  
+  if (amount === 0) return null;
+
+  const isNegative = amountStr.startsWith('-');
+  const iban = columns[0] || '';
+  const administration = iban.includes('NL71RABO0148034454') ? 'PeterPrive' : 'GoodwinSolutions';
+  const currentDate = new Date().toISOString().split('T')[0];
+  
+  // Build description from multiple columns (index 9 onwards)
+  const description = columns.slice(9).filter(col => col && col.trim()).join(' ').trim();
+  
+  return {
+    row_id: index,
+    TransactionNumber: `Visa ${currentDate}`,
+    TransactionDate: columns[7] || '', // Datum column
+    TransactionDescription: description,
+    TransactionAmount: amount,
+    Debet: isNegative ? '4002' : '2001', // Negative = expense (4002), Positive = credit (2001)
+    Credit: isNegative ? '2001' : '2001', // Always credit to 2001
+    ReferenceNumber: 'Default',
+    Ref1: columns[6] || '', // Transactiereferentie
+    Ref2: columns[3] || '', // Productnaam
+    Ref3: iban,
+    Ref4: '',
+    Administration: administration
+  };
+};
+
 const processRabobankTransaction = (columns: string[], index: number, lookupData: LookupData, fileName: string): Transaction | null => {
   if (columns.length < 20) return null;
 
@@ -176,7 +209,7 @@ const BankingProcessor: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [mutaties, setMutaties] = useState<Transaction[]>([]);
-  const [testMode, setTestMode] = useState(true);
+  const [testMode] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [] });
@@ -567,7 +600,7 @@ const BankingProcessor: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        setMessage(`Successfully saved ${data.saved_count} STR channel transactions to ${data.table}`);
+        setMessage(`${data.saved_count} STR channel transactions loaded`);
         setStrChannelTransactions([]);
         setStrChannelSummary(null);
       } else {
@@ -627,6 +660,9 @@ const BankingProcessor: React.FC = () => {
               file.name
             );
             allTransactions.push(...revolutTransactions);
+          } else if (file.name.startsWith('CSV_CC_')) {
+            const creditCardTransaction = processCreditCardTransaction(columns, currentIndex, lookupData, file.name);
+            if (creditCardTransaction) allTransactions.push(creditCardTransaction);
           } else {
             const rabobankTransaction = processRabobankTransaction(columns, currentIndex, lookupData, file.name);
             if (rabobankTransaction) allTransactions.push(rabobankTransaction);
@@ -761,22 +797,10 @@ const BankingProcessor: React.FC = () => {
         <TabPanels>
           <TabPanel>
 
-            {/* Mode Selection */}
-            <FormControl mb={6}>
-              <FormLabel>
-                <Switch
-                  isChecked={testMode}
-                  onChange={(e) => setTestMode(e.target.checked)}
-                  mr={2}
-                />
-                Mode: {testMode ? 'TEST (mutaties_test)' : 'PRODUCTION (mutaties)'}
-              </FormLabel>
-            </FormControl>
-
             {/* File Selection */}
             <VStack align="stretch" mb={6}>
               <FormControl>
-                <FormLabel color="white">Select CSV Files</FormLabel>
+                <FormLabel color="white">Select CSV/TSV Files (Banking or Credit Card)</FormLabel>
                 <Input
                   type="file"
                   accept=".csv,.tsv"
