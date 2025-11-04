@@ -1,0 +1,21 @@
+{
+  "terminal.integrated.cwd": "C:\\Users\\peter\\aws\\myAdmin",
+  "github.copilot.chat.scopeSelection": false,
+  "amazonQ.showCodeWithReferences": false,
+  "sqltools.connections": [
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 3306,
+      "driver": "MySQL",
+      "name": "MyAdmin",
+      "database": "finance",
+      "username": "peter"
+    }
+  ]
+}
