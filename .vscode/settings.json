@@ -1,7 +1,12 @@
 {
-  "terminal.integrated.cwd": "C:\\Users\\peter\\aws\\myAdmin",
+  "terminal.integrated.cwd": "${workspaceFolder}",
   "github.copilot.chat.scopeSelection": false,
   "amazonQ.showCodeWithReferences": false,
+  "python.defaultInterpreterPath": "./backend/.venv/Scripts/python.exe",
+  "python.terminal.activateEnvironment": true,
+  "files.associations": {
+    "*.ps1": "powershell"
+  },
   "sqltools.connections": [
     {
       "mysqlOptions": {
@@ -15,7 +20,21 @@
       "driver": "MySQL",
       "name": "MyAdmin",
       "database": "finance",
-      "username": "peter"
+      "username": "${env:DB_USER}"
+    },
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 3306,
+      "driver": "MySQL",
+      "name": "MyAdmin Test",
+      "database": "testfinance",
+      "username": "${env:DB_USER}"
     }
   ]
 }
