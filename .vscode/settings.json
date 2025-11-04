@@ -7,6 +7,18 @@
   "files.associations": {
     "*.ps1": "powershell"
   },
+  "workbench.colorTheme": "Default Dark Modern",
+  "workbench.iconTheme": "vs-seti",
+  "editor.fontSize": 14,
+  "editor.fontFamily": "'Cascadia Code', Consolas, 'Courier New', monospace",
+  "editor.fontLigatures": true,
+  "editor.minimap.enabled": true,
+  "editor.wordWrap": "on",
+  "editor.rulers": [80, 120],
+  "workbench.editor.enablePreview": false,
+  "workbench.startupEditor": "welcomePage",
+  "explorer.confirmDelete": false,
+  "explorer.confirmDragAndDrop": false,
   "sqltools.connections": [
     {
       "mysqlOptions": {
