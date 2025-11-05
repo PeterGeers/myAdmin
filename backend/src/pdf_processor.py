@@ -227,6 +227,12 @@ class PDFProcessor:
             return self.vendor_parsers.parse_amazon(lines)
         elif 'google' in folder_name.lower():
             return self.vendor_parsers.parse_google(lines)
+        elif 'vandenheuvelhoveniers' in folder_name.lower():
+            return self.vendor_parsers.parse_vandenheuvelhoveniers(lines)
+        elif 'guesty' in folder_name.lower():
+            return self.vendor_parsers.parse_guesty(lines)
+        elif 'gamma' in folder_name.lower():
+            return self.vendor_parsers.parse_gamma(lines)
         elif 'airbnb' in folder_name.lower():
             return self.vendor_parsers.parse_airbnb_csv(lines)
         return None

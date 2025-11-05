@@ -663,6 +663,146 @@ class VendorParsers:
         
         return data
     
+    def parse_vandenheuvelhoveniers(self, lines):
+        """Parse Vandenheuvelhoveniers invoices"""
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Vandenheuvelhoveniers invoice',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'invoice_number': ''
+        }
+        
+        for line in lines:
+            # Extract date from "Factuurdatum: 4-11-2025" format
+            if 'factuurdatum:' in line.lower():
+                date_match = re.search(r'factuurdatum:\s*(\d{1,2})-(\d{1,2})-(\d{4})', line.lower())
+                if date_match:
+                    day = date_match.group(1)
+                    month = date_match.group(2)
+                    year = date_match.group(3)
+                    data['date'] = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+            
+            # Extract total amount from "Totaal inclusief BTW € 1.107,15"
+            if 'totaal inclusief btw' in line.lower():
+                amount_match = re.search(r'€\s*([\d\.,]+)', line)
+                if amount_match:
+                    amount_str = amount_match.group(1).replace('.', '').replace(',', '.')
+                    data['total_amount'] = float(amount_str)
+            
+            # Extract VAT from "21% BTW € 192,15"
+            if '21% btw' in line.lower():
+                vat_match = re.search(r'€\s*([\d\.,]+)', line)
+                if vat_match:
+                    vat_str = vat_match.group(1).replace('.', '').replace(',', '.')
+                    data['vat_amount'] = float(vat_str)
+            
+            # Extract invoice number from "Factuurnummer: 3329"
+            if 'factuurnummer:' in line.lower():
+                invoice_match = re.search(r'factuurnummer:\s*(\d+)', line.lower())
+                if invoice_match:
+                    data['invoice_number'] = invoice_match.group(1)
+        
+        # Build description
+        if data['invoice_number']:
+            data['description'] = f"Factuurnummer: {data['invoice_number']}"
+        
+        return data
+    
+    def parse_guesty(self, lines):
+        """Parse Guesty invoices"""
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Guesty invoice',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'invoice_number': ''
+        }
+        
+        for line in lines:
+            # Extract date from "Date Oct 29, 2025" format
+            if line.startswith('Date '):
+                date_match = re.search(r'Date\s+(\w+)\s+(\d{1,2}),\s+(\d{4})', line)
+                if date_match:
+                    month_name = date_match.group(1)
+                    day = date_match.group(2)
+                    year = date_match.group(3)
+                    
+                    month_map = {
+                        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                    }
+                    month = month_map.get(month_name, '01')
+                    data['date'] = f"{year}-{month}-{day.zfill(2)}"
+            
+            # Extract total amount from "Total (741.17 EUR) $864.00"
+            if line.startswith('Total (') and 'EUR)' in line:
+                amount_match = re.search(r'Total \(([\d\.]+) EUR\)', line)
+                if amount_match:
+                    data['total_amount'] = float(amount_match.group(1))
+            
+            # Extract invoice number from "Invoice number INV00631305"
+            if line.startswith('Invoice number '):
+                invoice_match = re.search(r'Invoice number\s+([\w]+)', line)
+                if invoice_match:
+                    data['invoice_number'] = invoice_match.group(1)
+        
+        # Build description
+        if data['invoice_number']:
+            data['description'] = f"Invoice number {data['invoice_number']}"
+        
+        return data
+    
+    def parse_gamma(self, lines):
+        """Parse Gamma invoices"""
+        data = {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'description': 'Gamma invoice',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'invoice_number': ''
+        }
+        
+        for i, line in enumerate(lines):
+            # Extract date from "Datum: 05/11/2025 15:17" format
+            if 'datum:' in line.lower():
+                date_match = re.search(r'datum:\s*(\d{2})/(\d{2})/(\d{4})', line.lower())
+                if date_match:
+                    day = date_match.group(1)
+                    month = date_match.group(2)
+                    year = date_match.group(3)
+                    data['date'] = f"{year}-{month}-{day}"
+            
+            # Extract total amount from "Totaal: 64,51 EUR"
+            if 'totaal:' in line.lower() and 'eur' in line.lower():
+                amount_match = re.search(r'totaal:\s*([\d,\.]+)\s*eur', line.lower())
+                if amount_match:
+                    amount_str = amount_match.group(1).replace(',', '.')
+                    data['total_amount'] = float(amount_str)
+            
+            # Extract VAT from the line with "TOT.OMZET TOT.BTW" pattern
+            if 'tot.omzet' in line.lower() and 'tot.btw' in line.lower():
+                # Check next line for amounts
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1]
+                    amounts = re.findall(r'([\d,\.]+)', next_line)
+                    if len(amounts) >= 2:
+                        vat_str = amounts[1].replace(',', '.')
+                        data['vat_amount'] = float(vat_str)
+            
+            # Extract invoice number from "Factuur 00735000943250000050"
+            if line.startswith('Factuur '):
+                invoice_match = re.search(r'Factuur\s+([\d]+)', line)
+                if invoice_match:
+                    data['invoice_number'] = invoice_match.group(1)
+        
+        # Build description
+        if data['invoice_number']:
+            data['description'] = f"Factuur {data['invoice_number']}"
+        
+        return data
+    
     def parse_airbnb_csv(self, lines):
         """Parse AirBnB CSV tax files based on R script logic"""
         import json
