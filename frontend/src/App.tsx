@@ -4,11 +4,11 @@ import PDFUploadForm from './components/PDFUploadForm';
 import PDFValidation from './components/PDFValidation';
 import BankingProcessor from './components/BankingProcessor';
 import STRProcessor from './components/STRProcessor';
-
+import STRInvoice from './components/STRInvoice';
 import MyAdminReports from './components/myAdminReports';
 import theme from './theme';
 
-type PageType = 'menu' | 'pdf' | 'pdf-validation' | 'banking' | 'str' | 'powerbi';
+type PageType = 'menu' | 'pdf' | 'pdf-validation' | 'banking' | 'str' | 'str-invoice' | 'powerbi';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
@@ -83,6 +83,21 @@ function App() {
             <STRProcessor />
           </Box>
         );
+      case 'str-invoice':
+        return (
+          <Box minH="100vh" bg="gray.900">
+            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+              <HStack justify="space-between">
+                <HStack>
+                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                  <Heading color="orange.400" size="lg">🧾 STR Invoice Generator</Heading>
+                </HStack>
+                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+              </HStack>
+            </Box>
+            <STRInvoice />
+          </Box>
+        );
 
       case 'powerbi':
         return (
@@ -124,6 +139,9 @@ function App() {
                 </Button>
                 <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
                   🏠 STR Processor
+                </Button>
+                <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
+                  🧾 STR Invoice Generator
                 </Button>
 
                 <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
