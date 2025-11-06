@@ -94,6 +94,33 @@ class GoogleDriveService:
             'url': file['webViewLink']
         }
     
+    def upload_text_file(self, content, filename, folder_id, mime_type='text/html'):
+        """Upload text content directly to Google Drive"""
+        from googleapiclient.http import MediaIoBaseUpload
+        import io
+        
+        media = MediaIoBaseUpload(
+            io.BytesIO(content.encode('utf-8')),
+            mimetype=mime_type,
+            resumable=True
+        )
+        
+        file_metadata = {
+            'name': filename,
+            'parents': [folder_id]
+        }
+        
+        file = self.service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id,webViewLink'
+        ).execute()
+        
+        return {
+            'id': file['id'],
+            'url': file['webViewLink']
+        }
+    
     def check_file_exists(self, filename, folder_id):
         """Check if file already exists in the folder"""
         try:
