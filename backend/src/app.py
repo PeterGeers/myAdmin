@@ -14,6 +14,7 @@ from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
 from str_channel_routes import str_channel_bp
+from str_invoice_routes import str_invoice_bp
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
 import os
@@ -29,6 +30,7 @@ app.register_blueprint(reporting_bp, url_prefix='/api/reports')
 app.register_blueprint(actuals_bp, url_prefix='/api/reports')
 app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
 app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
+app.register_blueprint(str_invoice_bp, url_prefix='/api/str-invoice')
 
 CORS(app, resources={
     r"/api/*": {
