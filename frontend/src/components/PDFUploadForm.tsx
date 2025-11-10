@@ -39,6 +39,9 @@ const PDFUploadForm: React.FC = () => {
   // const [templateTransactions, setTemplateTransactions] = useState<any[]>([]);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [allFolders, setAllFolders] = useState<string[]>([]);
+  const [filteredFolders, setFilteredFolders] = useState<string[]>([]);
 
   useEffect(() => {
     fetchFolders();
@@ -47,13 +50,38 @@ const PDFUploadForm: React.FC = () => {
   const fetchFolders = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/folders');
-      setFolders(response.data);
+      setAllFolders(response.data);
+      setFilteredFolders(response.data);
     } catch (error) {
       console.error('Error fetching folders:', error);
     }
   };
 
+  const handleSearch = (value: string, setFieldValue: any) => {
+    setSearchTerm(value);
+    const filtered = value.trim() === '' ? allFolders : allFolders.filter(folder => 
+      folder.toLowerCase().includes(value.toLowerCase())
+    );
+    setFilteredFolders(filtered);
+    
+    // Auto-select if exactly 1 folder matches
+    if (filtered.length === 1) {
+      setFieldValue('folderId', filtered[0]);
+    } else if (filtered.length === 0) {
+      setFieldValue('folderId', '');
+    }
+  };
+
   const handleSubmit = async (values: any, formikHelpers?: any) => {
+    if (filteredFolders.length > 1) {
+      alert('Please narrow down to exactly 1 folder before uploading.');
+      return;
+    }
+    if (filteredFolders.length === 0) {
+      alert('No folders match your search. Please adjust the filter.');
+      return;
+    }
+    
     setLoading(true);
     const formData = new FormData();
     formData.append('file', values.file);
@@ -171,7 +199,7 @@ const PDFUploadForm: React.FC = () => {
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
       >
-        {({ setFieldValue, errors, touched }) => (
+        {({ setFieldValue, errors, touched, values }) => (
           <Form>
             <VStack spacing={4}>
               <FormControl isInvalid={!!(errors.file && touched.file)}>
@@ -180,22 +208,59 @@ const PDFUploadForm: React.FC = () => {
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={(e) => setFieldValue('file', e.target.files?.[0])}
+                  bg="orange.500"
+                  color="white"
+                  borderColor="orange.600"
                 />
                 {errors.file && touched.file && <Text color="red.500">{errors.file}</Text>}
               </FormControl>
 
               <FormControl isInvalid={!!(errors.folderId && touched.folderId)}>
                 <FormLabel>Select Folder</FormLabel>
-                <HStack>
-                  <Field as={Select} name="folderId" placeholder="Choose folder" width="58%">
-                    {folders.map((folder, index) => (
-                      <option key={`${folder}-${index}`} value={folder}>{folder}</option>
-                    ))}
-                  </Field>
-                  <Button onClick={() => setShowCreateFolder(true)} size="sm">
-                    + New
-                  </Button>
-                </HStack>
+                <VStack spacing={2} align="stretch">
+                  <HStack>
+                    <Input
+                      value={searchTerm || values.folderId || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFieldValue('folderId', value);
+                        handleSearch(value, setFieldValue);
+                      }}
+                      placeholder="Type folder name to search and select..."
+                      flex={1}
+                      list="folder-options"
+                      bg="orange.500"
+                      color="white"
+                      _placeholder={{ color: "orange.100" }}
+                      borderColor="orange.600"
+                    />
+                    <datalist id="folder-options">
+                      {filteredFolders.map((folder) => (
+                        <option key={folder} value={folder} />
+                      ))}
+                    </datalist>
+                    <Button 
+                      onClick={() => { setSearchTerm(''); setFieldValue('folderId', ''); handleSearch('', setFieldValue); }} 
+                      size="sm"
+                      colorScheme="blue"
+                      color="white"
+                    >
+                      Clear
+                    </Button>
+                    <Button 
+                      onClick={() => setShowCreateFolder(true)} 
+                      size="sm"
+                      colorScheme="green"
+                      color="white"
+                    >
+                      + New
+                    </Button>
+                  </HStack>
+                  
+                  <Text fontSize="sm" color={filteredFolders.length === 1 ? "green.500" : "gray.600"}>
+                    {filteredFolders.length === 1 ? "✓ 1 folder selected" : `${filteredFolders.length} folders match`}
+                  </Text>
+                </VStack>
                 {errors.folderId && touched.folderId && <Text color="red.500">{errors.folderId}</Text>}
               </FormControl>
 
@@ -219,8 +284,16 @@ const PDFUploadForm: React.FC = () => {
                 </Box>
               )}
 
-              <Button type="submit" bg="brand.orange" color="white" _hover={{bg: "#e55a00"}} isLoading={loading} w="full">
-                Upload & Process
+              <Button 
+                type="submit" 
+                bg="brand.orange" 
+                color="white" 
+                _hover={{bg: "#e55a00"}} 
+                isLoading={loading} 
+                w="full"
+                isDisabled={filteredFolders.length !== 1}
+              >
+                Upload & Process {filteredFolders.length !== 1 ? `(${filteredFolders.length} folders)` : ''}
               </Button>
 
               {loading && <Progress value={uploadProgress} w="full" />}

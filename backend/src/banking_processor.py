@@ -160,7 +160,9 @@ class BankingProcessor:
     
     def save_approved_transactions(self, transactions):
         """Save approved transactions to database"""
-        table_name = 'mutaties_test' if self.test_mode else 'mutaties'
+        # In test mode: testfinance.mutaties
+        # In production mode: finance.mutaties
+        table_name = 'mutaties'  # Always use 'mutaties' table, database selection handled by DatabaseManager
         
         saved_count = 0
         for transaction in transactions:

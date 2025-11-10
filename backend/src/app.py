@@ -125,9 +125,11 @@ def handle_404(e):
 
 @app.route('/api/folders', methods=['GET'])
 def get_folders():
-    """Return available vendor folders"""
+    """Return available vendor folders with optional regex filtering"""
     try:
-        print(f"get_folders called, flag={flag}", flush=True)
+        regex_pattern = request.args.get('regex')
+        print(f"get_folders called, flag={flag}, regex={regex_pattern}", flush=True)
+        
         if flag:  # Test mode - use local folders
             folders = list(config.vendor_folders.values())
             print(f"Test mode: returning {len(folders)} local folders", flush=True)
@@ -145,6 +147,18 @@ def get_folders():
                 # Fallback to local folders if Google Drive fails
                 folders = list(config.vendor_folders.values())
                 print(f"Fallback: returning {len(folders)} local folders", flush=True)
+        
+        # Apply regex filter if provided
+        if regex_pattern:
+            import re
+            try:
+                compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+                filtered_folders = [folder for folder in folders if compiled_regex.search(folder)]
+                print(f"Regex '{regex_pattern}' filtered {len(folders)} folders to {len(filtered_folders)}", flush=True)
+                folders = filtered_folders
+            except re.error as e:
+                print(f"Invalid regex pattern '{regex_pattern}': {e}", flush=True)
+                return jsonify({'error': f'Invalid regex pattern: {e}'}), 400
         
         return jsonify(folders)
     except Exception as e:
@@ -458,7 +472,7 @@ def banking_check_sequences():
         test_mode = data.get('test_mode', True)
         
         db = DatabaseManager(test_mode=test_mode)
-        table_name = 'mutaties_test' if test_mode else 'mutaties'
+        table_name = 'mutaties'  # Always use 'mutaties' table
         existing_sequences = db.get_existing_sequences(iban, table_name)
         
         # Check for duplicates
@@ -580,7 +594,7 @@ def banking_save_transactions():
         test_mode = data.get('test_mode', True)
         
         db = DatabaseManager(test_mode=test_mode)
-        table_name = 'mutaties_test' if test_mode else 'mutaties'
+        table_name = 'mutaties'  # Always use 'mutaties' table
         
         # Group transactions by IBAN (Ref1)
         ibans = list(set([t.get('Ref1') for t in transactions if t.get('Ref1')]))
