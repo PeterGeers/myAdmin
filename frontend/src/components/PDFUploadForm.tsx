@@ -59,20 +59,33 @@ const PDFUploadForm: React.FC = () => {
 
   const handleSearch = (value: string, setFieldValue: any) => {
     setSearchTerm(value);
-    const filtered = value.trim() === '' ? allFolders : allFolders.filter(folder => 
-      folder.toLowerCase().includes(value.toLowerCase())
-    );
-    setFilteredFolders(filtered);
     
-    // Auto-select if exactly 1 folder matches
-    if (filtered.length === 1) {
-      setFieldValue('folderId', filtered[0]);
-    } else if (filtered.length === 0) {
-      setFieldValue('folderId', '');
+    // Check if the value exactly matches a folder name (selected from datalist)
+    const exactMatch = allFolders.find(folder => folder === value);
+    
+    if (exactMatch) {
+      // Exact match - user selected from datalist
+      setFilteredFolders([exactMatch]);
+      setFieldValue('folderId', exactMatch);
+    } else {
+      // Filter based on search term
+      const filtered = value.trim() === '' ? allFolders : allFolders.filter(folder => 
+        folder.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredFolders(filtered);
+      
+      // Auto-select if exactly 1 folder matches
+      if (filtered.length === 1) {
+        setFieldValue('folderId', filtered[0]);
+      } else if (filtered.length === 0) {
+        setFieldValue('folderId', '');
+      }
     }
   };
 
   const handleSubmit = async (values: any, formikHelpers?: any) => {
+    if (loading) return; // Prevent multiple submissions
+    
     if (filteredFolders.length > 1) {
       alert('Please narrow down to exactly 1 folder before uploading.');
       return;
@@ -220,9 +233,9 @@ const PDFUploadForm: React.FC = () => {
                 <VStack spacing={2} align="stretch">
                   <HStack>
                     <Input
-                      value={searchTerm || values.folderId || ''}
+                      value={(searchTerm || values.folderId || '').toString()}
                       onChange={(e) => {
-                        const value = e.target.value;
+                        const value = e.target.value || '';
                         setFieldValue('folderId', value);
                         handleSearch(value, setFieldValue);
                       }}
@@ -417,7 +430,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Transaction Number:</Text>
                     <Input 
-                      value={transaction.TransactionNumber} 
+                      value={transaction.TransactionNumber || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].TransactionNumber = e.target.value;
@@ -428,7 +441,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Reference Number:</Text>
                     <Input 
-                      value={transaction.ReferenceNumber} 
+                      value={transaction.ReferenceNumber || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].ReferenceNumber = e.target.value;
@@ -440,7 +453,7 @@ const PDFUploadForm: React.FC = () => {
                     <Text fontSize="sm" color="black">Date:</Text>
                     <Input 
                       type="date"
-                      value={transaction.TransactionDate} 
+                      value={transaction.TransactionDate || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].TransactionDate = e.target.value;
@@ -453,7 +466,7 @@ const PDFUploadForm: React.FC = () => {
                 <Box>
                   <Text fontSize="sm" color="black">Description:</Text>
                   <Input 
-                    value={transaction.TransactionDescription} 
+                    value={transaction.TransactionDescription || ''} 
                     onChange={(e) => {
                       const updated = [...preparedTransactions];
                       updated[index].TransactionDescription = e.target.value;
@@ -468,7 +481,7 @@ const PDFUploadForm: React.FC = () => {
                     <Input 
                       type="number" 
                       step="0.01"
-                      value={transaction.TransactionAmount} 
+                      value={transaction.TransactionAmount || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].TransactionAmount = parseFloat(e.target.value);
@@ -479,7 +492,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Debet:</Text>
                     <Input 
-                      value={transaction.Debet} 
+                      value={transaction.Debet || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].Debet = e.target.value;
@@ -490,7 +503,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Credit:</Text>
                     <Input 
-                      value={transaction.Credit} 
+                      value={transaction.Credit || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].Credit = e.target.value;
@@ -504,7 +517,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Ref1:</Text>
                     <Input 
-                      value={transaction.Ref1} 
+                      value={transaction.Ref1 || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].Ref1 = e.target.value;
@@ -515,7 +528,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Ref2:</Text>
                     <Input 
-                      value={transaction.Ref2} 
+                      value={transaction.Ref2 || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].Ref2 = e.target.value;
@@ -526,7 +539,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Administration:</Text>
                     <Input 
-                      value={transaction.Administration} 
+                      value={transaction.Administration || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].Administration = e.target.value;
@@ -540,7 +553,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Ref3 (File URL):</Text>
                     <Input 
-                      value={transaction.Ref3} 
+                      value={transaction.Ref3 || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].Ref3 = e.target.value;
@@ -552,7 +565,7 @@ const PDFUploadForm: React.FC = () => {
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Ref4 (Filename):</Text>
                     <Input 
-                      value={transaction.Ref4} 
+                      value={transaction.Ref4 || ''} 
                       onChange={(e) => {
                         const updated = [...preparedTransactions];
                         updated[index].Ref4 = e.target.value;
