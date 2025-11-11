@@ -29,6 +29,10 @@ class PDFProcessor:
             return self._process_image(file_path, drive_result, folder_name)
         elif file_ext == '.csv':
             return self._process_csv(file_path, drive_result, folder_name)
+        elif file_ext == '.mhtml':
+            return self._process_mhtml(file_path, drive_result, folder_name)
+        elif file_ext == '.eml':
+            return self._process_eml(file_path, drive_result, folder_name)
         else:
             raise ValueError(f"Unsupported file type: {file_ext}")
     
@@ -170,6 +174,153 @@ class PDFProcessor:
             text_lines = [f"[Error processing CSV: {str(e)}]"]
         
         # Use configured folder structure
+        storage_folder = self.config.get_storage_folder(folder_name)
+        self.config.ensure_folder_exists(storage_folder)
+        
+        return {
+            'name': drive_result['id'],
+            'url': drive_result['url'],
+            'txt': '\n'.join(text_lines),
+            'folder': storage_folder
+        }
+    
+    def _process_mhtml(self, file_path, drive_result, folder_name='Unknown'):
+        """Process MHTML email file"""
+        import html
+        import re
+        from datetime import datetime
+        
+        text_lines = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+                content = file.read()
+            
+            # Decode HTML entities
+            content = html.unescape(content)
+            
+            # Extract text from HTML content
+            text_content = re.sub(r'<[^>]+>', ' ', content)
+            
+            # Clean up whitespace and split into lines
+            lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+            
+            # Look for delivery date patterns
+            delivery_date = None
+            for line in lines:
+                date_match = re.search(r'bezorging van (\w+dag)\s+(\d{1,2})\s+(\w+)', line, re.IGNORECASE)
+                if date_match:
+                    day, date_num, month = date_match.groups()
+                    month_map = {
+                        'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
+                        'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
+                        'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
+                    }
+                    if month.lower() in month_map:
+                        current_year = datetime.now().year
+                        delivery_date = f"{current_year}-{month_map[month.lower()]}-{date_num.zfill(2)}"
+                        break
+            
+            # Extract amounts
+            total_amount = 0
+            total_match = re.search(r'<strong>(\d+)</strong>.*?<strong>(\d+)</strong>', content)
+            if total_match:
+                euros, cents = total_match.groups()
+                total_amount = round(float(f"{euros}.{cents}"), 2)
+            
+            # Create summary
+            text_lines.append(f"[MHTML Email: {os.path.basename(file_path)}]")
+            if delivery_date:
+                text_lines.append(f"[Delivery Date: {delivery_date}]")
+            if total_amount > 0:
+                text_lines.append(f"[Total Amount: €{total_amount:.2f}]")
+            
+            text_lines.extend(lines[:50])
+            
+        except Exception as e:
+            text_lines = [f"[Error processing MHTML: {str(e)}]"]
+        
+        storage_folder = self.config.get_storage_folder(folder_name)
+        self.config.ensure_folder_exists(storage_folder)
+        
+        return {
+            'name': drive_result['id'],
+            'url': drive_result['url'],
+            'txt': '\n'.join(text_lines),
+            'folder': storage_folder
+        }
+    
+    def _process_eml(self, file_path, drive_result, folder_name='Unknown'):
+        """Process EML email file"""
+        import re
+        from datetime import datetime
+        
+        text_lines = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+                content = file.read()
+            
+            # Find the plain text part (after Content-Type: text/plain)
+            text_match = re.search(r'Content-Type: text/plain.*?\n\n(.*?)(?=--_)', content, re.DOTALL)
+            if text_match:
+                plain_text = text_match.group(1).strip()
+            else:
+                # Fallback: look for text between multipart boundaries
+                boundary_match = re.search(r'boundary="([^"]+)"', content)
+                if boundary_match:
+                    boundary = boundary_match.group(1)
+                    parts = content.split(f'--{boundary}')
+                    for part in parts:
+                        if 'Content-Type: text/plain' in part:
+                            text_start = part.find('\n\n')
+                            if text_start != -1:
+                                plain_text = part[text_start+2:].strip()
+                                break
+                    else:
+                        plain_text = content
+                else:
+                    plain_text = content
+            
+            # Extract delivery date
+            delivery_date = None
+            date_match = re.search(r'bezorging van (\w+dag)\s+(\d{1,2})\s+(\w+)\s+(\d{4})', plain_text)
+            if date_match:
+                day, date_num, month, year = date_match.groups()
+                month_map = {
+                    'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
+                    'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
+                    'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
+                }
+                if month.lower() in month_map:
+                    delivery_date = f"{year}-{month_map[month.lower()]}-{date_num.zfill(2)}"
+            
+            # Extract total amount
+            total_amount = 0
+            total_match = re.search(r'Totaal\s*-+\s*([\d.]+)', plain_text)
+            if total_match:
+                total_amount = round(float(total_match.group(1)), 2)
+            
+            # Extract order number
+            order_match = re.search(r'Order\s+([\d-]+)', plain_text)
+            order_number = order_match.group(1) if order_match else None
+            
+            # Create summary
+            text_lines.append(f"[EML Email: {os.path.basename(file_path)}]")
+            if delivery_date:
+                text_lines.append(f"[Delivery Date: {delivery_date}]")
+            if total_amount > 0:
+                text_lines.append(f"[Total Amount: €{total_amount:.2f}]")
+            if order_number:
+                text_lines.append(f"[Order Number: {order_number}]")
+            
+            # Add plain text content (clean lines only)
+            plain_lines = [line.strip() for line in plain_text.split('\n') if line.strip()]
+            text_lines.extend(plain_lines)
+            
+        except Exception as e:
+            text_lines = [f"[Error processing EML: {str(e)}]"]
+        
         storage_folder = self.config.get_storage_folder(folder_name)
         self.config.ensure_folder_exists(storage_folder)
         
