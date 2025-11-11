@@ -344,7 +344,28 @@ class PDFProcessor:
         return self._generic_parse(lines, file_data)
     
     def _parse_vendor_specific(self, lines, folder_name):
-        """Parse using vendor-specific logic"""
+        """Parse using AI or fallback to vendor-specific logic"""
+        # Try AI extraction first
+        try:
+            from ai_extractor import AIExtractor
+            ai_extractor = AIExtractor()
+            
+            # Convert lines to text
+            text_content = '\n'.join(lines)
+            
+            print(f"Starting AI extraction for {folder_name}...", flush=True)
+            # Use AI to extract data
+            ai_result = ai_extractor.extract_invoice_data(text_content, folder_name)
+            
+            if ai_result and ai_result['total_amount'] > 0:
+                print(f"AI extraction successful for {folder_name}: €{ai_result['total_amount']}", flush=True)
+                return ai_result
+            else:
+                print(f"AI extraction returned no valid amount, using traditional parser for {folder_name}", flush=True)
+        except Exception as e:
+            print(f"AI extraction error: {e}, falling back to traditional parser", flush=True)
+        
+        # Fallback to traditional parsers
         if 'action' in folder_name:
             return self.vendor_parsers.parse_action(lines)
         elif 'mastercard' in folder_name:
