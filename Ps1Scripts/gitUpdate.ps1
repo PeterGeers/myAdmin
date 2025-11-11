@@ -1,5 +1,5 @@
-param([string]$message)
-
+# param([string]$message)
+$message = "Update pdf processor to support eml file type"
 # Change to myAdmin project root directory
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location (Join-Path $scriptPath "..")
