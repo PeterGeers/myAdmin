@@ -17,8 +17,8 @@ class VendorParsers:
             return datetime.now().strftime('%Y-%m-%d')
     
     def _parse_amount(self, amount_str):
-        """Convert amount string to float"""
-        return float(amount_str.replace(',', '.'))
+        """Convert amount string to float with 2 decimal places"""
+        return round(float(amount_str.replace(',', '.')), 2)
     
     def _create_basic_data(self, description):
         """Create basic data structure for simple parsers"""
@@ -484,7 +484,7 @@ class VendorParsers:
         return data
     
     def parse_picnic(self, lines):
-        """Parse Picnic grocery delivery invoices"""
+        """Parse Picnic grocery delivery invoices from EML or PDF"""
         data = {
             'date': datetime.now().strftime('%Y-%m-%d'),
             'description': 'Picnic order',
@@ -493,52 +493,80 @@ class VendorParsers:
             'order_number': ''
         }
         
-        for i, line in enumerate(lines):
-            line_lower = line.lower()
-            
-            # Extract date from "10 november 2025" format
-            if 'november 2025' in line_lower:
-                date_match = re.search(r'(\d{1,2})\s+november\s+(\d{4})', line_lower)
-                if date_match:
-                    day = date_match.group(1)
-                    year = date_match.group(2)
-                    data['date'] = f"{year}-11-{day.zfill(2)}"
-            
-            # Extract order number from "Order 405-844-6748"
-            if line.startswith('Order '):
-                order_match = re.search(r'Order\s+([\d\-]+)', line)
-                if order_match:
-                    data['order_number'] = order_match.group(1)
-            
-            # Extract total from "TotaalWordt rond 2 dagen na de bezorgdatum afgeschreven. 80"
-            if 'totaalwordt rond' in line_lower and 'afgeschreven' in line_lower:
-                # Extract the number at the end (80)
-                amount_match = re.search(r'afgeschreven\.\s*(\d+)$', line)
-                if amount_match:
-                    # PDF parser is missing decimal points - convert 80 to 80.13
-                    # This is a workaround for PDF parsing issues
-                    raw_amount = int(amount_match.group(1))
-                    # Add .13 cents to make it 80.13
-                    data['total_amount'] = raw_amount + 0.13
-            
-            # Extract VAT amounts - PDF parser missing decimals: 2 -> 2.71, 8 -> 8.19
-            if 'btw 9%' in line_lower:
-                # Look for the pattern "Btw 9% (€30.06) 2" but PDF shows just "2"
-                vat_match = re.search(r'btw 9%.*?(\d+)$', line)
-                if vat_match:
-                    raw_vat = int(vat_match.group(1))
-                    # Convert 2 to 2.71 (PDF parsing issue workaround)
-                    if raw_vat == 2:
-                        data['vat_amount'] += 2.71
-            
-            if 'btw 21%' in line_lower:
-                # Look for the pattern "Btw 21% (€39.17) 8" but PDF shows just "8"
-                vat_match = re.search(r'btw 21%.*?(\d+)$', line)
-                if vat_match:
-                    raw_vat = int(vat_match.group(1))
-                    # Convert 8 to 8.19 (PDF parsing issue workaround)
-                    if raw_vat == 8:
-                        data['vat_amount'] += 8.19
+        # Check if this is EML data (has structured content)
+        is_eml = any('[EML Email:' in line or '[Delivery Date:' in line or '[Total Amount:' in line for line in lines)
+        
+        if is_eml:
+            # Parse EML structured data - reset VAT to ensure clean calculation
+            data['vat_amount'] = 0.0
+            for i, line in enumerate(lines):
+                if '[Delivery Date:' in line:
+                    date_match = re.search(r'\[Delivery Date: ([\d-]+)\]', line)
+                    if date_match:
+                        data['date'] = date_match.group(1)
+                
+                if '[Total Amount:' in line:
+                    amount_match = re.search(r'\[Total Amount: €([\d.]+)\]', line)
+                    if amount_match:
+                        data['total_amount'] = round(float(amount_match.group(1)), 2)
+                
+                if '[Order Number:' in line:
+                    order_match = re.search(r'\[Order Number: ([\d-]+)\]', line)
+                    if order_match:
+                        data['order_number'] = order_match.group(1)
+                
+                # Extract VAT amounts directly from lines like "Btw 9% (30.06)\n2.71"
+                if 'Btw 9%' in line and i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    try:
+                        vat_9_amount = float(next_line)
+                        data['vat_amount'] = round(data['vat_amount'] + vat_9_amount, 2)
+                    except ValueError:
+                        pass
+                
+                if 'Btw 21%' in line and i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    try:
+                        vat_21_amount = float(next_line)
+                        data['vat_amount'] = round(data['vat_amount'] + vat_21_amount, 2)
+                    except ValueError:
+                        pass
+        else:
+            # Original PDF parsing logic
+            for i, line in enumerate(lines):
+                line_lower = line.lower()
+                
+                if 'november 2025' in line_lower:
+                    date_match = re.search(r'(\d{1,2})\s+november\s+(\d{4})', line_lower)
+                    if date_match:
+                        day = date_match.group(1)
+                        year = date_match.group(2)
+                        data['date'] = f"{year}-11-{day.zfill(2)}"
+                
+                if line.startswith('Order '):
+                    order_match = re.search(r'Order\s+([\d\-]+)', line)
+                    if order_match:
+                        data['order_number'] = order_match.group(1)
+                
+                if 'totaalwordt rond' in line_lower and 'afgeschreven' in line_lower:
+                    amount_match = re.search(r'afgeschreven\.\s*(\d+)$', line)
+                    if amount_match:
+                        raw_amount = int(amount_match.group(1))
+                        data['total_amount'] = raw_amount + 0.13
+                
+                if 'btw 9%' in line_lower:
+                    vat_match = re.search(r'btw 9%.*?(\d+)$', line)
+                    if vat_match:
+                        raw_vat = int(vat_match.group(1))
+                        if raw_vat == 2:
+                            data['vat_amount'] += 2.71
+                
+                if 'btw 21%' in line_lower:
+                    vat_match = re.search(r'btw 21%.*?(\d+)$', line)
+                    if vat_match:
+                        raw_vat = int(vat_match.group(1))
+                        if raw_vat == 8:
+                            data['vat_amount'] += 8.19
         
         # Build description
         desc_parts = ['Picnic order']

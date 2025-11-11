@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, FormControl, FormLabel, Input, Select, Button,
+  Box, VStack, FormControl, FormLabel, Input, Button,
   Text, Progress, Textarea, HStack
 } from '@chakra-ui/react';
-import { Formik, Form, Field } from 'formik';
+import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 
@@ -203,10 +203,10 @@ const PDFUploadForm: React.FC = () => {
           <Form>
             <VStack spacing={4}>
               <FormControl isInvalid={!!(errors.file && touched.file)}>
-                <FormLabel>Select File (PDF, JPG, PNG)</FormLabel>
+                <FormLabel>Select File (PDF, JPG, PNG, MHTML, EML)</FormLabel>
                 <Input
                   type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept=".pdf,.jpg,.jpeg,.png,.mhtml,.eml"
                   onChange={(e) => setFieldValue('file', e.target.files?.[0])}
                   bg="orange.500"
                   color="white"
