@@ -13,7 +13,7 @@ class BusinessPricingModel:
         """Calculate price using business logic with occupancy data"""
         
         # 1. Base rate (weekday/weekend)
-        base_rate = self._get_base_rate(date)
+        base_rate = self._get_base_rate(date, listing)
         
         # 2. Historical performance multiplier
         historical_mult = self._get_historical_multiplier(listing, date)
@@ -47,11 +47,39 @@ class BusinessPricingModel:
             'final_price': round(business_price, 2)
         }
     
-    def _get_base_rate(self, date):
-        """Get base weekday/weekend rate"""
-        # Friday=4, Saturday=5 are weekend nights
-        is_weekend = date.weekday() in [4, 5]
-        return 110 if is_weekend else 85
+    def _get_base_rate(self, date, listing=None):
+        """Get base weekday/weekend rate for specific listing"""
+        if not listing:
+            # Fallback to default rates
+            is_weekend = date.weekday() in [4, 5]
+            return 110 if is_weekend else 85
+        
+        conn = self.db.get_connection()
+        try:
+            query = """
+            SELECT base_weekday_price, base_weekend_price
+            FROM listings 
+            WHERE listing_name = %s AND active = TRUE
+            """
+            
+            result_df = pd.read_sql(query, conn, params=[listing])
+            
+            if not result_df.empty:
+                is_weekend = date.weekday() in [4, 5]
+                weekday_price = float(result_df.iloc[0]['base_weekday_price'])
+                weekend_price = float(result_df.iloc[0]['base_weekend_price'])
+                return weekend_price if is_weekend else weekday_price
+            
+            # Fallback if listing not found
+            is_weekend = date.weekday() in [4, 5]
+            return 110 if is_weekend else 85
+            
+        except Exception as e:
+            print(f"Base rate error: {e}")
+            is_weekend = date.weekday() in [4, 5]
+            return 110 if is_weekend else 85
+        finally:
+            conn.close()
     
     def _get_historical_multiplier(self, listing, date):
         """Get multiplier based on same date historical performance"""

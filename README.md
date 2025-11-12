@@ -16,8 +16,10 @@ cd frontend && npm start     # Port 3000
 ## Components
 
 ### 📄 PDF Transaction Processor
-- Upload PDFs to Google Drive or local storage
-- Extract transactions from 251+ vendor formats
+- Upload PDFs, EML, and MHTML files to Google Drive or local storage
+- AI-powered universal invoice data extraction via OpenRouter API
+- Traditional vendor-specific parsers as fallback (251+ formats)
+- Searchable folder dropdown with auto-selection
 - Edit and approve transactions before saving
 - MySQL storage with metadata
 
@@ -32,6 +34,15 @@ cd frontend && npm start     # Port 3000
 - Separate realized vs planned bookings
 - Generate future revenue summaries
 - Multi-platform support
+
+### 💰 STR Pricing Optimizer
+- AI-powered pricing recommendations with business logic
+- Historical vs recommended ADR comparison
+- Quarterly summary tables by listing
+- Monthly trend analysis with interactive charts
+- Event-based pricing uplifts
+- Guest fee adjustments for Child Friendly property
+- 14-month pricing strategy generation
 
 ### 📊 myAdmin Reports
 - Interactive dashboards with Recharts
@@ -53,9 +64,10 @@ cd frontend && npm start     # Port 3000
 ## Database
 
 - **MySQL**: Main transaction storage
-- **Tables**: mutaties, bnb, bnbplanned, bnbfuture
+- **Tables**: mutaties, bnb, bnbplanned, bnbfuture, pricing_recommendations, pricing_events, listings
 - **Views**: vw_mutaties for reporting with VW logic
 - **Config**: `.env` file with credentials
+- **Pricing**: AI insights storage and business logic pricing
 
 ## Test/Production Mode
 
@@ -68,6 +80,7 @@ TEST_MODE=false
 DB_NAME=finance
 FACTUREN_FOLDER_ID=your_production_folder_id
 FACTUREN_FOLDER_NAME=Facturen
+OPENROUTER_API_KEY=your_openrouter_api_key
 
 # Test Mode
 TEST_MODE=true
@@ -97,6 +110,8 @@ TEST_FACTUREN_FOLDER_NAME=testFacturen
 
 - **Frontend**: React, TypeScript, Chakra UI, Recharts
 - **Backend**: Python, Flask, MySQL, Google Drive API, Gmail API
+- **AI Integration**: OpenRouter API with GPT-3.5-turbo for invoice extraction
 - **Processing**: PyPDF2, pdfplumber, pandas, openpyxl
+- **Pricing**: Business logic with AI correction factors
 - **Export**: HTML generation, XLSX with R script logic
 - **Real-time**: Server-Sent Events for progress tracking

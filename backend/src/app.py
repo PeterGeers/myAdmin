@@ -1013,21 +1013,22 @@ def str_save():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Pricing routes
-@app.route('/api/pricing/recommendations', methods=['GET'])
-def pricing_recommendations():
-    """Generate AI-powered pricing recommendations"""
+@app.route('/api/pricing/generate', methods=['POST'])
+def pricing_generate():
+    """Generate pricing recommendations using hybrid optimizer"""
     try:
-        from daily_pricing_optimizer import DailyPricingOptimizer
+        from hybrid_pricing_optimizer import HybridPricingOptimizer
         
-        days = int(request.args.get('days', 90))
-        listing = request.args.get('listing')
-        optimizer = DailyPricingOptimizer(test_mode=flag)
+        data = request.get_json()
+        months = data.get('months', 14)
+        listing = data.get('listing')
         
-        recommendations = optimizer.generate_daily_pricing(days, listing)
+        optimizer = HybridPricingOptimizer(test_mode=flag)
+        result = optimizer.generate_pricing_strategy(months, listing)
         
         return jsonify({
             'success': True,
-            'data': recommendations,
+            'result': result,
             'listing': listing,
             'generated_at': datetime.now().isoformat()
         })
@@ -1035,34 +1036,144 @@ def pricing_recommendations():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/pricing/stored/<listing>', methods=['GET'])
-def get_stored_pricing(listing):
-    """Get stored pricing recommendations for a listing"""
+@app.route('/api/pricing/recommendations', methods=['GET'])
+def pricing_recommendations():
+    """Get pricing recommendations with historical comparison"""
     try:
         db = DatabaseManager(test_mode=flag)
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
+        # Get all recommendations with historical data
         query = """
-        SELECT price_date, recommended_price, is_weekend, event_uplift, event_name, generated_at
+        SELECT listing_name, price_date, recommended_price, ai_recommended_adr, 
+               ai_historical_adr, ai_variance, ai_reasoning, is_weekend, 
+               event_uplift, event_name, last_year_adr, generated_at
         FROM pricing_recommendations 
-        WHERE listing_name = %s 
-        ORDER BY price_date
+        WHERE price_date >= CURDATE()
+        ORDER BY listing_name, price_date
         """
         
-        cursor.execute(query, [listing])
+        cursor.execute(query)
         results = cursor.fetchall()
         
-        # Convert dates to strings
+        # Convert dates to strings and Decimals to floats
         for result in results:
             result['price_date'] = str(result['price_date'])
-            result['generated_at'] = str(result['generated_at'])
+            if result['generated_at']:
+                result['generated_at'] = str(result['generated_at'])
+            # Convert Decimal fields to float
+            if result['recommended_price']:
+                result['recommended_price'] = float(result['recommended_price'])
+            if result['ai_recommended_adr']:
+                result['ai_recommended_adr'] = float(result['ai_recommended_adr'])
+            if result['ai_historical_adr']:
+                result['ai_historical_adr'] = float(result['ai_historical_adr'])
+            if result['ai_variance']:
+                result['ai_variance'] = float(result['ai_variance'])
+            if result['last_year_adr']:
+                result['last_year_adr'] = float(result['last_year_adr'])
         
         return jsonify({
             'success': True,
-            'listing': listing,
-            'pricing_data': results,
+            'recommendations': results,
             'count': len(results)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+@app.route('/api/pricing/historical', methods=['GET'])
+def pricing_historical():
+    """Get historical ADR data for trend analysis"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get monthly historical ADR data with guest fee adjustment for Child Friendly
+        query = """
+        SELECT 
+            listing,
+            YEAR(checkinDate) as year,
+            MONTH(checkinDate) as month,
+            COUNT(*) as bookings,
+            AVG(
+                CASE 
+                    WHEN listing = 'Child Friendly' AND guests > 2 
+                    THEN (amountGross - (guests - 2) * 30) / nights
+                    ELSE amountGross / nights
+                END
+            ) as historical_adr
+        FROM bnb 
+        WHERE checkinDate >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH)
+        AND nights > 0
+        GROUP BY listing, YEAR(checkinDate), MONTH(checkinDate)
+        ORDER BY listing, year, month
+        """
+        
+        cursor.execute(query)
+        historical_data = cursor.fetchall()
+        
+        # Convert Decimal to float for historical data
+        for row in historical_data:
+            if row['historical_adr']:
+                row['historical_adr'] = float(row['historical_adr'])
+        
+        # Get recommended ADR data by month
+        rec_query = """
+        SELECT 
+            listing_name,
+            YEAR(price_date) as year,
+            MONTH(price_date) as month,
+            AVG(recommended_price) as recommended_adr
+        FROM pricing_recommendations 
+        GROUP BY listing_name, YEAR(price_date), MONTH(price_date)
+        ORDER BY listing_name, year, month
+        """
+        
+        cursor.execute(rec_query)
+        recommended_data = cursor.fetchall()
+        
+        # Convert Decimal to float for recommended data
+        for row in recommended_data:
+            if row['recommended_adr']:
+                row['recommended_adr'] = float(row['recommended_adr'])
+        
+        return jsonify({
+            'success': True,
+            'historical': historical_data,
+            'recommended': recommended_data
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+@app.route('/api/pricing/listings', methods=['GET'])
+def pricing_listings():
+    """Get available listings for pricing"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        query = "SELECT listing_name, active FROM listings WHERE active = TRUE ORDER BY listing_name"
+        cursor.execute(query)
+        listings = cursor.fetchall()
+        
+        return jsonify({
+            'success': True,
+            'listings': [listing['listing_name'] for listing in listings]
         })
         
     except Exception as e:

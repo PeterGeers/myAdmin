@@ -255,11 +255,21 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             # Check if weekend (Friday=4, Saturday=5 only)
             is_weekend = current_date.weekday() in [4, 5]
             
-            # Get AI data if available
+            # Get AI data if available, otherwise use business model data as fallback
             ai_data = ai_daily_recommendations.get(date_str, {})
             
             # Get last year ADR for same date
             last_year_adr = self._get_last_year_adr(listing, current_date)
+            
+            # Use business model data as AI fallback if no AI data available
+            if not ai_data:
+                historical_adr = business_result.get('historical_adr', final_price)
+                ai_data = {
+                    'recommended_adr': final_price,
+                    'historical_adr': historical_adr,
+                    'variance': f"{((final_price - historical_adr) / historical_adr * 100):.1f}" if historical_adr > 0 else "0.0",
+                    'reasoning': f"Business model: {business_result.get('reasoning', 'Standard pricing')}"
+                }
             
             daily_prices.append({
                 "date": date_str,
@@ -267,10 +277,10 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 "is_weekend": is_weekend,
                 "event_uplift": event_uplift,
                 "event_name": event_name,
-                "ai_recommended_adr": ai_data.get('recommended_adr') if isinstance(ai_data, dict) else None,
-                "ai_historical_adr": ai_data.get('historical_adr') if isinstance(ai_data, dict) else None,
-                "ai_variance": ai_data.get('variance') if isinstance(ai_data, dict) else None,
-                "ai_reasoning": ai_data.get('reasoning') if isinstance(ai_data, dict) else None,
+                "ai_recommended_adr": float(ai_data.get('recommended_adr', final_price)) if ai_data.get('recommended_adr') else final_price,
+                "ai_historical_adr": float(ai_data.get('historical_adr', final_price)) if ai_data.get('historical_adr') else final_price,
+                "ai_variance": str(ai_data.get('variance', '0.0')).replace('%', '') if ai_data.get('variance') else '0.0',
+                "ai_reasoning": str(ai_data.get('reasoning', 'Business model pricing')) if ai_data.get('reasoning') else 'Business model pricing',
                 "last_year_adr": last_year_adr
             })
         
@@ -284,6 +294,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         try:
             # Clear existing recommendations for this listing
             cursor.execute("DELETE FROM pricing_recommendations WHERE listing_name = %s", [listing])
+            print(f"Cleared existing pricing recommendations for {listing}")
             
             # Insert new recommendations
             insert_sql = """
@@ -309,7 +320,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                     price['event_uplift'],
                     price['event_name'],
                     price.get('ai_recommended_adr'),
-                    price.get('ai_historical_adr'),
+                    price.get('ai_historical_adr'), 
                     price.get('ai_variance'),
                     price.get('ai_reasoning'),
                     price.get('last_year_adr')
@@ -334,8 +345,17 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             return False
             
         try:
+            # Clear existing AI insights files for this listing
+            insights_dir = os.path.join(os.path.dirname(__file__), '..', 'ai_insights')
+            if os.path.exists(insights_dir):
+                listing_prefix = f"ai_insights_{listing.replace(' ', '_') if listing else 'general'}_"
+                for file in os.listdir(insights_dir):
+                    if file.startswith(listing_prefix):
+                        os.remove(os.path.join(insights_dir, file))
+                        print(f"Removed old AI insights file: {file}")
+            
             filename = f"ai_insights_{listing.replace(' ', '_') if listing else 'general'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            filepath = os.path.join(os.path.dirname(__file__), '..', 'ai_insights', filename)
+            filepath = os.path.join(insights_dir, filename)
             
             print(f"Attempting to save to: {filepath}")
             
@@ -536,7 +556,13 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             last_year_date = target_date.replace(year=target_date.year - 1)
             
             query = """
-            SELECT AVG(amountGross/nights) as avg_adr
+            SELECT AVG(
+                CASE 
+                    WHEN listing = 'Child Friendly' AND guests > 2 
+                    THEN (amountGross - (guests - 2) * 30) / nights
+                    ELSE amountGross / nights
+                END
+            ) as avg_adr
             FROM bnb 
             WHERE listing = %s 
             AND checkinDate BETWEEN DATE_SUB(%s, INTERVAL 7 DAY) AND DATE_ADD(%s, INTERVAL 7 DAY)
