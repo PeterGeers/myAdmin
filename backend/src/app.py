@@ -1012,6 +1012,67 @@ def str_save():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Pricing routes
+@app.route('/api/pricing/recommendations', methods=['GET'])
+def pricing_recommendations():
+    """Generate AI-powered pricing recommendations"""
+    try:
+        from daily_pricing_optimizer import DailyPricingOptimizer
+        
+        days = int(request.args.get('days', 90))
+        listing = request.args.get('listing')
+        optimizer = DailyPricingOptimizer(test_mode=flag)
+        
+        recommendations = optimizer.generate_daily_pricing(days, listing)
+        
+        return jsonify({
+            'success': True,
+            'data': recommendations,
+            'listing': listing,
+            'generated_at': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pricing/stored/<listing>', methods=['GET'])
+def get_stored_pricing(listing):
+    """Get stored pricing recommendations for a listing"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        query = """
+        SELECT price_date, recommended_price, is_weekend, event_uplift, event_name, generated_at
+        FROM pricing_recommendations 
+        WHERE listing_name = %s 
+        ORDER BY price_date
+        """
+        
+        cursor.execute(query, [listing])
+        results = cursor.fetchall()
+        
+        # Convert dates to strings
+        for result in results:
+            result['price_date'] = str(result['price_date'])
+            result['generated_at'] = str(result['generated_at'])
+        
+        return jsonify({
+            'success': True,
+            'listing': listing,
+            'pricing_data': results,
+            'count': len(results)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
 @app.route('/api/str/write-future', methods=['POST'])
 def str_write_future():
     """Write current BNB planned data to bnbfuture table"""
