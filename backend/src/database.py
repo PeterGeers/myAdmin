@@ -38,6 +38,10 @@ class DatabaseManager:
                 print(f"Connection pool failed, using direct connections: {e}")
                 DatabaseManager._use_pool = False
     
+    def _get_db_config(self):
+        """Get database configuration for SQLAlchemy"""
+        return self.config
+    
     def get_connection(self):
         if DatabaseManager._use_pool and DatabaseManager._pool:
             try:
