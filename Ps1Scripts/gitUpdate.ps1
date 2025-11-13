@@ -1,5 +1,5 @@
 # param([string]$message)
-$message = "V 0.1 STR rate prediction model"
+$message = "V 0.2 STR rate prediction model and ai update for PDF Transaction processor"
 # Change to myAdmin project root directory
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location (Join-Path $scriptPath "..")

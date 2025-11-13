@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, VStack, HStack, Heading, Button, Select, Table, Thead, Tbody, Tr, Th, Td,
-  Text, Badge, useToast, Spinner, Alert, AlertIcon
+  Text, Badge, useToast, Spinner, Alert, AlertIcon, IconButton
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -17,7 +17,16 @@ interface PricingRecommendation {
   event_uplift: number;
   event_name: string;
   last_year_adr: number;
+  base_rate: number;
+  historical_mult: number;
+  occupancy_mult: number;
+  pace_mult: number;
+  event_mult: number;
+  ai_correction: number;
+  btw_adjustment: number;
 }
+
+
 
 
 
@@ -25,9 +34,21 @@ const STRPricing: React.FC = () => {
   const [listings, setListings] = useState<string[]>([]);
   const [selectedListing, setSelectedListing] = useState<string>('');
   const [recommendations, setRecommendations] = useState<PricingRecommendation[]>([]);
+  const [multipliers, setMultipliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [expandedListings, setExpandedListings] = useState<Set<string>>(new Set());
   const toast = useToast();
+
+  const toggleExpanded = (listing: string) => {
+    const newExpanded = new Set(expandedListings);
+    if (newExpanded.has(listing)) {
+      newExpanded.delete(listing);
+    } else {
+      newExpanded.add(listing);
+    }
+    setExpandedListings(newExpanded);
+  };
 
   const loadListings = useCallback(async () => {
     try {
@@ -71,23 +92,35 @@ const STRPricing: React.FC = () => {
     }
   }, [toast]);
 
+  const loadMultipliers = useCallback(async () => {
+    try {
+      const response = await fetch('/api/pricing/multipliers');
+      const data = await response.json();
+      if (data.success) {
+        setMultipliers(data.multipliers);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error loading multipliers',
+        description: String(error),
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
+
   useEffect(() => {
     loadListings();
     loadRecommendations();
-  }, [loadListings, loadRecommendations]);
+    loadMultipliers();
+  }, [loadListings, loadRecommendations, loadMultipliers]);
 
 
 
   const generatePricing = async () => {
-    if (!selectedListing) {
-      toast({
-        title: 'No listing selected',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
+    // Allow generating for all listings when selectedListing is empty
+    const listingToGenerate = selectedListing || null;
 
     setGenerating(true);
     try {
@@ -98,7 +131,7 @@ const STRPricing: React.FC = () => {
         },
         body: JSON.stringify({
           months: 14,
-          listing: selectedListing,
+          listing: listingToGenerate,
         }),
       });
 
@@ -113,6 +146,7 @@ const STRPricing: React.FC = () => {
         });
         // Reload data
         loadRecommendations();
+        loadMultipliers();
       } else {
         throw new Error(data.error);
       }
@@ -177,10 +211,24 @@ const STRPricing: React.FC = () => {
           ? data.historical.reduce((a: number, b: number) => a + b, 0) / data.historical.length 
           : null;
 
+        // Calculate average base rate for the month
+        const baseRates: number[] = [];
+        filteredRecommendations.forEach(rec => {
+          const recDate = new Date(rec.price_date);
+          const recMonthKey = `${recDate.getFullYear()}-${recDate.getMonth() + 1}`;
+          if (recMonthKey === monthKey && rec.base_rate && typeof rec.base_rate === 'number') {
+            baseRates.push(rec.base_rate);
+          }
+        });
+        const avgBaseRate = baseRates.length > 0 
+          ? baseRates.reduce((a: number, b: number) => a + b, 0) / baseRates.length 
+          : null;
+
         trendData.push({
           period: monthLabel,
           recommended_adr: avgRecommended ? Number(avgRecommended.toFixed(2)) : null,
           historical_adr: avgHistorical ? Number(avgHistorical.toFixed(2)) : null,
+          base_rate: avgBaseRate ? Number(avgBaseRate.toFixed(2)) : null,
         });
       });
 
@@ -213,12 +261,52 @@ const STRPricing: React.FC = () => {
               onClick={generatePricing}
               isLoading={generating}
               loadingText="Generating..."
-              isDisabled={!selectedListing}
             >
               Generate Pricing
             </Button>
           </HStack>
         </HStack>
+
+        {/* Multiplier Summary Table */}
+        <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
+          <Heading size="md" mb={4} color="orange.300">Pricing Multipliers Summary</Heading>
+          {multipliers.length > 0 ? (
+            <Box overflowX="auto">
+              <Table variant="simple" size="sm">
+                <Thead>
+                  <Tr>
+                    <Th color="orange.300">Listing</Th>
+                    <Th color="orange.300" isNumeric>Base Rate</Th>
+                    <Th color="orange.300" isNumeric>Historical</Th>
+                    <Th color="orange.300" isNumeric>Occupancy</Th>
+                    <Th color="orange.300" isNumeric>Revenue Trend</Th>
+                    <Th color="orange.300" isNumeric>Event</Th>
+                    <Th color="orange.300" isNumeric>AI Correction</Th>
+                    <Th color="orange.300" isNumeric>Records</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {multipliers
+                    .filter(mult => selectedListing === '' || mult.listing_name === selectedListing)
+                    .map((mult, index) => (
+                    <Tr key={index}>
+                      <Td fontWeight="bold">{mult.listing_name}</Td>
+                      <Td isNumeric>€{mult.avg_base_rate?.toFixed(0) || 'N/A'}</Td>
+                      <Td isNumeric>{mult.avg_historical_mult?.toFixed(3) || 'N/A'}x</Td>
+                      <Td isNumeric>{mult.avg_occupancy_mult?.toFixed(3) || 'N/A'}x</Td>
+                      <Td isNumeric>{mult.avg_pace_mult?.toFixed(3) || 'N/A'}x</Td>
+                      <Td isNumeric>{mult.avg_event_mult?.toFixed(3) || 'N/A'}x</Td>
+                      <Td isNumeric>{mult.avg_ai_correction?.toFixed(3) || 'N/A'}x</Td>
+                      <Td isNumeric>{mult.record_count || 0}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+          ) : (
+            <Text color="gray.400">No multiplier data available. Generate pricing to see multipliers.</Text>
+          )}
+        </Box>
 
         {/* Trend Chart */}
         <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
@@ -250,10 +338,208 @@ const STRPricing: React.FC = () => {
                   name="Recommended ADR"
                   connectNulls={false}
                 />
+                <Line 
+                  type="monotone" 
+                  dataKey="base_rate" 
+                  stroke="#68D391" 
+                  strokeWidth={2}
+                  name="Base Rate"
+                  connectNulls={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           ) : (
             <Text color="gray.400">No trend data available</Text>
+          )}
+        </Box>
+
+        {/* Monthly Multipliers Table */}
+        <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
+          <Heading size="md" mb={4} color="orange.300">Monthly Multipliers by Listing</Heading>
+          {recommendations.length > 0 ? (
+            <Box overflowX="auto">
+              <Table variant="simple" size="sm">
+                <Thead>
+                  <Tr>
+                    <Th color="orange.300">Listing</Th>
+                    <Th color="orange.300" isNumeric>Base Rate</Th>
+                    <Th color="orange.300" isNumeric>Historical</Th>
+                    <Th color="orange.300" isNumeric>Occupancy</Th>
+                    <Th color="orange.300" isNumeric>Pace</Th>
+                    <Th color="orange.300" isNumeric>Event</Th>
+                    <Th color="orange.300" isNumeric>AI Correction</Th>
+                    <Th color="orange.300" isNumeric>BTW</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {(() => {
+                    // Group recommendations by listing and calculate monthly averages
+                    const listingAverages = new Map();
+                    const listingMonthlyData = new Map();
+                    
+                    const dataToProcess = selectedListing ? 
+                      recommendations.filter(rec => rec.listing_name === selectedListing) : 
+                      recommendations;
+                    
+                    dataToProcess.forEach(rec => {
+                      const listing = rec.listing_name;
+                      const month = new Date(rec.price_date).getMonth() + 1;
+                      const monthName = new Date(rec.price_date).toLocaleDateString('en-US', { month: 'short' });
+                      
+                      if (!listingAverages.has(listing)) {
+                        listingAverages.set(listing, {
+                          base_rate: [],
+                          historical_mult: [],
+                          occupancy_mult: [],
+                          pace_mult: [],
+                          event_mult: [],
+                          ai_correction: [],
+                          btw_adjustment: []
+                        });
+                        listingMonthlyData.set(listing, new Map());
+                      }
+                      
+                      const data = listingAverages.get(listing);
+                      const monthlyData = listingMonthlyData.get(listing);
+                      
+                      if (!monthlyData.has(month)) {
+                        monthlyData.set(month, {
+                          monthName,
+                          base_rate: [],
+                          historical_mult: [],
+                          occupancy_mult: [],
+                          pace_mult: [],
+                          event_mult: [],
+                          ai_correction: [],
+                          btw_adjustment: []
+                        });
+                      }
+                      
+                      const monthData = monthlyData.get(month);
+                      
+                      if (rec.base_rate) {
+                        data.base_rate.push(rec.base_rate);
+                        monthData.base_rate.push(rec.base_rate);
+                      }
+                      if (rec.historical_mult) {
+                        data.historical_mult.push(rec.historical_mult);
+                        monthData.historical_mult.push(rec.historical_mult);
+                      }
+                      if (rec.occupancy_mult) {
+                        data.occupancy_mult.push(rec.occupancy_mult);
+                        monthData.occupancy_mult.push(rec.occupancy_mult);
+                      }
+                      if (rec.pace_mult) {
+                        data.pace_mult.push(rec.pace_mult);
+                        monthData.pace_mult.push(rec.pace_mult);
+                      }
+                      if (rec.event_mult) {
+                        data.event_mult.push(rec.event_mult);
+                        monthData.event_mult.push(rec.event_mult);
+                      }
+                      if (rec.ai_correction) {
+                        data.ai_correction.push(rec.ai_correction);
+                        monthData.ai_correction.push(rec.ai_correction);
+                      }
+                      if (rec.btw_adjustment) {
+                        data.btw_adjustment.push(rec.btw_adjustment);
+                        monthData.btw_adjustment.push(rec.btw_adjustment);
+                      }
+                    });
+                    
+                    const rows: React.ReactElement[] = [];
+                    
+                    Array.from(listingAverages.entries()).forEach(([listing, data]) => {
+                      const avgBaseRate = data.base_rate.length > 0 ? 
+                        data.base_rate.reduce((a: number, b: number) => a + b, 0) / data.base_rate.length : 0;
+                      const avgHistorical = data.historical_mult.length > 0 ? 
+                        data.historical_mult.reduce((a: number, b: number) => a + b, 0) / data.historical_mult.length : 0;
+                      const avgOccupancy = data.occupancy_mult.length > 0 ? 
+                        data.occupancy_mult.reduce((a: number, b: number) => a + b, 0) / data.occupancy_mult.length : 0;
+                      const avgPace = data.pace_mult.length > 0 ? 
+                        data.pace_mult.reduce((a: number, b: number) => a + b, 0) / data.pace_mult.length : 0;
+                      const avgEvent = data.event_mult.length > 0 ? 
+                        data.event_mult.reduce((a: number, b: number) => a + b, 0) / data.event_mult.length : 0;
+                      const avgAI = data.ai_correction.length > 0 ? 
+                        data.ai_correction.reduce((a: number, b: number) => a + b, 0) / data.ai_correction.length : 0;
+                      const avgBTW = data.btw_adjustment.length > 0 ? 
+                        data.btw_adjustment.reduce((a: number, b: number) => a + b, 0) / data.btw_adjustment.length : 0;
+                      
+                      const monthlyData = listingMonthlyData.get(listing);
+                      const isExpanded = expandedListings.has(listing);
+                      
+                      // Main listing row
+                      rows.push(
+                        <Tr key={listing}>
+                          <Td>
+                            <HStack>
+                              <IconButton
+                                size="xs"
+                                variant="solid"
+                                colorScheme="orange"
+                                bg="orange.600"
+                                color="white"
+                                _hover={{ bg: "orange.500" }}
+                                children={isExpanded ? '▼' : '▶'}
+                                onClick={() => toggleExpanded(listing)}
+                                aria-label="Toggle monthly details"
+                              />
+                              <Text fontWeight="bold">{listing}</Text>
+                            </HStack>
+                          </Td>
+                          <Td isNumeric>€{avgBaseRate.toFixed(0)}</Td>
+                          <Td isNumeric>{avgHistorical.toFixed(3)}x</Td>
+                          <Td isNumeric>{avgOccupancy.toFixed(3)}x</Td>
+                          <Td isNumeric>{avgPace.toFixed(3)}x</Td>
+                          <Td isNumeric>{avgEvent.toFixed(3)}x</Td>
+                          <Td isNumeric>{avgAI.toFixed(3)}x</Td>
+                          <Td isNumeric>{avgBTW.toFixed(3)}x</Td>
+                        </Tr>
+                      );
+                      
+                      // Monthly detail rows
+                      if (isExpanded) {
+                        const monthlyOptions = Array.from(monthlyData.entries())
+                          .sort((a: any, b: any) => a[0] - b[0])
+                          .map((entry: any) => {
+                            const [, monthData] = entry;
+                            return {
+                              month: monthData.monthName,
+                              base_rate: monthData.base_rate.length > 0 ? monthData.base_rate.reduce((a: number, b: number) => a + b, 0) / monthData.base_rate.length : 0,
+                              historical: monthData.historical_mult.length > 0 ? monthData.historical_mult.reduce((a: number, b: number) => a + b, 0) / monthData.historical_mult.length : 0,
+                              occupancy: monthData.occupancy_mult.length > 0 ? monthData.occupancy_mult.reduce((a: number, b: number) => a + b, 0) / monthData.occupancy_mult.length : 0,
+                              pace: monthData.pace_mult.length > 0 ? monthData.pace_mult.reduce((a: number, b: number) => a + b, 0) / monthData.pace_mult.length : 0,
+                              event: monthData.event_mult.length > 0 ? monthData.event_mult.reduce((a: number, b: number) => a + b, 0) / monthData.event_mult.length : 0,
+                              ai: monthData.ai_correction.length > 0 ? monthData.ai_correction.reduce((a: number, b: number) => a + b, 0) / monthData.ai_correction.length : 0,
+                              btw: monthData.btw_adjustment.length > 0 ? monthData.btw_adjustment.reduce((a: number, b: number) => a + b, 0) / monthData.btw_adjustment.length : 0
+                            };
+                          });
+                        
+                        monthlyOptions.forEach((monthData) => {
+                          rows.push(
+                            <Tr key={`${listing}-${monthData.month}`} bg="gray.750">
+                              <Td pl={12} fontSize="sm" color="gray.400">{monthData.month}</Td>
+                              <Td isNumeric fontSize="sm">€{monthData.base_rate.toFixed(0)}</Td>
+                              <Td isNumeric fontSize="sm">{monthData.historical.toFixed(3)}x</Td>
+                              <Td isNumeric fontSize="sm">{monthData.occupancy.toFixed(3)}x</Td>
+                              <Td isNumeric fontSize="sm">{monthData.pace.toFixed(3)}x</Td>
+                              <Td isNumeric fontSize="sm">{monthData.event.toFixed(3)}x</Td>
+                              <Td isNumeric fontSize="sm">{monthData.ai.toFixed(3)}x</Td>
+                              <Td isNumeric fontSize="sm">{monthData.btw.toFixed(3)}x</Td>
+                            </Tr>
+                          );
+                        });
+                      }
+                    });
+                    
+                    return rows;
+                  })()
+                  }
+                </Tbody>
+              </Table>
+            </Box>
+          ) : (
+            <Text color="gray.400">No data available for multipliers analysis</Text>
           )}
         </Box>
 

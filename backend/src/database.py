@@ -204,3 +204,17 @@ class DatabaseManager:
                 ]
         
         return results
+    
+    def get_previous_transactions(self, reference_number, limit=3, table_name='mutaties'):
+        """Get previous transactions with descriptions for AI pattern learning"""
+        query = f"""
+            SELECT TransactionDate as Datum, TransactionDescription as Omschrijving, 
+                   TransactionAmount as Bedrag, Debet, Credit
+            FROM {table_name} 
+            WHERE ReferenceNumber LIKE %s 
+            ORDER BY TransactionDate DESC, ID DESC
+            LIMIT %s
+        """
+        
+        results = self.execute_query(query, (f"%{reference_number}%", limit))
+        return results if results else []

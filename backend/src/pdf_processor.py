@@ -350,12 +350,22 @@ class PDFProcessor:
             from ai_extractor import AIExtractor
             ai_extractor = AIExtractor()
             
+            # Get previous transactions for this vendor
+            previous_transactions = []
+            try:
+                from database import DatabaseManager
+                db = DatabaseManager()
+                previous_transactions = db.get_previous_transactions(folder_name, limit=3)
+                print(f"Found {len(previous_transactions)} previous transactions for reference")
+            except Exception as e:
+                print(f"Could not get previous transactions: {e}")
+            
             # Convert lines to text
             text_content = '\n'.join(lines)
             
             print(f"Starting AI extraction for {folder_name}...", flush=True)
-            # Use AI to extract data
-            ai_result = ai_extractor.extract_invoice_data(text_content, folder_name)
+            # Use AI to extract data with previous transaction context
+            ai_result = ai_extractor.extract_invoice_data(text_content, folder_name, previous_transactions)
             
             if ai_result and ai_result['total_amount'] > 0:
                 print(f"AI extraction successful for {folder_name}: €{ai_result['total_amount']}", flush=True)
