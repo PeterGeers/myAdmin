@@ -1044,11 +1044,13 @@ def pricing_recommendations():
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get all recommendations with historical data
+        # Get all recommendations with historical data and multipliers
         query = """
         SELECT listing_name, price_date, recommended_price, ai_recommended_adr, 
                ai_historical_adr, ai_variance, ai_reasoning, is_weekend, 
-               event_uplift, event_name, last_year_adr, generated_at
+               event_uplift, event_name, last_year_adr, generated_at,
+               base_rate, historical_mult, occupancy_mult, pace_mult, 
+               event_mult, ai_correction, btw_adjustment
         FROM pricing_recommendations 
         WHERE price_date >= CURDATE()
         ORDER BY listing_name, price_date
@@ -1073,6 +1075,21 @@ def pricing_recommendations():
                 result['ai_variance'] = float(result['ai_variance'])
             if result['last_year_adr']:
                 result['last_year_adr'] = float(result['last_year_adr'])
+            # Convert multiplier fields to float
+            if result['base_rate']:
+                result['base_rate'] = float(result['base_rate'])
+            if result['historical_mult']:
+                result['historical_mult'] = float(result['historical_mult'])
+            if result['occupancy_mult']:
+                result['occupancy_mult'] = float(result['occupancy_mult'])
+            if result['pace_mult']:
+                result['pace_mult'] = float(result['pace_mult'])
+            if result['event_mult']:
+                result['event_mult'] = float(result['event_mult'])
+            if result['ai_correction']:
+                result['ai_correction'] = float(result['ai_correction'])
+            if result['btw_adjustment']:
+                result['btw_adjustment'] = float(result['btw_adjustment'])
         
         return jsonify({
             'success': True,
@@ -1174,6 +1191,53 @@ def pricing_listings():
         return jsonify({
             'success': True,
             'listings': [listing['listing_name'] for listing in listings]
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+@app.route('/api/pricing/multipliers', methods=['GET'])
+def pricing_multipliers():
+    """Get average multipliers by listing"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        query = """
+        SELECT 
+            listing_name,
+            AVG(base_rate) as avg_base_rate,
+            AVG(historical_mult) as avg_historical_mult,
+            AVG(occupancy_mult) as avg_occupancy_mult,
+            AVG(pace_mult) as avg_pace_mult,
+            AVG(event_mult) as avg_event_mult,
+            AVG(ai_correction) as avg_ai_correction,
+            AVG(btw_adjustment) as avg_btw_adjustment,
+            COUNT(*) as record_count
+        FROM pricing_recommendations 
+        WHERE base_rate IS NOT NULL
+        GROUP BY listing_name
+        ORDER BY listing_name
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        # Convert Decimal to float
+        for result in results:
+            for key, value in result.items():
+                if key != 'listing_name' and key != 'record_count' and value is not None:
+                    result[key] = float(value)
+        
+        return jsonify({
+            'success': True,
+            'multipliers': results
         })
         
     except Exception as e:
@@ -1761,6 +1825,9 @@ if __name__ == '__main__':
     @app.before_request
     def log_request():
         if request.path.startswith('/api/'):
-            print(f"API Request: {request.method} {request.path}", flush=True)
+            try:
+                print(f"API Request: {request.method} {request.path}", flush=True)
+            except (OSError, UnicodeError):
+                print("API Request: [logging error]", flush=True)
     
     app.run(debug=True, port=5000, host='127.0.0.1')

@@ -17,8 +17,16 @@ class AIExtractor:
         else:
             print(f"AI Extractor initialized with API key: {self.api_key[:20]}...")
         
-    def extract_invoice_data(self, text_content, vendor_hint=None):
+    def extract_invoice_data(self, text_content, vendor_hint=None, previous_transactions=None):
         """Extract invoice data using AI with fallback models"""
+        
+        # Build context from previous transactions
+        context_info = ""
+        if previous_transactions and len(previous_transactions) > 0:
+            context_info = "\n\nPrevious transactions from this vendor for reference:\n"
+            for i, tx in enumerate(previous_transactions[:3]):  # Use last 3 transactions
+                context_info += f"- Date: {tx.get('Datum', 'N/A')}, Description: {tx.get('Omschrijving', 'N/A')}, Amount: €{tx.get('Bedrag', 'N/A')}\n"
+            context_info += "\nUse these patterns to help identify similar fields in the current invoice.\n"
         
         prompt = f"""Extract these 5 fields from this invoice/receipt text:
 
@@ -29,7 +37,7 @@ class AIExtractor:
 5. Vendor name
 
 Text content:
-{text_content}
+{text_content}{context_info}
 
 Return ONLY valid JSON in this exact format:
 {{"date": "YYYY-MM-DD", "total_amount": 0.00, "vat_amount": 0.00, "description": "text", "vendor": "name"}}
@@ -38,8 +46,11 @@ Rules:
 - Date must be YYYY-MM-DD format
 - Amounts must be numbers (no currency symbols)
 - If VAT not found, use 0.00
-- Description should include order/invoice numbers if available
-- Extract vendor name from header/footer"""
+- Description should include ALL identifiers: invoice numbers (Factuurnummer), customer numbers (Klantnummer), order numbers, etc.
+- Extract vendor name from header/footer
+- Look for patterns similar to previous transactions from this vendor
+- Invoice/customer numbers may appear before or after their labels
+- Combine multiple identifiers in description (e.g., "Factuurnummer: 123456, Klantnummer: 789012")"""
 
         if not self.api_key:
             print("No API key available, skipping AI extraction")

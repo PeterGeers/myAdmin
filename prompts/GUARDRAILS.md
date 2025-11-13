@@ -79,6 +79,8 @@
 - **Integration tests** for API endpoints
 - **Mock external services** (Google Drive, Gmail, MySQL)
 - **Test both success and failure scenarios**
+- **Test with special characters** in URLs and form data to prevent encoding errors
+- **Test console output handling** on Windows systems
 
 ### **Test Data Management**
 - **Use test database** for all automated tests
@@ -113,6 +115,8 @@
 - **Provide meaningful error messages** to users
 - **Log detailed errors** for debugging
 - **Use try-catch blocks** for external service calls
+- **Use logging module instead of print()** for production code
+- **Handle console encoding errors** on Windows (OSError: Invalid argument)
 
 ### **Performance**
 - **Use database connection pooling** for efficiency
@@ -164,6 +168,8 @@
 6. **Inconsistent date formats** - Use ISO format (YYYY-MM-DD) consistently
 7. **Memory leaks** - Close database connections and clean up resources
 8. **Missing loading states** - Always show loading indicators for async operations
+9. **Console encoding errors** - Wrap print() statements in try-catch for Windows compatibility
+10. **Logging in production** - Use Python logging module instead of print() statements
 
 ## 📋 Pre-Deployment Checklist
 

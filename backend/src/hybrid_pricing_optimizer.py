@@ -20,6 +20,10 @@ class HybridPricingOptimizer:
     def generate_pricing_strategy(self, months=14, listing=None):
         """Generate 14-month pricing with AI insights and rule-based execution"""
         
+        # If no specific listing, generate for all active listings
+        if not listing:
+            return self._generate_all_listings_pricing(months)
+        
         # Generate AI strategic insights
         ai_insights = self._generate_ai_insights(months, listing)
         print(f"AI insights generated: {bool(ai_insights)}")
@@ -29,7 +33,7 @@ class HybridPricingOptimizer:
         daily_pricing = self._generate_daily_pricing(days, listing, ai_insights)
         
         # Save pricing to database
-        if listing and daily_pricing:
+        if daily_pricing:
             self._save_pricing_to_database(daily_pricing, listing)
         
         # Save AI insights to file
@@ -281,10 +285,78 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 "ai_historical_adr": float(ai_data.get('historical_adr', final_price)) if ai_data.get('historical_adr') else final_price,
                 "ai_variance": str(ai_data.get('variance', '0.0')).replace('%', '') if ai_data.get('variance') else '0.0',
                 "ai_reasoning": str(ai_data.get('reasoning', 'Business model pricing')) if ai_data.get('reasoning') else 'Business model pricing',
-                "last_year_adr": last_year_adr
+                "last_year_adr": last_year_adr,
+                "base_rate": business_result['base_rate'],
+                "historical_mult": business_result['historical_mult'],
+                "occupancy_mult": business_result['occupancy_mult'],
+                "pace_mult": business_result['pace_mult'],
+                "event_mult": business_result['event_mult'],
+                "ai_correction": business_result['ai_correction'],
+                "btw_adjustment": business_result['btw_adjustment']
             })
         
         return daily_prices
+    
+    def _generate_all_listings_pricing(self, months=14):
+        """Generate pricing for all active listings"""
+        try:
+            # Get all active listings
+            conn = self.db.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT listing_name FROM listings WHERE active = TRUE ORDER BY listing_name")
+            listings = [row['listing_name'] for row in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+            
+            if not listings:
+                print("No active listings found")
+                return {'daily_prices_count': 0, 'ai_insights_saved': False, 'months_generated': months, 'listing': None}
+            
+            print(f"Generating pricing for {len(listings)} listings: {listings}")
+            
+            # Clear all existing recommendations first
+            conn = self.db.get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pricing_recommendations")
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print("Cleared all existing pricing recommendations for new run")
+            
+            total_prices = 0
+            days = months * 30
+            
+            # Generate pricing for each listing
+            for listing_name in listings:
+                print(f"Processing listing: {listing_name}")
+                
+                # Generate AI insights for this listing
+                ai_insights = self._generate_ai_insights(months, listing_name)
+                
+                # Generate daily pricing
+                daily_pricing = self._generate_daily_pricing(days, listing_name, ai_insights)
+                
+                if daily_pricing:
+                    # Save to database (without clearing since we cleared once at the start)
+                    self._save_pricing_to_database_no_clear(daily_pricing, listing_name)
+                    total_prices += len(daily_pricing)
+                
+                # Save AI insights
+                if ai_insights:
+                    self._save_ai_insights_to_file(ai_insights, listing_name)
+            
+            print(f"Generated pricing for all listings: {total_prices} total daily prices")
+            
+            return {
+                'daily_prices_count': total_prices,
+                'ai_insights_saved': True,
+                'months_generated': months,
+                'listing': f'All listings ({len(listings)})'
+            }
+            
+        except Exception as e:
+            print(f"Error generating all listings pricing: {e}")
+            return {'daily_prices_count': 0, 'ai_insights_saved': False, 'months_generated': months, 'listing': None, 'error': str(e)}
     
     def _save_pricing_to_database(self, daily_prices, listing):
         """Save pricing to database"""
@@ -292,15 +364,15 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         cursor = conn.cursor()
         
         try:
-            # Clear existing recommendations for this listing
-            cursor.execute("DELETE FROM pricing_recommendations WHERE listing_name = %s", [listing])
-            print(f"Cleared existing pricing recommendations for {listing}")
+            # Clear ALL existing recommendations at start of new run
+            cursor.execute("DELETE FROM pricing_recommendations")
+            print(f"Cleared all existing pricing recommendations for new run")
             
             # Insert new recommendations
             insert_sql = """
             INSERT INTO pricing_recommendations 
-            (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
             valid_prices = []
@@ -323,7 +395,69 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                     price.get('ai_historical_adr'), 
                     price.get('ai_variance'),
                     price.get('ai_reasoning'),
-                    price.get('last_year_adr')
+                    price.get('last_year_adr'),
+                    price.get('base_rate'),
+                    price.get('historical_mult'),
+                    price.get('occupancy_mult'),
+                    price.get('pace_mult'),
+                    price.get('event_mult'),
+                    price.get('ai_correction'),
+                    price.get('btw_adjustment')
+                ])
+            
+            conn.commit()
+            print(f"Saved {len(valid_prices)} pricing recommendations for {listing}")
+            return True
+            
+        except Exception as e:
+            print(f"Error saving pricing: {e}")
+            conn.rollback()
+            return False
+        finally:
+            cursor.close()
+            conn.close()
+    
+    def _save_pricing_to_database_no_clear(self, daily_prices, listing):
+        """Save pricing to database without clearing existing data"""
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Insert new recommendations without clearing
+            insert_sql = """
+            INSERT INTO pricing_recommendations 
+            (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            valid_prices = []
+            for price in daily_prices:
+                try:
+                    datetime.strptime(price['date'], '%Y-%m-%d')
+                    valid_prices.append(price)
+                except ValueError:
+                    continue
+            
+            for price in valid_prices:
+                cursor.execute(insert_sql, [
+                    listing,
+                    price['date'],
+                    price['price'],
+                    price['is_weekend'],
+                    price['event_uplift'],
+                    price['event_name'],
+                    price.get('ai_recommended_adr'),
+                    price.get('ai_historical_adr'), 
+                    price.get('ai_variance'),
+                    price.get('ai_reasoning'),
+                    price.get('last_year_adr'),
+                    price.get('base_rate'),
+                    price.get('historical_mult'),
+                    price.get('occupancy_mult'),
+                    price.get('pace_mult'),
+                    price.get('event_mult'),
+                    price.get('ai_correction'),
+                    price.get('btw_adjustment')
                 ])
             
             conn.commit()
