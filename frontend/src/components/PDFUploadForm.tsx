@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, VStack, FormControl, FormLabel, Input, Button,
-  Text, Progress, Textarea, HStack
+  Text, Progress, Textarea, HStack, Tabs, TabList, TabPanels, Tab, TabPanel
 } from '@chakra-ui/react';
 import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
+import PDFValidation from './PDFValidation';
 
 
 
@@ -206,6 +207,14 @@ const PDFUploadForm: React.FC = () => {
 
   return (
     <Box maxW="800px" mx="auto" p={4}>
+      <Tabs variant="enclosed" colorScheme="orange">
+        <TabList>
+          <Tab color="white">📄 Upload Invoices</Tab>
+          <Tab color="white">🔍 Check Invoice Exists</Tab>
+        </TabList>
+
+        <TabPanels>
+          <TabPanel>
       
       <Formik
         initialValues={{ file: null, folderId: '' }}
@@ -588,6 +597,12 @@ const PDFUploadForm: React.FC = () => {
           </HStack>
         </Box>
       )}
+          </TabPanel>
+          <TabPanel>
+            <PDFValidation />
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
     </Box>
   );
 };

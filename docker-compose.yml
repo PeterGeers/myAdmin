@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    mem_limit: 512m
+    restart: unless-stopped
+    
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql
+    environment:
+      - DB_HOST=mysql
+      - DB_NAME=${DB_NAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - TEST_MODE=${TEST_MODE}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - FACTUREN_FOLDER_ID=${FACTUREN_FOLDER_ID}
+    volumes:
+      - ./backend:/app
+    mem_limit: 1g
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

@@ -15,7 +15,7 @@ cd frontend && npm start     # Port 3000
 
 ## Components
 
-### 📄 PDF Transaction Processor
+### 📄 Import Invoices
 - Upload PDFs, EML, and MHTML files to Google Drive or local storage
 - AI-powered universal invoice data extraction via OpenRouter API
 - Traditional vendor-specific parsers as fallback (251+ formats)

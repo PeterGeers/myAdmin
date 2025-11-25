@@ -1,5 +1,5 @@
 # param([string]$message)
-$message = "V 0.2 STR rate prediction model and ai update for PDF Transaction processor"
+$message = "Created migration planm to AWS and use local conatiners for backend and mysql"
 # Change to myAdmin project root directory
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location (Join-Path $scriptPath "..")

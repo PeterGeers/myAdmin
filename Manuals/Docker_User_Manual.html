@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myAdmin Docker User Manual</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; border-bottom: 1px solid #bdc3c7; padding-bottom: 5px; }
+        h3 { color: #7f8c8d; }
+        .command { 
+            background: #2c3e50; 
+            color: #ecf0f1; 
+            padding: 10px; 
+            border-radius: 5px; 
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        .note { 
+            background: #f39c12; 
+            color: white; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin: 10px 0;
+        }
+        .success { 
+            background: #27ae60; 
+            color: white; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin: 10px 0;
+        }
+        .warning { 
+            background: #e74c3c; 
+            color: white; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin: 10px 0;
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 20px 0;
+        }
+        th, td { 
+            border: 1px solid #bdc3c7; 
+            padding: 12px; 
+            text-align: left; 
+        }
+        th { 
+            background: #3498db; 
+            color: white; 
+        }
+        .container-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .running { background: #27ae60; color: white; }
+        .stopped { background: #e74c3c; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🐳 myAdmin Docker User Manual</h1>
+    
+    <h2>📋 Overview</h2>
+    <p>This manual covers Docker container management for the myAdmin application, including MySQL database and Flask backend containers.</p>
+    
+    <div class="success">
+        <strong>✅ Current Setup:</strong> Two containers running MySQL (port 3307) and Backend (port 5000)
+    </div>
+
+    <h2>🚀 Quick Start Commands</h2>
+    
+    <h3>Starting Containers</h3>
+    <div class="command">
+        # Fast start (recommended)
+        .\start-docker.ps1
+        
+        # Rebuild containers (slower)
+        .\start-docker.ps1 --build
+    </div>
+    
+    <h3>Stopping Containers</h3>
+    <div class="command">
+        # Stop all containers
+        .\stop-docker.ps1
+        
+        # Or manually
+        docker-compose down
+    </div>
+
+    <h2>📊 Container Status</h2>
+    
+    <table>
+        <tr>
+            <th>Container</th>
+            <th>Service</th>
+            <th>Port</th>
+            <th>Purpose</th>
+            <th>Auto-restart</th>
+        </tr>
+        <tr>
+            <td>myadmin-mysql-1</td>
+            <td>MySQL 8.0</td>
+            <td>3307</td>
+            <td>Database storage</td>
+            <td><span class="container-status running">unless-stopped</span></td>
+        </tr>
+        <tr>
+            <td>myadmin-backend-1</td>
+            <td>Flask API</td>
+            <td>5000</td>
+            <td>Backend API server</td>
+            <td><span class="container-status running">unless-stopped</span></td>
+        </tr>
+    </table>
+
+    <h2>📝 Log Management</h2>
+    
+    <h3>View Logs</h3>
+    <div class="command">
+        # Backend logs (last 50 lines)
+        .\logs-docker.ps1
+        
+        # Follow backend logs live
+        .\logs-docker.ps1 -Follow
+        
+        # MySQL logs
+        .\logs-docker.ps1 -Container mysql
+        
+        # Last 100 lines
+        .\logs-docker.ps1 -Tail 100
+    </div>
+    
+    <h3>Manual Log Commands</h3>
+    <div class="command">
+        # View backend logs
+        docker logs myadmin-backend-1
+        
+        # Follow logs in real-time
+        docker logs -f myadmin-backend-1
+        
+        # Last 50 lines
+        docker logs --tail 50 myadmin-backend-1
+    </div>
+
+    <h2>🗄️ Database Access</h2>
+    
+    <h3>Connection Settings</h3>
+    <table>
+        <tr>
+            <th>Setting</th>
+            <th>Value</th>
+        </tr>
+        <tr>
+            <td>Host</td>
+            <td>localhost</td>
+        </tr>
+        <tr>
+            <td>Port</td>
+            <td>3307</td>
+        </tr>
+        <tr>
+            <td>Username</td>
+            <td>peter</td>
+        </tr>
+        <tr>
+            <td>Password</td>
+            <td>***********</td>
+        </tr>
+        <tr>
+            <td>Database</td>
+            <td>finance</td>
+        </tr>
+    </table>
+    
+    <div class="note">
+        <strong>📌 Note:</strong> Use port 3307 for Docker MySQL, not the default 3306
+    </div>
+
+    <h2>🔧 Troubleshooting</h2>
+    
+    <h3>Common Issues</h3>
+    
+    <h4>Port Already in Use</h4>
+    <div class="warning">
+        <strong>Error:</strong> "bind: Only one usage of each socket address"
+    </div>
+    <p><strong>Solution:</strong> Stop local MySQL service or change Docker port in docker-compose.yml</p>
+    
+    <h4>Frontend Can't Connect to Backend</h4>
+    <div class="warning">
+        <strong>Error:</strong> "Proxy error: Could not proxy request"
+    </div>
+    <p><strong>Solution:</strong> Ensure backend binds to 0.0.0.0:5000, not 127.0.0.1:5000</p>
+    
+    <h4>Container Won't Start</h4>
+    <div class="command">
+        # Check container status
+        docker ps -a
+        
+        # View container logs for errors
+        docker logs myadmin-backend-1
+    </div>
+
+    <h2>⚙️ Advanced Commands</h2>
+    
+    <h3>Container Management</h3>
+    <div class="command">
+        # Check running containers
+        docker ps
+        
+        # Check all containers (including stopped)
+        docker ps -a
+        
+        # Restart specific container
+        docker restart myadmin-backend-1
+        
+        # Execute command in container
+        docker exec -it myadmin-mysql-1 mysql -u peter -p
+    </div>
+    
+    <h3>Data Management</h3>
+    <div class="command">
+        # View Docker volumes
+        docker volume ls
+        
+        # Backup database
+        docker exec myadmin-mysql-1 mysqldump -u peter -p********* finance > backup.sql
+        
+        # Restore database
+        docker exec -i myadmin-mysql-1 mysql -u peter -p********** finance < backup.sql
+    </div>
+
+    <h2>🔄 Auto-Start Configuration</h2>
+    
+    <p>Containers are configured with <code>restart: unless-stopped</code> policy:</p>
+    <ul>
+        <li>✅ Auto-start when Docker Desktop starts</li>
+        <li>✅ Auto-restart if container crashes</li>
+        <li>❌ Won't restart if manually stopped</li>
+    </ul>
+    
+    <div class="note">
+        <strong>📌 Requirement:</strong> Docker Desktop must be set to start with Windows
+    </div>
+
+    <h2>🌐 Access URLs</h2>
+    
+    <table>
+        <tr>
+            <th>Service</th>
+            <th>URL</th>
+            <th>Purpose</th>
+        </tr>
+        <tr>
+            <td>Frontend</td>
+            <td><a href="http://localhost:3000">http://localhost:3000</a></td>
+            <td>React application</td>
+        </tr>
+        <tr>
+            <td>Backend API</td>
+            <td><a href="http://localhost:5000">http://localhost:5000</a></td>
+            <td>Flask API server</td>
+        </tr>
+        <tr>
+            <td>Database</td>
+            <td>localhost:3307</td>
+            <td>MySQL connection</td>
+        </tr>
+    </table>
+
+    <h2>📁 File Structure</h2>
+    
+    <div class="command">
+        myAdmin/
+        ├── docker-compose.yml      # Container configuration
+        ├── .env.docker            # Docker environment variables
+        ├── start-docker.ps1       # Start containers script
+        ├── stop-docker.ps1        # Stop containers script
+        ├── logs-docker.ps1        # View logs script
+        ├── simple-migrate.ps1     # Database migration script
+        └── backend/
+            └── Dockerfile          # Backend container definition
+    </div>
+
+    <h2>🎯 Best Practices</h2>
+    
+    <ul>
+        <li>Use <code>.\start-docker.ps1</code> for daily development (fast)</li>
+        <li>Use <code>.\start-docker.ps1 --build</code> only when code changes</li>
+        <li>Monitor logs with <code>.\logs-docker.ps1 -Follow</code> during development</li>
+        <li>Stop containers with <code>.\stop-docker.ps1</code> when not needed</li>
+        <li>Backup database regularly using mysqldump commands</li>
+        <li>Keep Docker Desktop updated for best performance</li>
+    </ul>
+
+    <div class="success">
+        <strong>🎉 Ready to Go!</strong> Your containerized myAdmin environment is production-ready and matches the AWS deployment architecture.
+    </div>
+
+    <hr>
+    <p><em>Generated: November 2025 | myAdmin Docker Setup</em></p>
+</body>
+</html>
