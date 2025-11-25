@@ -1,52 +1,46 @@
 {
-  "terminal.integrated.cwd": "${workspaceFolder}",
-  "github.copilot.chat.scopeSelection": false,
-  "amazonQ.showCodeWithReferences": false,
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/build": true,
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/uploads": true,
+    "**/*.pyc": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/build": true,
+    "**/.venv": true,
+    "**/uploads": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/build/**": true,
+    "**/.venv/**": true,
+    "**/uploads/**": true
+  },
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.indexing": false,
+  "pylance.insidersChannel": "off",
   "python.defaultInterpreterPath": "./backend/.venv/Scripts/python.exe",
   "python.terminal.activateEnvironment": true,
+  "emmet.includeLanguages": {
+    "javascript": "javascriptreact"
+  },
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
   "files.associations": {
     "*.ps1": "powershell"
   },
-  "workbench.colorTheme": "Default Dark Modern",
-  "workbench.iconTheme": "vs-seti",
-  "editor.fontSize": 14,
-  "editor.fontFamily": "'Cascadia Code', Consolas, 'Courier New', monospace",
-  "editor.fontLigatures": true,
-  "editor.minimap.enabled": true,
-  "editor.wordWrap": "on",
-  "editor.rulers": [80, 120],
-  "workbench.editor.enablePreview": false,
-  "workbench.startupEditor": "welcomePage",
-  "explorer.confirmDelete": false,
-  "explorer.confirmDragAndDrop": false,
-  "sqltools.connections": [
-    {
-      "mysqlOptions": {
-        "authProtocol": "default",
-        "enableSsl": "Disabled"
-      },
-      "ssh": "Disabled",
-      "previewLimit": 50,
-      "server": "localhost",
-      "port": 3306,
-      "driver": "MySQL",
-      "name": "MyAdmin",
-      "database": "finance",
-      "username": "${env:DB_USER}"
-    },
-    {
-      "mysqlOptions": {
-        "authProtocol": "default",
-        "enableSsl": "Disabled"
-      },
-      "ssh": "Disabled",
-      "previewLimit": 50,
-      "server": "localhost",
-      "port": 3306,
-      "driver": "MySQL",
-      "name": "MyAdmin Test",
-      "database": "testfinance",
-      "username": "${env:DB_USER}"
-    }
-  ]
+  "github.copilot.enable": {
+    "*": false,
+    "plaintext": false,
+    "markdown": false,
+    "scminput": false
+  }
 }

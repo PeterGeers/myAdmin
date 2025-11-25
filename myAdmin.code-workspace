@@ -1,0 +1,103 @@
+{
+  "folders": [
+    {
+      "name": "Backend",
+      "path": "./backend"
+    },
+    {
+      "name": "Frontend", 
+      "path": "./frontend"
+    },
+    {
+      "name": "myAdmin",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/build": true,
+      "**/.venv": true,
+      "**/__pycache__": true,
+      "**/uploads": true,
+      "**/*.pyc": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/build": true,
+      "**/.venv": true,
+      "**/uploads": true
+    },
+    "python.defaultInterpreterPath": "./backend/.venv/Scripts/python.exe",
+    "python.terminal.activateEnvironment": true,
+    "github.copilot.enable": {
+      "*": false,
+      "plaintext": false,
+      "markdown": false,
+      "scminput": false
+    },
+    "typescript.preferences.includePackageJsonAutoImports": "off",
+    "python.analysis.autoImportCompletions": false,
+    "python.analysis.indexing": false,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    },
+    "terminal.integrated.cwd": "${workspaceFolder}"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "ms-python.pylance",
+      "esbenp.prettier-vscode"
+    ],
+    "unwantedRecommendations": [
+      "github.copilot",
+      "github.copilot-chat",
+      "bradlc.vscode-tailwindcss"
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Start Backend",
+        "type": "shell",
+        "command": "cd backend && .venv\\Scripts\\activate && cd src && python app.py",
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "new"
+        }
+      },
+      {
+        "label": "Start Frontend",
+        "type": "shell",
+        "command": "cd frontend && npm start",
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "group": "build",
+        "presentation": {
+          "echo": true,
+          "reveal": "always", 
+          "focus": false,
+          "panel": "new"
+        }
+      },
+      {
+        "label": "Start Both Servers",
+        "dependsOrder": "parallel",
+        "dependsOn": ["Start Backend", "Start Frontend"],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      }
+    ]
+  }
+}

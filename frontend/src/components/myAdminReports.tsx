@@ -1531,19 +1531,19 @@ const MyAdminReports: React.FC = () => {
                       <Table size="sm" variant="simple">
                         <Thead>
                           <Tr>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDate')}>
+                            <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDate')} style={{color: 'white !important'}}>
                               Date {sortField === 'TransactionDate' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDescription')}>
+                            <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDescription')} style={{color: 'white !important'}}>
                               Description {sortField === 'TransactionDescription' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('Amount')}>
+                            <Th color="white" cursor="pointer" onClick={() => handleSort('Amount')} style={{color: 'white !important'}}>
                               Amount {sortField === 'Amount' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('AccountName')}>
+                            <Th color="white" cursor="pointer" onClick={() => handleSort('AccountName')} style={{color: 'white !important'}}>
                               Account {sortField === 'AccountName' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('ReferenceNumber')}>
+                            <Th color="white" cursor="pointer" onClick={() => handleSort('ReferenceNumber')} style={{color: 'white !important'}}>
                               Reference {sortField === 'ReferenceNumber' && (sortDirection === 'asc' ? '↑' : '↓')}
                             </Th>
                           </Tr>
@@ -1552,7 +1552,7 @@ const MyAdminReports: React.FC = () => {
                           {filteredMutatiesData.slice(0, 100).map((row, index) => (
                             <Tr key={index}>
                               <Td color="white" fontSize="sm">{new Date(row.TransactionDate).toLocaleDateString('nl-NL')}</Td>
-                              <Td color="white" fontSize="sm">{row.TransactionDescription}</Td>
+                              <Td color="white" fontSize="sm" maxW="300px" isTruncated title={row.TransactionDescription}>{row.TransactionDescription}</Td>
                               <Td color="white" fontSize="sm">€{Number(row.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
                               <Td color="white" fontSize="sm">{row.AccountName}</Td>
                               <Td color="white" fontSize="sm">{row.ReferenceNumber}</Td>
