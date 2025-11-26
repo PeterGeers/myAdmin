@@ -1830,4 +1830,10 @@ if __name__ == '__main__':
             except (OSError, UnicodeError):
                 print("API Request: [logging error]", flush=True)
     
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    # Get host from environment variable, default to 0.0.0.0 for Docker
+    host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
+    port = int(os.getenv('FLASK_RUN_PORT', '5000'))
+    debug = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
+    
+    print(f"Starting Flask on {host}:{port} (debug={debug})")
+    app.run(debug=debug, port=port, host=host)

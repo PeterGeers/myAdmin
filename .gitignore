@@ -17,6 +17,13 @@ pip-delete-this-directory.txt
 # Environment variables
 .env
 *.env
+.env.*
+**/secrets.*
+**/*secret*
+**/*credential*
+**/*password*
+!*.example
+!**/example.*
 
 #### cache
 h-dcn
