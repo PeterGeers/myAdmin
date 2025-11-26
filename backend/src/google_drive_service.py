@@ -15,10 +15,16 @@ class GoogleDriveService:
         self.service = self._authenticate()
     
     def _authenticate(self):
-        # Get backend directory path
-        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        credentials_path = os.path.join(backend_dir, 'credentials.json')
-        token_path = os.path.join(backend_dir, 'token.json')
+        # Check if running in Docker container
+        if os.path.exists('/app/credentials.json'):
+            # Docker environment
+            credentials_path = '/app/credentials.json'
+            token_path = '/app/token.json'
+        else:
+            # Local development environment
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            credentials_path = os.path.join(backend_dir, 'credentials.json')
+            token_path = os.path.join(backend_dir, 'token.json')
         
         print(f"Looking for credentials at: {credentials_path}")
         print(f"Credentials file exists: {os.path.exists(credentials_path)}")
@@ -33,8 +39,11 @@ class GoogleDriveService:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
-                creds = flow.run_local_server(port=0)
+                if os.path.exists(credentials_path):
+                    flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
+                    creds = flow.run_local_server(port=0)
+                else:
+                    raise Exception(f"Credentials file not found at {credentials_path}")
             
             with open(token_path, 'w') as token:
                 token.write(creds.to_json())

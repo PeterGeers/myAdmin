@@ -25,6 +25,7 @@ services:
       - TEST_MODE=${TEST_MODE}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - FACTUREN_FOLDER_ID=${FACTUREN_FOLDER_ID}
+      - TEST_FACTUREN_FOLDER_ID=${TEST_FACTUREN_FOLDER_ID}
     volumes:
       - ./backend:/app
     mem_limit: 1g

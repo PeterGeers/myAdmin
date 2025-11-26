@@ -30,7 +30,6 @@ const validationSchema = Yup.object({
 });
 
 const PDFUploadForm: React.FC = () => {
-  const [folders, setFolders] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [parsedData, setParsedData] = useState<any>(null);
@@ -195,13 +194,14 @@ const PDFUploadForm: React.FC = () => {
         folderName: newFolderName
       });
       
-      setFolders([...folders, newFolderName].sort());
+      // Refresh the folders list after creating
+      await fetchFolders();
       setNewFolderName('');
       setShowCreateFolder(false);
       alert('Folder created successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Create folder error:', error);
-      alert('Error creating folder');
+      alert(`Error creating folder: ${error.response?.data?.error || error.message}`);
     }
   };
 
