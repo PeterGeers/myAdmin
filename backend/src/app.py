@@ -65,7 +65,7 @@ def allowed_file(filename):
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     """Serve static files from React build"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
     static_folder = os.path.join(build_folder, 'static')
     
     # Handle nested paths like css/main.css or js/main.js
@@ -77,25 +77,25 @@ def serve_static(filename):
 @app.route('/manifest.json')
 def serve_manifest():
     """Serve React manifest.json"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
     return send_from_directory(build_folder, 'manifest.json')
 
 @app.route('/favicon.ico')
 def serve_favicon():
     """Serve React favicon"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
     return send_from_directory(build_folder, 'favicon.ico')
 
 @app.route('/logo192.png')
 def serve_logo192():
     """Serve React logo192.png"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
     return send_from_directory(build_folder, 'logo192.png')
 
 @app.route('/logo512.png')
 def serve_logo512():
     """Serve React logo512.png"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
     return send_from_directory(build_folder, 'logo512.png')
 
 
@@ -104,10 +104,11 @@ def serve_logo512():
 @app.route('/')
 def serve_index():
     """Serve React index.html"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
-    if not os.path.exists(build_folder):
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+    try:
+        return send_from_directory(build_folder, 'index.html')
+    except:
         return jsonify({'error': 'Frontend not built'}), 404
-    return send_from_directory(build_folder, 'index.html')
 
 @app.errorhandler(404)
 def handle_404(e):
@@ -118,10 +119,11 @@ def handle_404(e):
         return jsonify({'error': 'API endpoint not found', 'path': request.path}), 404
     
     # Only serve React app for non-API routes
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
-    if not os.path.exists(build_folder):
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+    try:
+        return send_from_directory(build_folder, 'index.html')
+    except:
         return jsonify({'error': 'Frontend not built'}), 404
-    return send_from_directory(build_folder, 'index.html')
 
 @app.route('/api/folders', methods=['GET'])
 def get_folders():
@@ -1284,6 +1286,41 @@ def str_summary():
         return jsonify({
             'success': True,
             'summary': summary
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/str/future-trend', methods=['GET'])
+def str_future_trend():
+    """Get BNB future revenue trend data"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        conn = db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        query = """
+        SELECT date, channel, listing, amount, items
+        FROM bnbfuture
+        ORDER BY date, listing, channel
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        # Convert dates and decimals
+        for row in results:
+            if row['date']:
+                row['date'] = str(row['date'])
+            if row['amount']:
+                row['amount'] = float(row['amount'])
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': results
         })
         
     except Exception as e:
