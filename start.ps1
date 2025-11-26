@@ -102,11 +102,14 @@ switch ($Mode.ToLower()) {
     "containers" {
         Write-Host "Managing Docker containers..." -ForegroundColor Green
         
-        # Copy and modify backend/.env for Docker
+        # Always sync backend/.env to root .env for Docker
         if (Test-Path "backend\.env") {
-            Copy-Item "backend\.env" ".env"
+            Copy-Item "backend\.env" ".env" -Force
             (Get-Content ".env") -replace "DB_HOST=localhost", "DB_HOST=mysql" | Set-Content ".env"
-            Write-Host "Using backend .env with Docker DB_HOST" -ForegroundColor Yellow
+            Write-Host "✅ Synced backend/.env to root .env" -ForegroundColor Green
+        } else {
+            Write-Host "❌ backend/.env not found!" -ForegroundColor Red
+            exit 1
         }
         
         if ($Build) {

@@ -56,8 +56,15 @@ Rules:
             print("No API key available, skipping AI extraction")
             return self._fallback_data(vendor_hint)
         
-        # Try primary model first, then fallback
-        models = ["openai/gpt-3.5-turbo", "moonshotai/kimi-k2:free"]
+        # Try free models first, then paid as fallback
+        models = [
+            "deepseek/deepseek-chat",  # Free
+            "moonshot/moonshot-v1-8k",  # Free (Kimi)
+            "google/gemini-flash-1.5",  # Free, very fast
+            "meta-llama/llama-3.2-3b-instruct:free",  # Free
+            "microsoft/phi-3-mini-128k-instruct:free",  # Free
+            "openai/gpt-3.5-turbo"  # Paid fallback
+        ]
         
         for model in models:
             try:
