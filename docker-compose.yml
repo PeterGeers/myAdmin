@@ -28,6 +28,7 @@ services:
       - TEST_FACTUREN_FOLDER_ID=${TEST_FACTUREN_FOLDER_ID}
     volumes:
       - ./backend:/app
+      - ./frontend/build:/app/frontend/build
     mem_limit: 1g
     restart: unless-stopped
 

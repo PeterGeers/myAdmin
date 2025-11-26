@@ -63,6 +63,8 @@ switch ($Mode.ToLower()) {
         Write-Host "Backend API: http://localhost:5000" -ForegroundColor Cyan
         Write-Host "Frontend Dev: http://localhost:3000" -ForegroundColor Cyan
         Write-Host "Database: localhost:3306 (Docker)" -ForegroundColor Cyan
+        Write-Host "" -ForegroundColor White
+        Write-Host "Note: Frontend dev server will open automatically" -ForegroundColor Gray
     }
     "prod" {
         Write-Host "Building for Production..." -ForegroundColor Green
@@ -93,7 +95,16 @@ switch ($Mode.ToLower()) {
         # Build frontend
         Set-Location "$rootDir\frontend"
         Write-Host "🏗️ Building React frontend..." -ForegroundColor Yellow
+        $buildStart = Get-Date
         npm run build
+        $buildEnd = Get-Date
+        $buildTime = ($buildEnd - $buildStart).TotalSeconds
+        Write-Host "Build completed in $([math]::Round($buildTime, 1)) seconds" -ForegroundColor Cyan
+        
+        # Restart backend to pick up new build
+        Set-Location $rootDir
+        Write-Host "📦 Restarting backend for new build..." -ForegroundColor Yellow
+        docker-compose restart backend
         
         Write-Host "✅ Production build complete!" -ForegroundColor Green
         Write-Host "Production server: http://localhost:5000" -ForegroundColor Cyan
