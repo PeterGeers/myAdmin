@@ -42,5 +42,6 @@
     "plaintext": false,
     "markdown": false,
     "scminput": false
-  }
+  },
+  "openrouter.apiKey": "<your-openrouter-api-key>"
 }

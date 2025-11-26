@@ -8,8 +8,8 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - "3307:3306"
-    mem_limit: 512m
+      - "3306:3306"
+    mem_limit: 2g
     restart: unless-stopped
     
   backend:

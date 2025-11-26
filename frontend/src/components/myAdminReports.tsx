@@ -1626,8 +1626,8 @@ const MyAdminReports: React.FC = () => {
                             { key: 'amountChannelFee', label: 'Channel Fee' },
                             { key: 'amountTouristTax', label: 'Tourist Tax' },
                             { key: 'amountVat', label: 'VAT Amount' }
-                          ].map(amount => (
-                            <MenuItem key={amount.key} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                          ].map((amount, index) => (
+                            <MenuItem key={`bnb-amount-${amount.key}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                               <Checkbox
                                 isChecked={bnbFilters.selectedAmounts.includes(amount.key)}
                                 onChange={(e) => {
@@ -1788,8 +1788,8 @@ const MyAdminReports: React.FC = () => {
                             {actualsFilters.years.length > 0 ? actualsFilters.years.join(', ') : 'Select years...'}
                           </MenuButton>
                           <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {availableYears.map(year => (
-                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                            {availableYears.map((year, index) => (
+                              <MenuItem key={`actuals-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                 <Checkbox
                                   isChecked={actualsFilters.years.includes(year)}
                                   onChange={(e) => {
@@ -2149,8 +2149,8 @@ const MyAdminReports: React.FC = () => {
                             {bnbActualsFilters.years.length > 0 ? bnbActualsFilters.years.join(', ') : 'Select years...'}
                           </MenuButton>
                           <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {bnbAvailableYears.map(year => (
-                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                            {bnbAvailableYears.map((year, index) => (
+                              <MenuItem key={`bnb-actuals-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                 <Checkbox
                                   isChecked={bnbActualsFilters.years.includes(year)}
                                   onChange={(e) => {
@@ -2181,8 +2181,8 @@ const MyAdminReports: React.FC = () => {
                           size="sm"
                         >
                           <option value="all">All Listings</option>
-                          {bnbFilterOptions.listings.map(listing => (
-                            <option key={listing} value={listing}>{listing}</option>
+                          {bnbFilterOptions.listings.map((listing, index) => (
+                            <option key={`listing-${listing}-${index}`} value={listing}>{listing}</option>
                           ))}
                         </Select>
                       </GridItem>
@@ -2196,8 +2196,8 @@ const MyAdminReports: React.FC = () => {
                           size="sm"
                         >
                           <option value="all">All Channels</option>
-                          {bnbFilterOptions.channels.map(channel => (
-                            <option key={channel} value={channel}>{channel}</option>
+                          {bnbFilterOptions.channels.map((channel, index) => (
+                            <option key={`channel-${channel}-${index}`} value={channel}>{channel}</option>
                           ))}
                         </Select>
                       </GridItem>
@@ -2252,8 +2252,8 @@ const MyAdminReports: React.FC = () => {
                               { key: 'amountChannelFee', label: 'Channel Fee' },
                               { key: 'amountTouristTax', label: 'Tourist Tax' },
                               { key: 'amountVat', label: 'VAT Amount' }
-                            ].map(amount => (
-                              <MenuItem key={amount.key} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                            ].map((amount, index) => (
+                              <MenuItem key={`bnb-actuals-amount-${amount.key}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                 <Checkbox
                                   isChecked={bnbActualsFilters.selectedAmounts.includes(amount.key)}
                                   onChange={(e) => {
@@ -2752,8 +2752,8 @@ const MyAdminReports: React.FC = () => {
                             {refAnalysisFilters.years.length > 0 ? refAnalysisFilters.years.join(', ') : 'Select years...'}
                           </MenuButton>
                           <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {availableYears.map(year => (
-                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                            {availableYears.map((year, index) => (
+                              <MenuItem key={`ref-analysis-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                 <Checkbox
                                   isChecked={refAnalysisFilters.years.includes(year)}
                                   onChange={(e) => {
@@ -2808,8 +2808,8 @@ const MyAdminReports: React.FC = () => {
                             {refAnalysisFilters.accounts.length > 0 ? `${refAnalysisFilters.accounts.length} selected` : 'Select accounts...'}
                           </MenuButton>
                           <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {availableRefAccounts.map(account => (
-                              <MenuItem key={account.Reknum} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                            {availableRefAccounts.map((account, index) => (
+                              <MenuItem key={`ref-account-${account.Reknum}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                 <Checkbox
                                   isChecked={refAnalysisFilters.accounts.includes(account.Reknum)}
                                   onChange={(e) => {
@@ -3016,8 +3016,8 @@ const MyAdminReports: React.FC = () => {
                             {bnbViolinFilters.years.length > 0 ? bnbViolinFilters.years.join(', ') : 'Select years...'}
                           </MenuButton>
                           <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {bnbViolinFilterOptions.years.map(year => (
-                              <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                            {bnbViolinFilterOptions.years.map((year, index) => (
+                              <MenuItem key={`bnb-violin-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                 <Checkbox
                                   isChecked={bnbViolinFilters.years.includes(year)}
                                   onChange={(e) => {
@@ -3048,8 +3048,8 @@ const MyAdminReports: React.FC = () => {
                           size="sm"
                         >
                           <option value="all">All Listings</option>
-                          {bnbViolinFilterOptions.listings.map(listing => (
-                            <option key={listing} value={listing}>{listing}</option>
+                          {bnbViolinFilterOptions.listings.map((listing, index) => (
+                            <option key={`violin-listing-${listing}-${index}`} value={listing}>{listing}</option>
                           ))}
                         </Select>
                       </GridItem>
@@ -3063,8 +3063,8 @@ const MyAdminReports: React.FC = () => {
                           size="sm"
                         >
                           <option value="all">All Channels</option>
-                          {bnbViolinFilterOptions.channels.map(channel => (
-                            <option key={channel} value={channel}>{channel}</option>
+                          {bnbViolinFilterOptions.channels.map((channel, index) => (
+                            <option key={`violin-channel-${channel}-${index}`} value={channel}>{channel}</option>
                           ))}
                         </Select>
                       </GridItem>
@@ -3288,8 +3288,8 @@ const MyAdminReports: React.FC = () => {
                           size="sm"
                           w="150px"
                         >
-                          {aangifteIbAvailableYears.map(year => (
-                            <option key={year} value={year}>{year}</option>
+                          {aangifteIbAvailableYears.map((year, index) => (
+                            <option key={`aangifte-year-${year}-${index}`} value={year}>{year}</option>
                           ))}
                         </Select>
                       </VStack>
@@ -3304,8 +3304,8 @@ const MyAdminReports: React.FC = () => {
                           w="200px"
                         >
                           <option value="all">All</option>
-                          {aangifteIbAvailableAdmins.map(admin => (
-                            <option key={admin} value={admin}>{admin}</option>
+                          {aangifteIbAvailableAdmins.map((admin, index) => (
+                            <option key={`aangifte-admin-${admin}-${index}`} value={admin}>{admin}</option>
                           ))}
                         </Select>
                       </VStack>
@@ -3378,8 +3378,8 @@ const MyAdminReports: React.FC = () => {
                               {xlsxExportFilters.administrations.length > 0 ? `${xlsxExportFilters.administrations.length} selected` : 'Select administrations...'}
                             </MenuButton>
                             <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                              {aangifteIbAvailableAdmins.map(admin => (
-                                <MenuItem key={admin} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                              {aangifteIbAvailableAdmins.map((admin, index) => (
+                                <MenuItem key={`xlsx-admin-${admin}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                   <Checkbox
                                     isChecked={xlsxExportFilters.administrations.includes(admin)}
                                     onChange={(e) => {
@@ -3416,8 +3416,8 @@ const MyAdminReports: React.FC = () => {
                               {xlsxExportFilters.years.length > 0 ? xlsxExportFilters.years.join(', ') : 'Select years...'}
                             </MenuButton>
                             <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                              {aangifteIbAvailableYears.map(year => (
-                                <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                              {aangifteIbAvailableYears.map((year, index) => (
+                                <MenuItem key={`xlsx-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                   <Checkbox
                                     isChecked={xlsxExportFilters.years.includes(year)}
                                     onChange={(e) => {
