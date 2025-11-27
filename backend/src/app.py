@@ -861,6 +861,19 @@ def banking_check_sequence():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/banking/migrate-revolut-ref2', methods=['POST'])
+def banking_migrate_revolut_ref2():
+    """Migrate Revolut Ref2 to new format"""
+    try:
+        from migrate_revolut_ref2 import migrate_revolut_ref2
+        result = migrate_revolut_ref2(test_mode=flag)
+        return jsonify(result)
+    except Exception as e:
+        print(f"Migration error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # STR (Short Term Rental) routes
 @app.route('/api/str/upload', methods=['POST', 'OPTIONS'])
 def str_upload():
