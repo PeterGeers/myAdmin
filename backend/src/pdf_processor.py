@@ -86,51 +86,32 @@ class PDFProcessor:
         }
     
     def _process_image(self, file_path, drive_result, folder_name='Unknown'):
-        """Process image file using OCR"""
-        text_lines = []
+        """Process image file using AI vision, fallback to OCR"""
+        from image_ai_processor import ImageAIProcessor
         
+        # Get previous transactions for context
+        previous_transactions = []
         try:
-            # Check if Tesseract is available
-            try:
-                import subprocess
-                subprocess.run([r'C:\Program Files\Tesseract-OCR\tesseract.exe', '--version'], capture_output=True, check=True)
-                tesseract_available = True
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                tesseract_available = False
-            
-            if tesseract_available:
-                # Open image and perform OCR
-                image = Image.open(file_path)
-                
-                # Convert to RGB if necessary
-                if image.mode != 'RGB':
-                    image = image.convert('RGB')
-                
-                # Perform OCR
-                text = pytesseract.image_to_string(image)
-                if text.strip():
-                    text_lines.extend(text.split('\n'))
-                else:
-                    text_lines = ["[No text extracted from image]"]
-                    
-                print(f"OCR extracted {len(text_lines)} lines from image")
-            else:
-                # Tesseract not available, provide basic image info
-                image = Image.open(file_path)
-                text_lines = [
-                    f"[Image file processed: {os.path.basename(file_path)}]",
-                    f"[Image size: {image.size[0]}x{image.size[1]}]",
-                    f"[Image mode: {image.mode}]",
-                    "[OCR not available - Tesseract not installed]",
-                    "[Manual text extraction required]"
-                ]
-                print(f"Image processed without OCR: {len(text_lines)} info lines")
-            
+            from database import DatabaseManager
+            db = DatabaseManager()
+            previous_transactions = db.get_previous_transactions(folder_name, limit=3)
         except Exception as e:
-            print(f"Image processing error: {e}")
-            text_lines = [f"[Error processing image: {str(e)}]"]
+            print(f"Could not get previous transactions: {e}")
         
-        # Use configured folder structure
+        # Use AI vision processor
+        processor = ImageAIProcessor()
+        result = processor.process_image(file_path, folder_name, previous_transactions)
+        
+        # Format as text for compatibility
+        text_lines = [
+            f"[AI/OCR Extracted Data]",
+            f"Date: {result['date']}",
+            f"Total Amount: €{result['total_amount']:.2f}",
+            f"VAT Amount: €{result['vat_amount']:.2f}",
+            f"Description: {result['description']}",
+            f"Vendor: {result['vendor']}"
+        ]
+        
         storage_folder = self.config.get_storage_folder(folder_name)
         self.config.ensure_folder_exists(storage_folder)
         
@@ -138,7 +119,8 @@ class PDFProcessor:
             'name': drive_result['id'],
             'url': drive_result['url'],
             'txt': '\n'.join(text_lines),
-            'folder': storage_folder
+            'folder': storage_folder,
+            'ai_data': result  # Store structured data for direct use
         }
     
     def _process_csv(self, file_path, drive_result, folder_name='Unknown'):
@@ -334,6 +316,11 @@ class PDFProcessor:
     def extract_transactions(self, file_data):
         lines = file_data['txt'].split('\n')
         folder_name = file_data['folder'].lower()
+        
+        # If image was processed with AI, use that data directly
+        if 'ai_data' in file_data:
+            print("Using AI-extracted data from image")
+            return self._format_vendor_transactions(file_data['ai_data'], file_data)
         
         # Try vendor-specific parser first
         vendor_data = self._parse_vendor_specific(lines, folder_name)

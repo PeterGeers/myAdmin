@@ -17,7 +17,10 @@
 - **Test Mode**: Uses `testfinance` database and `testFacturen` folder
 - **Production Mode**: Uses `finance` database and `Facturen` folder
 - **ALWAYS check mode** before database operations
-- **Environment variables** control mode switching via `.env`
+- **Single source of truth**: `backend/.env` is the ONLY configuration file
+- **Automatic sync**: `start.ps1` copies `backend/.env` to root and frontend
+- **NEVER edit** root `.env` or `frontend/.env` directly - they are auto-generated
+- **Frontend components**: MUST use `testMode = false` (production) by default
 
 ## 🔒 Security Requirements
 

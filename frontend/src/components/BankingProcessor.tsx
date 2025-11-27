@@ -72,15 +72,48 @@ const parseCSVRow = (row: string): string[] => {
   return columns;
 };
 
-const processRevolutTransaction = (columns: string[], index: number, bankLookup: any, fileName: string): Transaction[] => {
+const processRevolutTransaction = (columns: string[], index: number, bankLookup: any, fileName: string, header?: string[]): Transaction[] => {
   const transactions: Transaction[] = [];
-  const status = columns[8] || '';
+  
+  // Helper to find column index by name (supports Dutch and English)
+  const getColIdx = (names: string[], fallback: number): number => {
+    if (!header) return fallback;
+    const idx = header.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
+    return idx >= 0 ? idx : fallback;
+  };
+  
+  // Map columns by name with fallback to position
+  // Dutch:   Type, Product, Startdatum, Datum voltooid, Beschrijving, Bedrag, Kosten, Valuta, Status, Saldo
+  // English: Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance
+  const typeIdx = getColIdx(['type'], 0);
+  const productIdx = getColIdx(['product'], 1);
+  const startdatumIdx = getColIdx(['startdatum', 'started date', 'started'], 2);
+  const datumVoltooiIdx = getColIdx(['datum voltooid', 'completed date', 'completed'], 3);
+  const beschrijvingIdx = getColIdx(['beschrijving', 'description'], 4);
+  const bedragIdx = getColIdx(['bedrag', 'amount'], 5);
+  const kostenIdx = getColIdx(['kosten', 'fee'], 6);
+  const valutaIdx = getColIdx(['valuta', 'currency'], 7);
+  const statusIdx = getColIdx(['status', 'state'], 8);
+  const saldoIdx = getColIdx(['saldo', 'balance'], 9);
+  
+  const type = columns[typeIdx] || '';
+  const product = columns[productIdx] || '';
+  const startdatum = columns[startdatumIdx] || '';
+  const datumVoltooid = columns[datumVoltooiIdx] || '';
+  const beschrijving = columns[beschrijvingIdx] || '';
+  const bedrag = columns[bedragIdx] || '0';
+  const kosten = columns[kostenIdx] || '0';
+  const valuta = columns[valutaIdx] || '';
+  const status = columns[statusIdx] || '';
+  // Always format saldo to 2 decimals for consistency (514.3 -> 514.30)
+  const saldoRaw = columns[saldoIdx] || '0';
+  const saldo = parseFloat(saldoRaw.replace(',', '.')).toFixed(2);
 
   if (status.includes('REVERTED') || status.includes('PENDING')) return transactions;
 
-  const amount = parseFloat((columns[5] || '0').replace(',', '.'));
-  const fee = parseFloat((columns[6] || '0').replace(',', '.'));
-  const balance = parseFloat((columns[9] || '0').replace(',', '.'));
+  const amount = parseFloat(bedrag.replace(',', '.'));
+  const fee = parseFloat(kosten.replace(',', '.'));
+  const balance = parseFloat(saldo.replace(',', '.'));
 
   if (amount === 0 && fee === 0) return transactions;
 
@@ -91,13 +124,14 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
   if (amount !== 0) {
     const isNegative = amount < 0;
     const absAmount = Math.abs(amount);
-    const ref2 = [columns[4], columns[6], columns[5], columns[7], columns[2]].join('_');
+    // Use raw saldo string to avoid formatting differences (514.3 vs 514.30)
+    const ref2 = [beschrijving, saldo, startdatum].join('_');
 
     transactions.push({
       row_id: index,
       TransactionNumber: `Revolut ${currentDate}`,
-      TransactionDate: columns[2]?.split(' ')[0] || '',
-      TransactionDescription: columns[4] || '',
+      TransactionDate: startdatum.split(' ')[0] || '',
+      TransactionDescription: beschrijving,
       TransactionAmount: absAmount,
       Debet: isNegative ? '' : (bankLookup?.Account || '1023'),
       Credit: isNegative ? (bankLookup?.Account || '1023') : '',
@@ -112,12 +146,13 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
 
   // Fee transaction
   if (fee > 0) {
-    const feeRef2 = ['Revo Charges', 'Fee', fee.toString(), (-fee).toString(), columns[7] || '', 'VOLTOOID', 'Revo Charges', columns[2] || '', 'Betaalrekening'].join('_');
+    // Use raw saldo string to avoid formatting differences
+    const feeRef2 = ['Revo Charges', saldo, startdatum].join('_');
 
     transactions.push({
       row_id: index + 1000,
       TransactionNumber: `Revolut ${currentDate}`,
-      TransactionDate: columns[2]?.split(' ')[0] || '',
+      TransactionDate: startdatum.split(' ')[0] || '',
       TransactionDescription: 'Revo Charges',
       TransactionAmount: fee,
       Debet: '',
@@ -209,7 +244,7 @@ const BankingProcessor: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [mutaties, setMutaties] = useState<Transaction[]>([]);
-  const [testMode] = useState(true);
+  const [testMode] = useState(false); // Always use production mode
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [] });
@@ -644,7 +679,9 @@ const BankingProcessor: React.FC = () => {
 
       for (const file of selectedFiles) {
         const text = await file.text();
-        const rows = text.split('\n').filter(row => row.trim()).slice(1); // Skip header
+        const allRows = text.split('\n').filter(row => row.trim());
+        const headerRow = allRows[0];
+        const rows = allRows.slice(1); // Skip header
 
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
@@ -654,10 +691,12 @@ const BankingProcessor: React.FC = () => {
             : parseCSVRow(row);
 
           if (file.name.toLowerCase().endsWith('.tsv')) {
+            const header = headerRow.split('\t').map(col => col.trim());
             const revolutTransactions = processRevolutTransaction(
               columns, currentIndex,
               lookupData.bank_accounts.find(ba => ba.rekeningNummer === 'NL08REVO7549383472'),
-              file.name
+              file.name,
+              header
             );
             allTransactions.push(...revolutTransactions);
           } else if (file.name.startsWith('CSV_CC_')) {

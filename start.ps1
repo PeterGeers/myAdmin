@@ -32,6 +32,16 @@ switch ($Mode.ToLower()) {
         Write-Host "📦 Backend & Database: Docker containers (auto-start)" -ForegroundColor Cyan
         Write-Host "🚀 Starting frontend development server..." -ForegroundColor Yellow
         
+        # Sync backend/.env to root and frontend
+        if (Test-Path "backend\.env") {
+            Copy-Item "backend\.env" ".env" -Force
+            Copy-Item "backend\.env" "frontend\.env" -Force
+            Write-Host "✅ Synced backend/.env to root and frontend" -ForegroundColor Green
+        } else {
+            Write-Host "❌ backend/.env not found!" -ForegroundColor Red
+            exit 1
+        }
+        
         # Check if containers exist and their status
         $existingContainers = docker-compose ps -q
         if (-not $existingContainers) {
@@ -68,6 +78,16 @@ switch ($Mode.ToLower()) {
     }
     "prod" {
         Write-Host "Building for Production..." -ForegroundColor Green
+        
+        # Sync backend/.env to root and frontend
+        if (Test-Path "backend\.env") {
+            Copy-Item "backend\.env" ".env" -Force
+            Copy-Item "backend\.env" "frontend\.env" -Force
+            Write-Host "✅ Synced backend/.env to root and frontend" -ForegroundColor Green
+        } else {
+            Write-Host "❌ backend/.env not found!" -ForegroundColor Red
+            exit 1
+        }
         
         # Check if containers exist and their status
         $existingContainers = docker-compose ps -q
