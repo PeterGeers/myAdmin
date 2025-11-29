@@ -56,6 +56,12 @@ h-dcn/
 # Google Drive credentials (ALL FOLDERS)
 credentials.json
 token.json
+token.pickle
+
+# Temporary files
+temp_*.txt
+*.csv
+!requirements.csv
 
 # Test files
 test/
