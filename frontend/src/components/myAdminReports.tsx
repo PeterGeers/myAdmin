@@ -6,7 +6,7 @@ import {
   Tabs, TabList, TabPanels, Tab, TabPanel,
   Menu, MenuButton, MenuList, MenuItem, Checkbox
 } from '@chakra-ui/react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line, RadialBarChart, RadialBar } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line, RadialBarChart, RadialBar, AreaChart, Area } from 'recharts';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -3382,12 +3382,12 @@ const MyAdminReports: React.FC = () => {
                 </Card>
                 <Card bg="gray.700">
                   <CardHeader>
-                    <Heading size="md" color="white">BNB Future Revenue Projections</Heading>
+                    <Heading size="md" color="white">BNB Future Revenue Projections by Listing</Heading>
                   </CardHeader>
                   <CardBody>
                     {bnbFutureData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={400}>
-                        <LineChart
+                        <AreaChart
                           data={(() => {
                             const filtered = bnbFutureData.filter(row => {
                               const rowYear = new Date(row.date).getFullYear();
@@ -3401,9 +3401,12 @@ const MyAdminReports: React.FC = () => {
                             });
                             const grouped = filtered.reduce((acc, row) => {
                               if (!acc[row.date]) {
-                                acc[row.date] = { date: row.date, total: 0 };
+                                acc[row.date] = { date: row.date };
                               }
-                              acc[row.date].total += row.amount || 0;
+                              if (!acc[row.date][row.listing]) {
+                                acc[row.date][row.listing] = 0;
+                              }
+                              acc[row.date][row.listing] += row.amount || 0;
                               return acc;
                             }, {} as any);
                             return Object.values(grouped).sort((a: any, b: any) => 
@@ -3420,19 +3423,35 @@ const MyAdminReports: React.FC = () => {
                           />
                           <YAxis tick={{fill: 'white'}} />
                           <Tooltip 
-                            formatter={(value) => [`€${Number(value).toLocaleString('nl-NL', {minimumFractionDigits: 2})}`, 'Projected Revenue']}
+                            formatter={(value) => [`€${Number(value).toLocaleString('nl-NL', {minimumFractionDigits: 2})}`]}
                             labelFormatter={(label) => new Date(label).toLocaleDateString('nl-NL')}
                           />
                           <Legend wrapperStyle={{color: 'white'}} />
-                          <Line 
-                            type="monotone" 
-                            dataKey="total" 
-                            stroke="#f56500" 
-                            strokeWidth={3}
-                            dot={{ fill: '#f56500', strokeWidth: 2, r: 6 }}
-                            name="Projected Revenue"
-                          />
-                        </LineChart>
+                          {(() => {
+                            const filtered = bnbFutureData.filter(row => {
+                              const rowYear = new Date(row.date).getFullYear();
+                              const yearFromMatch = bnbFutureFilters.yearFrom === 'all' || rowYear >= parseInt(bnbFutureFilters.yearFrom);
+                              const yearToMatch = bnbFutureFilters.yearTo === 'all' || rowYear <= parseInt(bnbFutureFilters.yearTo);
+                              return (
+                                yearFromMatch && yearToMatch &&
+                                (bnbFutureFilters.channel === 'all' || row.channel === bnbFutureFilters.channel) &&
+                                (bnbFutureFilters.listing === 'all' || row.listing === bnbFutureFilters.listing)
+                              );
+                            });
+                            const listings = Array.from(new Set(filtered.map(row => row.listing))).sort();
+                            return listings.map((listing, index) => (
+                              <Area
+                                key={listing}
+                                type="monotone"
+                                dataKey={listing}
+                                stackId="1"
+                                stroke={`hsl(${index * (360 / listings.length)}, 70%, 60%)`}
+                                fill={`hsl(${index * (360 / listings.length)}, 70%, 60%)`}
+                                name={listing}
+                              />
+                            ));
+                          })()}
+                        </AreaChart>
                       </ResponsiveContainer>
                     ) : (
                       <Text color="white" textAlign="center" py={8}>
