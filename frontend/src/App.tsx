@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text, Badge } from '@chakra-ui/react';
 import PDFUploadForm from './components/PDFUploadForm';
-
+import BankConnect from './components/BankConnect';
 import BankingProcessor from './components/BankingProcessor';
 import STRProcessor from './components/STRProcessor';
 import STRInvoice from './components/STRInvoice';
@@ -9,7 +9,7 @@ import STRPricing from './components/STRPricing';
 import MyAdminReports from './components/myAdminReports';
 import theme from './theme';
 
-type PageType = 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi';
+type PageType = 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
@@ -53,6 +53,21 @@ function App() {
               </HStack>
             </Box>
             <BankingProcessor />
+          </Box>
+        );
+      case 'bank-connect':
+        return (
+          <Box minH="100vh" bg="gray.900">
+            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+              <HStack justify="space-between">
+                <HStack>
+                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                  <Heading color="orange.400" size="lg">🏦 Connect Bank (Salt Edge)</Heading>
+                </HStack>
+                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+              </HStack>
+            </Box>
+            <BankConnect />
           </Box>
         );
       case 'str':

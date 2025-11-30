@@ -838,8 +838,17 @@ const BankingProcessor: React.FC = () => {
 
             {/* File Selection */}
             <VStack align="stretch" mb={6}>
+              <HStack justify="space-between" mb={2}>
+                <FormLabel color="white" mb={0}>Select CSV/TSV Files (Banking or Credit Card)</FormLabel>
+                <Button
+                  colorScheme="green"
+                  size="sm"
+                  onClick={() => alert('Salt Edge integration ready! Waiting for account approval (2 business days). Bank account mappings now loaded from database.')}
+                >
+                  🏦 Connect Bank (Salt Edge)
+                </Button>
+              </HStack>
               <FormControl>
-                <FormLabel color="white">Select CSV/TSV Files (Banking or Credit Card)</FormLabel>
                 <Input
                   type="file"
                   accept=".csv,.tsv"

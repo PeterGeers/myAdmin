@@ -26,6 +26,8 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - FACTUREN_FOLDER_ID=${FACTUREN_FOLDER_ID}
       - TEST_FACTUREN_FOLDER_ID=${TEST_FACTUREN_FOLDER_ID}
+      - SALT_EDGE_APP_ID=${SALT_EDGE_APP_ID}
+      - SALT_EDGE_SECRET=${SALT_EDGE_SECRET}
     volumes:
       - ./backend:/app
       - ./frontend/build:/app/frontend/build

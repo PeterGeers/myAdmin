@@ -3,17 +3,20 @@
 ## 🚨 Critical Rules - NEVER VIOLATE
 
 ### **API URL Policy**
-- **ALWAYS use relative URLs**: `/api/...` 
+
+- **ALWAYS use relative URLs**: `/api/...`
 - **NEVER use hardcoded localhost**: `http://localhost:5000/api/...`
 - **Reason**: Breaks production deployment where React is served by Flask
 
 ### **Database Operations**
+
 - **ALWAYS use test mode** during development: `test_mode=True`
 - **NEVER modify production database** without explicit confirmation
 - **ALWAYS validate transactions** before saving to database
 - **Use transaction rollback** for failed operations
 
 ### **Environment Management**
+
 - **Test Mode**: Uses `testfinance` database and `testFacturen` folder
 - **Production Mode**: Uses `finance` database and `Facturen` folder
 - **ALWAYS check mode** before database operations
@@ -25,12 +28,14 @@
 ## 🔒 Security Requirements
 
 ### **Data Protection**
+
 - **NO hardcoded credentials** in source code
 - **Use .env files** for sensitive configuration
 - **Validate all user inputs** before database operations
 - **Sanitize file uploads** and validate file types
 
 ### **API Security**
+
 - **Validate request parameters** in all API endpoints
 - **Use proper error handling** - don't expose internal errors
 - **Log security events** for audit trails
@@ -39,37 +44,54 @@
 ## 📊 Financial Data Integrity
 
 ### **Transaction Processing**
+
 - **ALWAYS validate amounts** are non-zero before processing
 - **Check for duplicates** using sequence numbers (Ref2)
 - **Maintain audit trail** with Ref1, Ref2, Ref3, Ref4 fields
 - **Round financial amounts** to 2 decimal places
 
 ### **STR Channel Revenue**
+
 - **VAT calculation**: Currently 9% (changes to 21% on 2026-01-01)
 - **Formula**: `(amount / 109) * 9` for 9% VAT
 - **Future formula**: `(amount / 121) * 21` for 21% VAT
 - **ALWAYS preview transactions** before saving to database
 
 ### **Account Mapping**
+
 - **Revenue transactions**: Debet=1600, Credit=8003
 - **VAT transactions**: Debet=8003, Credit=2021
 - **Validate account codes** exist before creating transactions
 
 ## 🏗️ Architecture Principles
 
+### **Container Architecture**
+
+- **Two-container setup**: Backend (Flask) + MySQL containers
+- **Frontend served by backend**: React build served from Flask container
+- **Volume mounting**: Code changes reflected without rebuild during development
+- **Environment variables**: Passed from docker-compose.yml to containers
+- **Container rebuild required**: When adding new Python dependencies to requirements.txt
+- **Restart command**: `docker-compose down && docker-compose build && docker-compose up -d`
+- **Database persistence**: MySQL data stored in Docker volume `mysql_data`
+- **Network isolation**: Containers communicate via Docker network, not localhost
+
 ### **Frontend-Backend Communication**
+
 - **Use TypeScript interfaces** for API data structures
 - **Handle loading states** and error conditions
 - **Implement proper error messages** for user feedback
 - **Use React hooks** for state management
 
 ### **Database Schema**
+
 - **Follow existing patterns** in mutaties table structure
 - **Use consistent field naming**: TransactionDate, TransactionAmount, etc.
 - **Maintain referential integrity** with Administration field
-- **Use views (vw_mutaties)** for complex queries
+- **Use views (vw_mutaties)** for financial queries as vw_mutaties is a (double copy) positive and negative of mutaties
 
 ### **File Processing**
+
 - **Support multiple formats**: PDF, CSV, TSV, XLSX
 - **Validate file contents** before processing
 - **Use temporary storage** for uploaded files
@@ -78,6 +100,7 @@
 ## 🧪 Testing Requirements
 
 ### **Test Coverage**
+
 - **Unit tests** for all business logic functions
 - **Integration tests** for API endpoints
 - **Mock external services** (Google Drive, Gmail, MySQL)
@@ -86,6 +109,7 @@
 - **Test console output handling** on Windows systems
 
 ### **Test Data Management**
+
 - **Use test database** for all automated tests
 - **Create realistic test data** that matches production patterns
 - **Clean up test data** after test execution
@@ -94,12 +118,14 @@
 ## 🚀 Deployment Guidelines
 
 ### **Production Readiness**
+
 - **Build React frontend** before production deployment
 - **Use production database** only after thorough testing
 - **Validate all environment variables** are set correctly
 - **Test API alignment** between frontend and backend
 
 ### **Monitoring**
+
 - **Log all API requests** for debugging
 - **Monitor database performance** and connection pooling
 - **Track file processing errors** and success rates
@@ -108,12 +134,14 @@
 ## 📝 Code Quality Standards
 
 ### **Code Organization**
+
 - **Separate concerns**: Routes, business logic, database operations
 - **Use descriptive function names** and variable names
 - **Add comments** for complex business logic
 - **Follow existing code patterns** and conventions
 
 ### **Error Handling**
+
 - **Catch and handle exceptions** at appropriate levels
 - **Provide meaningful error messages** to users
 - **Log detailed errors** for debugging
@@ -122,6 +150,7 @@
 - **Handle console encoding errors** on Windows (OSError: Invalid argument)
 
 ### **Performance**
+
 - **Use database connection pooling** for efficiency
 - **Implement pagination** for large data sets
 - **Cache frequently accessed data** when appropriate
@@ -130,12 +159,14 @@
 ## 🔄 Change Management
 
 ### **Configuration Changes**
+
 - **Document all parameter changes** (VAT rates, patterns, etc.)
 - **Use configuration files** instead of hardcoded values
 - **Test configuration changes** in test environment first
 - **Maintain backward compatibility** when possible
 
 ### **Database Schema Changes**
+
 - **Create migration scripts** for schema changes
 - **Test migrations** on test database first
 - **Backup production data** before schema changes
@@ -144,18 +175,21 @@
 ## 🎯 Business Logic Rules
 
 ### **STR Channel Processing**
+
 - **Supported channels**: AirBnB, Booking.com, dfDirect, Stripe, VRBO
 - **Account filtering**: Only process account 1600 transactions
 - **Date filtering**: Use end-of-month date for calculations
 - **Reference format**: "BnB YYYYMM" (e.g., "BnB 202511")
 
 ### **Banking Processor**
+
 - **Support formats**: Rabobank CSV, Revolut TSV
 - **Duplicate detection**: Use IBAN + sequence number
 - **Pattern matching**: Apply historical patterns for account assignment
 - **Validation**: Require all mandatory fields before saving
 
 ### **PDF Processing**
+
 - **Vendor detection**: Based on folder selection and content analysis
 - **Transaction extraction**: Parse amounts, dates, descriptions
 - **Google Drive integration**: Upload files and store URLs
