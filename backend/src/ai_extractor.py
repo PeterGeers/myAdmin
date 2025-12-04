@@ -58,8 +58,8 @@ Rules:
         
         # Try free models first, then paid as fallback
         models = [
-            "deepseek/deepseek-chat",  # Free
             "moonshot/moonshot-v1-8k",  # Free (Kimi)
+            "deepseek/deepseek-chat",  # Not quite free 0.000x
             "google/gemini-flash-1.5",  # Free, very fast
             "meta-llama/llama-3.2-3b-instruct:free",  # Free
             "microsoft/phi-3-mini-128k-instruct:free",  # Free

@@ -142,10 +142,11 @@ def get_folders():
                 print("Production mode: fetching Google Drive folders", flush=True)
                 drive_service = GoogleDriveService()
                 drive_folders = drive_service.list_subfolders()
+                print(f"Raw drive_folders result: {type(drive_folders)}, length: {len(drive_folders) if drive_folders else 0}", flush=True)
                 folders = [folder['name'] for folder in drive_folders]
                 print(f"Google Drive: found {len(folders)} folders", flush=True)
             except Exception as e:
-                print(f"Google Drive error: {e}", flush=True)
+                print(f"Google Drive error: {type(e).__name__}: {e}", flush=True)
                 import traceback
                 traceback.print_exc()
                 # Fallback to local folders if Google Drive fails
@@ -282,16 +283,13 @@ def upload_file():
                     else:
                         drive_service = GoogleDriveService()
                         drive_folders = drive_service.list_subfolders()
-                        print(f"Available Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
-                        print(f"Test mode: {flag}, looking for folder: {folder_name}", flush=True)
                         
                         # Find the folder ID for the selected folder
                         folder_id = None
                         for folder in drive_folders:
-                            print(f"Checking folder: '{folder['name']}' vs '{folder_name}'", flush=True)
                             if folder['name'] == folder_name:
                                 folder_id = folder['id']
-                                print(f"Found matching folder ID: {folder_id}", flush=True)
+                                print(f"Found folder: {folder_name} (ID: {folder_id})", flush=True)
                                 break
                         
                         if folder_id:
