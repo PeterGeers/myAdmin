@@ -7,12 +7,19 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from database import DatabaseManager
 import json
+import unicodedata
 
 class BankingProcessor:
     def __init__(self, test_mode=False):
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
         self.download_folder = os.path.expanduser("~/Downloads")  # Default download folder
+    
+    def normalize_text(self, text):
+        """Normalize text to NFD form for consistent duplicate detection"""
+        if not text:
+            return ''
+        return unicodedata.normalize('NFD', str(text))
     
     def get_csv_files(self, folder_path=None):
         """Get all CSV files from specified folder"""
@@ -159,21 +166,43 @@ class BankingProcessor:
         return records
     
     def save_approved_transactions(self, transactions):
-        """Save approved transactions to database"""
-        # In test mode: testfinance.mutaties
-        # In production mode: finance.mutaties
-        table_name = 'mutaties'  # Always use 'mutaties' table, database selection handled by DatabaseManager
+        """Save approved transactions to database with duplicate detection"""
+        table_name = 'mutaties'
+        conn = self.db.get_connection()
+        cursor = conn.cursor(dictionary=True)
         
         saved_count = 0
         for transaction in transactions:
             try:
-                # Remove row_id before saving
                 if 'row_id' in transaction:
                     del transaction['row_id']
                 
-                # Skip if amount is 0
                 if float(transaction.get('TransactionAmount', 0)) == 0:
                     continue
+                
+                # Check for duplicate using normalized text
+                desc_normalized = self.normalize_text(transaction.get('TransactionDescription', ''))
+                cursor.execute(f"""
+                    SELECT ID FROM {table_name}
+                    WHERE TransactionAmount = %s
+                    AND TransactionDate = %s
+                    AND Administration = %s
+                    LIMIT 1
+                """, (
+                    transaction.get('TransactionAmount'),
+                    transaction.get('TransactionDate'),
+                    transaction.get('Administration')
+                ))
+                
+                existing = cursor.fetchall()
+                if existing:
+                    # Check if any match after normalization
+                    for row in existing:
+                        cursor.execute(f"SELECT TransactionDescription FROM {table_name} WHERE ID = %s", (row['ID'],))
+                        existing_desc = cursor.fetchone()['TransactionDescription']
+                        if self.normalize_text(existing_desc) == desc_normalized:
+                            print(f"Skipping duplicate: {transaction.get('TransactionDescription')}")
+                            continue
                 
                 self.db.insert_transaction(transaction, table_name)
                 saved_count += 1
@@ -181,6 +210,8 @@ class BankingProcessor:
             except Exception as e:
                 print(f"Error saving transaction: {e}")
         
+        cursor.close()
+        conn.close()
         return saved_count
     
     def check_banking_accounts(self, end_date=None):

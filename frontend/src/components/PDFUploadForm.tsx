@@ -7,6 +7,7 @@ import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import PDFValidation from './PDFValidation';
+import InvoiceGenerator from './InvoiceGenerator';
 
 
 
@@ -49,7 +50,7 @@ const PDFUploadForm: React.FC = () => {
 
   const fetchFolders = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/folders');
+      const response = await axios.get('/api/folders');
       setAllFolders(response.data);
       setFilteredFolders(response.data);
     } catch (error) {
@@ -101,7 +102,7 @@ const PDFUploadForm: React.FC = () => {
     formData.append('folderName', values.folderId);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/upload', formData, {
+      const response = await axios.post('/api/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
@@ -113,7 +114,7 @@ const PDFUploadForm: React.FC = () => {
       // Backend returns different structure
       const fileData = {
         name: response.data.filename,
-        url: `http://localhost:5000/uploads/${response.data.filename}`,
+        url: `/uploads/${response.data.filename}`,
         folder: response.data.folder,
         txt: response.data.extractedText || 'No text extracted'
       };
@@ -143,7 +144,7 @@ const PDFUploadForm: React.FC = () => {
           retryFormData.append('useExisting', 'true');
           
           try {
-            const response = await axios.post('http://localhost:5000/api/upload', retryFormData, {
+            const response = await axios.post('/api/upload', retryFormData, {
               headers: { 'Content-Type': 'multipart/form-data' },
               onUploadProgress: (progressEvent) => {
                 const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
@@ -153,7 +154,7 @@ const PDFUploadForm: React.FC = () => {
             
             const fileData = {
               name: response.data.filename,
-              url: `http://localhost:5000/uploads/${response.data.filename}`,
+              url: `/uploads/${response.data.filename}`,
               folder: response.data.folder,
               txt: response.data.extractedText || 'No text extracted'
             };
@@ -175,7 +176,7 @@ const PDFUploadForm: React.FC = () => {
 
   const approveTransactions = async () => {
     try {
-      const response = await axios.post('http://localhost:5000/api/approve-transactions', {
+      const response = await axios.post('/api/approve-transactions', {
         transactions: preparedTransactions
       });
       alert(response.data.message);
@@ -190,7 +191,7 @@ const PDFUploadForm: React.FC = () => {
     if (!newFolderName.trim()) return;
     
     try {
-      await axios.post('http://localhost:5000/api/create-folder', {
+      await axios.post('/api/create-folder', {
         folderName: newFolderName
       });
       
@@ -211,6 +212,7 @@ const PDFUploadForm: React.FC = () => {
         <TabList>
           <Tab color="white">📄 Upload Invoices</Tab>
           <Tab color="white">🔍 Check Invoice Exists</Tab>
+          <Tab color="white">🧾 Generate Receipt</Tab>
         </TabList>
 
         <TabPanels>
@@ -600,6 +602,9 @@ const PDFUploadForm: React.FC = () => {
           </TabPanel>
           <TabPanel>
             <PDFValidation />
+          </TabPanel>
+          <TabPanel>
+            <InvoiceGenerator />
           </TabPanel>
         </TabPanels>
       </Tabs>
