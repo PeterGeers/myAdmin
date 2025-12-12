@@ -16,6 +16,7 @@ from bnb_routes import bnb_bp
 from str_channel_routes import str_channel_bp
 from str_invoice_routes import str_invoice_bp
 from routes.saltedge_routes import saltedge_bp
+from routes.invoice_routes import invoice_bp
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
 import os
@@ -33,6 +34,7 @@ app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
 app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
 app.register_blueprint(str_invoice_bp, url_prefix='/api/str-invoice')
 app.register_blueprint(saltedge_bp)
+app.register_blueprint(invoice_bp)
 
 CORS(app, resources={
     r"/api/*": {

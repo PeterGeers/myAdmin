@@ -49,8 +49,14 @@ const STRProcessor: React.FC = () => {
   const [showImportPopup, setShowImportPopup] = useState<boolean>(false);
 
   useEffect(() => {
-    setDateFrom('2025-09-01');
-    setDateTo('2026-11-01');
+    const now = new Date();
+    const oneMonthAgo = new Date(now);
+    oneMonthAgo.setMonth(now.getMonth() - 1);
+    const twelveMonthsFuture = new Date(now);
+    twelveMonthsFuture.setMonth(now.getMonth() + 12);
+    
+    setDateFrom(oneMonthAgo.toISOString().split('T')[0]);
+    setDateTo(twelveMonthsFuture.toISOString().split('T')[0]);
   }, []);
 
   const generateBookingUrl = (hotelId: string) => {
