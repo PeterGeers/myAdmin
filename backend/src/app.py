@@ -73,7 +73,7 @@ except Exception as e:
 
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:5000"],
+        "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:5000", "null"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     }
@@ -121,14 +121,8 @@ def allowed_file(filename):
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     """Serve static files from React build"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
-    static_folder = os.path.join(build_folder, 'static')
-    
-    # Handle nested paths like css/main.css or js/main.js
-    if '/' in filename:
-        return send_from_directory(static_folder, filename)
-    else:
-        return send_from_directory(static_folder, filename)
+    static_folder = '/app/frontend/build/static'
+    return send_from_directory(static_folder, filename)
 
 @app.route('/manifest.json')
 def serve_manifest():
@@ -154,17 +148,23 @@ def serve_logo512():
     build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
     return send_from_directory(build_folder, 'logo512.png')
 
+@app.route('/config.js')
+def serve_config():
+    """Serve React config.js"""
+    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+    return send_from_directory(build_folder, 'config.js')
+
 
 
 # Serve React build files
 @app.route('/')
 def serve_index():
     """Serve React index.html"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
+    build_folder = '/app/frontend/build'
     try:
         return send_from_directory(build_folder, 'index.html')
-    except:
-        return jsonify({'error': 'Frontend not built'}), 404
+    except Exception as e:
+        return jsonify({'error': 'Frontend not built', 'details': str(e)}), 404
 
 @app.errorhandler(404)
 def handle_404(e):
@@ -233,15 +233,22 @@ def test():
 @app.route('/api/status', methods=['GET'])
 def get_status():
     """Get environment status"""
-    use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
-    db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', 'finance')
-    folder_name = os.getenv('TEST_FACTUREN_FOLDER_NAME', 'testFacturen') if use_test else os.getenv('FACTUREN_FOLDER_NAME', 'Facturen')
-    
-    return jsonify({
-        'mode': 'Test' if use_test else 'Production',
-        'database': db_name,
-        'folder': folder_name
-    })
+    try:
+        use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', 'finance')
+        folder_name = os.getenv('TEST_FACTUREN_FOLDER_NAME', 'testFacturen') if use_test else os.getenv('FACTUREN_FOLDER_NAME', 'Facturen')
+        
+        return jsonify({
+            'status': 'ok',
+            'mode': 'Test' if use_test else 'Production',
+            'database': db_name,
+            'folder': folder_name
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
 
 @app.route('/api/str/test', methods=['GET'])
 def str_test():

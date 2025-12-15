@@ -7,6 +7,7 @@ import {
   Menu, MenuButton, MenuList, MenuItem, Checkbox
 } from '@chakra-ui/react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line, RadialBarChart, RadialBar, AreaChart, Area } from 'recharts';
+import { buildApiUrl } from '../config';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -742,8 +743,7 @@ const MyAdminReports: React.FC = () => {
         profitLoss: mutatiesFilters.profitLoss
       });
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/reports/mutaties-table?${params}`);
+      const response = await fetch(buildApiUrl('/api/reports/mutaties-table', params));
       const data = await response.json();
       
       if (data.success) {
@@ -765,7 +765,7 @@ const MyAdminReports: React.FC = () => {
         profitLoss: 'all'
       });
       
-      const response = await fetch(`/api/reports/balance-data?${params}`);
+      const response = await fetch(buildApiUrl('/api/reports/balance-data', params));
       const data = await response.json();
       
       if (data.success) {
@@ -790,7 +790,7 @@ const MyAdminReports: React.FC = () => {
         groupBy: drillDownLevel
       });
       
-      const response = await fetch(`/api/reports/actuals-profitloss?${params}`);
+      const response = await fetch(buildApiUrl('/api/reports/actuals-profitloss', params));
       const data = await response.json();
       
       if (data.success) {
@@ -819,7 +819,7 @@ const MyAdminReports: React.FC = () => {
         listing: bnbFilters.listing
       });
       
-      const response = await fetch(`/api/reports/bnb-table?${params}`);
+      const response = await fetch(buildApiUrl('/api/reports/bnb-table', params));
       const data = await response.json();
       
       if (data.success) {
@@ -834,7 +834,7 @@ const MyAdminReports: React.FC = () => {
 
   const fetchAvailableYears = async () => {
     try {
-      const response = await fetch('/api/reports/available-years');
+      const response = await fetch(buildApiUrl('/api/reports/available-years'));
       const data = await response.json();
       if (data.success) {
         setAvailableYears(data.years);
@@ -846,8 +846,7 @@ const MyAdminReports: React.FC = () => {
 
   const fetchBnbFilterOptions = async () => {
     try {
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/reports/bnb-filter-options');
+      const response = await fetch(buildApiUrl('/api/reports/bnb-filter-options'));
       const data = await response.json();
       if (data.success) {
         setBnbFilterOptions({
@@ -873,16 +872,14 @@ const MyAdminReports: React.FC = () => {
       });
       
       // Fetch listing data
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const listingResponse = await fetch(`/api/reports/bnb-listing-data?${params}`);
+      const listingResponse = await fetch(buildApiUrl('/api/reports/bnb-listing-data', params));
       const listingResult = await listingResponse.json();
       if (listingResult.success) {
         setBnbListingData(listingResult.data);
       }
 
       // Fetch channel data
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const channelResponse = await fetch(`/api/reports/bnb-channel-data?${params}`);
+      const channelResponse = await fetch(buildApiUrl('/api/reports/bnb-channel-data', params));
       const channelResult = await channelResponse.json();
       if (channelResult.success) {
         setBnbChannelData(channelResult.data);
@@ -904,14 +901,14 @@ const MyAdminReports: React.FC = () => {
       });
       
       // Balance data (VW = N)
-      const balanceResponse = await fetch(`/api/reports/actuals-balance?${params}`);
+      const balanceResponse = await fetch(buildApiUrl('/api/reports/actuals-balance', params));
       const balanceResult = await balanceResponse.json();
       if (balanceResult.success) {
         setBalanceData(balanceResult.data);
       }
 
       // Profit/Loss data (VW = Y)
-      const profitLossResponse = await fetch(`/api/reports/actuals-profitloss?${params}`);
+      const profitLossResponse = await fetch(buildApiUrl('/api/reports/actuals-profitloss', params));
       const profitLossResult = await profitLossResponse.json();
       if (profitLossResult.success) {
         setProfitLossData(profitLossResult.data);
@@ -926,7 +923,7 @@ const MyAdminReports: React.FC = () => {
   const generateBtwReport = async () => {
     setBtwLoading(true);
     try {
-      const response = await fetch('/api/btw/generate-report', {
+      const response = await fetch(buildApiUrl('/api/btw/generate-report'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(btwFilters)
@@ -952,7 +949,7 @@ const MyAdminReports: React.FC = () => {
     
     setBtwLoading(true);
     try {
-      const response = await fetch('/api/btw/save-transaction', {
+      const response = await fetch(buildApiUrl('/api/btw/save-transaction'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transaction: btwTransaction })
@@ -964,7 +961,7 @@ const MyAdminReports: React.FC = () => {
         // Upload report to Google Drive
         const filename = `BTW_${btwFilters.administration}_${btwFilters.year}_Q${btwFilters.quarter}.html`;
         
-        const uploadResponse = await fetch('/api/btw/upload-report', {
+        const uploadResponse = await fetch(buildApiUrl('/api/btw/upload-report'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -1003,8 +1000,7 @@ const MyAdminReports: React.FC = () => {
         accounts: refAnalysisFilters.accounts.join(',')
       });
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/reports/reference-analysis?${params}`);
+      const response = await fetch(buildApiUrl('/api/reports/reference-analysis', params));
       const data = await response.json();
       
       if (data.success) {
@@ -1029,8 +1025,7 @@ const MyAdminReports: React.FC = () => {
         metric: bnbViolinFilters.metric
       });
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/bnb/bnb-violin-data?${params}`);
+      const response = await fetch(buildApiUrl('/api/bnb/bnb-violin-data', params));
       const data = await response.json();
       
       if (data.success) {
@@ -1045,8 +1040,7 @@ const MyAdminReports: React.FC = () => {
 
   const fetchBnbViolinFilterOptions = async () => {
     try {
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/bnb/bnb-filter-options');
+      const response = await fetch(buildApiUrl('/api/bnb/bnb-filter-options'));
       const data = await response.json();
       if (data.success) {
         setBnbViolinFilterOptions({
@@ -1063,8 +1057,7 @@ const MyAdminReports: React.FC = () => {
   const fetchReturningGuests = async () => {
     setReturningGuestsLoading(true);
     try {
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/bnb/bnb-returning-guests');
+      const response = await fetch(buildApiUrl('/api/bnb/bnb-returning-guests'));
       const data = await response.json();
       
       if (data.success) {
@@ -1080,7 +1073,7 @@ const MyAdminReports: React.FC = () => {
   const fetchBnbFutureData = async () => {
     setBnbFutureLoading(true);
     try {
-      const response = await fetch('/api/str/future-trend');
+      const response = await fetch(buildApiUrl('/api/str/future-trend'));
       const data = await response.json();
       
       if (data.success) {
@@ -1095,8 +1088,8 @@ const MyAdminReports: React.FC = () => {
 
   const fetchGuestBookings = async (guestName: string) => {
     try {
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/bnb/bnb-guest-bookings?guestName=${encodeURIComponent(guestName)}`);
+      const params = new URLSearchParams({ guestName });
+      const response = await fetch(buildApiUrl('/api/bnb/bnb-guest-bookings', params));
       const data = await response.json();
       
       if (data.success) {
@@ -1116,7 +1109,7 @@ const MyAdminReports: React.FC = () => {
         administration: aangifteIbFilters.administration
       });
       
-      const response = await fetch(`/api/reports/aangifte-ib?${params}`);
+      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib', params));
       const data = await response.json();
       
       if (data.success) {
@@ -1140,7 +1133,7 @@ const MyAdminReports: React.FC = () => {
         aangifte: aangifte
       });
       
-      const response = await fetch(`/api/reports/aangifte-ib-details?${params}`);
+      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-details', params));
       const data = await response.json();
       
       if (data.success) {
@@ -1155,8 +1148,7 @@ const MyAdminReports: React.FC = () => {
   const exportXlsxFiles = async () => {
     setXlsxExportLoading(true);
     try {
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/reports/aangifte-ib-xlsx-export', {
+      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-xlsx-export'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3564,8 +3556,7 @@ const MyAdminReports: React.FC = () => {
                             data: aangifteIbData
                           };
                           
-                          // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-          fetch('/api/reports/aangifte-ib-export', {
+                          fetch(buildApiUrl('/api/reports/aangifte-ib-export'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(exportData)

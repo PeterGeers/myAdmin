@@ -4,7 +4,6 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from contextlib import contextmanager
-from database_migrations import DatabaseMigration, QueryOptimizer
 
 load_dotenv()
 
@@ -223,10 +222,12 @@ class DatabaseManager:
     # Database optimization methods
     def get_migration_manager(self):
         """Get database migration manager"""
+        from database_migrations import DatabaseMigration
         return DatabaseMigration(self.test_mode)
 
     def get_query_optimizer(self):
         """Get query optimizer with caching"""
+        from database_migrations import QueryOptimizer
         return QueryOptimizer(self.test_mode)
 
     def optimize_database(self):

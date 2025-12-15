@@ -1,6 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import jsonify
+from flask import jsonify, request
 from functools import wraps
 import traceback
 import os

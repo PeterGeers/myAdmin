@@ -4,6 +4,7 @@ from functools import wraps
 from datetime import datetime
 import gc
 import os
+from flask import request
 from database import DatabaseManager
 from database_migrations import QueryOptimizer
 
