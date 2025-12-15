@@ -1,24 +1,23 @@
-FROM python:3.12-slim
-
+# Multi-stage build example
+FROM python:3.9-slim AS builder
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    default-libmysqlclient-dev \
-    pkg-config \
-    tesseract-ocr \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements and install Python dependencies
+# Cache dependencies for faster builds
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --user -r requirements.txt
 
-# Copy application code
+FROM python:3.9-alpine
+WORKDIR /app
+
+# Create non-root user
+RUN adduser -D myuser
+USER myuser
+
+# Copy only necessary files and use caching
+COPY --from=builder /root/.local /root/.local
 COPY . .
+ENV PATH=/root/.local/bin:$PATH
 
-# Expose port
-EXPOSE 5000
-
-# Run the application
-CMD ["python", "src/app.py"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f http://localhost:5000/health || exit 1

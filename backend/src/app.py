@@ -1,6 +1,9 @@
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from config import Config
+from flasgger import Swagger
+import yaml
+import os
 from pdf_processor import PDFProcessor
 from transaction_logic import TransactionLogic
 from google_drive_service import GoogleDriveService
@@ -15,10 +18,12 @@ from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
 from str_channel_routes import str_channel_bp
 from str_invoice_routes import str_invoice_bp
-from routes.saltedge_routes import saltedge_bp
 from routes.invoice_routes import invoice_bp
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
+from error_handlers import configure_logging, register_error_handlers, error_response
+from performance_optimizer import performance_middleware, register_performance_endpoints
+from security_audit import SecurityAudit, register_security_endpoints
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -33,8 +38,38 @@ app.register_blueprint(actuals_bp, url_prefix='/api/reports')
 app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
 app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
 app.register_blueprint(str_invoice_bp, url_prefix='/api/str-invoice')
-app.register_blueprint(saltedge_bp)
 app.register_blueprint(invoice_bp)
+
+# Configure Swagger UI
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": 'apispec_1',
+            "route": '/apispec_1.json',
+            "rule_filter": lambda rule: True,  # all in
+            "model_filter": lambda tag: True,  # all in
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/apidocs/"
+}
+
+# Load OpenAPI spec from YAML file
+try:
+    with open('openapi_spec.yaml', 'r') as f:
+        template = yaml.safe_load(f)
+    app.config['SWAGGER'] = {
+        'title': 'myAdmin API',
+        'uiversion': 3,
+        'specs_route': '/apidocs/',
+        'openapi': '3.0.2'
+    }
+    swagger = Swagger(app, template=template)
+except Exception as e:
+    print(f"Warning: Could not load OpenAPI spec: {e}")
+    swagger = Swagger(app, config=swagger_config)
 
 CORS(app, resources={
     r"/api/*": {
@@ -43,6 +78,23 @@ CORS(app, resources={
         "allow_headers": ["Content-Type"]
     }
 })
+
+# Configure logging
+logger = configure_logging(app)
+
+# Register error handlers
+register_error_handlers(app)
+
+# Add performance middleware
+performance_middleware(app)
+
+# Register performance endpoints
+register_performance_endpoints(app)
+
+# Add security middleware and endpoints
+security_audit = SecurityAudit()
+security_audit.create_security_middleware(app)
+register_security_endpoints(app)
 
 # In-memory cache for uploaded files to prevent duplicates during session
 upload_cache = {}

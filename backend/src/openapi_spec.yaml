@@ -1,0 +1,648 @@
+openapi: 3.0.0
+info:
+  title: myAdmin Backend API
+  description: Financial Management and Short-Term Rental Backend System
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@myadmin.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000/api
+    description: Local development server
+  - url: http://localhost:5001/api
+    description: Local development server (alternate port)
+  - url: https://api.myadmin.com/api
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: Authentication endpoints
+  - name: Files
+    description: File upload and processing
+  - name: Transactions
+    description: Financial transaction management
+  - name: Banking
+    description: Banking data processing
+  - name: STR
+    description: Short-Term Rental management
+  - name: Pricing
+    description: Pricing optimization
+  - name: BTW
+    description: VAT/BTW reporting
+  - name: Reports
+    description: Financial reporting
+  - name: Health
+    description: Service health monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Check if the API service is healthy
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /test:
+    get:
+      tags:
+        - Health
+      summary: Test endpoint
+      description: Simple test endpoint to verify API connectivity
+      responses:
+        '200':
+          description: Test successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestResponse'
+
+  /status:
+    get:
+      tags:
+        - Health
+      summary: Get environment status
+      description: Get current environment configuration
+      responses:
+        '200':
+          description: Environment status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+
+  /upload:
+    post:
+      tags:
+        - Files
+      summary: Upload and process PDF file
+      description: Upload a PDF file for processing and data extraction
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file to upload
+                folderName:
+                  type: string
+                  description: Target folder for the file
+      responses:
+        '200':
+          description: File processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approve-transactions:
+    post:
+      tags:
+        - Transactions
+      summary: Approve and save transactions
+      description: Save approved transactions to the database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveTransactionsRequest'
+      responses:
+        '200':
+          description: Transactions saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveTransactionsResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /banking/scan-files:
+    get:
+      tags:
+        - Banking
+      summary: Scan for CSV files
+      description: Scan download folder for banking CSV files
+      parameters:
+        - name: folder
+          in: query
+          description: Folder path to scan
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of CSV files found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankingScanResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /banking/process-files:
+    post:
+      tags:
+        - Banking
+      summary: Process banking CSV files
+      description: Process selected CSV files and extract transactions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankingProcessRequest'
+      responses:
+        '200':
+          description: Transactions extracted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankingProcessResponse'
+        '500':
+          description: Processing error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /str/upload:
+    post:
+      tags:
+        - STR
+      summary: Upload STR file
+      description: Upload and process short-term rental booking file
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: STR booking file
+                platform:
+                  type: string
+                  description: Booking platform (airbnb, booking.com, etc.)
+      responses:
+        '200':
+          description: Booking data processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/STRUploadResponse'
+        '400':
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /str/save:
+    post:
+      tags:
+        - STR
+      summary: Save STR bookings
+      description: Save processed STR bookings to database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/STRSaveRequest'
+      responses:
+        '200':
+          description: Bookings saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/STRSaveResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /pricing/generate:
+    post:
+      tags:
+        - Pricing
+      summary: Generate pricing recommendations
+      description: Generate pricing strategy using AI optimizer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PricingGenerateRequest'
+      responses:
+        '200':
+          description: Pricing recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingGenerateResponse'
+        '500':
+          description: Generation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /btw/generate-report:
+    post:
+      tags:
+        - BTW
+      summary: Generate BTW report
+      description: Generate VAT/BTW declaration report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BTWGenerateRequest'
+      responses:
+        '200':
+          description: BTW report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BTWGenerateResponse'
+        '500':
+          description: Report generation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /reports/aangifte-ib:
+    get:
+      tags:
+        - Reports
+      summary: Get Aangifte IB data
+      description: Get financial data grouped by Parent and Aangifte
+      parameters:
+        - name: year
+          in: query
+          description: Financial year
+          required: true
+          schema:
+            type: string
+        - name: administration
+          in: query
+          description: Administration filter
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Aangifte IB data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AangifteIBResponse'
+        '400':
+          description: Missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    # Standard Response Formats
+    StandardResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Request success status
+        data:
+          type: object
+          description: Response data
+        error:
+          type: string
+          description: Error message (if any)
+        status:
+          type: string
+          enum: [success, error]
+          description: Request status
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Invalid request parameters"
+        status:
+          type: string
+          example: "error"
+
+    # Health Endpoints
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        endpoints:
+          type: array
+          items:
+            type: string
+          example: ["/api/str/upload", "/api/str/scan-files"]
+
+    TestResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "Server is working"
+
+    StatusResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [Test, Production]
+          example: "Test"
+        database:
+          type: string
+          example: "testfinance"
+        folder:
+          type: string
+          example: "testFacturen"
+
+    # File Upload
+    UploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        filename:
+          type: string
+          example: "invoice.pdf"
+        folder:
+          type: string
+          example: "storage/Amazon"
+        extractedText:
+          type: string
+          example: "Invoice content extracted..."
+        vendorData:
+          type: object
+          description: Vendor-specific parsed data
+        transactions:
+          type: array
+          items:
+            type: object
+            description: Extracted transaction data
+
+    # Transaction Approval
+    ApproveTransactionsRequest:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+                example: "Amazon purchase"
+              amount:
+                type: number
+                example: 125.50
+              date:
+                type: string
+                format: date
+                example: "2025-12-15"
+              category:
+                type: string
+                example: "Office Supplies"
+
+    ApproveTransactionsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        savedTransactions:
+          type: array
+          items:
+            type: object
+            description: Saved transaction records
+        message:
+          type: string
+          example: "Successfully saved 5 transactions"
+
+    # Banking
+    BankingScanResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        files:
+          type: array
+          items:
+            type: string
+          example: ["transactions_2025.csv"]
+        folder:
+          type: string
+          example: "/downloads"
+
+    BankingProcessRequest:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: string
+          example: ["/downloads/transactions_2025.csv"]
+        test_mode:
+          type: boolean
+          example: true
+
+    BankingProcessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        transactions:
+          type: array
+          items:
+            type: object
+            description: Extracted banking transactions
+        count:
+          type: integer
+          example: 42
+        test_mode:
+          type: boolean
+          example: true
+
+    # STR (Short-Term Rental)
+    STRUploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        realised:
+          type: array
+          items:
+            type: object
+            description: Realised bookings
+        planned:
+          type: array
+          items:
+            type: object
+            description: Planned bookings
+        summary:
+          type: object
+          description: Booking summary statistics
+        platform:
+          type: string
+          example: "airbnb"
+
+    STRSaveRequest:
+      type: object
+      properties:
+        realised:
+          type: array
+          items:
+            type: object
+            description: Realised booking data
+        planned:
+          type: array
+          items:
+            type: object
+            description: Planned booking data
+
+    STRSaveResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        results:
+          type: object
+          description: Save operation results
+        message:
+          type: string
+          example: "Processed 15 realised, 8 planned bookings"
+
+    # Pricing
+    PricingGenerateRequest:
+      type: object
+      properties:
+        months:
+          type: integer
+          example: 14
+        listing:
+          type: string
+          example: "Child Friendly"
+
+    PricingGenerateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        result:
+          type: object
+          description: Pricing strategy data
+        listing:
+          type: string
+          example: "Child Friendly"
+        generated_at:
+          type: string
+          format: date-time
+
+    # BTW (VAT)
+    BTWGenerateRequest:
+      type: object
+      properties:
+        administration:
+          type: string
+          example: "Main"
+        year:
+          type: string
+          example: "2025"
+        quarter:
+          type: string
+          example: "Q1"
+
+    BTWGenerateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        report:
+          type: object
+          description: Generated BTW report data
+
+    # Reports
+    AangifteIBResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              Parent:
+                type: string
+                example: "4000"
+              Aangifte:
+                type: string
+                example: "Omzet"
+              Amount:
+                type: number
+                example: 12500.50
+        available_years:
+          type: array
+          items:
+            type: string
+          example: ["2024", "2025"]
+        available_administrations:
+          type: array
+          items:
+            type: string
+          example: ["Main", "Secondary"]

@@ -16,7 +16,7 @@ function App() {
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
 
   useEffect(() => {
-    fetch('/api/status')
+    fetch('http://localhost:5000/api/status')
       .then(res => res.json())
       .then(data => setStatus(data))
       .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));
