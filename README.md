@@ -15,74 +15,89 @@ cd frontend && npm start     # Port 3000
 
 ## Components
 
-### 📄 Import Invoices
+### 📄 Import Invoices
 - Upload PDFs, EML, and MHTML files to Google Drive or local storage
-- AI-powered universal invoice data extraction via OpenRouter API
-- Traditional vendor-specific parsers as fallback (251+ formats)
-- Searchable folder dropdown with auto-selection
-- Edit and approve transactions before saving
+- AI‑powered universal invoice data extraction via OpenRouter API
+- Traditional vendor‑specific parsers as fallback (250+ formats)
+- Searchable folder dropdown with auto‑selection
+- Edit and approve transactions before persisting
 - MySQL storage with metadata
 
 ### 🏦 Banking Processor
 - Process CSV bank statements (Rabobank format)
 - Pattern matching for automatic account assignment
-- Duplicate detection and filtering
+- Duplicate detection & filtering
 - Bulk transaction import
 
-### 🏠 STR (Short Term Rental) Processor
+### 🏠 STR (Short‑Term‑Rental) Processor
 - Process Airbnb/Booking.com revenue files
 - Separate realized vs planned bookings
 - Generate future revenue summaries
-- Multi-platform support
+- Multi‑platform support
 
 ### 💰 STR Pricing Optimizer
-- AI-powered pricing recommendations with business logic
+- AI‑powered pricing recommendations with business logic
 - Historical vs recommended ADR comparison
-- Quarterly summary tables by listing
+- Quarterly summary tables per listing
 - Monthly trend analysis with interactive charts
-- Event-based pricing uplifts
-- Guest fee adjustments for Child Friendly property
-- 14-month pricing strategy generation
+- Event‑based pricing uplifts
+- Guest‑fee adjustments (child‑friendly)
+- 14‑month pricing strategy generation
 
 ### 📊 myAdmin Reports
 - Interactive dashboards with Recharts
-- P&L statements and balance sheets
-- BNB revenue analytics with violin/box plots
-- BNB returning guests analysis
-- Aangifte IB (Income Tax) declarations with VW logic
-- HTML/XLSX export functionality
-- Reference number validation
+- P&L statements & balance sheets
+- BNB revenue analytics (violin/box plots)
+- BNB returning‑guest analysis
+- Aangifte IB (Income‑Tax) declarations with VW logic
+- Excel/XLSX export
+- Reference‑number validation
 
 ### 🔍 PDF Validation System
-- Validate Google Drive URLs in transaction records
-- Real-time progress tracking with dynamic progress bar
-- Year and administration filtering
+- Validate Google‑Drive URLs in transaction records
+- Real‑time progress with dynamic progress bar
+- Year & admin filtering
 - Automatic file/folder URL resolution
-- Manual update functionality for broken links
-- Gmail URL detection for manual verification
+- Manual update for broken links
+- Gmail‑URL detection for manual verification
+
+## 💡 OpenRouter Tool‑Call ID
+
+When sending a request to the OpenRouter API, include a `tool_call_id` field that is **exactly 9 alphanumeric characters** (a‑z, A‑Z, 0‑9).  
+Example:
+
+```json
+{
+  "model": "meta-llama/llama-3.2-3b-instruct:free",
+  "messages": [...],
+  "tool_call_id": "a1B2c3D4E"
+}
+```
+
+If you generate the ID automatically, validate the length and character set before sending. A compliant ID prevents the `400 Provider returned error`.
 
 ## Database
 
 - **MySQL**: Main transaction storage
-- **Tables**: mutaties, bnb, bnbplanned, bnbfuture, pricing_recommendations, pricing_events, listings
-- **Views**: vw_mutaties for reporting with VW logic
+- **Tables**: `mutaties`, `bnb`, `bnbplanned`, `bnbfuture`, `pricing_recommendations`, `pricing_events`, `listings`
+- **Views**: `vw_mutaties` for reporting (VW logic)
 - **Config**: `.env` file with credentials
-- **Pricing**: AI insights storage and business logic pricing
+- **Pricing**: AI insights storage & business‑logic pricing
 
-## Test/Production Mode
+## Test / Production Mode
 
 ### Environment Switching
-Switch between test and production environments using `.env`:
+Toggle between test & production using `.env`:
 
 ```env
-# Production Mode (default)
+# Production (default)
 TEST_MODE=false
 DB_NAME=finance
 FACTUREN_FOLDER_ID=your_production_folder_id
 FACTUREN_FOLDER_NAME=Facturen
 OPENROUTER_API_KEY=your_openrouter_api_key
 
-# Test Mode
+# Test
 TEST_MODE=true
 TEST_DB_NAME=testfinance
 TEST_FACTUREN_FOLDER_ID=your_test_folder_id
@@ -90,28 +105,26 @@ TEST_FACTUREN_FOLDER_NAME=testFacturen
 ```
 
 ### Features
-- **Database**: Automatic switching between `finance` and `testfinance`
-- **Google Drive**: Separate folders for test and production
-- **Status Display**: Mode indicator in all function headers
-- **Route Validation**: Prevents conflicts at startup
-- **Schema Validation**: Ensures API consistency
+- Automatic database and Google‑Drive folder switching
+- Mode indicator displayed in all function headers
+- Route & schema validation at startup
 
 ## Git Management
 
 ```bash
-# Commit with timestamp
+# Commit with timestamp:
 .\gitUpdate.ps1
 
-# Commit with custom message
+# Commit with custom message:
 .\gitUpdate.ps1 "Your message here"
 ```
 
 ## Tech Stack
 
 - **Frontend**: React, TypeScript, Chakra UI, Recharts
-- **Backend**: Python, Flask, MySQL, Google Drive API, Gmail API
-- **AI Integration**: OpenRouter API with GPT-3.5-turbo for invoice extraction
+- **Backend**: Python, Flask, MySQL, Google‑Drive, Gmail APIs
+- **AI Integration**: OpenRouter API (GPT‑3.5‑turbo) for invoice extraction
 - **Processing**: PyPDF2, pdfplumber, pandas, openpyxl
-- **Pricing**: Business logic with AI correction factors
-- **Export**: HTML generation, XLSX with R script logic
-- **Real-time**: Server-Sent Events for progress tracking
+- **Pricing**: Business logic + AI correction factors
+- **Export**: HTML & XLSX (R script logic)
+- **Realtime**: Server‑Sent Events for progress tracking
