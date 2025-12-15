@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from contextlib import contextmanager
+from database_migrations import DatabaseMigration, QueryOptimizer
 
 load_dotenv()
 
@@ -208,13 +209,77 @@ class DatabaseManager:
     def get_previous_transactions(self, reference_number, limit=3, table_name='mutaties'):
         """Get previous transactions with descriptions for AI pattern learning"""
         query = f"""
-            SELECT TransactionDate as Datum, TransactionDescription as Omschrijving, 
+            SELECT TransactionDate as Datum, TransactionDescription as Omschrijving,
                    TransactionAmount as Bedrag, Debet, Credit
-            FROM {table_name} 
-            WHERE ReferenceNumber LIKE %s 
+            FROM {table_name}
+            WHERE ReferenceNumber LIKE %s
             ORDER BY TransactionDate DESC, ID DESC
             LIMIT %s
         """
-        
+
         results = self.execute_query(query, (f"%{reference_number}%", limit))
         return results if results else []
+
+    # Database optimization methods
+    def get_migration_manager(self):
+        """Get database migration manager"""
+        return DatabaseMigration(self.test_mode)
+
+    def get_query_optimizer(self):
+        """Get query optimizer with caching"""
+        return QueryOptimizer(self.test_mode)
+
+    def optimize_database(self):
+        """Run database optimization"""
+        migrator = self.get_migration_manager()
+        return migrator.optimize_database()
+
+    def check_indexes(self):
+        """Check database indexes"""
+        migrator = self.get_migration_manager()
+        return migrator.check_indexes()
+
+    def create_recommended_indexes(self):
+        """Create recommended indexes"""
+        migrator = self.get_migration_manager()
+        return migrator.create_recommended_indexes()
+
+    def cleanup_database(self):
+        """Run database cleanup"""
+        migrator = self.get_migration_manager()
+        return migrator.cleanup_database()
+
+    def run_migrations(self):
+        """Run pending migrations"""
+        migrator = self.get_migration_manager()
+        return migrator.run_all_migrations()
+
+    def get_migration_status(self):
+        """Get migration status"""
+        migrator = self.get_migration_manager()
+        return migrator.get_migration_status()
+
+    def cached_query(self, query, params=None, cache_key=None, ttl=None):
+        """Execute query with caching"""
+        optimizer = self.get_query_optimizer()
+        return optimizer.cached_query(query, params, cache_key, ttl)
+
+    def analyze_query(self, query):
+        """Analyze query performance"""
+        optimizer = self.get_query_optimizer()
+        return optimizer.analyze_query(query)
+
+    def optimize_query(self, query):
+        """Get query optimization suggestions"""
+        optimizer = self.get_query_optimizer()
+        return optimizer.optimize_query(query)
+
+    def get_cache_stats(self):
+        """Get query cache statistics"""
+        optimizer = self.get_query_optimizer()
+        return optimizer.get_cache_stats()
+
+    def clear_query_cache(self):
+        """Clear query cache"""
+        optimizer = self.get_query_optimizer()
+        return optimizer.clear_cache()

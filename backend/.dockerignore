@@ -1,0 +1,26 @@
+# Ignore development and sensitive files
+.git
+.gitignore
+.env
+.env.example
+credentials.json
+token.json
+logs/
+*.log
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+node_modules/
+frontend/
+storage/
+uploads/
+test/
+testFacturen/
+ai_insights/
+templates/
