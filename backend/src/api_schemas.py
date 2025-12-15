@@ -86,3 +86,21 @@ def validate_schema(schema_name):
 
         return wrapper
     return decorator
+
+def validate_response_schema(data, schema_name):
+    """
+    Validate response data against a schema
+    """
+    try:
+        schema = API_SCHEMAS.get(schema_name)
+        if not schema:
+            return True  # If schema not found, don't validate
+        
+        validate(instance=data, schema=schema)
+        return True
+    except jsonschema.ValidationError as e:
+        print(f"Response validation error for {schema_name}: {e.message}")
+        return False
+    except Exception as e:
+        print(f"Response validation failed: {str(e)}")
+        return False

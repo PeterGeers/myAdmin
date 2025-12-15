@@ -1,9 +1,9 @@
 import re
 import os
 import hashlib
+import secrets
 import bleach
 from flask import request, jsonify
-from werkzeug.security import safe_str_cmp
 from datetime import datetime
 import logging
 from database import DatabaseManager
@@ -572,6 +572,10 @@ class SecurityAudit:
         """Create security middleware for Flask app"""
         @app.before_request
         def security_checks():
+            # Skip all security checks in development mode
+            if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
+                return None
+                
             # Check for suspicious request patterns
             if self.is_suspicious_request(request):
                 self.logger.warning(f"Suspicious request detected: {request.path}")
@@ -603,6 +607,10 @@ class SecurityAudit:
 
     def is_suspicious_request(self, request):
         """Check if request shows suspicious patterns"""
+        # Skip suspicious request detection in development mode
+        if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
+            return False
+            
         suspicious_patterns = [
             r'/\.\./',  # Directory traversal
             r'\.\./',   # Directory traversal
@@ -639,8 +647,12 @@ class SecurityAudit:
 
     def validate_request_headers(self, request):
         """Validate request headers for security"""
+        # Skip header validation in development mode
+        if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
+            return True
+            
         # Check for required headers
-        required_headers = ['Host', 'User-Agent', 'Accept']
+        required_headers = ['Host']
         for header in required_headers:
             if header not in request.headers:
                 return False

@@ -29,23 +29,23 @@ if ($Lean) {
 switch ($Mode.ToLower()) {
     "dev" {
         Write-Host "Starting myAdmin Development Mode..." -ForegroundColor Green
-        Write-Host "📦 Backend & Database: Docker containers (auto-start)" -ForegroundColor Cyan
-        Write-Host "🚀 Starting frontend development server..." -ForegroundColor Yellow
+        Write-Host "Backend and Database: Docker containers (auto-start)" -ForegroundColor Cyan
+        Write-Host "Starting frontend development server..." -ForegroundColor Yellow
         
         # Sync backend/.env to root and frontend
         if (Test-Path "backend\.env") {
             Copy-Item "backend\.env" ".env" -Force
             Copy-Item "backend\.env" "frontend\.env" -Force
-            Write-Host "✅ Synced backend/.env to root and frontend" -ForegroundColor Green
+            Write-Host "Synced backend/.env to root and frontend" -ForegroundColor Green
         } else {
-            Write-Host "❌ backend/.env not found!" -ForegroundColor Red
+            Write-Host "backend/.env not found!" -ForegroundColor Red
             exit 1
         }
         
         # Check if containers exist and their status
         $existingContainers = docker-compose ps -q
         if (-not $existingContainers) {
-            Write-Host "❌ Containers not found!" -ForegroundColor Red
+            Write-Host "Containers not found!" -ForegroundColor Red
             Write-Host "" -ForegroundColor White
             Write-Host "Manual action required:" -ForegroundColor Yellow
             Write-Host "1. First time setup: Run '.\start.ps1 containers' to create containers" -ForegroundColor White
@@ -59,9 +59,9 @@ switch ($Mode.ToLower()) {
         # Check if containers are running
         $runningContainers = docker-compose ps --filter "status=running" -q
         if ($runningContainers) {
-            Write-Host "📦 Containers already running" -ForegroundColor Green
+            Write-Host "Containers already running" -ForegroundColor Green
         } else {
-            Write-Host "📦 Starting containers..." -ForegroundColor Yellow
+            Write-Host "Starting containers..." -ForegroundColor Yellow
             docker-compose up -d
         }
         Start-Sleep -Seconds 2
@@ -69,7 +69,7 @@ switch ($Mode.ToLower()) {
         # Start frontend dev server
         Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$rootDir\frontend'; npm start"
         
-        Write-Host "✅ Development environment ready!" -ForegroundColor Green
+        Write-Host "Development environment ready!" -ForegroundColor Green
         Write-Host "Backend API: http://localhost:5000" -ForegroundColor Cyan
         Write-Host "Frontend Dev: http://localhost:3000" -ForegroundColor Cyan
         Write-Host "Database: localhost:3306 (Docker)" -ForegroundColor Cyan
@@ -83,16 +83,16 @@ switch ($Mode.ToLower()) {
         if (Test-Path "backend\.env") {
             Copy-Item "backend\.env" ".env" -Force
             Copy-Item "backend\.env" "frontend\.env" -Force
-            Write-Host "✅ Synced backend/.env to root and frontend" -ForegroundColor Green
+            Write-Host "Synced backend/.env to root and frontend" -ForegroundColor Green
         } else {
-            Write-Host "❌ backend/.env not found!" -ForegroundColor Red
+            Write-Host "backend/.env not found!" -ForegroundColor Red
             exit 1
         }
         
         # Check if containers exist and their status
         $existingContainers = docker-compose ps -q
         if (-not $existingContainers) {
-            Write-Host "❌ Containers not found!" -ForegroundColor Red
+            Write-Host "Containers not found!" -ForegroundColor Red
             Write-Host "" -ForegroundColor White
             Write-Host "Manual action required:" -ForegroundColor Yellow
             Write-Host "1. First time setup: Run '.\start.ps1 containers' to create containers" -ForegroundColor White
@@ -106,15 +106,15 @@ switch ($Mode.ToLower()) {
         # Check if containers are running
         $runningContainers = docker-compose ps --filter "status=running" -q
         if ($runningContainers) {
-            Write-Host "📦 Containers already running" -ForegroundColor Green
+            Write-Host "Containers already running" -ForegroundColor Green
         } else {
-            Write-Host "📦 Starting containers..." -ForegroundColor Yellow
+            Write-Host "Starting containers..." -ForegroundColor Yellow
             docker-compose up -d
         }
         
         # Build frontend
         Set-Location "$rootDir\frontend"
-        Write-Host "🏗️ Building React frontend..." -ForegroundColor Yellow
+        Write-Host "Building React frontend..." -ForegroundColor Yellow
         $buildStart = Get-Date
         npm run build
         $buildEnd = Get-Date
@@ -123,10 +123,10 @@ switch ($Mode.ToLower()) {
         
         # Restart backend to pick up new build
         Set-Location $rootDir
-        Write-Host "📦 Restarting backend for new build..." -ForegroundColor Yellow
+        Write-Host "Restarting backend for new build..." -ForegroundColor Yellow
         docker-compose restart backend
         
-        Write-Host "✅ Production build complete!" -ForegroundColor Green
+        Write-Host "Production build complete!" -ForegroundColor Green
         Write-Host "Production server: http://localhost:5000" -ForegroundColor Cyan
         Write-Host "(Backend serves built React app)" -ForegroundColor Gray
     }
@@ -137,21 +137,21 @@ switch ($Mode.ToLower()) {
         if (Test-Path "backend\.env") {
             Copy-Item "backend\.env" ".env" -Force
             (Get-Content ".env") -replace "DB_HOST=localhost", "DB_HOST=mysql" | Set-Content ".env"
-            Write-Host "✅ Synced backend/.env to root .env" -ForegroundColor Green
+            Write-Host "Synced backend/.env to root .env" -ForegroundColor Green
         } else {
-            Write-Host "❌ backend/.env not found!" -ForegroundColor Red
+            Write-Host "backend/.env not found!" -ForegroundColor Red
             exit 1
         }
         
         if ($Build) {
-            Write-Host "🔨 Rebuilding containers..." -ForegroundColor Yellow
+            Write-Host "Rebuilding containers..." -ForegroundColor Yellow
             docker-compose up --build -d
         } else {
-            Write-Host "🚀 Starting containers..." -ForegroundColor Yellow
+            Write-Host "Starting containers..." -ForegroundColor Yellow
             docker-compose up -d
         }
         
-        Write-Host "✅ Containers running!" -ForegroundColor Green
+        Write-Host "Containers running!" -ForegroundColor Green
         Write-Host "Backend: http://localhost:5000" -ForegroundColor Cyan
         Write-Host "Database: localhost:3306" -ForegroundColor Cyan
     }

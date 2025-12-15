@@ -96,14 +96,10 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
   const statusIdx = getColIdx(['status', 'state'], 8);
   const saldoIdx = getColIdx(['saldo', 'balance'], 9);
   
-  const type = columns[typeIdx] || '';
-  const product = columns[productIdx] || '';
   const startdatum = columns[startdatumIdx] || '';
-  const datumVoltooid = columns[datumVoltooiIdx] || '';
   const beschrijving = columns[beschrijvingIdx] || '';
   const bedrag = columns[bedragIdx] || '0';
   const kosten = columns[kostenIdx] || '0';
-  const valuta = columns[valutaIdx] || '';
   const status = columns[statusIdx] || '';
   // Always format saldo to 2 decimals for consistency (514.3 -> 514.30)
   const saldoRaw = columns[saldoIdx] || '0';
@@ -1495,7 +1491,12 @@ const BankingProcessor: React.FC = () => {
 
                 {refSummaryData.length > 0 && (
                   <VStack align="stretch" spacing={4}>
-                    <Heading size="xs" color="white">Reference Summary ({refSummaryData.length})</Heading>
+                    <HStack justify="space-between">
+                      <Heading size="xs" color="white">Reference Summary ({refSummaryData.length})</Heading>
+                      <Text color="orange.300" fontWeight="bold" fontSize="sm">
+                        Total: {formatAmount(refSummaryData.reduce((sum, row) => sum + (parseFloat(row.total_amount) || 0), 0))}
+                      </Text>
+                    </HStack>
                     <TableContainer maxH="300px" overflowY="auto">
                       <Table size="sm" variant="simple">
                         <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
