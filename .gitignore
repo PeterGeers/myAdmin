@@ -41,6 +41,9 @@ dist/
 uploads/
 storage/
 
+# Backend reports (uploaded/generated files)
+backend/reports/
+
 # IDE
 .idea/
 *.swp
