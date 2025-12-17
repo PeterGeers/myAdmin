@@ -1,0 +1,12 @@
+{
+  "name": "duplicate_decision_audit_log",
+  "description": "Create audit log table for duplicate invoice decision tracking and compliance",
+  "timestamp": "20251217130000",
+  "up": [
+    "CREATE TABLE IF NOT EXISTS duplicate_decision_log (id INT AUTO_INCREMENT PRIMARY KEY, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, reference_number VARCHAR(255) NOT NULL, transaction_date DATE NOT NULL, transaction_amount DECIMAL(10,2) NOT NULL, decision VARCHAR(20) NOT NULL, existing_transaction_id INT, new_file_url VARCHAR(500), user_id VARCHAR(100), session_id VARCHAR(100), operation_id VARCHAR(100), INDEX idx_reference_number (reference_number), INDEX idx_transaction_date (transaction_date), INDEX idx_decision (decision), INDEX idx_timestamp (timestamp), INDEX idx_user_id (user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Audit log for duplicate invoice detection decisions'"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS duplicate_decision_log"
+  ],
+  "version": "1.0"
+}

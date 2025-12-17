@@ -1,8 +1,8 @@
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 
-export {};
+export { };
 
 // Mock myAdmin Reports component
 const MockMyAdminReports = ({ 
@@ -85,6 +85,13 @@ const MockMyAdminReports = ({
           value={filters.dateTo}
           onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
         />
+
+        {/* Unified Filter for Actuals Tab */}
+        {currentTab === 2 && (
+          <div data-testid="unified-admin-year-filter">
+            Unified Admin Year Filter
+          </div>
+        )}
 
         <button data-testid="update-data-btn">Update Data</button>
         <button data-testid="export-csv-btn">Export CSV</button>
@@ -239,6 +246,18 @@ describe('myAdmin Reports', () => {
       expect(screen.getByTestId('administration-filter')).toBeInTheDocument();
       expect(screen.getByTestId('date-from-filter')).toBeInTheDocument();
       expect(screen.getByTestId('date-to-filter')).toBeInTheDocument();
+    });
+
+    it('renders unified filter in Actuals Dashboard tab', async () => {
+      const user = userEvent.setup();
+      render(<MockMyAdminReports />);
+      
+      // Switch to Actuals tab (index 2)
+      const actualsTab = screen.getByTestId('tab-actuals');
+      await user.click(actualsTab);
+      
+      // Verify unified filter components are present
+      expect(screen.getByTestId('unified-admin-year-filter')).toBeInTheDocument();
     });
 
     it('updates filters when changed', async () => {

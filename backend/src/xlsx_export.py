@@ -15,7 +15,15 @@ class XLSXExportProcessor:
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
         self.template_path = os.path.join(os.path.dirname(__file__), '..', 'OldRScripts', 'template.xlsx')
-        self.output_base_path = r'C:\Users\peter\OneDrive\Admin\reports'
+        # Check if running in Docker/container environment
+        if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
+            # Running in container - use mounted volume path
+            self.output_base_path = '/app/reports'
+            # Ensure the directory exists in container
+            os.makedirs(self.output_base_path, exist_ok=True)
+        else:
+            # Running on Windows - use the original path
+            self.output_base_path = r'C:\Users\peter\OneDrive\Admin\reports'
         self.folder_search_log = []
         
     def make_ledgers(self, year, administration):
@@ -84,7 +92,14 @@ class XLSXExportProcessor:
         """Export files and create folder structure"""
         # Create output folder
         folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
-        os.makedirs(folder_path, exist_ok=True)
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+        except OSError as e:
+            print(f"Warning: Could not create directory {folder_path}: {e}")
+            # Fallback to a temporary directory or current directory
+            import tempfile
+            folder_path = tempfile.mkdtemp(prefix=f"{administration}{year}_")
+            print(f"Using temporary directory: {folder_path}")
         
         # Filter data for Google Drive files
         df = pd.DataFrame(data)
@@ -176,8 +191,16 @@ class XLSXExportProcessor:
     
     def write_workbook(self, data, filename, sheet_name='data'):
         """Write data to Excel workbook using template"""
-        # Ensure output directory exists
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        # Ensure output directory exists - create full path if needed
+        output_dir = os.path.dirname(filename)
+        if output_dir:  # Only create if there's actually a directory path
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+            except OSError as e:
+                print(f"Warning: Could not create directory {output_dir}: {e}")
+                # Fallback to current directory
+                filename = os.path.basename(filename)
+                print(f"Falling back to current directory: {filename}")
         
         # Copy template if target file doesn't exist
         if not os.path.exists(filename):
@@ -278,6 +301,15 @@ class XLSXExportProcessor:
                     folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
                     filename = os.path.join(folder_path, f"{administration}{year}.xlsx")
                     
+                    # Ensure base output directory exists
+                    try:
+                        os.makedirs(self.output_base_path, exist_ok=True)
+                    except OSError as e:
+                        print(f"Warning: Could not create base output directory {self.output_base_path}: {e}")
+                        # Use current directory as fallback
+                        filename = f"{administration}{year}.xlsx"
+                        print(f"Using current directory for output: {filename}")
+                    
                     # Write workbook
                     output_file = self.write_workbook(ledger_data, filename, 'data')
                     print(f"Created file: {output_file}")
@@ -306,6 +338,396 @@ class XLSXExportProcessor:
                     })
         
         return results
+    
+    def generate_xlsx_export_with_progress(self, administrations, years):
+        """Generate XLSX exports with progress reporting"""
+        total_combinations = len(administrations) * len(years)
+        current_combination = 0
+        results = []
+        
+        for administration in administrations:
+            for year in years:
+                current_combination += 1
+                
+                # Yield progress update
+                yield {
+                    'type': 'progress',
+                    'current_combination': current_combination,
+                    'total_combinations': total_combinations,
+                    'current_administration': administration,
+                    'current_year': year,
+                    'status': f'Processing {administration} {year}...'
+                }
+                
+                try:
+                    print(f"Processing {administration} {year}")
+                    
+                    # Get ledger data
+                    ledger_data = self.make_ledgers(year, administration)
+                    print(f"Found {len(ledger_data)} records")
+                    
+                    if not ledger_data:
+                        result = {
+                            'administration': administration,
+                            'year': year,
+                            'error': 'No data found for this administration/year combination',
+                            'success': False
+                        }
+                        results.append(result)
+                        
+                        # Yield progress with error
+                        yield {
+                            'type': 'progress',
+                            'current_combination': current_combination,
+                            'total_combinations': total_combinations,
+                            'current_administration': administration,
+                            'current_year': year,
+                            'status': f'No data found for {administration} {year}',
+                            'result': result
+                        }
+                        continue
+                    
+                    # Create output folder and filename
+                    folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+                    filename = os.path.join(folder_path, f"{administration}{year}.xlsx")
+                    
+                    # Ensure base output directory exists
+                    try:
+                        os.makedirs(self.output_base_path, exist_ok=True)
+                    except OSError as e:
+                        print(f"Warning: Could not create base output directory {self.output_base_path}: {e}")
+                        # Use current directory as fallback
+                        filename = f"{administration}{year}.xlsx"
+                        print(f"Using current directory for output: {filename}")
+                    
+                    # Write workbook
+                    yield {
+                        'type': 'progress',
+                        'current_combination': current_combination,
+                        'total_combinations': total_combinations,
+                        'current_administration': administration,
+                        'current_year': year,
+                        'status': f'Creating Excel file for {administration} {year}...'
+                    }
+                    
+                    output_file = self.write_workbook(ledger_data, filename, 'data')
+                    print(f"Created file: {output_file}")
+                    
+                    # Export files (create folder structure) with progress
+                    yield {
+                        'type': 'progress',
+                        'current_combination': current_combination,
+                        'total_combinations': total_combinations,
+                        'current_administration': administration,
+                        'current_year': year,
+                        'status': f'Downloading Google Drive files for {administration} {year}...'
+                    }
+                    
+                    # Use generator for file-level progress
+                    file_count = 0
+                    for file_progress in self.export_files_with_progress_generator(ledger_data, year, administration):
+                        if file_progress.get('type') == 'file_progress':
+                            # Yield file-level progress
+                            yield {
+                                'type': 'progress',
+                                'current_combination': current_combination,
+                                'total_combinations': total_combinations,
+                                'current_administration': administration,
+                                'current_year': year,
+                                'status': file_progress['file_status'],
+                                'file_progress': {
+                                    'current_file': file_progress['current_file'],
+                                    'total_files': file_progress['total_files'],
+                                    'reference_number': file_progress['reference_number']
+                                }
+                            }
+                        elif file_progress.get('type') == 'complete':
+                            file_count = file_progress['downloaded_count']
+                    
+                    result = {
+                        'administration': administration,
+                        'year': year,
+                        'filename': output_file,
+                        'records': len(ledger_data),
+                        'files_processed': file_count,
+                        'success': True
+                    }
+                    results.append(result)
+                    
+                    # Yield completion for this combination
+                    yield {
+                        'type': 'progress',
+                        'current_combination': current_combination,
+                        'total_combinations': total_combinations,
+                        'current_administration': administration,
+                        'current_year': year,
+                        'status': f'Completed {administration} {year} - {len(ledger_data)} records, {file_count} files',
+                        'result': result
+                    }
+                    
+                except Exception as e:
+                    print(f"Error processing {administration} {year}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    
+                    result = {
+                        'administration': administration,
+                        'year': year,
+                        'error': str(e),
+                        'success': False
+                    }
+                    results.append(result)
+                    
+                    # Yield error for this combination
+                    yield {
+                        'type': 'progress',
+                        'current_combination': current_combination,
+                        'total_combinations': total_combinations,
+                        'current_administration': administration,
+                        'current_year': year,
+                        'status': f'Error processing {administration} {year}: {str(e)}',
+                        'result': result
+                    }
+        
+        # Yield final results
+        successful_results = [r for r in results if r['success']]
+        yield {
+            'type': 'complete',
+            'results': results,
+            'total_processed': len(results),
+            'successful': len(successful_results),
+            'failed': len(results) - len(successful_results),
+            'message': f'Generated {len(successful_results)} XLSX files out of {len(results)} requested'
+        }
+    
+    def export_files_with_progress_generator(self, data, year, administration):
+        """Export files with progress reporting as a generator"""
+        # Create output folder
+        folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+        except OSError as e:
+            print(f"Warning: Could not create directory {folder_path}: {e}")
+            # Fallback to a temporary directory or current directory
+            import tempfile
+            folder_path = tempfile.mkdtemp(prefix=f"{administration}{year}_")
+            print(f"Using temporary directory: {folder_path}")
+        
+        # Filter data for Google Drive files
+        df = pd.DataFrame(data)
+        print(f"Total records: {len(df)}")
+        
+        # Check if DocUrl column exists and has Google Drive links
+        if 'DocUrl' not in df.columns:
+            print("DocUrl column not found in data")
+            yield {'type': 'complete', 'downloaded_count': 0}
+            return
+            
+        df = df[df['DocUrl'].str.contains('drive.google', na=False)]
+        print(f"Records with Google Drive URLs: {len(df)}")
+        
+        if len(df) == 0:
+            print("No Google Drive files found")
+            yield {'type': 'complete', 'downloaded_count': 0}
+            return
+            
+        df['ReferenceNumber'] = df['ReferenceNumber'].str.strip()
+        df = df.drop_duplicates()
+        
+        # Create reference number folders
+        reference_numbers = sorted(df['ReferenceNumber'].unique())
+        reference_numbers = [ref for ref in reference_numbers if ref]
+        
+        for ref_num in reference_numbers:
+            ref_folder = os.path.join(folder_path, ref_num)
+            os.makedirs(ref_folder, exist_ok=True)
+        
+        # Download files from Google Drive with progress reporting
+        downloaded_count = 0
+        failed_downloads = []
+        total_files = len(df)
+        
+        print(f"Found {total_files} Google Drive files to download")
+        
+        try:
+            service = self._get_drive_service()
+            if service:
+                for index, (_, row) in enumerate(df.iterrows()):
+                    # Yield progress for each file
+                    yield {
+                        'type': 'file_progress',
+                        'current_file': index + 1,
+                        'total_files': total_files,
+                        'file_status': f'Downloading file {index + 1}/{total_files}: {row.get("Document", "Unknown")}',
+                        'reference_number': row['ReferenceNumber']
+                    }
+                    
+                    print(f"Processing file {index + 1}/{total_files}: {row['DocUrl']} -> {row['ReferenceNumber']}")
+                    
+                    if row['ReferenceNumber']:
+                        success = self._download_drive_file(
+                            service, 
+                            row['DocUrl'], 
+                            os.path.join(folder_path, row['ReferenceNumber']),
+                            row.get('Document', '')
+                        )
+                        if success:
+                            downloaded_count += 1
+                            print(f"Successfully downloaded file {downloaded_count}")
+                        else:
+                            failed_downloads.append({
+                                'ReferenceNumber': row['ReferenceNumber'],
+                                'Document': row.get('Document', ''),
+                                'DocUrl': row['DocUrl']
+                            })
+            else:
+                print("Could not get Google Drive service")
+        except Exception as e:
+            print(f"Error downloading files: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Write log file for failed downloads and folder contents
+        log_file = os.path.join(folder_path, 'download_log.txt')
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write(f"Download Log - {administration} {year}\n")
+            f.write("=" * 50 + "\n\n")
+            
+            if failed_downloads:
+                f.write("FAILED DOWNLOADS:\n")
+                f.write("-" * 20 + "\n")
+                for item in failed_downloads:
+                    f.write(f"Reference Number: {item['ReferenceNumber']}\n")
+                    f.write(f"Document: {item['Document']}\n")
+                    f.write(f"URL: {item['DocUrl']}\n")
+                    f.write("-" * 30 + "\n")
+            
+            if hasattr(self, 'folder_search_log') and self.folder_search_log:
+                f.write("\nFOLDER SEARCH RESULTS:\n")
+                f.write("-" * 25 + "\n")
+                for item in self.folder_search_log:
+                    f.write(f"Searched for: {item['document_searched']}\n")
+                    f.write(f"Folder ID: {item['folder_id']}\n")
+                    f.write(f"Files found: {', '.join(item['files_found'])}\n")
+                    f.write("-" * 30 + "\n")
+        
+        print(f"Created log file: {log_file}")
+        
+        yield {'type': 'complete', 'downloaded_count': downloaded_count}
+
+    def export_files_with_progress(self, data, year, administration, progress_callback=None):
+        """Export files with progress reporting for individual file downloads"""
+        # Create output folder
+        folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+        except OSError as e:
+            print(f"Warning: Could not create directory {folder_path}: {e}")
+            # Fallback to a temporary directory or current directory
+            import tempfile
+            folder_path = tempfile.mkdtemp(prefix=f"{administration}{year}_")
+            print(f"Using temporary directory: {folder_path}")
+        
+        # Filter data for Google Drive files
+        df = pd.DataFrame(data)
+        print(f"Total records: {len(df)}")
+        
+        # Check if DocUrl column exists and has Google Drive links
+        if 'DocUrl' not in df.columns:
+            print("DocUrl column not found in data")
+            return 0
+            
+        df = df[df['DocUrl'].str.contains('drive.google', na=False)]
+        print(f"Records with Google Drive URLs: {len(df)}")
+        
+        if len(df) == 0:
+            print("No Google Drive files found")
+            return 0
+            
+        df['ReferenceNumber'] = df['ReferenceNumber'].str.strip()
+        df = df.drop_duplicates()
+        
+        # Create reference number folders
+        reference_numbers = sorted(df['ReferenceNumber'].unique())
+        reference_numbers = [ref for ref in reference_numbers if ref]
+        
+        for ref_num in reference_numbers:
+            ref_folder = os.path.join(folder_path, ref_num)
+            os.makedirs(ref_folder, exist_ok=True)
+        
+        # Download files from Google Drive with progress reporting
+        downloaded_count = 0
+        failed_downloads = []
+        total_files = len(df)
+        
+        print(f"Found {total_files} Google Drive files to download")
+        
+        try:
+            service = self._get_drive_service()
+            if service:
+                for index, (_, row) in enumerate(df.iterrows()):
+                    # Report progress for each file
+                    if progress_callback:
+                        progress_callback({
+                            'type': 'file_progress',
+                            'current_file': index + 1,
+                            'total_files': total_files,
+                            'file_status': f'Downloading file {index + 1}/{total_files}: {row.get("Document", "Unknown")}',
+                            'reference_number': row['ReferenceNumber']
+                        })
+                    
+                    print(f"Processing file {index + 1}/{total_files}: {row['DocUrl']} -> {row['ReferenceNumber']}")
+                    
+                    if row['ReferenceNumber']:
+                        success = self._download_drive_file(
+                            service, 
+                            row['DocUrl'], 
+                            os.path.join(folder_path, row['ReferenceNumber']),
+                            row.get('Document', '')
+                        )
+                        if success:
+                            downloaded_count += 1
+                            print(f"Successfully downloaded file {downloaded_count}")
+                        else:
+                            failed_downloads.append({
+                                'ReferenceNumber': row['ReferenceNumber'],
+                                'Document': row.get('Document', ''),
+                                'DocUrl': row['DocUrl']
+                            })
+            else:
+                print("Could not get Google Drive service")
+        except Exception as e:
+            print(f"Error downloading files: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Write log file for failed downloads and folder contents
+        log_file = os.path.join(folder_path, 'download_log.txt')
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write(f"Download Log - {administration} {year}\n")
+            f.write("=" * 50 + "\n\n")
+            
+            if failed_downloads:
+                f.write("FAILED DOWNLOADS:\n")
+                f.write("-" * 20 + "\n")
+                for item in failed_downloads:
+                    f.write(f"Reference Number: {item['ReferenceNumber']}\n")
+                    f.write(f"Document: {item['Document']}\n")
+                    f.write(f"URL: {item['DocUrl']}\n")
+                    f.write("-" * 30 + "\n")
+            
+            if hasattr(self, 'folder_search_log') and self.folder_search_log:
+                f.write("\nFOLDER SEARCH RESULTS:\n")
+                f.write("-" * 25 + "\n")
+                for item in self.folder_search_log:
+                    f.write(f"Searched for: {item['document_searched']}\n")
+                    f.write(f"Folder ID: {item['folder_id']}\n")
+                    f.write(f"Files found: {', '.join(item['files_found'])}\n")
+                    f.write("-" * 30 + "\n")
+        
+        print(f"Created log file: {log_file}")
+        
+        return downloaded_count
     
     def _find_document_in_folder(self, service, folder_id, dest_folder, document_name):
         """Find and download specific document in folder"""

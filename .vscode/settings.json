@@ -43,5 +43,6 @@
     "markdown": false,
     "scminput": false
   },
-  "openrouter.apiKey": "<your-openrouter-api-key>"
+  "openrouter.apiKey": "<your-openrouter-api-key>",
+  "kiroAgent.configureMCP": "Disabled"
 }

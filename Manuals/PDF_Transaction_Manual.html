@@ -191,11 +191,18 @@
                 <li><strong>Multi-Format Support:</strong> PDF, JPG, PNG files with OCR capability</li>
                 <li><strong>Vendor-Specific Parsing:</strong> Specialized extractors for 12+ vendors</li>
                 <li><strong>Smart Transaction Preparation:</strong> Template-based transaction generation</li>
+                <li><strong>Duplicate Invoice Detection:</strong> Automatic detection and prevention of duplicate transactions</li>
                 <li><strong>Google Drive Integration:</strong> Automatic cloud storage and organization</li>
                 <li><strong>VAT Calculation:</strong> Automatic 21% VAT computation and separate transactions</li>
                 <li><strong>Database Lookup Integration:</strong> Accommodation and account code resolution</li>
                 <li><strong>Test/Production Modes:</strong> Safe testing environment</li>
             </ul>
+        </div>
+
+        <div class="info">
+            <h4>📘 Duplicate Invoice Detection</h4>
+            <p>The system now includes comprehensive duplicate invoice detection to prevent accidental re-import of invoices. When a potential duplicate is detected, you'll see a warning dialog with options to continue or cancel the import.</p>
+            <p><strong>For detailed information about duplicate detection, see:</strong> <a href="Duplicate_Invoice_Detection_Manual.html">Duplicate Invoice Detection Manual</a></p>
         </div>
 
         <h2 id="architecture">2. System Architecture</h2>
@@ -207,9 +214,15 @@
             <div class="workflow-arrow">→</div>
             <div class="workflow-step">Vendor Parsing<br>& Data Extraction</div>
             <div class="workflow-arrow">→</div>
+            <div class="workflow-step">Duplicate<br>Check</div>
+            <div class="workflow-arrow">→</div>
             <div class="workflow-step">Transaction<br>Preparation</div>
             <div class="workflow-arrow">→</div>
             <div class="workflow-step">Database<br>Storage</div>
+        </div>
+
+        <div class="info">
+            <strong>Note:</strong> The duplicate check step automatically searches for existing transactions with matching reference number, date, and amount. If duplicates are found, a warning dialog appears before proceeding.
         </div>
 
         <h3>Technology Stack</h3>

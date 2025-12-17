@@ -3,6 +3,7 @@ import {
   Box, Button, Heading, VStack, Input, FormControl, FormLabel,
   Alert, AlertIcon, HStack
 } from '@chakra-ui/react';
+import { generateReceipt, downloadReceipt } from '../utils/receiptGenerator';
 
 const InvoiceGenerator: React.FC = () => {
   const [companyName, setCompanyName] = useState('Intratuin');
@@ -13,30 +14,19 @@ const InvoiceGenerator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const generateInvoice = async () => {
+  const generateInvoice = () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/invoice/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          company_name: companyName,
-          filename: filename,
-          total_amount: parseFloat(totalAmount),
-          vat_amount: parseFloat(vatAmount),
-          date: date
-        })
+      
+      const canvas = generateReceipt({
+        supplierName: companyName,
+        transactionDate: date,
+        totalAmount: parseFloat(totalAmount),
+        vatAmount: parseFloat(vatAmount)
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setMessage(`Kassabon gegenereerd: ${data.filename}`);
-        // Download the file
-        window.open(`/api/invoice/download/${data.filename}`, '_blank');
-      } else {
-        setMessage(`Fout: ${data.error}`);
-      }
+      
+      downloadReceipt(canvas, filename);
+      setMessage(`Kassabon gedownload: ${filename}`);
     } catch (error) {
       setMessage(`Fout: ${error}`);
     } finally {

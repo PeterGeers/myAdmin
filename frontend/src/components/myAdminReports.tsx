@@ -1,13 +1,36 @@
-import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, HStack, Heading, Select, Button, Text,
-  Card, CardBody, CardHeader, Grid, GridItem, Input,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer,
-  Tabs, TabList, TabPanels, Tab, TabPanel,
-  Menu, MenuButton, MenuList, MenuItem, Checkbox
+    Box,
+    Button,
+    Card, CardBody, CardHeader,
+    Checkbox,
+    Grid, GridItem,
+    HStack, Heading,
+    Input,
+    Menu, MenuButton,
+    MenuItem,
+    MenuList,
+    Progress,
+    Select,
+    Tab,
+    TabList,
+    TabPanel,
+    TabPanels,
+    Table,
+    TableContainer,
+    Tabs,
+    Tbody,
+    Td,
+    Text,
+    Th,
+    Thead,
+    Tr,
+    VStack
 } from '@chakra-ui/react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line, RadialBarChart, RadialBar, AreaChart, Area } from 'recharts';
+import React, { useEffect, useState } from 'react';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildApiUrl } from '../config';
+import UnifiedAdminYearFilter from './UnifiedAdminYearFilter';
+import { createAangifteIbFilterAdapter, createActualsFilterAdapter, createBnbActualsFilterAdapter, createBnbViolinFilterAdapter, createBtwFilterAdapter, createRefAnalysisFilterAdapter } from './UnifiedAdminYearFilterAdapters';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -132,6 +155,7 @@ const MyAdminReports: React.FC = () => {
     year: new Date().getFullYear().toString(),
     quarter: '1'
   });
+  const [btwAvailableYears, setBtwAvailableYears] = useState<string[]>([]);
   const [btwReport, setBtwReport] = useState<string>('');
   const [btwTransaction, setBtwTransaction] = useState<any>(null);
   const [btwLoading, setBtwLoading] = useState(false);
@@ -188,6 +212,16 @@ const MyAdminReports: React.FC = () => {
   const [selectedAangifteRow, setSelectedAangifteRow] = useState<{parent: string, aangifte: string} | null>(null);
   const [expandedAangifteRows, setExpandedAangifteRows] = useState<Set<string>>(new Set());
   const [xlsxExportLoading, setXlsxExportLoading] = useState(false);
+  const [xlsxExportProgress, setXlsxExportProgress] = useState<{
+    current: number;
+    total: number;
+    status: string;
+    fileProgress?: {
+      current_file: number;
+      total_files: number;
+      reference_number: string;
+    };
+  } | null>(null);
   const [xlsxExportFilters, setXlsxExportFilters] = useState({
     administrations: [] as string[],
     years: [] as string[]
@@ -844,6 +878,19 @@ const MyAdminReports: React.FC = () => {
     }
   };
 
+  const fetchBtwAvailableYears = async () => {
+    try {
+      // BTW uses the same available years as other reports
+      const response = await fetch(buildApiUrl('/api/reports/available-years'));
+      const data = await response.json();
+      if (data.success) {
+        setBtwAvailableYears(data.years);
+      }
+    } catch (err) {
+      console.error('Error fetching BTW available years:', err);
+    }
+  };
+
   const fetchBnbFilterOptions = async () => {
     try {
       const response = await fetch(buildApiUrl('/api/reports/bnb-filter-options'));
@@ -1146,9 +1193,14 @@ const MyAdminReports: React.FC = () => {
   };
 
   const exportXlsxFiles = async () => {
+    console.log('Starting XLSX export with streaming...');
     setXlsxExportLoading(true);
+    setXlsxExportProgress(null);
+    
     try {
-      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-xlsx-export'), {
+      // First, send the POST request to start the streaming process
+      console.log('Calling streaming endpoint:', buildApiUrl('/api/reports/aangifte-ib-xlsx-export-stream'));
+      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-xlsx-export-stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1156,17 +1208,72 @@ const MyAdminReports: React.FC = () => {
           years: xlsxExportFilters.years
         })
       });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        alert(`Successfully generated ${data.results.filter((r: any) => r.success).length} XLSX files`);
-      } else {
-        alert(`Error: ${data.error}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      // Create EventSource for streaming updates
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      if (!reader) {
+        throw new Error('No response body reader available');
+      }
+
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'start') {
+                setXlsxExportProgress({
+                  current: 0,
+                  total: data.administrations.length * data.years.length,
+                  status: 'Starting export...'
+                });
+              } else if (data.type === 'progress') {
+                setXlsxExportProgress({
+                  current: data.current_combination || 0,
+                  total: data.total_combinations || 1,
+                  status: data.status || 'Processing...',
+                  fileProgress: data.file_progress
+                });
+              } else if (data.type === 'complete') {
+                console.log('Export completed:', data.message);
+                alert(`Export completed! ${data.message}`);
+                setXlsxExportProgress(null);
+                break;
+              } else if (data.type === 'error') {
+                console.error('Export error:', data.error);
+                alert(`Export failed: ${data.error}`);
+                setXlsxExportProgress(null);
+                break;
+              }
+            } catch (parseError) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+          }
+        }
+      }
+      
     } catch (err) {
       console.error('Error exporting XLSX:', err);
       alert('Error exporting XLSX files');
+      setXlsxExportProgress(null);
     } finally {
       setXlsxExportLoading(false);
     }
@@ -1183,6 +1290,7 @@ const MyAdminReports: React.FC = () => {
         fetchProfitLossData(),
 
         fetchAvailableYears(),
+        fetchBtwAvailableYears(),
         fetchActualsData(),
         fetchBnbFilterOptions(),
         fetchBnbActualsData(),
@@ -1200,6 +1308,21 @@ const MyAdminReports: React.FC = () => {
     fetchActualsData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drillDownLevel]);
+
+
+
+  // Refetch actuals data when filters change
+  const actualsFilterDeps = React.useMemo(() => [
+    actualsFilters.years.join(','),
+    actualsFilters.administration
+  ], [actualsFilters.years, actualsFilters.administration]);
+  
+  useEffect(() => {
+    if (actualsFilters.years.length > 0) {
+      fetchActualsData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, actualsFilterDeps);
 
   // Refetch BNB actuals data when filters change
   const bnbFilterDeps = React.useMemo(() => [
@@ -1790,58 +1913,17 @@ const MyAdminReports: React.FC = () => {
                 <Card bg="gray.700">
                   <CardBody>
                     <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-                      <GridItem>
-                        <Text color="white" mb={2}>Select Years</Text>
-                        <Menu closeOnSelect={false}>
-                          <MenuButton
-                            as={Button}
-                            bg="orange.500"
-                            color="white"
-                            size="sm"
-                            width="100%"
-                            textAlign="left"
-                            rightIcon={<span>▼</span>}
-                            _hover={{ bg: "orange.600" }}
-                            _active={{ bg: "orange.600" }}
-                          >
-                            {actualsFilters.years.length > 0 ? actualsFilters.years.join(', ') : 'Select years...'}
-                          </MenuButton>
-                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {availableYears.map((year, index) => (
-                              <MenuItem key={`actuals-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                                <Checkbox
-                                  isChecked={actualsFilters.years.includes(year)}
-                                  onChange={(e) => {
-                                    const isChecked = e.target.checked;
-                                    setActualsFilters(prev => ({
-                                      ...prev,
-                                      years: isChecked 
-                                        ? [...prev.years, year]
-                                        : prev.years.filter(y => y !== year)
-                                    }));
-                                  }}
-                                  colorScheme="orange"
-                                >
-                                  <Text color="white" ml={2}>{year}</Text>
-                                </Checkbox>
-                              </MenuItem>
-                            ))}
-                          </MenuList>
-                        </Menu>
-                      </GridItem>
-                      <GridItem>
-                        <Text color="white" mb={2}>Administration</Text>
-                        <Select
-                          value={actualsFilters.administration}
-                          onChange={(e) => setActualsFilters(prev => ({...prev, administration: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
+                      {/* Unified Administration and Year Filter */}
+                      <GridItem colSpan={{ base: 1, md: 2 }}>
+                        <UnifiedAdminYearFilter
+                          {...createActualsFilterAdapter(
+                            actualsFilters,
+                            setActualsFilters,
+                            availableYears
+                          )}
                           size="sm"
-                        >
-                          <option value="all">All</option>
-                          <option value="GoodwinSolutions">GoodwinSolutions</option>
-                          <option value="PeterPrive">PeterPrive</option>
-                        </Select>
+                          isLoading={loading}
+                        />
                       </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>Display Format</Text>
@@ -2148,48 +2230,19 @@ const MyAdminReports: React.FC = () => {
             {/* BNB Actuals Tab */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
+                {/* Unified Year Filter for BNB Actuals */}
+                <UnifiedAdminYearFilter
+                  {...createBnbActualsFilterAdapter(
+                    bnbActualsFilters,
+                    setBnbActualsFilters,
+                    bnbAvailableYears
+                  )}
+                  size="sm"
+                />
+                
                 <Card bg="gray.700">
                   <CardBody>
                     <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-                      <GridItem>
-                        <Text color="white" mb={2}>Select Years</Text>
-                        <Menu closeOnSelect={false}>
-                          <MenuButton
-                            as={Button}
-                            bg="orange.500"
-                            color="white"
-                            size="sm"
-                            width="100%"
-                            textAlign="left"
-                            rightIcon={<span>▼</span>}
-                            _hover={{ bg: "orange.600" }}
-                            _active={{ bg: "orange.600" }}
-                          >
-                            {bnbActualsFilters.years.length > 0 ? bnbActualsFilters.years.join(', ') : 'Select years...'}
-                          </MenuButton>
-                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {bnbAvailableYears.map((year, index) => (
-                              <MenuItem key={`bnb-actuals-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                                <Checkbox
-                                  isChecked={bnbActualsFilters.years.includes(year)}
-                                  onChange={(e) => {
-                                    const isChecked = e.target.checked;
-                                    setBnbActualsFilters(prev => ({
-                                      ...prev,
-                                      years: isChecked 
-                                        ? [...prev.years, year]
-                                        : prev.years.filter(y => y !== year)
-                                    }));
-                                  }}
-                                  colorScheme="orange"
-                                >
-                                  <Text color="white" ml={2}>{year}</Text>
-                                </Checkbox>
-                              </MenuItem>
-                            ))}
-                          </MenuList>
-                        </Menu>
-                      </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>Listing</Text>
                         <Select 
@@ -2574,36 +2627,17 @@ const MyAdminReports: React.FC = () => {
             {/* BTW aangifte Tab */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
+                {/* BTW Filters */}
+                <UnifiedAdminYearFilter
+                  {...createBtwFilterAdapter(btwFilters, setBtwFilters, btwAvailableYears)}
+                  size="sm"
+                  isLoading={btwLoading}
+                />
+
+                {/* Quarter Filter and Generate Button */}
                 <Card bg="gray.700">
                   <CardBody>
                     <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-                      <GridItem>
-                        <Text color="white" mb={2}>Administration</Text>
-                        <Select
-                          value={btwFilters.administration}
-                          onChange={(e) => setBtwFilters(prev => ({...prev, administration: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                        >
-                          <option value="GoodwinSolutions">GoodwinSolutions</option>
-                          <option value="PeterPrive">PeterPrive</option>
-                        </Select>
-                      </GridItem>
-                      <GridItem>
-                        <Text color="white" mb={2}>Year</Text>
-                        <Select
-                          value={btwFilters.year}
-                          onChange={(e) => setBtwFilters(prev => ({...prev, year: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                        >
-                          {[2023, 2024, 2025, 2026].map(year => (
-                            <option key={year} value={year.toString()}>{year}</option>
-                          ))}
-                        </Select>
-                      </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>Quarter</Text>
                         <Select
@@ -2737,129 +2771,85 @@ const MyAdminReports: React.FC = () => {
               <VStack spacing={4} align="stretch">
                 <Card bg="gray.700">
                   <CardBody>
-                    <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-                      <GridItem>
-                        <Text color="white" mb={2}>Administration</Text>
-                        <Select
-                          value={refAnalysisFilters.administration}
-                          onChange={(e) => {
-                            setRefAnalysisFilters(prev => ({...prev, administration: e.target.value}));
-                          }}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                        >
-                          <option value="all">All</option>
-                          <option value="GoodwinSolutions">GoodwinSolutions</option>
-                          <option value="PeterPrive">PeterPrive</option>
-                        </Select>
-                      </GridItem>
-                      <GridItem>
-                        <Text color="white" mb={2}>Select Years</Text>
-                        <Menu closeOnSelect={false}>
-                          <MenuButton
-                            as={Button}
-                            bg="orange.500"
-                            color="white"
+                    <VStack spacing={4} align="stretch">
+                      {/* All filters on one line */}
+                      <HStack spacing={3} wrap="wrap" align="end">
+                        <Box minW="150px">
+                          <UnifiedAdminYearFilter
+                            {...createRefAnalysisFilterAdapter(refAnalysisFilters, setRefAnalysisFilters, availableYears)}
                             size="sm"
-                            width="100%"
-                            textAlign="left"
-                            rightIcon={<span>▼</span>}
-                            _hover={{ bg: "orange.600" }}
-                            _active={{ bg: "orange.600" }}
-                          >
-                            {refAnalysisFilters.years.length > 0 ? refAnalysisFilters.years.join(', ') : 'Select years...'}
-                          </MenuButton>
-                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {availableYears.map((year, index) => (
-                              <MenuItem key={`ref-analysis-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                                <Checkbox
-                                  isChecked={refAnalysisFilters.years.includes(year)}
-                                  onChange={(e) => {
-                                    const isChecked = e.target.checked;
-                                    setRefAnalysisFilters(prev => ({
-                                      ...prev,
-                                      years: isChecked 
-                                        ? [...prev.years, year]
-                                        : prev.years.filter((y: string) => y !== year)
-                                    }));
-                                  }}
+                          />
+                        </Box>
+                        <Box minW="200px">
+                          <Text color="white" mb={2} fontSize="sm">Reference Number (Regex)</Text>
+                          <Input
+                            value={refAnalysisFilters.referenceNumber}
+                            onChange={(e) => setRefAnalysisFilters(prev => ({...prev, referenceNumber: e.target.value}))}
+                            placeholder="Enter regex pattern (e.g. AMZN or .*Amazon.*)"
+                            bg="gray.600"
+                            color="white"
+                            size="xs"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
+                            name="reference-regex-input"
+                            id="reference-regex-input"
+                          />
+                        </Box>
+                        <Box minW="150px">
+                          <Text color="white" mb={2} fontSize="sm">Accounts</Text>
+                          <Menu closeOnSelect={false}>
+                            <MenuButton
+                              as={Button}
+                              bg="orange.500"
+                              color="white"
+                              size="xs"
+                              width="100%"
+                              textAlign="left"
+                              rightIcon={<span>▼</span>}
+                              _hover={{ bg: "orange.600" }}
+                              _active={{ bg: "orange.600" }}
+                            >
+                              {refAnalysisFilters.accounts.length > 0 ? `${refAnalysisFilters.accounts.length} selected` : 'Select accounts...'}
+                            </MenuButton>
+                            <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                              {availableRefAccounts.map((account, index) => (
+                                <MenuItem key={`ref-account-${account.Reknum}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
+                                  <Checkbox
+                                    isChecked={refAnalysisFilters.accounts.includes(account.Reknum)}
+                                    onChange={(e) => {
+                                      const isChecked = e.target.checked;
+                                      setRefAnalysisFilters(prev => ({
+                                        ...prev,
+                                        accounts: isChecked
+                                          ? [...prev.accounts, account.Reknum]
+                                          : prev.accounts.filter(a => a !== account.Reknum)
+                                      }));
+                                    }}
                                   colorScheme="orange"
+                                  size="xs"
                                 >
-                                  <Text color="white" ml={2}>{year}</Text>
+                                  <Text color="white" ml={2} fontSize="xs">{account.Reknum} - {account.AccountName}</Text>
                                 </Checkbox>
                               </MenuItem>
                             ))}
                           </MenuList>
                         </Menu>
-                      </GridItem>
-                      <GridItem>
-                        <Text color="white" mb={2}>Reference Number (Regex)</Text>
-                        <Input
-                          value={refAnalysisFilters.referenceNumber}
-                          onChange={(e) => setRefAnalysisFilters(prev => ({...prev, referenceNumber: e.target.value}))}
-                          placeholder="Enter regex pattern (e.g. AMZN or .*Amazon.*)"
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck={false}
-                          name="reference-regex-input"
-                          id="reference-regex-input"
-                        />
-                      </GridItem>
-                      <GridItem>
-                        <Text color="white" mb={2}>Accounts</Text>
-                        <Menu closeOnSelect={false}>
-                          <MenuButton
-                            as={Button}
-                            bg="orange.500"
-                            color="white"
-                            size="sm"
-                            width="100%"
-                            textAlign="left"
-                            rightIcon={<span>▼</span>}
-                            _hover={{ bg: "orange.600" }}
-                            _active={{ bg: "orange.600" }}
+                        </Box>
+                        <Box>
+                          <Button 
+                            colorScheme="orange" 
+                            onClick={fetchReferenceAnalysis} 
+                            isLoading={refAnalysisLoading}
+                            size="xs"
+                            mt={6}
                           >
-                            {refAnalysisFilters.accounts.length > 0 ? `${refAnalysisFilters.accounts.length} selected` : 'Select accounts...'}
-                          </MenuButton>
-                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {availableRefAccounts.map((account, index) => (
-                              <MenuItem key={`ref-account-${account.Reknum}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                                <Checkbox
-                                  isChecked={refAnalysisFilters.accounts.includes(account.Reknum)}
-                                  onChange={(e) => {
-                                    const isChecked = e.target.checked;
-                                    setRefAnalysisFilters(prev => ({
-                                      ...prev,
-                                      accounts: isChecked 
-                                        ? [...prev.accounts, account.Reknum]
-                                        : prev.accounts.filter(a => a !== account.Reknum)
-                                    }));
-                                  }}
-                                  colorScheme="orange"
-                                >
-                                  <Text color="white" ml={2}>{account.Reknum} - {account.AccountName}</Text>
-                                </Checkbox>
-                              </MenuItem>
-                            ))}
-                          </MenuList>
-                        </Menu>
-                      </GridItem>
-                      <GridItem>
-                        <Button 
-                          colorScheme="orange" 
-                          onClick={fetchReferenceAnalysis} 
-                          isLoading={refAnalysisLoading}
-                          size="sm"
-                        >
-                          Analyze Reference
-                        </Button>
-                      </GridItem>
-                    </Grid>
+                            Analyze
+                          </Button>
+                        </Box>
+                      </HStack>
+                    </VStack>
                   </CardBody>
                 </Card>
 
@@ -3002,6 +2992,16 @@ const MyAdminReports: React.FC = () => {
             {/* BNB Violins Tab */}
             <TabPanel>
               <VStack spacing={4} align="stretch">
+                {/* Unified Year Filter for BNB Violins */}
+                <UnifiedAdminYearFilter
+                  {...createBnbViolinFilterAdapter(
+                    bnbViolinFilters,
+                    setBnbViolinFilters,
+                    bnbViolinFilterOptions.years
+                  )}
+                  size="sm"
+                />
+                
                 <Card bg="gray.700">
                   <CardBody>
                     <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
@@ -3017,45 +3017,6 @@ const MyAdminReports: React.FC = () => {
                           <option value="pricePerNight">Price per Night</option>
                           <option value="nightsPerStay">Days per Stay</option>
                         </Select>
-                      </GridItem>
-                      <GridItem>
-                        <Text color="white" mb={2}>Select Years</Text>
-                        <Menu closeOnSelect={false}>
-                          <MenuButton
-                            as={Button}
-                            bg="orange.500"
-                            color="white"
-                            size="sm"
-                            width="100%"
-                            textAlign="left"
-                            rightIcon={<span>▼</span>}
-                            _hover={{ bg: "orange.600" }}
-                            _active={{ bg: "orange.600" }}
-                          >
-                            {bnbViolinFilters.years.length > 0 ? bnbViolinFilters.years.join(', ') : 'Select years...'}
-                          </MenuButton>
-                          <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                            {bnbViolinFilterOptions.years.map((year, index) => (
-                              <MenuItem key={`bnb-violin-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                                <Checkbox
-                                  isChecked={bnbViolinFilters.years.includes(year)}
-                                  onChange={(e) => {
-                                    const isChecked = e.target.checked;
-                                    setBnbViolinFilters(prev => ({
-                                      ...prev,
-                                      years: isChecked 
-                                        ? [...prev.years, year]
-                                        : prev.years.filter(y => y !== year)
-                                    }));
-                                  }}
-                                  colorScheme="orange"
-                                >
-                                  <Text color="white" ml={2}>{year}</Text>
-                                </Checkbox>
-                              </MenuItem>
-                            ))}
-                          </MenuList>
-                        </Menu>
                       </GridItem>
                       <GridItem>
                         <Text color="white" mb={2}>Listings</Text>
@@ -3508,37 +3469,15 @@ const MyAdminReports: React.FC = () => {
                 <Card bg="gray.700">
                   <CardBody>
                     <HStack spacing={4} wrap="wrap">
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Year</Text>
-                        <Select
-                          value={aangifteIbFilters.year}
-                          onChange={(e) => setAangifteIbFilters(prev => ({...prev, year: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="150px"
-                        >
-                          {aangifteIbAvailableYears.map((year, index) => (
-                            <option key={`aangifte-year-${year}-${index}`} value={year}>{year}</option>
-                          ))}
-                        </Select>
-                      </VStack>
-                      <VStack spacing={1}>
-                        <Text color="white" fontSize="sm">Administration</Text>
-                        <Select
-                          value={aangifteIbFilters.administration}
-                          onChange={(e) => setAangifteIbFilters(prev => ({...prev, administration: e.target.value}))}
-                          bg="gray.600"
-                          color="white"
-                          size="sm"
-                          w="200px"
-                        >
-                          <option value="all">All</option>
-                          {aangifteIbAvailableAdmins.map((admin, index) => (
-                            <option key={`aangifte-admin-${admin}-${index}`} value={admin}>{admin}</option>
-                          ))}
-                        </Select>
-                      </VStack>
+                      <UnifiedAdminYearFilter
+                        {...createAangifteIbFilterAdapter(
+                          aangifteIbFilters,
+                          setAangifteIbFilters,
+                          aangifteIbAvailableYears
+                        )}
+                        size="sm"
+                        isLoading={aangifteIbLoading}
+                      />
                       <Button 
                         colorScheme="orange" 
                         onClick={fetchAangifteIbData} 
@@ -3677,6 +3616,41 @@ const MyAdminReports: React.FC = () => {
                           Generate XLSX Files
                         </Button>
                       </HStack>
+                      
+                      {xlsxExportProgress && (
+                        <VStack spacing={2} align="stretch">
+                          <VStack spacing={1} align="stretch">
+                            <Text color="gray.300" fontSize="xs" textAlign="center">
+                              Overall Progress: {xlsxExportProgress.current}/{xlsxExportProgress.total}
+                            </Text>
+                            <Progress 
+                              value={(xlsxExportProgress.current / xlsxExportProgress.total) * 100} 
+                              colorScheme="green" 
+                              size="sm"
+                              bg="gray.600"
+                            />
+                          </VStack>
+                          
+                          {xlsxExportProgress.fileProgress && (
+                            <VStack spacing={1} align="stretch">
+                              <Text color="gray.300" fontSize="xs" textAlign="center">
+                                Files: {xlsxExportProgress.fileProgress.current_file}/{xlsxExportProgress.fileProgress.total_files} ({xlsxExportProgress.fileProgress.reference_number})
+                              </Text>
+                              <Progress 
+                                value={(xlsxExportProgress.fileProgress.current_file / xlsxExportProgress.fileProgress.total_files) * 100} 
+                                colorScheme="blue" 
+                                size="xs"
+                                bg="gray.600"
+                              />
+                            </VStack>
+                          )}
+                          
+                          <Text color="gray.300" fontSize="xs" textAlign="center">
+                            {xlsxExportProgress.status}
+                          </Text>
+                        </VStack>
+                      )}
+                      
                       <Text color="gray.400" fontSize="xs">
                         Creates one XLSX file per administration/year combination in C:\Users\peter\OneDrive\Admin\reports\
                       </Text>

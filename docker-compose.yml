@@ -1,4 +1,3 @@
-
 services:
   mysql:
     image: mysql:8.0
@@ -12,7 +11,7 @@ services:
     mem_limit: 2g
     cpus: 1.0
     restart: unless-stopped
-    
+
   backend:
     build: ./backend
     init: true
@@ -29,9 +28,11 @@ services:
       - FACTUREN_FOLDER_ID=${FACTUREN_FOLDER_ID}
       - TEST_FACTUREN_FOLDER_ID=${TEST_FACTUREN_FOLDER_ID}
       - FLASK_DEBUG=true
+      - DOCKER_ENV=true
     volumes:
       - ./backend:/app
       - ./frontend/build:/app/frontend/build
+      - C:/Users/peter/OneDrive/Admin/reports:/app/reports
     mem_limit: 512m
     cpus: 1.5
     restart: unless-stopped

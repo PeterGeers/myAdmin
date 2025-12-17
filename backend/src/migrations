@@ -1,4 +1,0 @@
-# Database Migration Files Directory
-# This directory contains JSON-based migration files for database schema changes
-# Each file follows the naming convention: YYYYMMDDHHMMSS_migration_name.json
-# Migration files should not be edited after they have been applied to production

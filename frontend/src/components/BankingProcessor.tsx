@@ -1,13 +1,45 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Box, Button, Heading, Table, Thead, Tbody, Tr, Th, Td, Input,
-  FormControl, FormLabel, FormErrorMessage, Alert, AlertIcon, VStack, HStack,
-  Text, Tabs, TabList, TabPanels, Tab, TabPanel, TableContainer, Menu,
-  MenuButton, MenuList, MenuItem, Checkbox, Grid, GridItem, Card, CardBody,
-  Select, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter,
-  ModalBody, ModalCloseButton, useDisclosure, Textarea
+    Alert, AlertIcon,
+    Box, Button,
+    Card, CardBody,
+    Checkbox,
+    FormControl,
+    FormErrorMessage,
+    FormLabel,
+    Grid, GridItem,
+    HStack,
+    Heading,
+    Input,
+    Menu,
+    MenuButton,
+    MenuItem,
+    MenuList,
+    Modal,
+    ModalBody, ModalCloseButton,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalOverlay,
+    Select,
+    Tab,
+    TabList,
+    TabPanel,
+    TabPanels,
+    Table,
+    TableContainer,
+    Tabs,
+    Tbody,
+    Td,
+    Text,
+    Textarea,
+    Th,
+    Thead,
+    Tr,
+    VStack,
+    useDisclosure
 } from '@chakra-ui/react';
-import { Formik, Form } from 'formik';
+import { Form, Formik } from 'formik';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface Transaction {
   ID?: number;
@@ -85,14 +117,10 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
   // Map columns by name with fallback to position
   // Dutch:   Type, Product, Startdatum, Datum voltooid, Beschrijving, Bedrag, Kosten, Valuta, Status, Saldo
   // English: Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance
-  const typeIdx = getColIdx(['type'], 0);
-  const productIdx = getColIdx(['product'], 1);
   const startdatumIdx = getColIdx(['startdatum', 'started date', 'started'], 2);
-  const datumVoltooiIdx = getColIdx(['datum voltooid', 'completed date', 'completed'], 3);
   const beschrijvingIdx = getColIdx(['beschrijving', 'description'], 4);
   const bedragIdx = getColIdx(['bedrag', 'amount'], 5);
   const kostenIdx = getColIdx(['kosten', 'fee'], 6);
-  const valutaIdx = getColIdx(['valuta', 'currency'], 7);
   const statusIdx = getColIdx(['status', 'state'], 8);
   const saldoIdx = getColIdx(['saldo', 'balance'], 9);
   

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myAdmin Duplicate Invoice Detection - User Manual</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #2c3e50;
+            margin-top: 25px;
+        }
+        .toc {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 5px 0;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #2980b9;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .feature-box {
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .workflow {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .workflow-step {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            margin: 5px;
+            background: #3498db;
+            color: white;
+            border-radius: 5px;
+            min-width: 150px;
+        }
+        .workflow-arrow {
+            align-self: center;
+            font-size: 24px;
+            color: #3498db;
+            padding: 0 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .screenshot-placeholder {
+            background: #ecf0f1;
+            border: 2px dashed #95a5a6;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            border-radius: 5px;
+            color: #7f8c8d;
+        }
+        .step-number {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .decision-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .decision-box h4 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .button-example {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .btn-continue {
+            background: #28a745;
+            color: white;
+        }
+        .btn-cancel {
+            background: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>myAdmin Duplicate Invoice Detection - User Manual</h1>
+        <p><strong>Version:</strong> 1.0 | <strong>Date:</strong> December 2024 | <strong>Author:</strong> JaBaKi Studios</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">1. System Overview</a></li>
+                <li><a href="#what-is-duplicate">2. What is a Duplicate Invoice?</a></li>
+                <li><a href="#how-it-works">3. How Duplicate Detection Works</a></li>
+                <li><a href="#import-workflow">4. Invoice Import Workflow with Duplicate Detection</a></li>
+                <li><a href="#duplicate-warning">5. Understanding the Duplicate Warning Dialog</a></li>
+                <li><a href="#making-decisions">6. Making Decisions About Duplicates</a></li>
+                <li><a href="#continue-option">7. When to Choose "Continue"</a></li>
+                <li><a href="#cancel-option">8. When to Choose "Cancel"</a></li>
+                <li><a href="#file-management">9. File Management and Cleanup</a></li>
+                <li><a href="#best-practices">10. Best Practices</a></li>
+                <li><a href="#common-scenarios">11. Common Scenarios</a></li>
+                <li><a href="#troubleshooting">12. Troubleshooting</a></li>
+                <li><a href="#faq">13. Frequently Asked Questions</a></li>
+            </ul>
+        </div>
+
+        <h2 id="overview">1. System Overview</h2>
+        <p>The Duplicate Invoice Detection system is a protective feature in myAdmin that prevents you from accidentally importing the same invoice twice. It automatically checks every invoice you import against your existing transactions and alerts you if a potential duplicate is found.</p>
+
+        <div class="feature-box">
+            <h3>Key Benefits</h3>
+            <ul>
+                <li><strong>Prevents Accounting Errors:</strong> Stops duplicate transactions before they enter your books</li>
+                <li><strong>Saves Time:</strong> Automatic detection means you don't have to manually check for duplicates</li>
+                <li><strong>Maintains Data Integrity:</strong> Keeps your financial records accurate and reliable</li>
+                <li><strong>Provides Control:</strong> You make the final decision on how to handle potential duplicates</li>
+                <li><strong>Audit Trail:</strong> All decisions are logged for compliance and review</li>
+            </ul>
+        </div>
+
+        <h2 id="what-is-duplicate">2. What is a Duplicate Invoice?</h2>
+        <p>A duplicate invoice is detected when a new invoice you're importing matches an existing transaction in your system based on three key criteria:</p>
+
+        <table>
+            <tr>
+                <th>Criteria</th>
+                <th>Description</th>
+                <th>Example</th>
+            </tr>
+            <tr>
+                <td><strong>Reference Number</strong></td>
+                <td>The vendor/folder name</td>
+                <td>"Booking.com", "Netflix", "BTW"</td>
+            </tr>
+            <tr>
+                <td><strong>Transaction Date</strong></td>
+                <td>The date on the invoice</td>
+                <td>2024-12-15</td>
+            </tr>
+            <tr>
+                <td><strong>Transaction Amount</strong></td>
+                <td>The total amount</td>
+                <td>€121.00</td>
+            </tr>
+        </table>
+
+        <div class="info">
+            <strong>Important:</strong> The system searches for duplicates within the last 2 years to ensure fast performance while catching recent duplicates.
+        </div>
+
+        <h2 id="how-it-works">3. How Duplicate Detection Works</h2>
+        
+        <div class="workflow">
+            <div class="workflow-step">1. Upload Invoice</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">2. Extract Data</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">3. Check for Duplicates</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">4. Show Warning (if found)</div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">5. User Decision</div>
+        </div>
+
+        <h3>Detection Process</h3>
+        <ol>
+            <li><strong>Automatic Check:</strong> After data is extracted from your invoice, the system automatically searches for matching transactions</li>
+            <li><strong>Instant Results:</strong> The check completes in under 2 seconds</li>
+            <li><strong>No Interruption:</strong> If no duplicates are found, the import continues normally</li>
+            <li><strong>Clear Warning:</strong> If duplicates are found, you see a detailed warning dialog</li>
+        </ol>
+
+        <h2 id="import-workflow">4. Invoice Import Workflow with Duplicate Detection</h2>
+
+        <h3>Standard Import Process</h3>
+        
+        <div class="feature-box">
+            <p><span class="step-number">1</span><strong>Select and Upload Invoice</strong></p>
+            <p>Choose your PDF or image file and select the appropriate vendor folder.</p>
+        </div>
+
+        <div class="feature-box">
+            <p><span class="step-number">2</span><strong>System Processes File</strong></p>
+            <p>The system extracts text and data from your invoice using OCR and vendor-specific parsers.</p>
+        </div>
+
+        <div class="feature-box">
+            <p><span class="step-number">3</span><strong>Automatic Duplicate Check</strong></p>
+            <p>The system searches for existing transactions with matching reference number, date, and amount.</p>
+        </div>
+
+        <div class="feature-box">
+            <p><span class="step-number">4</span><strong>Two Possible Outcomes</strong></p>
+            <ul>
+                <li><strong>No Duplicates Found:</strong> Continue to transaction review and approval</li>
+                <li><strong>Duplicate Found:</strong> Duplicate Warning Dialog appears</li>
+            </ul>
+        </div>
+
+        <h2 id="duplicate-warning">5. Understanding the Duplicate Warning Dialog</h2>
+
+        <div class="screenshot-placeholder">
+            [Duplicate Warning Dialog Screenshot]
+        </div>
+
+        <h3>Dialog Components</h3>
+
+        <table>
+            <tr>
+                <th>Section</th>
+                <th>Information Displayed</th>
+            </tr>
+            <tr>
+                <td><strong>Header</strong></td>
+                <td>Clear warning message: "Potential Duplicate Invoice Detected"</td>
+            </tr>
+            <tr>
+                <td><strong>Existing Transaction</strong></td>
+                <td>
+                    <ul>
+                        <li>Transaction ID</li>
+                        <li>Date</li>
+                        <li>Amount</li>
+                        <li>Description</li>
+                        <li>Account codes (Debit/Credit)</li>
+                        <li>Reference fields (Ref1-Ref4)</li>
+                        <li>File URL (if available)</li>
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>New Transaction</strong></td>
+                <td>Same information for the invoice you're currently importing</td>
+            </tr>
+            <tr>
+                <td><strong>Action Buttons</strong></td>
+                <td>
+                    <span class="button-example btn-continue">Continue Anyway</span>
+                    <span class="button-example btn-cancel">Cancel Import</span>
+                </td>
+            </tr>
+        </table>
+
+        <div class="info">
+            <strong>Tip:</strong> The dialog is moveable - you can drag it around the screen to compare information with other parts of your interface.
+        </div>
+
+        <h2 id="making-decisions">6. Making Decisions About Duplicates</h2>
+
+        <div class="decision-box">
+            <h4>You Have Two Options:</h4>
+            <ol>
+                <li><strong>Continue Anyway:</strong> Import the invoice as a new transaction despite the duplicate warning</li>
+                <li><strong>Cancel Import:</strong> Stop the import and clean up the uploaded file</li>
+            </ol>
+        </div>
+
+        <h3>What Happens When You Decide</h3>
+
+        <table>
+            <tr>
+                <th>Action</th>
+                <th>What Happens</th>
+                <th>Audit Trail</th>
+            </tr>
+            <tr>
+                <td><strong>Continue</strong></td>
+                <td>
+                    <ul>
+                        <li>New transaction is created</li>
+                        <li>File is saved to Google Drive</li>
+                        <li>You proceed to transaction review</li>
+                        <li>Both transactions exist in the system</li>
+                    </ul>
+                </td>
+                <td>Decision logged with timestamp, user ID, and reason</td>
+            </tr>
+            <tr>
+                <td><strong>Cancel</strong></td>
+                <td>
+                    <ul>
+                        <li>No new transaction is created</li>
+                        <li>Uploaded file is removed (if different from existing)</li>
+                        <li>You return to the upload screen</li>
+                        <li>Original transaction remains unchanged</li>
+                    </ul>
+                </td>
+                <td>Decision logged with timestamp, user ID, and reason</td>
+            </tr>
+        </table>
+
+        <h2 id="continue-option">7. When to Choose "Continue"</h2>
+
+        <h3>Valid Reasons to Continue</h3>
+
+        <div class="success">
+            <h4>1. Legitimate Duplicate Transactions</h4>
+            <p>Some vendors legitimately charge the same amount on the same date:</p>
+            <ul>
+                <li><strong>Multiple Bookings:</strong> Two different Booking.com reservations with the same commission amount on the same day</li>
+                <li><strong>Recurring Charges:</strong> Monthly subscriptions that happen to have the same amount</li>
+                <li><strong>Split Payments:</strong> Multiple payments for the same service</li>
+            </ul>
+        </div>
+
+        <div class="success">
+            <h4>2. Different Accommodations</h4>
+            <p>For Booking.com invoices, check the Ref1 field (accommodation name):</p>
+            <ul>
+                <li>If the accommodation names are different, these are separate transactions</li>
+                <li>Example: "Garden House" vs "Red Apartment" - both legitimate</li>
+            </ul>
+        </div>
+
+        <div class="success">
+            <h4>3. Corrected or Amended Invoices</h4>
+            <p>The vendor sent a corrected version:</p>
+            <ul>
+                <li>Original invoice had errors</li>
+                <li>Vendor issued a replacement with the same date and amount</li>
+                <li>You need both for audit purposes</li>
+            </ul>
+        </div>
+
+        <div class="success">
+            <h4>4. Different Invoice Numbers</h4>
+            <p>Check the Ref2 field (invoice number):</p>
+            <ul>
+                <li>If invoice numbers are different, these are separate transactions</li>
+                <li>Example: "INV123456" vs "INV123457"</li>
+            </ul>
+        </div>
+
+        <h2 id="cancel-option">8. When to Choose "Cancel"</h2>
+
+        <h3>Valid Reasons to Cancel</h3>
+
+        <div class="warning">
+            <h4>1. Accidental Re-upload</h4>
+            <p>You accidentally selected the same file twice:</p>
+            <ul>
+                <li>Same invoice number</li>
+                <li>Same accommodation (for Booking.com)</li>
+                <li>Same file URL in Ref3</li>
+            </ul>
+        </div>
+
+        <div class="warning">
+            <h4>2. Already Processed</h4>
+            <p>The invoice was already imported and processed:</p>
+            <ul>
+                <li>Check the existing transaction details</li>
+                <li>Verify the file URL matches</li>
+                <li>Confirm the description matches</li>
+            </ul>
+        </div>
+
+        <div class="warning">
+            <h4>3. Uncertain About Legitimacy</h4>
+            <p>When in doubt, cancel and investigate:</p>
+            <ul>
+                <li>Review the existing transaction in detail</li>
+                <li>Check the original invoice file</li>
+                <li>Verify with the vendor if needed</li>
+                <li>Re-import later if confirmed legitimate</li>
+            </ul>
+        </div>
+
+        <h2 id="file-management">9. File Management and Cleanup</h2>
+
+        <h3>Intelligent File Cleanup</h3>
+        <p>The system intelligently manages files when you cancel a duplicate import:</p>
+
+        <table>
+            <tr>
+                <th>Scenario</th>
+                <th>File Action</th>
+                <th>Reason</th>
+            </tr>
+            <tr>
+                <td><strong>Different File URLs</strong></td>
+                <td>New file is deleted</td>
+                <td>Prevents duplicate files in Google Drive</td>
+            </tr>
+            <tr>
+                <td><strong>Same File URL</strong></td>
+                <td>No files deleted</td>
+                <td>File is already properly stored</td>
+            </tr>
+            <tr>
+                <td><strong>No Existing URL</strong></td>
+                <td>New file is deleted</td>
+                <td>Prevents orphaned files</td>
+            </tr>
+        </table>
+
+        <div class="info">
+            <strong>Automatic Protection:</strong> The system ensures you never accidentally delete files that are referenced by existing transactions.
+        </div>
+
+        <h2 id="best-practices">10. Best Practices</h2>
+
+        <h3>Before Importing</h3>
+        <div class="feature-box">
+            <ul>
+                <li><strong>Organize Files:</strong> Keep invoices organized by vendor and date</li>
+                <li><strong>Check Email:</strong> Ensure you haven't already imported recent invoices</li>
+                <li><strong>Review Dates:</strong> Verify invoice dates before uploading</li>
+                <li><strong>Batch Processing:</strong> Process invoices in chronological order</li>
+            </ul>
+        </div>
+
+        <h3>When Reviewing Duplicates</h3>
+        <div class="feature-box">
+            <ul>
+                <li><strong>Read Carefully:</strong> Review all fields in the duplicate warning dialog</li>
+                <li><strong>Check References:</strong> Compare Ref1 (accommodation), Ref2 (invoice number), and Ref3 (file URL)</li>
+                <li><strong>Verify Amounts:</strong> Ensure amounts match your expectations</li>
+                <li><strong>When Uncertain:</strong> Choose Cancel and investigate further</li>
+            </ul>
+        </div>
+
+        <h3>After Making a Decision</h3>
+        <div class="feature-box">
+            <ul>
+                <li><strong>Document Reasons:</strong> Keep notes on why you continued with duplicates</li>
+                <li><strong>Review Regularly:</strong> Periodically review duplicate decisions in audit logs</li>
+                <li><strong>Update Processes:</strong> If you see patterns, update your import workflow</li>
+            </ul>
+        </div>
+
+        <h2 id="common-scenarios">11. Common Scenarios</h2>
+
+        <h3>Scenario 1: Multiple Booking.com Commissions</h3>
+        <div class="feature-box">
+            <p><strong>Situation:</strong> Two Booking.com invoices with the same date and amount</p>
+            <p><strong>Check:</strong> Ref1 field (accommodation name)</p>
+            <p><strong>Decision:</strong></p>
+            <ul>
+                <li>Different accommodations → <span class="button-example btn-continue">Continue</span></li>
+                <li>Same accommodation → <span class="button-example btn-cancel">Cancel</span></li>
+            </ul>
+        </div>
+
+        <h3>Scenario 2: Monthly Subscription</h3>
+        <div class="feature-box">
+            <p><strong>Situation:</strong> Netflix charges the same amount every month</p>
+            <p><strong>Check:</strong> Transaction date and Ref2 (receipt number)</p>
+            <p><strong>Decision:</strong></p>
+            <ul>
+                <li>Different months → <span class="button-example btn-continue">Continue</span></li>
+                <li>Same month, same receipt → <span class="button-example btn-cancel">Cancel</span></li>
+            </ul>
+        </div>
+
+        <h3>Scenario 3: Corrected Invoice</h3>
+        <div class="feature-box">
+            <p><strong>Situation:</strong> Vendor sent a corrected invoice with the same date and amount</p>
+            <p><strong>Check:</strong> Ref2 (invoice number) and description</p>
+            <p><strong>Decision:</strong></p>
+            <ul>
+                <li>Different invoice number or "CORRECTED" in description → <span class="button-example btn-continue">Continue</span></li>
+                <li>Same invoice number → <span class="button-example btn-cancel">Cancel</span></li>
+            </ul>
+        </div>
+
+        <h3>Scenario 4: Accidental Re-upload</h3>
+        <div class="feature-box">
+            <p><strong>Situation:</strong> You accidentally selected the same file twice</p>
+            <p><strong>Check:</strong> Ref3 (file URL) and all other fields</p>
+            <p><strong>Decision:</strong></p>
+            <ul>
+                <li>Everything matches → <span class="button-example btn-cancel">Cancel</span></li>
+            </ul>
+        </div>
+
+        <h2 id="troubleshooting">12. Troubleshooting</h2>
+
+        <h3>Dialog Not Appearing</h3>
+        <div class="warning">
+            <p><strong>Issue:</strong> Duplicate warning dialog doesn't show when expected</p>
+            <p><strong>Possible Causes:</strong></p>
+            <ul>
+                <li>Transaction is older than 2 years (outside search window)</li>
+                <li>Amount differs slightly due to rounding</li>
+                <li>Date format mismatch</li>
+                <li>Reference number (folder name) is different</li>
+            </ul>
+            <p><strong>Solution:</strong> Manually search for the transaction in your database before proceeding</p>
+        </div>
+
+        <h3>False Positives</h3>
+        <div class="warning">
+            <p><strong>Issue:</strong> System flags legitimate transactions as duplicates</p>
+            <p><strong>Solution:</strong></p>
+            <ul>
+                <li>Review the reference fields carefully</li>
+                <li>Check accommodation names for Booking.com</li>
+                <li>Verify invoice numbers</li>
+                <li>Use Continue if you're certain they're different transactions</li>
+            </ul>
+        </div>
+
+        <h3>File Cleanup Issues</h3>
+        <div class="warning">
+            <p><strong>Issue:</strong> Files not being cleaned up properly</p>
+            <p><strong>Solution:</strong></p>
+            <ul>
+                <li>Check Google Drive permissions</li>
+                <li>Verify file URLs are correct</li>
+                <li>Review application logs for errors</li>
+                <li>Contact system administrator if issues persist</li>
+            </ul>
+        </div>
+
+        <h3>Slow Performance</h3>
+        <div class="warning">
+            <p><strong>Issue:</strong> Duplicate check takes longer than 2 seconds</p>
+            <p><strong>Possible Causes:</strong></p>
+            <ul>
+                <li>Database connection issues</li>
+                <li>Large transaction volume</li>
+                <li>Missing database indexes</li>
+            </ul>
+            <p><strong>Solution:</strong> Contact system administrator to verify database indexes and performance</p>
+        </div>
+
+        <h2 id="faq">13. Frequently Asked Questions</h2>
+
+        <h3>Q: What happens if I choose Continue on a true duplicate?</h3>
+        <p><strong>A:</strong> The transaction will be imported and you'll have two identical transactions in your system. You can delete the duplicate later, but it's better to cancel during import. Your decision is logged in the audit trail.</p>
+
+        <h3>Q: Can I undo a Continue decision?</h3>
+        <p><strong>A:</strong> Yes, but you'll need to manually delete the duplicate transaction from the database. It's better to cancel during import if you're uncertain.</p>
+
+        <h3>Q: Why does the system only search the last 2 years?</h3>
+        <p><strong>A:</strong> This ensures fast performance (under 2 seconds) while catching recent duplicates. Duplicates older than 2 years are extremely rare.</p>
+
+        <h3>Q: What if the amounts are slightly different due to rounding?</h3>
+        <p><strong>A:</strong> The system requires exact amount matches. If amounts differ even by a cent, no duplicate warning will appear.</p>
+
+        <h3>Q: Can I see a history of my duplicate decisions?</h3>
+        <p><strong>A:</strong> Yes, all decisions are logged in the audit system. Contact your system administrator for access to audit reports.</p>
+
+        <h3>Q: What if I'm not sure whether to Continue or Cancel?</h3>
+        <p><strong>A:</strong> When in doubt, choose Cancel. You can always investigate further and re-import the invoice later if it's legitimate.</p>
+
+        <h3>Q: Does the system check for duplicates across different vendors?</h3>
+        <p><strong>A:</strong> No, the system only checks within the same reference number (vendor folder). Different vendors are treated separately.</p>
+
+        <h3>Q: What happens to the file if I choose Cancel?</h3>
+        <p><strong>A:</strong> If the file URL is different from the existing transaction, the newly uploaded file is deleted. If the URLs are the same, no files are deleted.</p>
+
+        <h3>Q: Can I disable duplicate detection?</h3>
+        <p><strong>A:</strong> No, duplicate detection is a core protective feature and cannot be disabled. However, you always have the option to Continue if you determine a transaction is legitimate.</p>
+
+        <h3>Q: How do I report a bug or issue with duplicate detection?</h3>
+        <p><strong>A:</strong> Contact your system administrator with details about the issue, including the invoice details and what you expected to happen.</p>
+
+        <div class="info">
+            <h3>Need More Help?</h3>
+            <p>For additional assistance with duplicate invoice detection:</p>
+            <ul>
+                <li>Contact your system administrator</li>
+                <li>Review the system administration documentation</li>
+                <li>Check the troubleshooting guide for common scenarios</li>
+                <li>Review audit logs for patterns in duplicate detections</li>
+            </ul>
+        </div>
+
+        <hr>
+        <p style="text-align: center; color: #7f8c8d; margin-top: 30px;">
+            <strong>myAdmin Duplicate Invoice Detection System</strong><br>
+            © 2024 JaBaKi Studios. All rights reserved.<br>
+            Version 1.0 - December 2024
+        </p>
+    </div>
+</body>
+</html>
