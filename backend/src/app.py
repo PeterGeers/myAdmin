@@ -18,18 +18,26 @@ from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
 from str_channel_routes import str_channel_bp
 from str_invoice_routes import str_invoice_bp
-from routes.invoice_routes import invoice_bp
+from routes.missing_invoices_routes import missing_invoices_bp
+from audit_routes import audit_bp
+
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
 from error_handlers import configure_logging, register_error_handlers, error_response
 from performance_optimizer import performance_middleware, register_performance_endpoints
 from security_audit import SecurityAudit, register_security_endpoints
+from duplicate_checker import DuplicateChecker
 import os
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
 # Create Flask app without static folder to prevent route conflicts
 app = Flask(__name__, static_folder=None)
+
+# Configure timeouts for long-running operations
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes
+
 build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
 
 # Register API blueprints IMMEDIATELY after app creation
@@ -38,7 +46,9 @@ app.register_blueprint(actuals_bp, url_prefix='/api/reports')
 app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
 app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
 app.register_blueprint(str_invoice_bp, url_prefix='/api/str-invoice')
-app.register_blueprint(invoice_bp)
+app.register_blueprint(missing_invoices_bp)
+app.register_blueprint(audit_bp)
+
 
 # Configure Swagger UI
 swagger_config = {
@@ -124,6 +134,12 @@ def serve_static(filename):
     static_folder = '/app/frontend/build/static'
     return send_from_directory(static_folder, filename)
 
+@app.route('/backend-static/<path:filename>')
+def serve_backend_static(filename):
+    """Serve backend static files"""
+    backend_static_folder = '/app/static'
+    return send_from_directory(backend_static_folder, filename)
+
 @app.route('/manifest.json')
 def serve_manifest():
     """Serve React manifest.json"""
@@ -147,6 +163,12 @@ def serve_logo512():
     """Serve React logo512.png"""
     build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'build')
     return send_from_directory(build_folder, 'logo512.png')
+
+@app.route('/jabaki-logo.png')
+def serve_jabaki_logo():
+    """Serve Jabaki logo"""
+    build_folder = '/app/frontend/build'
+    return send_from_directory(build_folder, 'jabaki-logo.png')
 
 @app.route('/config.js')
 def serve_config():
@@ -1731,6 +1753,53 @@ def aangifte_ib_xlsx_export():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/reports/aangifte-ib-xlsx-export-stream', methods=['POST'])
+def aangifte_ib_xlsx_export_stream():
+    """Generate XLSX export for Aangifte IB with streaming progress"""
+    from flask import Response
+    import json
+    
+    print("STREAMING ENDPOINT CALLED!")
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+            
+        administrations = data.get('administrations', [])
+        years = data.get('years', [])
+        
+        if not administrations or not years:
+            return jsonify({'success': False, 'error': 'Administrations and years are required'}), 400
+        
+        def generate_progress():
+            try:
+                xlsx_processor = XLSXExportProcessor(test_mode=flag)
+                
+                # Send initial progress
+                yield f"data: {json.dumps({'type': 'start', 'administrations': administrations, 'years': years}, default=str)}\n\n"
+                
+                # Process with progress updates
+                for progress_data in xlsx_processor.generate_xlsx_export_with_progress(administrations, years):
+                    yield f"data: {json.dumps(progress_data, default=str)}\n\n"
+                    
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+        
+        return Response(generate_progress(), mimetype='text/event-stream', headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type'
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # PDF Validation routes
 @app.route('/api/pdf/validate-urls-stream', methods=['GET'])
 def pdf_validate_urls_stream():
@@ -1923,6 +1992,230 @@ def pdf_validate_single_url():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Duplicate Detection API endpoints
+@app.route('/api/check-duplicate', methods=['POST'])
+def check_duplicate():
+    """Check for duplicate transactions during import process"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['referenceNumber', 'transactionDate', 'transactionAmount']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        reference_number = data.get('referenceNumber')
+        transaction_date = data.get('transactionDate')
+        transaction_amount = float(data.get('transactionAmount'))
+        table_name = data.get('tableName', 'mutaties')
+        new_file_url = data.get('newFileUrl', '')
+        new_file_id = data.get('newFileId', '')
+        
+        # Initialize duplicate checker with database manager
+        db_manager = DatabaseManager(test_mode=flag)
+        duplicate_checker = DuplicateChecker(db_manager)
+        
+        # Check for duplicates
+        duplicates = duplicate_checker.check_for_duplicates(
+            reference_number, transaction_date, transaction_amount, table_name
+        )
+        
+        # Format duplicate information for frontend
+        duplicate_info = duplicate_checker.format_duplicate_info(duplicates)
+        
+        # Add additional metadata for frontend
+        duplicate_info.update({
+            'newFileUrl': new_file_url,
+            'newFileId': new_file_id,
+            'tableName': table_name,
+            'checkTimestamp': datetime.now().isoformat()
+        })
+        
+        return jsonify({
+            'success': True,
+            'duplicateInfo': duplicate_info
+        })
+        
+    except ValueError as e:
+        return jsonify({
+            'success': False, 
+            'error': f'Invalid data format: {str(e)}'
+        }), 400
+    except Exception as e:
+        print(f"Duplicate check error: {e}", flush=True)
+        # Return graceful degradation - allow import to continue with warning
+        return jsonify({
+            'success': True,
+            'duplicateInfo': {
+                'has_duplicates': False,
+                'duplicate_count': 0,
+                'existing_transactions': [],
+                'requires_user_decision': False,
+                'error_message': f'Duplicate check failed: {str(e)}',
+                'checkTimestamp': datetime.now().isoformat()
+            }
+        }), 200
+
+@app.route('/api/log-duplicate-decision', methods=['POST'])
+def log_duplicate_decision():
+    """Log user decision regarding duplicate transaction for audit trail"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['decision', 'duplicateInfo', 'newTransactionData']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        decision = data.get('decision')
+        duplicate_info = data.get('duplicateInfo')
+        new_transaction_data = data.get('newTransactionData')
+        user_id = data.get('userId')
+        session_id = data.get('sessionId')
+        
+        # Validate decision value
+        if decision not in ['continue', 'cancel']:
+            return jsonify({
+                'success': False, 
+                'error': 'Decision must be either "continue" or "cancel"'
+            }), 400
+        
+        # Initialize duplicate checker with database manager
+        db_manager = DatabaseManager(test_mode=flag)
+        duplicate_checker = DuplicateChecker(db_manager)
+        
+        # Log the decision
+        log_success = duplicate_checker.log_duplicate_decision(
+            decision, duplicate_info, new_transaction_data, user_id, session_id
+        )
+        
+        if log_success:
+            return jsonify({
+                'success': True,
+                'message': f'Decision "{decision}" logged successfully',
+                'logTimestamp': datetime.now().isoformat()
+            })
+        else:
+            # Even if logging fails, don't block the user's workflow
+            return jsonify({
+                'success': True,
+                'message': f'Decision "{decision}" processed (logging may have failed)',
+                'warning': 'Audit logging encountered an issue',
+                'logTimestamp': datetime.now().isoformat()
+            })
+        
+    except Exception as e:
+        print(f"Decision logging error: {e}", flush=True)
+        # Don't fail the user's workflow even if logging fails
+        return jsonify({
+            'success': True,
+            'message': 'Decision processed (logging failed)',
+            'error': str(e),
+            'logTimestamp': datetime.now().isoformat()
+        }), 200
+
+@app.route('/api/handle-duplicate-decision', methods=['POST'])
+def handle_duplicate_decision():
+    """Handle user decision for duplicate transactions with full workflow processing"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['decision', 'duplicateInfo', 'transactions', 'fileData']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        decision = data.get('decision')
+        duplicate_info = data.get('duplicateInfo')
+        transactions = data.get('transactions')
+        file_data = data.get('fileData')
+        user_id = data.get('userId')
+        session_id = data.get('sessionId')
+        
+        # Validate decision value
+        if decision not in ['continue', 'cancel']:
+            return jsonify({
+                'success': False, 
+                'error': 'Decision must be either "continue" or "cancel"'
+            }), 400
+        
+        # Initialize PDF processor for decision handling
+        from pdf_processor import PDFProcessor
+        pdf_processor = PDFProcessor(test_mode=flag)
+        
+        # Handle the user decision
+        result = pdf_processor.handle_duplicate_decision(
+            decision, duplicate_info, transactions, file_data, user_id, session_id
+        )
+        
+        # If decision was to continue, we need to process the transactions
+        if result['success'] and decision == 'continue' and result['transactions']:
+            try:
+                # Initialize database manager for transaction insertion
+                db_manager = DatabaseManager(test_mode=flag)
+                
+                # Insert transactions into database
+                inserted_count = 0
+                for transaction in result['transactions']:
+                    # Format transaction for database insertion
+                    db_transaction = {
+                        'TransactionDate': transaction['date'],
+                        'TransactionDescription': transaction['description'],
+                        'TransactionAmount': transaction['amount'],
+                        'Debet': transaction['debet'],
+                        'Credit': transaction['credit'],
+                        'ReferenceNumber': transaction['ref'],
+                        'Ref1': transaction.get('ref1'),
+                        'Ref2': transaction.get('ref2'),
+                        'Ref3': transaction.get('ref3'),
+                        'Ref4': transaction.get('ref4'),
+                        'Administration': 'GoodwinSolutions2024'  # Default administration
+                    }
+                    
+                    # Insert transaction
+                    success = db_manager.insert_transaction(db_transaction)
+                    if success:
+                        inserted_count += 1
+                
+                # Update result with database insertion information
+                result['transactions_inserted'] = inserted_count
+                result['message'] += f' {inserted_count} transaction(s) inserted into database.'
+                
+            except Exception as db_error:
+                print(f"Database insertion error: {db_error}")
+                result['success'] = False
+                result['message'] = f"Decision processed but database insertion failed: {str(db_error)}"
+        
+        return jsonify({
+            'success': result['success'],
+            'actionTaken': result['action_taken'],
+            'message': result['message'],
+            'cleanupPerformed': result.get('cleanup_performed', False),
+            'transactionsProcessed': len(result.get('transactions', [])),
+            'transactionsInserted': result.get('transactions_inserted', 0),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Duplicate decision handling error: {e}", flush=True)
+        return jsonify({
+            'success': False,
+            'error': f'Error handling duplicate decision: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 if __name__ == '__main__':
     print("Starting Flask development server...")
     print("For production, use: waitress-serve --host=127.0.0.1 --port=5000 wsgi:app")
@@ -1947,4 +2240,4 @@ if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
     
     print(f"Starting Flask on {host}:{port} (debug={debug})")
-    app.run(debug=debug, port=port, host=host)
+    app.run(debug=debug, port=port, host=host, threaded=True)

@@ -20,7 +20,7 @@ def search_booking():
         
         # Search by guest name or reservation code using regex-like matching
         search_query = """
-        SELECT * FROM bnb 
+        SELECT * FROM bnbtotal 
         WHERE guestName LIKE %s OR reservationCode LIKE %s
         ORDER BY checkinDate DESC
         LIMIT 20
@@ -59,7 +59,7 @@ def generate_invoice():
         SELECT amountGross, checkinDate, checkoutDate, guestName, channel, 
                listing, nights, guests, reservationCode, amountTouristTax,
                amountChannelFee, amountNett, amountVat
-        FROM bnb 
+        FROM bnbtotal 
         WHERE reservationCode = %s
         LIMIT 1
         """

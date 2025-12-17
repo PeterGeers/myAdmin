@@ -1,0 +1,14 @@
+{
+  "name": "duplicate_detection_indexes",
+  "description": "Add indexes for duplicate invoice detection performance optimization",
+  "timestamp": "20251217120000",
+  "up": [
+    "CREATE INDEX idx_duplicate_check ON mutaties (ReferenceNumber, TransactionDate, TransactionAmount)",
+    "CREATE INDEX idx_transaction_date_range ON mutaties (TransactionDate)"
+  ],
+  "down": [
+    "DROP INDEX idx_duplicate_check ON mutaties",
+    "DROP INDEX idx_transaction_date_range ON mutaties"
+  ],
+  "version": "1.0"
+}

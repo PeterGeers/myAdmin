@@ -9,20 +9,20 @@ Write-Host ""
 
 # Test components in order
 $TestSuites = @(
-    @{Name="Infrastructure"; File="test_infrastructure.py"; Description="Test framework and utilities"},
-    @{Name="Database"; File="test_database.py"; Description="Database operations and connections"},
-    @{Name="PDF Processing"; File="test_pdf_processor.py"; Description="PDF text extraction and parsing"},
-    @{Name="Transaction Logic"; File="test_transaction_logic.py"; Description="Business logic and validation"},
-    @{Name="Banking Processor"; File="test_banking_processor.py"; Description="CSV processing and pattern matching"},
-    @{Name="STR Processor"; File="test_str_processor.py"; Description="Short-term rental data processing"},
-    @{Name="STR Channel Revenue"; File="test_str_channel.py"; Description="STR channel revenue calculations"},
-    @{Name="Google Drive"; File="test_google_drive.py"; Description="Google Drive integration"},
-    @{Name="XLSX Export"; File="test_xlsx_export.py"; Description="Excel report generation"},
-    @{Name="Reporting Routes"; File="test_reporting_routes.py"; Description="API reporting endpoints"},
-    @{Name="PDF Validation"; File="test_pdf_validation.py"; Description="URL validation and tracking"},
-    @{Name="API Endpoints"; File="test_api_endpoints.py"; Description="Flask route testing"},
-    @{Name="API Alignment"; File="test_api_alignment.py"; Description="Frontend-backend API route alignment"},
-    @{Name="Environment"; File="test_environment.py"; Description="Mode switching and configuration"}
+    @{Name = "Infrastructure"; File = "test_infrastructure.py"; Description = "Test framework and utilities" },
+    @{Name = "Database"; File = "test_database.py"; Description = "Database operations and connections" },
+    @{Name = "PDF Processing"; File = "test_pdf_processor.py"; Description = "PDF text extraction and parsing" },
+    @{Name = "Transaction Logic"; File = "test_transaction_logic.py"; Description = "Business logic and validation" },
+    @{Name = "Banking Processor"; File = "test_banking_processor.py"; Description = "CSV processing and pattern matching" },
+    @{Name = "STR Processor"; File = "test_str_processor.py"; Description = "Short-term rental data processing" },
+    @{Name = "STR Channel Revenue"; File = "test_str_channel.py"; Description = "STR channel revenue calculations" },
+    @{Name = "Google Drive"; File = "test_google_drive.py"; Description = "Google Drive integration" },
+    @{Name = "XLSX Export"; File = "test_xlsx_export.py"; Description = "Excel report generation" },
+    @{Name = "Reporting Routes"; File = "test_reporting_routes.py"; Description = "API reporting endpoints" },
+    @{Name = "PDF Validation"; File = "test_pdf_validation.py"; Description = "URL validation and tracking" },
+    @{Name = "Image AI Processing"; File = "test_image_ai.py"; Description = "AI vision image processing" },
+    @{Name = "API Alignment"; File = "test_api_alignment.py"; Description = "Frontend-backend API route alignment" },
+    @{Name = "Environment"; File = "test_environment.py"; Description = "Mode switching and configuration" }
 )
 
 $TotalTests = 0
@@ -57,14 +57,14 @@ foreach ($Suite in $TestSuites) {
     Write-Host "  Result: $Status ($SuitePassed/$SuiteTotal passed) - ${Duration}s" -ForegroundColor $StatusColor
     
     $Results += @{
-        Name = $Suite.Name
-        File = $Suite.File
+        Name        = $Suite.Name
+        File        = $Suite.File
         Description = $Suite.Description
-        Passed = $SuitePassed
-        Failed = $SuiteFailed
-        Total = $SuiteTotal
-        Duration = $Duration
-        Status = $Status
+        Passed      = $SuitePassed
+        Failed      = $SuiteFailed
+        Total       = $SuiteTotal
+        Duration    = $Duration
+        Status      = $Status
     }
     
     Write-Host ""
@@ -92,11 +92,11 @@ Write-Host ("-" * 60) -ForegroundColor Gray
 foreach ($Result in $Results) {
     $StatusColor = if ($Result.Status -eq "PASS") { "Green" } else { "Red" }
     $Line = $Result.Name.PadRight(20) + 
-            $Result.Total.ToString().PadRight(8) + 
-            $Result.Passed.ToString().PadRight(6) + 
-            $Result.Failed.ToString().PadRight(6) + 
-            "$([math]::Round($Result.Duration, 1))s".PadRight(8) + 
-            $Result.Status
+    $Result.Total.ToString().PadRight(8) + 
+    $Result.Passed.ToString().PadRight(6) + 
+    $Result.Failed.ToString().PadRight(6) + 
+    "$([math]::Round($Result.Duration, 1))s".PadRight(8) + 
+    $Result.Status
     Write-Host $Line -ForegroundColor $StatusColor
 }
 
@@ -126,7 +126,7 @@ Write-Host "✅ Google Drive: Authentication, file operations, folder management
 Write-Host "✅ XLSX Export: Excel generation, R script logic, balance calculations" -ForegroundColor Green
 Write-Host "✅ Reporting Routes: API endpoints, data aggregation, filtering" -ForegroundColor Green
 Write-Host "✅ PDF Validation: URL validation, progress tracking, record updates" -ForegroundColor Green
-Write-Host "✅ API Endpoints: Flask routes, request handling, error responses" -ForegroundColor Green
+Write-Host "✅ Image AI Processing: AI vision models, OCR fallback, data extraction" -ForegroundColor Green
 Write-Host "✅ API Alignment: Frontend-backend route matching, prevents '<!doctype' errors" -ForegroundColor Green
 Write-Host "✅ Environment: Mode switching, configuration, variable handling" -ForegroundColor Green
 Write-Host "✅ Test Infrastructure: Fixtures, mocking, temporary files, isolation" -ForegroundColor Green
@@ -145,7 +145,8 @@ Write-Host ""
 
 if ($FailedTests -eq 0) {
     Write-Host "🎉 All tests passed! The myAdmin backend is fully tested and ready." -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "⚠️  Some tests failed. Please review and fix the failing tests." -ForegroundColor Yellow
 }
 

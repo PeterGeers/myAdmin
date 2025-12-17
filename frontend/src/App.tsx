@@ -16,10 +16,12 @@ function App() {
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/status')
-      .then(res => res.json())
-      .then(data => setStatus(data))
-      .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));
+    import('./config').then(({ buildApiUrl }) => {
+      fetch(buildApiUrl('/api/status'))
+        .then(res => res.json())
+        .then(data => setStatus(data))
+        .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));
+    });
   }, []);
 
   const renderPage = () => {
@@ -132,8 +134,6 @@ function App() {
             <MyAdminReports />
           </Box>
         );
-
-
 
       default:
         return (

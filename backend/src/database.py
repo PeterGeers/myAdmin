@@ -219,6 +219,46 @@ class DatabaseManager:
         results = self.execute_query(query, (f"%{reference_number}%", limit))
         return results if results else []
 
+    def check_duplicate_transactions(self, reference_number, transaction_date, transaction_amount, table_name='mutaties'):
+        """
+        Check for existing transactions with matching criteria within 2-year window.
+        
+        Args:
+            reference_number (str): The reference number to match
+            transaction_date (str): The transaction date to match (YYYY-MM-DD format)
+            transaction_amount (float): The transaction amount to match
+            table_name (str): The table to search in (default: 'mutaties')
+            
+        Returns:
+            List[Dict]: List of matching transactions, empty list if none found
+            
+        Raises:
+            Exception: If database connection fails or query execution fails
+        """
+        try:
+            query = f"""
+                SELECT ID, TransactionNumber, TransactionDate, TransactionDescription, 
+                       TransactionAmount, Debet, Credit, ReferenceNumber, 
+                       Ref1, Ref2, Ref3, Ref4, Administration
+                FROM {table_name}
+                WHERE ReferenceNumber = %s
+                AND TransactionDate = %s
+                AND ABS(TransactionAmount - %s) < 0.01
+                AND TransactionDate > (CURDATE() - INTERVAL 2 YEAR)
+                ORDER BY ID DESC
+            """
+            
+            results = self.execute_query(query, (reference_number, transaction_date, transaction_amount))
+            return results if results else []
+            
+        except mysql.connector.Error as e:
+            # Log the error but don't raise it to allow graceful degradation
+            print(f"Database error during duplicate check: {e}")
+            raise Exception(f"Database connection failed during duplicate check: {str(e)}")
+        except Exception as e:
+            print(f"Unexpected error during duplicate check: {e}")
+            raise Exception(f"Duplicate check failed: {str(e)}")
+
     # Database optimization methods
     def get_migration_manager(self):
         """Get database migration manager"""

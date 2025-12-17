@@ -25,8 +25,14 @@ def generate_invoice():
             date=date
         )
         
-        # Save to temp folder
-        output_dir = 'generated_receipts'
+        # Save to portable directory
+        from flask import current_app
+        
+        if hasattr(current_app, 'instance_path'):
+            output_dir = os.path.join(current_app.instance_path, 'generated_receipts')
+        else:
+            output_dir = os.path.join(os.getcwd(), 'generated_receipts')
+        
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, filename)
         generator.save_receipt(receipt, output_path)
@@ -43,7 +49,19 @@ def generate_invoice():
 @invoice_bp.route('/download/<filename>', methods=['GET'])
 def download_invoice(filename):
     try:
-        file_path = os.path.join('generated_receipts', filename)
-        return send_file(file_path, mimetype='image/jpeg', as_attachment=True)
+        from flask import current_app
+        
+        # Use app instance folder or create in temp directory
+        if hasattr(current_app, 'instance_path'):
+            receipts_dir = os.path.join(current_app.instance_path, 'generated_receipts')
+        else:
+            receipts_dir = os.path.join(os.getcwd(), 'generated_receipts')
+        
+        file_path = os.path.join(receipts_dir, filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({'success': False, 'error': f'File not found: {filename}'}), 404
+            
+        return send_file(file_path, mimetype='image/jpeg', as_attachment=True, download_name=filename)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 404

@@ -1,13 +1,28 @@
-import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, FormControl, FormLabel, Input, Button,
-  Text, Progress, Textarea, HStack, Tabs, TabList, TabPanels, Tab, TabPanel
+    Box,
+    Button,
+    FormControl, FormLabel,
+    HStack,
+    Input,
+    Progress,
+    Tab,
+    TabList,
+    TabPanel,
+    TabPanels,
+    Tabs,
+    Text,
+    Textarea,
+    VStack
 } from '@chakra-ui/react';
-import { Formik, Form } from 'formik';
-import * as Yup from 'yup';
 import axios from 'axios';
-import PDFValidation from './PDFValidation';
+import { Form, Formik } from 'formik';
+import React, { useEffect, useState } from 'react';
+import * as Yup from 'yup';
+import { buildApiUrl } from '../config';
+import DuplicateWarningDialog from './DuplicateWarningDialog';
 import InvoiceGenerator from './InvoiceGenerator';
+import MissingInvoices from './MissingInvoices';
+import PDFValidation from './PDFValidation';
 
 
 
@@ -43,6 +58,12 @@ const PDFUploadForm: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [allFolders, setAllFolders] = useState<string[]>([]);
   const [filteredFolders, setFilteredFolders] = useState<string[]>([]);
+  
+  // Duplicate detection state
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
 
   useEffect(() => {
     fetchFolders();
@@ -50,7 +71,7 @@ const PDFUploadForm: React.FC = () => {
 
   const fetchFolders = async () => {
     try {
-      const response = await axios.get('/api/folders');
+      const response = await axios.get(buildApiUrl('/api/folders'));
       setAllFolders(response.data);
       setFilteredFolders(response.data);
     } catch (error) {
@@ -102,7 +123,7 @@ const PDFUploadForm: React.FC = () => {
     formData.append('folderName', values.folderId);
 
     try {
-      const response = await axios.post('/api/upload', formData, {
+      const response = await axios.post(buildApiUrl('/api/upload'), formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
@@ -120,9 +141,65 @@ const PDFUploadForm: React.FC = () => {
       };
       setParsedData(fileData);
       setVendorData(response.data.vendorData);
-      // setTransactions(response.data.transactions || []);
-      setPreparedTransactions(response.data.preparedTransactions || []);
-      // setTemplateTransactions(response.data.templateTransactions || []);
+      
+      // Check for duplicate information in prepared transactions
+      const preparedTxns = response.data.preparedTransactions || [];
+      
+      // Check if any transaction has duplicate_info
+      const hasDuplicates = preparedTxns.some((txn: any) => txn.duplicate_info?.has_duplicates);
+      
+      if (hasDuplicates) {
+        // Find the first transaction with duplicate info
+        const txnWithDuplicate = preparedTxns.find((txn: any) => txn.duplicate_info?.has_duplicates);
+        
+        if (txnWithDuplicate && txnWithDuplicate.duplicate_info) {
+          // Store pending transactions for later processing
+          setPendingTransactions(preparedTxns);
+          
+          // Format duplicate info for the dialog
+          const dupInfo = txnWithDuplicate.duplicate_info;
+          const existingTxn = dupInfo.existing_transactions?.[0];
+          
+          if (existingTxn) {
+            setDuplicateInfo({
+              existingTransaction: {
+                id: existingTxn.ID?.toString() || '',
+                transactionDate: existingTxn.TransactionDate || '',
+                transactionDescription: existingTxn.TransactionDescription || '',
+                transactionAmount: parseFloat(existingTxn.TransactionAmount) || 0,
+                debet: existingTxn.Debet || '',
+                credit: existingTxn.Credit || '',
+                referenceNumber: existingTxn.ReferenceNumber || '',
+                ref1: existingTxn.Ref1 || '',
+                ref2: existingTxn.Ref2 || '',
+                ref3: existingTxn.Ref3 || '',
+                ref4: existingTxn.Ref4 || ''
+              },
+              newTransaction: {
+                id: txnWithDuplicate.ID?.toString() || 'new',
+                transactionDate: txnWithDuplicate.TransactionDate || '',
+                transactionDescription: txnWithDuplicate.TransactionDescription || '',
+                transactionAmount: parseFloat(txnWithDuplicate.TransactionAmount) || 0,
+                debet: txnWithDuplicate.Debet || '',
+                credit: txnWithDuplicate.Credit || '',
+                referenceNumber: txnWithDuplicate.ReferenceNumber || '',
+                ref1: txnWithDuplicate.Ref1 || '',
+                ref2: txnWithDuplicate.Ref2 || '',
+                ref3: txnWithDuplicate.Ref3 || '',
+                ref4: txnWithDuplicate.Ref4 || ''
+              },
+              matchCount: dupInfo.duplicate_count || 1
+            });
+            
+            // Show the duplicate warning dialog
+            setShowDuplicateDialog(true);
+          }
+        }
+      } else {
+        // No duplicates, proceed normally
+        setPreparedTransactions(preparedTxns);
+      }
+      
       console.log('Parsed data set:', fileData);
       console.log('Vendor data set:', response.data.vendorData);
       console.log('Transactions set:', response.data.transactions);
@@ -144,7 +221,7 @@ const PDFUploadForm: React.FC = () => {
           retryFormData.append('useExisting', 'true');
           
           try {
-            const response = await axios.post('/api/upload', retryFormData, {
+            const response = await axios.post(buildApiUrl('/api/upload'), retryFormData, {
               headers: { 'Content-Type': 'multipart/form-data' },
               onUploadProgress: (progressEvent) => {
                 const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
@@ -176,7 +253,7 @@ const PDFUploadForm: React.FC = () => {
 
   const approveTransactions = async () => {
     try {
-      const response = await axios.post('/api/approve-transactions', {
+      const response = await axios.post(buildApiUrl('/api/approve-transactions'), {
         transactions: preparedTransactions
       });
       alert(response.data.message);
@@ -191,7 +268,7 @@ const PDFUploadForm: React.FC = () => {
     if (!newFolderName.trim()) return;
     
     try {
-      await axios.post('/api/create-folder', {
+      await axios.post(buildApiUrl('/api/create-folder'), {
         folderName: newFolderName
       });
       
@@ -206,6 +283,77 @@ const PDFUploadForm: React.FC = () => {
     }
   };
 
+  const handleDuplicateContinue = async () => {
+    setDuplicateLoading(true);
+    
+    try {
+      // Log the user's decision to continue
+      if (duplicateInfo) {
+        await axios.post(buildApiUrl('/api/log-duplicate-decision'), {
+          decision: 'continue',
+          duplicate_info: {
+            existing_transaction_id: duplicateInfo.existingTransaction.id,
+            new_transaction: duplicateInfo.newTransaction,
+            reference_number: duplicateInfo.newTransaction.referenceNumber,
+            transaction_date: duplicateInfo.newTransaction.transactionDate,
+            transaction_amount: duplicateInfo.newTransaction.transactionAmount
+          }
+        });
+      }
+      
+      // Proceed with the pending transactions
+      setPreparedTransactions(pendingTransactions);
+      
+      // Close the dialog
+      setShowDuplicateDialog(false);
+      setDuplicateInfo(null);
+      setPendingTransactions([]);
+    } catch (error) {
+      console.error('Error logging duplicate decision:', error);
+      alert('Error processing your decision. Please try again.');
+    } finally {
+      setDuplicateLoading(false);
+    }
+  };
+
+  const handleDuplicateCancel = async () => {
+    setDuplicateLoading(true);
+    
+    try {
+      // Log the user's decision to cancel
+      if (duplicateInfo) {
+        await axios.post(buildApiUrl('/api/log-duplicate-decision'), {
+          decision: 'cancel',
+          duplicate_info: {
+            existing_transaction_id: duplicateInfo.existingTransaction.id,
+            new_transaction: duplicateInfo.newTransaction,
+            reference_number: duplicateInfo.newTransaction.referenceNumber,
+            transaction_date: duplicateInfo.newTransaction.transactionDate,
+            transaction_amount: duplicateInfo.newTransaction.transactionAmount,
+            new_file_url: duplicateInfo.newTransaction.ref3,
+            existing_file_url: duplicateInfo.existingTransaction.ref3
+          }
+        });
+      }
+      
+      // Clear all pending data
+      setPendingTransactions([]);
+      setParsedData(null);
+      setVendorData(null);
+      
+      // Close the dialog
+      setShowDuplicateDialog(false);
+      setDuplicateInfo(null);
+      
+      alert('Import cancelled. The uploaded file has been cleaned up.');
+    } catch (error) {
+      console.error('Error cancelling duplicate:', error);
+      alert('Error cancelling import. Please try again.');
+    } finally {
+      setDuplicateLoading(false);
+    }
+  };
+
   return (
     <Box maxW="800px" mx="auto" p={4}>
       <Tabs variant="enclosed" colorScheme="orange">
@@ -213,6 +361,7 @@ const PDFUploadForm: React.FC = () => {
           <Tab color="white">📄 Upload Invoices</Tab>
           <Tab color="white">🔍 Check Invoice Exists</Tab>
           <Tab color="white">🧾 Generate Receipt</Tab>
+          <Tab color="white">📋 Generate Missing Invoices</Tab>
         </TabList>
 
         <TabPanels>
@@ -314,13 +463,23 @@ const PDFUploadForm: React.FC = () => {
                 color="white" 
                 _hover={{bg: "#e55a00"}} 
                 isLoading={loading} 
+                loadingText={uploadProgress < 100 ? "Uploading..." : "Checking for duplicates..."}
                 w="full"
                 isDisabled={filteredFolders.length !== 1}
               >
                 Upload & Process {filteredFolders.length !== 1 ? `(${filteredFolders.length} folders)` : ''}
               </Button>
 
-              {loading && <Progress value={uploadProgress} w="full" />}
+              {loading && (
+                <>
+                  <Progress value={uploadProgress} w="full" />
+                  {uploadProgress === 100 && (
+                    <Text fontSize="sm" color="gray.600" textAlign="center">
+                      Checking for duplicate invoices...
+                    </Text>
+                  )}
+                </>
+              )}
             </VStack>
           </Form>
         )}
@@ -606,8 +765,22 @@ const PDFUploadForm: React.FC = () => {
           <TabPanel>
             <InvoiceGenerator />
           </TabPanel>
+          <TabPanel>
+            <MissingInvoices />
+          </TabPanel>
         </TabPanels>
       </Tabs>
+      
+      {/* Duplicate Warning Dialog */}
+      {duplicateInfo && (
+        <DuplicateWarningDialog
+          isOpen={showDuplicateDialog}
+          duplicateInfo={duplicateInfo}
+          onContinue={handleDuplicateContinue}
+          onCancel={handleDuplicateCancel}
+          isLoading={duplicateLoading}
+        />
+      )}
     </Box>
   );
 };

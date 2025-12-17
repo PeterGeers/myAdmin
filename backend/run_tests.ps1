@@ -45,9 +45,9 @@ switch ($TestType.ToLower()) {
         Write-Host "Running PDF Validation tests..." -ForegroundColor Green
         .\venv\Scripts\python.exe -m pytest test/test_pdf_validation.py -v
     }
-    "api" {
-        Write-Host "Running API Endpoints tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_api_endpoints.py -v
+    "image-ai" {
+        Write-Host "Running Image AI Processor tests..." -ForegroundColor Green
+        .\venv\Scripts\python.exe -m pytest test/test_image_ai.py -v
     }
     "alignment" {
         Write-Host "Running API Alignment tests..." -ForegroundColor Green
@@ -84,7 +84,7 @@ switch ($TestType.ToLower()) {
         Write-Host "  xlsx         - Excel report generation" -ForegroundColor Gray
         Write-Host "  reporting    - API reporting endpoints" -ForegroundColor Gray
         Write-Host "  validation   - URL validation and tracking" -ForegroundColor Gray
-        Write-Host "  api          - Flask route testing" -ForegroundColor Gray
+        Write-Host "  image-ai     - AI image processing tests" -ForegroundColor Gray
         Write-Host "  alignment    - Frontend-backend API route matching" -ForegroundColor Yellow
         Write-Host "  environment  - Mode switching and configuration" -ForegroundColor Gray
         Write-Host "  infrastructure - Test framework validation" -ForegroundColor Gray
@@ -93,7 +93,7 @@ switch ($TestType.ToLower()) {
         Write-Host ""
         Write-Host "Examples:" -ForegroundColor White
         Write-Host "  .\run_tests.ps1 alignment    # Check API route alignment" -ForegroundColor Yellow
-        Write-Host "  .\run_tests.ps1 api          # Test Flask routes" -ForegroundColor Gray
+        Write-Host "  .\run_tests.ps1 image-ai     # Test AI image processing" -ForegroundColor Gray
         Write-Host "  .\run_tests.ps1 all          # Run all pytest tests" -ForegroundColor Gray
         Write-Host ""
         Write-Host "For comprehensive testing with detailed reporting:" -ForegroundColor Cyan
