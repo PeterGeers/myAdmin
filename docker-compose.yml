@@ -2,11 +2,13 @@ services:
   mysql:
     image: mysql:8.0
     command: --lower-case-table-names=2
+    env_file:
+      - ./backend/.env
     environment:
-      MYSQL_ROOT_PASSWORD: PeterGeers1953
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: finance
       MYSQL_USER: peter
-      MYSQL_PASSWORD: PeterGeers1953
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - ./mysql_data:/var/lib/mysql # Host directory mapping - survives volume deletion
     ports:
@@ -22,6 +24,8 @@ services:
       - "5000:5000"
     depends_on:
       - mysql
+    env_file:
+      - ./backend/.env
     environment:
       - DB_HOST=mysql
       - DB_NAME=${DB_NAME}
