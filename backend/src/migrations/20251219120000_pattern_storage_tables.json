@@ -1,0 +1,18 @@
+{
+  "name": "pattern_storage_tables",
+  "description": "Create dedicated tables for storing discovered patterns to eliminate repeated analysis of mutaties table",
+  "timestamp": "20251219120000",
+  "up": [
+    "CREATE TABLE IF NOT EXISTS pattern_debet_predictions (id INT AUTO_INCREMENT PRIMARY KEY, pattern_key VARCHAR(500) NOT NULL UNIQUE, administration VARCHAR(100) NOT NULL, credit_account VARCHAR(50), predicted_debet VARCHAR(50), occurrences INT DEFAULT 0, confidence DECIMAL(5,4), avg_amount DECIMAL(15,2), last_seen DATE, is_bank_credit BOOLEAN DEFAULT FALSE, keywords TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_admin_credit (administration, credit_account), INDEX idx_pattern_key (pattern_key), INDEX idx_last_seen (last_seen))",
+    "CREATE TABLE IF NOT EXISTS pattern_credit_predictions (id INT AUTO_INCREMENT PRIMARY KEY, pattern_key VARCHAR(500) NOT NULL UNIQUE, administration VARCHAR(100) NOT NULL, debet_account VARCHAR(50), predicted_credit VARCHAR(50), occurrences INT DEFAULT 0, confidence DECIMAL(5,4), avg_amount DECIMAL(15,2), last_seen DATE, is_bank_debet BOOLEAN DEFAULT FALSE, keywords TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_admin_debet (administration, debet_account), INDEX idx_pattern_key (pattern_key), INDEX idx_last_seen (last_seen))",
+    "CREATE TABLE IF NOT EXISTS pattern_reference_predictions (id INT AUTO_INCREMENT PRIMARY KEY, pattern_key VARCHAR(500) NOT NULL UNIQUE, administration VARCHAR(100) NOT NULL, predicted_reference VARCHAR(255), occurrences INT DEFAULT 0, confidence DECIMAL(5,4), bank_debet VARCHAR(50), bank_credit VARCHAR(50), keywords TEXT, reference_keywords TEXT, last_seen DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_admin (administration), INDEX idx_pattern_key (pattern_key), INDEX idx_last_seen (last_seen))",
+    "CREATE TABLE IF NOT EXISTS pattern_analysis_metadata (id INT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(100) NOT NULL UNIQUE, last_analysis_date TIMESTAMP, transactions_analyzed INT DEFAULT 0, patterns_discovered INT DEFAULT 0, date_range_from DATE, date_range_to DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_admin (administration), INDEX idx_last_analysis (last_analysis_date))"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS pattern_debet_predictions",
+    "DROP TABLE IF EXISTS pattern_credit_predictions",
+    "DROP TABLE IF EXISTS pattern_reference_predictions",
+    "DROP TABLE IF EXISTS pattern_analysis_metadata"
+  ],
+  "version": "1.0"
+}

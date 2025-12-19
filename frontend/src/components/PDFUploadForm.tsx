@@ -206,7 +206,57 @@ const PDFUploadForm: React.FC = () => {
     } catch (error: any) {
       console.error('Upload error:', error);
       
-      // Check if it's a duplicate file error
+      // Check if it's a duplicate detection error (409 status)
+      if (error.response?.status === 409 && error.response?.data?.error === 'duplicate_detected') {
+        const dupData = error.response.data.duplicate_info;
+        
+        if (dupData && dupData.existing_transactions && dupData.existing_transactions.length > 0) {
+          const existingTxn = dupData.existing_transactions[0];
+          
+          // Format duplicate info for the dialog
+          setDuplicateInfo({
+            existingTransaction: {
+              id: existingTxn.id?.toString() || '',
+              transactionDate: existingTxn.date || '',
+              transactionDescription: existingTxn.description || '',
+              transactionAmount: parseFloat(existingTxn.amount) || 0,
+              debet: '',
+              credit: '',
+              referenceNumber: values.folderId || '',
+              ref1: '',
+              ref2: '',
+              ref3: existingTxn.file_url || '',
+              ref4: existingTxn.filename || ''
+            },
+            newTransaction: {
+              id: 'new',
+              transactionDate: existingTxn.date || '',
+              transactionDescription: `New upload: ${values.file.name}`,
+              transactionAmount: parseFloat(existingTxn.amount) || 0,
+              debet: '',
+              credit: '',
+              referenceNumber: values.folderId || '',
+              ref1: '',
+              ref2: '',
+              ref3: '',
+              ref4: values.file.name || ''
+            },
+            matchCount: dupData.duplicate_count || 1
+          });
+          
+          // Show the duplicate warning dialog
+          setShowDuplicateDialog(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Fallback if duplicate info is not properly formatted
+        alert(error.response.data.message || 'This file has already been uploaded.');
+        setLoading(false);
+        return;
+      }
+      
+      // Check if it's a duplicate file error in Google Drive
       if (error.response?.data?.error?.includes('already exists')) {
         const confirmUseExisting = window.confirm(
           `File "${values.file.name}" already exists in Google Drive.\n\n` +
@@ -245,6 +295,11 @@ const PDFUploadForm: React.FC = () => {
           }
           return;
         }
+      }
+      
+      // Generic error handling for non-duplicate errors
+      if (error.response?.status !== 409) {
+        alert(`Upload failed: ${error.response?.data?.message || error.message || 'Unknown error'}`);
       }
     } finally {
       setLoading(false);
@@ -301,15 +356,58 @@ const PDFUploadForm: React.FC = () => {
         });
       }
       
-      // Proceed with the pending transactions
-      setPreparedTransactions(pendingTransactions);
+      // Check if we have pending transactions (old flow) or need to retry upload (new flow)
+      if (pendingTransactions.length > 0) {
+        // Old flow: proceed with the pending transactions
+        setPreparedTransactions(pendingTransactions);
+        setPendingTransactions([]);
+      } else {
+        // New flow: retry the upload with force flag
+        // We need to retry the upload - get the file and folder from duplicateInfo
+        const folderName = duplicateInfo?.newTransaction?.referenceNumber;
+        const fileName = duplicateInfo?.newTransaction?.ref4;
+        
+        if (folderName && fileName) {
+          // Create a file input to get the file again
+          const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+          const file = fileInput?.files?.[0];
+          
+          if (file) {
+            // Retry upload with force flag
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('folderName', folderName);
+            formData.append('forceUpload', 'true');
+            
+            const response = await axios.post(buildApiUrl('/api/upload'), formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+              onUploadProgress: (progressEvent) => {
+                const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
+                setUploadProgress(progress);
+              }
+            });
+            
+            // Process the successful response
+            const fileData = {
+              name: response.data.filename,
+              url: `/uploads/${response.data.filename}`,
+              folder: response.data.folder,
+              txt: response.data.extractedText || 'No text extracted'
+            };
+            setParsedData(fileData);
+            setVendorData(response.data.vendorData);
+            setPreparedTransactions(response.data.preparedTransactions || []);
+            
+            console.log('Force upload successful:', response.data);
+          }
+        }
+      }
       
       // Close the dialog
       setShowDuplicateDialog(false);
       setDuplicateInfo(null);
-      setPendingTransactions([]);
     } catch (error) {
-      console.error('Error logging duplicate decision:', error);
+      console.error('Error processing duplicate continue:', error);
       alert('Error processing your decision. Please try again.');
     } finally {
       setDuplicateLoading(false);

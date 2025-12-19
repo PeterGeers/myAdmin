@@ -1,0 +1,14 @@
+{
+  "name": "fix_reference_patterns",
+  "description": "Fix reference number patterns to use Administration + BankAccount + Verb logic as specified",
+  "timestamp": "20251219130000",
+  "up": [
+    "DROP TABLE IF EXISTS pattern_reference_predictions",
+    "CREATE TABLE pattern_verb_patterns (id INT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(100) NOT NULL, bank_account VARCHAR(50) NOT NULL, verb VARCHAR(255) NOT NULL, reference_number VARCHAR(255), debet_account VARCHAR(50), credit_account VARCHAR(50), occurrences INT DEFAULT 1, confidence DECIMAL(5,4), last_seen DATE, sample_description TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY unique_pattern (administration, bank_account, verb), INDEX idx_admin_bank (administration, bank_account), INDEX idx_verb (verb), INDEX idx_last_seen (last_seen))"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS pattern_verb_patterns",
+    "CREATE TABLE IF NOT EXISTS pattern_reference_predictions (id INT AUTO_INCREMENT PRIMARY KEY, pattern_key VARCHAR(500) NOT NULL UNIQUE, administration VARCHAR(100) NOT NULL, predicted_reference VARCHAR(255), occurrences INT DEFAULT 0, confidence DECIMAL(5,4), bank_debet VARCHAR(50), bank_credit VARCHAR(50), keywords TEXT, reference_keywords TEXT, last_seen DATE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_admin (administration), INDEX idx_pattern_key (pattern_key), INDEX idx_last_seen (last_seen))"
+  ],
+  "version": "1.0"
+}

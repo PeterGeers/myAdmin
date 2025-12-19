@@ -1,11 +1,14 @@
 services:
   mysql:
     image: mysql:8.0
+    command: --lower-case-table-names=2
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_ROOT_PASSWORD: PeterGeers1953
+      MYSQL_DATABASE: finance
+      MYSQL_USER: peter
+      MYSQL_PASSWORD: PeterGeers1953
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ./mysql_data:/var/lib/mysql # Host directory mapping - survives volume deletion
     ports:
       - "3306:3306"
     mem_limit: 2g
@@ -42,6 +45,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-volumes:
-  mysql_data:
+# Removed - using host directory mapping instead
+# volumes:
+#   mysql_data:
