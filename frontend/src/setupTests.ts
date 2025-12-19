@@ -13,22 +13,44 @@ if (typeof global.TextEncoder === 'undefined') {
 
 // Mock BroadcastChannel for MSW
 if (typeof global.BroadcastChannel === 'undefined') {
-  global.BroadcastChannel = class BroadcastChannel {
-    constructor(name) {
+  class MockBroadcastChannel implements BroadcastChannel {
+    name: string;
+    onmessage: ((this: BroadcastChannel, ev: MessageEvent) => any) | null = null;
+    onmessageerror: ((this: BroadcastChannel, ev: MessageEvent) => any) | null = null;
+
+    constructor(name: string) {
       this.name = name;
     }
-    postMessage() {}
-    close() {}
-    addEventListener() {}
-    removeEventListener() {}
-  };
+
+    postMessage(message: any): void {}
+    close(): void {}
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions): void {}
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions): void {}
+    dispatchEvent(event: Event): boolean { return true; }
+  }
+
+  (global as any).BroadcastChannel = MockBroadcastChannel;
 }
 
 // Mock fetch for tests
 if (typeof global.fetch === 'undefined') {
-  global.fetch = jest.fn(() =>
+  global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) =>
     Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      redirected: false,
+      type: 'basic' as ResponseType,
+      url: '',
+      clone: jest.fn(),
+      body: null,
+      bodyUsed: false,
+      arrayBuffer: jest.fn(),
+      blob: jest.fn(),
+      formData: jest.fn(),
+      text: jest.fn(),
       json: () => Promise.resolve({ mode: 'Test', database: 'testfinance', folder: 'testFacturen' }),
-    })
+    } as Response)
   );
 }

@@ -271,6 +271,8 @@ const BankingProcessor: React.FC = () => {
   const [testMode] = useState(false); // Always use production mode
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [patternResults, setPatternResults] = useState<any>(null);
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState<boolean>(false);
   const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [] });
   const [filterOptions, setFilterOptions] = useState<{ years: string[], administrations: string[] }>({ years: [], administrations: [] });
   const [mutatiesFilters, setMutatiesFilters] = useState({
@@ -325,6 +327,11 @@ const BankingProcessor: React.FC = () => {
   const [strChannelPreview, setStrChannelPreview] = useState<any[]>([]);
   const [strChannelTransactions, setStrChannelTransactions] = useState<any[]>([]);
   const [strChannelSummary, setStrChannelSummary] = useState<any>(null);
+  
+  // Pattern suggestion state
+  const [patternSuggestions, setPatternSuggestions] = useState<any>(null);
+  const [showPatternApproval, setShowPatternApproval] = useState(false);
+  const [originalTransactions, setOriginalTransactions] = useState<Transaction[]>([]);
 
   const toggleRowExpansion = (key: string) => {
     const newExpanded = new Set(expandedRows);
@@ -769,8 +776,15 @@ const BankingProcessor: React.FC = () => {
   }, [selectedFiles, lookupData, testMode]);
 
   const handleSaveTransactions = async (values: any) => {
+    // REQ-UI-004: Add confirmation dialog before saving transactions to database
+    setShowSaveConfirmation(true);
+  };
+
+  const confirmSaveTransactions = async () => {
     try {
       setLoading(true);
+      setShowSaveConfirmation(false);
+      
       // IMPORTANT: Always use relative URLs - DO NOT change to localhost
       const response = await fetch('/api/banking/save-transactions', {
         method: 'POST',
@@ -784,13 +798,14 @@ const BankingProcessor: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
-        setMessage(`Successfully saved ${data.saved_count} transactions to ${data.table}`);
+        setMessage(`✅ Successfully saved ${data.saved_count} transactions to ${data.table}`);
         setTransactions([]);
+        setPatternResults(null); // Clear pattern results after saving
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(`❌ Error: ${data.error}`);
       }
     } catch (error) {
-      setMessage(`Error saving transactions: ${error}`);
+      setMessage(`❌ Error saving transactions: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -808,9 +823,63 @@ const BankingProcessor: React.FC = () => {
     setSelectedFiles([]);
   }, []);
 
+  // REQ-UI-001 & REQ-UI-002: Handle ENTER key to move to next field instead of submitting form
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // Prevent form submission
+      
+      // Move focus to next input field
+      const form = e.currentTarget.closest('form');
+      if (form) {
+        const inputs = Array.from(form.querySelectorAll('input, select, textarea')) as HTMLElement[];
+        const currentIndex = inputs.indexOf(e.currentTarget as HTMLElement);
+        const nextInput = inputs[currentIndex + 1];
+        
+        if (nextInput) {
+          nextInput.focus();
+        }
+      }
+    }
+  }, []);
+
+  // REQ-UI-008: Helper function to check if field was auto-filled by patterns
+  const isPatternFilled = useCallback((transaction: Transaction, field: string) => {
+    // Check if this field was filled by comparing with original transactions
+    const originalTx = originalTransactions.find(tx => tx.row_id === transaction.row_id);
+    if (!originalTx) return false;
+    
+    const fieldKey = field === 'debet' ? 'Debet' : 
+                     field === 'credit' ? 'Credit' : 
+                     field === 'reference' ? 'ReferenceNumber' : field;
+    
+    // Field is pattern-filled if it was empty in original but has value now
+    const originalValue = originalTx[fieldKey as keyof Transaction] || '';
+    const currentValue = transaction[fieldKey as keyof Transaction] || '';
+    
+    return !originalValue && !!currentValue && patternSuggestions;
+  }, [originalTransactions, patternSuggestions]);
+
+  // REQ-UI-008: Get styling for pattern-filled fields
+  const getPatternFieldStyle = useCallback((transaction: Transaction, field: string) => {
+    if (isPatternFilled(transaction, field)) {
+      return {
+        bg: 'blue.50',
+        borderColor: 'blue.300',
+        borderWidth: '2px',
+        _hover: { bg: 'blue.100' }
+      };
+    }
+    return {};
+  }, [isPatternFilled]);
+
   const applyPatterns = async () => {
     try {
       setLoading(true);
+      setPatternResults(null); // Clear previous results
+      
+      // Store original transactions before applying suggestions
+      setOriginalTransactions([...transactions]);
+      
       // IMPORTANT: Always use relative URLs - DO NOT change to localhost
       const response = await fetch('/api/banking/apply-patterns', {
         method: 'POST',
@@ -824,16 +893,59 @@ const BankingProcessor: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
+        // Update transactions with pattern predictions (suggestions filled in fields)
         setTransactions(data.transactions);
-        setMessage(`Applied patterns to transactions. Found ${data.patterns_found} historical patterns.`);
+        
+        // Store pattern results and suggestions for approval dialog
+        const patternData = {
+          patterns_found: data.patterns_found,
+          predictions_made: data.predictions_made || {
+            debet: 0,
+            credit: 0,
+            reference: 0
+          },
+          confidence_scores: data.confidence_scores || [],
+          average_confidence: data.average_confidence || 0,
+          enhanced_results: data.enhanced_results
+        };
+        
+        setPatternResults(patternData);
+        setPatternSuggestions(patternData);
+        
+        const totalPredictions = Object.values(data.predictions_made || {}).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0);
+        
+        if (totalPredictions > 0) {
+          // Show approval dialog for pattern suggestions
+          setShowPatternApproval(true);
+          setMessage(`🔍 Found ${totalPredictions} pattern suggestions from ${data.patterns_found} historical patterns. Please review and approve the suggestions.`);
+        } else {
+          setMessage(`ℹ️ No pattern suggestions found. You may need to fill in the fields manually.`);
+        }
       } else {
-        setMessage(`Error applying patterns: ${data.error}`);
+        setMessage(`❌ Error applying patterns: ${data.error}`);
+        setPatternResults(null);
       }
     } catch (error) {
-      setMessage(`Error applying patterns: ${error}`);
+      setMessage(`❌ Error applying patterns: ${error}`);
+      setPatternResults(null);
     } finally {
       setLoading(false);
     }
+  };
+
+  const approvePatternSuggestions = () => {
+    // Keep the current transactions with applied suggestions
+    setShowPatternApproval(false);
+    setMessage(`✅ Pattern suggestions approved! Made ${Object.values(patternSuggestions?.predictions_made || {}).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0)} predictions. Review the highlighted fields before saving.`);
+  };
+
+  const rejectPatternSuggestions = () => {
+    // Restore original transactions without suggestions
+    setTransactions([...originalTransactions]);
+    setPatternResults(null);
+    setPatternSuggestions(null);
+    setShowPatternApproval(false);
+    setMessage(`❌ Pattern suggestions rejected. Fields restored to original values.`);
   };
 
   useEffect(() => {
@@ -921,6 +1033,39 @@ const BankingProcessor: React.FC = () => {
               </Alert>
             )}
 
+            {/* REQ-UI-005: Pattern Application Results Display */}
+            {patternResults && (
+              <Card mb={6} bg="blue.50" borderColor="blue.200" borderWidth="1px">
+                <CardBody>
+                  <Heading size="sm" mb={3} color="blue.800">Pattern Application Results</Heading>
+                  <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                    <Box>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Patterns Found:</strong> {patternResults.patterns_found}
+                      </Text>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Debet Predictions:</strong> {patternResults.predictions_made?.debet || 0}
+                      </Text>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Credit Predictions:</strong> {patternResults.predictions_made?.credit || 0}
+                      </Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Reference Predictions:</strong> {patternResults.predictions_made?.reference || 0}
+                      </Text>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Average Confidence:</strong> {(patternResults.average_confidence * 100).toFixed(1)}%
+                      </Text>
+                      <Text fontSize="xs" color="blue.600" mt={2}>
+                        💡 Fields with blue borders were auto-filled by patterns
+                      </Text>
+                    </Box>
+                  </Grid>
+                </CardBody>
+              </Card>
+            )}
+
             {/* Transactions Form */}
             {transactions.length > 0 && (
               <Formik
@@ -979,6 +1124,7 @@ const BankingProcessor: React.FC = () => {
                                       size="sm"
                                       value={transaction.TransactionNumber}
                                       onChange={(e) => updateTransaction(transaction.row_id, 'TransactionNumber', e.target.value)}
+                                      onKeyDown={handleKeyDown}
                                       minW="120px"
                                     />
                                   </Td>
@@ -989,6 +1135,7 @@ const BankingProcessor: React.FC = () => {
                                         type="date"
                                         value={transaction.TransactionDate}
                                         onChange={(e) => updateTransaction(transaction.row_id, 'TransactionDate', e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         isInvalid={!transaction.TransactionDate}
                                       />
                                       {!transaction.TransactionDate && (
@@ -1002,6 +1149,7 @@ const BankingProcessor: React.FC = () => {
                                         size="sm"
                                         value={transaction.TransactionDescription}
                                         onChange={(e) => updateTransaction(transaction.row_id, 'TransactionDescription', e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         minW="200px"
                                         isInvalid={!transaction.TransactionDescription}
                                       />
@@ -1018,6 +1166,7 @@ const BankingProcessor: React.FC = () => {
                                         step="0.01"
                                         value={transaction.TransactionAmount}
                                         onChange={(e) => updateTransaction(transaction.row_id, 'TransactionAmount', parseFloat(e.target.value) || 0)}
+                                        onKeyDown={handleKeyDown}
                                         isInvalid={!transaction.TransactionAmount || transaction.TransactionAmount <= 0}
                                       />
                                       {(!transaction.TransactionAmount || transaction.TransactionAmount <= 0) && (
@@ -1031,8 +1180,10 @@ const BankingProcessor: React.FC = () => {
                                         size="sm"
                                         value={transaction.Debet}
                                         onChange={(e) => updateTransaction(transaction.row_id, 'Debet', e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         isInvalid={!transaction.Debet}
                                         list={`debet-accounts-${transaction.row_id}`}
+                                        {...getPatternFieldStyle(transaction, 'debet')}
                                       />
                                       <datalist id={`debet-accounts-${transaction.row_id}`}>
                                         {lookupData.accounts.map((account, idx) => (
@@ -1050,8 +1201,10 @@ const BankingProcessor: React.FC = () => {
                                         size="sm"
                                         value={transaction.Credit}
                                         onChange={(e) => updateTransaction(transaction.row_id, 'Credit', e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         isInvalid={!transaction.Credit}
                                         list={`credit-accounts-${transaction.row_id}`}
+                                        {...getPatternFieldStyle(transaction, 'credit')}
                                       />
                                       <datalist id={`credit-accounts-${transaction.row_id}`}>
                                         {lookupData.accounts.map((account, idx) => (
@@ -1070,7 +1223,9 @@ const BankingProcessor: React.FC = () => {
                                       size="sm"
                                       value={transaction.ReferenceNumber}
                                       onChange={(e) => updateTransaction(transaction.row_id, 'ReferenceNumber', e.target.value)}
+                                      onKeyDown={handleKeyDown}
                                       minW="120px"
+                                      {...getPatternFieldStyle(transaction, 'reference')}
                                     />
                                   </Td>
                                   <Td>
@@ -1078,6 +1233,7 @@ const BankingProcessor: React.FC = () => {
                                       size="sm"
                                       value={transaction.Ref1}
                                       onChange={(e) => updateTransaction(transaction.row_id, 'Ref1', e.target.value)}
+                                      onKeyDown={handleKeyDown}
                                     />
                                   </Td>
                                   <Td>
@@ -1085,6 +1241,7 @@ const BankingProcessor: React.FC = () => {
                                       size="sm"
                                       value={transaction.Ref2}
                                       onChange={(e) => updateTransaction(transaction.row_id, 'Ref2', e.target.value)}
+                                      onKeyDown={handleKeyDown}
                                       placeholder="Reference 2"
                                     />
                                   </Td>
@@ -1094,6 +1251,7 @@ const BankingProcessor: React.FC = () => {
                                         size="sm"
                                         value={transaction.Administration}
                                         onChange={(e) => updateTransaction(transaction.row_id, 'Administration', e.target.value)}
+                                        onKeyDown={handleKeyDown}
                                         isInvalid={!transaction.Administration}
                                       />
                                       {!transaction.Administration && (
@@ -1219,19 +1377,19 @@ const BankingProcessor: React.FC = () => {
                       <Th color="white">Admin</Th>
                     </Tr>
                     <Tr>
-                      <Th p={1}><Input size="xs" placeholder="ID" value={columnFilters.ID} onChange={(e) => setColumnFilters(prev => ({ ...prev, ID: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="TrxNumber" value={columnFilters.TransactionNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionNumber: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Date" value={columnFilters.TransactionDate} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDate: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="225px"><Input size="xs" placeholder="Description" value={columnFilters.TransactionDescription} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDescription: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Amount" value={columnFilters.TransactionAmount} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionAmount: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Debet" value={columnFilters.Debet} onChange={(e) => setColumnFilters(prev => ({ ...prev, Debet: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Credit" value={columnFilters.Credit} onChange={(e) => setColumnFilters(prev => ({ ...prev, Credit: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Reference" value={columnFilters.ReferenceNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, ReferenceNumber: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref1" value={columnFilters.Ref1} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref1: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref2" value={columnFilters.Ref2} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref2: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref3" value={columnFilters.Ref3} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref3: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref4" value={columnFilters.Ref4} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref4: e.target.value }))} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Admin" value={columnFilters.Administration} onChange={(e) => setColumnFilters(prev => ({ ...prev, Administration: e.target.value }))} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="ID" value={columnFilters.ID} onChange={(e) => setColumnFilters(prev => ({ ...prev, ID: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="TrxNumber" value={columnFilters.TransactionNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Date" value={columnFilters.TransactionDate} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDate: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="225px"><Input size="xs" placeholder="Description" value={columnFilters.TransactionDescription} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDescription: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Amount" value={columnFilters.TransactionAmount} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionAmount: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Debet" value={columnFilters.Debet} onChange={(e) => setColumnFilters(prev => ({ ...prev, Debet: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Credit" value={columnFilters.Credit} onChange={(e) => setColumnFilters(prev => ({ ...prev, Credit: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Reference" value={columnFilters.ReferenceNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, ReferenceNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref1" value={columnFilters.Ref1} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref1: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref2" value={columnFilters.Ref2} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref2: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref3" value={columnFilters.Ref3} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref3: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref4" value={columnFilters.Ref4} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref4: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder="Admin" value={columnFilters.Administration} onChange={(e) => setColumnFilters(prev => ({ ...prev, Administration: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -1278,6 +1436,7 @@ const BankingProcessor: React.FC = () => {
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
+                      onKeyDown={handleKeyDown}
                       bg="gray.600"
                       color="white"
                       size="sm"
@@ -1315,6 +1474,7 @@ const BankingProcessor: React.FC = () => {
                       type="date"
                       value={sequenceStartDate}
                       onChange={(e) => setSequenceStartDate(e.target.value)}
+                      onKeyDown={handleKeyDown}
                       bg="gray.600"
                       color="white"
                       size="sm"
@@ -1618,6 +1778,7 @@ const BankingProcessor: React.FC = () => {
                       type="number"
                       value={strChannelFilters.year}
                       onChange={(e) => setStrChannelFilters(prev => ({...prev, year: parseInt(e.target.value) || new Date().getFullYear()}))}
+                      onKeyDown={handleKeyDown}
                       bg="gray.600"
                       color="white"
                       size="sm"
@@ -1782,11 +1943,11 @@ const BankingProcessor: React.FC = () => {
               <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                 <FormControl>
                   <FormLabel color="white">Transaction Number</FormLabel>
-                  <Input value={editingRecord.TransactionNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionNumber: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.TransactionNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionNumber: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Transaction Date</FormLabel>
-                  <Input type="date" value={editingRecord.TransactionDate ? new Date(editingRecord.TransactionDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionDate: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input type="date" value={editingRecord.TransactionDate ? new Date(editingRecord.TransactionDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionDate: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl gridColumn="span 2">
                   <FormLabel color="white">Description</FormLabel>
@@ -1794,31 +1955,31 @@ const BankingProcessor: React.FC = () => {
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Amount</FormLabel>
-                  <Input type="number" step="0.01" value={editingRecord.TransactionAmount || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionAmount: parseFloat(e.target.value) || 0 } : prev)} bg="gray.600" color="white" />
+                  <Input type="number" step="0.01" value={editingRecord.TransactionAmount || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionAmount: parseFloat(e.target.value) || 0 } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Administration</FormLabel>
-                  <Input value={editingRecord.Administration || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Administration: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.Administration || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Administration: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Debet</FormLabel>
-                  <Input value={editingRecord.Debet || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Debet: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.Debet || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Debet: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Credit</FormLabel>
-                  <Input value={editingRecord.Credit || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Credit: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.Credit || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Credit: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Reference Number</FormLabel>
-                  <Input value={editingRecord.ReferenceNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, ReferenceNumber: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.ReferenceNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, ReferenceNumber: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Ref1</FormLabel>
-                  <Input value={editingRecord.Ref1 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref1: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.Ref1 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref1: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Ref2</FormLabel>
-                  <Input value={editingRecord.Ref2 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref2: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.Ref2 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref2: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl gridColumn="span 2">
                   <FormLabel color="white">Ref3</FormLabel>
@@ -1826,7 +1987,7 @@ const BankingProcessor: React.FC = () => {
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Ref4</FormLabel>
-                  <Input value={editingRecord.Ref4 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref4: e.target.value } : prev)} bg="gray.600" color="white" />
+                  <Input value={editingRecord.Ref4 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref4: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
               </Grid>
             )}
@@ -1834,6 +1995,121 @@ const BankingProcessor: React.FC = () => {
           <ModalFooter>
             <Button colorScheme="gray" mr={3} onClick={onClose}>Cancel</Button>
             <Button colorScheme="orange" onClick={updateRecord} isLoading={loading}>Update Record</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* REQ-UI-004: Confirmation Dialog for Save to Database */}
+      <Modal isOpen={showSaveConfirmation} onClose={() => setShowSaveConfirmation(false)} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Confirm Save to Database</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <Text>
+                You are about to save <strong>{transactions.length} transactions</strong> to the database.
+              </Text>
+              
+              {patternResults && (
+                <Box bg="blue.50" p={4} borderRadius="md" borderColor="blue.200" borderWidth="1px">
+                  <Text fontSize="sm" fontWeight="bold" mb={2}>Pattern Application Summary:</Text>
+                  <Grid templateColumns="repeat(2, 1fr)" gap={2}>
+                    <Text fontSize="sm">Debet predictions: {patternResults.predictions_made?.debet || 0}</Text>
+                    <Text fontSize="sm">Credit predictions: {patternResults.predictions_made?.credit || 0}</Text>
+                    <Text fontSize="sm">Reference predictions: {patternResults.predictions_made?.reference || 0}</Text>
+                    <Text fontSize="sm">Avg. confidence: {(patternResults.average_confidence * 100).toFixed(1)}%</Text>
+                  </Grid>
+                </Box>
+              )}
+              
+              <Text fontSize="sm" color="gray.600">
+                This action cannot be undone. Please review all transactions before confirming.
+              </Text>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="gray" mr={3} onClick={() => setShowSaveConfirmation(false)}>
+              Cancel
+            </Button>
+            <Button colorScheme="green" onClick={confirmSaveTransactions} isLoading={loading}>
+              Confirm Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Pattern Approval Dialog - REQ-UI-006: Show pattern suggestions with confidence scores */}
+      <Modal isOpen={showPatternApproval} onClose={() => setShowPatternApproval(false)} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Review Pattern Suggestions</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <Alert status="info" borderRadius="md">
+                <AlertIcon />
+                <Box>
+                  <Text fontWeight="bold">Pattern suggestions have been filled into empty fields</Text>
+                  <Text fontSize="sm">
+                    Review the blue-highlighted fields below and approve or reject the suggestions.
+                  </Text>
+                </Box>
+              </Alert>
+              
+              {patternSuggestions && (
+                <Box bg="blue.50" p={4} borderRadius="md" borderColor="blue.200" borderWidth="1px">
+                  <Text fontSize="sm" fontWeight="bold" mb={3}>Pattern Analysis Results:</Text>
+                  <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                    <Box>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Patterns Found:</strong> {patternSuggestions.patterns_found}
+                      </Text>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Debet Suggestions:</strong> {patternSuggestions.predictions_made?.debet || 0}
+                      </Text>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Credit Suggestions:</strong> {patternSuggestions.predictions_made?.credit || 0}
+                      </Text>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Reference Suggestions:</strong> {patternSuggestions.predictions_made?.reference || 0}
+                      </Text>
+                      <Text fontSize="sm" color="blue.700">
+                        <strong>Average Confidence:</strong> {(patternSuggestions.average_confidence * 100).toFixed(1)}%
+                      </Text>
+                      <Text fontSize="xs" color="blue.600" mt={2}>
+                        💡 Suggested values are highlighted with blue borders in the transaction table
+                      </Text>
+                    </Box>
+                  </Grid>
+                </Box>
+              )}
+              
+              <Box bg="yellow.50" p={3} borderRadius="md" borderColor="yellow.200" borderWidth="1px">
+                <Text fontSize="sm" color="yellow.800">
+                  <strong>What happens next:</strong>
+                </Text>
+                <Text fontSize="xs" color="yellow.700" mt={1}>
+                  • <strong>Approve:</strong> Keep the suggested values in the highlighted fields
+                </Text>
+                <Text fontSize="xs" color="yellow.700">
+                  • <strong>Reject:</strong> Remove all suggestions and restore original empty fields
+                </Text>
+                <Text fontSize="xs" color="yellow.700">
+                  • You can manually edit any field after making your choice
+                </Text>
+              </Box>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="red" mr={3} onClick={rejectPatternSuggestions}>
+              Reject Suggestions
+            </Button>
+            <Button colorScheme="green" onClick={approvePatternSuggestions}>
+              Approve Suggestions
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

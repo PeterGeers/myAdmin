@@ -374,4 +374,114 @@ describe('Banking Processor', () => {
       expect(screen.getByText('Loading...')).toBeInTheDocument();
     });
   });
+
+  describe('Pattern Suggestions', () => {
+    const mockTransactionsWithEmptyFields = [
+      { date: '2024-01-01', description: 'Test Transaction', amount: 100, debet: '', credit: '' }
+    ];
+
+    it('shows pattern suggestions in empty fields after applying patterns', async () => {
+      const user = userEvent.setup();
+      
+      // Mock fetch to return pattern suggestions
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          transactions: [
+            { date: '2024-01-01', description: 'Test Transaction', amount: 100, debet: '1000', credit: '2000' }
+          ],
+          patterns_found: 5,
+          predictions_made: { debet: 1, credit: 1, reference: 0 },
+          average_confidence: 0.85
+        })
+      });
+
+      render(<MockBankingProcessor transactions={mockTransactionsWithEmptyFields} />);
+      
+      const applyButton = screen.getByTestId('apply-patterns-btn');
+      await user.click(applyButton);
+      
+      // Should show pattern approval dialog
+      await waitFor(() => {
+        expect(screen.getByText('Review Pattern Suggestions')).toBeInTheDocument();
+      });
+      
+      expect(screen.getByText('Pattern suggestions have been filled into empty fields')).toBeInTheDocument();
+      expect(screen.getByText('Approve Suggestions')).toBeInTheDocument();
+      expect(screen.getByText('Reject Suggestions')).toBeInTheDocument();
+    });
+
+    it('allows approving pattern suggestions', async () => {
+      const user = userEvent.setup();
+      
+      // Mock the pattern suggestion flow
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          transactions: [
+            { date: '2024-01-01', description: 'Test Transaction', amount: 100, debet: '1000', credit: '2000' }
+          ],
+          patterns_found: 5,
+          predictions_made: { debet: 1, credit: 1, reference: 0 },
+          average_confidence: 0.85
+        })
+      });
+
+      render(<MockBankingProcessor transactions={mockTransactionsWithEmptyFields} />);
+      
+      const applyButton = screen.getByTestId('apply-patterns-btn');
+      await user.click(applyButton);
+      
+      // Wait for approval dialog and approve
+      await waitFor(() => {
+        expect(screen.getByText('Approve Suggestions')).toBeInTheDocument();
+      });
+      
+      const approveButton = screen.getByText('Approve Suggestions');
+      await user.click(approveButton);
+      
+      // Dialog should close and show success message
+      await waitFor(() => {
+        expect(screen.queryByText('Review Pattern Suggestions')).not.toBeInTheDocument();
+      });
+    });
+
+    it('allows rejecting pattern suggestions', async () => {
+      const user = userEvent.setup();
+      
+      // Mock the pattern suggestion flow
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          transactions: [
+            { date: '2024-01-01', description: 'Test Transaction', amount: 100, debet: '1000', credit: '2000' }
+          ],
+          patterns_found: 5,
+          predictions_made: { debet: 1, credit: 1, reference: 0 },
+          average_confidence: 0.85
+        })
+      });
+
+      render(<MockBankingProcessor transactions={mockTransactionsWithEmptyFields} />);
+      
+      const applyButton = screen.getByTestId('apply-patterns-btn');
+      await user.click(applyButton);
+      
+      // Wait for approval dialog and reject
+      await waitFor(() => {
+        expect(screen.getByText('Reject Suggestions')).toBeInTheDocument();
+      });
+      
+      const rejectButton = screen.getByText('Reject Suggestions');
+      await user.click(rejectButton);
+      
+      // Dialog should close and show rejection message
+      await waitFor(() => {
+        expect(screen.queryByText('Review Pattern Suggestions')).not.toBeInTheDocument();
+      });
+    });
+  });
 });

@@ -6,6 +6,7 @@ from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from database import DatabaseManager
+from pattern_analyzer import PatternAnalyzer
 import json
 import unicodedata
 
@@ -13,6 +14,7 @@ class BankingProcessor:
     def __init__(self, test_mode=False):
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
+        self.pattern_analyzer = PatternAnalyzer(test_mode=test_mode)
         self.download_folder = os.path.expanduser("~/Downloads")  # Default download folder
     
     def normalize_text(self, text):
@@ -416,6 +418,89 @@ class BankingProcessor:
             'sequence_issues': sequence_issues,
             'has_gaps': len(sequence_issues) > 0
         }
+    
+    def analyze_patterns_for_administration(self, administration='GoodwinSolutions',
+                                          reference_number=None, debet_account=None, 
+                                          credit_account=None):
+        """
+        Analyze patterns for an administration using the enhanced pattern analyzer
+        
+        This method implements:
+        - REQ-PAT-001: Analyze transactions from the last 2 years for pattern discovery
+        - REQ-PAT-002: Filter patterns by Administration, ReferenceNumber, Debet/Credit values, and Date
+        
+        Args:
+            administration: Administration to analyze
+            reference_number: Optional filter by specific reference number
+            debet_account: Optional filter by specific debet account
+            credit_account: Optional filter by specific credit account
+        """
+        try:
+            filter_desc = f"for {administration}"
+            if reference_number:
+                filter_desc += f" (ReferenceNumber: {reference_number})"
+            if debet_account:
+                filter_desc += f" (Debet: {debet_account})"
+            if credit_account:
+                filter_desc += f" (Credit: {credit_account})"
+                
+            print(f"🔍 Starting enhanced pattern analysis {filter_desc}...")
+            
+            # Use the enhanced pattern analyzer with filtering (REQ-PAT-002)
+            patterns = self.pattern_analyzer.analyze_historical_patterns(
+                administration, reference_number, debet_account, credit_account
+            )
+            
+            print(f"✅ Pattern analysis complete:")
+            print(f"   - Processed {patterns['total_transactions']} transactions")
+            print(f"   - Discovered {patterns['patterns_discovered']} patterns")
+            print(f"   - Date range: {patterns['date_range']['from']} to {patterns['date_range']['to']}")
+            
+            return patterns
+            
+        except Exception as e:
+            print(f"❌ Pattern analysis failed: {e}")
+            raise e
+    
+    def apply_enhanced_patterns(self, transactions, administration='GoodwinSolutions'):
+        """
+        Apply enhanced pattern matching to predict missing values
+        
+        This method implements:
+        - REQ-PAT-003: Create pattern matching based on known variables
+        - REQ-PAT-004: Implement bank account lookup logic
+        """
+        try:
+            print(f"🔧 Applying enhanced patterns to {len(transactions)} transactions...")
+            
+            # Convert to list of dicts if it's a DataFrame
+            if hasattr(transactions, 'to_dict'):
+                transactions = transactions.to_dict('records')
+            
+            # Apply patterns using the enhanced analyzer
+            updated_transactions, results = self.pattern_analyzer.apply_patterns_to_transactions(
+                transactions, administration
+            )
+            
+            print(f"✅ Enhanced pattern application complete:")
+            print(f"   - Debet predictions: {results['predictions_made']['debet']}")
+            print(f"   - Credit predictions: {results['predictions_made']['credit']}")
+            print(f"   - Reference predictions: {results['predictions_made']['reference']}")
+            print(f"   - Average confidence: {results['average_confidence']:.2f}")
+            
+            return updated_transactions, results
+            
+        except Exception as e:
+            print(f"❌ Enhanced pattern application failed: {e}")
+            raise e
+    
+    def get_pattern_summary(self, administration='GoodwinSolutions'):
+        """Get a summary of discovered patterns for an administration"""
+        try:
+            return self.pattern_analyzer.get_pattern_summary(administration)
+        except Exception as e:
+            print(f"❌ Failed to get pattern summary: {e}")
+            raise e
 
 # Flask routes for the banking processor
 app = Flask(__name__)
@@ -519,6 +604,60 @@ def check_sequence_numbers():
         return jsonify(result)
         
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/analyze-patterns', methods=['POST'])
+def analyze_patterns():
+    """
+    Analyze historical patterns for an administration
+    Implements REQ-PAT-002: Filter patterns by Administration, ReferenceNumber, Debet/Credit values, and Date
+    - Administration: Filter by administration
+    - Date: Filter by last 2 years
+    - ReferenceNumber: Use historical reference numbers to match descriptions  
+    - Debet/Credit: Use bank account logic to predict opposite account
+    """
+    try:
+        data = request.get_json()
+        administration = data.get('administration', 'GoodwinSolutions')
+        test_mode = data.get('test_mode', True)
+        
+        processor = BankingProcessor(test_mode=test_mode)
+        patterns = processor.analyze_patterns_for_administration(administration)
+        
+        return jsonify({
+            'success': True,
+            'patterns': patterns,
+            'implementation': {
+                'administration_filter': f'Filtered by {administration}',
+                'date_filter': 'Last 2 years of transaction data',
+                'reference_matching': 'Historical reference numbers used for description matching',
+                'bank_account_logic': 'Debet/Credit prediction based on bank account identification'
+            }
+        })
+        
+    except Exception as e:
+        print(f"Pattern analysis error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/pattern-summary', methods=['GET'])
+def get_pattern_summary():
+    """Get pattern summary for an administration"""
+    try:
+        administration = request.args.get('administration', 'GoodwinSolutions')
+        test_mode = request.args.get('test_mode', 'false').lower() == 'true'
+        
+        processor = BankingProcessor(test_mode=test_mode)
+        summary = processor.get_pattern_summary(administration)
+        
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        print(f"Pattern summary error: {e}", flush=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':

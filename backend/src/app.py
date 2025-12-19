@@ -4,6 +4,7 @@ from config import Config
 from flasgger import Swagger
 import yaml
 import os
+from dotenv import load_dotenv
 from pdf_processor import PDFProcessor
 from transaction_logic import TransactionLogic
 from google_drive_service import GoogleDriveService
@@ -20,12 +21,17 @@ from str_channel_routes import str_channel_bp
 from str_invoice_routes import str_invoice_bp
 from routes.missing_invoices_routes import missing_invoices_bp
 from audit_routes import audit_bp
+from pattern_storage_routes import pattern_storage_bp
+from scalability_routes import scalability_bp
 
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
 from error_handlers import configure_logging, register_error_handlers, error_response
 from performance_optimizer import performance_middleware, register_performance_endpoints
 from security_audit import SecurityAudit, register_security_endpoints
+
+# Load environment variables from .env file
+load_dotenv()
 from duplicate_checker import DuplicateChecker
 import os
 from datetime import datetime
@@ -34,9 +40,50 @@ from werkzeug.utils import secure_filename
 # Create Flask app without static folder to prevent route conflicts
 app = Flask(__name__, static_folder=None)
 
-# Configure timeouts for long-running operations
+# Configure timeouts for long-running operations and scalability
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes
+
+# Scalability configurations
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False  # Disable pretty printing for performance
+app.config['JSON_SORT_KEYS'] = False  # Disable key sorting for performance
+
+# MODE CONFIGURATION
+# Set flag = True for TEST mode (uses mutaties_test table, local storage)
+# Set flag = False for PRODUCTION mode (uses mutaties table, Google Drive)
+flag = False
+
+# Initialize scalability manager early
+try:
+    # Temporarily disable scalability manager to avoid database pool issues
+    scalability_manager = None
+    print("⚠️ Scalability Manager disabled to avoid database pool issues", flush=True)
+    
+    # from scalability_manager import initialize_scalability, ScalabilityConfig
+    # from database import DatabaseManager
+    
+    # # Get database configuration
+    # db_manager = DatabaseManager(test_mode=flag)
+    # db_config = db_manager.config
+    
+    # # Initialize with optimized configuration for 10x concurrency
+    # scalability_config = ScalabilityConfig(
+    #     db_pool_size=20,  # Reduced to avoid pool size errors
+    #     db_max_overflow=40,
+    #     max_worker_threads=50,  # Reduced to avoid resource issues
+    #     io_thread_pool_size=25,
+    #     cpu_thread_pool_size=10,
+    #     async_queue_size=500,
+    #     batch_processing_size=50
+    # )
+    
+    # scalability_manager = initialize_scalability(db_config, scalability_config)
+    # print("🚀 Scalability Manager initialized for 10x concurrent user support", flush=True)
+    
+except Exception as e:
+    print(f"⚠️ Scalability Manager initialization failed: {e}", flush=True)
+    scalability_manager = None
 
 build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
 
@@ -48,6 +95,8 @@ app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
 app.register_blueprint(str_invoice_bp, url_prefix='/api/str-invoice')
 app.register_blueprint(missing_invoices_bp)
 app.register_blueprint(audit_bp)
+app.register_blueprint(pattern_storage_bp)
+app.register_blueprint(scalability_bp)
 
 
 # Configure Swagger UI
@@ -109,11 +158,6 @@ register_security_endpoints(app)
 # In-memory cache for uploaded files to prevent duplicates during session
 upload_cache = {}
 
-# MODE CONFIGURATION
-# Set flag = True for TEST mode (uses mutaties_test table, local storage)
-# Set flag = False for PRODUCTION mode (uses mutaties table, Google Drive)
-flag = False
-
 config = Config(test_mode=flag)
 processor = PDFProcessor(test_mode=flag)
 transaction_logic = TransactionLogic(test_mode=flag)
@@ -126,6 +170,68 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def check_for_early_duplicates(filename, folder_name, drive_result):
+    """
+    Check for duplicate files before processing to prevent unnecessary work.
+    This is an early check based on filename and folder.
+    """
+    try:
+        # Initialize database connection
+        db = DatabaseManager(test_mode=flag)
+        
+        # Check if this exact file already exists in the database
+        # Look for transactions with the same filename in Ref4 and same folder in ReferenceNumber
+        query = """
+            SELECT ID, TransactionDate, TransactionAmount, TransactionDescription, Ref3, Ref4
+            FROM mutaties 
+            WHERE Ref4 = %s 
+            AND ReferenceNumber = %s
+            AND TransactionDate > (CURDATE() - INTERVAL 6 MONTH)
+            ORDER BY ID DESC
+            LIMIT 5
+        """
+        
+        results = db.execute_query(query, (filename, folder_name), fetch=True)
+        
+        if results and len(results) > 0:
+            # Found potential duplicates
+            duplicate_info = {
+                'has_duplicates': True,
+                'duplicate_count': len(results),
+                'existing_transactions': []
+            }
+            
+            for result in results:
+                duplicate_info['existing_transactions'].append({
+                    'id': result.get('ID'),
+                    'date': str(result.get('TransactionDate', '')),
+                    'amount': float(result.get('TransactionAmount', 0)),
+                    'description': result.get('TransactionDescription', ''),
+                    'file_url': result.get('Ref3', ''),
+                    'filename': result.get('Ref4', '')
+                })
+            
+            return {
+                'has_duplicates': True,
+                'message': f'File "{filename}" already exists in folder "{folder_name}". Found {len(results)} matching transactions.',
+                'duplicate_info': duplicate_info
+            }
+        
+        return {
+            'has_duplicates': False,
+            'message': 'No duplicates found',
+            'duplicate_info': None
+        }
+        
+    except Exception as e:
+        print(f"Error in early duplicate check: {e}", flush=True)
+        # On error, allow processing to continue (graceful degradation)
+        return {
+            'has_duplicates': False,
+            'message': f'Duplicate check failed: {e}',
+            'duplicate_info': None
+        }
 
 # Serve static files
 @app.route('/static/<path:filename>')
@@ -280,8 +386,106 @@ def str_test():
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    """Health check endpoint"""
-    return jsonify({'status': 'healthy', 'endpoints': ['str/upload', 'str/scan-files', 'str/process-files', 'str/save', 'str/write-future']})
+    """Health check endpoint with scalability information"""
+    health_info = {
+        'status': 'healthy', 
+        'endpoints': ['str/upload', 'str/scan-files', 'str/process-files', 'str/save', 'str/write-future'],
+        'scalability': {
+            'manager_active': scalability_manager is not None,
+            'concurrent_user_capacity': '10x baseline' if scalability_manager else '1x baseline'
+        }
+    }
+    
+    if scalability_manager:
+        health_status = scalability_manager.get_health_status()
+        health_info['scalability'].update({
+            'health_score': health_status['health_score'],
+            'status': health_status['status'],
+            'scalability_ready': health_status['scalability_ready']
+        })
+    
+    return jsonify(health_info)
+
+@app.route('/api/scalability/status', methods=['GET'])
+def scalability_status():
+    """Get comprehensive scalability status"""
+    if not scalability_manager:
+        return jsonify({
+            'scalability_active': False,
+            'message': 'Scalability manager not initialized',
+            'concurrent_capacity': '1x baseline'
+        }), 503
+    
+    try:
+        stats = scalability_manager.get_comprehensive_statistics()
+        health = scalability_manager.get_health_status()
+        
+        return jsonify({
+            'scalability_active': True,
+            'health': health,
+            'statistics': stats,
+            'concurrent_capacity': '10x baseline',
+            'performance_ready': health['scalability_ready']
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'scalability_active': False,
+            'error': str(e),
+            'concurrent_capacity': 'Unknown'
+        }), 500
+
+@app.route('/api/scalability/database', methods=['GET'])
+def scalability_database_status():
+    """Get database scalability status"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        
+        scalability_stats = db.get_scalability_statistics()
+        health_status = db.get_scalability_health()
+        pool_status = db.get_connection_pool_status()
+        optimization_info = db.optimize_for_concurrency()
+        
+        return jsonify({
+            'database_scalability': {
+                'statistics': scalability_stats,
+                'health': health_status,
+                'connection_pools': pool_status,
+                'optimization_recommendations': optimization_info
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'database_scalability': 'unavailable'
+        }), 500
+
+@app.route('/api/scalability/performance', methods=['GET'])
+def scalability_performance():
+    """Get real-time performance metrics"""
+    if not scalability_manager:
+        return jsonify({
+            'performance_monitoring': False,
+            'message': 'Scalability manager not initialized'
+        }), 503
+    
+    try:
+        current_metrics = scalability_manager.resource_monitor.get_current_metrics()
+        metrics_summary = scalability_manager.resource_monitor.get_metrics_summary()
+        
+        return jsonify({
+            'performance_monitoring': True,
+            'current_metrics': current_metrics,
+            'metrics_summary': metrics_summary,
+            'monitoring_interval': scalability_manager.config.monitoring_interval_seconds
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'performance_monitoring': False,
+            'error': str(e)
+        }), 500
 
 
 
@@ -408,6 +612,28 @@ def upload_file():
                         'url': f'http://localhost:5000/uploads/{filename}'
                     }
             
+            # Check if user wants to force upload (bypass duplicate check)
+            force_upload = request.form.get('forceUpload', 'false').lower() == 'true'
+            
+            if not force_upload:
+                # Early duplicate detection - check before processing
+                print("Checking for duplicates before processing...", flush=True)
+                duplicate_check_result = check_for_early_duplicates(filename, folder_name, drive_result)
+                if duplicate_check_result['has_duplicates']:
+                    print(f"Duplicate detected - stopping upload: {duplicate_check_result['message']}", flush=True)
+                    # Clean up temp file
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    return jsonify({
+                        'success': False,
+                        'error': 'duplicate_detected',
+                        'message': duplicate_check_result['message'],
+                        'duplicate_info': duplicate_check_result['duplicate_info']
+                    }), 409
+            else:
+                print("Force upload enabled - bypassing duplicate check...", flush=True)
+            
+            print("No duplicates found - proceeding with processing...", flush=True)
             print("Starting file processing...", flush=True)
             result = processor.process_file(temp_path, drive_result, folder_name)
             print("File processed, extracting transactions...", flush=True)
@@ -574,95 +800,111 @@ def banking_check_sequences():
 
 @app.route('/api/banking/apply-patterns', methods=['POST'])
 def banking_apply_patterns():
-    """Apply pattern matching to predict debet/credit accounts"""
+    """Apply enhanced pattern matching to predict debet/credit accounts"""
     try:
         data = request.get_json()
         transactions = data.get('transactions', [])
         test_mode = data.get('test_mode', True)
+        use_enhanced = data.get('use_enhanced', True)  # Default to enhanced patterns
         
         if not transactions:
             return jsonify({'success': False, 'error': 'No transactions provided'}), 400
             
-        db = DatabaseManager(test_mode=test_mode)
-        administration = transactions[0].get('Administration')
+        administration = transactions[0].get('Administration', 'GoodwinSolutions')
         
-        # Get patterns for this administration
-        patterns_data = db.get_patterns(administration)
-        
-        # Build pattern groups
-        debet_patterns = {}
-        credit_patterns = {}
-        
-        for pattern in patterns_data:
-            ref_num = pattern.get('referenceNumber')
-            if not ref_num:
-                continue
+        if use_enhanced:
+            # Use enhanced pattern analysis system
+            processor = BankingProcessor(test_mode=test_mode)
+            updated_transactions, results = processor.apply_enhanced_patterns(transactions, administration)
+            
+            return jsonify({
+                'success': True,
+                'transactions': updated_transactions,
+                'enhanced_results': results,
+                'method': 'enhanced'
+            })
+        else:
+            # Fall back to legacy pattern matching
+            db = DatabaseManager(test_mode=test_mode)
+            
+            # Get patterns for this administration
+            patterns_data = db.get_patterns(administration)
+            
+            # Build pattern groups
+            debet_patterns = {}
+            credit_patterns = {}
+            
+            for pattern in patterns_data:
+                ref_num = pattern.get('referenceNumber')
+                if not ref_num:
+                    continue
+                    
+                # Escape special regex characters
+                escaped_ref = str(ref_num).replace('/', '\\/')
                 
-            # Escape special regex characters
-            escaped_ref = str(ref_num).replace('/', '\\/')
-            
-            debet_val = pattern.get('debet')
-            credit_val = pattern.get('credit')
-            
-            if debet_val and str(debet_val) < '1300':
-                key = f"{pattern.get('administration')}_{debet_val}_{credit_val}"
-                if key not in debet_patterns:
-                    debet_patterns[key] = {
-                        'debet': debet_val,
-                        'credit': credit_val,
-                        'patterns': []
-                    }
-                debet_patterns[key]['patterns'].append(escaped_ref)
+                debet_val = pattern.get('debet')
+                credit_val = pattern.get('credit')
                 
-            if credit_val and str(credit_val) < '1300':
-                key = f"{pattern.get('administration')}_{debet_val}_{credit_val}"
-                if key not in credit_patterns:
-                    credit_patterns[key] = {
-                        'debet': debet_val,
-                        'credit': credit_val,
-                        'patterns': []
-                    }
-                credit_patterns[key]['patterns'].append(escaped_ref)
-        
-        # Apply patterns to transactions
-        import re
-        
-        for transaction in transactions:
-            description = str(transaction.get('TransactionDescription', ''))
+                if debet_val and str(debet_val) < '1300':
+                    key = f"{pattern.get('administration')}_{debet_val}_{credit_val}"
+                    if key not in debet_patterns:
+                        debet_patterns[key] = {
+                            'debet': debet_val,
+                            'credit': credit_val,
+                            'patterns': []
+                        }
+                    debet_patterns[key]['patterns'].append(escaped_ref)
+                    
+                if credit_val and str(credit_val) < '1300':
+                    key = f"{pattern.get('administration')}_{debet_val}_{credit_val}"
+                    if key not in credit_patterns:
+                        credit_patterns[key] = {
+                            'debet': debet_val,
+                            'credit': credit_val,
+                            'patterns': []
+                        }
+                    credit_patterns[key]['patterns'].append(escaped_ref)
             
-            # If Credit is empty, try debet patterns
-            if not transaction.get('Credit'):
-                for pattern_group in debet_patterns.values():
-                    if pattern_group['patterns']:
-                        pattern_regex = '|'.join(pattern_group['patterns'])
-                        try:
-                            match = re.search(pattern_regex, description, re.IGNORECASE)
-                            if match:
-                                transaction['ReferenceNumber'] = match.group(0)
-                                transaction['Credit'] = pattern_group['credit']
-                                break
-                        except re.error:
-                            continue
+            # Apply patterns to transactions
+            import re
             
-            # If Debet is empty, try credit patterns  
-            elif not transaction.get('Debet'):
-                for pattern_group in credit_patterns.values():
-                    if pattern_group['patterns']:
-                        pattern_regex = '|'.join(pattern_group['patterns'])
-                        try:
-                            match = re.search(pattern_regex, description, re.IGNORECASE)
-                            if match:
-                                transaction['ReferenceNumber'] = match.group(0)
-                                transaction['Debet'] = pattern_group['debet']
-                                break
-                        except re.error:
-                            continue
-        
-        return jsonify({
-            'success': True,
-            'transactions': transactions,
-            'patterns_found': len(patterns_data)
-        })
+            for transaction in transactions:
+                description = str(transaction.get('TransactionDescription', ''))
+                
+                # If Credit is empty, try debet patterns
+                if not transaction.get('Credit'):
+                    for pattern_group in debet_patterns.values():
+                        if pattern_group['patterns']:
+                            pattern_regex = '|'.join(pattern_group['patterns'])
+                            try:
+                                match = re.search(pattern_regex, description, re.IGNORECASE)
+                                if match:
+                                    transaction['ReferenceNumber'] = match.group(0)
+                                    transaction['Credit'] = pattern_group['credit']
+                                    break
+                            except re.error:
+                                continue
+                
+                # If Debet is empty, try credit patterns  
+                elif not transaction.get('Debet'):
+                    for pattern_group in credit_patterns.values():
+                        if pattern_group['patterns']:
+                            pattern_regex = '|'.join(pattern_group['patterns'])
+                            try:
+                                match = re.search(pattern_regex, description, re.IGNORECASE)
+                                if match:
+                                    transaction['ReferenceNumber'] = match.group(0)
+                                    transaction['Debet'] = pattern_group['debet']
+                                    break
+                            except re.error:
+                                continue
+            
+            return jsonify({
+                'success': True,
+                'transactions': transactions,
+                'patterns_found': len(patterns_data),
+                'method': 'legacy'
+            })
         
     except Exception as e:
         print(f"Pattern matching error: {e}", flush=True)
@@ -2065,19 +2307,37 @@ def log_duplicate_decision():
     """Log user decision regarding duplicate transaction for audit trail"""
     try:
         data = request.get_json()
+        print(f"Received duplicate decision data: {data}", flush=True)
         
         # Validate required fields
-        required_fields = ['decision', 'duplicateInfo', 'newTransactionData']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({
-                    'success': False, 
-                    'error': f'Missing required field: {field}'
-                }), 400
-        
         decision = data.get('decision')
-        duplicate_info = data.get('duplicateInfo')
-        new_transaction_data = data.get('newTransactionData')
+        if not decision:
+            return jsonify({
+                'success': False, 
+                'error': 'Missing required field: decision'
+            }), 400
+        
+        # Get duplicate info - frontend sends 'duplicate_info'
+        duplicate_info = data.get('duplicate_info', {})
+        
+        # Create new transaction data from the duplicate info
+        new_transaction_data = {
+            'ReferenceNumber': duplicate_info.get('reference_number', ''),
+            'TransactionDate': duplicate_info.get('transaction_date', ''),
+            'TransactionAmount': duplicate_info.get('transaction_amount', 0),
+            'Ref3': duplicate_info.get('new_file_url', ''),
+            'Ref4': duplicate_info.get('filename', '')
+        }
+        
+        # Fix existing_transaction_id - convert empty string to None for NULL in database
+        existing_id = duplicate_info.get('existing_transaction_id', '')
+        if existing_id == '' or existing_id is None:
+            existing_id = None
+        else:
+            try:
+                existing_id = int(existing_id)
+            except (ValueError, TypeError):
+                existing_id = None
         user_id = data.get('userId')
         session_id = data.get('sessionId')
         

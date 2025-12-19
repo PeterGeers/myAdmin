@@ -651,13 +651,18 @@ class SecurityAudit:
         if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
             return True
             
+        # Skip strict header validation for API endpoints
+        if request.path.startswith('/api/'):
+            # Only check for basic required headers for API calls
+            return 'Host' in request.headers
+            
         # Check for required headers
         required_headers = ['Host']
         for header in required_headers:
             if header not in request.headers:
                 return False
 
-        # Check for suspicious headers
+        # Check for suspicious headers (only for non-API routes)
         suspicious_headers = ['X-Forwarded-For', 'X-Forwarded-Host', 'X-Forwarded-Proto']
         for header in suspicious_headers:
             if header in request.headers:

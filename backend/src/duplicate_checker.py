@@ -229,6 +229,15 @@ class DuplicateChecker:
             existing_transactions = duplicate_info.get('existing_transactions', [])
             existing_id = existing_transactions[0].get('id', '') if existing_transactions else ''
             
+            # Convert existing_id to proper integer or None for database
+            if existing_id == '' or existing_id is None:
+                existing_id = None
+            else:
+                try:
+                    existing_id = int(existing_id)
+                except (ValueError, TypeError):
+                    existing_id = None
+            
             reference_number = new_transaction_data.get('ReferenceNumber', '')
             transaction_date = new_transaction_data.get('TransactionDate', '')
             transaction_amount = new_transaction_data.get('TransactionAmount', 0)

@@ -1,0 +1,20 @@
+{
+  "name": "compound_verb_patterns",
+  "description": "Add support for compound verbs (company + reference number) in pattern matching",
+  "timestamp": "20251219140000",
+  "up": [
+    "ALTER TABLE pattern_verb_patterns ADD COLUMN verb_company VARCHAR(255) AFTER verb",
+    "ALTER TABLE pattern_verb_patterns ADD COLUMN verb_reference VARCHAR(255) AFTER verb_company",
+    "ALTER TABLE pattern_verb_patterns ADD COLUMN is_compound BOOLEAN DEFAULT FALSE AFTER verb_reference",
+    "CREATE INDEX idx_compound_verb ON pattern_verb_patterns (administration, bank_account, verb_company, verb_reference)",
+    "CREATE INDEX idx_company_only ON pattern_verb_patterns (administration, bank_account, verb_company)"
+  ],
+  "down": [
+    "DROP INDEX IF EXISTS idx_compound_verb ON pattern_verb_patterns",
+    "DROP INDEX IF EXISTS idx_company_only ON pattern_verb_patterns",
+    "ALTER TABLE pattern_verb_patterns DROP COLUMN is_compound",
+    "ALTER TABLE pattern_verb_patterns DROP COLUMN verb_reference",
+    "ALTER TABLE pattern_verb_patterns DROP COLUMN verb_company"
+  ],
+  "version": "1.0"
+}
