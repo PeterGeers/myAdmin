@@ -30,6 +30,7 @@ h-dcn
 # Database
 *.db
 *.sqlite3
+mysql_data/
 
 # Node modules
 node_modules/
