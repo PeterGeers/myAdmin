@@ -218,8 +218,8 @@ const processCreditCardTransaction = (columns: string[], index: number, lookupDa
     Debet: isNegative ? '4002' : '2001', // Negative = expense (4002), Positive = credit (2001)
     Credit: isNegative ? '2001' : '2001', // Always credit to 2001
     ReferenceNumber: 'Default',
-    Ref1: columns[6] || '', // Transactiereferentie
-    Ref2: columns[3] || '', // Productnaam
+    Ref1: columns[3] || '', // Productnaam (Rabo BusinessCard Visa)
+    Ref2: columns[6] || '', // Transactiereferentie (UNIQUE transaction ID)
     Ref3: iban,
     Ref4: '',
     Administration: administration
@@ -240,8 +240,8 @@ const processRabobankTransaction = (columns: string[], index: number, lookupData
   const bankCode = iban.includes('RABO') ? 'RABO' : 'BANK';
   const currentDate = new Date().toISOString().split('T')[0];
 
-  const description = [columns[9], columns[19], columns[20], columns[21], columns[18], columns[8], columns[7]]
-    .filter(field => field?.trim() && field.trim() !== 'NA')
+  const description = [columns[9], columns[19], columns[20], columns[21]]
+    .filter(field => field?.trim() && field.trim() !== 'NA' && field.trim() !== '' && field.trim() !== 'nan')
     .join(' ')
     .replace(/\s+/g, ' ')
     .replace(/Google Pay/g, 'GPay')
@@ -253,9 +253,9 @@ const processRabobankTransaction = (columns: string[], index: number, lookupData
     TransactionDate: columns[4] || '',
     TransactionDescription: description,
     TransactionAmount: amount,
-    Debet: isNegative ? '' : (bankLookup?.Account || '1000'),
-    Credit: isNegative ? (bankLookup?.Account || '1000') : '',
-    ReferenceNumber: columns[15] || '',
+    Debet: isNegative ? '' : (bankLookup?.Account || '1002'),
+    Credit: isNegative ? (bankLookup?.Account || '1002') : '',
+    ReferenceNumber: '', // Leave empty for pattern prediction to fill
     Ref1: columns[0] || '',
     Ref2: parseInt(columns[3] || '0').toString(),
     Ref3: '',
