@@ -20,8 +20,3 @@ docker logs myadmin-backend-1
 docker logs -f myadmin-backend-1
 # Last 50 lines
 docker logs --tail 50 myadmin-backend-1
-
-
-
-* Check saldo before update trx by account ???
-* Process import Business VisaCard Rabo (GoodwinSolutions)

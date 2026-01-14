@@ -10,19 +10,161 @@ class STRProcessor:
         self.platforms = ['airbnb', 'booking', 'direct']
         self.download_folder = "C:\\Users\\peter\\Downloads"
         
-        # Tax parameters (change annually on Jan 1st)
-        self.vat_rate = 9  # VAT percentage
-        self.vat_base = 109  # Base for VAT calculation (100 + VAT rate)
-        self.tourist_tax_rate = 6  # Tourist tax percentage
-        self.tourist_tax_base = 106  # Base for tourist tax calculation
-        self.price_uplift = 0.054409  # Uplift from commissionable amount to total price
-        
         # Property mappings from config
         self.property_mappings = {
             'green': 'Green Apartment',
             'child': 'Garden House', 
             'red': 'Red Apartment'
         }
+    
+    def get_tax_rates(self, checkin_date: str) -> dict:
+        """Get VAT and tourist tax rates based on check-in date"""
+        try:
+            # Parse check-in date
+            if isinstance(checkin_date, str):
+                checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
+            else:
+                checkin_dt = checkin_date
+            
+            # 2026 rate changes effective from January 1, 2026
+            rate_change_date = date(2026, 1, 1)
+            
+            if checkin_dt >= rate_change_date:
+                # 2026 rates and later
+                return {
+                    'vat_rate': 21.0,  # Changed from 9% to 21%
+                    'vat_base': 121.0,  # Base for VAT calculation (100 + VAT rate)
+                    'tourist_tax_rate': 6.9,  # Changed from 6.02% to 6.9%
+                    'tourist_tax_base': 106.9,  # Base for tourist tax calculation
+                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
+                }
+            else:
+                # Pre-2026 rates
+                return {
+                    'vat_rate': 9.0,  # Original 9% VAT
+                    'vat_base': 109.0,  # Base for VAT calculation (100 + VAT rate)
+                    'tourist_tax_rate': 6.02,  # Original 6.02% tourist tax
+                    'tourist_tax_base': 106.02,  # Base for tourist tax calculation
+                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
+                }
+        except Exception as e:
+            print(f"Error parsing check-in date {checkin_date}: {e}")
+            # Default to current rates if date parsing fails
+            return {
+                'vat_rate': 9.0,
+                'vat_base': 109.0,
+                'tourist_tax_rate': 6.02,
+                'tourist_tax_base': 106.02,
+                'price_uplift': 0.054409
+            }
+
+    def calculate_str_taxes(self, gross_amount: float, checkin_date: str, channel_fee: float = 0.0) -> dict:
+        """
+        Generic tax calculation function for all STR channels
+        
+        Args:
+            gross_amount: Total gross booking amount
+            checkin_date: Check-in date in YYYY-MM-DD or DD-MM-YYYY format
+            channel_fee: Channel commission fee (optional)
+            
+        Returns:
+            dict with calculated amounts: vat, tourist_tax, net_amount, tax_rates_used
+        """
+        try:
+            # Normalize date format to YYYY-MM-DD for tax rate lookup
+            if isinstance(checkin_date, str):
+                # Try different date formats
+                checkin_date_iso = None
+                date_formats = ['%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%Y']
+                
+                for fmt in date_formats:
+                    try:
+                        checkin_dt = datetime.strptime(checkin_date, fmt)
+                        checkin_date_iso = checkin_dt.strftime('%Y-%m-%d')
+                        break
+                    except ValueError:
+                        continue
+                
+                if not checkin_date_iso:
+                    # Fallback to current date if parsing fails
+                    checkin_date_iso = datetime.now().strftime('%Y-%m-%d')
+            else:
+                checkin_date_iso = checkin_date.strftime('%Y-%m-%d')
+            
+            # Get tax rates based on check-in date
+            tax_rates = self.get_tax_rates(checkin_date_iso)
+            
+            # Step 1: Calculate VAT on gross amount
+            vat_base = 100 + tax_rates['vat_rate']  # e.g., 121 for 21% VAT
+            amount_vat = (float(gross_amount) / vat_base) * tax_rates['vat_rate']
+            
+            # Step 2: Calculate Tourist Tax on VAT-exclusive amount
+            vat_exclusive_amount = float(gross_amount) - amount_vat
+            tourist_base = 100 + tax_rates['tourist_tax_rate']  # e.g., 106.9 for 6.9% tourist tax
+            amount_tourist_tax = (vat_exclusive_amount / tourist_base) * tax_rates['tourist_tax_rate']
+            
+            # Step 3: Net amount = gross - taxes - channel fee
+            amount_nett = float(gross_amount) - amount_tourist_tax - amount_vat - float(channel_fee)
+            
+            return {
+                'amount_vat': round(amount_vat, 2),
+                'amount_tourist_tax': round(amount_tourist_tax, 2),
+                'amount_nett': round(amount_nett, 2),
+                'tax_rates_used': tax_rates,
+                'vat_base': vat_base,
+                'tourist_base': tourist_base,
+                'vat_exclusive_amount': round(vat_exclusive_amount, 2)
+            }
+            
+        except Exception as e:
+            print(f"Error in tax calculation: {e}")
+            # Return zero amounts if calculation fails
+            return {
+                'amount_vat': 0.0,
+                'amount_tourist_tax': 0.0,
+                'amount_nett': float(gross_amount) - float(channel_fee),
+                'tax_rates_used': self.get_tax_rates(datetime.now().strftime('%Y-%m-%d')),
+                'total_tax_base': 115.0  # Fallback
+            }
+        """Get VAT and tourist tax rates based on check-in date"""
+        try:
+            # Parse check-in date
+            if isinstance(checkin_date, str):
+                checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
+            else:
+                checkin_dt = checkin_date
+            
+            # 2026 rate changes effective from January 1, 2026
+            rate_change_date = date(2026, 1, 1)
+            
+            if checkin_dt >= rate_change_date:
+                # 2026 rates and later
+                return {
+                    'vat_rate': 21.0,  # Changed from 9% to 21%
+                    'vat_base': 121.0,  # Base for VAT calculation (100 + VAT rate)
+                    'tourist_tax_rate': 6.9,  # Changed from 6.02% to 6.9%
+                    'tourist_tax_base': 106.9,  # Base for tourist tax calculation
+                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
+                }
+            else:
+                # Pre-2026 rates
+                return {
+                    'vat_rate': 9.0,  # Original 9% VAT
+                    'vat_base': 109.0,  # Base for VAT calculation (100 + VAT rate)
+                    'tourist_tax_rate': 6.02,  # Original 6.02% tourist tax
+                    'tourist_tax_base': 106.02,  # Base for tourist tax calculation
+                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
+                }
+        except Exception as e:
+            print(f"Error parsing check-in date {checkin_date}: {e}")
+            # Default to current rates if date parsing fails
+            return {
+                'vat_rate': 9.0,
+                'vat_base': 109.0,
+                'tourist_tax_rate': 6.02,
+                'tourist_tax_base': 106.02,
+                'price_uplift': 0.054409
+            }
     
     def _normalize_listing_name(self, listing: str) -> str:
         """Normalize listing names to standard format"""
@@ -167,10 +309,11 @@ class STRProcessor:
                 amount_channel_fee = paid_out * channel_fee_factor
                 gross_amount = paid_out + amount_channel_fee  # R: amountGross = paidOut + amountChannelFee
                 
-                # Apply same VAT/tourist tax as Booking.com (from writeJaBakiMySQL.R)
-                amount_vat = (gross_amount / 115) * 9
-                amount_tourist_tax = (gross_amount / 115) * 6
-                amount_nett = gross_amount - amount_tourist_tax - amount_vat - amount_channel_fee
+                # Use generic tax calculation function
+                tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, amount_channel_fee)
+                amount_vat = tax_calc['amount_vat']
+                amount_tourist_tax = tax_calc['amount_tourist_tax']
+                amount_nett = tax_calc['amount_nett']
                 
                 # Calculate dates and periods
                 try:
@@ -217,9 +360,9 @@ class STRProcessor:
                     'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
                     'status': str(booking_status),
                     'addInfo': add_info,
-                    'amountVat': round(float(amount_vat), 2),
-                    'amountTouristTax': round(float(amount_tourist_tax), 2),
-                    'amountNett': round(float(amount_nett), 2),
+                    'amountVat': amount_vat,  # Already rounded in calculate_str_taxes()
+                    'amountTouristTax': amount_tourist_tax,  # Already rounded in calculate_str_taxes()
+                    'amountNett': amount_nett,  # Already rounded in calculate_str_taxes()
                     'pricePerNight': round(float(price_per_night), 2),
                     'year': year,
                     'q': quarter,
@@ -264,15 +407,18 @@ class STRProcessor:
                 price_str = row.get('Price', row.get('Total price', row.get('Amount', '0')))
                 booking_id = row.get('Book number', row.get('Booking number', row.get('Reservation', '')))
                 status = row.get('Status', 'ok')
-                commission_amount = row.get('Commission amount', row.get('Commission', ''))
+                commission_amount_str = row.get('Commission amount', row.get('Commission', ''))
                 
-                print(f"Processing booking: {booking_id}, checkin: {checkin_date}, price: {price_str}")
+                print(f"DEBUG - Processing booking: {booking_id}")
+                print(f"  Raw price_str: {price_str}")
+                print(f"  Raw commission_str: {commission_amount_str}")
+                print(f"  Commission field type: {type(commission_amount_str)}")
                 
                 # Skip cancelled bookings with no commission (no revenue)
-                if status == 'cancelled_by_guest' and (pd.isna(commission_amount) or commission_amount == '' or commission_amount is None):
+                if status == 'cancelled_by_guest' and (pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None):
                     continue
                 
-                # Extract numeric price from "101.468 EUR" format
+                # Extract numeric base price from "126.6314 EUR" format
                 try:
                     if isinstance(price_str, str) and 'EUR' in price_str:
                         base_price = float(price_str.replace(' EUR', '').replace(',', '.'))
@@ -281,9 +427,44 @@ class STRProcessor:
                 except (ValueError, TypeError):
                     base_price = 0
                 
-                # Calculate tourist tax amount and add to base price for gross amount
-                tourist_tax_amount = (base_price / 100) * self.tourist_tax_rate
-                price = round(base_price + tourist_tax_amount, 2)
+                # Skip records with zero or missing base price
+                if base_price == 0:
+                    print(f"  SKIPPING: Base price is zero")
+                    continue
+                
+                # Extract numeric commission amount from "15.195768 EUR" format
+                try:
+                    # Check if commission is NaN or empty
+                    if pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None:
+                        commission_amount = 0
+                        print(f"  WARNING: No commission data, using 0")
+                    elif isinstance(commission_amount_str, str) and 'EUR' in commission_amount_str:
+                        commission_amount = float(commission_amount_str.replace(' EUR', '').replace(',', '.'))
+                    else:
+                        commission_amount = float(commission_amount_str) if commission_amount_str else 0
+                except (ValueError, TypeError):
+                    commission_amount = 0
+                    print(f"  WARNING: Could not parse commission, using 0")
+                
+                print(f"  Parsed base_price: {base_price}")
+                print(f"  Parsed commission_amount: {commission_amount}")
+                
+                # Get tax rates based on check-in date
+                tax_rates = self.get_tax_rates(checkin_date)
+                
+                # Calculate gross amount using Booking.com algorithm
+                # amountGross = (basePrice + commissionAmount) × 1.047826
+                uplift_factor = 1.047826
+                amount_gross = round((base_price + commission_amount) * uplift_factor, 2)
+                
+                print(f"  Calculated amount_gross: {amount_gross}")
+                print(f"  Formula: ({base_price} + {commission_amount}) × {uplift_factor} = {amount_gross}")
+                
+                # Calculate channel fee
+                # amountChannelFee = amountGross - basePrice
+                amount_channel_fee = round(amount_gross - base_price, 2)
+                
+                price = amount_gross  # Use calculated gross amount
                 
                 # Determine status based on check-in date and booking status
                 from datetime import datetime, date
@@ -299,13 +480,11 @@ class STRProcessor:
                 except:
                     booking_status = 'realised'
                 
-                # Calculate additional fields based on R script logic
-                channel_fee_factor = 0.15  # 15% like in R script
-                paid_out = price / (1 + channel_fee_factor)  # Reverse calculate paid out
-                amount_channel_fee = paid_out * channel_fee_factor
-                amount_vat = (price / self.vat_base) * self.vat_rate
-                amount_tourist_tax = tourist_tax_amount
-                amount_nett = price - amount_vat - amount_tourist_tax - amount_channel_fee
+                # Use generic tax calculation function with the calculated gross amount
+                tax_calc = self.calculate_str_taxes(price, checkin_date, amount_channel_fee)
+                amount_vat = tax_calc['amount_vat']
+                amount_tourist_tax = tax_calc['amount_tourist_tax']
+                amount_nett = tax_calc['amount_nett']
                 
                 # Extract persons from Excel data
                 persons = row.get('Persons', 0) or 0
@@ -355,9 +534,9 @@ class STRProcessor:
                     'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
                     'status': str(booking_status),
                     'addInfo': add_info,
-                    'amountVat': round(float(amount_vat), 2),
-                    'amountTouristTax': round(float(amount_tourist_tax), 2),
-                    'amountNett': round(float(amount_nett), 2),
+                    'amountVat': amount_vat,  # Already rounded in calculate_str_taxes()
+                    'amountTouristTax': amount_tourist_tax,  # Already rounded in calculate_str_taxes()
+                    'amountNett': amount_nett,  # Already rounded in calculate_str_taxes()
                     'pricePerNight': round(float(price_per_night), 2),
                     'year': year,
                     'q': quarter,
@@ -434,10 +613,11 @@ class STRProcessor:
                 except:
                     checkout_date = str(checkin_date)
                 
-                # Apply same VAT/tourist tax as other channels (from generic part)
-                amount_vat = (float(gross_amount) / 115) * 9
-                amount_tourist_tax = (float(gross_amount) / 115) * 6
-                amount_nett = float(gross_amount) - amount_tourist_tax - amount_vat - float(channel_fee)
+                # Use generic tax calculation function
+                tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, channel_fee)
+                amount_vat = tax_calc['amount_vat']
+                amount_tourist_tax = tax_calc['amount_tourist_tax']
+                amount_nett = tax_calc['amount_nett']
                 
                 # Reservation date = checkin date (like R code)
                 reservation_date = checkin_date
@@ -494,9 +674,9 @@ class STRProcessor:
                     'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
                     'status': str(booking_status),
                     'addInfo': add_info,
-                    'amountVat': round(float(amount_vat), 2),
-                    'amountTouristTax': round(float(amount_tourist_tax), 2),
-                    'amountNett': round(float(amount_nett), 2),
+                    'amountVat': amount_vat,  # Already rounded in calculate_str_taxes()
+                    'amountTouristTax': amount_tourist_tax,  # Already rounded in calculate_str_taxes()
+                    'amountNett': amount_nett,  # Already rounded in calculate_str_taxes()
                     'pricePerNight': round(float(price_per_night), 2),
                     'year': year,
                     'q': quarter,
