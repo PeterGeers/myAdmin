@@ -1,6 +1,6 @@
 # myAdmin Startup Script
 # Usage: .\start.ps1 [mode] [options]
-# Modes: dev, prod, containers
+# Modes: dev, prod, containers, restart, stop, status
 # Options: --build (rebuild containers), --lean (close resource hogs)
 
 param(
@@ -19,7 +19,8 @@ if ($Lean) {
         try {
             Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
             Write-Host "Closed $proc" -ForegroundColor Green
-        } catch {
+        }
+        catch {
             Write-Host "$proc not running" -ForegroundColor Gray
         }
     }
@@ -37,7 +38,8 @@ switch ($Mode.ToLower()) {
             Copy-Item "backend\.env" ".env" -Force
             Copy-Item "backend\.env" "frontend\.env" -Force
             Write-Host "Synced backend/.env to root and frontend" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "backend/.env not found!" -ForegroundColor Red
             exit 1
         }
@@ -60,7 +62,8 @@ switch ($Mode.ToLower()) {
         $runningContainers = docker-compose ps --filter "status=running" -q
         if ($runningContainers) {
             Write-Host "Containers already running" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "Starting containers..." -ForegroundColor Yellow
             docker-compose up -d
         }
@@ -84,7 +87,8 @@ switch ($Mode.ToLower()) {
             Copy-Item "backend\.env" ".env" -Force
             Copy-Item "backend\.env" "frontend\.env" -Force
             Write-Host "Synced backend/.env to root and frontend" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "backend/.env not found!" -ForegroundColor Red
             exit 1
         }
@@ -107,7 +111,8 @@ switch ($Mode.ToLower()) {
         $runningContainers = docker-compose ps --filter "status=running" -q
         if ($runningContainers) {
             Write-Host "Containers already running" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "Starting containers..." -ForegroundColor Yellow
             docker-compose up -d
         }
@@ -130,6 +135,78 @@ switch ($Mode.ToLower()) {
         Write-Host "Production server: http://localhost:5000" -ForegroundColor Cyan
         Write-Host "(Backend serves built React app)" -ForegroundColor Gray
     }
+    "restart" {
+        Write-Host "Restarting Docker containers..." -ForegroundColor Yellow
+        
+        # Check if containers exist
+        $existingContainers = docker-compose ps -q
+        if (-not $existingContainers) {
+            Write-Host "No containers found to restart!" -ForegroundColor Red
+            Write-Host "Run '.\start.ps1 containers' first to create containers" -ForegroundColor Cyan
+            exit 1
+        }
+        
+        # Restart containers
+        docker-compose restart
+        
+        # Wait a moment for health checks
+        Start-Sleep -Seconds 5
+        
+        # Check status
+        Write-Host "Checking container health..." -ForegroundColor Yellow
+        docker-compose ps
+        
+        Write-Host "Containers restarted!" -ForegroundColor Green
+        Write-Host "Backend: http://localhost:5000" -ForegroundColor Cyan
+        Write-Host "Database: localhost:3306" -ForegroundColor Cyan
+    }
+    "stop" {
+        Write-Host "Stopping Docker containers..." -ForegroundColor Yellow
+        
+        # Stop containers but keep them for restart
+        docker-compose stop
+        
+        Write-Host "Containers stopped!" -ForegroundColor Green
+        Write-Host "Use '.\start.ps1 containers' or '.\start.ps1 restart' to start again" -ForegroundColor Cyan
+    }
+    "status" {
+        Write-Host "Docker Container Status:" -ForegroundColor Yellow
+        Write-Host "" -ForegroundColor White
+        
+        # Show container status
+        docker-compose ps
+        
+        Write-Host "" -ForegroundColor White
+        Write-Host "Service Health Check:" -ForegroundColor Yellow
+        
+        # Test backend API
+        try {
+            $response = Invoke-RestMethod -Uri "http://localhost:5000/api/health" -TimeoutSec 5
+            Write-Host "✅ Backend API: Healthy" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "❌ Backend API: Not responding" -ForegroundColor Red
+        }
+        
+        # Test database connection
+        try {
+            $dbTest = docker exec myadmin-mysql-1 mysql -u peter -pPeterGeers1953 -e "SELECT 1" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ Database: Connected" -ForegroundColor Green
+            }
+            else {
+                Write-Host "❌ Database: Connection failed" -ForegroundColor Red
+            }
+        }
+        catch {
+            Write-Host "❌ Database: Not accessible" -ForegroundColor Red
+        }
+        
+        Write-Host "" -ForegroundColor White
+        Write-Host "Access URLs:" -ForegroundColor Yellow
+        Write-Host "Backend API: http://localhost:5000" -ForegroundColor Cyan
+        Write-Host "Database: localhost:3306" -ForegroundColor Cyan
+    }
     "containers" {
         Write-Host "Managing Docker containers..." -ForegroundColor Green
         
@@ -138,7 +215,8 @@ switch ($Mode.ToLower()) {
             Copy-Item "backend\.env" ".env" -Force
             (Get-Content ".env") -replace "DB_HOST=localhost", "DB_HOST=mysql" | Set-Content ".env"
             Write-Host "Synced backend/.env to root .env" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "backend/.env not found!" -ForegroundColor Red
             exit 1
         }
@@ -146,7 +224,8 @@ switch ($Mode.ToLower()) {
         if ($Build) {
             Write-Host "Rebuilding containers..." -ForegroundColor Yellow
             docker-compose up --build -d
-        } else {
+        }
+        else {
             Write-Host "Starting containers..." -ForegroundColor Yellow
             docker-compose up -d
         }
@@ -160,9 +239,16 @@ switch ($Mode.ToLower()) {
         Write-Host "  .\start.ps1 dev        - Development (containers + frontend dev server)" -ForegroundColor White
         Write-Host "  .\start.ps1 prod       - Production build (containers + built frontend)" -ForegroundColor White
         Write-Host "  .\start.ps1 containers - Manage containers only" -ForegroundColor White
+        Write-Host "  .\start.ps1 restart    - Restart Docker containers" -ForegroundColor White
+        Write-Host "  .\start.ps1 stop       - Stop Docker containers" -ForegroundColor White
+        Write-Host "  .\start.ps1 status     - Check container and service status" -ForegroundColor White
         Write-Host "" -ForegroundColor White
         Write-Host "Options:" -ForegroundColor Yellow
         Write-Host "  --build               - Rebuild Docker containers" -ForegroundColor White
         Write-Host "  --lean                - Close resource-heavy apps first" -ForegroundColor White
+        Write-Host "" -ForegroundColor White
+        Write-Host "Quick Commands:" -ForegroundColor Yellow
+        Write-Host "  .\start.ps1 restart   - Restart containers (most common)" -ForegroundColor Cyan
+        Write-Host "  .\start.ps1 status    - Check if everything is working" -ForegroundColor Cyan
     }
 }
