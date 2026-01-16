@@ -144,7 +144,7 @@ POST /api/cache/invalidate  - Invalidate cache (auto-refresh on next query)
 
 ### Configuration
 
-- **TTL:** 24 hours (configurable in `mutaties_cache.py`)
+- **TTL:** 30 minutes (configurable in `mutaties_cache.py`)
 - **Auto-refresh:** Enabled by default
 - **Thread-safe:** Yes
 - **Memory usage:** ~50-200MB depending on data size

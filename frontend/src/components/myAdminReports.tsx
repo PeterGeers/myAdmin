@@ -1261,6 +1261,19 @@ const MyAdminReports: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, bnbViolinFilterDeps);
 
+  // Refetch Aangifte IB data when filters change
+  const aangifteIbFilterDeps = React.useMemo(() => [
+    aangifteIbFilters.year,
+    aangifteIbFilters.administration
+  ], [aangifteIbFilters.year, aangifteIbFilters.administration]);
+  
+  useEffect(() => {
+    if (aangifteIbFilters.year) {
+      fetchAangifteIbData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, aangifteIbFilterDeps);
+
   const exportMutatiesCsv = React.useCallback(() => {
     const csvContent = [
       ['Date', 'Reference', 'Description', 'Amount', 'Debet', 'Credit', 'Administration'],
@@ -2720,7 +2733,7 @@ const MyAdminReports: React.FC = () => {
                             >
                               {refAnalysisFilters.accounts.length > 0 ? `${refAnalysisFilters.accounts.length} selected` : 'Select accounts...'}
                             </MenuButton>
-                            <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
+                            <MenuList bg="gray.600" border="1px solid" borderColor="gray.500" maxH="400px" overflowY="auto">
                               {availableRefAccounts.map((account, index) => (
                                 <MenuItem key={`ref-account-${account.Reknum}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                                   <Checkbox
@@ -3386,14 +3399,6 @@ const MyAdminReports: React.FC = () => {
                         isLoading={aangifteIbLoading}
                       />
                       <Button 
-                        colorScheme="orange" 
-                        onClick={fetchAangifteIbData} 
-                        isLoading={aangifteIbLoading}
-                        size="sm"
-                      >
-                        Update Data
-                      </Button>
-                      <Button 
                         colorScheme="orange"
                         onClick={() => {
                           const exportData = {
@@ -3571,17 +3576,24 @@ const MyAdminReports: React.FC = () => {
                         <Tbody>
                           {(() => {
                             const grouped = aangifteIbData.reduce((acc, row) => {
+                              // Skip rows with zero amounts
+                              const amount = Number(row.Amount) || 0;
+                              if (Math.abs(amount) < 0.01) return acc;
+                              
                               if (!acc[row.Parent]) {
                                 acc[row.Parent] = { parent: row.Parent, items: [], total: 0 };
                               }
                               acc[row.Parent].items.push(row);
-                              acc[row.Parent].total += Number(row.Amount) || 0;
+                              acc[row.Parent].total += amount;
                               return acc;
                             }, {} as any);
                             
                             const rows: React.ReactElement[] = [];
                             
                             Object.values(grouped).forEach((group: any) => {
+                              // Skip parent groups with zero total
+                              if (Math.abs(group.total) < 0.01) return;
+                              
                               const isExpanded = expandedAangifteRows.has(group.parent);
                               
                               // Parent row
@@ -3616,6 +3628,10 @@ const MyAdminReports: React.FC = () => {
                               // Detail rows
                               if (isExpanded) {
                                 group.items.forEach((item: any, index: number) => {
+                                  // Skip items with zero amounts
+                                  const itemAmount = Number(item.Amount) || 0;
+                                  if (Math.abs(itemAmount) < 0.01) return;
+                                  
                                   const rowKey = `${group.parent}-${item.Aangifte}`;
                                   const isDetailExpanded = selectedAangifteRow?.parent === group.parent && selectedAangifteRow?.aangifte === item.Aangifte;
                                   
@@ -3642,49 +3658,54 @@ const MyAdminReports: React.FC = () => {
                                       <Td color="white" fontSize="sm" pl={8}></Td>
                                       <Td color="white" fontSize="sm">{item.Aangifte}</Td>
                                       <Td color="white" fontSize="sm" isNumeric>
-                                        €{Number(item.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                        €{itemAmount.toLocaleString('nl-NL', {minimumFractionDigits: 2})}
                                       </Td>
                                     </Tr>
                                   );
                                   
                                   // Account details
                                   if (isDetailExpanded && aangifteIbDetails.length > 0) {
-                                    rows.push(
-                                      <Tr key={`${rowKey}-details`}>
-                                        <Td colSpan={4} p={0}>
-                                          <Box bg="gray.800" p={4}>
-                                            <Text color="white" fontWeight="bold" mb={3}>
-                                              Accounts for {selectedAangifteRow?.parent} - {selectedAangifteRow?.aangifte}
-                                            </Text>
-                                            <Table size="sm" variant="simple">
-                                              <Thead>
-                                                <Tr>
-                                                  <Th color="white" fontSize="xs">Account</Th>
-                                                  <Th color="white" fontSize="xs">Description</Th>
-                                                  <Th color="white" fontSize="xs" isNumeric>Amount</Th>
-                                                </Tr>
-                                              </Thead>
-                                              <Tbody>
-                                                {aangifteIbDetails.map((detail, detailIndex) => (
-                                                  <Tr key={detailIndex}>
-                                                    <Td color="white" fontSize="xs">{detail.Reknum}</Td>
-                                                    <Td color="white" fontSize="xs">{detail.AccountName}</Td>
-                                                    <Td color="white" fontSize="xs" isNumeric>
-                                                      €{Number(detail.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
-                                                    </Td>
-                                                  </Tr>
-                                                ))}
-                                              </Tbody>
-                                            </Table>
-                                            <Box mt={3} p={2} bg="gray.700" borderRadius="md">
-                                              <Text color="white" fontSize="sm" fontWeight="bold">
-                                                Total: €{aangifteIbDetails.reduce((sum, d) => sum + (Number(d.Amount) || 0), 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                    // Filter out zero amount details
+                                    const nonZeroDetails = aangifteIbDetails.filter(detail => Math.abs(Number(detail.Amount) || 0) >= 0.01);
+                                    
+                                    if (nonZeroDetails.length > 0) {
+                                      rows.push(
+                                        <Tr key={`${rowKey}-details`}>
+                                          <Td colSpan={4} p={0}>
+                                            <Box bg="gray.800" p={4}>
+                                              <Text color="white" fontWeight="bold" mb={3}>
+                                                Accounts for {selectedAangifteRow?.parent} - {selectedAangifteRow?.aangifte}
                                               </Text>
+                                              <Table size="sm" variant="simple">
+                                                <Thead>
+                                                  <Tr>
+                                                    <Th color="white" fontSize="xs">Account</Th>
+                                                    <Th color="white" fontSize="xs">Description</Th>
+                                                    <Th color="white" fontSize="xs" isNumeric>Amount</Th>
+                                                  </Tr>
+                                                </Thead>
+                                                <Tbody>
+                                                  {nonZeroDetails.map((detail, detailIndex) => (
+                                                    <Tr key={detailIndex}>
+                                                      <Td color="white" fontSize="xs">{detail.Reknum}</Td>
+                                                      <Td color="white" fontSize="xs">{detail.AccountName}</Td>
+                                                      <Td color="white" fontSize="xs" isNumeric>
+                                                        €{Number(detail.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                                      </Td>
+                                                    </Tr>
+                                                  ))}
+                                                </Tbody>
+                                              </Table>
+                                              <Box mt={3} p={2} bg="gray.700" borderRadius="md">
+                                                <Text color="white" fontSize="sm" fontWeight="bold">
+                                                  Total: €{nonZeroDetails.reduce((sum, d) => sum + (Number(d.Amount) || 0), 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                                </Text>
+                                              </Box>
                                             </Box>
-                                          </Box>
-                                        </Td>
-                                      </Tr>
-                                    );
+                                          </Td>
+                                        </Tr>
+                                      );
+                                    }
                                   }
                                 });
                               }
@@ -3695,16 +3716,19 @@ const MyAdminReports: React.FC = () => {
                             const parent8000Total = aangifteIbData.filter(row => row.Parent === '8000').reduce((sum, row) => sum + (Number(row.Amount) || 0), 0);
                             const resultaat = parent4000Total + parent8000Total;
                             
-                            rows.push(
-                              <Tr key="resultaat" bg={resultaat >= 0 ? "red.600" : "green.600"}>
-                                <Td color="white" fontSize="sm" w="50px"></Td>
-                                <Td color="white" fontSize="sm" fontWeight="bold">RESULTAAT</Td>
-                                <Td color="white" fontSize="sm"></Td>
-                                <Td color="white" fontSize="sm" isNumeric fontWeight="bold">
-                                  €{resultaat.toLocaleString('nl-NL', {minimumFractionDigits: 2})}
-                                </Td>
-                              </Tr>
-                            );
+                            // Only show Resultaat if non-zero
+                            if (Math.abs(resultaat) >= 0.01) {
+                              rows.push(
+                                <Tr key="resultaat" bg={resultaat >= 0 ? "red.600" : "green.600"}>
+                                  <Td color="white" fontSize="sm" w="50px"></Td>
+                                  <Td color="white" fontSize="sm" fontWeight="bold">RESULTAAT</Td>
+                                  <Td color="white" fontSize="sm"></Td>
+                                  <Td color="white" fontSize="sm" isNumeric fontWeight="bold">
+                                    €{resultaat.toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                                  </Td>
+                                </Tr>
+                              );
+                            }
                             
                             // Add grand total row
                             const grandTotal = aangifteIbData.reduce((sum, row) => sum + (Number(row.Amount) || 0), 0);

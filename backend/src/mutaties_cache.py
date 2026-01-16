@@ -17,12 +17,12 @@ class MutatiesCache:
     Automatically refreshes data based on TTL (Time To Live)
     """
     
-    def __init__(self, ttl_minutes=5):
+    def __init__(self, ttl_minutes=30):
         """
         Initialize the cache
         
         Args:
-            ttl_minutes: Time to live in minutes before auto-refresh (default: 5)
+            ttl_minutes: Time to live in minutes before auto-refresh (default: 30)
         """
         self.data = None
         self.last_loaded = None
@@ -255,12 +255,12 @@ class MutatiesCache:
 _cache = None
 
 
-def get_cache(ttl_minutes=5):
+def get_cache(ttl_minutes=30):
     """
     Get or create the global cache instance
     
     Args:
-        ttl_minutes: Time to live in minutes (default: 5)
+        ttl_minutes: Time to live in minutes (default: 30)
         
     Returns:
         MutatiesCache: Global cache instance
