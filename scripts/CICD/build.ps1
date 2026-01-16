@@ -134,6 +134,85 @@ finally {
 # Step 4: Docker Image Build
 Write-Log "Step 4: Building Docker images..." "INFO"
 
+# Check if Docker is running
+Write-Log "Checking Docker daemon..." "INFO"
+try {
+    docker info 2>&1 | Out-Null
+    $dockerRunning = ($LASTEXITCODE -eq 0)
+}
+catch {
+    $dockerRunning = $false
+}
+
+if (-not $dockerRunning) {
+    Write-Log "Docker is not running!" "WARN"
+    Write-Log "" "INFO"
+    Write-Log "Options to fix this:" "WARN"
+    Write-Log "  1. Start Docker Desktop manually and re-run the pipeline" "INFO"
+    Write-Log "  2. Run: scripts\cicd\check-containers.ps1 -Fix" "INFO"
+    Write-Log "  3. Run: scripts\cicd\deep-clean.ps1 (if containers won't start)" "INFO"
+    Write-Log "" "INFO"
+    
+    $response = Read-Host "Start Docker Desktop now? (y/n)"
+    
+    if ($response -eq "y" -or $response -eq "Y") {
+        Write-Log "Starting Docker Desktop..." "INFO"
+        $dockerPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+        
+        if (Test-Path $dockerPath) {
+            Start-Process $dockerPath
+            Write-Log "Waiting for Docker to start (this may take 30-60 seconds)..." "INFO"
+            
+            # Wait for Docker to be ready (max 90 seconds)
+            $maxWait = 90
+            $waited = 0
+            $dockerReady = $false
+            
+            while ($waited -lt $maxWait) {
+                Start-Sleep -Seconds 3
+                $waited += 3
+                
+                try {
+                    docker info 2>&1 | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        $dockerReady = $true
+                        break
+                    }
+                }
+                catch {
+                    # Docker not ready yet
+                }
+                
+                Write-Host "." -NoNewline
+            }
+            
+            Write-Host ""
+            
+            if ($dockerReady) {
+                Write-Log "Docker Desktop is now running" "INFO"
+            }
+            else {
+                Write-Log "Docker Desktop did not start in time" "WARN"
+                Write-Log "Please wait for Docker Desktop to fully start, then re-run the pipeline" "WARN"
+                Exit-WithError "Docker not ready"
+            }
+        }
+        else {
+            Write-Log "Could not find Docker Desktop at: $dockerPath" "ERROR"
+            Exit-WithError "Docker Desktop not found"
+        }
+    }
+    else {
+        Write-Log "Skipping Docker build - Docker is not running" "WARN"
+        Write-Log "You can build Docker images later with: docker-compose build" "INFO"
+        Write-Log "" "INFO"
+        Write-Log "Build completed (without Docker images)" "WARN"
+        Pop-Location
+        exit 0
+    }
+}
+
+# Docker is running, proceed with build
 docker-compose build 2>&1 | Tee-Object -FilePath $BuildLog -Append
 if ($LASTEXITCODE -ne 0) { Exit-WithError "Docker build failed" }
 
