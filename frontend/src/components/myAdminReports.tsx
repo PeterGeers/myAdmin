@@ -3468,7 +3468,7 @@ const MyAdminReports: React.FC = () => {
               <VStack spacing={4} align="stretch">
                 <Card bg="gray.700">
                   <CardBody>
-                    <HStack spacing={4} wrap="wrap">
+                    <HStack spacing={4}>
                       <UnifiedAdminYearFilter
                         {...createAangifteIbFilterAdapter(
                           aangifteIbFilters,
@@ -3487,6 +3487,7 @@ const MyAdminReports: React.FC = () => {
                         Update Data
                       </Button>
                       <Button 
+                        colorScheme="blue"
                         variant="outline" 
                         onClick={() => {
                           const exportData = {
