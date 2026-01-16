@@ -211,3 +211,226 @@ class ToeristenbelastingProcessor:
         except Exception as e:
             print(f"Error getting total revenue 8003: {e}", flush=True)
             return 0
+
+    
+    def _generate_html_report(self, **kwargs):
+        """Generate HTML report for Toeristenbelasting declaration"""
+        
+        year = kwargs['year']
+        next_year = int(year) + 1
+        datum = datetime.now().strftime('%d-%m-%Y')
+        
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Aangifte Toeristenbelasting {year}</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }}
+        h1 {{
+            color: #333;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }}
+        h2 {{
+            color: #555;
+            margin-top: 30px;
+            border-bottom: 1px solid #999;
+            padding-bottom: 5px;
+        }}
+        .section {{
+            margin: 20px 0;
+        }}
+        .field {{
+            margin: 10px 0;
+            padding: 5px 0;
+        }}
+        .label {{
+            font-weight: bold;
+            display: inline-block;
+            width: 400px;
+        }}
+        .value {{
+            display: inline-block;
+        }}
+        .amount {{
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }}
+        .signature {{
+            margin-top: 50px;
+            border-top: 1px solid #999;
+            padding-top: 20px;
+        }}
+        .signature-line {{
+            margin: 30px 0;
+            border-bottom: 1px solid #333;
+            width: 300px;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }}
+        th {{
+            background-color: #f2f2f2;
+        }}
+        .number {{
+            text-align: right;
+        }}
+    </style>
+</head>
+<body>
+    <h1>Aangifte Toeristenbelasting {year}</h1>
+    
+    <div class="section">
+        <h2>Contactgegevens</h2>
+        <div class="field">
+            <span class="label">Functie:</span>
+            <span class="value">{html.escape(kwargs['functie'])}</span>
+        </div>
+        <div class="field">
+            <span class="label">Telefoonnummer:</span>
+            <span class="value">{html.escape(kwargs['telefoonnummer'])}</span>
+        </div>
+        <div class="field">
+            <span class="label">E-mailadres:</span>
+            <span class="value">{html.escape(kwargs['email'])}</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Periode en Accommodatie</h2>
+        <div class="field">
+            <span class="label">Periode waarop aangifte betrekking heeft:</span>
+            <span class="value">{html.escape(kwargs['periode_van'])} t/m {html.escape(kwargs['periode_tm'])}</span>
+        </div>
+        <div class="field">
+            <span class="label">Aantal kamers in {year}:</span>
+            <span class="value">{kwargs['aantal_kamers']}</span>
+        </div>
+        <div class="field">
+            <span class="label">Aantal beschikbare slaapplaatsen:</span>
+            <span class="value">{kwargs['aantal_slaapplaatsen']}</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Verhuurgegevens</h2>
+        <div class="field">
+            <span class="label">Totaal verhuurde kamers:</span>
+            <span class="value">{kwargs['totaal_verhuurde_kamers']}</span>
+        </div>
+        <div class="field">
+            <span class="label">No-shows:</span>
+            <span class="value">{kwargs['no_shows']}</span>
+        </div>
+        <div class="field">
+            <span class="label">Verhuurde kamers aan inwoners:</span>
+            <span class="value">{kwargs['verhuurde_kamers_inwoners']}</span>
+        </div>
+        <div class="field">
+            <span class="label">Totaal belastbare kamerverhuren:</span>
+            <span class="value">{kwargs['totaal_belastbare_kamerverhuren']}</span>
+        </div>
+        <div class="field">
+            <span class="label">Kamerbezettingsgraad (%):</span>
+            <span class="value">{kwargs['kamerbezettingsgraad']:.2f}%</span>
+        </div>
+        <div class="field">
+            <span class="label">Bedbezettingsgraad (%):</span>
+            <span class="value">{kwargs['bedbezettingsgraad']:.2f}%</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Financiële Gegevens</h2>
+        <div class="field">
+            <span class="label">Saldo totaal ingehouden toeristenbelasting:</span>
+            <span class="value amount">€ {kwargs['saldo_toeristenbelasting']:,.2f}</span>
+        </div>
+        <div class="field">
+            <span class="label">Logiesomzet incl./excl. BTW:</span>
+            <span class="value">excl. BTW</span>
+        </div>
+        <div class="field">
+            <span class="label">Logiesomzet incl./excl. toeristenbelasting:</span>
+            <span class="value">incl. toeristenbelasting</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Berekening Belastbare Omzet</h2>
+        <table>
+            <tr>
+                <th>Omschrijving</th>
+                <th class="number">Bedrag (€)</th>
+            </tr>
+            <tr>
+                <td>[1] Ontvangsten excl. BTW en excl. Toeristenbelasting</td>
+                <td class="number">{kwargs['ontvangsten_excl_btw_excl_toeristenbelasting']:,.2f}</td>
+            </tr>
+            <tr>
+                <td>[2] Ontvangsten logies inwoners excl. BTW</td>
+                <td class="number">{kwargs['ontvangsten_logies_inwoners']:,.2f}</td>
+            </tr>
+            <tr>
+                <td>[3] Kortingen / provisie / commissie</td>
+                <td class="number">{kwargs['kortingen_provisie_commissie']:,.2f}</td>
+            </tr>
+            <tr>
+                <td>[4] No-show omzet</td>
+                <td class="number">{kwargs['no_show_omzet']:,.2f}</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td><strong>[5] Totaal 2 + 3 + 4</strong></td>
+                <td class="number"><strong>{kwargs['totaal_2_3_4']:,.2f}</strong></td>
+            </tr>
+            <tr style="background-color: #e6f3ff;">
+                <td><strong>[6] Belastbare omzet logies ([1] - [5])</strong></td>
+                <td class="number"><strong>{kwargs['belastbare_omzet_logies']:,.2f}</strong></td>
+            </tr>
+            <tr style="background-color: #fff3cd;">
+                <td><strong>Verwachte belastbare omzet {next_year} ([6] * 1.05)</strong></td>
+                <td class="number"><strong>{kwargs['verwachte_belastbare_omzet_volgend_jaar']:,.2f}</strong></td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="signature">
+        <h2>Ondertekening</h2>
+        <div class="field">
+            <span class="label">Naam:</span>
+            <span class="value">{html.escape(kwargs['naam'])}</span>
+        </div>
+        <div class="field">
+            <span class="label">Plaats:</span>
+            <span class="value">{html.escape(kwargs['plaats'])}</span>
+        </div>
+        <div class="field">
+            <span class="label">Datum:</span>
+            <span class="value">{datum}</span>
+        </div>
+        <div class="field">
+            <span class="label">Aantal bijlagen:</span>
+            <span class="value">0</span>
+        </div>
+        <div class="signature-line">
+            <p style="margin-top: 50px; font-size: 12px; color: #666;">Handtekening</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return html_content
