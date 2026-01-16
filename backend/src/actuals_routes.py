@@ -1,62 +1,53 @@
 from flask import Blueprint, request, jsonify
-import mysql.connector
 import os
 from dotenv import load_dotenv
 from api_schemas import validate_response_schema
+from mutaties_cache import get_cache
+from database import DatabaseManager
 
 load_dotenv()
 
 actuals_bp = Blueprint('actuals', __name__)
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASSWORD', ''),
-        database=os.getenv('DB_NAME', 'myadmin')
-    )
-
 @actuals_bp.route('/actuals-balance', methods=['GET'])
 def get_actuals_balance():
+    """Get balance data using in-memory cache"""
     try:
         years = request.args.get('years', '2025').split(',')
         administration = request.args.get('administration', 'all')
+        test_mode = request.args.get('testMode', 'false').lower() == 'true'
         
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
+        # Get cache instance
+        cache = get_cache()
+        db = DatabaseManager(test_mode=test_mode)
         
-        # Build WHERE clause
-        where_conditions = ["VW = 'N'"]
-        params = []
+        # Get cached data
+        df = cache.get_data(db)
         
+        # Filter: VW = 'N' (balance accounts)
+        filtered = df[df['VW'] == 'N'].copy()
+        
+        # Filter by administration
         if administration != 'all':
-            where_conditions.append("Administration = %s")
-            params.append(administration)
-            
-        # Add year filter: from beginning up to max selected year
+            filtered = filtered[filtered['Administration'] == administration]
+        
+        # Filter by year: from beginning up to max selected year
         max_year = max([int(y) for y in years])
-        where_conditions.append("jaar <= %s")
-        params.append(max_year)
-            
-        where_clause = " AND ".join(where_conditions)
+        filtered = filtered[filtered['jaar'] <= max_year]
         
-        query = f"""
-        SELECT 
-            Parent,
-            ledger,
-            SUM(Amount) as Amount
-        FROM vw_mutaties 
-        WHERE {where_clause}
-        GROUP BY Parent, ledger
-        HAVING SUM(Amount) != 0
-        ORDER BY Parent, ledger
-        """
+        # Group by Parent and ledger
+        grouped = filtered.groupby(['Parent', 'ledger'], as_index=False).agg({
+            'Amount': 'sum'
+        })
         
-        cursor.execute(query, params)
-        results = cursor.fetchall()
+        # Filter out zero amounts
+        grouped = grouped[grouped['Amount'] != 0]
         
-        cursor.close()
-        conn.close()
+        # Sort by Parent and ledger
+        grouped = grouped.sort_values(['Parent', 'ledger'])
+        
+        # Convert to list of dicts
+        results = grouped.to_dict('records')
         
         return jsonify({
             'success': True,
@@ -71,77 +62,55 @@ def get_actuals_balance():
 
 @actuals_bp.route('/actuals-profitloss', methods=['GET'])
 def get_actuals_profitloss():
+    """Get profit/loss data using in-memory cache"""
     try:
         years = request.args.get('years', '2025').split(',')
         administration = request.args.get('administration', 'all')
         group_by = request.args.get('groupBy', 'year')
+        test_mode = request.args.get('testMode', 'false').lower() == 'true'
         
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
+        # Get cache instance
+        cache = get_cache()
+        db = DatabaseManager(test_mode=test_mode)
         
-        # Build WHERE clause
-        where_conditions = ["VW = 'Y'"]
-        params = []
+        # Get cached data
+        df = cache.get_data(db)
         
+        # Filter: VW = 'Y' (profit/loss accounts)
+        filtered = df[df['VW'] == 'Y'].copy()
+        
+        # Filter by administration
         if administration != 'all':
-            where_conditions.append("Administration = %s")
-            params.append(administration)
-            
-        # Add year filter
-        year_placeholders = ','.join(['%s'] * len(years))
-        where_conditions.append(f"jaar IN ({year_placeholders})")
-        params.extend(years)
+            filtered = filtered[filtered['Administration'] == administration]
         
-        where_clause = " AND ".join(where_conditions)
+        # Filter by years
+        year_list = [int(y) for y in years]
+        filtered = filtered[filtered['jaar'].isin(year_list)]
         
-        # Build query based on groupBy parameter
+        # Group based on groupBy parameter
         if group_by == 'quarter':
-            query = f"""
-            SELECT 
-                Parent,
-                ledger,
-                jaar,
-                kwartaal,
-                SUM(Amount) as Amount
-            FROM vw_mutaties 
-            WHERE {where_clause}
-            GROUP BY Parent, ledger, jaar, kwartaal
-            HAVING SUM(Amount) != 0
-            ORDER BY Parent, ledger, jaar, kwartaal
-            """
+            group_cols = ['Parent', 'ledger', 'jaar', 'kwartaal']
+            sort_cols = ['Parent', 'ledger', 'jaar', 'kwartaal']
         elif group_by == 'month':
-            query = f"""
-            SELECT 
-                Parent,
-                ledger,
-                jaar,
-                maand,
-                SUM(Amount) as Amount
-            FROM vw_mutaties 
-            WHERE {where_clause}
-            GROUP BY Parent, ledger, jaar, maand
-            HAVING SUM(Amount) != 0
-            ORDER BY Parent, ledger, jaar, maand
-            """
+            group_cols = ['Parent', 'ledger', 'jaar', 'maand']
+            sort_cols = ['Parent', 'ledger', 'jaar', 'maand']
         else:  # Default to year
-            query = f"""
-            SELECT 
-                Parent,
-                ledger,
-                jaar,
-                SUM(Amount) as Amount
-            FROM vw_mutaties 
-            WHERE {where_clause}
-            GROUP BY Parent, ledger, jaar
-            HAVING SUM(Amount) != 0
-            ORDER BY Parent, ledger, jaar
-            """
+            group_cols = ['Parent', 'ledger', 'jaar']
+            sort_cols = ['Parent', 'ledger', 'jaar']
         
-        cursor.execute(query, params)
-        results = cursor.fetchall()
+        # Group and aggregate
+        grouped = filtered.groupby(group_cols, as_index=False).agg({
+            'Amount': 'sum'
+        })
         
-        cursor.close()
-        conn.close()
+        # Filter out zero amounts
+        grouped = grouped[grouped['Amount'] != 0]
+        
+        # Sort
+        grouped = grouped.sort_values(sort_cols)
+        
+        # Convert to list of dicts
+        results = grouped.to_dict('records')
         
         # Validate response schema
         validate_response_schema('/api/reports/actuals-profitloss', results)
