@@ -29,6 +29,7 @@ from route_validator import check_route_conflicts
 from error_handlers import configure_logging, register_error_handlers, error_response
 from performance_optimizer import performance_middleware, register_performance_endpoints
 from security_audit import SecurityAudit, register_security_endpoints
+from mutaties_cache import get_cache, invalidate_cache
 
 # Load environment variables from .env file
 load_dotenv()
@@ -484,6 +485,65 @@ def scalability_performance():
     except Exception as e:
         return jsonify({
             'performance_monitoring': False,
+            'error': str(e)
+        }), 500
+
+# Cache Management Endpoints
+@app.route('/api/cache/status', methods=['GET'])
+def cache_status():
+    """Get cache status and statistics"""
+    try:
+        cache = get_cache()
+        
+        return jsonify({
+            'success': True,
+            'cache_active': cache.is_loaded,
+            'last_refresh': cache.last_refresh.isoformat() if cache.last_refresh else None,
+            'record_count': len(cache.data) if cache.is_loaded else 0,
+            'auto_refresh_enabled': True,
+            'refresh_threshold_hours': 24
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/cache/refresh', methods=['POST'])
+def cache_refresh():
+    """Force refresh the cache"""
+    try:
+        cache = get_cache()
+        db = DatabaseManager(test_mode=flag)
+        
+        # Force refresh
+        cache.refresh_cache(db)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cache refreshed successfully',
+            'record_count': len(cache.data),
+            'last_refresh': cache.last_refresh.isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/cache/invalidate', methods=['POST'])
+def cache_invalidate_endpoint():
+    """Invalidate the cache (will auto-refresh on next query)"""
+    try:
+        invalidate_cache()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cache invalidated successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
             'error': str(e)
         }), 500
 
@@ -1733,10 +1793,8 @@ def btw_upload_report():
 
 @app.route('/api/reports/aangifte-ib', methods=['GET'])
 def aangifte_ib():
-    """Get Aangifte IB data grouped by Parent and Aangifte"""
+    """Get Aangifte IB data grouped by Parent and Aangifte (using in-memory cache)"""
     try:
-        db = DatabaseManager(test_mode=flag)
-        
         # Get parameters
         year = request.args.get('year')
         administration = request.args.get('administration', 'all')
@@ -1744,44 +1802,17 @@ def aangifte_ib():
         if not year:
             return jsonify({'success': False, 'error': 'Year is required'}), 400
         
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        # Get cache instance
+        cache = get_cache()
+        db = DatabaseManager(test_mode=flag)
         
-        # Build WHERE conditions based on VW logic
-        # VW = N (Balance): all records up to end of selected year
-        # VW = Y (P&L): only records from selected year
-        where_conditions = [
-            "((VW = 'N' AND TransactionDate <= %s) OR (VW = 'Y' AND jaar = %s))"
-        ]
-        params = [f"{year}-12-31", year]
+        # Ensure cache is loaded (will auto-refresh if needed)
+        cache.get_data(db)
         
-        if administration != 'all':
-            where_conditions.append("Administration LIKE %s")
-            params.append(f"{administration}%")
-        
-        where_clause = ' AND '.join(where_conditions)
-        
-        # Get summary data grouped by Parent and Aangifte
-        summary_query = f"""
-            SELECT Parent, Aangifte, SUM(Amount) as Amount
-            FROM vw_mutaties 
-            WHERE {where_clause}
-            GROUP BY Parent, Aangifte
-            ORDER BY Parent, Aangifte
-        """
-        
-        cursor.execute(summary_query, params)
-        summary_data = cursor.fetchall()
-        
-        # Get available years
-        years_query = "SELECT DISTINCT jaar FROM vw_mutaties WHERE jaar IS NOT NULL ORDER BY jaar DESC"
-        cursor.execute(years_query)
-        available_years = [str(row['jaar']) for row in cursor.fetchall()]
-        
-        # Get available administrations for the selected year
-        admin_query = "SELECT DISTINCT Administration FROM vw_mutaties WHERE jaar = %s AND Administration IS NOT NULL ORDER BY Administration"
-        cursor.execute(admin_query, [year])
-        available_administrations = [row['Administration'] for row in cursor.fetchall()]
+        # Query from cache (much faster than SQL)
+        summary_data = cache.query_aangifte_ib(year, administration)
+        available_years = cache.get_available_years()
+        available_administrations = cache.get_available_administrations(year)
         
         return jsonify({
             'success': True,
@@ -1792,18 +1823,11 @@ def aangifte_ib():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if 'cursor' in locals() and cursor:
-            cursor.close()
-        if 'conn' in locals() and conn:
-            conn.close()
 
 @app.route('/api/reports/aangifte-ib-details', methods=['GET'])
 def aangifte_ib_details():
-    """Get underlying accounts for a specific Parent and Aangifte"""
+    """Get underlying accounts for a specific Parent and Aangifte (using in-memory cache)"""
     try:
-        db = DatabaseManager(test_mode=flag)
-        
         # Get parameters
         year = request.args.get('year')
         administration = request.args.get('administration', 'all')
@@ -1813,34 +1837,15 @@ def aangifte_ib_details():
         if not all([year, parent, aangifte]):
             return jsonify({'success': False, 'error': 'Year, parent, and aangifte are required'}), 400
         
-        conn = db.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        # Get cache instance
+        cache = get_cache()
+        db = DatabaseManager(test_mode=flag)
         
-        # Build WHERE conditions based on VW logic
-        where_conditions = [
-            "((VW = 'N' AND TransactionDate <= %s) OR (VW = 'Y' AND jaar = %s))",
-            "Parent = %s", 
-            "Aangifte = %s"
-        ]
-        params = [f"{year}-12-31", year, parent, aangifte]
+        # Ensure cache is loaded (will auto-refresh if needed)
+        cache.get_data(db)
         
-        if administration != 'all':
-            where_conditions.append("Administration LIKE %s")
-            params.append(f"{administration}%")
-        
-        where_clause = ' AND '.join(where_conditions)
-        
-        # Get detailed account data
-        details_query = f"""
-            SELECT Reknum, AccountName, SUM(Amount) as Amount
-            FROM vw_mutaties 
-            WHERE {where_clause}
-            GROUP BY Reknum, AccountName
-            ORDER BY Reknum
-        """
-        
-        cursor.execute(details_query, params)
-        details_data = cursor.fetchall()
+        # Query from cache (much faster than SQL)
+        details_data = cache.query_aangifte_ib_details(year, administration, parent, aangifte)
         
         return jsonify({
             'success': True,
@@ -1851,11 +1856,6 @@ def aangifte_ib_details():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if 'cursor' in locals() and cursor:
-            cursor.close()
-        if 'conn' in locals() and conn:
-            conn.close()
 
 @app.route('/api/reports/aangifte-ib-export', methods=['POST'])
 def aangifte_ib_export():

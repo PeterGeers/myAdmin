@@ -1,5 +1,6 @@
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
+from mutaties_cache import get_cache
 import os
 from datetime import datetime
 import tempfile
@@ -57,65 +58,68 @@ class BTWProcessor:
             return {'success': False, 'error': str(e)}
     
     def _get_balance_data(self, administration, end_date):
-        """Get balance data for BTW accounts up to end date"""
-        conn = None
-        cursor = None
+        """Get balance data for BTW accounts up to end date using cache"""
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor(dictionary=True)
+            # Get cache instance
+            cache = get_cache()
+            df = cache.get_data(self.db)
             
-            query = """
-                SELECT Reknum, AccountName, SUM(Amount) as amount
-                FROM vw_mutaties 
-                WHERE TransactionDate <= %s 
-                AND Administration LIKE %s
-                AND Reknum IN ('2010', '2020', '2021')
-                GROUP BY Reknum, AccountName
-            """
+            # Filter by date
+            df_filtered = df[df['TransactionDate'] <= end_date].copy()
             
-            cursor.execute(query, (end_date, f"{administration}%"))
-            results = cursor.fetchall()
+            # Filter by administration (LIKE pattern)
+            df_filtered = df_filtered[df_filtered['Administration'].str.startswith(administration)]
+            
+            # Filter by BTW accounts
+            df_filtered = df_filtered[df_filtered['Reknum'].isin(['2010', '2020', '2021'])]
+            
+            # Group by account
+            grouped = df_filtered.groupby(['Reknum', 'AccountName'], as_index=False).agg({
+                'Amount': 'sum'
+            })
+            
+            # Rename Amount to amount (lowercase for consistency)
+            grouped = grouped.rename(columns={'Amount': 'amount'})
+            
+            # Convert to list of dicts
+            results = grouped.to_dict('records')
             
             return results
         except Exception as e:
             print(f"Error getting balance data: {e}", flush=True)
             return []
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
     
     def _get_quarter_data(self, administration, year, quarter):
-        """Get quarter data for BTW and revenue accounts"""
-        conn = None
-        cursor = None
+        """Get quarter data for BTW and revenue accounts using cache"""
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor(dictionary=True)
+            # Get cache instance
+            cache = get_cache()
+            df = cache.get_data(self.db)
             
-            query = """
-                SELECT Reknum, AccountName, SUM(Amount) as amount
-                FROM vw_mutaties 
-                WHERE jaar = %s
-                AND Administration LIKE %s
-                AND kwartaal = %s
-                AND Reknum IN ('2010', '2020', '2021', '8001', '8002', '8003')
-                GROUP BY Reknum, AccountName
-            """
+            # Filter by year and quarter
+            df_filtered = df[(df['jaar'] == int(year)) & (df['kwartaal'] == int(quarter))].copy()
             
-            cursor.execute(query, (year, f"{administration}%", quarter))
-            results = cursor.fetchall()
+            # Filter by administration (LIKE pattern)
+            df_filtered = df_filtered[df_filtered['Administration'].str.startswith(administration)]
+            
+            # Filter by BTW and revenue accounts
+            df_filtered = df_filtered[df_filtered['Reknum'].isin(['2010', '2020', '2021', '8001', '8002', '8003'])]
+            
+            # Group by account
+            grouped = df_filtered.groupby(['Reknum', 'AccountName'], as_index=False).agg({
+                'Amount': 'sum'
+            })
+            
+            # Rename Amount to amount (lowercase for consistency)
+            grouped = grouped.rename(columns={'Amount': 'amount'})
+            
+            # Convert to list of dicts
+            results = grouped.to_dict('records')
             
             return results
         except Exception as e:
             print(f"Error getting quarter data: {e}", flush=True)
             return []
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
     
     def _calculate_btw_amounts(self, balance_data, quarter_data):
         """Calculate BTW amounts based on R script logic"""

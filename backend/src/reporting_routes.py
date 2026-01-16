@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import DatabaseManager
+from mutaties_cache import get_cache
 from datetime import datetime
 from contextlib import contextmanager
 
@@ -487,55 +488,61 @@ def get_available_data(data_type):
 
 @reporting_bp.route('/check-reference', methods=['GET'])
 def get_check_reference():
-    """Get check reference data with transactions and summary"""
+    """Get check reference data with transactions and summary using cache"""
     try:
-        service = ReportingService(request.args.get('testMode', 'false').lower() == 'true')
+        test_mode = request.args.get('testMode', 'false').lower() == 'true'
         reference_number = request.args.get('referenceNumber', 'all')
         administration = request.args.get('administration', 'all')
         ledger = request.args.get('ledger', 'all')
         
-        with service.get_cursor() as cursor:
-            # Build WHERE conditions manually for better control
-            where_conditions = ["ReferenceNumber IS NOT NULL AND ReferenceNumber != ''"]
-            params = []
+        # Get cache instance
+        cache = get_cache()
+        db = DatabaseManager(test_mode=test_mode)
+        
+        # Get cached data
+        df = cache.get_data(db)
+        
+        # Filter: ReferenceNumber not null and not empty
+        df_filtered = df[(df['ReferenceNumber'].notna()) & (df['ReferenceNumber'] != '')].copy()
+        
+        # Apply filters
+        if administration != 'all':
+            df_filtered = df_filtered[df_filtered['Administration'] == administration]
+        
+        if ledger != 'all':
+            # Extract just the account number (first part before space)
+            account_num = ledger.split(' ')[0] if ' ' in ledger else ledger
+            df_filtered = df_filtered[df_filtered['Reknum'] == account_num]
+        
+        if reference_number != 'all':
+            df_filtered = df_filtered[df_filtered['ReferenceNumber'] == reference_number]
+        
+        # Get reference summary
+        summary_df = df_filtered.groupby('ReferenceNumber', as_index=False).agg({
+            'Amount': ['count', 'sum']
+        })
+        summary_df.columns = ['ReferenceNumber', 'transaction_count', 'total_amount']
+        
+        # Filter out near-zero amounts
+        summary_df = summary_df[summary_df['total_amount'].abs() > 0.01]
+        
+        # Sort by absolute amount descending
+        summary_df = summary_df.sort_values('total_amount', key=lambda x: x.abs(), ascending=False)
+        
+        summary = summary_df.to_dict('records')
+        
+        # Get detailed transactions if specific reference selected
+        transactions = []
+        if reference_number != 'all':
+            transactions_df = df_filtered[[
+                'TransactionDate', 'TransactionNumber', 'TransactionDescription', 
+                'Amount', 'Reknum', 'AccountName', 'Administration'
+            ]].copy()
             
-            if administration != 'all':
-                where_conditions.append("Administration = %s")
-                params.append(administration)
+            # Sort by date descending
+            transactions_df = transactions_df.sort_values('TransactionDate', ascending=False)
             
-            if ledger != 'all':
-                # Extract just the account number (first part before space)
-                account_num = ledger.split(' ')[0] if ' ' in ledger else ledger
-                where_conditions.append("Reknum = %s")
-                params.append(account_num)
-            
-            if reference_number != 'all':
-                where_conditions.append("ReferenceNumber = %s")
-                params.append(reference_number)
-            
-            where_clause = " AND ".join(where_conditions)
-            
-            # Get reference summary
-            cursor.execute(f"""
-                SELECT ReferenceNumber, COUNT(*) as transaction_count, SUM(Amount) as total_amount
-                FROM vw_mutaties
-                WHERE {where_clause}
-                GROUP BY ReferenceNumber
-                HAVING ABS(SUM(Amount)) > 0.01
-                ORDER BY ABS(SUM(Amount)) DESC
-            """, params)
-            summary = cursor.fetchall()
-            
-            # Get detailed transactions if specific reference selected
-            transactions = []
-            if reference_number != 'all':
-                cursor.execute(f"""
-                    SELECT TransactionDate, TransactionNumber, TransactionDescription, Amount, Reknum, AccountName, Administration
-                    FROM vw_mutaties
-                    WHERE {where_clause}
-                    ORDER BY TransactionDate DESC
-                """, params)
-                transactions = cursor.fetchall()
+            transactions = transactions_df.to_dict('records')
         
         return jsonify({'success': True, 'transactions': transactions, 'summary': summary})
     except Exception as e:
