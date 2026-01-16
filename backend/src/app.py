@@ -13,6 +13,7 @@ from str_processor import STRProcessor
 from str_database import STRDatabase
 from database import DatabaseManager
 from btw_processor import BTWProcessor
+from toeristenbelasting_processor import ToeristenbelastingProcessor
 from pdf_validation import PDFValidator
 from reporting_routes import reporting_bp
 from actuals_routes import actuals_bp
@@ -1784,6 +1785,52 @@ def btw_upload_report():
         result = btw_processor.upload_report_to_drive(html_content, filename)
         
         return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Toeristenbelasting (Tourist Tax) Declaration routes
+@app.route('/api/toeristenbelasting/generate-report', methods=['POST'])
+def toeristenbelasting_generate_report():
+    """Generate Toeristenbelasting declaration report"""
+    try:
+        data = request.get_json()
+        year = data.get('year')
+        
+        if not year:
+            return jsonify({
+                'success': False, 
+                'error': 'Year is required'
+            }), 400
+        
+        processor = ToeristenbelastingProcessor(test_mode=flag)
+        result = processor.generate_toeristenbelasting_report(year)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/toeristenbelasting/available-years', methods=['GET'])
+def toeristenbelasting_available_years():
+    """Get available years for Toeristenbelasting"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        query = """
+        SELECT DISTINCT YEAR(checkinDate) as year
+        FROM bnb
+        WHERE checkinDate IS NOT NULL
+        ORDER BY year DESC
+        """
+        
+        results = db.execute_query(query)
+        years = [str(row[0]) for row in results if row[0]]
+        
+        return jsonify({
+            'success': True,
+            'years': years
+        })
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

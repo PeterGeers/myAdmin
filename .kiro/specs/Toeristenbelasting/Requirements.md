@@ -1,5 +1,7 @@
 Aangifte toeristenbelasting:
 Select jaar dropdown [2025]
+Data to use is bnbtotal and vw_mutaties
+
 Fields to be provided and or calculated
  Functie:     DGA
  Telefoonnummer : 06921893861
