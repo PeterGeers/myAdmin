@@ -3468,7 +3468,7 @@ const MyAdminReports: React.FC = () => {
               <VStack spacing={4} align="stretch">
                 <Card bg="gray.700">
                   <CardBody>
-                    <HStack spacing={4}>
+                    <HStack spacing={4} flexWrap="nowrap">
                       <UnifiedAdminYearFilter
                         {...createAangifteIbFilterAdapter(
                           aangifteIbFilters,
@@ -3487,8 +3487,7 @@ const MyAdminReports: React.FC = () => {
                         Update Data
                       </Button>
                       <Button 
-                        colorScheme="blue"
-                        variant="outline" 
+                        colorScheme="orange"
                         onClick={() => {
                           const exportData = {
                             year: aangifteIbFilters.year,
@@ -3520,142 +3519,130 @@ const MyAdminReports: React.FC = () => {
                       >
                         Export HTML
                       </Button>
-                    </HStack>
-                  </CardBody>
-                </Card>
+                      <Button 
+                        colorScheme="green" 
+                        onClick={async () => {
+                          // Use the selected administration and year from the filters
+                          console.log('Starting XLSX export with streaming...');
+                          setXlsxExportLoading(true);
+                          setXlsxExportProgress(null);
+                          
+                          try {
+                            const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-xlsx-export-stream'), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                administrations: [aangifteIbFilters.administration],
+                                years: [aangifteIbFilters.year]
+                              })
+                            });
 
-                <Card bg="gray.700">
-                  <CardHeader>
-                    <Heading size="md" color="white">Export XLSX Jaarrapportage</Heading>
-                  </CardHeader>
-                  <CardBody>
-                    <VStack spacing={4} align="stretch">
-                      <HStack spacing={4} wrap="wrap">
-                        <VStack spacing={1}>
-                          <Text color="white" fontSize="sm">Administrations</Text>
-                          <Menu closeOnSelect={false}>
-                            <MenuButton
-                              as={Button}
-                              bg="orange.500"
-                              color="white"
-                              size="sm"
-                              w="200px"
-                              rightIcon={<span>▼</span>}
-                              _hover={{ bg: "orange.600" }}
-                              _active={{ bg: "orange.600" }}
-                            >
-                              {xlsxExportFilters.administrations.length > 0 ? `${xlsxExportFilters.administrations.length} selected` : 'Select administrations...'}
-                            </MenuButton>
-                            <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                              {aangifteIbAvailableAdmins.map((admin, index) => (
-                                <MenuItem key={`xlsx-admin-${admin}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                                  <Checkbox
-                                    isChecked={xlsxExportFilters.administrations.includes(admin)}
-                                    onChange={(e) => {
-                                      const isChecked = e.target.checked;
-                                      setXlsxExportFilters(prev => ({
-                                        ...prev,
-                                        administrations: isChecked 
-                                          ? [...prev.administrations, admin]
-                                          : prev.administrations.filter(a => a !== admin)
-                                      }));
-                                    }}
-                                    colorScheme="orange"
-                                  >
-                                    <Text color="white" ml={2}>{admin}</Text>
-                                  </Checkbox>
-                                </MenuItem>
-                              ))}
-                            </MenuList>
-                          </Menu>
+                            if (!response.ok) {
+                              throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+
+                            const reader = response.body?.getReader();
+                            const decoder = new TextDecoder();
+                            
+                            if (!reader) {
+                              throw new Error('No response body reader available');
+                            }
+
+                            let buffer = '';
+                            
+                            while (true) {
+                              const { done, value } = await reader.read();
+                              
+                              if (done) break;
+                              
+                              buffer += decoder.decode(value, { stream: true });
+                              
+                              const lines = buffer.split('\n');
+                              buffer = lines.pop() || '';
+                              
+                              for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                  try {
+                                    const data = JSON.parse(line.slice(6));
+                                    
+                                    if (data.type === 'start') {
+                                      setXlsxExportProgress({
+                                        current: 0,
+                                        total: 1,
+                                        status: 'Starting export...'
+                                      });
+                                    } else if (data.type === 'progress') {
+                                      setXlsxExportProgress({
+                                        current: data.current_combination || 0,
+                                        total: data.total_combinations || 1,
+                                        status: data.status || 'Processing...',
+                                        fileProgress: data.file_progress
+                                      });
+                                    } else if (data.type === 'complete') {
+                                      console.log('Export completed:', data.message);
+                                      alert(`Export completed! ${data.message}`);
+                                      setXlsxExportProgress(null);
+                                      break;
+                                    } else if (data.type === 'error') {
+                                      console.error('Export error:', data.message);
+                                      alert(`Export error: ${data.message}`);
+                                      setXlsxExportProgress(null);
+                                      break;
+                                    }
+                                  } catch (e) {
+                                    console.error('Error parsing SSE data:', e);
+                                  }
+                                }
+                              }
+                            }
+                          } catch (err) {
+                            console.error('XLSX export error:', err);
+                            alert('Failed to export XLSX files. Check console for details.');
+                          } finally {
+                            setXlsxExportLoading(false);
+                          }
+                        }}
+                        isLoading={xlsxExportLoading}
+                        size="sm"
+                        isDisabled={!aangifteIbFilters.administration || !aangifteIbFilters.year}
+                      >
+                        Generate XLSX
+                      </Button>
+                    </HStack>
+                    
+                    {xlsxExportProgress && (
+                      <VStack spacing={2} align="stretch" mt={4}>
+                        <VStack spacing={1} align="stretch">
+                          <Text color="gray.300" fontSize="xs" textAlign="center">
+                            Overall Progress: {xlsxExportProgress.current}/{xlsxExportProgress.total}
+                          </Text>
+                          <Progress 
+                            value={(xlsxExportProgress.current / xlsxExportProgress.total) * 100} 
+                            colorScheme="green" 
+                            size="sm"
+                            bg="gray.600"
+                          />
                         </VStack>
-                        <VStack spacing={1}>
-                          <Text color="white" fontSize="sm">Years</Text>
-                          <Menu closeOnSelect={false}>
-                            <MenuButton
-                              as={Button}
-                              bg="orange.500"
-                              color="white"
-                              size="sm"
-                              w="200px"
-                              rightIcon={<span>▼</span>}
-                              _hover={{ bg: "orange.600" }}
-                              _active={{ bg: "orange.600" }}
-                            >
-                              {xlsxExportFilters.years.length > 0 ? xlsxExportFilters.years.join(', ') : 'Select years...'}
-                            </MenuButton>
-                            <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                              {aangifteIbAvailableYears.map((year, index) => (
-                                <MenuItem key={`xlsx-year-${year}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                                  <Checkbox
-                                    isChecked={xlsxExportFilters.years.includes(year)}
-                                    onChange={(e) => {
-                                      const isChecked = e.target.checked;
-                                      setXlsxExportFilters(prev => ({
-                                        ...prev,
-                                        years: isChecked 
-                                          ? [...prev.years, year]
-                                          : prev.years.filter(y => y !== year)
-                                      }));
-                                    }}
-                                    colorScheme="orange"
-                                  >
-                                    <Text color="white" ml={2}>{year}</Text>
-                                  </Checkbox>
-                                </MenuItem>
-                              ))}
-                            </MenuList>
-                          </Menu>
-                        </VStack>
-                        <Button 
-                          colorScheme="green" 
-                          onClick={exportXlsxFiles}
-                          isLoading={xlsxExportLoading}
-                          size="sm"
-                          isDisabled={xlsxExportFilters.administrations.length === 0 || xlsxExportFilters.years.length === 0}
-                        >
-                          Generate XLSX Files
-                        </Button>
-                      </HStack>
-                      
-                      {xlsxExportProgress && (
-                        <VStack spacing={2} align="stretch">
+                        
+                        {xlsxExportProgress.fileProgress && (
                           <VStack spacing={1} align="stretch">
                             <Text color="gray.300" fontSize="xs" textAlign="center">
-                              Overall Progress: {xlsxExportProgress.current}/{xlsxExportProgress.total}
+                              Files: {xlsxExportProgress.fileProgress.current_file}/{xlsxExportProgress.fileProgress.total_files} ({xlsxExportProgress.fileProgress.reference_number})
                             </Text>
                             <Progress 
-                              value={(xlsxExportProgress.current / xlsxExportProgress.total) * 100} 
-                              colorScheme="green" 
-                              size="sm"
+                              value={(xlsxExportProgress.fileProgress.current_file / xlsxExportProgress.fileProgress.total_files) * 100} 
+                              colorScheme="blue" 
+                              size="xs"
                               bg="gray.600"
                             />
                           </VStack>
-                          
-                          {xlsxExportProgress.fileProgress && (
-                            <VStack spacing={1} align="stretch">
-                              <Text color="gray.300" fontSize="xs" textAlign="center">
-                                Files: {xlsxExportProgress.fileProgress.current_file}/{xlsxExportProgress.fileProgress.total_files} ({xlsxExportProgress.fileProgress.reference_number})
-                              </Text>
-                              <Progress 
-                                value={(xlsxExportProgress.fileProgress.current_file / xlsxExportProgress.fileProgress.total_files) * 100} 
-                                colorScheme="blue" 
-                                size="xs"
-                                bg="gray.600"
-                              />
-                            </VStack>
-                          )}
-                          
-                          <Text color="gray.300" fontSize="xs" textAlign="center">
-                            {xlsxExportProgress.status}
-                          </Text>
-                        </VStack>
-                      )}
-                      
-                      <Text color="gray.400" fontSize="xs">
-                        Creates one XLSX file per administration/year combination in C:\Users\peter\OneDrive\Admin\reports\
-                      </Text>
-                    </VStack>
+                        )}
+                        
+                        <Text color="gray.300" fontSize="xs" textAlign="center">
+                          {xlsxExportProgress.status}
+                        </Text>
+                      </VStack>
+                    )}
                   </CardBody>
                 </Card>
 
