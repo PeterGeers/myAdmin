@@ -107,13 +107,22 @@ if (-not $SkipGit) {
                         Write-Log "Continuing without committing..." "INFO"
                     }
                     else {
-                        # Add all changes
+                        # Add all changes (excluding submodules)
                         Write-Log "Adding all changes to git..." "INFO"
-                        git add .
+                        git add --all
                         
-                        # Commit
-                        Write-Log "Committing changes..." "INFO"
-                        git commit -m $CommitMessage
+                        # Check if there are actually changes to commit
+                        $stagedChanges = git diff --cached --name-only
+                        if ($stagedChanges) {
+                            # Commit
+                            Write-Log "Committing changes..." "INFO"
+                            git commit -m $CommitMessage
+                        }
+                        else {
+                            Write-Log "No changes to commit (only submodule changes detected)" "WARN"
+                            Write-Log "Continuing without committing..." "INFO"
+                            $LASTEXITCODE = 0
+                        }
                         
                         if ($LASTEXITCODE -eq 0) {
                             Write-Log "✓ Changes committed successfully" "SUCCESS"
@@ -166,8 +175,17 @@ if (-not $SkipGit) {
                 else {
                     # Force mode - commit without asking
                     Write-Log "Force mode: Committing without confirmation" "INFO"
-                    git add .
-                    git commit -m $CommitMessage
+                    git add --all
+                    
+                    # Check if there are changes to commit
+                    $stagedChanges = git diff --cached --name-only
+                    if ($stagedChanges) {
+                        git commit -m $CommitMessage
+                    }
+                    else {
+                        Write-Log "No changes to commit (only submodule changes detected)" "WARN"
+                        $LASTEXITCODE = 0
+                    }
                     
                     if ($LASTEXITCODE -eq 0) {
                         Write-Log "✓ Changes committed" "SUCCESS"
