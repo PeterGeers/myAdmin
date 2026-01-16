@@ -210,10 +210,12 @@ Write-Log "" "INFO"
 Write-Log "═══ STAGE 1: BUILD ═══" "PIPELINE"
 Write-Log "Running build script..." "INFO"
 
-$buildArgs = @()
-if ($SkipTests) { $buildArgs += "-SkipTests" }
-
-& "scripts/cicd/build.ps1" @buildArgs
+if ($SkipTests) {
+    & "scripts/cicd/build.ps1" -SkipTests
+}
+else {
+    & "scripts/cicd/build.ps1"
+}
 
 if ($LASTEXITCODE -ne 0) {
     Exit-WithError "Build stage failed"
