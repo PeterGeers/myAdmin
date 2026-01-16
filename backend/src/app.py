@@ -1814,18 +1814,13 @@ def toeristenbelasting_generate_report():
 
 @app.route('/api/toeristenbelasting/available-years', methods=['GET'])
 def toeristenbelasting_available_years():
-    """Get available years for Toeristenbelasting"""
+    """Get available years for Toeristenbelasting (current year and 3 years back)"""
     try:
-        db = DatabaseManager(test_mode=flag)
-        query = """
-        SELECT DISTINCT YEAR(checkinDate) as year
-        FROM bnb
-        WHERE checkinDate IS NOT NULL
-        ORDER BY year DESC
-        """
+        from datetime import datetime
+        current_year = datetime.now().year
         
-        results = db.execute_query(query)
-        years = [str(row[0]) for row in results if row[0]]
+        # Generate years: current year and 3 years back
+        years = [str(current_year - i) for i in range(4)]
         
         return jsonify({
             'success': True,

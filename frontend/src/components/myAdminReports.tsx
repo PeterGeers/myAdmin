@@ -227,7 +227,10 @@ const MyAdminReports: React.FC = () => {
   const [toeristenbelastingFilters, setToeristenbelastingFilters] = useState({
     year: new Date().getFullYear().toString()
   });
-  const [toeristenbelastingAvailableYears, setToeristenbelastingAvailableYears] = useState<string[]>([]);
+  const [toeristenbelastingAvailableYears, setToeristenbelastingAvailableYears] = useState<string[]>(() => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear, currentYear - 1, currentYear - 2, currentYear - 3].map(y => y.toString());
+  });
   const [toeristenbelastingLoading, setToeristenbelastingLoading] = useState(false);
 
   // Format amount based on display format

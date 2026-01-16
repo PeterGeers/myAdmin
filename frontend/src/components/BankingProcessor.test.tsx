@@ -34,6 +34,15 @@ const MockBankingProcessor = ({
 }) => {
   const [mode, setMode] = React.useState(testMode);
   const [selectedFiles, setSelectedFiles] = React.useState(hasFiles ? ['test.csv'] : []);
+  const [showPatternApproval, setShowPatternApproval] = React.useState(false);
+
+  const handleApplyPatterns = async () => {
+    // Simulate pattern application
+    const hasEmptyFields = transactions.some(tx => !tx.debet || !tx.credit);
+    if (hasEmptyFields) {
+      setShowPatternApproval(true);
+    }
+  };
 
   return (
     <div data-testid="banking-processor">
@@ -73,7 +82,7 @@ const MockBankingProcessor = ({
       {transactions.length > 0 && (
         <div data-testid="transactions-table">
           <h3>Transactions ({transactions.length})</h3>
-          <button data-testid="apply-patterns-btn">Apply Patterns</button>
+          <button data-testid="apply-patterns-btn" onClick={handleApplyPatterns}>Apply Patterns</button>
           <button data-testid="save-transactions-btn">Save to Database</button>
           <table>
             <thead>
@@ -165,6 +174,16 @@ const MockBankingProcessor = ({
       </div>
 
       {loading && <div data-testid="loading-spinner">Loading...</div>}
+      
+      {/* Pattern Approval Dialog */}
+      {showPatternApproval && (
+        <div data-testid="pattern-approval-dialog">
+          <h3>Review Pattern Suggestions</h3>
+          <p>Pattern suggestions have been filled into empty fields</p>
+          <button onClick={() => setShowPatternApproval(false)}>Reject Suggestions</button>
+          <button onClick={() => setShowPatternApproval(false)}>Approve Suggestions</button>
+        </div>
+      )}
     </div>
   );
 };
