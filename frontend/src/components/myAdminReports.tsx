@@ -207,7 +207,6 @@ const MyAdminReports: React.FC = () => {
     administration: 'all'
   });
   const [aangifteIbAvailableYears, setAangifteIbAvailableYears] = useState<string[]>([]);
-  const [aangifteIbAvailableAdmins, setAangifteIbAvailableAdmins] = useState<string[]>([]);
   const [aangifteIbLoading, setAangifteIbLoading] = useState(false);
   const [selectedAangifteRow, setSelectedAangifteRow] = useState<{parent: string, aangifte: string} | null>(null);
   const [expandedAangifteRows, setExpandedAangifteRows] = useState<Set<string>>(new Set());
@@ -222,10 +221,6 @@ const MyAdminReports: React.FC = () => {
       reference_number: string;
     };
   } | null>(null);
-  const [xlsxExportFilters, setXlsxExportFilters] = useState({
-    administrations: [] as string[],
-    years: [] as string[]
-  });
 
   // Format amount based on display format
   const formatAmount = (amount: number, format: string): string => {
@@ -1162,7 +1157,6 @@ const MyAdminReports: React.FC = () => {
       if (data.success) {
         setAangifteIbData(data.data);
         setAangifteIbAvailableYears(data.available_years);
-        setAangifteIbAvailableAdmins(data.available_administrations);
       }
     } catch (err) {
       console.error('Error fetching Aangifte IB data:', err);
@@ -1189,93 +1183,6 @@ const MyAdminReports: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching Aangifte IB details:', err);
-    }
-  };
-
-  const exportXlsxFiles = async () => {
-    console.log('Starting XLSX export with streaming...');
-    setXlsxExportLoading(true);
-    setXlsxExportProgress(null);
-    
-    try {
-      // First, send the POST request to start the streaming process
-      console.log('Calling streaming endpoint:', buildApiUrl('/api/reports/aangifte-ib-xlsx-export-stream'));
-      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-xlsx-export-stream'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          administrations: xlsxExportFilters.administrations,
-          years: xlsxExportFilters.years
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Create EventSource for streaming updates
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      
-      if (!reader) {
-        throw new Error('No response body reader available');
-      }
-
-      let buffer = '';
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        
-        // Process complete lines
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'start') {
-                setXlsxExportProgress({
-                  current: 0,
-                  total: data.administrations.length * data.years.length,
-                  status: 'Starting export...'
-                });
-              } else if (data.type === 'progress') {
-                setXlsxExportProgress({
-                  current: data.current_combination || 0,
-                  total: data.total_combinations || 1,
-                  status: data.status || 'Processing...',
-                  fileProgress: data.file_progress
-                });
-              } else if (data.type === 'complete') {
-                console.log('Export completed:', data.message);
-                alert(`Export completed! ${data.message}`);
-                setXlsxExportProgress(null);
-                break;
-              } else if (data.type === 'error') {
-                console.error('Export error:', data.error);
-                alert(`Export failed: ${data.error}`);
-                setXlsxExportProgress(null);
-                break;
-              }
-            } catch (parseError) {
-              console.warn('Failed to parse SSE data:', line);
-            }
-          }
-        }
-      }
-      
-    } catch (err) {
-      console.error('Error exporting XLSX:', err);
-      alert('Error exporting XLSX files');
-      setXlsxExportProgress(null);
-    } finally {
-      setXlsxExportLoading(false);
     }
   };
 
