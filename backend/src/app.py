@@ -497,11 +497,11 @@ def cache_status():
         
         return jsonify({
             'success': True,
-            'cache_active': cache.is_loaded,
-            'last_refresh': cache.last_refresh.isoformat() if cache.last_refresh else None,
-            'record_count': len(cache.data) if cache.is_loaded else 0,
+            'cache_active': cache.data is not None,
+            'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None,
+            'record_count': len(cache.data) if cache.data is not None else 0,
             'auto_refresh_enabled': True,
-            'refresh_threshold_hours': 24
+            'refresh_threshold_minutes': 30
         })
     except Exception as e:
         return jsonify({
@@ -1859,7 +1859,7 @@ def aangifte_ib_details():
 
 @app.route('/api/reports/aangifte-ib-export', methods=['POST'])
 def aangifte_ib_export():
-    """Generate HTML export for Aangifte IB report"""
+    """Generate HTML export for Aangifte IB report with account details"""
     try:
         data = request.get_json()
         year = data.get('year')
@@ -1868,6 +1868,13 @@ def aangifte_ib_export():
         
         if not year:
             return jsonify({'success': False, 'error': 'Year is required'}), 400
+        
+        # Get cache instance for account details
+        cache = get_cache()
+        db = DatabaseManager(test_mode=flag)
+        
+        # Ensure cache is loaded
+        cache.get_data(db)
         
         # Calculate totals
         parent_totals = {}
@@ -1897,11 +1904,14 @@ def aangifte_ib_export():
         th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         th {{ background-color: #f2f2f2; font-weight: bold; }}
         .parent-row {{ background-color: #e6e6e6; font-weight: bold; }}
+        .aangifte-row {{ background-color: #f9f9f9; font-weight: bold; }}
+        .account-row {{ background-color: #ffffff; font-size: 0.9em; }}
         .resultaat-positive {{ background-color: #ffcccc; font-weight: bold; }}
         .resultaat-negative {{ background-color: #ccffcc; font-weight: bold; }}
         .grand-total {{ background-color: #ffa500; font-weight: bold; color: white; }}
         .amount {{ text-align: right; }}
-        .indent {{ padding-left: 30px; }}
+        .indent-1 {{ padding-left: 20px; }}
+        .indent-2 {{ padding-left: 40px; }}
     </style>
 </head>
 <body>
@@ -1913,7 +1923,8 @@ def aangifte_ib_export():
         <thead>
             <tr>
                 <th>Parent</th>
-                <th>Aangifte</th>
+                <th>Aangifte / Account</th>
+                <th>Description</th>
                 <th class="amount">Amount (€)</th>
             </tr>
         </thead>
@@ -1928,21 +1939,51 @@ def aangifte_ib_export():
                 grouped[parent] = []
             grouped[parent].append(row)
         
-        # Add rows
+        # Add rows with account details
         for parent, items in sorted(grouped.items()):
             parent_total = sum(float(item['Amount']) for item in items)
-            html_content += f'<tr class="parent-row"><td>{parent}</td><td></td><td class="amount">{parent_total:,.2f}</td></tr>'
+            
+            # Skip parent groups with zero total
+            if abs(parent_total) < 0.01:
+                continue
+                
+            html_content += f'<tr class="parent-row"><td>{parent}</td><td></td><td></td><td class="amount">{parent_total:,.2f}</td></tr>'
             
             for item in items:
                 amount = float(item['Amount'])
-                html_content += f'<tr><td class="indent"></td><td>{item["Aangifte"]}</td><td class="amount">{amount:,.2f}</td></tr>'
+                
+                # Skip items with zero amounts
+                if abs(amount) < 0.01:
+                    continue
+                
+                aangifte = item['Aangifte']
+                
+                # Add Aangifte subtotal row
+                html_content += f'<tr class="aangifte-row"><td class="indent-1"></td><td>{aangifte}</td><td></td><td class="amount">{amount:,.2f}</td></tr>'
+                
+                # Get account details for this Parent and Aangifte
+                try:
+                    details = cache.query_aangifte_ib_details(year, administration, parent, aangifte)
+                    
+                    # Filter out zero amounts
+                    non_zero_details = [d for d in details if abs(float(d.get('Amount', 0))) >= 0.01]
+                    
+                    # Add account detail rows
+                    for detail in non_zero_details:
+                        reknum = detail.get('Reknum', '')
+                        account_name = detail.get('AccountName', '')
+                        detail_amount = float(detail.get('Amount', 0))
+                        html_content += f'<tr class="account-row"><td class="indent-2"></td><td>{reknum}</td><td>{account_name}</td><td class="amount">{detail_amount:,.2f}</td></tr>'
+                except Exception as e:
+                    print(f"Error fetching details for {parent}-{aangifte}: {e}", flush=True)
         
         # Add resultaat row
-        resultaat_class = 'resultaat-positive' if resultaat >= 0 else 'resultaat-negative'
-        html_content += f'<tr class="{resultaat_class}"><td>RESULTAAT</td><td></td><td class="amount">{resultaat:,.2f}</td></tr>'
+        if abs(resultaat) >= 0.01:
+            resultaat_class = 'resultaat-positive' if resultaat >= 0 else 'resultaat-negative'
+            html_content += f'<tr class="{resultaat_class}"><td>RESULTAAT</td><td></td><td></td><td class="amount">{resultaat:,.2f}</td></tr>'
         
         # Add grand total
-        html_content += f'<tr class="grand-total"><td>GRAND TOTAL</td><td></td><td class="amount">{grand_total:,.2f}</td></tr>'
+        html_content += f'<tr class="grand-total"><td>GRAND TOTAL</td><td></td><td></td><td class="amount">{grand_total:,.2f}</td></tr>'
         
         html_content += """
         </tbody>
