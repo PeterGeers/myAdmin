@@ -181,7 +181,7 @@ switch ($Mode.ToLower()) {
         
         # Test backend API
         try {
-            $response = Invoke-RestMethod -Uri "http://localhost:5000/api/health" -TimeoutSec 5
+            $null = Invoke-RestMethod -Uri "http://localhost:5000/api/health" -TimeoutSec 5
             Write-Host "✅ Backend API: Healthy" -ForegroundColor Green
         }
         catch {
