@@ -2851,14 +2851,14 @@ const MyAdminReports: React.FC = () => {
                         <Box>
                           <Heading size="sm" color="orange.300" mb={3}>Verhuurgegevens</Heading>
                           <Grid templateColumns="repeat(2, 1fr)" gap={2}>
-                            <Text color="gray.300" fontSize="sm">Totaal verhuurde kamers:</Text>
-                            <Text color="white" fontSize="sm">{toeristenbelastingData.totaal_verhuurde_kamers}</Text>
-                            <Text color="gray.300" fontSize="sm">No-shows:</Text>
-                            <Text color="white" fontSize="sm">{toeristenbelastingData.no_shows}</Text>
-                            <Text color="gray.300" fontSize="sm">Verhuurde kamers aan inwoners:</Text>
+                            <Text color="gray.300" fontSize="sm">Totaal verhuurde nachten:</Text>
+                            <Text color="white" fontSize="sm">{toeristenbelastingData.totaal_verhuurde_nachten}</Text>
+                            <Text color="gray.300" fontSize="sm">Cancelled nachten:</Text>
+                            <Text color="white" fontSize="sm">{toeristenbelastingData.cancelled_nachten}</Text>
+                            <Text color="gray.300" fontSize="sm">Verhuurde nachten aan inwoners:</Text>
                             <Text color="white" fontSize="sm">{toeristenbelastingData.verhuurde_kamers_inwoners}</Text>
-                            <Text color="gray.300" fontSize="sm">Totaal belastbare kamerverhuren:</Text>
-                            <Text color="white" fontSize="sm" fontWeight="bold">{toeristenbelastingData.totaal_belastbare_kamerverhuren}</Text>
+                            <Text color="gray.300" fontSize="sm">Totaal belastbare nachten:</Text>
+                            <Text color="white" fontSize="sm" fontWeight="bold">{toeristenbelastingData.totaal_belastbare_nachten}</Text>
                             <Text color="gray.300" fontSize="sm">Kamerbezettingsgraad (%):</Text>
                             <Text color="white" fontSize="sm">{toeristenbelastingData.kamerbezettingsgraad}%</Text>
                             <Text color="gray.300" fontSize="sm">Bedbezettingsgraad (%):</Text>

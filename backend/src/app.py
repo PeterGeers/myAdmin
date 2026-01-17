@@ -31,6 +31,7 @@ from error_handlers import configure_logging, register_error_handlers, error_res
 from performance_optimizer import performance_middleware, register_performance_endpoints
 from security_audit import SecurityAudit, register_security_endpoints
 from mutaties_cache import get_cache, invalidate_cache
+from bnb_cache import get_bnb_cache
 
 # Load environment variables from .env file
 load_dotenv()
@@ -541,6 +542,63 @@ def cache_invalidate_endpoint():
         return jsonify({
             'success': True,
             'message': 'Cache invalidated successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# BNB Cache Management Endpoints
+@app.route('/api/bnb-cache/status', methods=['GET'])
+def bnb_cache_status():
+    """Get BNB cache status and statistics"""
+    try:
+        bnb_cache = get_bnb_cache()
+        status = bnb_cache.get_status()
+        
+        return jsonify({
+            'success': True,
+            **status
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/bnb-cache/refresh', methods=['POST'])
+def bnb_cache_refresh():
+    """Force refresh the BNB cache"""
+    try:
+        bnb_cache = get_bnb_cache()
+        db = DatabaseManager(test_mode=flag)
+        
+        # Force refresh
+        bnb_cache.refresh(db)
+        status = bnb_cache.get_status()
+        
+        return jsonify({
+            'success': True,
+            'message': 'BNB cache refreshed successfully',
+            **status
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/bnb-cache/invalidate', methods=['POST'])
+def bnb_cache_invalidate():
+    """Invalidate the BNB cache (will auto-refresh on next query)"""
+    try:
+        bnb_cache = get_bnb_cache()
+        bnb_cache.invalidate()
+        
+        return jsonify({
+            'success': True,
+            'message': 'BNB cache invalidated successfully'
         })
     except Exception as e:
         return jsonify({
