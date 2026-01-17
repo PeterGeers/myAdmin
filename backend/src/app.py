@@ -2458,17 +2458,21 @@ def log_duplicate_decision():
                 'error': 'Missing required field: decision'
             }), 400
         
-        # Get duplicate info - frontend sends 'duplicate_info'
-        duplicate_info = data.get('duplicate_info', {})
+        # Get duplicate info and new transaction data
+        # Support both camelCase (from frontend) and snake_case
+        duplicate_info = data.get('duplicateInfo') or data.get('duplicate_info')
+        new_transaction_data = data.get('newTransactionData') or data.get('new_transaction_data')
         
-        # Create new transaction data from the duplicate info
-        new_transaction_data = {
-            'ReferenceNumber': duplicate_info.get('reference_number', ''),
-            'TransactionDate': duplicate_info.get('transaction_date', ''),
-            'TransactionAmount': duplicate_info.get('transaction_amount', 0),
-            'Ref3': duplicate_info.get('new_file_url', ''),
-            'Ref4': duplicate_info.get('filename', '')
-        }
+        # Validate that we have the required data
+        if not new_transaction_data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: newTransactionData'
+            }), 400
+        
+        # Ensure duplicate_info is at least an empty dict
+        if duplicate_info is None:
+            duplicate_info = {}
         
         # Fix existing_transaction_id - convert empty string to None for NULL in database
         existing_id = duplicate_info.get('existing_transaction_id', '')
@@ -2495,7 +2499,11 @@ def log_duplicate_decision():
         
         # Log the decision
         log_success = duplicate_checker.log_duplicate_decision(
-            decision, duplicate_info, new_transaction_data, user_id, session_id
+            decision=decision,
+            duplicate_info=duplicate_info,
+            new_transaction_data=new_transaction_data,
+            user_id=user_id,
+            session_id=session_id
         )
         
         if log_success:
