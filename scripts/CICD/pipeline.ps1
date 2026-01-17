@@ -246,11 +246,13 @@ Write-Log "" "INFO"
 Write-Log "═══ STAGE 2: DEPLOY ═══" "PIPELINE"
 Write-Log "Running deployment script..." "INFO"
 
-$deployArgs = @("-Environment", $Environment)
-if ($SkipBackup) { $deployArgs += "-SkipBackup" }
-if ($Force) { $deployArgs += "-Force" }
+$deployParams = @{
+    Environment = $Environment
+}
+if ($SkipBackup) { $deployParams.SkipBackup = $true }
+if ($Force) { $deployParams.Force = $true }
 
-& "scripts/cicd/deploy.ps1" @deployArgs
+& "scripts/cicd/deploy.ps1" @deployParams
 
 if ($LASTEXITCODE -ne 0) {
     Exit-WithError "Deployment stage failed"

@@ -260,13 +260,29 @@ Write-Log "Step 6: Testing database connection..." "INFO"
 
 $mysqlContainer = docker-compose ps -q mysql
 if ($mysqlContainer) {
-    $dbTest = docker-compose exec -T mysql mysql -u root -p"$dbPassword" -e "SELECT 1;" 2>&1
+    $maxDbRetries = 6
+    $dbRetryCount = 0
+    $dbTestPassed = $false
     
-    if ($LASTEXITCODE -eq 0) {
-        Write-Log "Database connection test passed" "SUCCESS"
+    while ($dbRetryCount -lt $maxDbRetries) {
+        $dbTest = docker-compose exec -T mysql mysql -u root -p"$dbPassword" -e "SELECT 1;" 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            $dbTestPassed = $true
+            Write-Log "Database connection test passed" "SUCCESS"
+            break
+        }
+        else {
+            $dbRetryCount++
+            if ($dbRetryCount -lt $maxDbRetries) {
+                Write-Log "Database connection attempt $dbRetryCount/$maxDbRetries failed, retrying..." "WARN"
+                Start-Sleep -Seconds 5
+            }
+        }
     }
-    else {
-        Write-Log "Database connection test failed" "ERROR"
+    
+    if (-not $dbTestPassed) {
+        Write-Log "Database connection test failed after $maxDbRetries attempts" "ERROR"
         Exit-WithError "Database is not accessible"
     }
 }

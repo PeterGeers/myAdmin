@@ -10,9 +10,13 @@ import traceback
 from typing import List, Dict, Optional
 from datetime import datetime
 from database import DatabaseManager
+from duplicate_performance_monitor import get_performance_monitor
 
 # Configure logger for duplicate detection
 logger = logging.getLogger(__name__)
+
+# Get performance monitor for metrics collection
+_performance_monitor = get_performance_monitor()
 
 class DuplicateDetectionError(Exception):
     """Custom exception for duplicate detection errors."""
@@ -49,6 +53,7 @@ class DuplicateChecker:
         """
         self.db = db_manager
     
+    @_performance_monitor.monitor_duplicate_check
     def check_for_duplicates(
         self,
         reference_number: str,
