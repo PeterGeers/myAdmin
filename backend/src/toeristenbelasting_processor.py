@@ -1,5 +1,6 @@
 from database import DatabaseManager
 from mutaties_cache import get_cache
+from bnb_cache import get_bnb_cache
 from datetime import datetime
 import html
 
@@ -27,28 +28,29 @@ class ToeristenbelastingProcessor:
             # Get BNB data for the year
             bnb_data = self._get_bnb_data(year)
             
-            # Calculate totals
-            totaal_verhuurde_kamers = len(bnb_data['all_bookings'])
-            no_shows = len(bnb_data['cancelled_bookings'])
+            # Calculate totals based on nights (not bookings)
+            totaal_verhuurde_nachten = sum(b['nights'] for b in bnb_data['all_bookings'])
+            cancelled_nachten = sum(b['nights'] for b in bnb_data['cancelled_bookings'])
             verhuurde_kamers_inwoners = 0  # Always 0 per requirements
-            totaal_belastbare_kamerverhuren = totaal_verhuurde_kamers - no_shows
+            totaal_belastbare_nachten = totaal_verhuurde_nachten - cancelled_nachten
             
-            # Calculate occupancy rates
-            total_nights = sum(b['nights'] for b in bnb_data['realised_bookings'])
+            # Calculate occupancy rates based on nights
+            total_realised_nights = sum(b['nights'] for b in bnb_data['realised_bookings'])
             max_nights = aantal_kamers * 365
-            kamerbezettingsgraad = (total_nights / max_nights * 100) if max_nights > 0 else 0
+            kamerbezettingsgraad = (total_realised_nights / max_nights * 100) if max_nights > 0 else 0
             bedbezettingsgraad = kamerbezettingsgraad * 0.90
             
             # Get tourist tax from account 8003
-            saldo_toeristenbelasting = self._get_tourist_tax_from_account(year)
+            saldo_toeristenbelasting = abs(self._get_tourist_tax_from_account(year))
             
             # Calculate revenue components
-            total_revenue_8003 = self._get_total_revenue_8003(year)
+            total_revenue_8003 = abs(self._get_total_revenue_8003(year))
             ontvangsten_excl_btw_excl_toeristenbelasting = total_revenue_8003 - saldo_toeristenbelasting
             
             ontvangsten_logies_inwoners = 0  # Always 0
-            kortingen_provisie_commissie = 0  # Always 0
-            no_show_omzet = sum(b['amountNett'] for b in bnb_data['cancelled_bookings'])
+            kortingen_provisie_commissie = abs(self._get_service_fees(year))  # Account 4007 - make positive
+            # No-show omzet: amountGross - amountVat for cancelled bookings
+            no_show_omzet = sum(b['amountGross'] - b['amountVat'] for b in bnb_data['cancelled_bookings'])
             
             totaal_2_3_4 = ontvangsten_logies_inwoners + kortingen_provisie_commissie + no_show_omzet
             belastbare_omzet_logies = ontvangsten_excl_btw_excl_toeristenbelasting - totaal_2_3_4
@@ -64,10 +66,10 @@ class ToeristenbelastingProcessor:
                 periode_tm=periode_tm,
                 aantal_kamers=aantal_kamers,
                 aantal_slaapplaatsen=aantal_slaapplaatsen,
-                totaal_verhuurde_kamers=totaal_verhuurde_kamers,
-                no_shows=no_shows,
+                totaal_verhuurde_nachten=totaal_verhuurde_nachten,
+                cancelled_nachten=cancelled_nachten,
                 verhuurde_kamers_inwoners=verhuurde_kamers_inwoners,
-                totaal_belastbare_kamerverhuren=totaal_belastbare_kamerverhuren,
+                totaal_belastbare_nachten=totaal_belastbare_nachten,
                 kamerbezettingsgraad=kamerbezettingsgraad,
                 bedbezettingsgraad=bedbezettingsgraad,
                 saldo_toeristenbelasting=saldo_toeristenbelasting,
@@ -94,10 +96,10 @@ class ToeristenbelastingProcessor:
                     'periode_tm': periode_tm,
                     'aantal_kamers': aantal_kamers,
                     'aantal_slaapplaatsen': aantal_slaapplaatsen,
-                    'totaal_verhuurde_kamers': totaal_verhuurde_kamers,
-                    'no_shows': no_shows,
+                    'totaal_verhuurde_nachten': totaal_verhuurde_nachten,
+                    'cancelled_nachten': cancelled_nachten,
                     'verhuurde_kamers_inwoners': verhuurde_kamers_inwoners,
-                    'totaal_belastbare_kamerverhuren': totaal_belastbare_kamerverhuren,
+                    'totaal_belastbare_nachten': totaal_belastbare_nachten,
                     'kamerbezettingsgraad': round(kamerbezettingsgraad, 2),
                     'bedbezettingsgraad': round(bedbezettingsgraad, 2),
                     'saldo_toeristenbelasting': round(saldo_toeristenbelasting, 2),
@@ -118,50 +120,20 @@ class ToeristenbelastingProcessor:
             return {'success': False, 'error': str(e)}
     
     def _get_bnb_data(self, year):
-        """Get BNB booking data for the year"""
+        """Get BNB booking data for the year using cache"""
         try:
-            query = """
-            SELECT 
-                checkinDate,
-                checkoutDate,
-                nights,
-                amountGross,
-                amountNett,
-                amountChannelFee,
-                amountTouristTax,
-                amountVat,
-                guestName,
-                status
-            FROM bnb
-            WHERE YEAR(checkinDate) = %s
-            """
+            bnb_cache = get_bnb_cache()
             
-            results = self.db.execute_query(query, (year,))
+            # Get all bookings for the year
+            all_bookings = bnb_cache.query_by_year(self.db, year)
             
-            all_bookings = []
-            cancelled_bookings = []
-            realised_bookings = []
+            # Get cancelled bookings
+            cancelled_bookings = bnb_cache.query_cancelled_by_year(self.db, year)
             
-            for row in results:
-                booking = {
-                    'checkinDate': row[0],
-                    'checkoutDate': row[1],
-                    'nights': row[2] or 0,
-                    'amountGross': float(row[3]) if row[3] else 0,
-                    'amountNett': float(row[4]) if row[4] else 0,
-                    'amountChannelFee': float(row[5]) if row[5] else 0,
-                    'amountTouristTax': float(row[6]) if row[6] else 0,
-                    'amountVat': float(row[7]) if row[7] else 0,
-                    'guestName': row[8],
-                    'status': row[9]
-                }
-                
-                all_bookings.append(booking)
-                
-                if booking['status'] == 'cancelled':
-                    cancelled_bookings.append(booking)
-                else:
-                    realised_bookings.append(booking)
+            # Get realised bookings
+            realised_bookings = bnb_cache.query_realised_by_year(self.db, year)
+            
+            print(f"BNB data for {year}: {len(all_bookings)} total, {len(cancelled_bookings)} cancelled, {len(realised_bookings)} realised", flush=True)
             
             return {
                 'all_bookings': all_bookings,
@@ -170,7 +142,9 @@ class ToeristenbelastingProcessor:
             }
             
         except Exception as e:
-            print(f"Error getting BNB data: {e}", flush=True)
+            print(f"Error getting BNB data: {type(e).__name__}: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return {
                 'all_bookings': [],
                 'cancelled_bookings': [],
@@ -210,6 +184,21 @@ class ToeristenbelastingProcessor:
             
         except Exception as e:
             print(f"Error getting total revenue 8003: {e}", flush=True)
+            return 0
+    
+    def _get_service_fees(self, year):
+        """Get service fees from account 4007 (Service Fee bookingssites)"""
+        try:
+            cache = get_cache()
+            df = cache.get_data(self.db)
+            
+            # Filter by year and account 4007
+            df_filtered = df[(df['jaar'] == int(year)) & (df['Reknum'] == '4007')].copy()
+            
+            return df_filtered['Amount'].sum()
+            
+        except Exception as e:
+            print(f"Error getting service fees 4007: {e}", flush=True)
             return 0
 
     
@@ -328,20 +317,20 @@ class ToeristenbelastingProcessor:
     <div class="section">
         <h2>Verhuurgegevens</h2>
         <div class="field">
-            <span class="label">Totaal verhuurde kamers:</span>
-            <span class="value">{kwargs['totaal_verhuurde_kamers']}</span>
+            <span class="label">Totaal verhuurde nachten:</span>
+            <span class="value">{kwargs['totaal_verhuurde_nachten']}</span>
         </div>
         <div class="field">
-            <span class="label">No-shows:</span>
-            <span class="value">{kwargs['no_shows']}</span>
+            <span class="label">Cancelled nachten:</span>
+            <span class="value">{kwargs['cancelled_nachten']}</span>
         </div>
         <div class="field">
-            <span class="label">Verhuurde kamers aan inwoners:</span>
+            <span class="label">Verhuurde nachten aan inwoners:</span>
             <span class="value">{kwargs['verhuurde_kamers_inwoners']}</span>
         </div>
         <div class="field">
-            <span class="label">Totaal belastbare kamerverhuren:</span>
-            <span class="value">{kwargs['totaal_belastbare_kamerverhuren']}</span>
+            <span class="label">Totaal belastbare nachten:</span>
+            <span class="value">{kwargs['totaal_belastbare_nachten']}</span>
         </div>
         <div class="field">
             <span class="label">Kamerbezettingsgraad (%):</span>
