@@ -342,3 +342,83 @@ class STRDatabase(DatabaseManager):
             
         except mysql.connector.Error as e:
             return {}
+    
+    def update_from_payout(self, payout_updates: List[Dict]) -> Dict:
+        """
+        Update existing bookings with Payout CSV data
+        
+        Args:
+            payout_updates: List of update records from Payout CSV processing
+            
+        Returns:
+            dict with update results: {
+                'updated': count of updated records,
+                'not_found': list of reservation codes not found,
+                'errors': list of error messages
+            }
+        """
+        if not payout_updates:
+            return {
+                'updated': 0,
+                'not_found': [],
+                'errors': ['No updates provided']
+            }
+        
+        results = {
+            'updated': 0,
+            'not_found': [],
+            'errors': []
+        }
+        
+        update_query = """
+        UPDATE bnb 
+        SET 
+            amountGross = %s,
+            amountChannelFee = %s,
+            amountVat = %s,
+            amountTouristTax = %s,
+            amountNett = %s,
+            pricePerNight = %s,
+            sourceFile = %s
+        WHERE reservationCode = %s AND channel = 'booking.com'
+        """
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            for update in payout_updates:
+                reservation_code = update.get('reservationCode', '')
+                
+                # Check if reservation exists
+                cursor.execute(
+                    "SELECT id FROM bnb WHERE reservationCode = %s AND channel = 'booking.com'",
+                    (reservation_code,)
+                )
+                
+                if not cursor.fetchone():
+                    results['not_found'].append(reservation_code)
+                    continue
+                
+                # Update the record
+                values = (
+                    update.get('amountGross', 0),
+                    update.get('amountChannelFee', 0),
+                    update.get('amountVat', 0),
+                    update.get('amountTouristTax', 0),
+                    update.get('amountNett', 0),
+                    update.get('pricePerNight', 0),
+                    update.get('sourceFile', ''),
+                    reservation_code
+                )
+                
+                cursor.execute(update_query, values)
+                results['updated'] += 1
+            
+            self.connection.commit()
+            cursor.close()
+            
+            return results
+            
+        except mysql.connector.Error as e:
+            results['errors'].append(f"Database error: {str(e)}")
+            return results

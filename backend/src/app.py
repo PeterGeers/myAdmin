@@ -1730,6 +1730,87 @@ def str_write_future():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/str/import-payout', methods=['POST', 'OPTIONS'])
+def str_import_payout():
+    """
+    Import Booking.com Payout CSV to update financial figures
+    
+    This endpoint processes monthly Payout CSV files from Booking.com
+    and updates existing bookings with actual settlement data.
+    """
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'OK'})
+    
+    try:
+        print("=== PAYOUT CSV IMPORT START ===", flush=True)
+        
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+        
+        # Validate filename pattern (Payout_from_*.csv)
+        if not file.filename.lower().startswith('payout_from') or not file.filename.lower().endswith('.csv'):
+            return jsonify({
+                'success': False, 
+                'error': 'Invalid file format. Expected: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv'
+            }), 400
+        
+        filename = secure_filename(file.filename)
+        temp_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(temp_path)
+        
+        print(f"Processing Payout CSV: {filename}", flush=True)
+        
+        # Process the Payout CSV file
+        str_processor = STRProcessor(test_mode=flag)
+        payout_result = str_processor._process_booking_payout(temp_path)
+        
+        if payout_result.get('errors'):
+            print(f"Payout processing errors: {payout_result['errors']}", flush=True)
+        
+        # Update database with payout data
+        str_db = STRDatabase(test_mode=flag)
+        update_result = str_db.update_from_payout(payout_result.get('updates', []))
+        
+        # Clean up temp file
+        os.remove(temp_path)
+        
+        # Combine results
+        response = {
+            'success': True,
+            'message': f"Payout CSV processed successfully",
+            'processing': {
+                'total_rows': payout_result['summary']['total_rows'],
+                'reservation_rows': payout_result['summary']['reservation_rows'],
+                'updates_prepared': payout_result['summary']['updated_count'],
+                'processing_errors': payout_result['summary']['error_count']
+            },
+            'database': {
+                'updated': update_result['updated'],
+                'not_found': update_result['not_found'],
+                'errors': update_result.get('errors', [])
+            },
+            'summary': {
+                'total_updated': update_result['updated'],
+                'total_not_found': len(update_result['not_found']),
+                'total_errors': len(update_result.get('errors', []))
+            }
+        }
+        
+        print(f"Payout import completed: {update_result['updated']} bookings updated", flush=True)
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"Error in Payout import: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/str/summary', methods=['GET'])
 def str_summary():
     """Get STR performance summary"""
