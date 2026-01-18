@@ -47,6 +47,8 @@ const STRProcessor: React.FC = () => {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [showImportPopup, setShowImportPopup] = useState<boolean>(false);
+  const [payoutFile, setPayoutFile] = useState<File | null>(null);
+  const [payoutResult, setPayoutResult] = useState<any>(null);
 
   useEffect(() => {
     const now = new Date();
@@ -234,6 +236,53 @@ const STRProcessor: React.FC = () => {
     }
   };
 
+  const handlePayoutFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate filename pattern
+      if (!file.name.toLowerCase().startsWith('payout_from') || !file.name.toLowerCase().endsWith('.csv')) {
+        setError('Invalid file format. Expected: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv');
+        return;
+      }
+      setPayoutFile(file);
+      setError('');
+    }
+  };
+
+  const uploadPayoutCSV = async () => {
+    if (!payoutFile) return;
+    
+    setLoading(true);
+    setError('');
+    setPayoutResult(null);
+    
+    try {
+      console.log('Uploading Payout CSV to backend...');
+      const formData = new FormData();
+      formData.append('file', payoutFile);
+      
+      const response = await fetch('http://localhost:5000/api/str/import-payout', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setPayoutResult(data);
+        setMessage(`✅ Payout import successful! Updated ${data.summary.total_updated} bookings. ${data.summary.total_not_found > 0 ? `⚠️ ${data.summary.total_not_found} reservations not found in database.` : ''}`);
+        setPayoutFile(null);
+      } else {
+        setError(data.error || 'Failed to import Payout CSV');
+      }
+    } catch (err) {
+      setError('Failed to upload Payout CSV file');
+      console.error('Payout upload error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Box p={4} bg="gray.800" minH="100vh">
       <VStack spacing={6} align="stretch">
@@ -363,6 +412,151 @@ const STRProcessor: React.FC = () => {
                 ))}
               </Grid>
             )}
+          </CardBody>
+        </Card>
+
+        <Card bg="gray.700">
+          <CardHeader>
+            <Heading size="md" color="white">📊 Booking.com Payout Import</Heading>
+            <Text color="gray.400" fontSize="sm" mt={1}>
+              Upload monthly Payout CSV to update bookings with actual financial figures
+            </Text>
+          </CardHeader>
+          <CardBody>
+            <VStack spacing={4} align="stretch">
+              <Alert status="info" bg="blue.900" borderRadius="md">
+                <AlertIcon />
+                <Box color="white" fontSize="sm">
+                  <Text fontWeight="bold">Import Order:</Text>
+                  <Text>1. First import Excel files (above) to create initial bookings</Text>
+                  <Text>2. Then upload Payout CSV (here) to overwrite with actual figures</Text>
+                  <Text mt={2} fontSize="xs" color="gray.300">
+                    Payout files are available monthly after month closure from Booking.com
+                  </Text>
+                </Box>
+              </Alert>
+
+              <FormControl>
+                <FormLabel color="gray.300">Select Payout CSV File</FormLabel>
+                <HStack>
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={handlePayoutFileUpload}
+                    bg="gray.600"
+                    color="white"
+                    size="md"
+                  />
+                  <Button
+                    colorScheme="purple"
+                    onClick={uploadPayoutCSV}
+                    isDisabled={!payoutFile || loading}
+                    isLoading={loading}
+                    loadingText="Importing..."
+                    minW="150px"
+                  >
+                    Import Payout
+                  </Button>
+                </HStack>
+                {payoutFile && (
+                  <Text color="green.300" fontSize="sm" mt={2}>
+                    ✓ Selected: {payoutFile.name}
+                  </Text>
+                )}
+              </FormControl>
+
+              {payoutResult && (
+                <Card bg="gray.600" borderColor="purple.500" borderWidth="2px">
+                  <CardHeader>
+                    <Heading size="sm" color="white">Import Results</Heading>
+                  </CardHeader>
+                  <CardBody>
+                    <Grid templateColumns="repeat(3, 1fr)" gap={4} mb={4}>
+                      <GridItem>
+                        <Text color="gray.300" fontSize="sm">Total Rows</Text>
+                        <Text color="white" fontSize="xl" fontWeight="bold">
+                          {payoutResult.processing.total_rows}
+                        </Text>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="gray.300" fontSize="sm">Reservations</Text>
+                        <Text color="white" fontSize="xl" fontWeight="bold">
+                          {payoutResult.processing.reservation_rows}
+                        </Text>
+                      </GridItem>
+                      <GridItem>
+                        <Text color="gray.300" fontSize="sm">Updates Prepared</Text>
+                        <Text color="white" fontSize="xl" fontWeight="bold">
+                          {payoutResult.processing.updates_prepared}
+                        </Text>
+                      </GridItem>
+                    </Grid>
+
+                    <Grid templateColumns="repeat(3, 1fr)" gap={4}>
+                      <GridItem>
+                        <Badge colorScheme="green" fontSize="md" p={2}>
+                          ✓ Updated: {payoutResult.summary.total_updated}
+                        </Badge>
+                      </GridItem>
+                      <GridItem>
+                        <Badge colorScheme="orange" fontSize="md" p={2}>
+                          ⚠ Not Found: {payoutResult.summary.total_not_found}
+                        </Badge>
+                      </GridItem>
+                      <GridItem>
+                        <Badge colorScheme="red" fontSize="md" p={2}>
+                          ✗ Errors: {payoutResult.summary.total_errors}
+                        </Badge>
+                      </GridItem>
+                    </Grid>
+
+                    {payoutResult.database.not_found && payoutResult.database.not_found.length > 0 && (
+                      <Box mt={4}>
+                        <Text color="gray.300" fontSize="sm" fontWeight="bold" mb={2}>
+                          Reservations Not Found in Database:
+                        </Text>
+                        <Box 
+                          bg="gray.700" 
+                          p={3} 
+                          borderRadius="md" 
+                          maxH="150px" 
+                          overflowY="auto"
+                        >
+                          {payoutResult.database.not_found.slice(0, 10).map((code: string, idx: number) => (
+                            <Text key={idx} color="orange.300" fontSize="xs">
+                              • {code}
+                            </Text>
+                          ))}
+                          {payoutResult.database.not_found.length > 10 && (
+                            <Text color="gray.400" fontSize="xs" mt={2}>
+                              ... and {payoutResult.database.not_found.length - 10} more
+                            </Text>
+                          )}
+                        </Box>
+                        <Text color="gray.400" fontSize="xs" mt={2}>
+                          These reservations may be cancelled bookings, test bookings, or from other properties.
+                        </Text>
+                      </Box>
+                    )}
+
+                    {payoutResult.database.errors && payoutResult.database.errors.length > 0 && (
+                      <Box mt={4}>
+                        <Text color="red.300" fontSize="sm" fontWeight="bold" mb={2}>
+                          Errors:
+                        </Text>
+                        <Box bg="red.900" p={3} borderRadius="md">
+                          {payoutResult.database.errors.map((error: string, idx: number) => (
+                            <Text key={idx} color="red.200" fontSize="xs">
+                              • {error}
+                            </Text>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </CardBody>
+                </Card>
+              )}
+            </VStack>
           </CardBody>
         </Card>
 
