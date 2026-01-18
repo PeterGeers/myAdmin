@@ -153,7 +153,7 @@ class ReportingService:
                     SUM(amountGross) as gross_revenue,
                     SUM(amountNett) as net_revenue,
                     SUM(nights) as total_nights
-                FROM bnbtotal
+                FROM vw_bnb_total
                 WHERE checkinDate BETWEEN %s AND %s
                 GROUP BY channel, listing
                 ORDER BY gross_revenue DESC
@@ -363,7 +363,7 @@ def get_bnb_table():
             cursor.execute(f"""
                 SELECT checkinDate, checkoutDate, channel, listing, nights, guests,
                        amountGross, amountNett, guestName, reservationCode
-                FROM bnbtotal
+                FROM vw_bnb_total
                 WHERE {where_clause}
                 ORDER BY checkinDate DESC
                 LIMIT 1000
