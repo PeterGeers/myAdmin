@@ -1,10 +1,15 @@
-from flask import Blueprint, request, jsonify, render_template_string
+from flask import Blueprint, request, jsonify, render_template_string, render_template
 from database import DatabaseManager
 import re
 from datetime import datetime, timedelta
 import os
 
 str_invoice_bp = Blueprint('str_invoice', __name__)
+
+@str_invoice_bp.route('/test', methods=['GET'])
+def test_page():
+    """Diagnostic test page for STR Invoice API"""
+    return render_template('str_test.html')
 
 @str_invoice_bp.route('/search-booking', methods=['GET'])
 def search_booking():
@@ -14,20 +19,34 @@ def search_booking():
         if not query:
             return jsonify({'success': False, 'error': 'Search query required'}), 400
         
+        # Get limit parameter (default 20, use 0 or 'all' for no limit)
+        limit_param = request.args.get('limit', '20')
+        limit = 0 if limit_param in ['0', 'all'] else int(limit_param)
+        
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
         
         # Search by guest name or reservation code using regex-like matching
-        search_query = """
-        SELECT * FROM bnbtotal 
-        WHERE guestName LIKE %s OR reservationCode LIKE %s
-        ORDER BY checkinDate DESC
-        LIMIT 20
-        """
+        if limit > 0:
+            search_query = """
+            SELECT * FROM vw_bnb_total 
+            WHERE guestName LIKE %s OR reservationCode LIKE %s
+            ORDER BY checkinDate DESC
+            LIMIT %s
+            """
+            search_pattern = f"%{query}%"
+            cursor.execute(search_query, [search_pattern, search_pattern, limit])
+        else:
+            # No limit - return all results
+            search_query = """
+            SELECT * FROM vw_bnb_total 
+            WHERE guestName LIKE %s OR reservationCode LIKE %s
+            ORDER BY checkinDate DESC
+            """
+            search_pattern = f"%{query}%"
+            cursor.execute(search_query, [search_pattern, search_pattern])
         
-        search_pattern = f"%{query}%"
-        cursor.execute(search_query, [search_pattern, search_pattern])
         results = cursor.fetchall()
         
         cursor.close()
@@ -59,7 +78,7 @@ def generate_invoice():
         SELECT amountGross, checkinDate, checkoutDate, guestName, channel, 
                listing, nights, guests, reservationCode, amountTouristTax,
                amountChannelFee, amountNett, amountVat
-        FROM bnbtotal 
+        FROM vw_bnb_total 
         WHERE reservationCode = %s
         LIMIT 1
         """
@@ -133,6 +152,11 @@ def calculate_invoice_details(booking):
         'nights': nights,
         'guests': guests,
         'amountGross': amount_gross,
+        'amountTouristTax': tourist_tax,
+        'amountChannelFee': float(booking.get('amountChannelFee', 0)),
+        'amountNett': net_amount,
+        'amountVat': vat_amount,
+        # Keep legacy field names for template compatibility
         'net_amount': net_amount,
         'tourist_tax': tourist_tax,
         'vat_amount': vat_amount,

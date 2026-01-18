@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>STR Invoice API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            background-color: #f4f4f4;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        input {
+            padding: 8px;
+            width: 300px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>STR Invoice API Diagnostic Tool</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Search by Guest Name</h2>
+        <input type="text" id="guestName" placeholder="Enter guest name (e.g., Davies)" value="Davies">
+        <button onclick="testSearch('guestName')">Search</button>
+        <div id="result1" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Search by Reservation Code</h2>
+        <input type="text" id="reservationCode" placeholder="Enter reservation code" value="1089888747">
+        <button onclick="testSearch('reservationCode')">Search</button>
+        <div id="result2" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Database Check</h2>
+        <button onclick="checkDatabase()">Check Database</button>
+        <div id="result3" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Frontend Simulation</h2>
+        <p>This simulates exactly what the frontend does:</p>
+        <input type="text" id="frontendQuery" placeholder="Enter search query" value="Davies">
+        <button onclick="simulateFrontend()">Simulate Frontend Search</button>
+        <div id="result4" class="result"></div>
+    </div>
+
+    <script>
+        async function testSearch(inputId) {
+            const query = document.getElementById(inputId).value;
+            const resultDiv = document.getElementById('result' + (inputId === 'guestName' ? '1' : '2'));
+            
+            resultDiv.innerHTML = 'Searching...';
+            
+            try {
+                const url = `/api/str-invoice/search-booking?query=${encodeURIComponent(query)}`;
+                console.log('Calling:', url);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                let html = `<span class="success">✓ API Call Successful</span>\n\n`;
+                html += `Status: ${response.status}\n`;
+                html += `Success: ${data.success}\n`;
+                html += `Bookings Found: ${data.bookings ? data.bookings.length : 0}\n\n`;
+                
+                if (data.bookings && data.bookings.length > 0) {
+                    html += 'Sample Results:\n';
+                    data.bookings.slice(0, 3).forEach(booking => {
+                        html += `\n- ${booking.reservationCode}: ${booking.guestName}`;
+                        html += `\n  Check-in: ${booking.checkinDate}, Nights: ${booking.nights}`;
+                        html += `\n  Amount: €${booking.amountGross}\n`;
+                    });
+                }
+                
+                html += '\n\nFull Response:\n' + JSON.stringify(data, null, 2);
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ Error</span>\n\n${error.message}`;
+            }
+        }
+
+        async function checkDatabase() {
+            const resultDiv = document.getElementById('result3');
+            resultDiv.innerHTML = 'Checking database...';
+            
+            try {
+                // Try to get some data
+                const response = await fetch('/api/str-invoice/search-booking?query=a');
+                const data = await response.json();
+                
+                let html = `<span class="success">✓ Database Connection OK</span>\n\n`;
+                html += `Total bookings found with 'a': ${data.bookings ? data.bookings.length : 0}\n`;
+                html += `API Response: ${data.success ? 'Success' : 'Failed'}\n`;
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ Database Error</span>\n\n${error.message}`;
+            }
+        }
+
+        async function simulateFrontend() {
+            const query = document.getElementById('frontendQuery').value;
+            const resultDiv = document.getElementById('result4');
+            
+            resultDiv.innerHTML = 'Simulating frontend call...';
+            
+            try {
+                // Exact same code as frontend
+                const response = await fetch(`/api/str-invoice/search-booking?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                let html = '';
+                
+                if (data.success) {
+                    html += `<span class="success">✓ Frontend Simulation Successful</span>\n\n`;
+                    html += `Bookings: ${data.bookings.length}\n\n`;
+                    
+                    if (data.bookings.length === 0) {
+                        html += 'No bookings found (would show toast notification)\n';
+                    } else {
+                        html += 'Would display table with:\n';
+                        data.bookings.forEach((booking, i) => {
+                            html += `\nRow ${i + 1}:\n`;
+                            html += `  Reservation: ${booking.reservationCode}\n`;
+                            html += `  Guest: ${booking.guestName}\n`;
+                            html += `  Channel: ${booking.channel}\n`;
+                            html += `  Check-in: ${booking.checkinDate}\n`;
+                            html += `  Amount: €${booking.amountGross}\n`;
+                        });
+                    }
+                } else {
+                    html += `<span class="error">✗ API returned error</span>\n\n`;
+                    html += `Error: ${data.error}\n`;
+                }
+                
+                html += '\n\nRaw Response:\n' + JSON.stringify(data, null, 2);
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">✗ Frontend Simulation Error</span>\n\n${error.message}`;
+            }
+        }
+
+        // Auto-run first test on load
+        window.onload = function() {
+            console.log('STR Invoice API Test Page Loaded');
+            console.log('Backend URL:', window.location.origin);
+        };
+    </script>
+</body>
+</html>

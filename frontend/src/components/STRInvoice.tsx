@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   VStack,
@@ -39,6 +39,7 @@ interface Booking {
 
 const STRInvoice: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [searchResults, setSearchResults] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [language, setLanguage] = useState('nl');
@@ -49,31 +50,29 @@ const STRInvoice: React.FC = () => {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const searchBookings = async () => {
-    if (!searchQuery.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a guest name or reservation code',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
+  // Load all bookings on component mount
+  useEffect(() => {
+    loadAllBookings();
+  }, []);
 
+  const loadAllBookings = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/str-invoice/search-booking?query=${encodeURIComponent(searchQuery)}`);
+      // Use "2" to match most bookings (appears in dates, codes, etc.) with limit=all
+      const response = await fetch('/api/str-invoice/search-booking?query=2&limit=all');
       const data = await response.json();
 
       if (data.success) {
-        setSearchResults(data.bookings);
-        if (data.bookings.length === 0) {
+        setAllBookings(data.bookings || []);
+        setSearchResults(data.bookings || []);
+        console.log(`Loaded ${data.bookings?.length || 0} bookings`);
+        
+        if (data.bookings && data.bookings.length > 0) {
           toast({
-            title: 'No Results',
-            description: 'No bookings found matching your search',
-            status: 'info',
-            duration: 3000,
+            title: 'Bookings Loaded',
+            description: `${data.bookings.length} bookings loaded successfully`,
+            status: 'success',
+            duration: 2000,
             isClosable: true,
           });
         }
@@ -81,15 +80,48 @@ const STRInvoice: React.FC = () => {
         throw new Error(data.error);
       }
     } catch (error) {
+      console.error('Loading error:', error);
       toast({
-        title: 'Search Error',
-        description: error instanceof Error ? error.message : 'Failed to search bookings',
+        title: 'Loading Error',
+        description: error instanceof Error ? error.message : 'Failed to load bookings',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
+      // Set empty arrays to prevent undefined errors
+      setAllBookings([]);
+      setSearchResults([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const searchBookings = () => {
+    if (!searchQuery.trim()) {
+      // If search is empty, show all bookings
+      setSearchResults(allBookings);
+      return;
+    }
+
+    // Filter locally from all bookings
+    const query = searchQuery.toLowerCase();
+    const filtered = allBookings.filter(booking => 
+      booking.guestName?.toLowerCase().includes(query) ||
+      booking.reservationCode?.toLowerCase().includes(query) ||
+      booking.channel?.toLowerCase().includes(query) ||
+      booking.listing?.toLowerCase().includes(query)
+    );
+
+    setSearchResults(filtered);
+
+    if (filtered.length === 0) {
+      toast({
+        title: 'No Results',
+        description: 'No bookings found matching your search',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
@@ -155,21 +187,36 @@ const STRInvoice: React.FC = () => {
       <VStack spacing={6} align="stretch">
         <Text fontSize="2xl" fontWeight="bold">STR Invoice Generator</Text>
         
-        <Alert status="warning" bg="orange.500" color="white">
+        <Alert status="info" bg="blue.500" color="white">
           <AlertIcon />
-          Search for bookings by guest name or reservation code to generate invoices
+          {loading ? 'Loading bookings...' : `${allBookings.length} bookings loaded. Use search to filter results.`}
         </Alert>
 
         {/* Search Section */}
         <Box borderWidth={1} borderRadius="md" p={4}>
           <VStack spacing={4} align="stretch">
-            <Text fontSize="lg" fontWeight="semibold">Search Bookings</Text>
+            <Text fontSize="lg" fontWeight="semibold">Filter Bookings</Text>
             
             <HStack>
               <Input
-                placeholder="Enter guest name or reservation code"
+                placeholder="Filter by guest name, reservation code, channel, or listing"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  // Auto-filter as user types
+                  if (e.target.value.trim()) {
+                    const query = e.target.value.toLowerCase();
+                    const filtered = allBookings.filter(booking => 
+                      booking.guestName?.toLowerCase().includes(query) ||
+                      booking.reservationCode?.toLowerCase().includes(query) ||
+                      booking.channel?.toLowerCase().includes(query) ||
+                      booking.listing?.toLowerCase().includes(query)
+                    );
+                    setSearchResults(filtered);
+                  } else {
+                    setSearchResults(allBookings);
+                  }
+                }}
                 onKeyPress={(e) => e.key === 'Enter' && searchBookings()}
               />
               <Select value={language} onChange={(e) => setLanguage(e.target.value)} width="150px">
@@ -180,19 +227,36 @@ const STRInvoice: React.FC = () => {
                 colorScheme="blue" 
                 onClick={searchBookings}
                 isLoading={loading}
-                loadingText="Searching..."
+                loadingText="Filtering..."
               >
-                Search
+                Filter
+              </Button>
+              <Button 
+                colorScheme="gray" 
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults(allBookings);
+                }}
+                isDisabled={loading}
+              >
+                Clear
               </Button>
             </HStack>
           </VStack>
         </Box>
 
-        {/* Search Results */}
-        {searchResults.length > 0 && (
+        {/* Loading State */}
+        {loading && (
+          <Box borderWidth={1} borderRadius="md" p={8} textAlign="center">
+            <Text fontSize="lg" color="gray.600">Loading bookings...</Text>
+          </Box>
+        )}
+
+        {/* Bookings Table - Show when data is loaded */}
+        {!loading && allBookings.length > 0 && (
           <Box borderWidth={1} borderRadius="md" p={4}>
             <Text fontSize="lg" fontWeight="semibold" mb={4}>
-              Search Results ({searchResults.length} found)
+              {searchQuery ? `Filtered Results (${searchResults.length} of ${allBookings.length})` : `All Bookings (${searchResults.length})`}
             </Text>
             
             <Table size="sm">
@@ -236,6 +300,28 @@ const STRInvoice: React.FC = () => {
                 ))}
               </Tbody>
             </Table>
+          </Box>
+        )}
+
+        {/* No Data Message */}
+        {!loading && allBookings.length === 0 && (
+          <Box borderWidth={1} borderRadius="md" p={8} textAlign="center">
+            <Text fontSize="lg" color="gray.600">No bookings found in database</Text>
+          </Box>
+        )}
+
+        {/* No Results After Filter */}
+        {!loading && allBookings.length > 0 && searchResults.length === 0 && searchQuery && (
+          <Box borderWidth={1} borderRadius="md" p={8} textAlign="center">
+            <Text fontSize="lg" color="gray.600">
+              No bookings match your filter "{searchQuery}"
+            </Text>
+            <Button mt={4} onClick={() => {
+              setSearchQuery('');
+              setSearchResults(allBookings);
+            }}>
+              Clear Filter
+            </Button>
           </Box>
         )}
 

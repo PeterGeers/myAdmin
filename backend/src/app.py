@@ -1385,53 +1385,9 @@ def str_upload():
 
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/str/scan-files', methods=['GET'])
-def str_scan_files():
-    """Scan download folder for STR files"""
 
-    str_processor = STRProcessor(test_mode=flag)
-    folder_path = request.args.get('folder', str_processor.download_folder)
-    
-    try:
-        files = str_processor.scan_str_files(folder_path)
-        return jsonify({
-            'success': True,
-            'files': files,
-            'folder': folder_path
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/str/process-files', methods=['POST'])
-def str_process_files():
-    """Process selected STR files"""
-
-    data = request.get_json()
-    platform = data.get('platform')
-    file_paths = data.get('files', [])
-    
-    str_processor = STRProcessor(test_mode=flag)
-    
-    try:
-        bookings = str_processor.process_str_files(file_paths, platform)
-        
-        if not bookings:
-            return jsonify({'success': False, 'error': 'No bookings found in files'}), 400
-        
-        # Separate by status like R script
-        separated = str_processor.separate_by_status(bookings)
-        summary = str_processor.generate_summary(bookings)
-        
-        return jsonify({
-            'success': True,
-            'realised': separated['realised'],
-            'planned': separated['planned'],
-            'summary': summary,
-            'platform': platform
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+# Removed /api/str/scan-files and /api/str/process-files endpoints
+# Using single file upload via /api/str/upload instead
 
 @app.route('/api/str/save', methods=['POST'])
 def str_save():
