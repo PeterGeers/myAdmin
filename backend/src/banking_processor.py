@@ -419,6 +419,214 @@ class BankingProcessor:
             'has_gaps': len(sequence_issues) > 0
         }
     
+    def check_revolut_balance_gaps(self, iban='NL08REVO7549383472', account_code='1022', 
+                                   start_date='2025-05-01', expected_final_balance=262.54):
+        """
+        Check for gaps in Revolut balance by comparing calculated running balance 
+        against the balance shown in Ref3 field.
+        
+        For Revolut transactions:
+        - Ref2 format: [description]_[balance]_[datetime]
+        - Ref3 contains: the balance from the bank statement
+        
+        Args:
+            iban: Revolut IBAN (default: NL08REVO7549383472)
+            account_code: Account code (default: 1022)
+            start_date: Start date for analysis (default: 2025-05-01)
+            expected_final_balance: Expected final balance from Revolut (default: 262.54)
+        
+        Returns:
+            Dictionary with balance analysis including gaps and discrepancies
+        """
+        conn = self.db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
+            # Get all transactions for the IBAN from start_date onwards (including start_date)
+            # Only records from 2025-05-01 onwards have the proper Ref2 format
+            cursor.execute("""
+                SELECT 
+                    ID,
+                    TransactionDate,
+                    TransactionDescription,
+                    TransactionAmount,
+                    Debet,
+                    Credit,
+                    Ref1,
+                    Ref2,
+                    Ref3,
+                    Administration
+                FROM mutaties 
+                WHERE Ref1 = %s 
+                AND TransactionDate >= %s
+            """, (iban, start_date))
+            
+            transactions = cursor.fetchall()
+            
+            if not transactions:
+                return {
+                    'success': False,
+                    'message': f'No transactions found for IBAN {iban} since {start_date}'
+                }
+            
+            # Parse Ref2 to extract datetime and sort by it
+            # Ref2 format: [description]_[balance]_[datetime]
+            from datetime import datetime
+            
+            for tx in transactions:
+                ref2_parts = (tx['Ref2'] or '').split('_')
+                if len(ref2_parts) >= 3:
+                    # Extract datetime from Ref2 (third part)
+                    datetime_str = ref2_parts[2]
+                    tx['ref2_datetime_str'] = datetime_str
+                    # Convert to datetime object for proper sorting
+                    try:
+                        tx['ref2_datetime_obj'] = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+                    except ValueError:
+                        # Fallback to TransactionDate if parsing fails
+                        tx['ref2_datetime_obj'] = datetime.strptime(str(tx['TransactionDate']), '%Y-%m-%d')
+                        tx['ref2_datetime_str'] = str(tx['TransactionDate'])
+                else:
+                    # Fallback to TransactionDate if Ref2 doesn't have datetime
+                    tx['ref2_datetime_str'] = str(tx['TransactionDate'])
+                    tx['ref2_datetime_obj'] = datetime.strptime(str(tx['TransactionDate']), '%Y-%m-%d')
+            
+            # Sort by ID (database insertion order) - this is the correct sequence!
+            # NOT by datetime, as transactions may be imported out of chronological order
+            transactions.sort(key=lambda x: x['ID'])
+            
+            print(f"Total transactions after sorting by ID: {len(transactions)}", flush=True)
+            if transactions:
+                print(f"First transaction ID: {transactions[0]['ID']}", flush=True)
+                print(f"First transaction: {transactions[0]['TransactionDescription']}", flush=True)
+                print(f"First Ref3: {transactions[0]['Ref3']}", flush=True)
+                print(f"Last transaction ID: {transactions[-1]['ID']}", flush=True)
+            
+            # Calculate running balance and compare with Ref3
+            # For the FIRST transaction: use Ref3 directly as the balance
+            # For subsequent transactions: calculate from previous balance
+            balance_gaps = []
+            transaction_details = []
+            
+            calculated_balance = 0.0
+            starting_balance_info = {}
+            
+            for i, tx in enumerate(transactions):
+                # Calculate balance change for THIS transaction
+                amount = float(tx['TransactionAmount'] or 0)
+                
+                # IMPORTANT: Debet/Credit logic for bank accounts
+                # When YOUR account (1022) is in DEBET: money came IN (you received money) -> ADD
+                # When YOUR account (1022) is in CREDIT: money went OUT (you paid) -> SUBTRACT
+                if tx['Debet'] == account_code:
+                    balance_change = amount
+                    direction = 'IN'
+                elif tx['Credit'] == account_code:
+                    balance_change = -amount
+                    direction = 'OUT'
+                else:
+                    balance_change = 0
+                    direction = 'SKIP'
+                
+                # For the FIRST transaction, just use Ref3 as the calculated balance
+                if i == 0 and tx['Ref3']:
+                    try:
+                        ref3_balance = float(tx['Ref3'])
+                        calculated_balance = ref3_balance
+                        starting_balance_info = {
+                            'first_ref3': ref3_balance,
+                            'first_balance_change': balance_change,
+                            'calculated_balance': calculated_balance,
+                            'note': 'First transaction uses Ref3 directly'
+                        }
+                        print(f"First transaction: using Ref3 directly as balance: {calculated_balance}", flush=True)
+                    except (ValueError, TypeError):
+                        calculated_balance = 0.0
+                        starting_balance_info = {'error': 'Could not parse first Ref3'}
+                else:
+                    # For subsequent transactions, apply the balance change
+                    calculated_balance += balance_change
+                
+                # Parse Ref3 balance (if available)
+                ref3_balance = None
+                if tx['Ref3']:
+                    try:
+                        ref3_balance = float(tx['Ref3'])
+                    except (ValueError, TypeError):
+                        ref3_balance = None
+                
+                # Calculate discrepancy
+                discrepancy = None
+                if ref3_balance is not None:
+                    discrepancy = round(ref3_balance - calculated_balance, 2)
+                
+                # Record transaction details
+                tx_detail = {
+                    'id': tx['ID'],
+                    'transaction_date': str(tx['TransactionDate']),
+                    'ref2_datetime': tx['ref2_datetime_str'],
+                    'description': tx['TransactionDescription'],
+                    'amount': amount,
+                    'debet': tx['Debet'],
+                    'credit': tx['Credit'],
+                    'direction': direction,
+                    'balance_change': round(balance_change, 2),
+                    'calculated_balance': round(calculated_balance, 2),
+                    'ref3_balance': ref3_balance,
+                    'discrepancy': discrepancy,
+                    'ref2': tx['Ref2']
+                }
+                transaction_details.append(tx_detail)
+                
+                # Detect gaps (discrepancy > 0.01 euros)
+                if discrepancy is not None and abs(discrepancy) > 0.01:
+                    balance_gaps.append({
+                        'transaction_id': tx['ID'],
+                        'transaction_date': str(tx['TransactionDate']),
+                        'ref2_datetime': tx['ref2_datetime_str'],
+                        'description': tx['TransactionDescription'],
+                        'calculated_balance': round(calculated_balance, 2),
+                        'ref3_balance': ref3_balance,
+                        'discrepancy': discrepancy,
+                        'ref2': tx['Ref2']
+                    })
+            
+            # Final balance comparison
+            final_calculated = round(calculated_balance, 2)
+            final_discrepancy = round(expected_final_balance - final_calculated, 2)
+            
+            cursor.close()
+            conn.close()
+            
+            return {
+                'success': True,
+                'iban': iban,
+                'account_code': account_code,
+                'start_date': start_date,
+                'starting_balance_debug': starting_balance_info,
+                'total_transactions': len(transactions),
+                'calculated_final_balance': final_calculated,
+                'expected_final_balance': expected_final_balance,
+                'final_discrepancy': final_discrepancy,
+                'balance_gaps_found': len(balance_gaps),
+                'balance_gaps': balance_gaps,
+                'first_10_transactions': transaction_details[:10],  # Show first 10 for debugging
+                'transactions_with_gaps': [tx for tx in transaction_details if tx.get('discrepancy') is not None and abs(tx['discrepancy']) > 0.01],
+                'summary': {
+                    'has_discrepancy': abs(final_discrepancy) > 0.01,
+                    'missing_amount': final_discrepancy if final_discrepancy > 0 else 0,
+                    'extra_amount': abs(final_discrepancy) if final_discrepancy < 0 else 0
+                }
+            }
+            
+        except Exception as e:
+            cursor.close()
+            conn.close()
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
     def analyze_patterns_for_administration(self, administration='GoodwinSolutions',
                                           reference_number=None, debet_account=None, 
                                           credit_account=None):

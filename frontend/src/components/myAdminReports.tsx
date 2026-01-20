@@ -26,11 +26,14 @@ import {
     Tr,
     VStack
 } from '@chakra-ui/react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildApiUrl } from '../config';
 import UnifiedAdminYearFilter from './UnifiedAdminYearFilter';
 import { createAangifteIbFilterAdapter, createActualsFilterAdapter, createBnbActualsFilterAdapter, createBnbViolinFilterAdapter, createBtwFilterAdapter, createRefAnalysisFilterAdapter } from './UnifiedAdminYearFilterAdapters';
+
+// Lazy load Plotly only when needed (reduces initial bundle size by ~3MB)
+const Plot = React.lazy(() => import('react-plotly.js'));
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -757,21 +760,25 @@ const MyAdminReports: React.FC = () => {
     setBnbData(sortedData);
   };
 
-  const filteredMutatiesData = mutatiesData.filter(row => {
-    return Object.entries(searchFilters).every(([key, value]) => {
-      if (!value) return true;
-      const fieldValue = row[key as keyof MutatiesRecord]?.toString().toLowerCase() || '';
-      return fieldValue.includes(value.toLowerCase());
+  const filteredMutatiesData = React.useMemo(() => {
+    return mutatiesData.filter(row => {
+      return Object.entries(searchFilters).every(([key, value]) => {
+        if (!value) return true;
+        const fieldValue = row[key as keyof MutatiesRecord]?.toString().toLowerCase() || '';
+        return fieldValue.includes(value.toLowerCase());
+      });
     });
-  });
+  }, [mutatiesData, searchFilters]);
 
-  const filteredBnbData = bnbData.filter(row => {
-    return Object.entries(bnbSearchFilters).every(([key, value]) => {
-      if (!value) return true;
-      const fieldValue = row[key as keyof BnbRecord]?.toString().toLowerCase() || '';
-      return fieldValue.includes(value.toLowerCase());
+  const filteredBnbData = React.useMemo(() => {
+    return bnbData.filter(row => {
+      return Object.entries(bnbSearchFilters).every(([key, value]) => {
+        if (!value) return true;
+        const fieldValue = row[key as keyof BnbRecord]?.toString().toLowerCase() || '';
+        return fieldValue.includes(value.toLowerCase());
+      });
     });
-  });
+  }, [bnbData, bnbSearchFilters]);
 
   const fetchMutatiesData = async () => {
     setLoading(true);
@@ -1357,7 +1364,7 @@ const MyAdminReports: React.FC = () => {
   const exportMutatiesCsv = React.useCallback(() => {
     const csvContent = [
       ['Date', 'Reference', 'Description', 'Amount', 'Debet', 'Credit', 'Administration'],
-      ...mutatiesData.map(row => [
+      ...filteredMutatiesData.map(row => [
         row.TransactionDate,
         row.ReferenceNumber,
         row.TransactionDescription,
@@ -1366,20 +1373,21 @@ const MyAdminReports: React.FC = () => {
         row.AccountName,
         row.Administration
       ])
-    ].map(row => row.join(',')).join('\\n');
+    ].map(row => row.join(',')).join('\n');
     
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `mutaties-${mutatiesFilters.dateFrom}-${mutatiesFilters.dateTo}.csv`;
     a.click();
-  }, [mutatiesData, mutatiesFilters.dateFrom, mutatiesFilters.dateTo]);
+    URL.revokeObjectURL(url);
+  }, [filteredMutatiesData, mutatiesFilters.dateFrom, mutatiesFilters.dateTo]);
 
   const exportBnbCsv = React.useCallback(() => {
     const csvContent = [
       ['Check-in Date', 'Check-out Date', 'Channel', 'Listing', 'Nights', 'Guests', 'Gross Amount', 'Net Amount', 'Guest Name', 'Reservation Code'],
-      ...bnbData.map(row => [
+      ...filteredBnbData.map(row => [
         row.checkinDate,
         row.checkoutDate,
         row.channel,
@@ -1391,20 +1399,21 @@ const MyAdminReports: React.FC = () => {
         row.guestName,
         row.reservationCode
       ])
-    ].map(row => row.join(',')).join('\\n');
+    ].map(row => row.join(',')).join('\n');
     
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `bnb-${bnbFilters.dateFrom}-${bnbFilters.dateTo}.csv`;
     a.click();
-  }, [bnbData, bnbFilters.dateFrom, bnbFilters.dateTo]);
+    URL.revokeObjectURL(url);
+  }, [filteredBnbData, bnbFilters.dateFrom, bnbFilters.dateTo]);
 
-  // Violin Chart Component
+  // Violin Chart Component using Plotly
   const ViolinChart: React.FC<{ data: any[], metric: string, groupBy: string }> = ({ data, metric, groupBy }) => {
-    const processedData = React.useMemo(() => {
-      if (!data.length) return [];
+    const { plotData, statsData } = React.useMemo(() => {
+      if (!data.length) return { plotData: [], statsData: [] };
       
       // Group data by the specified field (listing or channel)
       const grouped = data.reduce((acc, item) => {
@@ -1414,51 +1423,71 @@ const MyAdminReports: React.FC = () => {
         return acc;
       }, {} as any);
       
-      // Calculate statistics and distribution for each group
-      return Object.entries(grouped).map(([name, values]: [string, any]) => {
-        const sortedValues = values.sort((a: number, b: number) => a - b);
-        const len = sortedValues.length;
+      // Sort groups alphabetically
+      const sortedGroups = Object.keys(grouped).sort();
+      
+      // Create Plotly violin traces
+      const plotData = sortedGroups.map(name => ({
+        type: 'violin',
+        y: grouped[name],
+        name: name,
+        box: {
+          visible: true,
+          fillcolor: 'rgba(49, 130, 206, 0.5)',
+          line: {
+            color: 'rgb(49, 130, 206)',
+            width: 2
+          }
+        },
+        meanline: {
+          visible: true,
+          color: 'rgb(245, 101, 0)',
+          width: 2
+        },
+        line: {
+          color: 'rgb(49, 130, 206)',
+          width: 2
+        },
+        fillcolor: 'rgba(49, 130, 206, 0.3)',
+        opacity: 0.6,
+        points: false,
+        hoveron: 'violins+points',
+        hovertemplate: '<b>%{fullData.name}</b><br>' +
+                       'Value: %{y}<br>' +
+                       '<extra></extra>'
+      } as any));
+      
+      // Calculate statistics for the table
+      const statsData = sortedGroups.map(name => {
+        const values = grouped[name].sort((a: number, b: number) => a - b);
+        const len = values.length;
         
-        const min = sortedValues[0];
-        const max = sortedValues[len - 1];
+        const min = values[0];
+        const max = values[len - 1];
         const median = len % 2 === 0 
-          ? (sortedValues[len / 2 - 1] + sortedValues[len / 2]) / 2
-          : sortedValues[Math.floor(len / 2)];
-        const q1 = sortedValues[Math.floor(len * 0.25)];
-        const q3 = sortedValues[Math.floor(len * 0.75)];
+          ? (values[len / 2 - 1] + values[len / 2]) / 2
+          : values[Math.floor(len / 2)];
+        const q1 = values[Math.floor(len * 0.25)];
+        const q3 = values[Math.floor(len * 0.75)];
         const mean = values.reduce((sum: number, val: number) => sum + val, 0) / len;
-        
-        // Create histogram bins for violin shape
-        const binCount = Math.min(10, Math.max(5, Math.floor(len / 5)));
-        const binSize = (max - min) / binCount;
-        const bins = Array(binCount).fill(0);
-        
-        values.forEach((value: number) => {
-          const binIndex = Math.min(binCount - 1, Math.floor((value - min) / binSize));
-          bins[binIndex]++;
-        });
-        
-        const maxBinCount = Math.max(...bins);
-        const normalizedBins = bins.map(count => count / maxBinCount);
         
         return {
           name,
+          count: len,
           min,
           q1,
           median,
+          mean,
           q3,
           max,
-          mean,
-          count: len,
-          values: sortedValues,
-          bins: normalizedBins,
-          binSize,
           range: max - min
         };
-      }).sort((a, b) => a.name.localeCompare(b.name));
+      });
+      
+      return { plotData, statsData };
     }, [data, groupBy]);
     
-    if (!processedData.length) {
+    if (!plotData.length) {
       return (
         <Box p={4} textAlign="center">
           <Text color="white">No data available for violin chart</Text>
@@ -1467,62 +1496,48 @@ const MyAdminReports: React.FC = () => {
     }
     
     const metricLabel = metric === 'pricePerNight' ? 'Price per Night (€)' : 'Nights per Stay';
+    const isPriceMetric = metric === 'pricePerNight';
     
     return (
       <VStack spacing={4}>
-        {/* Box Plot Chart */}
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart
-            data={processedData.map((item, index) => ({ ...item, index }))}
-            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="name" 
-              angle={-45} 
-              textAnchor="end" 
-              height={80} 
-              fontSize={10} 
-              tick={{fill: 'white'}} 
-            />
-            <YAxis 
-              tick={{fill: 'white'}} 
-              label={{ value: metricLabel, angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: 'white' } }}
-            />
-            <Tooltip 
-              content={({ active, payload, label }) => {
-                if (active && payload && payload.length) {
-                  const item = processedData.find(d => d.name === label);
-                  if (!item) return null;
-                  
-                  return (
-                    <div style={{ backgroundColor: 'white', padding: '10px', border: '1px solid #ccc', borderRadius: '5px' }}>
-                      <div><strong>{item.name}</strong></div>
-                      <div>Count: {item.count}</div>
-                      <div>Min: {metric === 'pricePerNight' ? `€${item.min.toFixed(2)}` : item.min}</div>
-                      <div>Q1: {metric === 'pricePerNight' ? `€${item.q1.toFixed(2)}` : item.q1}</div>
-                      <div>Median: {metric === 'pricePerNight' ? `€${item.median.toFixed(2)}` : item.median}</div>
-                      <div>Mean: {metric === 'pricePerNight' ? `€${item.mean.toFixed(2)}` : item.mean.toFixed(1)}</div>
-                      <div>Q3: {metric === 'pricePerNight' ? `€${item.q3.toFixed(2)}` : item.q3}</div>
-                      <div>Max: {metric === 'pricePerNight' ? `€${item.max.toFixed(2)}` : item.max}</div>
-                    </div>
-                  );
-                }
-                return null;
+        {/* Plotly Violin Chart */}
+        <Box w="100%" bg="white" borderRadius="md" p={2}>
+          <Suspense fallback={
+            <Box p={8} textAlign="center">
+              <Progress size="xs" isIndeterminate colorScheme="orange" mb={2} />
+              <Text color="gray.600" fontSize="sm">Loading violin chart...</Text>
+            </Box>
+          }>
+            <Plot
+              data={plotData as any}
+              layout={{
+                title: metricLabel + ' Distribution',
+                yaxis: {
+                  title: { text: metricLabel },
+                  zeroline: false,
+                  gridcolor: '#e2e8f0'
+                },
+                xaxis: {
+                  title: { text: groupBy === 'listing' ? 'Listing' : 'Channel' },
+                  gridcolor: '#e2e8f0'
+                },
+                paper_bgcolor: 'white',
+                plot_bgcolor: 'white',
+                showlegend: false,
+                hovermode: 'closest',
+                margin: { l: 60, r: 30, t: 50, b: 100 },
+                height: 500
+              } as any}
+              config={{
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
               }}
+              style={{ width: '100%', height: '500px' }}
             />
-            {/* Whiskers - from min to Q1 and Q3 to max */}
-            <Bar dataKey="min" fill="transparent" stroke="white" strokeWidth="2" strokeDasharray="3,3" />
-            <Bar dataKey="max" fill="transparent" stroke="white" strokeWidth="2" strokeDasharray="3,3" />
-            {/* IQR Box - Q1 to Q3 */}
-            <Bar dataKey="q1" fill="#3182ce" fillOpacity="0.3" />
-            <Bar dataKey="q3" fill="#3182ce" fillOpacity="0.6" />
-            {/* Median line */}
-            <Bar dataKey="median" fill="#2d3748" />
-            {/* Mean marker */}
-            <Bar dataKey="mean" fill="#f56500" />
-          </BarChart>
-        </ResponsiveContainer>
+          </Suspense>
+        </Box>
         
         {/* Statistics Summary Table */}
         <Card bg="gray.600" w="100%">
@@ -1543,30 +1558,30 @@ const MyAdminReports: React.FC = () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {processedData.map((item, index) => (
+                  {statsData.map((item, index) => (
                     <Tr key={index}>
                       <Td color="white" fontSize="sm">{item.name}</Td>
                       <Td color="white" fontSize="sm" isNumeric>{item.count}</Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        {metric === 'pricePerNight' ? `€${item.min.toFixed(2)}` : item.min}
+                        {isPriceMetric ? `€${item.min.toFixed(2)}` : item.min}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        {metric === 'pricePerNight' ? `€${item.q1.toFixed(2)}` : item.q1}
+                        {isPriceMetric ? `€${item.q1.toFixed(2)}` : item.q1}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        {metric === 'pricePerNight' ? `€${item.median.toFixed(2)}` : item.median}
+                        {isPriceMetric ? `€${item.median.toFixed(2)}` : item.median}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        {metric === 'pricePerNight' ? `€${item.mean.toFixed(2)}` : item.mean.toFixed(1)}
+                        {isPriceMetric ? `€${item.mean.toFixed(2)}` : item.mean.toFixed(1)}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        {metric === 'pricePerNight' ? `€${item.q3.toFixed(2)}` : item.q3}
+                        {isPriceMetric ? `€${item.q3.toFixed(2)}` : item.q3}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        {metric === 'pricePerNight' ? `€${item.max.toFixed(2)}` : item.max}
+                        {isPriceMetric ? `€${item.max.toFixed(2)}` : item.max}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        {metric === 'pricePerNight' ? `€${item.range.toFixed(2)}` : item.range.toFixed(1)}
+                        {isPriceMetric ? `€${item.range.toFixed(2)}` : item.range.toFixed(1)}
                       </Td>
                     </Tr>
                   ))}
@@ -3258,10 +3273,13 @@ const MyAdminReports: React.FC = () => {
                           4. Click "Generate Violin Charts" to view the distribution analysis
                         </Text>
                         <Text color="gray.400" fontSize="xs">
-                          Violin charts show the distribution of values with box plot statistics (min, Q1, median, mean, Q3, max).
+                          Violin charts show the full distribution of values with kernel density estimation.
                         </Text>
                         <Text color="gray.400" fontSize="xs">
-                          Blue bars represent quartiles, orange bars show the mean, and tooltips display detailed statistics.
+                          The width of each violin represents the density of data at that value. Box plots inside show quartiles (Q1, median, Q3), and the orange line shows the mean.
+                        </Text>
+                        <Text color="gray.400" fontSize="xs">
+                          Interactive features: hover for details, zoom, pan, and download as image.
                         </Text>
                       </VStack>
                     </CardBody>

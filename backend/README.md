@@ -1,0 +1,217 @@
+# MyAdmin Backend
+
+Clean, organized backend structure for the myAdmin application.
+
+## Folder Structure
+
+```
+backend/
+├── src/                          # Main application code
+│   ├── app.py                    # Flask application
+│   ├── aws_notifications.py      # AWS SNS notifications
+│   └── ...                       # Other modules
+│
+├── tests/                        # All test files (69 tests)
+│   ├── unit/                     # Unit tests
+│   ├── api/                      # API endpoint tests
+│   ├── database/                 # Database & query tests
+│   ├── patterns/                 # Pattern analysis tests
+│   ├── integration/              # Integration tests
+│   └── conftest.py               # Pytest configuration
+│
+├── scripts/                      # Utility scripts (33 scripts)
+│   ├── analysis/                 # Analysis & debugging scripts
+│   ├── database/                 # Database migrations & fixes
+│   └── data/                     # Data analysis & validation
+│
+├── docs/                         # Documentation
+│   ├── guides/                   # Setup & user guides
+│   └── summaries/                # Investigation summaries
+│
+├── powershell/                   # PowerShell scripts
+│   ├── start_backend.ps1         # Start the backend server
+│   ├── run_tests.ps1             # Run test suite
+│   └── ...
+│
+├── sql/                          # SQL scripts
+│
+├── data/                         # Data files
+│   ├── credentials.json          # Google API credentials
+│   ├── token.json                # OAuth tokens
+│   └── *.json                    # Debug/analysis data
+│
+├── cache/                        # Application cache
+├── logs/                         # Application logs
+├── uploads/                      # Uploaded files
+├── storage/                      # File storage
+├── static/                       # Static assets
+├── templates/                    # HTML templates
+│
+├── .env                          # Environment variables
+├── requirements.txt              # Python dependencies
+├── pytest.ini                    # Pytest configuration
+└── Dockerfile                    # Docker configuration
+```
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment
+
+Copy `.env.example` to `.env` and configure:
+
+```env
+DB_HOST=localhost
+DB_USER=peter
+DB_PASSWORD=your_password
+DB_NAME=finance
+SNS_TOPIC_ARN=your_sns_topic_arn
+AWS_REGION=eu-west-1
+```
+
+### 3. Start Backend
+
+```powershell
+.\powershell\start_backend.ps1
+```
+
+Or manually:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python src/app.py
+```
+
+### 4. Run Tests
+
+```powershell
+.\powershell\run_tests.ps1
+```
+
+Or specific test categories:
+
+```powershell
+pytest tests/api/           # API tests only
+pytest tests/database/      # Database tests only
+pytest tests/patterns/      # Pattern tests only
+pytest tests/integration/   # Integration tests only
+```
+
+## Development
+
+### Running Scripts
+
+**Database scripts:**
+
+```powershell
+python scripts/database/fix_database_views.py
+```
+
+**Data analysis:**
+
+```powershell
+python scripts/data/analyze_pattern_storage_needs.py
+```
+
+### Testing
+
+**Run all tests:**
+
+```powershell
+pytest
+```
+
+**Run specific test:**
+
+```powershell
+pytest tests/api/test_sns_notification.py
+```
+
+**Run with coverage:**
+
+```powershell
+pytest --cov=src tests/
+```
+
+## Documentation
+
+- **Setup Guides**: `docs/guides/`
+- **Investigation Summaries**: `docs/summaries/`
+- **API Documentation**: Available at `/api/docs` when server is running
+
+## Key Features
+
+- **Banking Processor**: Upload and process bank statements
+- **STR Processor**: Generate STR reports
+- **Invoice Management**: Track and manage invoices
+- **Pattern Analysis**: Automatic transaction categorization
+- **AWS Notifications**: Email alerts via AWS SNS
+- **Google Drive Integration**: Backup invoices to Google Drive
+
+## Tech Stack
+
+- **Framework**: Flask 2.3.3
+- **Database**: MySQL/MariaDB
+- **Cloud**: AWS SNS
+- **Storage**: Google Drive API
+- **Testing**: pytest
+- **Server**: Waitress (production)
+
+## Environment Variables
+
+| Variable             | Description        | Example           |
+| -------------------- | ------------------ | ----------------- |
+| `DB_HOST`            | Database host      | `localhost`       |
+| `DB_USER`            | Database user      | `peter`           |
+| `DB_PASSWORD`        | Database password  | `your_password`   |
+| `DB_NAME`            | Database name      | `finance`         |
+| `SNS_TOPIC_ARN`      | AWS SNS topic ARN  | `arn:aws:sns:...` |
+| `AWS_REGION`         | AWS region         | `eu-west-1`       |
+| `OPENROUTER_API_KEY` | OpenRouter API key | `sk-or-v1-...`    |
+
+## Troubleshooting
+
+### Database Connection Issues
+
+Check your `.env` file and ensure MySQL is running:
+
+```powershell
+mysql -u peter -p
+```
+
+### Import Errors
+
+Make sure you're in the virtual environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+### AWS Notifications Not Working
+
+Test the notification service:
+
+```powershell
+python tests/api/test_sns_notification.py
+```
+
+Check `docs/guides/AWS_SNS_SETUP_COMPLETE.md` for setup instructions.
+
+## Contributing
+
+1. Create a feature branch
+2. Make your changes
+3. Run tests: `pytest`
+4. Submit a pull request
+
+## License
+
+Private project - All rights reserved

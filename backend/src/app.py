@@ -518,14 +518,15 @@ def cache_refresh():
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
         
-        # Force refresh
-        cache.refresh_cache(db)
+        # Force refresh by invalidating and then getting data
+        cache.invalidate()
+        cache.get_data(db)  # This will trigger a refresh
         
         return jsonify({
             'success': True,
             'message': 'Cache refreshed successfully',
             'record_count': len(cache.data),
-            'last_refresh': cache.last_refresh.isoformat()
+            'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None
         })
     except Exception as e:
         return jsonify({
@@ -1301,6 +1302,84 @@ def banking_check_sequence():
         
     except Exception as e:
         print(f"Check sequence error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/check-revolut-balance', methods=['GET'])
+def banking_check_revolut_balance():
+    """Check Revolut balance gaps by comparing calculated vs Ref3 balance"""
+    try:
+        processor = BankingProcessor(test_mode=flag)
+        iban = request.args.get('iban', 'NL08REVO7549383472')
+        account_code = request.args.get('account_code', '1022')
+        start_date = request.args.get('start_date', '2025-05-01')
+        expected_balance = float(request.args.get('expected_balance', '262.54'))
+        
+        result = processor.check_revolut_balance_gaps(
+            iban=iban,
+            account_code=account_code,
+            start_date=start_date,
+            expected_final_balance=expected_balance
+        )
+        
+        # Return only transactions with gaps (non-zero discrepancies)
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'iban': result.get('iban'),
+                'account_code': result.get('account_code'),
+                'start_date': result.get('start_date'),
+                'total_transactions': result.get('total_transactions'),
+                'calculated_final_balance': result.get('calculated_final_balance'),
+                'expected_final_balance': result.get('expected_final_balance'),
+                'final_discrepancy': result.get('final_discrepancy'),
+                'balance_gaps_found': result.get('balance_gaps_found'),
+                'transactions_with_gaps': result.get('transactions_with_gaps', []),
+                'summary': result.get('summary')
+            })
+        else:
+            return jsonify(result)
+        
+    except Exception as e:
+        print(f"Check Revolut balance error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/banking/check-revolut-balance-debug', methods=['GET'])
+def banking_check_revolut_balance_debug():
+    """Debug endpoint - returns only first 10 transactions with full details"""
+    try:
+        processor = BankingProcessor(test_mode=flag)
+        iban = request.args.get('iban', 'NL08REVO7549383472')
+        account_code = request.args.get('account_code', '1022')
+        start_date = request.args.get('start_date', '2025-05-01')
+        expected_balance = float(request.args.get('expected_balance', '262.54'))
+        
+        result = processor.check_revolut_balance_gaps(
+            iban=iban,
+            account_code=account_code,
+            start_date=start_date,
+            expected_final_balance=expected_balance
+        )
+        
+        # Return only first 10 transactions for debugging
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'iban': result.get('iban'),
+                'start_date': result.get('start_date'),
+                'starting_balance_debug': result.get('starting_balance_debug'),
+                'first_10_transactions': result.get('first_10_transactions', []),
+                'total_transactions': result.get('total_transactions', 0),
+                'note': 'Debug endpoint - showing first 10 transactions only'
+            })
+        else:
+            return jsonify(result)
+        
+    except Exception as e:
+        print(f"Check Revolut balance debug error: {e}", flush=True)
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500

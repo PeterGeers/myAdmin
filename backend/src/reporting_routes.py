@@ -505,6 +505,9 @@ def get_check_reference():
         # Filter: ReferenceNumber not null and not empty
         df_filtered = df[(df['ReferenceNumber'].notna()) & (df['ReferenceNumber'] != '')].copy()
         
+        # Strip whitespace and normalize case for grouping
+        df_filtered['ReferenceNumber'] = df_filtered['ReferenceNumber'].str.strip()
+        
         # Apply filters
         if administration != 'all':
             df_filtered = df_filtered[df_filtered['Administration'] == administration]
@@ -515,13 +518,21 @@ def get_check_reference():
             df_filtered = df_filtered[df_filtered['Reknum'] == account_num]
         
         if reference_number != 'all':
-            df_filtered = df_filtered[df_filtered['ReferenceNumber'] == reference_number]
+            # Case-insensitive comparison (restored from SQL behavior)
+            df_filtered = df_filtered[df_filtered['ReferenceNumber'].str.lower() == reference_number.lower()]
         
-        # Get reference summary
-        summary_df = df_filtered.groupby('ReferenceNumber', as_index=False).agg({
+        # Create a normalized reference column for case-insensitive grouping
+        df_filtered['ReferenceNumber_normalized'] = df_filtered['ReferenceNumber'].str.lower()
+        
+        # Get reference summary - group by normalized (lowercase) reference
+        summary_df = df_filtered.groupby('ReferenceNumber_normalized', as_index=False).agg({
+            'ReferenceNumber': 'first',  # Keep the first occurrence's original case
             'Amount': ['count', 'sum']
         })
-        summary_df.columns = ['ReferenceNumber', 'transaction_count', 'total_amount']
+        summary_df.columns = ['ReferenceNumber_normalized', 'ReferenceNumber', 'transaction_count', 'total_amount']
+        
+        # Drop the normalized column from output
+        summary_df = summary_df[['ReferenceNumber', 'transaction_count', 'total_amount']]
         
         # Filter out near-zero amounts
         summary_df = summary_df[summary_df['total_amount'].abs() > 0.01]

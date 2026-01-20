@@ -1675,6 +1675,37 @@ const BankingProcessor: React.FC = () => {
                   >
                     Check References
                   </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        setLoading(true);
+                        // IMPORTANT: Always use relative URLs - DO NOT change to localhost
+                        const response = await fetch('/api/cache/refresh', {
+                          method: 'POST'
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                          alert(`Cache refreshed successfully!\n${data.record_count.toLocaleString()} records loaded.`);
+                          // Clear current data to force re-fetch
+                          setRefSummaryData([]);
+                          setSelectedReferenceDetails([]);
+                        } else {
+                          alert(`Cache refresh failed: ${data.error}`);
+                        }
+                      } catch (error) {
+                        alert(`Error refreshing cache: ${error}`);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    isLoading={loading}
+                    colorScheme="blue"
+                    size="sm"
+                    alignSelf="flex-end"
+                    title="Refresh cache after updating records in database"
+                  >
+                    🔄 Refresh Cache
+                  </Button>
                 </HStack>
 
                 {refSummaryData.length > 0 && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   VStack,
@@ -50,12 +50,7 @@ const STRInvoice: React.FC = () => {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  // Load all bookings on component mount
-  useEffect(() => {
-    loadAllBookings();
-  }, []);
-
-  const loadAllBookings = async () => {
+  const loadAllBookings = useCallback(async () => {
     setLoading(true);
     try {
       // Use "2" to match most bookings (appears in dates, codes, etc.) with limit=all
@@ -94,7 +89,12 @@ const STRInvoice: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  // Load all bookings on component mount
+  useEffect(() => {
+    loadAllBookings();
+  }, [loadAllBookings]);
 
   const searchBookings = () => {
     if (!searchQuery.trim()) {
