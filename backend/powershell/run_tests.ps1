@@ -11,64 +11,64 @@ Set-Location $PSScriptRoot
 switch ($TestType.ToLower()) {
     "database" {
         Write-Host "Running Database tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_database.py -v
+        .\venv\Scripts\python.exe -m pytest tests/database/ -v
     }
     "pdf" {
         Write-Host "Running PDF Processor tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_pdf_processor.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_pdf_processor.py -v
     }
     "transaction" {
         Write-Host "Running Transaction Logic tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_transaction_logic.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_transaction_logic.py -v
     }
     "banking" {
         Write-Host "Running Banking Processor tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_banking_processor.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_banking_processor.py -v
     }
     "str" {
         Write-Host "Running STR Processor tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_str_processor.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_str_processor.py -v
     }
     "drive" {
         Write-Host "Running Google Drive tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_google_drive.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_google_drive.py -v
     }
     "xlsx" {
         Write-Host "Running XLSX Export tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_xlsx_export.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_xlsx_export.py -v
     }
     "reporting" {
         Write-Host "Running Reporting Routes tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_reporting_routes.py -v
+        .\venv\Scripts\python.exe -m pytest tests/api/test_reporting_routes.py -v
     }
     "validation" {
         Write-Host "Running PDF Validation tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_pdf_validation.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_pdf_validation.py -v
     }
     "image-ai" {
         Write-Host "Running Image AI Processor tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_image_ai.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_image_ai.py -v
     }
     "alignment" {
         Write-Host "Running API Alignment tests..." -ForegroundColor Green
         Write-Host "(Checks if frontend API calls match backend routes)" -ForegroundColor Gray
-        .\venv\Scripts\python.exe test/test_api_alignment.py
+        .\venv\Scripts\python.exe tests/unit/test_api_alignment.py
     }
     "environment" {
         Write-Host "Running Environment Mode tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_environment.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_environment.py -v
     }
     "infrastructure" {
         Write-Host "Running Test Infrastructure tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_infrastructure.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_infrastructure.py -v
     }
     "str-channel" {
         Write-Host "Running STR Channel Revenue tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/test_str_channel.py -v
+        .\venv\Scripts\python.exe -m pytest tests/unit/test_str_channel.py -v
     }
     "all" {
-        Write-Host "Running all tests..." -ForegroundColor Green
-        .\venv\Scripts\python.exe -m pytest test/ -v
+        Write-Host "Running all tests (parallel mode)..." -ForegroundColor Green
+        .\venv\Scripts\python.exe -m pytest tests/ -v -n 4
     }
     default {
         Write-Host "=== Individual Component Test Runner ===" -ForegroundColor Cyan

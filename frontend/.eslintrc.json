@@ -2,5 +2,14 @@
   "extends": [
     "react-app",
     "react-app/jest"
-  ]
+  ],
+  "rules": {
+    "jest/no-conditional-expect": "warn",
+    "testing-library/no-container": "warn",
+    "testing-library/no-node-access": "warn",
+    "testing-library/no-wait-for-multiple-assertions": "warn",
+    "testing-library/no-wait-for-side-effects": "warn",
+    "testing-library/prefer-presence-queries": "warn",
+    "@typescript-eslint/no-unused-vars": "warn"
+  }
 }

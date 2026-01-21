@@ -362,7 +362,8 @@ def get_bnb_table():
         with service.get_cursor() as cursor:
             cursor.execute(f"""
                 SELECT checkinDate, checkoutDate, channel, listing, nights, guests,
-                       amountGross, amountNett, guestName, reservationCode
+                       amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
+                       guestName, reservationCode
                 FROM vw_bnb_total
                 WHERE {where_clause}
                 ORDER BY checkinDate DESC

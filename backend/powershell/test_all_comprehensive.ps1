@@ -35,7 +35,7 @@ foreach ($Suite in $TestSuites) {
     Write-Host "  $($Suite.Description)" -ForegroundColor Gray
     
     $StartTime = Get-Date
-    $TestResult = & .\venv\Scripts\python.exe -m pytest "test/$($Suite.File)" -v --tb=short 2>&1
+    $TestResult = & .\venv\Scripts\python.exe -m pytest "tests/$($Suite.File)" -v --tb=short 2>&1
     $EndTime = Get-Date
     $Duration = ($EndTime - $StartTime).TotalSeconds
     

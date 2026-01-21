@@ -32,6 +32,14 @@ h-dcn
 *.sqlite3
 mysql_data/
 
+# Database backups (NEVER commit these!)
+*.sql
+!backend/sql/*.sql
+**/backups/**/*.sql
+backup*.sql
+*-backup-*.sql
+dump*.sql
+
 # Node modules
 node_modules/
 npm-debug.log*
