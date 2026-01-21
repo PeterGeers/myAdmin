@@ -10,37 +10,24 @@ This document tracks all major organizational changes to the myAdmin project str
 
 ### 1. Backend Folder Restructure (January 20, 2026)
 
-**Problem:** Backend root had 80+ files scattered without clear organization.
-
-**Solution:** Organized into logical folders:
-
-- `src/` - Application code
-- `tests/` - All tests (consolidated from duplicate folders)
-- `scripts/` - Utility scripts (analysis, database, data)
-- `docs/` - Documentation
-- `powershell/` - PowerShell scripts
-- `sql/` - SQL scripts
-- `data/` - Data files
-
-**Result:** Backend root reduced from 80 files to 4 files (96% reduction)
-
-**Details:** See `RESTRUCTURE_SUMMARY.md`
-
-### 2. Test Folder Consolidation (January 20, 2026)
-
-**Problem:** Duplicate test folders (`backend/test/` and `backend/tests/`)
+**Problem:** Backend root had 80+ files scattered without clear organization, duplicate test folders, and scripts in multiple locations.
 
 **Solution:**
 
-- Consolidated all tests into `backend/tests/`
-- Organized by type (unit, api, database, patterns, integration)
-- Removed duplicate folder
+- Organized backend into logical folders (src, tests, scripts, docs, etc.)
+- Consolidated duplicate test folders (`backend/test/` → `backend/tests/`)
+- Moved scattered scripts to proper locations
+- Organized 69 tests by type (unit, api, database, patterns, integration)
 
-**Result:** Single test location with 69 tests properly organized
+**Result:**
 
-**Details:** See `CONSOLIDATION_COMPLETE.md` and `CONSOLIDATION_PLAN.md`
+- Backend root reduced from 80 files to 4 files (96% reduction)
+- Single test location with proper organization
+- All scripts in logical locations
 
-### 3. CICD Folder Organization (January 21, 2026)
+**Details:** See `backend-restructure/BACKEND_RESTRUCTURE_COMPLETE.md`
+
+### 2. CICD Folder Organization (January 21, 2026)
 
 **Problem:** CICD folder had 15 files mixed together (scripts, docs, cleanup tools)
 
@@ -55,7 +42,7 @@ This document tracks all major organizational changes to the myAdmin project str
 
 **Location:** `scripts/CICD/`
 
-### 4. Root Folder Cleanup (January 21, 2026)
+### 3. Root Folder Cleanup (January 21, 2026)
 
 **Problem:** Root folder had various obsolete and misplaced files
 
@@ -100,10 +87,9 @@ myAdmin/
 ├── .kiro/
 │   ├── specs/                        # Project documentation & history
 │   │   ├── PROJECT_ORGANIZATION_SUMMARY.md (this file)
-│   │   ├── CONSOLIDATION_COMPLETE.md
-│   │   ├── CONSOLIDATION_PLAN.md
-│   │   ├── RESTRUCTURE_SUMMARY.md
-│   │   └── AWS_NOTIFICATIONS_SUMMARY.md
+│   │   ├── backend-restructure/      # Backend restructure documentation
+│   │   ├── SNS Notifications/        # AWS SNS setup documentation
+│   │   └── ... (other feature specs)
 │   └── prompts/
 │
 ├── backend/                          # Backend application
@@ -309,10 +295,8 @@ myAdmin/
 
 ## Related Documents
 
-- `CONSOLIDATION_COMPLETE.md` - Test folder consolidation details
-- `CONSOLIDATION_PLAN.md` - Original consolidation plan
-- `RESTRUCTURE_SUMMARY.md` - Backend restructure details
-- `AWS_NOTIFICATIONS_SUMMARY.md` - AWS notifications setup
+- `backend-restructure/BACKEND_RESTRUCTURE_COMPLETE.md` - Complete backend restructure documentation
+- `SNS Notifications/AWS_NOTIFICATIONS_SUMMARY.md` - AWS notifications setup
 - `scripts/CICD/docs/SECURITY_SUMMARY.md` - Security best practices
 
 ---
