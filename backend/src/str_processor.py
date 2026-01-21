@@ -3,6 +3,7 @@ import re
 from datetime import datetime, date
 from typing import Dict, List, Optional
 import os
+from country_detector import detect_country
 
 class STRProcessor:
     def __init__(self, test_mode: bool = False):
@@ -352,6 +353,9 @@ class STRProcessor:
                 # Additional info - concatenate all CSV fields with |
                 add_info = '|'.join(str(row.get(col, '')) for col in df.columns)
                 
+                # Detect country from phone number (AirBNB)
+                country = detect_country('airbnb', phone=phone, addinfo=add_info)
+                
                 # Source file info
                 source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
                 
@@ -378,7 +382,8 @@ class STRProcessor:
                     'year': year,
                     'q': quarter,
                     'm': month,
-                    'daysBeforeReservation': days_before_reservation
+                    'daysBeforeReservation': days_before_reservation,
+                    'country': country  # NEW: Country detection
                 }
                 transactions.append(transaction)
             
@@ -526,6 +531,9 @@ class STRProcessor:
                 # Additional info - concatenate all Excel fields with |
                 add_info = '|'.join(str(row.get(col, '')) for col in df.columns)
                 
+                # Detect country from addInfo (Booking.com)
+                country = detect_country('booking.com', phone='', addinfo=add_info)
+                
                 # Source file info
                 source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
                 
@@ -552,7 +560,8 @@ class STRProcessor:
                     'year': year,
                     'q': quarter,
                     'm': month,
-                    'daysBeforeReservation': days_before_reservation
+                    'daysBeforeReservation': days_before_reservation,
+                    'country': country  # NEW: Country detection
                 }
                 transactions.append(transaction)
             
@@ -666,6 +675,9 @@ class STRProcessor:
                 filename = os.path.basename(file_path)
                 add_info = f"{filename} | {guest_name} | {record_type} | {trade_type} | {details} | {booking_id} | {currency} | {gross_amount} | {channel_fee} | {cleaning_fee}"
                 
+                # Detect country (direct bookings don't have phone or country data)
+                country = detect_country(channel, phone='', addinfo=add_info)
+                
                 # Source file info
                 source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
                 
@@ -692,7 +704,8 @@ class STRProcessor:
                     'year': year,
                     'q': quarter,
                     'm': month,
-                    'daysBeforeReservation': days_before_reservation
+                    'daysBeforeReservation': days_before_reservation,
+                    'country': country  # NEW: Country detection
                 }
                 transactions.append(transaction)
             

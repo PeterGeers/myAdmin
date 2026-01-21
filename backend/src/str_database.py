@@ -31,8 +31,8 @@ class STRDatabase(DatabaseManager):
         (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
          amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
          guestName, phone, reservationCode, reservationDate, status, pricePerNight,
-         daysBeforeReservation, addInfo, year, q, m)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         daysBeforeReservation, addInfo, year, q, m, country)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         try:
@@ -66,7 +66,8 @@ class STRDatabase(DatabaseManager):
                     booking.get('addInfo', ''),
                     booking.get('year', 0),
                     booking.get('q', 0),
-                    booking.get('m', 0)
+                    booking.get('m', 0),
+                    booking.get('country', None)  # NEW: Country field
                 )
                 
                 cursor.execute(insert_query, values)
@@ -100,8 +101,8 @@ class STRDatabase(DatabaseManager):
             (sourceFile, channel, listing, checkinDate, checkoutDate, nights, guests,
              amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
              guestName, phone, reservationCode, reservationDate, status, pricePerNight,
-             daysBeforeReservation, addInfo, year, q, m)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             daysBeforeReservation, addInfo, year, q, m, country)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
             inserted = 0
@@ -129,7 +130,8 @@ class STRDatabase(DatabaseManager):
                     booking.get('addInfo', ''),
                     booking.get('year', 0),
                     booking.get('q', 0),
-                    booking.get('m', 0)
+                    booking.get('m', 0),
+                    booking.get('country', None)  # NEW: Country field
                 )
                 
                 cursor.execute(insert_query, values)

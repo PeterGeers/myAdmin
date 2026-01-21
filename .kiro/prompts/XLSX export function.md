@@ -8,7 +8,7 @@ make_ledgers() - Calculates starting balance and adds transactions for specific 
 
 export_files() - Creates folder structure for reference numbers
 
-write_workbook() - Writes data to Excel using template.xlsx
+write_workbook() - Writes data to Excel using backend\templates\xlsx\template.xlsx
 
 API endpoint /api/reports/aangifte-ib-xlsx-export
 

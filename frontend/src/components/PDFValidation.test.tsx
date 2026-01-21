@@ -265,7 +265,10 @@ describe('PDFValidation', () => {
       const validateButton = screen.getByRole('button', { name: /validate pdf urls/i });
       await user.click(validateButton);
       
-      expect(screen.getByText('Validating URLs...')).toBeInTheDocument();
+      // Wait for the loading state to appear
+      await waitFor(() => {
+        expect(screen.getByText(/Validating URLs/i)).toBeInTheDocument();
+      });
       expect(screen.getAllByRole('progressbar')[0]).toBeInTheDocument();
     });
 
