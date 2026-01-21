@@ -19,28 +19,51 @@ SQL backups contain:
 
 ## Proper Backup Locations
 
-### Option 1: External Backup Server (Recommended)
+### Option 1: OneDrive (Current Setup) ✅
+
+```powershell
+# Windows with OneDrive - CURRENT LOCATION
+C:\Users\peter\OneDrive\MariaDB\finance
+```
+
+**Pros:**
+
+- ✅ Automatic cloud backup
+- ✅ Version history available (OneDrive keeps previous versions)
+- ✅ Protected against hardware failure
+- ✅ Easy access from anywhere
+- ✅ Already configured and working
+- ✅ Completely separate from Git repository
+
+**Cons:**
+
+- OneDrive storage limits (check available space)
+- Requires OneDrive subscription
+
+**Current Status:** This is your active backup location - keep using it!
+
+### Option 2: External Backup Server
 
 ```bash
 # Automated daily backups to remote server
 mysqldump -u user -p database | ssh backup-server "cat > /backups/mysql-$(date +%Y%m%d).sql"
 ```
 
-### Option 2: AWS S3 with Encryption
+### Option 3: AWS S3 with Encryption
 
 ```bash
 # Backup to S3 with server-side encryption
 mysqldump -u user -p database | gzip | aws s3 cp - s3://my-backups/mysql-$(date +%Y%m%d).sql.gz --sse AES256
 ```
 
-### Option 3: Local Encrypted Drive
+### Option 4: Local Encrypted Drive (Alternative)
 
 ```bash
 # Backup to local encrypted volume (NOT in Git repo)
 mysqldump -u user -p database > /mnt/encrypted-backup/mysql-$(date +%Y%m%d).sql
 ```
 
-### Option 4: Network Attached Storage (NAS)
+### Option 5: Network Attached Storage (NAS)
 
 ```bash
 # Backup to NAS with automatic versioning
@@ -49,62 +72,86 @@ mysqldump -u user -p database > /mnt/nas/backups/mysql-$(date +%Y%m%d).sql
 
 ## Backup Script Location
 
-**Current**: `scripts/CICD/backups/` ❌ (In Git repo - WRONG!)  
-**Correct**: `/var/backups/mysql/` or similar (Outside Git repo)
+**Previous (WRONG)**: `scripts/CICD/backups/` ❌ (In Git repo)  
+**Current (CORRECT)**: `C:\Users\peter\OneDrive\MariaDB\finance` ✅ (OneDrive - safe!)
 
 ## Recommended Backup Structure
 
+For your OneDrive location:
+
 ```
-/var/backups/mysql/
-├── daily/
-│   ├── mysql-20260120.sql.gz
-│   ├── mysql-20260119.sql.gz
+C:\Users\peter\OneDrive\MariaDB\finance\
+├── daily\
+│   ├── mysql-20260120.sql
+│   ├── mysql-20260119.sql
 │   └── ... (keep 7 days)
-├── weekly/
-│   ├── mysql-week-03.sql.gz
+├── weekly\
+│   ├── mysql-week-03.sql
 │   └── ... (keep 4 weeks)
-└── monthly/
-    ├── mysql-2026-01.sql.gz
+└── monthly\
+    ├── mysql-2026-01.sql
     └── ... (keep 12 months)
 ```
 
-## Automated Backup Script
+**Note:** OneDrive automatically provides version history, so you have additional protection even if you overwrite files.
 
-Create: `/usr/local/bin/mysql-backup.sh`
+## Automated Backup Script (Windows/PowerShell)
 
-```bash
-#!/bin/bash
-# MySQL Backup Script - Run daily via cron
+Create: `scripts/backup-mysql.ps1` (NOT in CICD folder)
 
-BACKUP_DIR="/var/backups/mysql/daily"
-DATE=$(date +%Y%m%d)
-DB_NAME="finance"
-DB_USER="backup_user"
-DB_PASS="secure_password"
+```powershell
+# MySQL Backup Script for Windows - Run daily via Task Scheduler
+
+$BackupDir = "C:\Users\peter\OneDrive\MariaDB\finance\daily"
+$Date = Get-Date -Format "yyyyMMdd"
+$DbName = "finance"
+$DbUser = "root"
+$DbPassword = "your_password"  # Consider using secure credential storage
+
+# Ensure backup directory exists
+if (-not (Test-Path $BackupDir)) {
+    New-Item -ItemType Directory -Path $BackupDir -Force
+}
 
 # Create backup
-mysqldump -u $DB_USER -p$DB_PASS $DB_NAME | gzip > "$BACKUP_DIR/mysql-$DATE.sql.gz"
+$BackupFile = "$BackupDir\mysql-$Date.sql"
+& mysqldump -u $DbUser -p$DbPassword $DbName > $BackupFile
 
-# Keep only last 7 days
-find $BACKUP_DIR -name "mysql-*.sql.gz" -mtime +7 -delete
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "✓ Backup created: $BackupFile" -ForegroundColor Green
 
-# Optional: Upload to S3
-# aws s3 cp "$BACKUP_DIR/mysql-$DATE.sql.gz" s3://my-backups/
+    # Optional: Compress the backup
+    # Compress-Archive -Path $BackupFile -DestinationPath "$BackupFile.zip"
+    # Remove-Item $BackupFile
+
+    # Keep only last 7 days (OneDrive version history provides additional protection)
+    Get-ChildItem $BackupDir -Filter "mysql-*.sql" |
+        Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } |
+        Remove-Item -Force
+
+    Write-Host "✓ Old backups cleaned up" -ForegroundColor Green
+} else {
+    Write-Host "✗ Backup failed!" -ForegroundColor Red
+    exit 1
+}
 ```
 
-## Cron Schedule
+## Windows Task Scheduler Setup
 
-Add to crontab:
+Create automated daily backups:
 
-```bash
-# Daily backup at 2 AM
-0 2 * * * /usr/local/bin/mysql-backup.sh
+```powershell
+# Create scheduled task for daily backup at 2 AM
+$Action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
+    -Argument "-ExecutionPolicy Bypass -File C:\Users\peter\aws\myAdmin\scripts\backup-mysql.ps1"
 
-# Weekly backup on Sunday at 3 AM
-0 3 * * 0 /usr/local/bin/mysql-backup-weekly.sh
+$Trigger = New-ScheduledTaskTrigger -Daily -At 2:00AM
 
-# Monthly backup on 1st at 4 AM
-0 4 1 * * /usr/local/bin/mysql-backup-monthly.sh
+$Settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable
+
+Register-ScheduledTask -TaskName "MySQL Daily Backup" `
+    -Action $Action -Trigger $Trigger -Settings $Settings `
+    -Description "Daily backup of MySQL finance database to OneDrive"
 ```
 
 ## Backup Verification
