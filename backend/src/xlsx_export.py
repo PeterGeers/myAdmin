@@ -14,7 +14,7 @@ class XLSXExportProcessor:
     def __init__(self, test_mode=False):
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
-        self.template_path = os.path.join(os.path.dirname(__file__), '..', 'OldRScripts', 'template.xlsx')
+        self.template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'xlsx', 'template.xlsx')
         # Check if running in Docker/container environment
         if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
             # Running in container - use mounted volume path
