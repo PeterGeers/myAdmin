@@ -68,7 +68,12 @@ interface BalanceRecord {
   [key: string]: any;
 }
 
-const MyAdminReports: React.FC = () => {
+interface MyAdminReportsProps {
+  defaultTabIndex?: number;
+  hideTabList?: boolean;
+}
+
+const MyAdminReports: React.FC<MyAdminReportsProps> = ({ defaultTabIndex = 0, hideTabList = false }) => {
   const [mutatiesData, setMutatiesData] = useState<MutatiesRecord[]>([]);
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
@@ -1595,23 +1600,25 @@ const MyAdminReports: React.FC = () => {
   };
 
   return (
-    <Box p={6} bg="gray.800" minH="100vh">
+    <Box p={hideTabList ? 0 : 6} bg={hideTabList ? 'transparent' : 'gray.800'} minH={hideTabList ? 'auto' : '100vh'}>
       <VStack spacing={6} align="stretch">
-        <Tabs variant="enclosed" colorScheme="orange">
-          <TabList>
-            <Tab color="white">💰 Mutaties (P&L)</Tab>
-            <Tab color="white">🏠 BNB Revenue</Tab>
-            <Tab color="white">📊 Actuals</Tab>
-            <Tab color="white">🏡 BNB Actuals</Tab>
+        <Tabs variant="enclosed" colorScheme="orange" defaultIndex={defaultTabIndex}>
+          {!hideTabList && (
+            <TabList>
+              <Tab color="white">💰 Mutaties (P&L)</Tab>
+              <Tab color="white">🏠 BNB Revenue</Tab>
+              <Tab color="white">📊 Actuals</Tab>
+              <Tab color="white">🏡 BNB Actuals</Tab>
 
-            <Tab color="white">🧾 BTW aangifte</Tab>
-            <Tab color="white">🏨 Toeristenbelasting</Tab>
-            <Tab color="white">📈 View ReferenceNumber</Tab>
-            <Tab color="white">🎻 BNB Violins</Tab>
-            <Tab color="white">🔄 BNB Terugkerend</Tab>
-            <Tab color="white">📈 BNB Future</Tab>
-            <Tab color="white">📋 Aangifte IB</Tab>
-          </TabList>
+              <Tab color="white">🧾 BTW aangifte</Tab>
+              <Tab color="white">🏨 Toeristenbelasting</Tab>
+              <Tab color="white">📈 View ReferenceNumber</Tab>
+              <Tab color="white">🎻 BNB Violins</Tab>
+              <Tab color="white">🔄 BNB Terugkerend</Tab>
+              <Tab color="white">📈 BNB Future</Tab>
+              <Tab color="white">📋 Aangifte IB</Tab>
+            </TabList>
+          )}
 
           <TabPanels>
             {/* Mutaties Tab */}

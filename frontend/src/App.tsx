@@ -6,7 +6,7 @@ import BankingProcessor from './components/BankingProcessor';
 import STRProcessor from './components/STRProcessor';
 import STRInvoice from './components/STRInvoice';
 import STRPricing from './components/STRPricing';
-import MyAdminReports from './components/myAdminReports';
+import MyAdminReportsNew from './components/MyAdminReportsNew';
 import theme from './theme';
 
 type PageType = 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi';
@@ -131,7 +131,7 @@ function App() {
                 <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
               </HStack>
             </Box>
-            <MyAdminReports />
+            <MyAdminReportsNew />
           </Box>
         );
 
