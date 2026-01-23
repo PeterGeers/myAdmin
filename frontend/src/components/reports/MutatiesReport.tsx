@@ -16,6 +16,7 @@ import {
   VStack
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet } from '../../services/apiService';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -89,7 +90,7 @@ const MutatiesReport: React.FC = () => {
         profitLoss: mutatiesFilters.profitLoss
       });
       
-      const response = await fetch(buildApiUrl('/api/reports/mutaties-table', params));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/mutaties-table', params));
       const data = await response.json();
       
       if (data.success) {

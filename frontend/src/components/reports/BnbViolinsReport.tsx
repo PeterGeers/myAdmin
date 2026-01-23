@@ -33,6 +33,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet } from '../../services/apiService';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createBnbViolinFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 
@@ -296,7 +297,7 @@ const BnbViolinsReport: React.FC = () => {
         metric: bnbViolinFilters.metric
       });
       
-      const response = await fetch(buildApiUrl('/api/bnb/bnb-violin-data', params));
+      const response = await authenticatedGet(buildApiUrl('/api/bnb/bnb-violin-data', params));
       const data = await response.json();
       
       if (data.success) {
@@ -314,7 +315,7 @@ const BnbViolinsReport: React.FC = () => {
    */
   const fetchBnbViolinFilterOptions = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/bnb/bnb-filter-options'));
+      const response = await authenticatedGet(buildApiUrl('/api/bnb/bnb-filter-options'));
       const data = await response.json();
       if (data.success) {
         setBnbViolinFilterOptions({

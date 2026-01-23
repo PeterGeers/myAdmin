@@ -118,21 +118,27 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
   user_pool_id = aws_cognito_user_pool.myadmin.id
 
   # OAuth settings
-  generate_secret                      = true
+  generate_secret                      = false # Public client for browser apps
   allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_flows                  = ["code", "implicit"]
+  allowed_oauth_flows                  = ["code"] # Authorization code flow with PKCE
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
-  
+
   # Callback URLs (update these for your deployment)
   callback_urls = [
+    "http://localhost:3000/",
     "http://localhost:3000/callback",
+    "http://localhost:5000/",
     "http://localhost:5000/callback",
+    "https://your-railway-app.railway.app/",
     "https://your-railway-app.railway.app/callback"
   ]
 
   logout_urls = [
+    "http://localhost:3000/",
     "http://localhost:3000/logout",
+    "http://localhost:5000/",
     "http://localhost:5000/logout",
+    "https://your-railway-app.railway.app/",
     "https://your-railway-app.railway.app/logout"
   ]
 

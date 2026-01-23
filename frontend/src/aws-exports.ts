@@ -25,16 +25,16 @@ const awsconfig = {
           
           // Redirect URLs after successful login
           redirectSignIn: [
-            'http://localhost:3000/',
-            'http://localhost:3000/callback',
-            process.env.REACT_APP_REDIRECT_SIGN_IN || 'http://localhost:3000/'
+            'http://localhost:5000/',
+            'http://localhost:5000/callback',
+            process.env.REACT_APP_REDIRECT_SIGN_IN || 'http://localhost:5000/'
           ],
           
           // Redirect URLs after logout
           redirectSignOut: [
-            'http://localhost:3000/',
-            'http://localhost:3000/login',
-            process.env.REACT_APP_REDIRECT_SIGN_OUT || 'http://localhost:3000/'
+            'http://localhost:5000/',
+            'http://localhost:5000/login',
+            process.env.REACT_APP_REDIRECT_SIGN_OUT || 'http://localhost:5000/'
           ],
           
           // OAuth response type - 'code' for authorization code flow

@@ -30,6 +30,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet } from '../../services/apiService';
 
 interface ReturningGuest {
   guestName: string;
@@ -62,7 +63,7 @@ const BnbReturningGuestsReport: React.FC = () => {
   const fetchReturningGuests = async () => {
     setReturningGuestsLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/bnb/bnb-returning-guests'));
+      const response = await authenticatedGet(buildApiUrl('/api/bnb/bnb-returning-guests'));
       const data = await response.json();
       
       if (data.success) {
@@ -81,7 +82,7 @@ const BnbReturningGuestsReport: React.FC = () => {
   const fetchGuestBookings = async (guestName: string) => {
     try {
       const params = new URLSearchParams({ guestName });
-      const response = await fetch(buildApiUrl('/api/bnb/bnb-guest-bookings', params));
+      const response = await authenticatedGet(buildApiUrl('/api/bnb/bnb-guest-bookings', params));
       const data = await response.json();
       
       if (data.success) {

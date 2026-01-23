@@ -21,6 +21,7 @@ import {
   VStack
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet } from '../../services/apiService';
 
 interface BnbRecord {
   checkinDate: string;
@@ -106,7 +107,7 @@ const BnbRevenueReport: React.FC = () => {
         listing: bnbFilters.listing
       });
       
-      const response = await fetch(buildApiUrl('/api/reports/bnb-table', params));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/bnb-table', params));
       const data = await response.json();
       
       if (data.success) {

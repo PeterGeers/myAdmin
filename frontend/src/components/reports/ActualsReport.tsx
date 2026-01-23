@@ -33,6 +33,7 @@ import {
   YAxis
 } from 'recharts';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet } from '../../services/apiService';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createActualsFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 
@@ -328,14 +329,14 @@ const ActualsReport: React.FC = () => {
       });
       
       // Balance data (VW = N)
-      const balanceResponse = await fetch(buildApiUrl('/api/reports/actuals-balance', params));
+      const balanceResponse = await authenticatedGet(buildApiUrl('/api/reports/actuals-balance', params));
       const balanceResult = await balanceResponse.json();
       if (balanceResult.success) {
         setBalanceData(balanceResult.data);
       }
 
       // Profit/Loss data (VW = Y)
-      const profitLossResponse = await fetch(buildApiUrl('/api/reports/actuals-profitloss', params));
+      const profitLossResponse = await authenticatedGet(buildApiUrl('/api/reports/actuals-profitloss', params));
       const profitLossResult = await profitLossResponse.json();
       if (profitLossResult.success) {
         setProfitLossData(profitLossResult.data);
@@ -349,7 +350,7 @@ const ActualsReport: React.FC = () => {
 
   const fetchAvailableYears = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/reports/available-years'));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/available-years'));
       const data = await response.json();
       if (data.success) {
         setAvailableYears(data.years);

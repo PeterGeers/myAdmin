@@ -19,6 +19,7 @@ import {
   VStack
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createAangifteIbFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 
@@ -67,7 +68,7 @@ const AangifteIbReport: React.FC = () => {
         administration: aangifteIbFilters.administration
       });
       
-      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib', params));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/aangifte-ib', params));
       const data = await response.json();
       
       if (data.success) {
@@ -90,7 +91,7 @@ const AangifteIbReport: React.FC = () => {
         aangifte: aangifte
       });
       
-      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-details', params));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/aangifte-ib-details', params));
       const data = await response.json();
       
       if (data.success) {
@@ -102,20 +103,16 @@ const AangifteIbReport: React.FC = () => {
     }
   };
 
-  const handleExportHtml = () => {
+  const handleExportHtml = async () => {
     const exportData = {
       year: aangifteIbFilters.year,
       administration: aangifteIbFilters.administration,
       data: aangifteIbData
     };
     
-    fetch(buildApiUrl('/api/reports/aangifte-ib-export'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(exportData)
-    })
-    .then(response => response.json())
-    .then(data => {
+    try {
+      const response = await authenticatedPost('/api/reports/aangifte-ib-export', exportData);
+      const data = await response.json();
       if (data.success) {
         const blob = new Blob([data.html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
@@ -125,8 +122,9 @@ const AangifteIbReport: React.FC = () => {
         a.click();
         URL.revokeObjectURL(url);
       }
-    })
-    .catch(err => console.error('Export error:', err));
+    } catch (err) {
+      console.error('Export error:', err);
+    }
   };
 
   const handleGenerateXlsx = async () => {
@@ -135,14 +133,13 @@ const AangifteIbReport: React.FC = () => {
     setXlsxExportProgress(null);
     
     try {
-      const response = await fetch(buildApiUrl('/api/reports/aangifte-ib-xlsx-export-stream'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await authenticatedPost(
+        '/api/reports/aangifte-ib-xlsx-export-stream',
+        {
           administrations: [aangifteIbFilters.administration],
           years: [aangifteIbFilters.year]
-        })
-      });
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

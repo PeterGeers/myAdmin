@@ -14,6 +14,7 @@ import {
   VStack
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createBtwFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 
@@ -30,7 +31,7 @@ const BtwReport: React.FC = () => {
 
   const fetchBtwAvailableYears = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/reports/available-years'));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/available-years'));
       const data = await response.json();
       if (data.success) {
         setBtwAvailableYears(data.years);
@@ -43,11 +44,10 @@ const BtwReport: React.FC = () => {
   const generateBtwReport = async () => {
     setBtwLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/btw/generate-report'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(btwFilters)
-      });
+      const response = await authenticatedPost(
+        '/api/btw/generate-report',
+        btwFilters
+      );
       
       const data = await response.json();
       
@@ -69,25 +69,23 @@ const BtwReport: React.FC = () => {
     
     setBtwLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/btw/save-transaction'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaction: btwTransaction })
-      });
+      const response = await authenticatedPost(
+        '/api/btw/save-transaction',
+        { transaction: btwTransaction }
+      );
       
       const data = await response.json();
       
       if (data.success) {
         const filename = `BTW_${btwFilters.administration}_${btwFilters.year}_Q${btwFilters.quarter}.html`;
         
-        const uploadResponse = await fetch(buildApiUrl('/api/btw/upload-report'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+        const uploadResponse = await authenticatedPost(
+          '/api/btw/upload-report',
+          { 
             html_content: btwReport, 
             filename: filename 
-          })
-        });
+          }
+        );
         
         const uploadData = await uploadResponse.json();
         

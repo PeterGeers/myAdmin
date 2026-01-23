@@ -365,9 +365,8 @@ def test(user_email, user_roles):
     return jsonify({'status': 'Server is working'})
 
 @app.route('/api/status', methods=['GET'])
-@cognito_required(required_permissions=[])
-def get_status(user_email, user_roles):
-    """Get environment status"""
+def get_status():
+    """Get environment status - Public endpoint (no authentication required)"""
     try:
         use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', 'finance')

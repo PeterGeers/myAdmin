@@ -13,6 +13,7 @@ import {
   VStack
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 
 const ToeristenbelastingReport: React.FC = () => {
   const [toeristenbelastingData, setToeristenbelastingData] = useState<any>(null);
@@ -28,11 +29,10 @@ const ToeristenbelastingReport: React.FC = () => {
   const fetchToeristenbelastingData = async () => {
     setToeristenbelastingLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/toeristenbelasting/generate-report'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year: toeristenbelastingFilters.year })
-      });
+      const response = await authenticatedPost(
+        '/api/toeristenbelasting/generate-report',
+        { year: toeristenbelastingFilters.year }
+      );
       
       const data = await response.json();
       
@@ -48,7 +48,7 @@ const ToeristenbelastingReport: React.FC = () => {
 
   const fetchToeristenbelastingAvailableYears = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/toeristenbelasting/available-years'));
+      const response = await authenticatedGet('/api/toeristenbelasting/available-years');
       const data = await response.json();
       
       if (data.success) {
@@ -61,11 +61,10 @@ const ToeristenbelastingReport: React.FC = () => {
 
   const exportToeristenbelastingHTML = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/toeristenbelasting/generate-report'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year: toeristenbelastingFilters.year })
-      });
+      const response = await authenticatedPost(
+        '/api/toeristenbelasting/generate-report',
+        { year: toeristenbelastingFilters.year }
+      );
       
       const data = await response.json();
       

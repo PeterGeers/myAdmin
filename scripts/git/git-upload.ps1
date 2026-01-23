@@ -21,7 +21,8 @@ try {
         Write-Host "Error: Not authenticated with GitHub CLI. Run 'gh auth login' first." -ForegroundColor Red
         exit 1
     }
-} catch {
+}
+catch {
     Write-Host "Error: GitHub CLI authentication failed. Run 'gh auth login' first." -ForegroundColor Red
     exit 1
 }
@@ -52,6 +53,37 @@ foreach ($folder in $subGitFolders) {
 Write-Host "Adding files..." -ForegroundColor Yellow
 git add .
 
+# Run GitGuardian secret scan before committing
+Write-Host "🔍 Scanning for secrets with GitGuardian..." -ForegroundColor Cyan
+$ggshieldInstalled = Get-Command ggshield -ErrorAction SilentlyContinue
+
+if ($ggshieldInstalled) {
+    # Run ggshield scan on staged files
+    ggshield secret scan pre-commit
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "❌ GitGuardian detected secrets in your code!" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Actions required:" -ForegroundColor Yellow
+        Write-Host "1. Review the secrets detected above" -ForegroundColor White
+        Write-Host "2. Remove or replace them with environment variables" -ForegroundColor White
+        Write-Host "3. Run this script again" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Aborting commit to protect your secrets." -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host "✅ No secrets detected - safe to commit" -ForegroundColor Green
+}
+else {
+    Write-Host "⚠️  GitGuardian CLI (ggshield) not installed" -ForegroundColor Yellow
+    Write-Host "   Install with: pip install ggshield" -ForegroundColor Gray
+    Write-Host "   Continuing without secret scan..." -ForegroundColor Gray
+}
+
+Write-Host ""
+
 # Check if there are changes to commit
 $status = git status --porcelain
 if (-not $status) {
@@ -72,7 +104,8 @@ Features:
 - Security fixes (XSS, hardcoded credentials)
 - Lazy loading components
 - AWS S3 deployment ready"
-} else {
+}
+else {
     git commit -m $Message
 }
 
@@ -97,7 +130,8 @@ if ($LASTEXITCODE -ne 0) {
         exit 1
     }
     Write-Host "Successfully uploaded after pull!" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Successfully uploaded to GitHub!" -ForegroundColor Green
 }
 

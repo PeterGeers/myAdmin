@@ -28,6 +28,7 @@ import {
   YAxis
 } from 'recharts';
 import { buildApiUrl } from '../../config';
+import { authenticatedGet } from '../../services/apiService';
 
 interface BnbFutureRecord {
   date: string;
@@ -50,7 +51,7 @@ const BnbFutureReport: React.FC = () => {
   const fetchBnbFutureData = async () => {
     setBnbFutureLoading(true);
     try {
-      const response = await fetch(buildApiUrl('/api/str/future-trend'));
+      const response = await authenticatedGet(buildApiUrl('/api/str/future-trend'));
       const data = await response.json();
       
       if (data.success) {

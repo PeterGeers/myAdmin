@@ -34,3 +34,14 @@ export const buildApiUrl = (endpoint: string, params?: URLSearchParams): string 
   const url = `${API_BASE_URL}${endpoint}`;
   return params ? `${url}?${params.toString()}` : url;
 };
+
+// Re-export authenticated API functions for convenience
+export {
+  authenticatedRequest,
+  authenticatedGet,
+  authenticatedPost,
+  authenticatedPut,
+  authenticatedDelete,
+  authenticatedFormData,
+  buildApiUrl as buildAuthenticatedApiUrl
+} from '../services/apiService';

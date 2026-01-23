@@ -1,0 +1,247 @@
+/**
+ * Authenticated API Service
+ * 
+ * This service provides utilities for making authenticated API calls
+ * with automatic JWT token injection and token refresh handling.
+ */
+
+import { getCurrentAuthTokens } from './authService';
+import { API_BASE_URL } from '../config/api';
+
+/**
+ * Request options for authenticated API calls
+ */
+export interface AuthenticatedRequestOptions extends RequestInit {
+  skipAuth?: boolean; // Skip authentication for public endpoints
+}
+
+/**
+ * Make an authenticated API request with JWT token
+ * 
+ * @param endpoint - API endpoint (e.g., '/api/invoices')
+ * @param options - Fetch options with optional skipAuth flag
+ * @returns Fetch response
+ * @throws Error if authentication fails or request fails
+ */
+export async function authenticatedRequest(
+  endpoint: string,
+  options: AuthenticatedRequestOptions = {}
+): Promise<Response> {
+  const { skipAuth = false, ...fetchOptions } = options;
+
+  // Build full URL
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  // Get authentication tokens if not skipping auth
+  let headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...fetchOptions.headers,
+  };
+
+  if (!skipAuth) {
+    try {
+      const tokens = await getCurrentAuthTokens();
+      
+      if (!tokens?.idToken) {
+        throw new Error('No authentication token available');
+      }
+
+      // Add Authorization header with JWT token
+      headers = {
+        ...headers,
+        Authorization: `Bearer ${tokens.idToken}`,
+      };
+    } catch (error) {
+      console.error('Failed to get authentication tokens:', error);
+      throw new Error('Authentication required');
+    }
+  }
+
+  // Make the request
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+    });
+
+    // Handle 401 Unauthorized - token might be expired
+    if (response.status === 401 && !skipAuth) {
+      console.warn('Received 401 Unauthorized - token may be expired');
+      
+      // Try to refresh tokens and retry once
+      try {
+        const tokens = await getCurrentAuthTokens();
+        if (tokens?.idToken) {
+          headers = {
+            ...headers,
+            Authorization: `Bearer ${tokens.idToken}`,
+          };
+          
+          // Retry the request with refreshed token
+          return await fetch(url, {
+            ...fetchOptions,
+            headers,
+          });
+        }
+      } catch (refreshError) {
+        console.error('Failed to refresh token:', refreshError);
+        throw new Error('Session expired - please log in again');
+      }
+    }
+
+    return response;
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Make an authenticated GET request
+ * 
+ * @param endpoint - API endpoint
+ * @param options - Request options
+ * @returns Fetch response
+ */
+export async function authenticatedGet(
+  endpoint: string,
+  options: AuthenticatedRequestOptions = {}
+): Promise<Response> {
+  return authenticatedRequest(endpoint, {
+    ...options,
+    method: 'GET',
+  });
+}
+
+/**
+ * Make an authenticated POST request
+ * 
+ * @param endpoint - API endpoint
+ * @param body - Request body (will be JSON stringified)
+ * @param options - Request options
+ * @returns Fetch response
+ */
+export async function authenticatedPost(
+  endpoint: string,
+  body?: any,
+  options: AuthenticatedRequestOptions = {}
+): Promise<Response> {
+  return authenticatedRequest(endpoint, {
+    ...options,
+    method: 'POST',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+/**
+ * Make an authenticated PUT request
+ * 
+ * @param endpoint - API endpoint
+ * @param body - Request body (will be JSON stringified)
+ * @param options - Request options
+ * @returns Fetch response
+ */
+export async function authenticatedPut(
+  endpoint: string,
+  body?: any,
+  options: AuthenticatedRequestOptions = {}
+): Promise<Response> {
+  return authenticatedRequest(endpoint, {
+    ...options,
+    method: 'PUT',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+/**
+ * Make an authenticated DELETE request
+ * 
+ * @param endpoint - API endpoint
+ * @param options - Request options
+ * @returns Fetch response
+ */
+export async function authenticatedDelete(
+  endpoint: string,
+  options: AuthenticatedRequestOptions = {}
+): Promise<Response> {
+  return authenticatedRequest(endpoint, {
+    ...options,
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Make an authenticated request with FormData (for file uploads)
+ * 
+ * @param endpoint - API endpoint
+ * @param formData - FormData object
+ * @param options - Request options
+ * @returns Fetch response
+ */
+export async function authenticatedFormData(
+  endpoint: string,
+  formData: FormData,
+  options: AuthenticatedRequestOptions = {}
+): Promise<Response> {
+  const { skipAuth = false, ...fetchOptions } = options;
+
+  // Build full URL
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  // Get authentication tokens if not skipping auth
+  let headers: HeadersInit = {
+    ...fetchOptions.headers,
+  };
+
+  // Don't set Content-Type for FormData - browser will set it with boundary
+  if (headers && 'Content-Type' in headers) {
+    delete (headers as any)['Content-Type'];
+  }
+
+  if (!skipAuth) {
+    try {
+      const tokens = await getCurrentAuthTokens();
+      
+      if (!tokens?.idToken) {
+        throw new Error('No authentication token available');
+      }
+
+      headers = {
+        ...headers,
+        Authorization: `Bearer ${tokens.idToken}`,
+      };
+    } catch (error) {
+      console.error('Failed to get authentication tokens:', error);
+      throw new Error('Authentication required');
+    }
+  }
+
+  // Make the request
+  return fetch(url, {
+    ...fetchOptions,
+    method: fetchOptions.method || 'POST',
+    headers,
+    body: formData,
+  });
+}
+
+/**
+ * Helper to build API URL with query parameters
+ * 
+ * @param endpoint - API endpoint
+ * @param params - URLSearchParams or object with query parameters
+ * @returns Full URL with query string
+ */
+export function buildApiUrl(endpoint: string, params?: URLSearchParams | Record<string, string>): string {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  if (!params) {
+    return url;
+  }
+
+  const searchParams = params instanceof URLSearchParams 
+    ? params 
+    : new URLSearchParams(params);
+
+  return `${url}?${searchParams.toString()}`;
+}
