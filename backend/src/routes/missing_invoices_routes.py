@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import mysql.connector
 import os
 from google_drive_service import GoogleDriveService
+from auth.cognito_utils import cognito_required
 
 missing_invoices_bp = Blueprint('missing_invoices', __name__)
 
@@ -14,7 +15,8 @@ def get_db_connection():
     )
 
 @missing_invoices_bp.route('/api/transactions', methods=['POST'])
-def get_transactions():
+@cognito_required(required_permissions=['transactions_read'])
+def get_transactions(user_email, user_roles):
     data = request.get_json()
     ids = data.get('ids', [])
     
@@ -50,7 +52,8 @@ def get_transactions():
     return jsonify(transactions)
 
 @missing_invoices_bp.route('/api/upload-receipt', methods=['POST'])
-def upload_receipt():
+@cognito_required(required_permissions=['invoices_create'])
+def upload_receipt(user_email, user_roles):
     file = request.files.get('file')
     supplier_name = request.form.get('supplierName')
     
@@ -92,7 +95,8 @@ def upload_receipt():
         return jsonify({'error': str(e)}), 500
 
 @missing_invoices_bp.route('/api/update-transaction-refs', methods=['POST'])
-def update_transaction_refs():
+@cognito_required(required_permissions=['transactions_update'])
+def update_transaction_refs(user_email, user_roles):
     data = request.get_json()
     ids = data.get('ids', [])
     drive_url = data.get('driveUrl')

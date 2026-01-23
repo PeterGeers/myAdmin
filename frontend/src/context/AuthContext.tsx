@@ -6,7 +6,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
+import { getCurrentUser, signOut } from 'aws-amplify/auth';
 import {
   getCurrentUserRoles,
   getCurrentUserEmail,

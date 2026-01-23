@@ -17,6 +17,7 @@ from typing import Dict, Any, Optional
 
 from database import DatabaseManager
 from scalability_manager import get_scalability_manager
+from auth.cognito_utils import cognito_required
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +28,8 @@ scalability_bp = Blueprint('scalability', __name__)
 
 
 @scalability_bp.route('/api/scalability/dashboard', methods=['GET'])
-def scalability_dashboard():
+@cognito_required(required_roles=['Administrators'])
+def scalability_dashboard(user_email, user_roles):
     """
     Get comprehensive scalability dashboard data
     
@@ -127,7 +129,8 @@ def scalability_dashboard():
 
 
 @scalability_bp.route('/api/scalability/metrics/realtime', methods=['GET'])
-def realtime_metrics():
+@cognito_required(required_roles=['Administrators'])
+def realtime_metrics(user_email, user_roles):
     """
     Get real-time performance metrics
     
@@ -181,7 +184,8 @@ def realtime_metrics():
 
 
 @scalability_bp.route('/api/scalability/load-test', methods=['POST'])
-def run_load_test():
+@cognito_required(required_roles=['Administrators'])
+def run_load_test(user_email, user_roles):
     """
     Run a quick load test to validate scalability
     
@@ -316,7 +320,8 @@ def run_load_test():
 
 
 @scalability_bp.route('/api/scalability/optimize', methods=['POST'])
-def optimize_scalability():
+@cognito_required(required_roles=['Administrators'])
+def optimize_scalability(user_email, user_roles):
     """
     Apply scalability optimizations
     
@@ -439,7 +444,8 @@ def optimize_scalability():
 
 
 @scalability_bp.route('/api/scalability/config', methods=['GET'])
-def get_scalability_config():
+@cognito_required(required_roles=['Administrators'])
+def get_scalability_config(user_email, user_roles):
     """
     Get current scalability configuration
     
@@ -506,7 +512,8 @@ def get_scalability_config():
 
 
 @scalability_bp.route('/api/scalability/alerts', methods=['GET'])
-def get_scalability_alerts():
+@cognito_required(required_roles=['Administrators'])
+def get_scalability_alerts(user_email, user_roles):
     """
     Get current scalability alerts and warnings
     

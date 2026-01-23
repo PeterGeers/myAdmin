@@ -1,16 +1,4 @@
 {
-  "CompoundTest": {
-    "data": {
-      "total_transactions": 0,
-      "patterns_discovered": 0,
-      "debet_patterns": {},
-      "credit_patterns": {},
-      "reference_patterns": {},
-      "statistics": {}
-    },
-    "timestamp": 1768930233.1404872,
-    "ttl_hours": 24
-  },
   "TestConflicts": {
     "data": {
       "total_transactions": 0,
@@ -20,7 +8,7 @@
       "reference_patterns": {},
       "statistics": {}
     },
-    "timestamp": 1768930326.9254785,
+    "timestamp": 1769033459.18585,
     "ttl_hours": 24
   },
   "GoodwinSolutions": {
@@ -12582,6 +12570,18 @@
       }
     },
     "timestamp": 1769012002.7353508,
+    "ttl_hours": 24
+  },
+  "CompoundTest": {
+    "data": {
+      "total_transactions": 0,
+      "patterns_discovered": 0,
+      "debet_patterns": {},
+      "credit_patterns": {},
+      "reference_patterns": {},
+      "statistics": {}
+    },
+    "timestamp": 1769033500.1055906,
     "ttl_hours": 24
   }
 }

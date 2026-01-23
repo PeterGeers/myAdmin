@@ -8,11 +8,13 @@ from datetime import datetime, timedelta
 import calendar
 from database import DatabaseManager
 import logging
+from auth.cognito_utils import cognito_required
 
 str_channel_bp = Blueprint('str_channel', __name__)
 
 @str_channel_bp.route('/calculate', methods=['POST'])
-def calculate_str_channel_revenue():
+@cognito_required(required_permissions=['str_read'])
+def calculate_str_channel_revenue(user_email, user_roles):
     """Calculate STR channel revenue for a specific month and year"""
     try:
         data = request.get_json()
@@ -127,7 +129,8 @@ def calculate_str_channel_revenue():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @str_channel_bp.route('/save', methods=['POST'])
-def save_str_channel_transactions():
+@cognito_required(required_permissions=['bookings_create'])
+def save_str_channel_transactions(user_email, user_roles):
     """Save STR channel revenue transactions to database"""
     try:
         data = request.get_json()
@@ -188,7 +191,8 @@ def save_str_channel_transactions():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @str_channel_bp.route('/preview', methods=['GET'])
-def preview_str_channel_data():
+@cognito_required(required_permissions=['str_read'])
+def preview_str_channel_data(user_email, user_roles):
     """Preview STR channel data for a specific month"""
     try:
         year = int(request.args.get('year', datetime.now().year))

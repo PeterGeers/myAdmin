@@ -3,6 +3,7 @@ from database import DatabaseManager
 from mutaties_cache import get_cache
 from datetime import datetime
 from contextlib import contextmanager
+from auth.cognito_utils import cognito_required
 
 reporting_bp = Blueprint('reporting', __name__)
 
@@ -177,7 +178,8 @@ class ReportingService:
             }
 
 @reporting_bp.route('/financial-summary', methods=['GET'])
-def get_financial_summary():
+@cognito_required(required_permissions=['reports_read'])
+def get_financial_summary(user_email, user_roles):
     """Get financial summary report"""
     try:
         # Get query parameters
@@ -210,7 +212,8 @@ def get_financial_summary():
         }), 500
 
 @reporting_bp.route('/str-revenue', methods=['GET'])
-def get_str_revenue():
+@cognito_required(required_permissions=['reports_read'])
+def get_str_revenue(user_email, user_roles):
     """Get STR revenue summary"""
     try:
         date_from = request.args.get('dateFrom', datetime.now().strftime('%Y-01-01'))
@@ -229,7 +232,8 @@ def get_str_revenue():
         }), 500
 
 @reporting_bp.route('/account-summary', methods=['GET'])
-def get_account_summary():
+@cognito_required(required_permissions=['reports_read'])
+def get_account_summary(user_email, user_roles):
     """Get account-based summary for chart of accounts analysis"""
     try:
         service = ReportingService(request.args.get('testMode', 'false').lower() == 'true')
@@ -256,7 +260,8 @@ def get_account_summary():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/mutaties-table', methods=['GET'])
-def get_mutaties_table():
+@cognito_required(required_permissions=['reports_read'])
+def get_mutaties_table(user_email, user_roles):
     """Get mutaties table data with PowerBI-style filters"""
     try:
         service = ReportingService(request.args.get('testMode', 'false').lower() == 'true')
@@ -288,7 +293,8 @@ def get_mutaties_table():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/<table>-fields', methods=['GET'])
-def get_table_fields(table):
+@cognito_required(required_permissions=['reports_read'])
+def get_table_fields(table, user_email, user_roles):
     """Get field names for specified table"""
     table_map = {'bnb': 'bnbtotal', 'mutaties': 'vw_mutaties'}
     if table not in table_map:
@@ -305,7 +311,8 @@ def get_table_fields(table):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/balance-data', methods=['GET'])
-def get_balance_data():
+@cognito_required(required_permissions=['reports_read'])
+def get_balance_data(user_email, user_roles):
     """Get balance data grouped by Parent and ledger"""
     try:
         service = ReportingService(request.args.get('testMode', 'false').lower() == 'true')
@@ -336,7 +343,8 @@ def get_balance_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/bnb-table', methods=['GET'])
-def get_bnb_table():
+@cognito_required(required_permissions=['reports_read'])
+def get_bnb_table(user_email, user_roles):
     """Get BNB table data with PowerBI-style filters"""
     try:
         service = ReportingService(request.args.get('testMode', 'false').lower() == 'true')
@@ -376,7 +384,8 @@ def get_bnb_table():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/trends-data', methods=['GET'])
-def get_trends_data():
+@cognito_required(required_permissions=['reports_read'])
+def get_trends_data(user_email, user_roles):
     """Get P&L trends data by year"""
     try:
         service = ReportingService(request.args.get('testMode', 'false').lower() == 'true')
@@ -406,7 +415,8 @@ def get_trends_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/filter-options', methods=['GET'])
-def get_filter_options():
+@cognito_required(required_permissions=['reports_read'])
+def get_filter_options(user_email, user_roles):
     """Get distinct values for each filter dropdown with cascading support"""
     try:
         service = ReportingService()
@@ -465,7 +475,8 @@ def get_filter_options():
 
 
 @reporting_bp.route('/available-<data_type>', methods=['GET'])
-def get_available_data(data_type):
+@cognito_required(required_permissions=['reports_read'])
+def get_available_data(data_type, user_email, user_roles):
     """Get available years or references from vw_mutaties"""
     queries = {
         'years': "SELECT DISTINCT jaar as value FROM vw_mutaties WHERE jaar IS NOT NULL ORDER BY jaar DESC",
@@ -488,7 +499,8 @@ def get_available_data(data_type):
 
 
 @reporting_bp.route('/check-reference', methods=['GET'])
-def get_check_reference():
+@cognito_required(required_permissions=['reports_read'])
+def get_check_reference(user_email, user_roles):
     """Get check reference data with transactions and summary using cache"""
     try:
         test_mode = request.args.get('testMode', 'false').lower() == 'true'
@@ -561,7 +573,8 @@ def get_check_reference():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/reference-analysis', methods=['GET'])
-def get_reference_analysis():
+@cognito_required(required_permissions=['reports_read'])
+def get_reference_analysis(user_email, user_roles):
     """Get reference analysis data with trend and available accounts"""
     try:
         service = ReportingService()
@@ -634,7 +647,8 @@ def get_reference_analysis():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/bnb-filter-options', methods=['GET'])
-def get_bnb_filter_options():
+@cognito_required(required_permissions=['reports_read'])
+def get_bnb_filter_options(user_email, user_roles):
     """Get available filter options for BNB data"""
     try:
         service = ReportingService()
@@ -671,7 +685,8 @@ def get_bnb_filter_options():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/bnb-listing-data', methods=['GET'])
-def get_bnb_listing_data():
+@cognito_required(required_permissions=['reports_read'])
+def get_bnb_listing_data(user_email, user_roles):
     """Get BNB data summarized by listing"""
     try:
         service = ReportingService()
@@ -724,7 +739,8 @@ def get_bnb_listing_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/bnb-channel-data', methods=['GET'])
-def get_bnb_channel_data():
+@cognito_required(required_permissions=['reports_read'])
+def get_bnb_channel_data(user_email, user_roles):
     """Get BNB data summarized by channel"""
     try:
         service = ReportingService()
@@ -781,7 +797,8 @@ def get_bnb_channel_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/available-years', methods=['GET'])
-def get_available_years():
+@cognito_required(required_permissions=['reports_read'])
+def get_available_years(user_email, user_roles):
     """Get available years from vw_mutaties"""
     try:
         service = ReportingService()

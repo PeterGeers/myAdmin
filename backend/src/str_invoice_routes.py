@@ -3,16 +3,19 @@ from database import DatabaseManager
 import re
 from datetime import datetime, timedelta
 import os
+from auth.cognito_utils import cognito_required
 
 str_invoice_bp = Blueprint('str_invoice', __name__)
 
 @str_invoice_bp.route('/test', methods=['GET'])
-def test_page():
+@cognito_required(required_permissions=[])
+def test_page(user_email, user_roles):
     """Diagnostic test page for STR Invoice API"""
     return render_template('str_test.html')
 
 @str_invoice_bp.route('/search-booking', methods=['GET'])
-def search_booking():
+@cognito_required(required_permissions=['str_read'])
+def search_booking(user_email, user_roles):
     """Search for booking by guest name or reservation code"""
     try:
         query = request.args.get('query', '').strip()
@@ -58,7 +61,8 @@ def search_booking():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @str_invoice_bp.route('/generate-invoice', methods=['POST'])
-def generate_invoice():
+@cognito_required(required_permissions=['str_create'])
+def generate_invoice(user_email, user_roles):
     """Generate STR invoice for a specific booking"""
     try:
         data = request.get_json()
@@ -255,7 +259,8 @@ def get_basic_template(language='nl'):
 """
 
 @str_invoice_bp.route('/upload-template', methods=['POST'])
-def upload_template_to_drive():
+@cognito_required(required_permissions=['str_create'])
+def upload_template_to_drive(user_email, user_roles):
     """Upload invoice templates to Google Drive"""
     try:
         from google_drive_service import GoogleDriveService

@@ -7,14 +7,16 @@ import STRProcessor from './components/STRProcessor';
 import STRInvoice from './components/STRInvoice';
 import STRPricing from './components/STRPricing';
 import MyAdminReportsNew from './components/MyAdminReportsNew';
+import Login from './pages/Login';
 import theme from './theme';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-type PageType = 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi';
 
-function App() {
+function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
+  const { isAuthenticated, loading, user, logout } = useAuth();
 
   useEffect(() => {
     import('./config').then(({ buildApiUrl }) => {
@@ -24,6 +26,23 @@ function App() {
         .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));
     });
   }, []);
+
+  // Show login page if not authenticated
+  if (!isAuthenticated && !loading) {
+    return <Login onLoginSuccess={() => setCurrentPage('menu')} />;
+  }
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
+        <VStack spacing={4}>
+          <Heading color="orange.400" size="lg">Loading...</Heading>
+          <Text color="gray.400">Checking authentication status</Text>
+        </VStack>
+      </Box>
+    );
+  }
 
   const renderPage = () => {
     switch (currentPage) {
@@ -36,7 +55,11 @@ function App() {
                   <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                   <Heading color="orange.400" size="lg">📄 Import Invoices</Heading>
                 </HStack>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                <HStack>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </HStack>
             </Box>
             <PDFUploadForm />
@@ -52,7 +75,11 @@ function App() {
                   <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                   <Heading color="orange.400" size="lg">🏦 Import Banking Accounts</Heading>
                 </HStack>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                <HStack>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </HStack>
             </Box>
             <BankingProcessor />
@@ -67,7 +94,11 @@ function App() {
                   <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                   <Heading color="orange.400" size="lg">🏦 Connect Bank (Salt Edge)</Heading>
                 </HStack>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                <HStack>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </HStack>
             </Box>
             <BankConnect />
@@ -82,7 +113,11 @@ function App() {
                   <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                   <Heading color="orange.400" size="lg">🏠 Import STR Bookings</Heading>
                 </HStack>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                <HStack>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </HStack>
             </Box>
             <STRProcessor />
@@ -97,7 +132,11 @@ function App() {
                   <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                   <Heading color="orange.400" size="lg">🧾 STR Invoice Generator</Heading>
                 </HStack>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                <HStack>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </HStack>
             </Box>
             <STRInvoice />
@@ -113,7 +152,11 @@ function App() {
                   <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                   <Heading color="orange.400" size="lg">💰 STR Pricing Model</Heading>
                 </HStack>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                <HStack>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </HStack>
             </Box>
             <STRPricing />
@@ -129,7 +172,11 @@ function App() {
                   <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                   <Heading color="orange.400" size="lg">📈 myAdmin Reports</Heading>
                 </HStack>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                <HStack>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </HStack>
             </Box>
             <MyAdminReportsNew />
@@ -145,6 +192,10 @@ function App() {
                 <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'} fontSize="md" px={3} py={1}>
                   {status.mode} Mode
                 </Badge>
+                <HStack spacing={2}>
+                  <Text color="gray.400" fontSize="sm">Logged in as: {user?.email}</Text>
+                  <Button size="xs" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                </HStack>
               </VStack>
               <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
               
@@ -176,10 +227,14 @@ function App() {
     }
   };
 
+  return renderPage();
+}
+
+function App() {
   return (
     <ChakraProvider theme={theme}>
       <AuthProvider>
-        {renderPage()}
+        <AppContent />
       </AuthProvider>
     </ChakraProvider>
   );

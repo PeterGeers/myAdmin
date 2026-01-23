@@ -4,13 +4,15 @@ from dotenv import load_dotenv
 from api_schemas import validate_response_schema
 from mutaties_cache import get_cache
 from database import DatabaseManager
+from auth.cognito_utils import cognito_required
 
 load_dotenv()
 
 actuals_bp = Blueprint('actuals', __name__)
 
 @actuals_bp.route('/actuals-balance', methods=['GET'])
-def get_actuals_balance():
+@cognito_required(required_permissions=['actuals_read'])
+def get_actuals_balance(user_email, user_roles):
     """Get balance data using in-memory cache"""
     try:
         years = request.args.get('years', '2025').split(',')
@@ -61,7 +63,8 @@ def get_actuals_balance():
         }), 500
 
 @actuals_bp.route('/actuals-profitloss', methods=['GET'])
-def get_actuals_profitloss():
+@cognito_required(required_permissions=['actuals_read'])
+def get_actuals_profitloss(user_email, user_roles):
     """Get profit/loss data using in-memory cache"""
     try:
         years = request.args.get('years', '2025').split(',')

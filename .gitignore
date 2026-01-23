@@ -16,6 +16,8 @@ pip-delete-this-directory.txt
 
 # Environment variables
 .env
+.env.shared
+.secrets
 *.env
 .env.*
 **/secrets.*

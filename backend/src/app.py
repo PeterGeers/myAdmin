@@ -24,6 +24,7 @@ from routes.missing_invoices_routes import missing_invoices_bp
 from audit_routes import audit_bp
 from pattern_storage_routes import pattern_storage_bp
 from scalability_routes import scalability_bp
+from auth.cognito_utils import cognito_required
 
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
@@ -313,7 +314,8 @@ def handle_404(e):
         return jsonify({'error': 'Frontend not built'}), 404
 
 @app.route('/api/folders', methods=['GET'])
-def get_folders():
+@cognito_required(required_permissions=['invoices_read'])
+def get_folders(user_email, user_roles):
     """Return available vendor folders with optional regex filtering"""
     try:
         regex_pattern = request.args.get('regex')
@@ -356,13 +358,15 @@ def get_folders():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/test', methods=['GET'])
-def test():
+@cognito_required(required_permissions=[])
+def test(user_email, user_roles):
     """Test endpoint"""
     print("Test endpoint called", flush=True)
     return jsonify({'status': 'Server is working'})
 
 @app.route('/api/status', methods=['GET'])
-def get_status():
+@cognito_required(required_permissions=[])
+def get_status(user_email, user_roles):
     """Get environment status"""
     try:
         use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
@@ -382,13 +386,15 @@ def get_status():
         }), 500
 
 @app.route('/api/str/test', methods=['GET'])
-def str_test():
+@cognito_required(required_permissions=[])
+def str_test(user_email, user_roles):
     """STR test endpoint"""
     print("STR test endpoint called", flush=True)
     return jsonify({'status': 'STR endpoints working', 'openpyxl_available': True})
 
 @app.route('/api/health', methods=['GET'])
-def health():
+@cognito_required(required_permissions=[])
+def health(user_email, user_roles):
     """Health check endpoint with scalability information"""
     health_info = {
         'status': 'healthy', 
@@ -410,7 +416,8 @@ def health():
     return jsonify(health_info)
 
 @app.route('/api/scalability/status', methods=['GET'])
-def scalability_status():
+@cognito_required(required_roles=['Administrators'])
+def scalability_status(user_email, user_roles):
     """Get comprehensive scalability status"""
     if not scalability_manager:
         return jsonify({
@@ -439,7 +446,8 @@ def scalability_status():
         }), 500
 
 @app.route('/api/scalability/database', methods=['GET'])
-def scalability_database_status():
+@cognito_required(required_roles=['Administrators'])
+def scalability_database_status(user_email, user_roles):
     """Get database scalability status"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -465,7 +473,8 @@ def scalability_database_status():
         }), 500
 
 @app.route('/api/scalability/performance', methods=['GET'])
-def scalability_performance():
+@cognito_required(required_roles=['Administrators'])
+def scalability_performance(user_email, user_roles):
     """Get real-time performance metrics"""
     if not scalability_manager:
         return jsonify({
@@ -492,7 +501,8 @@ def scalability_performance():
 
 # Cache Management Endpoints
 @app.route('/api/cache/status', methods=['GET'])
-def cache_status():
+@cognito_required(required_roles=['Administrators'])
+def cache_status(user_email, user_roles):
     """Get cache status and statistics"""
     try:
         cache = get_cache()
@@ -512,7 +522,8 @@ def cache_status():
         }), 500
 
 @app.route('/api/cache/refresh', methods=['POST'])
-def cache_refresh():
+@cognito_required(required_roles=['Administrators'])
+def cache_refresh(user_email, user_roles):
     """Force refresh the cache"""
     try:
         cache = get_cache()
@@ -535,7 +546,8 @@ def cache_refresh():
         }), 500
 
 @app.route('/api/cache/invalidate', methods=['POST'])
-def cache_invalidate_endpoint():
+@cognito_required(required_roles=['Administrators'])
+def cache_invalidate_endpoint(user_email, user_roles):
     """Invalidate the cache (will auto-refresh on next query)"""
     try:
         invalidate_cache()
@@ -552,7 +564,8 @@ def cache_invalidate_endpoint():
 
 # BNB Cache Management Endpoints
 @app.route('/api/bnb-cache/status', methods=['GET'])
-def bnb_cache_status():
+@cognito_required(required_roles=['Administrators'])
+def bnb_cache_status(user_email, user_roles):
     """Get BNB cache status and statistics"""
     try:
         bnb_cache = get_bnb_cache()
@@ -569,7 +582,8 @@ def bnb_cache_status():
         }), 500
 
 @app.route('/api/bnb-cache/refresh', methods=['POST'])
-def bnb_cache_refresh():
+@cognito_required(required_roles=['Administrators'])
+def bnb_cache_refresh(user_email, user_roles):
     """Force refresh the BNB cache"""
     try:
         bnb_cache = get_bnb_cache()
@@ -591,7 +605,8 @@ def bnb_cache_refresh():
         }), 500
 
 @app.route('/api/bnb-cache/invalidate', methods=['POST'])
-def bnb_cache_invalidate():
+@cognito_required(required_roles=['Administrators'])
+def bnb_cache_invalidate(user_email, user_roles):
     """Invalidate the BNB cache (will auto-refresh on next query)"""
     try:
         bnb_cache = get_bnb_cache()
@@ -610,7 +625,8 @@ def bnb_cache_invalidate():
 
 
 @app.route('/api/create-folder', methods=['POST'])
-def create_folder():
+@cognito_required(required_permissions=['invoices_create'])
+def create_folder(user_email, user_roles):
     """Create a new folder in Google Drive"""
     try:
         data = request.get_json()
@@ -639,7 +655,8 @@ def create_folder():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/upload', methods=['POST', 'OPTIONS'])
-def upload_file():
+@cognito_required(required_permissions=['invoices_create'])
+def upload_file(user_email, user_roles):
     """Upload and process PDF file"""
     if request.method == 'OPTIONS':
         response = jsonify({'status': 'OK'})
@@ -831,7 +848,8 @@ def handle_500(e):
     return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @app.route('/api/approve-transactions', methods=['POST'])
-def approve_transactions():
+@cognito_required(required_permissions=['transactions_create'])
+def approve_transactions(user_email, user_roles):
     """Save approved transactions to database"""
     try:
         data = request.get_json()
@@ -850,7 +868,8 @@ def approve_transactions():
 
 # Banking processor routes
 @app.route('/api/banking/scan-files', methods=['GET'])
-def banking_scan_files():
+@cognito_required(required_permissions=['banking_read'])
+def banking_scan_files(user_email, user_roles):
     """Scan download folder for CSV files"""
     try:
         processor = BankingProcessor(test_mode=flag)
@@ -867,7 +886,8 @@ def banking_scan_files():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/process-files', methods=['POST'])
-def banking_process_files():
+@cognito_required(required_permissions=['banking_process'])
+def banking_process_files(user_email, user_roles):
     """Process selected CSV files"""
     try:
         data = request.get_json()
@@ -894,7 +914,8 @@ def banking_process_files():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-sequences', methods=['POST'])
-def banking_check_sequences():
+@cognito_required(required_permissions=['banking_read'])
+def banking_check_sequences(user_email, user_roles):
     """Check sequence numbers against database"""
     try:
         data = request.get_json()
@@ -919,7 +940,8 @@ def banking_check_sequences():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/apply-patterns', methods=['POST'])
-def banking_apply_patterns():
+@cognito_required(required_permissions=['banking_process'])
+def banking_apply_patterns(user_email, user_roles):
     """Apply enhanced pattern matching to predict debet/credit accounts"""
     try:
         data = request.get_json()
@@ -1033,7 +1055,8 @@ def banking_apply_patterns():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/save-transactions', methods=['POST'])
-def banking_save_transactions():
+@cognito_required(required_permissions=['transactions_create'])
+def banking_save_transactions(user_email, user_roles):
     """Save approved transactions to database with duplicate filtering"""
     try:
         data = request.get_json()
@@ -1078,7 +1101,8 @@ def banking_save_transactions():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/lookups', methods=['GET'])
-def banking_lookups():
+@cognito_required(required_permissions=['banking_read'])
+def banking_lookups(user_email, user_roles):
     """Get mapping data for account codes and descriptions"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1113,7 +1137,8 @@ def banking_lookups():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/mutaties', methods=['GET'])
-def banking_mutaties():
+@cognito_required(required_permissions=['transactions_read'])
+def banking_mutaties(user_email, user_roles):
     """Get mutaties with filters"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1168,7 +1193,8 @@ def banking_mutaties():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/filter-options', methods=['GET'])
-def banking_filter_options():
+@cognito_required(required_permissions=['transactions_read'])
+def banking_filter_options(user_email, user_roles):
     """Get filter options for mutaties"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1198,7 +1224,8 @@ def banking_filter_options():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/update-mutatie', methods=['POST'])
-def banking_update_mutatie():
+@cognito_required(required_permissions=['transactions_update'])
+def banking_update_mutatie(user_email, user_roles):
     """Update a mutatie record"""
     try:
         data = request.get_json()
@@ -1272,7 +1299,8 @@ def banking_update_mutatie():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-accounts', methods=['GET'])
-def banking_check_accounts():
+@cognito_required(required_permissions=['banking_read'])
+def banking_check_accounts(user_email, user_roles):
     """Check banking account balances"""
     try:
         processor = BankingProcessor(test_mode=flag)
@@ -1289,7 +1317,8 @@ def banking_check_accounts():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-sequence', methods=['GET'])
-def banking_check_sequence():
+@cognito_required(required_permissions=['banking_read'])
+def banking_check_sequence(user_email, user_roles):
     """Check sequence numbers for account"""
     try:
         processor = BankingProcessor(test_mode=flag)
@@ -1307,7 +1336,8 @@ def banking_check_sequence():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-revolut-balance', methods=['GET'])
-def banking_check_revolut_balance():
+@cognito_required(required_permissions=['banking_read'])
+def banking_check_revolut_balance(user_email, user_roles):
     """Check Revolut balance gaps by comparing calculated vs Ref3 balance"""
     try:
         processor = BankingProcessor(test_mode=flag)
@@ -1348,7 +1378,8 @@ def banking_check_revolut_balance():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-revolut-balance-debug', methods=['GET'])
-def banking_check_revolut_balance_debug():
+@cognito_required(required_permissions=['banking_read'])
+def banking_check_revolut_balance_debug(user_email, user_roles):
     """Debug endpoint - returns only first 10 transactions with full details"""
     try:
         processor = BankingProcessor(test_mode=flag)
@@ -1385,7 +1416,8 @@ def banking_check_revolut_balance_debug():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/migrate-revolut-ref2', methods=['POST'])
-def banking_migrate_revolut_ref2():
+@cognito_required(required_roles=['Administrators'])
+def banking_migrate_revolut_ref2(user_email, user_roles):
     """Migrate Revolut Ref2 to new format"""
     try:
         from migrate_revolut_ref2 import migrate_revolut_ref2
@@ -1399,7 +1431,8 @@ def banking_migrate_revolut_ref2():
 
 # STR (Short Term Rental) routes
 @app.route('/api/str/upload', methods=['POST', 'OPTIONS'])
-def str_upload():
+@cognito_required(required_permissions=['str_create'])
+def str_upload(user_email, user_roles):
     """Upload and process single STR file"""
     if request.method == 'OPTIONS':
         return jsonify({'status': 'OK'})
@@ -1469,7 +1502,8 @@ def str_upload():
 # Using single file upload via /api/str/upload instead
 
 @app.route('/api/str/save', methods=['POST'])
-def str_save():
+@cognito_required(required_permissions=['bookings_create'])
+def str_save(user_email, user_roles):
     """Save STR bookings to database like R script"""
 
     try:
@@ -1508,7 +1542,8 @@ def str_save():
 
 # Pricing routes
 @app.route('/api/pricing/generate', methods=['POST'])
-def pricing_generate():
+@cognito_required(required_permissions=['str_update'])
+def pricing_generate(user_email, user_roles):
     """Generate pricing recommendations using hybrid optimizer"""
     try:
         from hybrid_pricing_optimizer import HybridPricingOptimizer
@@ -1531,7 +1566,8 @@ def pricing_generate():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pricing/recommendations', methods=['GET'])
-def pricing_recommendations():
+@cognito_required(required_permissions=['str_read'])
+def pricing_recommendations(user_email, user_roles):
     """Get pricing recommendations with historical comparison"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1600,7 +1636,8 @@ def pricing_recommendations():
             conn.close()
 
 @app.route('/api/pricing/historical', methods=['GET'])
-def pricing_historical():
+@cognito_required(required_permissions=['str_read'])
+def pricing_historical(user_email, user_roles):
     """Get historical ADR data for trend analysis"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1671,7 +1708,8 @@ def pricing_historical():
             conn.close()
 
 @app.route('/api/pricing/listings', methods=['GET'])
-def pricing_listings():
+@cognito_required(required_permissions=['str_read'])
+def pricing_listings(user_email, user_roles):
     """Get available listings for pricing"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1696,7 +1734,8 @@ def pricing_listings():
             conn.close()
 
 @app.route('/api/pricing/multipliers', methods=['GET'])
-def pricing_multipliers():
+@cognito_required(required_permissions=['str_read'])
+def pricing_multipliers(user_email, user_roles):
     """Get average multipliers by listing"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1743,7 +1782,8 @@ def pricing_multipliers():
             conn.close()
 
 @app.route('/api/str/write-future', methods=['POST'])
-def str_write_future():
+@cognito_required(required_permissions=['bookings_create'])
+def str_write_future(user_email, user_roles):
     """Write current BNB planned data to bnbfuture table"""
 
     try:
@@ -1766,7 +1806,8 @@ def str_write_future():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/str/import-payout', methods=['POST', 'OPTIONS'])
-def str_import_payout():
+@cognito_required(required_permissions=['str_create'])
+def str_import_payout(user_email, user_roles):
     """
     Import Booking.com Payout CSV to update financial figures
     
@@ -1847,7 +1888,8 @@ def str_import_payout():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/str/summary', methods=['GET'])
-def str_summary():
+@cognito_required(required_permissions=['str_read'])
+def str_summary(user_email, user_roles):
     """Get STR performance summary"""
     try:
         start_date = request.args.get('start_date')
@@ -1865,7 +1907,8 @@ def str_summary():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/str/future-trend', methods=['GET'])
-def str_future_trend():
+@cognito_required(required_permissions=['str_read'])
+def str_future_trend(user_email, user_roles):
     """Get BNB future revenue trend data"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1901,7 +1944,8 @@ def str_future_trend():
 
 # BTW (VAT) Declaration routes
 @app.route('/api/btw/generate-report', methods=['POST'])
-def btw_generate_report():
+@cognito_required(required_permissions=['btw_read', 'btw_process'])
+def btw_generate_report(user_email, user_roles):
     """Generate BTW declaration report"""
     try:
         data = request.get_json()
@@ -1924,7 +1968,8 @@ def btw_generate_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/btw/save-transaction', methods=['POST'])
-def btw_save_transaction():
+@cognito_required(required_permissions=['transactions_create'])
+def btw_save_transaction(user_email, user_roles):
     """Save BTW transaction to database"""
     try:
         data = request.get_json()
@@ -1942,7 +1987,8 @@ def btw_save_transaction():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/btw/upload-report', methods=['POST'])
-def btw_upload_report():
+@cognito_required(required_permissions=['btw_process'])
+def btw_upload_report(user_email, user_roles):
     """Upload BTW report to Google Drive"""
     try:
         data = request.get_json()
@@ -1966,7 +2012,8 @@ def btw_upload_report():
 
 # Toeristenbelasting (Tourist Tax) Declaration routes
 @app.route('/api/toeristenbelasting/generate-report', methods=['POST'])
-def toeristenbelasting_generate_report():
+@cognito_required(required_permissions=['str_read', 'reports_read'])
+def toeristenbelasting_generate_report(user_email, user_roles):
     """Generate Toeristenbelasting declaration report"""
     try:
         data = request.get_json()
@@ -1987,7 +2034,8 @@ def toeristenbelasting_generate_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/toeristenbelasting/available-years', methods=['GET'])
-def toeristenbelasting_available_years():
+@cognito_required(required_permissions=['str_read'])
+def toeristenbelasting_available_years(user_email, user_roles):
     """Get available years for Toeristenbelasting (current year and 3 years back)"""
     try:
         from datetime import datetime
@@ -2008,7 +2056,8 @@ def toeristenbelasting_available_years():
 
 
 @app.route('/api/reports/aangifte-ib', methods=['GET'])
-def aangifte_ib():
+@cognito_required(required_permissions=['reports_read'])
+def aangifte_ib(user_email, user_roles):
     """Get Aangifte IB data grouped by Parent and Aangifte (using in-memory cache)"""
     try:
         # Get parameters
@@ -2041,7 +2090,8 @@ def aangifte_ib():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/reports/aangifte-ib-details', methods=['GET'])
-def aangifte_ib_details():
+@cognito_required(required_permissions=['reports_read'])
+def aangifte_ib_details(user_email, user_roles):
     """Get underlying accounts for a specific Parent and Aangifte (using in-memory cache)"""
     try:
         # Get parameters
@@ -2074,7 +2124,8 @@ def aangifte_ib_details():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/reports/aangifte-ib-export', methods=['POST'])
-def aangifte_ib_export():
+@cognito_required(required_permissions=['reports_export'])
+def aangifte_ib_export(user_email, user_roles):
     """Generate HTML export for Aangifte IB report with account details"""
     try:
         data = request.get_json()
@@ -2218,7 +2269,8 @@ def aangifte_ib_export():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/reports/aangifte-ib-xlsx-export', methods=['POST'])
-def aangifte_ib_xlsx_export():
+@cognito_required(required_permissions=['reports_export'])
+def aangifte_ib_xlsx_export(user_email, user_roles):
     """Generate XLSX export for Aangifte IB"""
     try:
         data = request.get_json()
@@ -2253,7 +2305,8 @@ def aangifte_ib_xlsx_export():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/reports/aangifte-ib-xlsx-export-stream', methods=['POST'])
-def aangifte_ib_xlsx_export_stream():
+@cognito_required(required_permissions=['reports_export'])
+def aangifte_ib_xlsx_export_stream(user_email, user_roles):
     """Generate XLSX export for Aangifte IB with streaming progress"""
     from flask import Response
     import json
@@ -2301,7 +2354,8 @@ def aangifte_ib_xlsx_export_stream():
 
 # PDF Validation routes
 @app.route('/api/pdf/validate-urls-stream', methods=['GET'])
-def pdf_validate_urls_stream():
+@cognito_required(required_permissions=['invoices_read'])
+def pdf_validate_urls_stream(user_email, user_roles):
     """Stream PDF validation progress with Server-Sent Events"""
     from flask import Response
     import json
@@ -2337,7 +2391,8 @@ def pdf_validate_urls_stream():
     })
 
 @app.route('/api/pdf/validate-urls', methods=['GET'])
-def pdf_validate_urls():
+@cognito_required(required_permissions=['invoices_read'])
+def pdf_validate_urls(user_email, user_roles):
     """Validate all Google Drive URLs in mutaties table"""
     import json
     
@@ -2413,7 +2468,8 @@ def pdf_validate_urls():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pdf/update-record', methods=['POST'])
-def pdf_update_record():
+@cognito_required(required_permissions=['invoices_update'])
+def pdf_update_record(user_email, user_roles):
     """Update all records with matching Ref3/Ref4"""
     try:
         data = request.get_json()
@@ -2443,7 +2499,8 @@ def pdf_update_record():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pdf/get-administrations', methods=['GET'])
-def pdf_get_administrations():
+@cognito_required(required_permissions=['invoices_read'])
+def pdf_get_administrations(user_email, user_roles):
     """Get available administrations for a specific year"""
     try:
         year = request.args.get('year', '2025')
@@ -2459,7 +2516,8 @@ def pdf_get_administrations():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pdf/validate-single-url', methods=['GET'])
-def pdf_validate_single_url():
+@cognito_required(required_permissions=['invoices_read'])
+def pdf_validate_single_url(user_email, user_roles):
     """Validate a single Google Drive URL"""
     try:
         url = request.args.get('url')
@@ -2493,7 +2551,8 @@ def pdf_validate_single_url():
 
 # Duplicate Detection API endpoints
 @app.route('/api/check-duplicate', methods=['POST'])
-def check_duplicate():
+@cognito_required(required_permissions=['invoices_read'])
+def check_duplicate(user_email, user_roles):
     """Check for duplicate transactions during import process"""
     try:
         data = request.get_json()
@@ -2560,7 +2619,8 @@ def check_duplicate():
         }), 200
 
 @app.route('/api/log-duplicate-decision', methods=['POST'])
-def log_duplicate_decision():
+@cognito_required(required_permissions=['invoices_create'])
+def log_duplicate_decision(user_email, user_roles):
     """Log user decision regarding duplicate transaction for audit trail"""
     try:
         data = request.get_json()
@@ -2648,7 +2708,8 @@ def log_duplicate_decision():
         }), 200
 
 @app.route('/api/handle-duplicate-decision', methods=['POST'])
-def handle_duplicate_decision():
+@cognito_required(required_permissions=['invoices_create'])
+def handle_duplicate_decision(user_email, user_roles):
     """Handle user decision for duplicate transactions with full workflow processing"""
     try:
         data = request.get_json()

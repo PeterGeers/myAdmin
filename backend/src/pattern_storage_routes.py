@@ -11,12 +11,14 @@ Provides endpoints to:
 from flask import Blueprint, jsonify, request
 from pattern_analyzer import PatternAnalyzer
 import time
+from auth.cognito_utils import cognito_required
 
 # Create blueprint
 pattern_storage_bp = Blueprint('pattern_storage', __name__)
 
 @pattern_storage_bp.route('/api/patterns/storage/stats/<administration>', methods=['GET'])
-def get_pattern_storage_stats(administration):
+@cognito_required(required_permissions=['banking_read'])
+def get_pattern_storage_stats(administration, user_email, user_roles):
     """
     Get pattern storage statistics for an administration
     
@@ -39,7 +41,8 @@ def get_pattern_storage_stats(administration):
         }), 500
 
 @pattern_storage_bp.route('/api/patterns/analyze/<administration>', methods=['POST'])
-def analyze_patterns_with_storage(administration):
+@cognito_required(required_permissions=['banking_process'])
+def analyze_patterns_with_storage(administration, user_email, user_roles):
     """
     Trigger pattern analysis with database storage
     
@@ -90,7 +93,8 @@ def analyze_patterns_with_storage(administration):
         }), 500
 
 @pattern_storage_bp.route('/api/patterns/summary/<administration>', methods=['GET'])
-def get_pattern_summary_from_storage(administration):
+@cognito_required(required_permissions=['banking_read'])
+def get_pattern_summary_from_storage(administration, user_email, user_roles):
     """
     Get pattern summary from database storage
     
@@ -117,7 +121,8 @@ def get_pattern_summary_from_storage(administration):
         }), 500
 
 @pattern_storage_bp.route('/api/patterns/apply/<administration>', methods=['POST'])
-def apply_patterns_from_storage(administration):
+@cognito_required(required_permissions=['banking_process'])
+def apply_patterns_from_storage(administration, user_email, user_roles):
     """
     Apply patterns from database storage to transactions
     
@@ -154,7 +159,8 @@ def apply_patterns_from_storage(administration):
         }), 500
 
 @pattern_storage_bp.route('/api/patterns/performance-comparison/<administration>', methods=['GET'])
-def get_performance_comparison(administration):
+@cognito_required(required_permissions=['banking_read'])
+def get_performance_comparison(administration, user_email, user_roles):
     """
     Get performance comparison between database storage and traditional analysis
     """
@@ -201,7 +207,8 @@ def get_performance_comparison(administration):
         }), 500
 
 @pattern_storage_bp.route('/api/patterns/incremental-stats/<administration>', methods=['GET'])
-def get_incremental_update_stats(administration):
+@cognito_required(required_permissions=['banking_read'])
+def get_incremental_update_stats(administration, user_email, user_roles):
     """
     Get statistics about incremental pattern updates
     

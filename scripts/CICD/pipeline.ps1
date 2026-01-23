@@ -82,6 +82,72 @@ if (-not $SkipGit) {
             if ($gitStatus) {
                 Write-Log "Uncommitted changes detected" "INFO"
                 
+                # ═══ GITGUARDIAN SECURITY SCAN ═══
+                Write-Log "" "INFO"
+                Write-Log "Running GitGuardian security scan..." "INFO"
+                
+                # Check if ggshield is installed
+                try {
+                    ggshield --version | Out-Null
+                    $ggInstalled = $true
+                }
+                catch {
+                    $ggInstalled = $false
+                }
+                
+                if ($ggInstalled) {
+                    # Check if API key is configured
+                    if ($env:GITGUARDIAN_API_KEY) {
+                        Write-Log "Scanning for secrets in staged changes..." "INFO"
+                        
+                        # Scan staged changes
+                        ggshield secret scan pre-commit
+                        
+                        if ($LASTEXITCODE -ne 0) {
+                            Write-Log "╔════════════════════════════════════════════════════════════╗" "ERROR"
+                            Write-Log "║  🚨 SECURITY ALERT: Secrets detected in your changes!     ║" "ERROR"
+                            Write-Log "╚════════════════════════════════════════════════════════════╝" "ERROR"
+                            Write-Log "" "ERROR"
+                            Write-Log "GitGuardian found potential secrets in your code." "ERROR"
+                            Write-Log "Please review the output above and remove any secrets." "ERROR"
+                            Write-Log "" "ERROR"
+                            Write-Log "Common secrets to check:" "ERROR"
+                            Write-Log "  • API keys (OpenRouter, AWS, Google)" "ERROR"
+                            Write-Log "  • Database passwords" "ERROR"
+                            Write-Log "  • JWT secrets" "ERROR"
+                            Write-Log "  • Cognito credentials" "ERROR"
+                            Write-Log "" "ERROR"
+                            
+                            if (-not $Force) {
+                                $override = Read-Host "Override security check and continue anyway? (type 'OVERRIDE' to continue)"
+                                if ($override -ne "OVERRIDE") {
+                                    Exit-WithError "Pipeline stopped due to security scan failure"
+                                }
+                                Write-Log "⚠ Security check overridden by user" "WARN"
+                            }
+                            else {
+                                Write-Log "⚠ Force mode: Continuing despite security scan failure" "WARN"
+                            }
+                        }
+                        else {
+                            Write-Log "✓ No secrets detected" "SUCCESS"
+                        }
+                    }
+                    else {
+                        Write-Log "⚠ GitGuardian API key not configured" "WARN"
+                        Write-Log "  Set GITGUARDIAN_API_KEY environment variable to enable scanning" "WARN"
+                        Write-Log "  Or run: scripts/security/install-gitguardian.ps1" "WARN"
+                    }
+                }
+                else {
+                    Write-Log "⚠ GitGuardian not installed" "WARN"
+                    Write-Log "  Install with: scripts/security/install-gitguardian.ps1" "WARN"
+                    Write-Log "  Continuing without security scan..." "WARN"
+                }
+                
+                Write-Log "" "INFO"
+                # ═══ END GITGUARDIAN SCAN ═══
+                
                 # Show what will be committed
                 Write-Log "Changes to be committed:" "INFO"
                 git status --short | ForEach-Object { Write-Log "  $_" "INFO" }

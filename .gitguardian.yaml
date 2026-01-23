@@ -1,0 +1,26 @@
+# GitGuardian configuration for H-DCN Dashboard
+version: 2
+
+# Secret scanning configuration
+secret:
+  # Show all policy breaks, not just secrets
+  show_secrets: false
+  
+  # Ignore specific patterns that are false positives
+  ignore_known_secrets: true
+  
+  # Ignore test files with example/test JWT tokens
+  ignored_paths:
+    - "test_*.py"
+    - "test_*.html"
+    - "**/tests/**"
+    - "**/__tests__/**"
+    - "decode_*.py"
+    - "trigger_*.py"
+    - ".env"
+    - "**/.env"
+    - ".secrets"
+    - "**/.secrets"
+
+# Exit codes
+exit_zero: false  # Return non-zero exit code when secrets are found

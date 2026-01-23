@@ -2,11 +2,13 @@ from flask import Blueprint, request, jsonify
 from database import DatabaseManager
 import numpy as np
 from collections import defaultdict
+from auth.cognito_utils import cognito_required
 
 bnb_bp = Blueprint('bnb', __name__)
 
 @bnb_bp.route('/bnb-listing-data', methods=['GET'])
-def get_bnb_listing_data():
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_listing_data(user_email, user_roles):
     """Get BNB data summarized by listing"""
     try:
         years = request.args.get('years', '').split(',')
@@ -70,7 +72,8 @@ def get_bnb_listing_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-channel-data', methods=['GET'])
-def get_bnb_channel_data():
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_channel_data(user_email, user_roles):
     """Get BNB data summarized by channel"""
     try:
         years = request.args.get('years', '').split(',')
@@ -134,7 +137,8 @@ def get_bnb_channel_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-actuals', methods=['GET'])
-def get_bnb_actuals():
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_actuals(user_email, user_roles):
     """Get BNB actuals data"""
     try:
         years = request.args.get('years', '').split(',')
@@ -177,7 +181,8 @@ def get_bnb_actuals():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-filter-options', methods=['GET'])
-def get_bnb_filter_options():
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_filter_options(user_email, user_roles):
     """Get available filter options for BNB data"""
     try:
         db = DatabaseManager(test_mode=False)
@@ -220,7 +225,8 @@ def get_bnb_filter_options():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-violin-data', methods=['GET'])
-def get_bnb_violin_data():
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_violin_data(user_email, user_roles):
     """Get BNB data for violin plots"""
     try:
         years = request.args.get('years', '').split(',')
@@ -298,7 +304,8 @@ def get_bnb_violin_data():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-returning-guests', methods=['GET'])
-def get_bnb_returning_guests():
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_returning_guests(user_email, user_roles):
     """Get returning guests summary"""
     try:
         db = DatabaseManager(test_mode=False)
@@ -327,7 +334,8 @@ def get_bnb_returning_guests():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-guest-bookings', methods=['GET'])
-def get_bnb_guest_bookings():
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_guest_bookings(user_email, user_roles):
     """Get all bookings for a specific guest"""
     try:
         guest_name = request.args.get('guestName')

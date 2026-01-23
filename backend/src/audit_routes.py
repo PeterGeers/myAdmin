@@ -14,6 +14,7 @@ import logging
 from datetime import datetime
 import os
 import tempfile
+from auth.cognito_utils import cognito_required
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -29,7 +30,8 @@ def get_audit_logger():
 
 
 @audit_bp.route('/logs', methods=['GET'])
-def get_audit_logs():
+@cognito_required(required_roles=['Administrators'])
+def get_audit_logs(user_email, user_roles):
     """
     Get audit logs with optional filtering.
     
@@ -109,7 +111,8 @@ def get_audit_logs():
 
 
 @audit_bp.route('/logs/count', methods=['GET'])
-def get_audit_log_count():
+@cognito_required(required_roles=['Administrators'])
+def get_audit_log_count(user_email, user_roles):
     """
     Get count of audit log entries.
     
@@ -155,7 +158,8 @@ def get_audit_log_count():
 
 
 @audit_bp.route('/reports/compliance', methods=['GET'])
-def generate_compliance_report():
+@cognito_required(required_roles=['Administrators'])
+def generate_compliance_report(user_email, user_roles):
     """
     Generate a compliance report for audit purposes.
     
@@ -205,7 +209,8 @@ def generate_compliance_report():
 
 
 @audit_bp.route('/reports/user/<user_id>', methods=['GET'])
-def get_user_activity_report(user_id):
+@cognito_required(required_roles=['Administrators'])
+def get_user_activity_report(user_id, user_email, user_roles):
     """
     Generate a user activity report.
     
@@ -247,7 +252,8 @@ def get_user_activity_report(user_id):
 
 
 @audit_bp.route('/transaction-trail', methods=['GET'])
-def get_transaction_audit_trail():
+@cognito_required(required_roles=['Administrators'])
+def get_transaction_audit_trail(user_email, user_roles):
     """
     Get complete audit trail for a specific transaction.
     
@@ -312,7 +318,8 @@ def get_transaction_audit_trail():
 
 
 @audit_bp.route('/export/csv', methods=['GET'])
-def export_logs_to_csv():
+@cognito_required(required_roles=['Administrators'])
+def export_logs_to_csv(user_email, user_roles):
     """
     Export audit logs to CSV file.
     
@@ -385,7 +392,8 @@ def export_logs_to_csv():
 
 
 @audit_bp.route('/cleanup', methods=['POST'])
-def cleanup_old_logs():
+@cognito_required(required_roles=['Administrators'])
+def cleanup_old_logs(user_email, user_roles):
     """
     Clean up old audit logs based on retention policy.
     
@@ -432,7 +440,8 @@ def cleanup_old_logs():
 
 
 @audit_bp.route('/health', methods=['GET'])
-def audit_health_check():
+@cognito_required(required_permissions=[])
+def audit_health_check(user_email, user_roles):
     """
     Health check endpoint for audit logging system.
     

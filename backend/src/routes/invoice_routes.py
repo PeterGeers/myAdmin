@@ -2,12 +2,14 @@ from flask import Blueprint, request, jsonify, send_file
 from invoice_generator import InvoiceGenerator
 import os
 from datetime import datetime
+from auth.cognito_utils import cognito_required
 
 invoice_bp = Blueprint('invoice', __name__, url_prefix='/api/invoice')
 generator = InvoiceGenerator()
 
 @invoice_bp.route('/generate', methods=['POST'])
-def generate_invoice():
+@cognito_required(required_permissions=['invoices_create'])
+def generate_invoice(user_email, user_roles):
     try:
         data = request.json
         company_name = data.get('company_name')
@@ -47,7 +49,8 @@ def generate_invoice():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @invoice_bp.route('/download/<filename>', methods=['GET'])
-def download_invoice(filename):
+@cognito_required(required_permissions=['invoices_read'])
+def download_invoice(filename, user_email, user_roles):
     try:
         from flask import current_app
         

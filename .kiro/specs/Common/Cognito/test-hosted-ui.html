@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognito Hosted UI Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .button {
+            display: inline-block;
+            background: #1976d2;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .button:hover {
+            background: #1565c0;
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        .checklist {
+            margin: 20px 0;
+        }
+        .checklist li {
+            margin: 10px 0;
+        }
+        #tokenDisplay {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: none;
+        }
+        #tokenPayload {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Cognito Hosted UI Test</h1>
+        
+        <div class="info-box">
+            <h3>Your Cognito Configuration</h3>
+            <p><strong>User Pool ID:</strong> eu-west-1_Hdp40eWmu</p>
+            <p><strong>Client ID:</strong> 6sgh53un5ttsojn7o2aj9hi7en</p>
+            <p><strong>Domain:</strong> myadmin-6x2848jl</p>
+            <p><strong>Region:</strong> eu-west-1</p>
+        </div>
+
+        <h2>Step 1: Login via Hosted UI</h2>
+        <p>Click the button below to open the Cognito Hosted UI:</p>
+        <a href="https://myadmin-6x2848jl.auth.eu-west-1.amazoncognito.com/login?client_id=6sgh53un5ttsojn7o2aj9hi7en&response_type=code&redirect_uri=http://localhost:3000/callback" 
+           class="button" target="_blank">
+            🚀 Open Cognito Hosted UI
+        </a>
+
+        <h2>Step 2: Login Credentials</h2>
+        <div class="info-box">
+            <p><strong>Email:</strong> peter@pgeers.nl</p>
+            <p><strong>Password:</strong> (Use the password set during user creation)</p>
+        </div>
+
+        <h2>Step 3: Verify Token</h2>
+        <p>After login, you'll be redirected back. The URL will contain an authorization code.</p>
+        
+        <div id="tokenDisplay">
+            <h3>Authorization Code Detected!</h3>
+            <div class="code" id="authCode"></div>
+            <p>To exchange this code for tokens and verify the JWT, you can use the AWS CLI or decode it at <a href="https://jwt.io" target="_blank">jwt.io</a></p>
+        </div>
+
+        <h2>Verification Checklist</h2>
+        <div class="checklist">
+            <ul>
+                <li>✅ Hosted UI loads without errors</li>
+                <li>✅ Login form displays correctly</li>
+                <li>✅ Login with admin credentials succeeds</li>
+                <li>✅ Redirect to callback URL occurs</li>
+                <li>✅ Authorization code is present in URL</li>
+                <li>✅ JWT token contains <code>cognito:groups: ["Administrators"]</code></li>
+                <li>✅ JWT token contains correct email address</li>
+            </ul>
+        </div>
+
+        <h2>Expected JWT Payload</h2>
+        <p>After decoding the ID token, you should see:</p>
+        <div class="code">
+{
+  "cognito:groups": ["Administrators"],
+  "email": "peter@pgeers.nl",
+  "email_verified": true,
+  "sub": "...",
+  "aud": "6sgh53un5ttsojn7o2aj9hi7en",
+  "token_use": "id",
+  ...
+}
+        </div>
+
+        <h2>Troubleshooting</h2>
+        <ul>
+            <li><strong>Redirect URI mismatch:</strong> Callback URL is already configured ✅</li>
+            <li><strong>User not confirmed:</strong> Check user status in AWS Console</li>
+            <li><strong>Wrong password:</strong> Reset password if needed</li>
+        </ul>
+    </div>
+
+    <script>
+        // Check if we're on the callback URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        
+        if (code) {
+            document.getElementById('tokenDisplay').style.display = 'block';
+            document.getElementById('authCode').textContent = code;
+        }
+    </script>
+</body>
+</html>
