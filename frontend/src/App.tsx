@@ -8,6 +8,7 @@ import STRInvoice from './components/STRInvoice';
 import STRPricing from './components/STRPricing';
 import MyAdminReportsNew from './components/MyAdminReportsNew';
 import theme from './theme';
+import { AuthProvider } from './context/AuthContext';
 
 type PageType = 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi';
 
@@ -177,7 +178,9 @@ function App() {
 
   return (
     <ChakraProvider theme={theme}>
-      {renderPage()}
+      <AuthProvider>
+        {renderPage()}
+      </AuthProvider>
     </ChakraProvider>
   );
 }

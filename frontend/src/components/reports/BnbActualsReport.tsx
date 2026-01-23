@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Button,
   Card,
@@ -364,6 +364,21 @@ const BnbActualsReport: React.FC = () => {
     
     fetchFilterOptions();
   }, []);
+
+  // Refetch BNB actuals data when filters change
+  const bnbFilterDeps = useMemo(() => [
+    bnbActualsFilters.years.join(','),
+    bnbActualsFilters.listings,
+    bnbActualsFilters.channels,
+    bnbActualsFilters.viewType
+  ], [bnbActualsFilters.years, bnbActualsFilters.listings, bnbActualsFilters.channels, bnbActualsFilters.viewType]);
+  
+  useEffect(() => {
+    if (bnbActualsFilters.years.length > 0) {
+      fetchBnbActualsData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bnbFilterDeps]);
 
   return (
     <VStack spacing={4} align="stretch">
