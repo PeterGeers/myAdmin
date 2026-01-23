@@ -231,29 +231,49 @@ function AppContent() {
                   </Badge>
                   <HStack spacing={2}>
                     <Text color="gray.400" fontSize="sm">Logged in as: {user?.email}</Text>
+                    <Text color="gray.400" fontSize="sm">Role: {user?.roles?.join(', ') || 'No roles'}</Text>
                     <Button size="xs" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
                 </VStack>
                 <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
                 
                 <VStack spacing={4} w="400px">
-                  <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
-                    📄 Import Invoices
-                  </Button>
+                  {/* Invoice Management - Accountants, Administrators, Finance roles, Viewers */}
+                  {(user?.roles?.some(role => ['Administrators', 'Accountants', 'Finance_CRUD', 'Finance_Read', 'Viewers'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
+                      📄 Import Invoices
+                    </Button>
+                  )}
 
-                  <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
-                    🏦 Import Banking Accounts
-                  </Button>
-                  <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
-                    🏠 Import STR Bookings
-                  </Button>
-                  <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
-                    🧾 STR Invoice Generator
-                  </Button>
-                  <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
-                    💰 STR Pricing Model
-                  </Button>
+                  {/* Banking - Accountants, Administrators */}
+                  {(user?.roles?.some(role => ['Administrators', 'Accountants'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
+                      🏦 Import Banking Accounts
+                    </Button>
+                  )}
 
+                  {/* STR Bookings - Administrators, STR_CRUD, STR_Read only */}
+                  {(user?.roles?.some(role => ['Administrators', 'STR_CRUD', 'STR_Read'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
+                      🏠 Import STR Bookings
+                    </Button>
+                  )}
+
+                  {/* STR Invoice - Administrators, STR_CRUD, STR_Read only */}
+                  {(user?.roles?.some(role => ['Administrators', 'STR_CRUD', 'STR_Read'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
+                      🧾 STR Invoice Generator
+                    </Button>
+                  )}
+
+                  {/* STR Pricing - Administrators, STR_CRUD only */}
+                  {(user?.roles?.some(role => ['Administrators', 'STR_CRUD'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
+                      💰 STR Pricing Model
+                    </Button>
+                  )}
+
+                  {/* Reports - All authenticated users can view reports */}
                   <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
                     📈 myAdmin Reports
                   </Button>

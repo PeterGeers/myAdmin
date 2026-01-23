@@ -855,16 +855,22 @@ Extrav tattention points
 
 - [ ] Actually, I realize the current app doesn't use React Router yet. Should we implement React Router now??
 
-- [ ] The bundle size is significantly larger than recommended.
-      File sizes after gzip:
 
-  1.38 MB build\static\js\537.0bac0150.chunk.js
-  408.43 kB build\static\js\main.0ae75f52.js
-  1.76 kB build\static\js\453.8701dc61.chunk.js
-  263 B build\static\css\main.e6c13ad2.css
+Perfect! Here are your test users:
 
-The bundle size is significantly larger than recommended.
-Consider reducing it with code splitting: https://goo.gl/9VhYWB
-You can also analyze the project dependencies: https://goo.gl/LeUzfb
+✅ Available Test Users:
+Administrator (Full Access)
 
-scripts/git/git-upload.ps1 -m "Cognito remaining functions updated"
+Email: peter@pgeers.nl
+Role: Administrators
+Status: ✅ CONFIRMED
+Accountant (Limited Access)
+
+Email: accountant@test.com
+Role: Accountants
+Status: ✅ CONFIRMED
+Viewer (Read-Only)
+
+Email: viewer@test.com
+Role: Viewers
+Status: ✅ CONFIRMED
