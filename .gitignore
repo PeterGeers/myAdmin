@@ -67,6 +67,16 @@ Thumbs.db
 # External platforms/repositories
 h-dcn/
 
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+terraform.tfstate.backup
+.terraform.tfstate.lock.info
+
 # Google Drive credentials (ALL FOLDERS)
 credentials.json
 token.json
