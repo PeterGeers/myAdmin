@@ -13,6 +13,7 @@ import { API_BASE_URL } from '../config/api';
  */
 export interface AuthenticatedRequestOptions extends RequestInit {
   skipAuth?: boolean; // Skip authentication for public endpoints
+  onUploadProgress?: (progressEvent: any) => void; // For file upload progress
 }
 
 /**
@@ -175,7 +176,7 @@ export async function authenticatedDelete(
  * 
  * @param endpoint - API endpoint
  * @param formData - FormData object
- * @param options - Request options
+ * @param options - Request options with optional onUploadProgress
  * @returns Fetch response
  */
 export async function authenticatedFormData(
@@ -183,7 +184,7 @@ export async function authenticatedFormData(
   formData: FormData,
   options: AuthenticatedRequestOptions = {}
 ): Promise<Response> {
-  const { skipAuth = false, ...fetchOptions } = options;
+  const { skipAuth = false, onUploadProgress, ...fetchOptions } = options;
 
   // Build full URL
   const url = `${API_BASE_URL}${endpoint}`;
@@ -216,7 +217,36 @@ export async function authenticatedFormData(
     }
   }
 
-  // Make the request
+  // If onUploadProgress is provided, use axios for upload progress tracking
+  if (onUploadProgress) {
+    const axios = (await import('axios')).default;
+    
+    try {
+      const axiosResponse = await axios.post(url, formData, {
+        headers: headers as Record<string, string>,
+        onUploadProgress,
+      });
+      
+      // Convert axios response to fetch Response format
+      return new Response(JSON.stringify(axiosResponse.data), {
+        status: axiosResponse.status,
+        statusText: axiosResponse.statusText,
+        headers: new Headers(axiosResponse.headers as Record<string, string>),
+      });
+    } catch (error: any) {
+      // Convert axios error to fetch error
+      if (error.response) {
+        return new Response(JSON.stringify(error.response.data), {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          headers: new Headers(error.response.headers as Record<string, string>),
+        });
+      }
+      throw error;
+    }
+  }
+
+  // Make the request using fetch (no progress tracking)
   return fetch(url, {
     ...fetchOptions,
     method: fetchOptions.method || 'POST',

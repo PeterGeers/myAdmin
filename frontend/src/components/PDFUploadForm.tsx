@@ -14,11 +14,11 @@ import {
     Textarea,
     VStack
 } from '@chakra-ui/react';
-import axios from 'axios';
 import { Form, Formik } from 'formik';
 import React, { useEffect, useState } from 'react';
 import * as Yup from 'yup';
 import { buildApiUrl } from '../config';
+import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
 import DuplicateWarningDialog from './DuplicateWarningDialog';
 import InvoiceGenerator from './InvoiceGenerator';
 import MissingInvoices from './MissingInvoices';
@@ -71,9 +71,10 @@ const PDFUploadForm: React.FC = () => {
 
   const fetchFolders = async () => {
     try {
-      const response = await axios.get(buildApiUrl('/api/folders'));
-      setAllFolders(response.data);
-      setFilteredFolders(response.data);
+      const response = await authenticatedGet('/api/folders');
+      const data = await response.json();
+      setAllFolders(data);
+      setFilteredFolders(data);
     } catch (error) {
       console.error('Error fetching folders:', error);
     }
@@ -123,27 +124,32 @@ const PDFUploadForm: React.FC = () => {
     formData.append('folderName', values.folderId);
 
     try {
-      const response = await axios.post(buildApiUrl('/api/upload'), formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const formData = new FormData();
+      formData.append('file', values.file);
+      formData.append('folderName', values.folderId);
+      
+      const responseObj = await authenticatedFormData('/api/upload', formData, {
         onUploadProgress: (progressEvent) => {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
           setUploadProgress(progress);
         }
       });
+      
+      const response = await responseObj.json();
 
-      console.log('Upload response:', response.data);
+      console.log('Upload response:', response);
       // Backend returns different structure
       const fileData = {
-        name: response.data.filename,
-        url: `/uploads/${response.data.filename}`,
-        folder: response.data.folder,
-        txt: response.data.extractedText || 'No text extracted'
+        name: response.filename,
+        url: `/uploads/${response.filename}`,
+        folder: response.folder,
+        txt: response.extractedText || 'No text extracted'
       };
       setParsedData(fileData);
-      setVendorData(response.data.vendorData);
+      setVendorData(response.vendorData);
       
       // Check for duplicate information in prepared transactions
-      const preparedTxns = response.data.preparedTransactions || [];
+      const preparedTxns = response.preparedTransactions || [];
       
       // Check if any transaction has duplicate_info
       const hasDuplicates = preparedTxns.some((txn: any) => txn.duplicate_info?.has_duplicates);
@@ -201,8 +207,8 @@ const PDFUploadForm: React.FC = () => {
       }
       
       console.log('Parsed data set:', fileData);
-      console.log('Vendor data set:', response.data.vendorData);
-      console.log('Transactions set:', response.data.transactions);
+      console.log('Vendor data set:', response.vendorData);
+      console.log('Transactions set:', response.transactions);
     } catch (error: any) {
       console.error('Upload error:', error);
       
@@ -271,25 +277,31 @@ const PDFUploadForm: React.FC = () => {
           retryFormData.append('useExisting', 'true');
           
           try {
-            const response = await axios.post(buildApiUrl('/api/upload'), retryFormData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
+            const retryFormData = new FormData();
+            retryFormData.append('file', values.file);
+            retryFormData.append('folderName', values.folderId);
+            retryFormData.append('useExisting', 'true');
+            
+            const responseObj = await authenticatedFormData('/api/upload', retryFormData, {
               onUploadProgress: (progressEvent) => {
                 const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
                 setUploadProgress(progress);
               }
             });
             
+            const response = await responseObj.json();
+            
             const fileData = {
-              name: response.data.filename,
-              url: `/uploads/${response.data.filename}`,
-              folder: response.data.folder,
-              txt: response.data.extractedText || 'No text extracted'
+              name: response.filename,
+              url: `/uploads/${response.filename}`,
+              folder: response.folder,
+              txt: response.extractedText || 'No text extracted'
             };
             setParsedData(fileData);
-            setVendorData(response.data.vendorData);
-            // setTransactions(response.data.transactions || []);
-            setPreparedTransactions(response.data.preparedTransactions || []);
-            // setTemplateTransactions(response.data.templateTransactions || []);
+            setVendorData(response.vendorData);
+            // setTransactions(response.transactions || []);
+            setPreparedTransactions(response.preparedTransactions || []);
+            // setTemplateTransactions(response.templateTransactions || []);
           } catch (retryError) {
             console.error('Retry upload error:', retryError);
           }
@@ -308,10 +320,11 @@ const PDFUploadForm: React.FC = () => {
 
   const approveTransactions = async () => {
     try {
-      const response = await axios.post(buildApiUrl('/api/approve-transactions'), {
+      const responseObj = await authenticatedPost('/api/approve-transactions', {
         transactions: preparedTransactions
       });
-      alert(response.data.message);
+      const response = await responseObj.json();
+      alert(response.message);
       setPreparedTransactions([]);
     } catch (error) {
       console.error('Approval error:', error);
@@ -323,7 +336,7 @@ const PDFUploadForm: React.FC = () => {
     if (!newFolderName.trim()) return;
     
     try {
-      await axios.post(buildApiUrl('/api/create-folder'), {
+      await authenticatedPost('/api/create-folder', {
         folderName: newFolderName
       });
       
@@ -344,7 +357,7 @@ const PDFUploadForm: React.FC = () => {
     try {
       // Log the user's decision to continue
       if (duplicateInfo) {
-        await axios.post(buildApiUrl('/api/log-duplicate-decision'), {
+        await authenticatedPost('/api/log-duplicate-decision', {
           decision: 'continue',
           duplicate_info: {
             existing_transaction_id: duplicateInfo.existingTransaction.id,
@@ -379,26 +392,27 @@ const PDFUploadForm: React.FC = () => {
             formData.append('folderName', folderName);
             formData.append('forceUpload', 'true');
             
-            const response = await axios.post(buildApiUrl('/api/upload'), formData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
+            const responseObj = await authenticatedFormData('/api/upload', formData, {
               onUploadProgress: (progressEvent) => {
                 const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
                 setUploadProgress(progress);
               }
             });
             
+            const response = await responseObj.json();
+            
             // Process the successful response
             const fileData = {
-              name: response.data.filename,
-              url: `/uploads/${response.data.filename}`,
-              folder: response.data.folder,
-              txt: response.data.extractedText || 'No text extracted'
+              name: response.filename,
+              url: `/uploads/${response.filename}`,
+              folder: response.folder,
+              txt: response.extractedText || 'No text extracted'
             };
             setParsedData(fileData);
-            setVendorData(response.data.vendorData);
-            setPreparedTransactions(response.data.preparedTransactions || []);
+            setVendorData(response.vendorData);
+            setPreparedTransactions(response.preparedTransactions || []);
             
-            console.log('Force upload successful:', response.data);
+            console.log('Force upload successful:', response);
           }
         }
       }
@@ -420,7 +434,7 @@ const PDFUploadForm: React.FC = () => {
     try {
       // Log the user's decision to cancel
       if (duplicateInfo) {
-        await axios.post(buildApiUrl('/api/log-duplicate-decision'), {
+        await authenticatedPost('/api/log-duplicate-decision', {
           decision: 'cancel',
           duplicate_info: {
             existing_transaction_id: duplicateInfo.existingTransaction.id,

@@ -5,6 +5,7 @@ import {
   Input, FormControl, FormLabel, useDisclosure, Alert, AlertIcon, Spinner,
   Progress, Stat, StatLabel, StatNumber, StatGroup, Select
 } from '@chakra-ui/react';
+import { authenticatedGet, authenticatedPost } from '../services/apiService';
 
 interface ValidationRecord {
   status: string;
@@ -43,7 +44,7 @@ const PDFValidation: React.FC = () => {
 
   const loadAdministrations = React.useCallback(async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/pdf/get-administrations?year=${selectedYear}`);
+      const response = await authenticatedGet(`/api/pdf/get-administrations?year=${selectedYear}`);
       const data = await response.json();
       if (data.success) {
         setAvailableAdmins(data.administrations);
@@ -59,7 +60,20 @@ const PDFValidation: React.FC = () => {
     setValidationResults([]);
     
     try {
-      const eventSource = new EventSource(`http://localhost:5000/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${selectedAdmin}`);
+      // Get the auth token
+      const { getCurrentAuthTokens } = await import('../services/authService');
+      const tokens = await getCurrentAuthTokens();
+      
+      if (!tokens?.idToken) {
+        console.error('No authentication token available');
+        setLoading(false);
+        return;
+      }
+      
+      // EventSource with auth token in URL (not ideal but necessary for SSE)
+      const eventSource = new EventSource(
+        `http://localhost:5000/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${selectedAdmin}&token=${encodeURIComponent(tokens.idToken)}`
+      );
       
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -115,7 +129,7 @@ const PDFValidation: React.FC = () => {
 
   const revalidateUrl = async (newUrl: string, oldUrl: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/pdf/validate-single-url?url=${encodeURIComponent(newUrl)}`);
+      const response = await authenticatedGet(`/api/pdf/validate-single-url?url=${encodeURIComponent(newUrl)}`);
       const data = await response.json();
       
       if (data.success) {
@@ -142,13 +156,9 @@ const PDFValidation: React.FC = () => {
 
   const updateRecord = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/pdf/update-record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateForm)
-      });
-      
+      const response = await authenticatedPost('/api/pdf/update-record', updateForm);
       const data = await response.json();
+      
       if (data.success) {
         onClose();
         // Re-validate the new URL to check if it works
