@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "OpenRouter API Key - .env", "match": "cd4020cbbc47531182a4079a7adc142ac85d60229d35613084c7bd839cb6d8cf"}, {"name": "AWS Cognito OAuth 2.0 Credentials with Host - .env", "match": "73002995ac0916040309340974c123a96ecbf5440d39d7246edddf816e5bd4fa"}]}
+{"last_found_secrets": [{"name": "AWS Cognito OAuth 2.0 Credentials with Host - c:\\Users\\peter\\aws\\myAdmin\\.kiro\\specs\\Common\\Security\\Environment-Variables-Consolidation.md", "match": "ebe399e0385b6869dea60e33c54fa1b3c179a3a6589024109fb3cacf4dc79346"}]}

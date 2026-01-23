@@ -453,7 +453,7 @@ const { user, isAuthenticated, hasRole } = useAuth();
 
 ---
 
-- [ ] ### Task 3.6: Implement Protected Routes ⏱️ 30 minutes
+- [x] ### Task 3.6: Implement Protected Routes ⏱️ 30 minutes
 
 **Status**: Waiting for Task 3.5
 **Prerequisites**: Task 3.5 complete

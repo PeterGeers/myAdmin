@@ -11,8 +11,8 @@
 
 #### eu-west-1 (Ireland) ✅
 
-- ✅ H-DCN-Authentication-Pool (eu-west-1_OAT3oPCIm)
-- ✅ Leden User Pool (eu-west-1_VtKQHhXGN)
+- ✅ H-DCN-Authentication-Pool (eu-west-1_XXXXXXXXX)
+- ✅ Leden User Pool (eu-west-1_XXXXXXXXX)
 - ✅ Your h-dcn project is here
 
 #### eu-central-1 (Frankfurt)

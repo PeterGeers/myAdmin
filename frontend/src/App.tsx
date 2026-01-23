@@ -8,6 +8,7 @@ import STRInvoice from './components/STRInvoice';
 import STRPricing from './components/STRPricing';
 import MyAdminReportsNew from './components/MyAdminReportsNew';
 import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -48,181 +49,218 @@ function AppContent() {
     switch (currentPage) {
       case 'pdf':
         return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                  <Heading color="orange.400" size="lg">📄 Import Invoices</Heading>
+          <ProtectedRoute 
+            requiredRoles={['Administrators', 'Accountants']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">📄 Import Invoices</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
                 </HStack>
-                <HStack>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
-                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </HStack>
+              </Box>
+              <PDFUploadForm />
             </Box>
-            <PDFUploadForm />
-          </Box>
+          </ProtectedRoute>
         );
 
       case 'banking':
         return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                  <Heading color="orange.400" size="lg">🏦 Import Banking Accounts</Heading>
+          <ProtectedRoute 
+            requiredRoles={['Administrators', 'Accountants']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">🏦 Import Banking Accounts</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
                 </HStack>
-                <HStack>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
-                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </HStack>
+              </Box>
+              <BankingProcessor />
             </Box>
-            <BankingProcessor />
-          </Box>
+          </ProtectedRoute>
         );
       case 'bank-connect':
         return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                  <Heading color="orange.400" size="lg">🏦 Connect Bank (Salt Edge)</Heading>
+          <ProtectedRoute 
+            requiredRoles={['Administrators', 'Accountants']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">🏦 Connect Bank (Salt Edge)</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
                 </HStack>
-                <HStack>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
-                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </HStack>
+              </Box>
+              <BankConnect />
             </Box>
-            <BankConnect />
-          </Box>
+          </ProtectedRoute>
         );
       case 'str':
         return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                  <Heading color="orange.400" size="lg">🏠 Import STR Bookings</Heading>
+          <ProtectedRoute 
+            requiredRoles={['Administrators', 'Accountants']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">🏠 Import STR Bookings</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
                 </HStack>
-                <HStack>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
-                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </HStack>
+              </Box>
+              <STRProcessor />
             </Box>
-            <STRProcessor />
-          </Box>
+          </ProtectedRoute>
         );
       case 'str-invoice':
         return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                  <Heading color="orange.400" size="lg">🧾 STR Invoice Generator</Heading>
+          <ProtectedRoute 
+            requiredRoles={['Administrators', 'Accountants']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">🧾 STR Invoice Generator</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
                 </HStack>
-                <HStack>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
-                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </HStack>
+              </Box>
+              <STRInvoice />
             </Box>
-            <STRInvoice />
-          </Box>
+          </ProtectedRoute>
         );
 
       case 'str-pricing':
         return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                  <Heading color="orange.400" size="lg">💰 STR Pricing Model</Heading>
+          <ProtectedRoute 
+            requiredRoles={['Administrators', 'Accountants']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">💰 STR Pricing Model</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
                 </HStack>
-                <HStack>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
-                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </HStack>
+              </Box>
+              <STRPricing />
             </Box>
-            <STRPricing />
-          </Box>
+          </ProtectedRoute>
         );
 
       case 'powerbi':
         return (
-          <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                  <Heading color="orange.400" size="lg">📈 myAdmin Reports</Heading>
+          <ProtectedRoute 
+            requiredRoles={['Administrators', 'Accountants', 'Viewers']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">📈 myAdmin Reports</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
                 </HStack>
-                <HStack>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
-                  <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                  <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </HStack>
+              </Box>
+              <MyAdminReportsNew />
             </Box>
-            <MyAdminReportsNew />
-          </Box>
+          </ProtectedRoute>
         );
 
       default:
         return (
-          <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
-            <VStack spacing={8}>
-              <VStack spacing={2}>
-                <Heading color="orange.400" size="2xl">myAdmin Dashboard</Heading>
-                <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'} fontSize="md" px={3} py={1}>
-                  {status.mode} Mode
-                </Badge>
-                <HStack spacing={2}>
-                  <Text color="gray.400" fontSize="sm">Logged in as: {user?.email}</Text>
-                  <Button size="xs" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                </HStack>
-              </VStack>
-              <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
-              
-              <VStack spacing={4} w="400px">
-                <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
-                  📄 Import Invoices
-                </Button>
+          <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
+            <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
+              <VStack spacing={8}>
+                <VStack spacing={2}>
+                  <Heading color="orange.400" size="2xl">myAdmin Dashboard</Heading>
+                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'} fontSize="md" px={3} py={1}>
+                    {status.mode} Mode
+                  </Badge>
+                  <HStack spacing={2}>
+                    <Text color="gray.400" fontSize="sm">Logged in as: {user?.email}</Text>
+                    <Button size="xs" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
+                </VStack>
+                <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
+                
+                <VStack spacing={4} w="400px">
+                  <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
+                    📄 Import Invoices
+                  </Button>
 
-                <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
-                  🏦 Import Banking Accounts
-                </Button>
-                <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
-                  🏠 Import STR Bookings
-                </Button>
-                <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
-                  🧾 STR Invoice Generator
-                </Button>
-                <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
-                  💰 STR Pricing Model
-                </Button>
+                  <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
+                    🏦 Import Banking Accounts
+                  </Button>
+                  <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
+                    🏠 Import STR Bookings
+                  </Button>
+                  <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
+                    🧾 STR Invoice Generator
+                  </Button>
+                  <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
+                    💰 STR Pricing Model
+                  </Button>
 
-                <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
-                  📈 myAdmin Reports
-                </Button>
+                  <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
+                    📈 myAdmin Reports
+                  </Button>
+                </VStack>
               </VStack>
-            </VStack>
-          </Box>
+            </Box>
+          </ProtectedRoute>
         );
     }
   };
