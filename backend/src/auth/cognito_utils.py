@@ -16,71 +16,61 @@ from datetime import datetime
 
 
 # Role-based permission mapping
+# Official Cognito Groups only - no legacy roles
 ROLE_PERMISSIONS = {
-    # System roles - full access
-    'System_CRUD': ['*'],
-    'System_User_Management': ['users_manage', 'roles_assign', 'users_read', 'users_list'],
-    'System_Logs_Read': ['logs_read', 'audit_read'],
-    
-    # Admin roles
-    'Administrators': ['*'],  # Full access to everything
-    
-    # Accountant roles - financial data access
-    'Accountants': [
-        'invoices_create', 'invoices_read', 'invoices_update', 'invoices_delete',
-        'invoices_list', 'invoices_export',
-        'transactions_create', 'transactions_read', 'transactions_update', 'transactions_delete',
-        'transactions_list', 'transactions_export',
-        'reports_read', 'reports_list', 'reports_export',
-        'banking_read', 'banking_process',
-        'btw_read', 'btw_process',
-        'actuals_read', 'actuals_update'
+    # System Administration - system config ONLY, NO user data access
+    'SysAdmin': [
+        'system_config', 'system_logs', 'system_audit', 'system_read',
+        'cache_manage', 'templates_manage', 'users_manage',
+        'scalability_read', 'performance_read', 'debug_access'
     ],
     
-    # Viewer roles - read-only access
-    'Viewers': [
-        'invoices_read', 'invoices_list',
-        'transactions_read', 'transactions_list',
-        'reports_read', 'reports_list', 'reports_export',
-        'dashboard_read'
-    ],
-    
-    # Resource-specific CRUD roles
+    # Finance Module - Financial data access (invoices, transactions, banking, reports)
     'Finance_CRUD': [
         'finance_create', 'finance_read', 'finance_update', 'finance_delete',
         'finance_list', 'finance_export',
         'invoices_create', 'invoices_read', 'invoices_update', 'invoices_delete',
         'invoices_list', 'invoices_export',
         'transactions_create', 'transactions_read', 'transactions_update', 'transactions_delete',
-        'transactions_list', 'transactions_export'
+        'transactions_list', 'transactions_export',
+        'banking_read', 'banking_process',
+        'btw_read', 'btw_process',
+        'actuals_read', 'actuals_update',
+        'reports_read', 'reports_list', 'reports_export'
     ],
-    'Finance_Read': ['finance_read', 'finance_list', 'invoices_read', 'invoices_list', 
-                     'transactions_read', 'transactions_list'],
-    'Finance_Export': ['finance_export', 'invoices_export', 'transactions_export'],
+    'Finance_Read': [
+        'finance_read', 'finance_list',
+        'invoices_read', 'invoices_list',
+        'transactions_read', 'transactions_list',
+        'banking_read',
+        'actuals_read',
+        'reports_read', 'reports_list'
+    ],
+    'Finance_Export': [
+        'finance_export',
+        'invoices_export',
+        'transactions_export',
+        'reports_read', 'reports_export',
+        'actuals_read'
+    ],
     
+    # STR Module - Short-term rental data access (bookings, pricing, STR reports)
     'STR_CRUD': [
         'str_create', 'str_read', 'str_update', 'str_delete',
         'str_list', 'str_export',
         'bookings_create', 'bookings_read', 'bookings_update', 'bookings_delete',
-        'bookings_list', 'bookings_export'
+        'bookings_list', 'bookings_export',
+        'reports_read', 'reports_list', 'reports_export'
     ],
-    'STR_Read': ['str_read', 'str_list', 'bookings_read', 'bookings_list'],
-    'STR_Export': ['str_export', 'bookings_export'],
-    
-    'Products_CRUD': [
-        'products_create', 'products_read', 'products_update', 'products_delete',
-        'products_list'
+    'STR_Read': [
+        'str_read', 'str_list',
+        'bookings_read', 'bookings_list',
+        'reports_read', 'reports_list'
     ],
-    
-    'Webshop_Management': [
-        'products_read', 'products_list',
-        'orders_read', 'orders_list', 'orders_update',
-        'carts_read', 'carts_list'
-    ],
-    
-    'Communication_CRUD': [
-        'communications_create', 'communications_read', 'communications_update',
-        'communications_delete', 'communications_list'
+    'STR_Export': [
+        'str_export',
+        'bookings_export',
+        'reports_read', 'reports_export'
     ],
 }
 

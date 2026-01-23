@@ -26,7 +26,7 @@ duplicate_performance_bp = Blueprint('duplicate_performance', __name__)
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/status', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_performance_status(user_email, user_roles):
     """
     Get current performance status for duplicate detection system.
@@ -53,7 +53,7 @@ def get_performance_status(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/metrics', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_detailed_metrics(user_email, user_roles):
     """
     Get detailed performance metrics for duplicate detection.
@@ -100,7 +100,7 @@ def get_detailed_metrics(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/health', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_health_status(user_email, user_roles):
     """
     Get health status and recommendations for duplicate detection system.
@@ -128,7 +128,7 @@ def get_health_status(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/cache-stats', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_cache_statistics(user_email, user_roles):
     """
     Get query cache statistics.
@@ -161,7 +161,7 @@ def get_cache_statistics(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/query-stats', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_query_statistics(user_email, user_roles):
     """
     Get database query statistics for duplicate detection.
@@ -191,7 +191,7 @@ def get_query_statistics(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/optimize', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def optimize_performance(user_email, user_roles):
     """
     Run performance optimization operations.
@@ -275,7 +275,7 @@ def optimize_performance(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/export', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def export_metrics(user_email, user_roles):
     """
     Export performance metrics to file.
@@ -320,7 +320,7 @@ def export_metrics(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/recommendations', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_recommendations(user_email, user_roles):
     """
     Get performance optimization recommendations.
@@ -356,7 +356,7 @@ def get_recommendations(user_email, user_roles):
 
 
 @duplicate_performance_bp.route('/api/duplicate-detection/performance/test', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def test_performance(user_email, user_roles):
     """
     Run performance test for duplicate detection.

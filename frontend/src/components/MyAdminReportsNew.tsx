@@ -8,15 +8,15 @@ const MyAdminReportsNew: React.FC = () => {
   const { user } = useAuth();
 
   // Check if user has access to BNB (STR) reports
-  // Only Administrators, STR_CRUD, and STR_Read can access BNB reports
+  // STR module permissions: STR_CRUD, STR_Read, STR_Export
   const canAccessBnbReports = user?.roles?.some(role => 
-    ['Administrators', 'STR_CRUD', 'STR_Read'].includes(role)
+    ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role)
   );
 
   // Check if user has access to Financial reports
-  // Administrators, Accountants, Finance roles, and Viewers can access Financial reports
+  // Finance module permissions: Finance_CRUD, Finance_Read, Finance_Export
   const canAccessFinancialReports = user?.roles?.some(role => 
-    ['Administrators', 'Accountants', 'Finance_CRUD', 'Finance_Read', 'Finance_Export', 'Viewers'].includes(role)
+    ['Finance_CRUD', 'Finance_Read', 'Finance_Export'].includes(role)
   );
 
   // If user has no access to any reports, show message

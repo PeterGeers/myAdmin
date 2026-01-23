@@ -1,203 +1,83 @@
-# Role-Based Access Control (RBAC) - Frontend Menu Implementation
+# RBAC Frontend Menu Implementation
 
-## Overview
+## Module Structure
 
-The frontend menu and reports now implement role-based access control to show only the features that each user role is authorized to access.
-
-**Implementation Date**: January 23, 2026  
-**Status**: ✅ Complete
-
-## Role-Based Menu Access
-
-### Administrators
-**Full Access** - Can see all menu items and reports:
-- ✅ 📄 Import Invoices
-- ✅ 🏦 Import Banking Accounts
-- ✅ 🏠 Import STR Bookings
-- ✅ 🧾 STR Invoice Generator
-- ✅ 💰 STR Pricing Model
-- ✅ 📈 myAdmin Reports
-  - ✅ 🏠 BNB Reports (all 6 reports)
-  - ✅ 💰 Financial Reports (all 5 reports)
-
-### Accountants
-**Financial Operations** - Can see:
-- ✅ 📄 Import Invoices
-- ✅ 🏦 Import Banking Accounts
-- ❌ 🏠 Import STR Bookings (Hidden)
-- ❌ 🧾 STR Invoice Generator (Hidden)
-- ❌ 💰 STR Pricing Model (Hidden)
-- ✅ 📈 myAdmin Reports
-  - ❌ 🏠 BNB Reports (Hidden - STR data)
-  - ✅ 💰 Financial Reports (all 5 reports)
-
-### Finance_CRUD / Finance_Read
-**Invoice Management** - Can see:
-- ✅ 📄 Import Invoices
-- ❌ 🏦 Import Banking Accounts (Hidden)
-- ❌ 🏠 Import STR Bookings (Hidden)
-- ❌ 🧾 STR Invoice Generator (Hidden)
-- ❌ 💰 STR Pricing Model (Hidden)
-- ✅ 📈 myAdmin Reports
-  - ❌ 🏠 BNB Reports (Hidden)
-  - ✅ 💰 Financial Reports (all 5 reports)
-
-### STR_CRUD
-**STR Management** - Can see:
-- ❌ 📄 Import Invoices (Hidden)
-- ❌ 🏦 Import Banking Accounts (Hidden)
-- ✅ 🏠 Import STR Bookings
-- ✅ 🧾 STR Invoice Generator
-- ✅ 💰 STR Pricing Model
-- ✅ 📈 myAdmin Reports
-  - ✅ 🏠 BNB Reports (all 6 reports)
-  - ❌ 💰 Financial Reports (Hidden)
-
-### STR_Read
-**STR Read-Only** - Can see:
-- ❌ 📄 Import Invoices (Hidden)
-- ❌ 🏦 Import Banking Accounts (Hidden)
-- ✅ 🏠 Import STR Bookings (Read-only)
-- ✅ 🧾 STR Invoice Generator
-- ❌ 💰 STR Pricing Model (Hidden)
-- ✅ 📈 myAdmin Reports
-  - ✅ 🏠 BNB Reports (all 6 reports, read-only)
-  - ❌ 💰 Financial Reports (Hidden)
-
-### Viewers
-**Read-Only Access** - Can see:
-- ✅ 📄 Import Invoices (Read-only)
-- ❌ 🏦 Import Banking Accounts (Hidden)
-- ❌ 🏠 Import STR Bookings (Hidden)
-- ❌ 🧾 STR Invoice Generator (Hidden)
-- ❌ 💰 STR Pricing Model (Hidden)
-- ✅ 📈 myAdmin Reports
-  - ❌ 🏠 BNB Reports (Hidden)
-  - ✅ 💰 Financial Reports (all 5 reports, read-only)
-
-## Report Categories
-
-### BNB Reports (STR/Short-Term Rental)
-Access: Administrators, STR_CRUD, STR_Read
-1. 🏠 Revenue
-2. 🏡 Actuals
-3. 🎻 Violins
-4. 🔄 Terugkerend (Returning Guests)
-5. 📈 Future
-6. 🏨 Toeristenbelasting (Tourist Tax)
-
-### Financial Reports
-Access: Administrators, Accountants, Finance_CRUD, Finance_Read, Finance_Export, Viewers
-1. 💰 Mutaties (P&L)
-2. 📊 Actuals
-3. 🧾 Aangifte BTW (VAT Declaration)
-4. 📈 Trend by ReferenceNumber
-5. 📋 Aangifte IB (Income Tax Declaration)
-
-## Implementation Details
-
-### Menu Filtering Logic
-
-The menu items are conditionally rendered based on the user's roles:
-
-```typescript
-// Invoice Management - Accountants, Administrators, Finance roles, Viewers
-{(user?.roles?.some(role => ['Administrators', 'Accountants', 'Finance_CRUD', 'Finance_Read', 'Viewers'].includes(role))) && (
-  <Button>📄 Import Invoices</Button>
-)}
-
-// Banking - Accountants, Administrators only
-{(user?.roles?.some(role => ['Administrators', 'Accountants'].includes(role))) && (
-  <Button>🏦 Import Banking Accounts</Button>
-)}
-
-// STR Features - Administrators, STR_CRUD, STR_Read only
-{(user?.roles?.some(role => ['Administrators', 'STR_CRUD', 'STR_Read'].includes(role))) && (
-  <Button>🏠 Import STR Bookings</Button>
-)}
+```
+├── Finance Module
+│   ├── Finance_Read (view only)
+│   ├── Finance_CRUD (create, update, delete)
+│   └── Finance_Export (export data)
+├── STR Module
+│   ├── STR_Read (view only)
+│   ├── STR_CRUD (create, update, delete)
+│   └── STR_Export (export data)
+└── System Module
+    └── SysAdmin (system configuration, NO user data access)
 ```
 
-### Reports Filtering Logic
+## Role Access Matrix
 
-The reports component dynamically shows only authorized report categories:
+| Feature               | Finance_CRUD | Finance_Read | Finance_Export | STR_CRUD | STR_Read | STR_Export | SysAdmin |
+| --------------------- | ------------ | ------------ | -------------- | -------- | -------- | ---------- | -------- |
+| Import Invoices       | ✅           | ❌           | ❌             | ❌       | ❌       | ❌         | ❌       |
+| Import Banking        | ✅           | ❌           | ❌             | ❌       | ❌       | ❌         | ❌       |
+| Import STR Bookings   | ❌           | ❌           | ❌             | ✅       | ❌       | ❌         | ❌       |
+| STR Invoice Generator | ❌           | ❌           | ❌             | ✅       | ✅       | ✅         | ❌       |
+| STR Pricing Model     | ❌           | ❌           | ❌             | ✅       | ❌       | ❌         | ❌       |
+| Financial Reports     | ✅           | ✅           | ✅             | ❌       | ❌       | ❌         | ❌       |
+| BNB Reports           | ❌           | ❌           | ❌             | ✅       | ✅       | ✅         | ❌       |
+| System Admin Features | ❌           | ❌           | ❌             | ❌       | ❌       | ❌         | ✅       |
 
-```typescript
-// BNB Reports - STR roles only
-const canAccessBnbReports = user?.roles?.some(role => 
-  ['Administrators', 'STR_CRUD', 'STR_Read'].includes(role)
-);
+## Key Principles
 
-// Financial Reports - Financial roles
-const canAccessFinancialReports = user?.roles?.some(role => 
-  ['Administrators', 'Accountants', 'Finance_CRUD', 'Finance_Read', 'Finance_Export', 'Viewers'].includes(role)
-);
-```
+1. **Roles are additive**: Users can have multiple roles
+2. **SysAdmin has NO access to Finance or STR modules**
+3. **Module isolation**: Finance roles cannot access STR data and vice versa
+4. **Backend enforces all permissions** - frontend only hides UI elements
 
-**Smart UI Behavior**:
-- If user has access to both report types → Show tabs
-- If user has access to only one type → Show that type directly (no tabs)
-- If user has no access → Show warning message
+## Current Implementation Status
 
-### User Role Display
+### ❌ Issues Found
 
-The menu header now shows the user's assigned roles:
-```
-Logged in as: accountant@test.com
-Role: Accountants
-```
+**Frontend incorrectly includes SysAdmin in Finance/STR checks:**
 
-## Testing
+- ✅ Fixed in `App.tsx`
+- ✅ Fixed in `MyAdminReportsNew.tsx`
 
-### Test User: accountant@test.com (Accountants role)
+**Backend uses mixed permission system:**
 
-**Expected Behavior**:
-- ✅ Dashboard: Import Invoices, Import Banking Accounts, myAdmin Reports
-- ✅ Reports: Only Financial Reports (no BNB tab)
-- ❌ Should NOT see: STR features, BNB Reports
+- Some routes use legacy roles (`Administrators`, `Accountants`)
+- Some routes use generic permissions (`reports_read`, `banking_read`)
+- Module-specific roles defined in `ROLE_PERMISSIONS` but not consistently used
 
-### Test User: viewer@test.com (Viewers role)
+### ✅ Completed Fixes
 
-**Expected Behavior**:
-- ✅ Dashboard: Import Invoices (read-only), myAdmin Reports
-- ✅ Reports: Only Financial Reports (no BNB tab)
-- ❌ Should NOT see: Banking, STR features, BNB Reports
+- [x] 1. Remove `'SysAdmin'` from all Finance/STR module checks in frontend
+- [x] 2. Update SysAdmin permissions in backend (removed wildcard `['*']`, added specific system permissions)
+- [x] 3. Update routes using legacy `'Administrators'` role to use `'SysAdmin'`
+- [x] 4. Add System Administration menu with User & Role Management
 
-### Test User: peter@pgeers.nl (Administrators role)
+## Files Updated
 
-**Expected Behavior**:
-- ✅ Dashboard: ALL menu items
-- ✅ Reports: Both BNB and Financial Reports tabs
+- [x] `frontend/src/App.tsx` - Removed SysAdmin from Finance/STR checks, added System Admin menu
+- [x] `frontend/src/components/MyAdminReportsNew.tsx` - Removed SysAdmin from report checks
+- [x] `frontend/src/components/SystemAdmin.tsx` - New component for user/role management
+- [x] `backend/src/auth/cognito_utils.py` - Changed SysAdmin from wildcard to specific permissions
+- [x] `backend/src/admin_routes.py` - New routes for user/role management
+- [x] `backend/src/app.py` - Registered admin_bp blueprint
+- [x] `backend/src/scalability_routes.py` - Changed Administrators to SysAdmin
+- [x] `backend/src/duplicate_performance_routes.py` - Changed Administrators to SysAdmin
+- [x] `backend/src/audit_routes.py` - Changed Administrators to SysAdmin
 
-## Backend Protection
+## System Administration Features
 
-**Important**: The frontend menu filtering is for UX only. The backend API endpoints are protected with the `@cognito_required` decorator and will return 403 Forbidden if a user tries to access an endpoint they don't have permission for.
+**Menu:** ⚙️ System Administration (SysAdmin role only)
 
-This provides **defense in depth**:
-1. **Frontend**: Hides unauthorized menu items and reports (better UX)
-2. **Backend**: Enforces permissions on API calls (security)
+**Features:**
 
-## Files Modified
-
-- `frontend/src/App.tsx` - Added role-based menu filtering
-- `frontend/src/components/MyAdminReportsNew.tsx` - Added role-based report filtering
-
-## Related Documentation
-
-- Backend RBAC: `backend/docs/RBAC_IMPLEMENTATION_SUMMARY.md`
-- Authentication Context: `frontend/src/context/AuthContext.tsx`
-- Auth Service: `frontend/src/services/authService.ts`
-
-## Next Steps
-
-1. ✅ Frontend menu filtering implemented
-2. ✅ Frontend reports filtering implemented
-3. ⏳ Test with all user roles
-4. ⏳ Add role-based UI elements within components (e.g., hide edit buttons for read-only users)
-5. ⏳ Add user feedback when attempting unauthorized actions
-
-## Security Notes
-
-- Menu items and report tabs are hidden based on roles, but backend still validates all requests
-- Users cannot bypass frontend restrictions by manipulating URLs
-- All API calls require valid JWT tokens with appropriate permissions
-- Unauthorized API calls return 403 Forbidden with audit logging
+- User & Role Management
+  - List all users with their roles and status
+  - Add/remove roles from users
+  - Enable/disable user accounts
+  - Delete user accounts
+  - View all available roles (groups)

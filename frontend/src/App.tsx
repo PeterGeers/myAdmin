@@ -12,7 +12,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi';
+import SystemAdmin from './components/SystemAdmin';
+
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'system-admin';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
@@ -50,7 +52,7 @@ function AppContent() {
       case 'pdf':
         return (
           <ProtectedRoute 
-            requiredRoles={['Administrators', 'Accountants']}
+            requiredRoles={['Finance_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -75,7 +77,7 @@ function AppContent() {
       case 'banking':
         return (
           <ProtectedRoute 
-            requiredRoles={['Administrators', 'Accountants']}
+            requiredRoles={['Finance_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -99,7 +101,7 @@ function AppContent() {
       case 'bank-connect':
         return (
           <ProtectedRoute 
-            requiredRoles={['Administrators', 'Accountants']}
+            requiredRoles={['Finance_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -123,7 +125,7 @@ function AppContent() {
       case 'str':
         return (
           <ProtectedRoute 
-            requiredRoles={['Administrators', 'Accountants']}
+            requiredRoles={['STR_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -147,7 +149,7 @@ function AppContent() {
       case 'str-invoice':
         return (
           <ProtectedRoute 
-            requiredRoles={['Administrators', 'Accountants']}
+            requiredRoles={['STR_CRUD', 'STR_Read', 'STR_Export']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -172,7 +174,7 @@ function AppContent() {
       case 'str-pricing':
         return (
           <ProtectedRoute 
-            requiredRoles={['Administrators', 'Accountants']}
+            requiredRoles={['STR_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -194,10 +196,35 @@ function AppContent() {
           </ProtectedRoute>
         );
 
+      case 'system-admin':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['SysAdmin']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">⚙️ System Administration</Heading>
+                  </HStack>
+                  <HStack>
+                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
+                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
+                </HStack>
+              </Box>
+              <SystemAdmin />
+            </Box>
+          </ProtectedRoute>
+        );
+
       case 'powerbi':
         return (
           <ProtectedRoute 
-            requiredRoles={['Administrators', 'Accountants', 'Viewers']}
+            requiredRoles={['Finance_CRUD', 'Finance_Read', 'Finance_Export', 'STR_CRUD', 'STR_Read', 'STR_Export']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -238,45 +265,52 @@ function AppContent() {
                 <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
                 
                 <VStack spacing={4} w="400px">
-                  {/* Invoice Management - Accountants, Administrators, Finance roles, Viewers */}
-                  {(user?.roles?.some(role => ['Administrators', 'Accountants', 'Finance_CRUD', 'Finance_Read', 'Viewers'].includes(role))) && (
+                  {/* Invoice Management - Finance module permissions */}
+                  {(user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
                       📄 Import Invoices
                     </Button>
                   )}
 
-                  {/* Banking - Accountants, Administrators */}
-                  {(user?.roles?.some(role => ['Administrators', 'Accountants'].includes(role))) && (
+                  {/* Banking - Finance CRUD only (requires write access) */}
+                  {(user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
                       🏦 Import Banking Accounts
                     </Button>
                   )}
 
-                  {/* STR Bookings - Administrators, STR_CRUD, STR_Read only */}
-                  {(user?.roles?.some(role => ['Administrators', 'STR_CRUD', 'STR_Read'].includes(role))) && (
+                  {/* STR Bookings - STR module permissions */}
+                  {(user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
                       🏠 Import STR Bookings
                     </Button>
                   )}
 
-                  {/* STR Invoice - Administrators, STR_CRUD, STR_Read only */}
-                  {(user?.roles?.some(role => ['Administrators', 'STR_CRUD', 'STR_Read'].includes(role))) && (
+                  {/* STR Invoice - STR module permissions */}
+                  {(user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
                       🧾 STR Invoice Generator
                     </Button>
                   )}
 
-                  {/* STR Pricing - Administrators, STR_CRUD only */}
-                  {(user?.roles?.some(role => ['Administrators', 'STR_CRUD'].includes(role))) && (
+                  {/* STR Pricing - STR CRUD only (requires write access) */}
+                  {(user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
                       💰 STR Pricing Model
                     </Button>
                   )}
 
-                  {/* Reports - All authenticated users can view reports */}
+                  {/* Reports - All authenticated users with any module access */}
                   <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
                     📈 myAdmin Reports
                   </Button>
+
+                  {/* System Administration - SysAdmin only */}
+                  {(user?.roles?.some(role => ['SysAdmin'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="gray" onClick={() => setCurrentPage('system-admin')}>
+                      ⚙️ System Administration
+                    </Button>
+                  )}
                 </VStack>
               </VStack>
             </Box>

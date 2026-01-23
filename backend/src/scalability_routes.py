@@ -28,7 +28,7 @@ scalability_bp = Blueprint('scalability', __name__)
 
 
 @scalability_bp.route('/api/scalability/dashboard', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def scalability_dashboard(user_email, user_roles):
     """
     Get comprehensive scalability dashboard data
@@ -129,7 +129,7 @@ def scalability_dashboard(user_email, user_roles):
 
 
 @scalability_bp.route('/api/scalability/metrics/realtime', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def realtime_metrics(user_email, user_roles):
     """
     Get real-time performance metrics
@@ -184,7 +184,7 @@ def realtime_metrics(user_email, user_roles):
 
 
 @scalability_bp.route('/api/scalability/load-test', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def run_load_test(user_email, user_roles):
     """
     Run a quick load test to validate scalability
@@ -320,7 +320,7 @@ def run_load_test(user_email, user_roles):
 
 
 @scalability_bp.route('/api/scalability/optimize', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def optimize_scalability(user_email, user_roles):
     """
     Apply scalability optimizations
@@ -444,7 +444,7 @@ def optimize_scalability(user_email, user_roles):
 
 
 @scalability_bp.route('/api/scalability/config', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_scalability_config(user_email, user_roles):
     """
     Get current scalability configuration
@@ -512,7 +512,7 @@ def get_scalability_config(user_email, user_roles):
 
 
 @scalability_bp.route('/api/scalability/alerts', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def get_scalability_alerts(user_email, user_roles):
     """
     Get current scalability alerts and warnings

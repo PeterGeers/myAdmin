@@ -22,6 +22,7 @@ from str_channel_routes import str_channel_bp
 from str_invoice_routes import str_invoice_bp
 from routes.missing_invoices_routes import missing_invoices_bp
 from audit_routes import audit_bp
+from admin_routes import admin_bp
 from pattern_storage_routes import pattern_storage_bp
 from scalability_routes import scalability_bp
 from auth.cognito_utils import cognito_required
@@ -99,6 +100,7 @@ app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
 app.register_blueprint(str_invoice_bp, url_prefix='/api/str-invoice')
 app.register_blueprint(missing_invoices_bp)
 app.register_blueprint(audit_bp)
+app.register_blueprint(admin_bp)
 app.register_blueprint(pattern_storage_bp)
 app.register_blueprint(scalability_bp)
 
@@ -415,7 +417,7 @@ def health(user_email, user_roles):
     return jsonify(health_info)
 
 @app.route('/api/scalability/status', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def scalability_status(user_email, user_roles):
     """Get comprehensive scalability status"""
     if not scalability_manager:
@@ -445,7 +447,7 @@ def scalability_status(user_email, user_roles):
         }), 500
 
 @app.route('/api/scalability/database', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def scalability_database_status(user_email, user_roles):
     """Get database scalability status"""
     try:
@@ -472,7 +474,7 @@ def scalability_database_status(user_email, user_roles):
         }), 500
 
 @app.route('/api/scalability/performance', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def scalability_performance(user_email, user_roles):
     """Get real-time performance metrics"""
     if not scalability_manager:
@@ -500,7 +502,7 @@ def scalability_performance(user_email, user_roles):
 
 # Cache Management Endpoints
 @app.route('/api/cache/status', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def cache_status(user_email, user_roles):
     """Get cache status and statistics"""
     try:
@@ -521,7 +523,7 @@ def cache_status(user_email, user_roles):
         }), 500
 
 @app.route('/api/cache/refresh', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def cache_refresh(user_email, user_roles):
     """Force refresh the cache"""
     try:
@@ -545,7 +547,7 @@ def cache_refresh(user_email, user_roles):
         }), 500
 
 @app.route('/api/cache/invalidate', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def cache_invalidate_endpoint(user_email, user_roles):
     """Invalidate the cache (will auto-refresh on next query)"""
     try:
@@ -563,7 +565,7 @@ def cache_invalidate_endpoint(user_email, user_roles):
 
 # BNB Cache Management Endpoints
 @app.route('/api/bnb-cache/status', methods=['GET'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def bnb_cache_status(user_email, user_roles):
     """Get BNB cache status and statistics"""
     try:
@@ -581,7 +583,7 @@ def bnb_cache_status(user_email, user_roles):
         }), 500
 
 @app.route('/api/bnb-cache/refresh', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def bnb_cache_refresh(user_email, user_roles):
     """Force refresh the BNB cache"""
     try:
@@ -604,7 +606,7 @@ def bnb_cache_refresh(user_email, user_roles):
         }), 500
 
 @app.route('/api/bnb-cache/invalidate', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def bnb_cache_invalidate(user_email, user_roles):
     """Invalidate the BNB cache (will auto-refresh on next query)"""
     try:
@@ -1415,7 +1417,7 @@ def banking_check_revolut_balance_debug(user_email, user_roles):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/migrate-revolut-ref2', methods=['POST'])
-@cognito_required(required_roles=['Administrators'])
+@cognito_required(required_roles=['SysAdmin'])
 def banking_migrate_revolut_ref2(user_email, user_roles):
     """Migrate Revolut Ref2 to new format"""
     try:
