@@ -5,6 +5,7 @@ import {
   Input, Select, FormControl, FormLabel, Table, Thead, Tbody,
   Tr, Th, Td, TableContainer, Tabs, TabList, TabPanels, Tab, TabPanel, Link
 } from '@chakra-ui/react';
+import { authenticatedPost, authenticatedFormData } from '../services/apiService';
 
 interface STRBooking {
   sourceFile: string;
@@ -84,13 +85,9 @@ const STRProcessor: React.FC = () => {
     setError('');
     
     try {
-      const response = await fetch('http://localhost:5000/api/str/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          realised: realisedBookings,
-          planned: plannedBookings
-        })
+      const response = await authenticatedPost('/api/str/save', {
+        realised: realisedBookings,
+        planned: plannedBookings
       });
       
       const data = await response.json();
@@ -140,10 +137,7 @@ const STRProcessor: React.FC = () => {
         const formData = new FormData();
         formData.append('file', selectedFile);
         
-        const response = await fetch('http://localhost:5000/api/str/import-payout', {
-          method: 'POST',
-          body: formData
-        });
+        const response = await authenticatedFormData('/api/str/import-payout', formData);
         
         const data = await response.json();
         
@@ -161,11 +155,8 @@ const STRProcessor: React.FC = () => {
         formData.append('file', selectedFile);
         formData.append('platform', selectedPlatform);
         
-        console.log('Calling:', 'http://localhost:5000/api/str/upload');
-        const response = await fetch('http://localhost:5000/api/str/upload', {
-          method: 'POST',
-          body: formData
-        });
+        console.log('Calling: /api/str/upload');
+        const response = await authenticatedFormData('/api/str/upload', formData);
         
         console.log('Response status:', response.status);
         
@@ -194,10 +185,7 @@ const STRProcessor: React.FC = () => {
     setError('');
     
     try {
-      const response = await fetch('http://localhost:5000/api/str/write-future', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const response = await authenticatedPost('/api/str/write-future');
       
       const data = await response.json();
       

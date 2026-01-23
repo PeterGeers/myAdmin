@@ -4,6 +4,7 @@ import {
   Text, Badge, useToast, Spinner, Alert, AlertIcon, IconButton
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { authenticatedGet, authenticatedPost } from '../services/apiService';
 
 interface PricingRecommendation {
   listing_name: string;
@@ -52,7 +53,7 @@ const STRPricing: React.FC = () => {
 
   const loadListings = useCallback(async () => {
     try {
-      const response = await fetch('/api/pricing/listings');
+      const response = await authenticatedGet('/api/pricing/listings');
       const data = await response.json();
       if (data.success) {
         setListings(data.listings);
@@ -74,7 +75,7 @@ const STRPricing: React.FC = () => {
   const loadRecommendations = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/pricing/recommendations');
+      const response = await authenticatedGet('/api/pricing/recommendations');
       const data = await response.json();
       if (data.success) {
         setRecommendations(data.recommendations);
@@ -94,7 +95,7 @@ const STRPricing: React.FC = () => {
 
   const loadMultipliers = useCallback(async () => {
     try {
-      const response = await fetch('/api/pricing/multipliers');
+      const response = await authenticatedGet('/api/pricing/multipliers');
       const data = await response.json();
       if (data.success) {
         setMultipliers(data.multipliers);
@@ -124,15 +125,9 @@ const STRPricing: React.FC = () => {
 
     setGenerating(true);
     try {
-      const response = await fetch('/api/pricing/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          months: 14,
-          listing: listingToGenerate,
-        }),
+      const response = await authenticatedPost('/api/pricing/generate', {
+        months: 14,
+        listing: listingToGenerate,
       });
 
       const data = await response.json();

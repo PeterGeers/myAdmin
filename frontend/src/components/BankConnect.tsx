@@ -15,6 +15,7 @@ import {
     VStack
 } from '@chakra-ui/react';
 import React, { useEffect, useState } from 'react';
+import { authenticatedGet, authenticatedPost } from '../services/apiService';
 
 interface Provider {
   code: string;
@@ -60,7 +61,7 @@ const BankConnect: React.FC = () => {
 
   const fetchBankAccounts = async () => {
     try {
-      const response = await fetch('/api/banking/lookups');
+      const response = await authenticatedGet('/api/banking/lookups');
       const data = await response.json();
       if (data.success && data.bank_accounts) {
         setBankAccounts(data.bank_accounts);
@@ -72,7 +73,7 @@ const BankConnect: React.FC = () => {
 
   const fetchProviders = async () => {
     try {
-      const response = await fetch('/api/saltedge/providers?country=NL');
+      const response = await authenticatedGet('/api/saltedge/providers?country=NL');
       const data = await response.json();
       if (data.data) {
         setProviders(data.data);
@@ -86,11 +87,7 @@ const BankConnect: React.FC = () => {
     try {
       setLoading(true);
       const identifier = `user_${Date.now()}`;
-      const response = await fetch('/api/saltedge/customer/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier })
-      });
+      const response = await authenticatedPost('/api/saltedge/customer/create', { identifier });
       const data = await response.json();
       if (data.data?.id) {
         setCustomerId(data.data.id);
@@ -112,14 +109,10 @@ const BankConnect: React.FC = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/saltedge/connect/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer_id: customerId,
-          provider_code: selectedProvider,
-          return_url: window.location.origin + '/banking/callback'
-        })
+      const response = await authenticatedPost('/api/saltedge/connect/start', {
+        customer_id: customerId,
+        provider_code: selectedProvider,
+        return_url: window.location.origin + '/banking/callback'
       });
       const data = await response.json();
       if (data.data?.connect_url) {
@@ -135,7 +128,7 @@ const BankConnect: React.FC = () => {
 
   const fetchConnections = async (custId: string) => {
     try {
-      const response = await fetch(`/api/saltedge/connections?customer_id=${custId}`);
+      const response = await authenticatedGet(`/api/saltedge/connections?customer_id=${custId}`);
       const data = await response.json();
       if (data.data) {
         setConnections(data.data);
@@ -148,7 +141,7 @@ const BankConnect: React.FC = () => {
   const fetchAccounts = async (connectionId: string) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/saltedge/accounts/${connectionId}`);
+      const response = await authenticatedGet(`/api/saltedge/accounts/${connectionId}`);
       const data = await response.json();
       if (data.data) {
         setAccounts(data.data);
@@ -169,16 +162,12 @@ const BankConnect: React.FC = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/saltedge/import/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: accountId,
-          iban: iban,
-          account_code: bankAccount.Account,
-          administration: bankAccount.Administration,
-          from_date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        })
+      const response = await authenticatedPost('/api/saltedge/import/transactions', {
+        account_id: accountId,
+        iban: iban,
+        account_code: bankAccount.Account,
+        administration: bankAccount.Administration,
+        from_date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       });
       const data = await response.json();
       if (data.success) {

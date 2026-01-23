@@ -24,6 +24,7 @@ import {
   ModalCloseButton,
   useDisclosure
 } from '@chakra-ui/react';
+import { authenticatedGet, authenticatedPost } from '../services/apiService';
 
 interface Booking {
   reservationCode: string;
@@ -54,7 +55,7 @@ const STRInvoice: React.FC = () => {
     setLoading(true);
     try {
       // Use "2" to match most bookings (appears in dates, codes, etc.) with limit=all
-      const response = await fetch('/api/str-invoice/search-booking?query=2&limit=all');
+      const response = await authenticatedGet('/api/str-invoice/search-booking?query=2&limit=all');
       const data = await response.json();
 
       if (data.success) {
@@ -132,16 +133,10 @@ const STRInvoice: React.FC = () => {
         ? customBilling 
         : {};
       
-      const response = await fetch('/api/str-invoice/generate-invoice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          reservationCode: booking.reservationCode,
-          language: language,
-          customBilling: billingData
-        }),
+      const response = await authenticatedPost('/api/str-invoice/generate-invoice', {
+        reservationCode: booking.reservationCode,
+        language: language,
+        customBilling: billingData
       });
 
       const data = await response.json();

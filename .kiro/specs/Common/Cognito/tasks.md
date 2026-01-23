@@ -866,3 +866,5 @@ Extrav tattention points
 The bundle size is significantly larger than recommended.
 Consider reducing it with code splitting: https://goo.gl/9VhYWB
 You can also analyze the project dependencies: https://goo.gl/LeUzfb
+
+scripts/git/git-upload.ps1 -m "Cognito remaining functions updated"

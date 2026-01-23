@@ -40,6 +40,7 @@ import {
 } from '@chakra-ui/react';
 import { Form, Formik } from 'formik';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { authenticatedGet, authenticatedPost } from '../services/apiService';
 
 interface Transaction {
   ID?: number;
@@ -392,12 +393,7 @@ const BankingProcessor: React.FC = () => {
     if (!editingRecord) return;
     try {
       setLoading(true);
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/banking/update-mutatie', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingRecord)
-      });
+      const response = await authenticatedPost('/api/banking/update-mutatie', editingRecord);
       const data = await response.json();
       if (data.success) {
         setMessage('Record updated successfully!');
@@ -415,8 +411,7 @@ const BankingProcessor: React.FC = () => {
 
   const fetchLookupData = useCallback(async () => {
     try {
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/banking/lookups');
+      const response = await authenticatedGet('/api/banking/lookups');
       const data = await response.json();
       if (data.success) setLookupData(data);
     } catch (error) {
@@ -430,8 +425,7 @@ const BankingProcessor: React.FC = () => {
         years: mutatiesFilters.years.join(','),
         administration: mutatiesFilters.administration
       });
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/banking/mutaties?${params}`);
+      const response = await authenticatedGet(`/api/banking/mutaties?${params}`);
       const data = await response.json();
       if (data.success) setMutaties(data.mutaties);
     } catch (error) {
@@ -441,8 +435,7 @@ const BankingProcessor: React.FC = () => {
 
   const fetchFilterOptions = useCallback(async () => {
     try {
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/banking/filter-options');
+      const response = await authenticatedGet('/api/banking/filter-options');
       const data = await response.json();
       if (data.success) setFilterOptions(data);
     } catch (error) {
@@ -457,8 +450,7 @@ const BankingProcessor: React.FC = () => {
       if (endDate) params.append('end_date', endDate);
       
       console.log('Calling API with params:', params.toString());
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/banking/check-accounts?${params}`);
+      const response = await authenticatedGet(`/api/banking/check-accounts?${params}`);
       const data = await response.json();
       console.log('API response:', data);
       
@@ -489,8 +481,7 @@ const BankingProcessor: React.FC = () => {
         start_date: sequenceStartDate
       });
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/banking/check-sequence?${params}`);
+      const response = await authenticatedGet(`/api/banking/check-sequence?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -513,8 +504,7 @@ const BankingProcessor: React.FC = () => {
         administration: checkRefFilters.administration,
         ledger: checkRefFilters.ledger
       });
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/reports/filter-options?${params}`);
+      const response = await authenticatedGet(`/api/reports/filter-options?${params}`);
       const data = await response.json();
       if (data.success) {
         setAvailableLedgers(data.ledgers || []);
@@ -534,8 +524,7 @@ const BankingProcessor: React.FC = () => {
         administration: checkRefFilters.administration
       });
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/reports/check-reference?${params}`);
+      const response = await authenticatedGet(`/api/reports/check-reference?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -564,8 +553,7 @@ const BankingProcessor: React.FC = () => {
         administration: checkRefFilters.administration
       });
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/reports/check-reference?${params}`);
+      const response = await authenticatedGet(`/api/reports/check-reference?${params}`);
       const data = await response.json();
       
       console.log('Reference details response:', data);
@@ -600,8 +588,7 @@ const BankingProcessor: React.FC = () => {
         test_mode: testMode.toString()
       });
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch(`/api/str-channel/preview?${params}`);
+      const response = await authenticatedGet(`/api/str-channel/preview?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -621,16 +608,11 @@ const BankingProcessor: React.FC = () => {
     try {
       setLoading(true);
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/str-channel/calculate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          year: strChannelFilters.year,
-          month: strChannelFilters.month,
-          administration: strChannelFilters.administration,
-          test_mode: testMode
-        })
+      const response = await authenticatedPost('/api/str-channel/calculate', {
+        year: strChannelFilters.year,
+        month: strChannelFilters.month,
+        administration: strChannelFilters.administration,
+        test_mode: testMode
       });
       
       const data = await response.json();
@@ -653,14 +635,9 @@ const BankingProcessor: React.FC = () => {
     try {
       setLoading(true);
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/str-channel/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactions: strChannelTransactions,
-          test_mode: testMode
-        })
+      const response = await authenticatedPost('/api/str-channel/save', {
+        transactions: strChannelTransactions,
+        test_mode: testMode
       });
       
       const data = await response.json();
@@ -699,8 +676,7 @@ const BankingProcessor: React.FC = () => {
       setLoading(true);
 
       if (lookupData.bank_accounts.length === 0) {
-        // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-        const response = await fetch('/api/banking/lookups');
+        const response = await authenticatedGet('/api/banking/lookups');
         const data = await response.json();
         if (data.success) setLookupData(data);
       }
@@ -747,11 +723,10 @@ const BankingProcessor: React.FC = () => {
       const sequences = allTransactions.map(t => t.Ref2).filter(Boolean);
 
       if (iban && sequences.length > 0) {
-        // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-        const response = await fetch('/api/banking/check-sequences', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ iban, sequences, test_mode: testMode })
+        const response = await authenticatedPost('/api/banking/check-sequences', {
+          iban,
+          sequences,
+          test_mode: testMode
         });
 
         const checkResult = await response.json();
@@ -785,14 +760,9 @@ const BankingProcessor: React.FC = () => {
       setLoading(true);
       setShowSaveConfirmation(false);
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/banking/save-transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactions: transactions,
-          test_mode: testMode
-        })
+      const response = await authenticatedPost('/api/banking/save-transactions', {
+        transactions: transactions,
+        test_mode: testMode
       });
 
       const data = await response.json();
@@ -880,14 +850,9 @@ const BankingProcessor: React.FC = () => {
       // Store original transactions before applying suggestions
       setOriginalTransactions([...transactions]);
       
-      // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-      const response = await fetch('/api/banking/apply-patterns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactions: transactions,
-          test_mode: testMode
-        })
+      const response = await authenticatedPost('/api/banking/apply-patterns', {
+        transactions: transactions,
+        test_mode: testMode
       });
 
       const data = await response.json();
@@ -1679,10 +1644,7 @@ const BankingProcessor: React.FC = () => {
                     onClick={async () => {
                       try {
                         setLoading(true);
-                        // IMPORTANT: Always use relative URLs - DO NOT change to localhost
-                        const response = await fetch('/api/cache/refresh', {
-                          method: 'POST'
-                        });
+                        const response = await authenticatedPost('/api/cache/refresh');
                         const data = await response.json();
                         if (data.success) {
                           alert(`Cache refreshed successfully!\n${data.record_count.toLocaleString()} records loaded.`);
