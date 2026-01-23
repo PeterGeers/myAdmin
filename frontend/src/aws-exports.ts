@@ -9,16 +9,16 @@ const awsconfig = {
   Auth: {
     Cognito: {
       // User Pool ID from Cognito
-      userPoolId: process.env.REACT_APP_COGNITO_USER_POOL_ID || 'eu-west-1_Hdp40eWmu',
+      userPoolId: process.env.REACT_APP_COGNITO_USER_POOL_ID || '',
       
       // App Client ID from Cognito
-      userPoolClientId: process.env.REACT_APP_COGNITO_CLIENT_ID || '6sgh53un5ttsojn7o2aj9hi7en',
+      userPoolClientId: process.env.REACT_APP_COGNITO_CLIENT_ID || '',
       
       // OAuth configuration for Hosted UI
       loginWith: {
         oauth: {
           // Cognito domain for Hosted UI
-          domain: process.env.REACT_APP_COGNITO_DOMAIN || 'myadmin.auth.eu-west-1.amazoncognito.com',
+          domain: process.env.REACT_APP_COGNITO_DOMAIN || '',
           
           // OAuth scopes - what information to request
           scopes: ['openid', 'email', 'profile'],

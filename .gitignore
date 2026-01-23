@@ -64,6 +64,11 @@ storage/
 # Backend reports (uploaded/generated files)
 backend/reports/
 
+# Build artifacts (should not be in git)
+backend/frontend/
+frontend/coverage/
+frontend/build/
+
 # IDE
 .idea/
 *.swp
