@@ -81,8 +81,3 @@
   - Enable/disable user accounts
   - Delete user accounts
   - View all available roles (groups)
-
-Tennant structuur ontbreekt nog!!!!!
-tennants  PeterPrive, GoodwinSolutions
-Gebruik veld administration in sql
-Voeg nog toe aan bnb tabellen and views

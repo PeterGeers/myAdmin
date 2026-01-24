@@ -31,6 +31,11 @@ Write-Host ""
 # Define groups to create
 $groups = @(
     @{
+        Name        = "Tenant_Admin"
+        Description = "Tenant administrator - can manage tenant config, users, and secrets for assigned tenants"
+        Precedence  = 4
+    },
+    @{
         Name        = "Finance_Read"
         Description = "Read-only access to financial data (invoices, transactions, reports)"
         Precedence  = 10
@@ -62,7 +67,7 @@ $groups = @(
     },
     @{
         Name        = "SysAdmin"
-        Description = "System administration - logs, config, templates (no user data access)"
+        Description = "System administration - logs, config, templates (no tenant data access)"
         Precedence  = 5
     }
 )

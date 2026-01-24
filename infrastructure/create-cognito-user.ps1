@@ -7,12 +7,15 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Name,
     
-    [Parameter(Mandatory = $true)]
-    [ValidateSet("Administrators", "Accountants", "Viewers")]
-    [string]$Group,
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("Tenant_Admin", "Finance_Read", "Finance_CRUD", "Finance_Export", "STR_Read", "STR_CRUD", "STR_Export", "SysAdmin")]
+    [string[]]$Groups = @(),
     
     [string]$TenantId = "",
-    [string]$TenantName = ""
+    [string]$TenantName = "",
+    
+    [Parameter(Mandatory = $false)]
+    [string[]]$Tenants = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -54,7 +57,16 @@ if ($TenantName) {
     $attributes += "Name=custom:tenant_name,Value=$TenantName"
 }
 
-$attributes += "Name=custom:role,Value=$Group"
+# Add tenants as JSON array
+if ($Tenants.Count -gt 0) {
+    $tenantsJson = $Tenants | ConvertTo-Json -Compress
+    $attributes += "Name=custom:tenants,Value=$tenantsJson"
+}
+
+# Add role (use first group as role for backward compatibility)
+if ($Groups.Count -gt 0) {
+    $attributes += "Name=custom:role,Value=$($Groups[0])"
+}
 
 # Create user
 Write-Host "Creating user: $Email" -ForegroundColor Yellow
@@ -72,18 +84,25 @@ catch {
     exit 1
 }
 
-# Add to group
-Write-Host "Adding to group: $Group" -ForegroundColor Yellow
-try {
-    aws cognito-idp admin-add-user-to-group `
-        --user-pool-id $userPoolId `
-        --username $Email `
-        --group-name $Group
-    
-    Write-Host "✓ Added to group" -ForegroundColor Green
+# Add to groups
+if ($Groups.Count -gt 0) {
+    foreach ($Group in $Groups) {
+        Write-Host "Adding to group: $Group" -ForegroundColor Yellow
+        try {
+            aws cognito-idp admin-add-user-to-group `
+                --user-pool-id $userPoolId `
+                --username $Email `
+                --group-name $Group
+            
+            Write-Host "✓ Added to group: $Group" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "✗ Failed to add to group $Group : $_" -ForegroundColor Red
+        }
+    }
 }
-catch {
-    Write-Host "✗ Failed to add to group: $_" -ForegroundColor Red
+else {
+    Write-Host "⚠ No groups specified - user will have no role assignments" -ForegroundColor Yellow
 }
 
 # Set password
@@ -115,7 +134,12 @@ Write-Host "╚═════════════════════�
 Write-Host ""
 Write-Host "Email:       $Email" -ForegroundColor Cyan
 Write-Host "Name:        $Name" -ForegroundColor Cyan
-Write-Host "Group:       $Group" -ForegroundColor Cyan
+if ($Groups.Count -gt 0) {
+    Write-Host "Groups:      $($Groups -join ', ')" -ForegroundColor Cyan
+}
+if ($Tenants.Count -gt 0) {
+    Write-Host "Tenants:     $($Tenants -join ', ')" -ForegroundColor Cyan
+}
 if ($TenantId) {
     Write-Host "Tenant ID:   $TenantId" -ForegroundColor Cyan
 }

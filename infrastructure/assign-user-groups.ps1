@@ -174,9 +174,8 @@ Write-Host "══════════════════════�
 Write-Host "Available Groups:" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "System Roles:" -ForegroundColor Yellow
-Write-Host "  • Administrators - Full system access" -ForegroundColor White
-Write-Host "  • SysAdmin - System admin (no user data)" -ForegroundColor White
-Write-Host "  • Viewers - Read-only access" -ForegroundColor White
+Write-Host "  • SysAdmin - System admin (no tenant data access)" -ForegroundColor White
+Write-Host "  • Tenant_Admin - Tenant administrator (manage config, users, secrets)" -ForegroundColor White
 Write-Host ""
 Write-Host "Finance Module:" -ForegroundColor Yellow
 Write-Host "  • Finance_Read - Read-only financial data" -ForegroundColor White
@@ -188,6 +187,6 @@ Write-Host "  • STR_Read - Read-only STR data" -ForegroundColor White
 Write-Host "  • STR_CRUD - Full STR data access" -ForegroundColor White
 Write-Host "  • STR_Export - Export STR reports" -ForegroundColor White
 Write-Host ""
-Write-Host "Legacy (for backward compatibility):" -ForegroundColor Yellow
-Write-Host "  • Accountants - Maps to Finance_CRUD + Finance_Export" -ForegroundColor White
+Write-Host "Note: Tenant access is controlled by custom:tenants attribute" -ForegroundColor Gray
+Write-Host "Use .\assign-user-tenants.ps1 to manage tenant assignments" -ForegroundColor Gray
 Write-Host ""

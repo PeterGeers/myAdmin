@@ -86,6 +86,18 @@ resource "aws_cognito_user_pool" "myadmin" {
     }
   }
 
+  # Multi-tenant support: JSON array of tenant names
+  schema {
+    name                = "tenants"
+    attribute_data_type = "String"
+    mutable             = true
+
+    string_attribute_constraints {
+      min_length = 0
+      max_length = 2048 # Support up to 100 tenants in JSON array
+    }
+  }
+
   # Email configuration
   email_configuration {
     email_sending_account = "COGNITO_DEFAULT"
@@ -166,7 +178,8 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
     "name",
     "custom:tenant_id",
     "custom:tenant_name",
-    "custom:role"
+    "custom:role",
+    "custom:tenants"
   ]
 
   write_attributes = [
@@ -174,7 +187,8 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
     "name",
     "custom:tenant_id",
     "custom:tenant_name",
-    "custom:role"
+    "custom:role",
+    "custom:tenants"
   ]
 }
 
@@ -192,25 +206,62 @@ resource "random_string" "domain_suffix" {
 }
 
 # User Groups
-resource "aws_cognito_user_group" "administrators" {
-  name         = "Administrators"
+# Tenant Admin Group (for multi-tenant support)
+resource "aws_cognito_user_group" "tenant_admin" {
+  name         = "Tenant_Admin"
   user_pool_id = aws_cognito_user_pool.myadmin.id
-  description  = "Full system access - can manage users, settings, and all data"
-  precedence   = 1
+  description  = "Tenant administrator - can manage tenant config, users, and secrets for assigned tenants"
+  precedence   = 4
 }
 
-resource "aws_cognito_user_group" "accountants" {
-  name         = "Accountants"
+# Module-based groups for RBAC
+resource "aws_cognito_user_group" "finance_read" {
+  name         = "Finance_Read"
   user_pool_id = aws_cognito_user_pool.myadmin.id
-  description  = "Can manage financial data, invoices, and reports"
-  precedence   = 2
+  description  = "Read-only access to financial data (invoices, transactions, reports)"
+  precedence   = 10
 }
 
-resource "aws_cognito_user_group" "viewers" {
-  name         = "Viewers"
+resource "aws_cognito_user_group" "finance_crud" {
+  name         = "Finance_CRUD"
   user_pool_id = aws_cognito_user_pool.myadmin.id
-  description  = "Read-only access to reports and data"
-  precedence   = 3
+  description  = "Full access to financial data - create, read, update, delete"
+  precedence   = 9
+}
+
+resource "aws_cognito_user_group" "finance_export" {
+  name         = "Finance_Export"
+  user_pool_id = aws_cognito_user_pool.myadmin.id
+  description  = "Permission to export financial data and reports"
+  precedence   = 11
+}
+
+resource "aws_cognito_user_group" "str_read" {
+  name         = "STR_Read"
+  user_pool_id = aws_cognito_user_pool.myadmin.id
+  description  = "Read-only access to short-term rental data (bookings, pricing, reports)"
+  precedence   = 20
+}
+
+resource "aws_cognito_user_group" "str_crud" {
+  name         = "STR_CRUD"
+  user_pool_id = aws_cognito_user_pool.myadmin.id
+  description  = "Full access to STR data - create, read, update, delete bookings and pricing"
+  precedence   = 19
+}
+
+resource "aws_cognito_user_group" "str_export" {
+  name         = "STR_Export"
+  user_pool_id = aws_cognito_user_pool.myadmin.id
+  description  = "Permission to export STR data and reports"
+  precedence   = 21
+}
+
+resource "aws_cognito_user_group" "sysadmin" {
+  name         = "SysAdmin"
+  user_pool_id = aws_cognito_user_pool.myadmin.id
+  description  = "System administration - logs, config, templates (no tenant data access)"
+  precedence   = 5
 }
 
 # Outputs
