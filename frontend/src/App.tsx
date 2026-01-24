@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text, Badge } from '@chakra-ui/react';
+import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text } from '@chakra-ui/react';
 import PDFUploadForm from './components/PDFUploadForm';
 import BankConnect from './components/BankConnect';
 import BankingProcessor from './components/BankingProcessor';
@@ -10,9 +10,11 @@ import MyAdminReportsNew from './components/MyAdminReportsNew';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import TenantSelector from './components/TenantSelector';
+import UserMenu from './components/UserMenu';
 import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { TenantProvider, useTenant } from './context/TenantContext';
+import { TenantProvider } from './context/TenantContext';
+import { useTenantModules } from './hooks/useTenantModules';
 
 import SystemAdmin from './components/SystemAdmin';
 
@@ -22,7 +24,7 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout } = useAuth();
-  const { currentTenant } = useTenant();
+  const { hasFIN, hasSTR, loading: modulesLoading } = useTenantModules();
 
   useEffect(() => {
     import('./config').then(({ buildApiUrl }) => {
@@ -65,14 +67,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">📄 Import Invoices</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -94,14 +91,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">🏦 Import Banking Accounts</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -122,14 +114,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">🏦 Connect Bank (Salt Edge)</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -150,14 +137,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">🏠 Import STR Bookings</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -178,14 +160,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">🧾 STR Invoice Generator</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -207,14 +184,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">💰 STR Pricing Model</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -236,14 +208,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">⚙️ System Administration</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -265,14 +232,9 @@ function AppContent() {
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
                     <Heading color="orange.400" size="lg">📈 myAdmin Reports</Heading>
                   </HStack>
-                  <HStack>
-                    <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
-                    )}
-                    <Text color="gray.400" fontSize="sm">{user?.email}</Text>
-                    <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -284,69 +246,65 @@ function AppContent() {
       default:
         return (
           <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
-            <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
-              <VStack spacing={8}>
-                <VStack spacing={2}>
-                  <Heading color="orange.400" size="2xl">myAdmin Dashboard</Heading>
-                  <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'} fontSize="md" px={3} py={1}>
-                    {status.mode} Mode
-                  </Badge>
-                  <HStack spacing={2}>
-                    <Text color="gray.400" fontSize="sm">Logged in as: {user?.email}</Text>
-                    <Text color="gray.400" fontSize="sm">Role: {user?.roles?.join(', ') || 'No roles'}</Text>
-                    <Button size="xs" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
-                  </HStack>
-                  <HStack spacing={2}>
+            <Box minH="100vh" bg="gray.900">
+              {/* Top Header Bar */}
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <Heading color="orange.400" size="lg">myAdmin Dashboard</Heading>
+                  <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    {currentTenant && (
-                      <Text color="orange.400" fontSize="sm" fontWeight="bold">
-                        Current Tenant: {currentTenant}
-                      </Text>
-                    )}
+                    <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
-                </VStack>
-                <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
+                </HStack>
+              </Box>
+
+              {/* Main Content */}
+              <Box display="flex" alignItems="center" justifyContent="center" minH="calc(100vh - 80px)">
+                <VStack spacing={8}>
+                  <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
                 
                 <VStack spacing={4} w="400px">
                   {/* Invoice Management - Finance module permissions */}
-                  {(user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
+                  {hasFIN && (user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
                       📄 Import Invoices
                     </Button>
                   )}
 
                   {/* Banking - Finance CRUD only (requires write access) */}
-                  {(user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
+                  {hasFIN && (user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
                       🏦 Import Banking Accounts
                     </Button>
                   )}
 
                   {/* STR Bookings - STR module permissions */}
-                  {(user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
+                  {hasSTR && (user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
                       🏠 Import STR Bookings
                     </Button>
                   )}
 
                   {/* STR Invoice - STR module permissions */}
-                  {(user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
+                  {hasSTR && (user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
                       🧾 STR Invoice Generator
                     </Button>
                   )}
 
                   {/* STR Pricing - STR CRUD only (requires write access) */}
-                  {(user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
+                  {hasSTR && (user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
                       💰 STR Pricing Model
                     </Button>
                   )}
 
                   {/* Reports - All authenticated users with any module access */}
-                  <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
-                    📈 myAdmin Reports
-                  </Button>
+                  {(hasFIN || hasSTR) && (
+                    <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
+                      📈 myAdmin Reports
+                    </Button>
+                  )}
 
                   {/* System Administration - SysAdmin only */}
                   {(user?.roles?.some(role => ['SysAdmin'].includes(role))) && (
@@ -354,8 +312,14 @@ function AppContent() {
                       ⚙️ System Administration
                     </Button>
                   )}
+                  
+                  {/* Loading state */}
+                  {modulesLoading && (
+                    <Text color="gray.500" fontSize="sm">Loading available modules...</Text>
+                  )}
                 </VStack>
               </VStack>
+            </Box>
             </Box>
           </ProtectedRoute>
         );

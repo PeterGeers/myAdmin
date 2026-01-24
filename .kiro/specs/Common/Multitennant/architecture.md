@@ -507,7 +507,7 @@ fetch("/api/invoices", {
    - SysAdmin + Finance_CRUD + tenant (development mode - has both - REQ12a)
    - Tenant_Admin + tenant (can manage tenant config and users - REQ16-REQ20)
 4. Test user with multiple tenants (REQ4)
-5. Verify tenant isolation - user cannot access unauthorized tenant (REQ10, REQ15)
+5.[\\"GoodwinSolutions\\",\\"PeterPrive\\"]
 6. Test Tenant_Admin functions (config management, user management, secrets)
 7. Verify audit logging tracks tenant access (REQ9)
 

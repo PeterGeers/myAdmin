@@ -26,6 +26,7 @@ from admin_routes import admin_bp
 from pattern_storage_routes import pattern_storage_bp
 from scalability_routes import scalability_bp
 from tenant_admin_routes import tenant_admin_bp
+from tenant_module_routes import tenant_module_bp
 from auth.cognito_utils import cognito_required
 
 from xlsx_export import XLSXExportProcessor
@@ -105,6 +106,7 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(pattern_storage_bp)
 app.register_blueprint(scalability_bp)
 app.register_blueprint(tenant_admin_bp)
+app.register_blueprint(tenant_module_bp)
 
 
 # Configure Swagger UI

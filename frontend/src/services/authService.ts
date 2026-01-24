@@ -218,10 +218,45 @@ export function hasAllRoles(userRoles: string[], requiredRoles: string[]): boole
  */
 export async function getCurrentUserEmail(): Promise<string | null> {
   try {
+    // First try to get email from JWT token
+    const tokens = await getCurrentAuthTokens();
+    if (tokens?.idToken) {
+      const payload = decodeJWTPayload(tokens.idToken);
+      if (payload?.email) {
+        return payload.email;
+      }
+    }
+
+    // Fallback to Amplify user object
     const user = await getCurrentUser();
     return user.signInDetails?.loginId || user.username || null;
   } catch (error) {
     console.error('Failed to get current user email:', error);
+    return null;
+  }
+}
+
+/**
+ * Get user name from JWT token
+ * 
+ * @returns User name or null if not available
+ */
+export async function getCurrentUserName(): Promise<string | null> {
+  try {
+    const tokens = await getCurrentAuthTokens();
+    if (!tokens?.idToken) {
+      return null;
+    }
+
+    const payload = decodeJWTPayload(tokens.idToken);
+    if (!payload) {
+      return null;
+    }
+
+    // Try to get name from JWT payload
+    return (payload as any).name || null;
+  } catch (error) {
+    console.error('Failed to extract user name:', error);
     return null;
   }
 }
@@ -260,30 +295,67 @@ export async function getCurrentUserTenants(): Promise<string[]> {
   try {
     const tokens = await getCurrentAuthTokens();
     if (!tokens?.idToken) {
+      console.log('[Tenants] No idToken available');
       return [];
     }
 
     const payload = decodeJWTPayload(tokens.idToken);
     if (!payload) {
+      console.log('[Tenants] Failed to decode JWT payload');
       return [];
     }
 
     // Parse custom:tenants - it's stored as a JSON string array
-    const tenantsString = payload['custom:tenants'];
-    if (!tenantsString) {
+    let tenantsValue = payload['custom:tenants'];
+    console.log('[Tenants] Raw value from JWT:', tenantsValue, 'Type:', typeof tenantsValue);
+    
+    if (!tenantsValue) {
+      console.log('[Tenants] No custom:tenants in JWT');
       return [];
     }
 
-    // Try to parse as JSON array
-    try {
-      const tenants = JSON.parse(tenantsString);
-      return Array.isArray(tenants) ? tenants : [];
-    } catch {
-      // If not JSON, treat as single tenant
-      return [tenantsString];
+    // If it's already an array, return it
+    if (Array.isArray(tenantsValue)) {
+      console.log('[Tenants] Already an array:', tenantsValue);
+      return tenantsValue;
     }
+
+    // If it's a string, try to parse it
+    if (typeof tenantsValue === 'string') {
+      console.log('[Tenants] Attempting to parse string:', tenantsValue);
+      
+      // Handle double-escaped JSON from Cognito (e.g., "[\"GoodwinSolutions\",\"PeterPrive\"]")
+      // Check if the string contains escaped quotes
+      if (tenantsValue.includes('\\"')) {
+        console.log('[Tenants] Detected escaped quotes, unescaping...');
+        tenantsValue = tenantsValue.replace(/\\"/g, '"');
+        console.log('[Tenants] After unescaping:', tenantsValue);
+      }
+      
+      // Now try to parse the JSON
+      try {
+        const parsed = JSON.parse(tenantsValue);
+        console.log('[Tenants] Parse result:', parsed, 'Type:', typeof parsed);
+        
+        // Return array or wrap in array
+        if (Array.isArray(parsed)) {
+          console.log('[Tenants] Final result (array):', parsed);
+          return parsed;
+        } else {
+          console.log('[Tenants] Not an array, wrapping:', [parsed]);
+          return [String(parsed)];
+        }
+      } catch (parseError) {
+        // If parsing fails, treat as single tenant
+        console.warn('[Tenants] Failed to parse as JSON, treating as single tenant:', parseError);
+        return [tenantsValue];
+      }
+    }
+
+    console.log('[Tenants] Unexpected type, returning empty array');
+    return [];
   } catch (error) {
-    console.error('Failed to extract user tenants:', error);
+    console.error('[Tenants] Failed to extract user tenants:', error);
     return [];
   }
 }
