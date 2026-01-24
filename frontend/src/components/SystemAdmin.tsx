@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, VStack, HStack, Heading, Button, Table, Thead, Tbody, Tr, Th, Td,
-  Badge, useToast, Spinner, Text, Select, IconButton, AlertDialog,
+  Badge, useToast, Spinner, Text, Select, AlertDialog,
   AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent,
   AlertDialogOverlay, useDisclosure
 } from '@chakra-ui/react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { buildApiUrl } from '../config';
 
 interface User {
@@ -41,7 +42,14 @@ export default function SystemAdmin() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      // Get JWT token from Amplify session
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -75,7 +83,9 @@ export default function SystemAdmin() {
   const addUserToGroup = async (username: string, groupName: string) => {
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
       const response = await fetch(buildApiUrl(`/api/admin/users/${username}/groups`), {
         method: 'POST',
         headers: {
@@ -113,7 +123,9 @@ export default function SystemAdmin() {
   const removeUserFromGroup = async (username: string, groupName: string) => {
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
       const response = await fetch(buildApiUrl(`/api/admin/users/${username}/groups/${groupName}`), {
         method: 'DELETE',
         headers: {
@@ -147,7 +159,9 @@ export default function SystemAdmin() {
   const toggleUserStatus = async (username: string, enable: boolean) => {
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
       const action = enable ? 'enable' : 'disable';
       const response = await fetch(buildApiUrl(`/api/admin/users/${username}/${action}`), {
         method: 'POST',
@@ -187,7 +201,9 @@ export default function SystemAdmin() {
   const deleteUser = async () => {
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
       const response = await fetch(buildApiUrl(`/api/admin/users/${deleteUsername}`), {
         method: 'DELETE',
         headers: {

@@ -367,16 +367,24 @@ def cognito_required(required_roles: Optional[List[str]] = None, required_permis
         def decorated_function(*args, **kwargs):
             from flask import request, jsonify
             
+            # Debug: Print request headers
+            print(f"🔍 Request to {f.__name__}: {request.method} {request.path}", flush=True)
+            print(f"🔍 Headers: {dict(request.headers)}", flush=True)
+            
             # Extract user credentials from request
             user_email, user_roles, auth_error = extract_user_credentials(request)
             
             if auth_error:
                 # Return Flask JSON response
+                print(f"❌ Auth error for {f.__name__}: {auth_error}", flush=True)
                 return jsonify(json.loads(auth_error['body'])), auth_error['statusCode']
+            
+            print(f"✅ Auth success for {f.__name__}: {user_email} with roles {user_roles}", flush=True)
             
             # Check required roles (if specified)
             if required_roles:
                 if not any(role in user_roles for role in required_roles):
+                    print(f"❌ Role check failed. Required: {required_roles}, User has: {user_roles}", flush=True)
                     return jsonify({
                         'error': 'Insufficient permissions',
                         'details': f'Required roles: {", ".join(required_roles)}'
