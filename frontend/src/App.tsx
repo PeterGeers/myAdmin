@@ -9,8 +9,10 @@ import STRPricing from './components/STRPricing';
 import MyAdminReportsNew from './components/MyAdminReportsNew';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
+import TenantSelector from './components/TenantSelector';
 import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { TenantProvider, useTenant } from './context/TenantContext';
 
 import SystemAdmin from './components/SystemAdmin';
 
@@ -20,6 +22,7 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout } = useAuth();
+  const { currentTenant } = useTenant();
 
   useEffect(() => {
     import('./config').then(({ buildApiUrl }) => {
@@ -64,6 +67,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -89,6 +96,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -113,6 +124,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -137,6 +152,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -161,6 +180,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -186,6 +209,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -211,6 +238,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -236,6 +267,10 @@ function AppContent() {
                   </HStack>
                   <HStack>
                     <Badge colorScheme={status.mode === 'Test' ? 'red' : 'green'}>{status.mode}</Badge>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="gray.400" fontSize="sm">({currentTenant})</Text>
+                    )}
                     <Text color="gray.400" fontSize="sm">{user?.email}</Text>
                     <Button size="sm" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
                   </HStack>
@@ -260,6 +295,14 @@ function AppContent() {
                     <Text color="gray.400" fontSize="sm">Logged in as: {user?.email}</Text>
                     <Text color="gray.400" fontSize="sm">Role: {user?.roles?.join(', ') || 'No roles'}</Text>
                     <Button size="xs" variant="ghost" colorScheme="orange" onClick={logout}>Logout</Button>
+                  </HStack>
+                  <HStack spacing={2}>
+                    <TenantSelector size="sm" />
+                    {currentTenant && (
+                      <Text color="orange.400" fontSize="sm" fontWeight="bold">
+                        Current Tenant: {currentTenant}
+                      </Text>
+                    )}
                   </HStack>
                 </VStack>
                 <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
@@ -326,7 +369,9 @@ function App() {
   return (
     <ChakraProvider theme={theme}>
       <AuthProvider>
-        <AppContent />
+        <TenantProvider>
+          <AppContent />
+        </TenantProvider>
       </AuthProvider>
     </ChakraProvider>
   );

@@ -35,10 +35,6 @@ export default function SystemAdmin() {
   const [deleteUsername, setDeleteUsername] = useState<string>('');
   const cancelRef = React.useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const loadData = async () => {
     setLoading(true);
     try {
@@ -79,6 +75,11 @@ export default function SystemAdmin() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addUserToGroup = async (username: string, groupName: string) => {
     setActionLoading(true);

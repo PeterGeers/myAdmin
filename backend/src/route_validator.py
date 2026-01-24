@@ -6,11 +6,15 @@ def check_route_conflicts(app):
     for rule in app.url_map.iter_rules():
         endpoint = rule.endpoint
         route = str(rule)
+        methods = tuple(sorted(rule.methods - {'HEAD', 'OPTIONS'}))  # Exclude HEAD and OPTIONS
         
-        if route in routes:
-            conflicts.append(f"CONFLICT: {route} -> {routes[route]} vs {endpoint}")
+        # Create a unique key combining route and methods
+        route_key = (route, methods)
+        
+        if route_key in routes:
+            conflicts.append(f"CONFLICT: {route} [{','.join(methods)}] -> {routes[route_key]} vs {endpoint}")
         else:
-            routes[route] = endpoint
+            routes[route_key] = endpoint
     
     if conflicts:
         print("WARNING: ROUTE CONFLICTS DETECTED:")

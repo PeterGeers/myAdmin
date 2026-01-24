@@ -15,6 +15,7 @@ import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
  */
 export interface JWTPayload {
   'cognito:groups'?: string[];
+  'custom:tenants'?: string;
   username?: string;
   email?: string;
   sub?: string;
@@ -247,5 +248,42 @@ export async function isAuthenticated(): Promise<boolean> {
     return payload.exp > now;
   } catch (error) {
     return false;
+  }
+}
+
+/**
+ * Extract user tenants from JWT token
+ * 
+ * @returns Array of tenant names from custom:tenants claim
+ */
+export async function getCurrentUserTenants(): Promise<string[]> {
+  try {
+    const tokens = await getCurrentAuthTokens();
+    if (!tokens?.idToken) {
+      return [];
+    }
+
+    const payload = decodeJWTPayload(tokens.idToken);
+    if (!payload) {
+      return [];
+    }
+
+    // Parse custom:tenants - it's stored as a JSON string array
+    const tenantsString = payload['custom:tenants'];
+    if (!tenantsString) {
+      return [];
+    }
+
+    // Try to parse as JSON array
+    try {
+      const tenants = JSON.parse(tenantsString);
+      return Array.isArray(tenants) ? tenants : [];
+    } catch {
+      // If not JSON, treat as single tenant
+      return [tenantsString];
+    }
+  } catch (error) {
+    console.error('Failed to extract user tenants:', error);
+    return [];
   }
 }

@@ -14,6 +14,21 @@ import { API_BASE_URL } from '../config/api';
 export interface AuthenticatedRequestOptions extends RequestInit {
   skipAuth?: boolean; // Skip authentication for public endpoints
   onUploadProgress?: (progressEvent: any) => void; // For file upload progress
+  tenant?: string; // Optional tenant override (defaults to current tenant from context)
+}
+
+/**
+ * Get current tenant from localStorage
+ * This is used by API service to include tenant in requests
+ * 
+ * @returns Current tenant or null if not set
+ */
+function getCurrentTenant(): string | null {
+  try {
+    return localStorage.getItem('selectedTenant');
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -28,7 +43,7 @@ export async function authenticatedRequest(
   endpoint: string,
   options: AuthenticatedRequestOptions = {}
 ): Promise<Response> {
-  const { skipAuth = false, ...fetchOptions } = options;
+  const { skipAuth = false, tenant, ...fetchOptions } = options;
 
   // Build full URL
   const url = `${API_BASE_URL}${endpoint}`;
@@ -52,6 +67,15 @@ export async function authenticatedRequest(
         ...headers,
         Authorization: `Bearer ${tokens.idToken}`,
       };
+
+      // Add X-Tenant header if tenant is available
+      const currentTenant = tenant || getCurrentTenant();
+      if (currentTenant) {
+        headers = {
+          ...headers,
+          'X-Tenant': currentTenant,
+        };
+      }
     } catch (error) {
       console.error('Failed to get authentication tokens:', error);
       throw new Error('Authentication required');
@@ -77,6 +101,15 @@ export async function authenticatedRequest(
             ...headers,
             Authorization: `Bearer ${tokens.idToken}`,
           };
+
+          // Re-add tenant header
+          const currentTenant = tenant || getCurrentTenant();
+          if (currentTenant) {
+            headers = {
+              ...headers,
+              'X-Tenant': currentTenant,
+            };
+          }
           
           // Retry the request with refreshed token
           return await fetch(url, {
@@ -184,7 +217,7 @@ export async function authenticatedFormData(
   formData: FormData,
   options: AuthenticatedRequestOptions = {}
 ): Promise<Response> {
-  const { skipAuth = false, onUploadProgress, ...fetchOptions } = options;
+  const { skipAuth = false, onUploadProgress, tenant, ...fetchOptions } = options;
 
   // Build full URL
   const url = `${API_BASE_URL}${endpoint}`;
@@ -211,6 +244,15 @@ export async function authenticatedFormData(
         ...headers,
         Authorization: `Bearer ${tokens.idToken}`,
       };
+
+      // Add X-Tenant header if tenant is available
+      const currentTenant = tenant || getCurrentTenant();
+      if (currentTenant) {
+        headers = {
+          ...headers,
+          'X-Tenant': currentTenant,
+        };
+      }
     } catch (error) {
       console.error('Failed to get authentication tokens:', error);
       throw new Error('Authentication required');

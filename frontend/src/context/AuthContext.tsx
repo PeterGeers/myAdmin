@@ -10,6 +10,7 @@ import { getCurrentUser, signOut } from 'aws-amplify/auth';
 import {
   getCurrentUserRoles,
   getCurrentUserEmail,
+  getCurrentUserTenants,
   isAuthenticated as checkAuthenticated,
   hasRole as checkHasRole,
   hasAnyRole as checkHasAnyRole,
@@ -25,6 +26,7 @@ export interface User {
   username: string;
   email: string | null;
   roles: string[];
+  tenants: string[];
   sub: string;
 }
 
@@ -90,12 +92,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const currentUser = await getCurrentUser();
       const email = await getCurrentUserEmail();
       const roles = await getCurrentUserRoles();
+      const tenants = await getCurrentUserTenants();
 
       // Set user state
       setUser({
         username: currentUser.username,
         email: email,
         roles: roles,
+        tenants: tenants,
         sub: currentUser.userId
       });
     } catch (error) {
