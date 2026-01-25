@@ -28,6 +28,7 @@ from scalability_routes import scalability_bp
 from tenant_admin_routes import tenant_admin_bp
 from tenant_module_routes import tenant_module_bp
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 
 from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
@@ -528,7 +529,8 @@ def cache_status(user_email, user_roles):
 
 @app.route('/api/cache/refresh', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def cache_refresh(user_email, user_roles):
+@tenant_required(allow_sysadmin=True)
+def cache_refresh(user_email, user_roles, tenant, user_tenants):
     """Force refresh the cache"""
     try:
         cache = get_cache()
@@ -545,6 +547,9 @@ def cache_refresh(user_email, user_roles):
             'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None
         })
     except Exception as e:
+        print(f"Error in cache_refresh: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -552,7 +557,8 @@ def cache_refresh(user_email, user_roles):
 
 @app.route('/api/cache/invalidate', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def cache_invalidate_endpoint(user_email, user_roles):
+@tenant_required(allow_sysadmin=True)
+def cache_invalidate_endpoint(user_email, user_roles, tenant, user_tenants):
     """Invalidate the cache (will auto-refresh on next query)"""
     try:
         invalidate_cache()
@@ -562,6 +568,9 @@ def cache_invalidate_endpoint(user_email, user_roles):
             'message': 'Cache invalidated successfully'
         })
     except Exception as e:
+        print(f"Error in cache_invalidate: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -661,7 +670,8 @@ def create_folder(user_email, user_roles):
 
 @app.route('/api/upload', methods=['POST', 'OPTIONS'])
 @cognito_required(required_permissions=['invoices_create'])
-def upload_file(user_email, user_roles):
+@tenant_required()
+def upload_file(user_email, user_roles, tenant, user_tenants):
     """Upload and process PDF file"""
     if request.method == 'OPTIONS':
         response = jsonify({'status': 'OK'})
@@ -671,6 +681,7 @@ def upload_file(user_email, user_roles):
         return response
         
     print("\n*** UPLOAD ENDPOINT CALLED ***", flush=True)
+    print(f"Tenant: {tenant}", flush=True)
     try:
         print("=== UPLOAD REQUEST START ===", flush=True)
         print(f"Request method: {request.method}", flush=True)
@@ -783,7 +794,7 @@ def upload_file(user_email, user_roles):
             print(f"Extracted {len(transactions)} transactions", flush=True)
             
             # Get last transactions for smart defaults
-            last_transactions = transaction_logic.get_last_transactions(folder_name)
+            last_transactions = transaction_logic.get_last_transactions(folder_name, tenant)
             if last_transactions:
                 print(f"Found {len(last_transactions)} previous transactions for reference", flush=True)
                 
@@ -798,7 +809,8 @@ def upload_file(user_email, user_roles):
                     'amount': 0,  # Will be updated from PDF parsing
                     'drive_url': drive_result['url'],
                     'filename': filename,
-                    'vendor_data': vendor_data  # Pass parsed vendor data
+                    'vendor_data': vendor_data,  # Pass parsed vendor data
+                    'administration': tenant  # Pass tenant from request context
                 }
                 
                 prepared_transactions = transaction_logic.prepare_new_transactions(last_transactions, new_data)
@@ -874,7 +886,8 @@ def approve_transactions(user_email, user_roles):
 # Banking processor routes
 @app.route('/api/banking/scan-files', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_scan_files(user_email, user_roles):
+@tenant_required()
+def banking_scan_files(user_email, user_roles, tenant, user_tenants):
     """Scan download folder for CSV files"""
     try:
         processor = BankingProcessor(test_mode=flag)
@@ -892,7 +905,8 @@ def banking_scan_files(user_email, user_roles):
 
 @app.route('/api/banking/process-files', methods=['POST'])
 @cognito_required(required_permissions=['banking_process'])
-def banking_process_files(user_email, user_roles):
+@tenant_required()
+def banking_process_files(user_email, user_roles, tenant, user_tenants):
     """Process selected CSV files"""
     try:
         data = request.get_json()
@@ -904,6 +918,46 @@ def banking_process_files(user_email, user_roles):
         
         if df.empty:
             return jsonify({'success': False, 'error': 'No data found in files'}), 400
+        
+        # Validate that the IBAN(s) in the file belong to the current tenant
+        if 'Ref1' in df.columns:
+            ibans = df['Ref1'].dropna().unique().tolist()
+            print(f"[TENANT VALIDATION] Current tenant: {tenant}", flush=True)
+            print(f"[TENANT VALIDATION] Found IBANs in file: {ibans}", flush=True)
+            
+            # Check each IBAN against vw_lookup_accounts
+            db = DatabaseManager(test_mode=test_mode)
+            conn = db.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            for iban in ibans:
+                print(f"[TENANT VALIDATION] Checking IBAN: {iban}", flush=True)
+                cursor.execute("""
+                    SELECT administration FROM vw_lookup_accounts 
+                    WHERE rekeningNummer = %s
+                """, (iban,))
+                result = cursor.fetchone()
+                
+                if result:
+                    iban_tenant = result['administration']
+                    print(f"[TENANT VALIDATION] IBAN {iban} belongs to: {iban_tenant}", flush=True)
+                    # Strict validation: IBAN must belong to the CURRENT tenant
+                    if iban_tenant != tenant:
+                        print(f"[TENANT VALIDATION] BLOCKED: IBAN tenant ({iban_tenant}) != current tenant ({tenant})", flush=True)
+                        cursor.close()
+                        conn.close()
+                        return jsonify({
+                            'success': False, 
+                            'error': f'Access denied: Bank account {iban} belongs to {iban_tenant}. You are currently working in {tenant}. Please switch to {iban_tenant} to upload this file.'
+                        }), 403
+                    else:
+                        print(f"[TENANT VALIDATION] ALLOWED: IBAN matches current tenant", flush=True)
+                else:
+                    # IBAN not found in lookup - this might be okay for new accounts
+                    print(f"Warning: IBAN {iban} not found in vw_lookup_accounts", flush=True)
+            
+            cursor.close()
+            conn.close()
         
         records = processor.prepare_for_review(df)
         
@@ -946,7 +1000,8 @@ def banking_check_sequences(user_email, user_roles):
 
 @app.route('/api/banking/apply-patterns', methods=['POST'])
 @cognito_required(required_permissions=['banking_process'])
-def banking_apply_patterns(user_email, user_roles):
+@tenant_required()
+def banking_apply_patterns(user_email, user_roles, tenant, user_tenants):
     """Apply enhanced pattern matching to predict debet/credit accounts"""
     try:
         data = request.get_json()
@@ -956,8 +1011,9 @@ def banking_apply_patterns(user_email, user_roles):
         
         if not transactions:
             return jsonify({'success': False, 'error': 'No transactions provided'}), 400
-            
-        administration = transactions[0].get('Administration', 'GoodwinSolutions')
+        
+        # Use current tenant instead of getting from transaction
+        administration = tenant
         
         if use_enhanced:
             # Use enhanced pattern analysis system
@@ -1061,12 +1117,17 @@ def banking_apply_patterns(user_email, user_roles):
 
 @app.route('/api/banking/save-transactions', methods=['POST'])
 @cognito_required(required_permissions=['transactions_create'])
-def banking_save_transactions(user_email, user_roles):
+@tenant_required()
+def banking_save_transactions(user_email, user_roles, tenant, user_tenants):
     """Save approved transactions to database with duplicate filtering"""
     try:
         data = request.get_json()
         transactions = data.get('transactions', [])
         test_mode = data.get('test_mode', True)
+        
+        # Add administration field to all transactions
+        for transaction in transactions:
+            transaction['administration'] = tenant
         
         db = DatabaseManager(test_mode=test_mode)
         table_name = 'mutaties'  # Always use 'mutaties' table
@@ -1076,8 +1137,8 @@ def banking_save_transactions(user_email, user_roles):
         transactions_to_save = []
         
         for iban in ibans:
-            # Get existing sequences for this IBAN
-            existing_sequences = db.get_existing_sequences(iban, table_name)
+            # Get existing sequences for this IBAN (filtered by tenant)
+            existing_sequences = db.get_existing_sequences(iban, table_name, administration=tenant)
             
             # Filter transactions for this IBAN that don't exist
             iban_transactions = [t for t in transactions if t.get('Ref1') == iban]
@@ -1098,25 +1159,31 @@ def banking_save_transactions(user_email, user_roles):
             'total_count': total_count,
             'duplicate_count': duplicate_count,
             'table': table_name,
-            'message': f'Saved {saved_count} new transactions, skipped {duplicate_count} duplicates'
+            'tenant': tenant,
+            'message': f'Saved {saved_count} new transactions for {tenant}, skipped {duplicate_count} duplicates'
         })
         
     except Exception as e:
         print(f"Banking save transactions error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/lookups', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_lookups(user_email, user_roles):
+@tenant_required()
+def banking_lookups(user_email, user_roles, tenant, user_tenants):
     """Get mapping data for account codes and descriptions"""
     try:
         db = DatabaseManager(test_mode=flag)
         
-        # Get bank account lookups
-        bank_accounts = db.get_bank_account_lookups()
+        # Get bank account lookups - FILTERED BY CURRENT TENANT
+        all_bank_accounts = db.get_bank_account_lookups()
+        bank_accounts = [acc for acc in all_bank_accounts if acc.get('administration') == tenant]
         
-        # Get recent transactions for account mapping
-        recent_transactions = db.get_recent_transactions(limit=100)
+        # Get recent transactions for account mapping - FILTERED BY CURRENT TENANT
+        all_recent_transactions = db.get_recent_transactions(limit=100)
+        recent_transactions = [tx for tx in all_recent_transactions if tx.get('administration') == tenant]
         
         # Extract unique account codes and descriptions
         accounts = set()
@@ -1143,7 +1210,8 @@ def banking_lookups(user_email, user_roles):
 
 @app.route('/api/banking/mutaties', methods=['GET'])
 @cognito_required(required_permissions=['transactions_read'])
-def banking_mutaties(user_email, user_roles):
+@tenant_required()
+def banking_mutaties(user_email, user_roles, tenant, user_tenants):
     """Get mutaties with filters"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1166,9 +1234,21 @@ def banking_mutaties(user_email, user_roles):
             where_conditions.append(f"YEAR(TransactionDate) IN ({year_placeholders})")
             params.extend(years)
         
-        # Administration filter
-        if administration != 'all':
-            where_conditions.append("Administration = %s")
+        # Administration filter - MUST respect user's accessible tenants
+        if administration == 'all':
+            # Show all tenants user has access to
+            if len(user_tenants) == 1:
+                where_conditions.append("administration = %s")
+                params.append(user_tenants[0])
+            else:
+                placeholders = ','.join(['%s'] * len(user_tenants))
+                where_conditions.append(f"administration IN ({placeholders})")
+                params.extend(user_tenants)
+        else:
+            # Validate user has access to requested administration
+            if administration not in user_tenants:
+                return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+            where_conditions.append("administration = %s")
             params.append(administration)
         
         where_clause = 'WHERE ' + ' AND '.join(where_conditions) if where_conditions else ''
@@ -1199,7 +1279,8 @@ def banking_mutaties(user_email, user_roles):
 
 @app.route('/api/banking/filter-options', methods=['GET'])
 @cognito_required(required_permissions=['transactions_read'])
-def banking_filter_options(user_email, user_roles):
+@tenant_required()
+def banking_filter_options(user_email, user_roles, tenant, user_tenants):
     """Get filter options for mutaties"""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -1208,13 +1289,22 @@ def banking_filter_options(user_email, user_roles):
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get distinct years
-        cursor.execute(f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL ORDER BY year DESC")
+        # Build administration filter based on user's accessible tenants
+        if len(user_tenants) == 1:
+            admin_filter = "AND administration = %s"
+            admin_params = [user_tenants[0]]
+        else:
+            placeholders = ','.join(['%s'] * len(user_tenants))
+            admin_filter = f"AND administration IN ({placeholders})"
+            admin_params = user_tenants
+        
+        # Get distinct years (filtered by tenant)
+        cursor.execute(f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL {admin_filter} ORDER BY year DESC", admin_params)
         years = [str(row['year']) for row in cursor.fetchall()]
         
-        # Get distinct administrations
-        cursor.execute(f"SELECT DISTINCT Administration FROM {table_name} WHERE Administration IS NOT NULL ORDER BY Administration")
-        administrations = [row['Administration'] for row in cursor.fetchall()]
+        # Get distinct administrations (only those user has access to)
+        cursor.execute(f"SELECT DISTINCT administration FROM {table_name} WHERE administration IS NOT NULL {admin_filter} ORDER BY administration", admin_params)
+        administrations = [row['administration'] for row in cursor.fetchall()]
         
         cursor.close()
         conn.close()
@@ -1230,7 +1320,8 @@ def banking_filter_options(user_email, user_roles):
 
 @app.route('/api/banking/update-mutatie', methods=['POST'])
 @cognito_required(required_permissions=['transactions_update'])
-def banking_update_mutatie(user_email, user_roles):
+@tenant_required()
+def banking_update_mutatie(user_email, user_roles, tenant, user_tenants):
     """Update a mutatie record"""
     try:
         data = request.get_json()
@@ -1238,6 +1329,7 @@ def banking_update_mutatie(user_email, user_roles):
         
         print(f"Update request for ID: {record_id}", flush=True)
         print(f"Data received: {data}", flush=True)
+        print(f"Current tenant: {tenant}", flush=True)
         
         if not record_id:
             return jsonify({'success': False, 'error': 'No ID provided'}), 400
@@ -1246,9 +1338,23 @@ def banking_update_mutatie(user_email, user_roles):
         table_name = 'mutaties_test' if flag else 'mutaties'
         
         conn = db.get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
         
-        # Update the record
+        # First, verify the record belongs to the current tenant
+        cursor.execute(f"SELECT administration FROM {table_name} WHERE ID = %s", (record_id,))
+        existing_record = cursor.fetchone()
+        
+        if not existing_record:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'error': 'Record not found'}), 404
+        
+        if existing_record['administration'] != tenant:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'error': 'Access denied: Record belongs to different tenant'}), 403
+        
+        # Update the record - FORCE Administration to current tenant (ignore any changes from frontend)
         update_query = f"""
             UPDATE {table_name} SET 
                 TransactionNumber = %s,
@@ -1262,7 +1368,7 @@ def banking_update_mutatie(user_email, user_roles):
                 Ref2 = %s,
                 Ref3 = %s,
                 Ref4 = %s,
-                Administration = %s
+                administration = %s
             WHERE ID = %s
         """
         
@@ -1284,13 +1390,15 @@ def banking_update_mutatie(user_email, user_roles):
             data.get('Ref2'),
             data.get('Ref3'),
             data.get('Ref4'),
-            data.get('Administration'),
+            tenant,  # FORCE to current tenant - ignore any changes from frontend
             record_id
         ))
         
         conn.commit()
         cursor.close()
         conn.close()
+        
+        print(f"Record {record_id} updated successfully with administration={tenant}", flush=True)
         
         return jsonify({
             'success': True,
@@ -1305,12 +1413,15 @@ def banking_update_mutatie(user_email, user_roles):
 
 @app.route('/api/banking/check-accounts', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_check_accounts(user_email, user_roles):
+@tenant_required()
+def banking_check_accounts(user_email, user_roles, tenant, user_tenants):
     """Check banking account balances"""
     try:
         processor = BankingProcessor(test_mode=flag)
         end_date = request.args.get('end_date')
-        balances = processor.check_banking_accounts(end_date=end_date)
+        
+        # Pass tenant to filter accounts
+        balances = processor.check_banking_accounts(end_date=end_date, administration=tenant)
         
         return jsonify({
             'success': True,
@@ -1319,6 +1430,8 @@ def banking_check_accounts(user_email, user_roles):
         
     except Exception as e:
         print(f"Banking check accounts error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/banking/check-sequence', methods=['GET'])

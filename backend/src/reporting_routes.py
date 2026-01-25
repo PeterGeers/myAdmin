@@ -4,6 +4,7 @@ from mutaties_cache import get_cache
 from datetime import datetime
 from contextlib import contextmanager
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 
 reporting_bp = Blueprint('reporting', __name__)
 
@@ -45,7 +46,7 @@ class ReportingService:
                     where_parts.append(f"jaar IN ({placeholders})")
                     params.extend(value)
             elif key == 'administration':
-                where_parts.append("Administration = %s")
+                where_parts.append("administration = %s")
                 params.append(value)
             elif key == 'profit_loss':
                 where_parts.append("VW = %s")
@@ -60,7 +61,7 @@ class ReportingService:
                 where_parts.append("ReferenceNumber = %s")
                 params.append(value)
             elif key == 'ledger':
-                where_parts.append("ledger = %s")
+                where_parts.append("Reknum = %s")
                 params.append(value)
         
         return " AND ".join(where_parts) if where_parts else "1=1", params
@@ -77,7 +78,7 @@ class ReportingService:
             
             # Add administration filter
             if administration != 'all':
-                where_conditions.append("Administration = %s")
+                where_conditions.append("administration = %s")
                 params.append(administration)
             
             # Category-based account filtering
@@ -416,44 +417,52 @@ def get_trends_data(user_email, user_roles):
 
 @reporting_bp.route('/filter-options', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
-def get_filter_options(user_email, user_roles):
+@tenant_required()
+def get_filter_options(user_email, user_roles, tenant, user_tenants):
     """Get distinct values for each filter dropdown with cascading support"""
     try:
         service = ReportingService()
-        administration = request.args.get('administration', 'all')
+        administration = request.args.get('administration', tenant)  # Default to current tenant
         ledger = request.args.get('ledger', 'all')
         
+        # If user requests 'all' administrations, only show their accessible tenants
+        if administration == 'all':
+            admin_filter = f"administration IN ({','.join(['%s'] * len(user_tenants))})"
+            admin_params = user_tenants
+        else:
+            # Validate user has access to requested administration
+            if administration not in user_tenants:
+                return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+            admin_filter = "administration = %s"
+            admin_params = [administration]
+        
         with service.get_cursor() as cursor:
-            # Get administrations
-            cursor.execute("""
-                SELECT DISTINCT Administration FROM vw_mutaties
-                WHERE Administration IS NOT NULL AND Administration != ''
-                ORDER BY Administration
-            """)
-            administrations = [row['Administration'] for row in cursor.fetchall()]
+            # Get administrations (only those user has access to)
+            cursor.execute(f"""
+                SELECT DISTINCT administration FROM vw_mutaties
+                WHERE administration IS NOT NULL AND administration != ''
+                AND {admin_filter}
+                ORDER BY administration
+            """, admin_params)
+            administrations = [row['administration'] for row in cursor.fetchall()]
             
-            # Get ledgers with optional administration filter
-            ledger_conditions = ["ledger IS NOT NULL AND ledger != ''"]
-            ledger_params = []
-            if administration != 'all':
-                ledger_conditions.append("Administration = %s")
-                ledger_params.append(administration)
+            # Get ledgers with administration filter
+            # Get ledgers (account numbers) with administration filter
+            ledger_conditions = ["Reknum IS NOT NULL AND Reknum != ''", admin_filter]
+            ledger_params = admin_params.copy()
             
             cursor.execute(f"""
-                SELECT DISTINCT ledger FROM vw_mutaties
+                SELECT DISTINCT Reknum FROM vw_mutaties
                 WHERE {' AND '.join(ledger_conditions)}
-                ORDER BY ledger
+                ORDER BY Reknum
             """, ledger_params)
-            ledgers = [row['ledger'] for row in cursor.fetchall()]
+            ledgers = [row['Reknum'] for row in cursor.fetchall()]
             
             # Get references with optional filters
-            ref_conditions = ["ReferenceNumber IS NOT NULL AND ReferenceNumber != ''"]
-            ref_params = []
-            if administration != 'all':
-                ref_conditions.append("Administration = %s")
-                ref_params.append(administration)
+            ref_conditions = ["ReferenceNumber IS NOT NULL AND ReferenceNumber != ''", admin_filter]
+            ref_params = admin_params.copy()
             if ledger != 'all':
-                ref_conditions.append("ledger = %s")
+                ref_conditions.append("Reknum = %s")
                 ref_params.append(ledger)
             
             cursor.execute(f"""
@@ -470,6 +479,9 @@ def get_filter_options(user_email, user_roles):
             'references': references
         })
     except Exception as e:
+        print(f"Error in get_filter_options: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -500,7 +512,8 @@ def get_available_data(data_type, user_email, user_roles):
 
 @reporting_bp.route('/check-reference', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
-def get_check_reference(user_email, user_roles):
+@tenant_required()
+def get_check_reference(user_email, user_roles, tenant, user_tenants):
     """Get check reference data with transactions and summary using cache"""
     try:
         test_mode = request.args.get('testMode', 'false').lower() == 'true'
@@ -521,9 +534,15 @@ def get_check_reference(user_email, user_roles):
         # Strip whitespace and normalize case for grouping
         df_filtered['ReferenceNumber'] = df_filtered['ReferenceNumber'].str.strip()
         
+        # TENANT FILTER: Only show data for user's accessible tenants
+        df_filtered = df_filtered[df_filtered['administration'].isin(user_tenants)]
+        
         # Apply filters
         if administration != 'all':
-            df_filtered = df_filtered[df_filtered['Administration'] == administration]
+            # Validate user has access to requested administration
+            if administration not in user_tenants:
+                return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+            df_filtered = df_filtered[df_filtered['administration'] == administration]
         
         if ledger != 'all':
             # Extract just the account number (first part before space)

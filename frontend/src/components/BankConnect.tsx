@@ -47,7 +47,7 @@ const BankConnect: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [bankAccounts, setBankAccounts] = useState<Array<{rekeningNummer: string, Account: string, Administration: string}>>([]);
+  const [bankAccounts, setBankAccounts] = useState<Array<{rekeningNummer: string, Account: string, administration: string}>>([]);
 
   useEffect(() => {
     fetchProviders();
@@ -166,7 +166,7 @@ const BankConnect: React.FC = () => {
         account_id: accountId,
         iban: iban,
         account_code: bankAccount.Account,
-        administration: bankAccount.Administration,
+        administration: bankAccount.administration,
         from_date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       });
       const data = await response.json();

@@ -45,19 +45,34 @@ def get_user_tenants(jwt_token: str) -> List[str]:
         # Extract custom:tenants attribute
         tenants = payload.get('custom:tenants', [])
         
+        print(f"[Backend] Raw tenants from JWT: {tenants} (type: {type(tenants).__name__})", flush=True)
+        
         # Handle both string (JSON array) and list formats
         if isinstance(tenants, str):
             try:
+                # Handle escaped quotes like [\"GoodwinSolutions\",\"PeterPrive\"]
+                if tenants.startswith('[') and '\\' in tenants:
+                    print(f"[Backend] Detected escaped quotes, unescaping...", flush=True)
+                    # Replace escaped quotes with regular quotes
+                    tenants = tenants.replace('\\"', '"').replace("\\'", "'")
+                    print(f"[Backend] After unescaping: {tenants}", flush=True)
+                
+                # Try to parse as JSON
                 tenants = json.loads(tenants)
-            except:
+                print(f"[Backend] Parsed tenants: {tenants}", flush=True)
+            except json.JSONDecodeError as e:
+                print(f"[Backend] JSON parse failed: {e}, treating as single tenant", flush=True)
                 tenants = [tenants] if tenants else []
         elif not isinstance(tenants, list):
             tenants = [tenants] if tenants else []
         
+        print(f"[Backend] Final tenants list: {tenants}", flush=True)
         return tenants
         
     except Exception as e:
         print(f"Error extracting tenants from JWT: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return []
 
 

@@ -24,10 +24,18 @@ class TransactionLogic:
     def get_connection(self):
         return mysql.connector.connect(**self.config)
     
-    def get_last_transactions(self, transaction_number):
-        """Get last transactions based on TransactionNumber and max date"""
+    def get_last_transactions(self, transaction_number, administration=None):
+        """Get last transactions based on TransactionNumber and max date
+        
+        Args:
+            transaction_number: The transaction number to search for
+            administration: The tenant/administration to filter by (optional)
+        """
         conn = self.get_connection()
         cursor = conn.cursor(dictionary=True)
+        
+        # Build query with optional administration filter
+        admin_filter = "AND administration = %s" if administration else ""
         
         # First try to find existing transactions
         query = f"""
@@ -35,11 +43,23 @@ class TransactionLogic:
                    Debet, Credit, ReferenceNumber, Ref1, Ref2, Ref3, Ref4, Administration
             FROM {self.table_name} 
             WHERE TransactionNumber LIKE %s 
-            AND TransactionDate = (SELECT MAX(TransactionDate) FROM {self.table_name} WHERE TransactionNumber LIKE %s)
+            {admin_filter}
+            AND TransactionDate = (
+                SELECT MAX(TransactionDate) 
+                FROM {self.table_name} 
+                WHERE TransactionNumber LIKE %s 
+                {admin_filter}
+            )
             ORDER BY Debet DESC
         """
         
-        cursor.execute(query, (f"{transaction_number}%", f"{transaction_number}%"))
+        # Build params based on whether administration is provided
+        if administration:
+            params = (f"{transaction_number}%", administration, f"{transaction_number}%", administration)
+        else:
+            params = (f"{transaction_number}%", f"{transaction_number}%")
+        
+        cursor.execute(query, params)
         results = cursor.fetchall()
         
         # If multiple transactions on same day, group by Ref3 and take first group
@@ -58,15 +78,39 @@ class TransactionLogic:
         
         # If no results, use "Gamma" as fallback
         if not results:
-            cursor.execute(query, ("Gamma%", "Gamma%"))
+            # Build fallback query with optional administration filter
+            fallback_query = f"""
+                SELECT ID, TransactionNumber, TransactionDate, TransactionDescription, TransactionAmount, 
+                       Debet, Credit, ReferenceNumber, Ref1, Ref2, Ref3, Ref4, Administration
+                FROM {self.table_name} 
+                WHERE TransactionNumber LIKE %s 
+                {admin_filter}
+                AND TransactionDate = (
+                    SELECT MAX(TransactionDate) 
+                    FROM {self.table_name} 
+                    WHERE TransactionNumber LIKE %s 
+                    {admin_filter}
+                )
+                ORDER BY Debet DESC
+            """
+            
+            if administration:
+                fallback_params = ("Gamma%", administration, "Gamma%", administration)
+            else:
+                fallback_params = ("Gamma%", "Gamma%")
+            
+            cursor.execute(fallback_query, fallback_params)
             results = cursor.fetchall()
             
-            # Update transaction numbers to current one
+            # Update transaction numbers to current one and set administration
             for row in results:
                 row['TransactionNumber'] = transaction_number
                 row['ReferenceNumber'] = transaction_number
                 # Reset amounts to 0 so vendor data will be used
                 row['TransactionAmount'] = 0
+                # Use provided administration or keep the one from Gamma
+                if administration:
+                    row['Administration'] = administration
         
         cursor.close()
         conn.close()
@@ -182,7 +226,7 @@ class TransactionLogic:
                 'Ref2': ref2,
                 'Ref3': new_data['drive_url'],
                 'Ref4': new_data['filename'],
-                'Administration': template.get('Administration', 'GoodwinSolutions')
+                'Administration': new_data.get('administration', template.get('Administration', 'GoodwinSolutions'))
             }
             new_transactions.append(new_transaction)
         

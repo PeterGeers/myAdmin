@@ -297,7 +297,7 @@ class BTWProcessor:
             query = f"""
                 SELECT * FROM {table_name}
                 WHERE TransactionNumber = 'BTW'
-                AND Administration = %s
+                AND administration = %s
                 ORDER BY TransactionDate DESC, ID DESC
                 LIMIT 1
             """

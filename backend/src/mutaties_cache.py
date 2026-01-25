@@ -84,7 +84,6 @@ class MutatiesCache:
                     Amount,
                     Reknum,
                     AccountName,
-                    ledger,
                     Parent,
                     VW,
                     jaar,
@@ -92,7 +91,7 @@ class MutatiesCache:
                     maand,
                     week,
                     ReferenceNumber,
-                    Administration,
+                    administration,
                     Ref3,
                     Ref4
                 FROM vw_mutaties

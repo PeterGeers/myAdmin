@@ -72,7 +72,7 @@ class PDFValidator:
                 params.append(year)
             
             if administration and administration != 'all':
-                where_clause += " AND Administration = %s"
+                where_clause += " AND administration = %s"
                 params.append(administration)
             
             print(f"Validating year: {year}, administration: {administration}")

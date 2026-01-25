@@ -128,8 +128,8 @@ CREATE TABLE tenant_modules (
 ### Manual Testing Checklist:
 
 - [ ] **Test GoodwinSolutions tenant**:
-  - [ ] Verify all Finance menu items visible
-  - [ ] Verify all STR menu items visible
+  - [x] Verify all Finance menu items visible
+  - [x] Verify all STR menu items visible
   - [ ] Test each Finance function works
   - [ ] Test each STR function works
 

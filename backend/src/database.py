@@ -261,7 +261,7 @@ class DatabaseManager:
     
     def get_bank_account_lookups(self):
         """Get bank account lookup data"""
-        return self.execute_query("SELECT rekeningNummer, Account, Administration FROM lookupbankaccounts_R")
+        return self.execute_query("SELECT rekeningNummer, Account, administration FROM vw_lookup_accounts")
     
     def get_existing_sequences(self, iban, table_name='mutaties'):
         """Get existing Ref2 sequences for a specific IBAN within last 2 years"""
@@ -286,7 +286,7 @@ class DatabaseManager:
     def get_recent_transactions(self, limit=100, table_name='mutaties'):
         """Get recent transactions for lookup data"""
         return self.execute_query(f"""
-            SELECT TransactionDescription, Debet, Credit FROM {table_name} 
+            SELECT TransactionDescription, Debet, Credit, administration FROM {table_name} 
             ORDER BY ID DESC LIMIT %s
         """, (limit,))
     

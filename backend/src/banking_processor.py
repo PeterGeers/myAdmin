@@ -188,12 +188,12 @@ class BankingProcessor:
                     SELECT ID FROM {table_name}
                     WHERE TransactionAmount = %s
                     AND TransactionDate = %s
-                    AND Administration = %s
+                    AND administration = %s
                     LIMIT 1
                 """, (
                     transaction.get('TransactionAmount'),
                     transaction.get('TransactionDate'),
-                    transaction.get('Administration')
+                    transaction.get('administration')
                 ))
                 
                 existing = cursor.fetchall()
@@ -216,89 +216,106 @@ class BankingProcessor:
         conn.close()
         return saved_count
     
-    def check_banking_accounts(self, end_date=None):
-        """Check banking account balances based on internal calculation vs last transaction"""
+    def check_banking_accounts(self, end_date=None, administration=None):
+        """
+        Check banking account balances based on internal calculation vs last transaction
+        
+        Args:
+            end_date: Optional end date for balance calculation
+            administration: Tenant to filter accounts by (required for multi-tenant)
+        """
         conn = self.db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Get bank accounts to validate
-        cursor.execute("SELECT * FROM lookupbankaccounts_r")
+        # Get bank accounts filtered by tenant using vw_rekeningnummers
+        if administration:
+            cursor.execute("""
+                SELECT rekeningNummer, Account, Administration as administration 
+                FROM vw_rekeningnummers 
+                WHERE Administration = %s
+            """, (administration,))
+        else:
+            cursor.execute("SELECT rekeningNummer, Account, Administration as administration FROM vw_rekeningnummers")
+        
         accounts = cursor.fetchall()
         
         if not accounts:
             return []
         
-        # Get administrations and account patterns
-        administrations = list(set([acc['Administration'] for acc in accounts]))
+        # Get account codes for this tenant
         account_codes = list(set([acc['Account'] for acc in accounts]))
         
-        # Build WHERE clauses
-        admin_pattern = '|'.join(administrations)
-        account_pattern = '|'.join(account_codes)
+        # Build WHERE clause for account filtering
+        account_placeholders = ','.join(['%s'] * len(account_codes))
         
         # Get calculated balances from vw_mutaties with account names
         if end_date:
-            cursor.execute("""
-                SELECT Reknum, Administration, 
+            query = f"""
+                SELECT Reknum, Administration as administration, 
                        ROUND(SUM(Amount), 2) as calculated_balance,
                        MAX(AccountName) as account_name
                 FROM vw_mutaties 
-                WHERE Administration REGEXP %s 
-                AND Reknum REGEXP %s
+                WHERE Administration = %s 
+                AND Reknum IN ({account_placeholders})
                 AND TransactionDate <= %s
                 GROUP BY Reknum, Administration
-            """, (admin_pattern, account_pattern, end_date))
+            """
+            params = [administration] + account_codes + [end_date]
         else:
-            cursor.execute("""
-                SELECT Reknum, Administration, 
+            query = f"""
+                SELECT Reknum, Administration as administration, 
                        ROUND(SUM(Amount), 2) as calculated_balance,
                        MAX(AccountName) as account_name
                 FROM vw_mutaties 
-                WHERE Administration REGEXP %s 
-                AND Reknum REGEXP %s
+                WHERE Administration = %s 
+                AND Reknum IN ({account_placeholders})
                 GROUP BY Reknum, Administration
-            """, (admin_pattern, account_pattern))
+            """
+            params = [administration] + account_codes
         
+        cursor.execute(query, params)
         balances = cursor.fetchall()
         
-        # For each balance, find the last transaction description
+        # For each balance, find the last transaction description from mutaties table
         for balance in balances:
             # Get all transactions for the last transaction date (up to end_date if specified)
             if end_date:
                 cursor.execute("""
-                    SELECT TransactionDate, TransactionDescription, TransactionAmount, Debet, Credit, Ref2, Ref3
+                    SELECT TransactionDate, TransactionDescription, TransactionAmount, 
+                           Debet, Credit, Ref2, Ref3, Ref4
                     FROM mutaties 
-                    WHERE Administration = %s 
+                    WHERE administration = %s 
                     AND (Debet = %s OR Credit = %s)
                     AND TransactionDate <= %s
                     AND TransactionDate = (
                         SELECT MAX(TransactionDate) 
                         FROM mutaties 
-                        WHERE Administration = %s 
+                        WHERE administration = %s 
                         AND (Debet = %s OR Credit = %s)
                         AND TransactionDate <= %s
                     )
                     ORDER BY Ref2 DESC
                 """, (
-                    balance['Administration'], balance['Reknum'], balance['Reknum'], end_date,
-                    balance['Administration'], balance['Reknum'], balance['Reknum'], end_date
+                    balance['administration'], balance['Reknum'], balance['Reknum'], end_date,
+                    balance['administration'], balance['Reknum'], balance['Reknum'], end_date
                 ))
             else:
                 cursor.execute("""
-                    SELECT TransactionDate, TransactionDescription, TransactionAmount, Debet, Credit, Ref2, Ref3
+                    SELECT TransactionDate, TransactionDescription, TransactionAmount, 
+                           Debet, Credit, Ref2, Ref3, Ref4
                     FROM mutaties 
-                    WHERE Administration = %s 
+                    WHERE administration = %s 
                     AND (Debet = %s OR Credit = %s)
                     AND TransactionDate = (
                         SELECT MAX(TransactionDate) 
                         FROM mutaties 
-                        WHERE Administration = %s 
+                        WHERE administration = %s 
                         AND (Debet = %s OR Credit = %s)
                     )
                     ORDER BY Ref2 DESC
                 """, (
-                    balance['Administration'], balance['Reknum'], balance['Reknum'],
-                    balance['Administration'], balance['Reknum'], balance['Reknum']
+                    balance['administration'], balance['Reknum'], balance['Reknum'],
+                    balance['administration'], balance['Reknum'], balance['Reknum']
                 ))
             
             last_transactions = cursor.fetchall()
@@ -307,10 +324,12 @@ class BankingProcessor:
                 balance['last_transaction_date'] = last_transactions[0]['TransactionDate']
                 balance['last_transaction_description'] = last_transactions[0]['TransactionDescription']
                 balance['last_transaction_amount'] = last_transactions[0]['TransactionAmount']
-                # Ensure Ref3 is included in each transaction
+                # Ensure Ref3 and Ref4 are included in each transaction
                 for tx in last_transactions:
                     if 'Ref3' not in tx:
                         tx['Ref3'] = ''
+                    if 'Ref4' not in tx:
+                        tx['Ref4'] = ''
                 balance['last_transactions'] = last_transactions
             else:
                 balance['last_transaction_date'] = None
@@ -331,8 +350,8 @@ class BankingProcessor:
         # If account_code and administration provided, get IBAN from lookup
         if account_code and administration:
             cursor.execute("""
-                SELECT rekeningNummer FROM lookupbankaccounts_r 
-                WHERE Account = %s AND Administration = %s
+                SELECT rekeningNummer FROM vw_lookup_accounts 
+                WHERE Account = %s AND administration = %s
             """, (account_code, administration))
             lookup_result = cursor.fetchone()
             if not lookup_result:

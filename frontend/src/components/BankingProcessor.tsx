@@ -41,6 +41,7 @@ import {
 import { Form, Formik } from 'formik';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
+import { useTenant } from '../context/TenantContext';
 
 interface Transaction {
   ID?: number;
@@ -62,7 +63,7 @@ interface Transaction {
 interface LookupData {
   accounts: string[];
   descriptions: string[];
-  bank_accounts: Array<{ rekeningNummer: string; Account: string; Administration: string }>;
+  bank_accounts: Array<{ rekeningNummer: string; Account: string; administration: string }>;
 }
 
 interface BankingBalance {
@@ -165,7 +166,7 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
       Ref2: ref2,
       Ref3: balance.toString(),
       Ref4: fileName,
-      Administration: bankLookup?.Administration || 'PeterPrive'
+      Administration: bankLookup?.administration || 'PeterPrive'
     });
   }
 
@@ -187,7 +188,7 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
       Ref2: feeRef2,
       Ref3: balance.toString(),
       Ref4: fileName,
-      Administration: bankLookup?.Administration || 'PeterPrive'
+      Administration: bankLookup?.administration || 'PeterPrive'
     });
   }
 
@@ -259,13 +260,14 @@ const processRabobankTransaction = (columns: string[], index: number, lookupData
     ReferenceNumber: '', // Leave empty for pattern prediction to fill
     Ref1: columns[0] || '',
     Ref2: parseInt(columns[3] || '0').toString(),
-    Ref3: '',
+    Ref3: columns[7] || '', // Saldo na trn (balance after transaction)
     Ref4: fileName,
-    Administration: bankLookup?.Administration || 'GoodwinSolutions'
+    Administration: bankLookup?.administration || 'GoodwinSolutions'
   };
 };
 
 const BankingProcessor: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [mutaties, setMutaties] = useState<Transaction[]>([]);
@@ -277,8 +279,7 @@ const BankingProcessor: React.FC = () => {
   const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [] });
   const [filterOptions, setFilterOptions] = useState<{ years: string[], administrations: string[] }>({ years: [], administrations: [] });
   const [mutatiesFilters, setMutatiesFilters] = useState({
-    years: [new Date().getFullYear().toString()],
-    administration: 'all'
+    years: [new Date().getFullYear().toString()]
   });
   const [columnFilters, setColumnFilters] = useState({
     ID: '',
@@ -421,9 +422,10 @@ const BankingProcessor: React.FC = () => {
 
   const fetchMutaties = useCallback(async () => {
     try {
+      const currentTenant = localStorage.getItem('selectedTenant');
       const params = new URLSearchParams({
         years: mutatiesFilters.years.join(','),
-        administration: mutatiesFilters.administration
+        administration: currentTenant || 'all'  // Use current tenant
       });
       const response = await authenticatedGet(`/api/banking/mutaties?${params}`);
       const data = await response.json();
@@ -681,6 +683,61 @@ const BankingProcessor: React.FC = () => {
         if (data.success) setLookupData(data);
       }
 
+      // Get current tenant for validation
+      const currentTenant = localStorage.getItem('selectedTenant');
+      if (!currentTenant) {
+        setMessage('Error: No tenant selected. Please select a tenant first.');
+        setLoading(false);
+        return;
+      }
+
+      // Validate IBANs in files belong to current tenant BEFORE processing
+      console.log('[TENANT VALIDATION] Starting validation...');
+      console.log('[TENANT VALIDATION] Current tenant:', currentTenant);
+      console.log('[TENANT VALIDATION] Bank accounts in lookup:', lookupData.bank_accounts);
+      
+      for (const file of selectedFiles) {
+        const text = await file.text();
+        const allRows = text.split('\n').filter(row => row.trim());
+        
+        if (allRows.length > 1) {
+          let iban = '';
+          
+          // Determine IBAN based on file type
+          if (file.name.toLowerCase().endsWith('.tsv')) {
+            // Revolut TSV files - use hardcoded IBAN
+            iban = 'NL08REVO7549383472';
+            console.log('[TENANT VALIDATION] File:', file.name);
+            console.log('[TENANT VALIDATION] Revolut TSV file - using hardcoded IBAN:', iban);
+          } else {
+            // CSV files - extract IBAN from first column
+            const firstDataRow = allRows[1]; // Skip header
+            const columns = parseCSVRow(firstDataRow);
+            iban = columns[0] || '';
+            console.log('[TENANT VALIDATION] File:', file.name);
+            console.log('[TENANT VALIDATION] CSV file - extracted IBAN from first column:', iban);
+          }
+          
+          if (iban) {
+            // Look up which tenant this IBAN belongs to
+            const bankLookup = lookupData.bank_accounts.find(ba => ba.rekeningNummer === iban);
+            console.log('[TENANT VALIDATION] Bank lookup result:', bankLookup);
+            
+            if (bankLookup) {
+              // IBAN found in current tenant's accounts - validation passed
+              console.log('[TENANT VALIDATION] IBAN belongs to current tenant - validation passed');
+            } else {
+              // IBAN not found in current tenant's accounts - REJECT
+              console.log('[TENANT VALIDATION] IBAN not found in current tenant accounts - BLOCKED');
+              setMessage(`Access denied: The bank account ${iban} in file "${file.name}" does not belong to your current organization. Please verify you have selected the correct file.`);
+              setLoading(false);
+              return;
+            }
+          }
+        }
+      }
+
+      console.log('[TENANT VALIDATION] Validation passed! Processing files...');
       const allTransactions: Transaction[] = [];
       let transactionIndex = 0;
 
@@ -922,6 +979,16 @@ const BankingProcessor: React.FC = () => {
   useEffect(() => {
     fetchMutaties();
   }, [fetchMutaties]);
+
+  // Auto-refresh mutaties when tenant changes
+  useEffect(() => {
+    if (currentTenant) {
+      console.log('[TENANT CHANGE] Tenant changed to:', currentTenant);
+      console.log('[TENANT CHANGE] Auto-refreshing mutaties...');
+      fetchMutaties();
+      fetchLookupData(); // Also refresh lookup data for new tenant
+    }
+  }, [currentTenant, fetchMutaties, fetchLookupData]);
 
   return (
     <Box w="100%" p={4}>
@@ -1211,18 +1278,14 @@ const BankingProcessor: React.FC = () => {
                                     />
                                   </Td>
                                   <Td>
-                                    <FormControl isInvalid={!transaction.Administration}>
-                                      <Input
-                                        size="sm"
-                                        value={transaction.Administration}
-                                        onChange={(e) => updateTransaction(transaction.row_id, 'Administration', e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        isInvalid={!transaction.Administration}
-                                      />
-                                      {!transaction.Administration && (
-                                        <FormErrorMessage fontSize="xs">Required</FormErrorMessage>
-                                      )}
-                                    </FormControl>
+                                    <Input
+                                      size="sm"
+                                      value={transaction.Administration}
+                                      isReadOnly
+                                      bg="gray.100"
+                                      cursor="not-allowed"
+                                      title="Administration is set automatically and cannot be changed"
+                                    />
                                   </Td>
                                   <Td></Td>
                                   <Td></Td>
@@ -1284,21 +1347,6 @@ const BankingProcessor: React.FC = () => {
                           ))}
                         </MenuList>
                       </Menu>
-                    </GridItem>
-                    <GridItem>
-                      <Text color="white" mb={2}>Administration</Text>
-                      <Select
-                        value={mutatiesFilters.administration}
-                        onChange={(e) => setMutatiesFilters(prev => ({ ...prev, administration: e.target.value }))}
-                        bg="gray.600"
-                        color="white"
-                        size="sm"
-                      >
-                        <option value="all">All</option>
-                        {filterOptions.administrations.map((admin, index) => (
-                          <option key={index} value={admin}>{admin}</option>
-                        ))}
-                      </Select>
                     </GridItem>
                     <GridItem>
                       <Button onClick={fetchMutaties} size="sm" colorScheme="blue">
@@ -1952,7 +2000,14 @@ const BankingProcessor: React.FC = () => {
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Administration</FormLabel>
-                  <Input value={editingRecord.Administration || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Administration: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
+                  <Input 
+                    value={editingRecord.Administration || ''} 
+                    isReadOnly 
+                    bg="gray.500" 
+                    color="gray.300" 
+                    cursor="not-allowed"
+                    title="Administration cannot be changed"
+                  />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">Debet</FormLabel>

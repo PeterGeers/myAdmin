@@ -43,11 +43,11 @@ class PatternAnalyzer:
             self.bank_accounts_cache = {}
             
             for account in bank_accounts:
-                key = f"{account['Administration']}_{account['Account']}"
+                key = f"{account['administration']}_{account['Account']}"
                 self.bank_accounts_cache[key] = {
                     'iban': account['rekeningNummer'],
                     'account': account['Account'],
-                    'administration': account['Administration']
+                    'administration': account['administration']
                 }
         
         return self.bank_accounts_cache
@@ -92,7 +92,7 @@ class PatternAnalyzer:
         
         # Build dynamic query with filters
         query_conditions = [
-            "Administration = %s",
+            "administration = %s",
             "TransactionDate >= %s",
             "(Debet IS NOT NULL OR Credit IS NOT NULL)"
         ]
@@ -113,7 +113,7 @@ class PatternAnalyzer:
         
         query = f"""
             SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
-                   TransactionDate, TransactionAmount, Ref1, Administration
+                   TransactionDate, TransactionAmount, Ref1, administration
             FROM mutaties 
             WHERE {' AND '.join(query_conditions)}
             ORDER BY TransactionDate DESC
@@ -906,7 +906,7 @@ class PatternAnalyzer:
         description = transaction.get('TransactionDescription', '').strip()
         debet = transaction.get('Debet', '')
         credit = transaction.get('Credit', '')
-        administration = transaction.get('Administration', '')
+        administration = transaction.get('administration', '')
         
         if not description:
             return None
@@ -1363,9 +1363,9 @@ class PatternAnalyzer:
             # Step 2: Get new transactions since last analysis
             query = """
                 SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
-                       TransactionDate, TransactionAmount, Ref1, Administration
+                       TransactionDate, TransactionAmount, Ref1, administration
                 FROM mutaties 
-                WHERE Administration = %s
+                WHERE administration = %s
                 AND TransactionDate > %s
                 AND (Debet IS NOT NULL OR Credit IS NOT NULL)
                 ORDER BY TransactionDate DESC
@@ -1404,9 +1404,9 @@ class PatternAnalyzer:
             two_years_ago = datetime.now() - timedelta(days=730)
             complete_query = """
                 SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
-                       TransactionDate, TransactionAmount, Ref1, Administration
+                       TransactionDate, TransactionAmount, Ref1, administration
                 FROM mutaties 
-                WHERE Administration = %s
+                WHERE administration = %s
                 AND TransactionDate >= %s
                 AND (Debet IS NOT NULL OR Credit IS NOT NULL)
                 ORDER BY TransactionDate DESC
@@ -1572,7 +1572,7 @@ class PatternAnalyzer:
             # Get transaction count for comparison
             transaction_count = self.db.execute_query("""
                 SELECT COUNT(*) as count FROM mutaties 
-                WHERE Administration = %s 
+                WHERE administration = %s 
                 AND TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
             """, (administration,))
             
@@ -1694,7 +1694,7 @@ class PatternAnalyzer:
             pending_transactions = self.db.execute_query("""
                 SELECT COUNT(*) as count, MIN(TransactionDate) as earliest, MAX(TransactionDate) as latest
                 FROM mutaties 
-                WHERE Administration = %s
+                WHERE administration = %s
                 AND TransactionDate > %s
                 AND (Debet IS NOT NULL OR Credit IS NOT NULL)
             """, (administration, last_analysis))
@@ -1706,7 +1706,7 @@ class PatternAnalyzer:
             # Get total transaction count for comparison
             total_transactions = self.db.execute_query("""
                 SELECT COUNT(*) as count FROM mutaties 
-                WHERE Administration = %s 
+                WHERE administration = %s 
                 AND TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
                 AND (Debet IS NOT NULL OR Credit IS NOT NULL)
             """, (administration,))
