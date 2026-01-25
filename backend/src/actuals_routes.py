@@ -5,6 +5,7 @@ from api_schemas import validate_response_schema
 from mutaties_cache import get_cache
 from database import DatabaseManager
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 
 load_dotenv()
 
@@ -12,12 +13,20 @@ actuals_bp = Blueprint('actuals', __name__)
 
 @actuals_bp.route('/actuals-balance', methods=['GET'])
 @cognito_required(required_permissions=['actuals_read'])
-def get_actuals_balance(user_email, user_roles):
+@tenant_required()
+def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
     """Get balance data using in-memory cache"""
     try:
         years = request.args.get('years', '2025').split(',')
-        administration = request.args.get('administration', 'all')
+        administration = request.args.get('administration', tenant)  # Default to current tenant
         test_mode = request.args.get('testMode', 'false').lower() == 'true'
+        
+        # Validate user has access to requested administration
+        if administration != 'all' and administration not in user_tenants:
+            return jsonify({
+                'success': False,
+                'error': 'Access denied to administration'
+            }), 403
         
         # Get cache instance
         cache = get_cache()
@@ -25,6 +34,9 @@ def get_actuals_balance(user_email, user_roles):
         
         # Get cached data
         df = cache.get_data(db)
+        
+        # SECURITY: Filter by user's accessible tenants first
+        df = df[df['Administration'].isin(user_tenants)]
         
         # Filter: VW = 'N' (balance accounts)
         filtered = df[df['VW'] == 'N'].copy()
@@ -64,13 +76,21 @@ def get_actuals_balance(user_email, user_roles):
 
 @actuals_bp.route('/actuals-profitloss', methods=['GET'])
 @cognito_required(required_permissions=['actuals_read'])
-def get_actuals_profitloss(user_email, user_roles):
+@tenant_required()
+def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
     """Get profit/loss data using in-memory cache"""
     try:
         years = request.args.get('years', '2025').split(',')
-        administration = request.args.get('administration', 'all')
+        administration = request.args.get('administration', tenant)  # Default to current tenant
         group_by = request.args.get('groupBy', 'year')
         test_mode = request.args.get('testMode', 'false').lower() == 'true'
+        
+        # Validate user has access to requested administration
+        if administration != 'all' and administration not in user_tenants:
+            return jsonify({
+                'success': False,
+                'error': 'Access denied to administration'
+            }), 403
         
         # Get cache instance
         cache = get_cache()
@@ -78,6 +98,9 @@ def get_actuals_profitloss(user_email, user_roles):
         
         # Get cached data
         df = cache.get_data(db)
+        
+        # SECURITY: Filter by user's accessible tenants first
+        df = df[df['Administration'].isin(user_tenants)]
         
         # Filter: VW = 'Y' (profit/loss accounts)
         filtered = df[df['VW'] == 'Y'].copy()

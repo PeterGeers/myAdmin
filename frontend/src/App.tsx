@@ -6,7 +6,8 @@ import BankingProcessor from './components/BankingProcessor';
 import STRProcessor from './components/STRProcessor';
 import STRInvoice from './components/STRInvoice';
 import STRPricing from './components/STRPricing';
-import MyAdminReportsNew from './components/MyAdminReportsNew';
+import FINReports from './components/FINReports';
+import STRReports from './components/STRReports';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import TenantSelector from './components/TenantSelector';
@@ -18,7 +19,7 @@ import { useTenantModules } from './hooks/useTenantModules';
 
 import SystemAdmin from './components/SystemAdmin';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'system-admin';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
@@ -34,6 +35,20 @@ function AppContent() {
         .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));
     });
   }, []);
+
+  // Redirect to menu if user loses module access after tenant switch
+  useEffect(() => {
+    if (!modulesLoading) {
+      // If on STR page but no STR access, redirect to menu
+      if ((currentPage === 'str' || currentPage === 'str-invoice' || currentPage === 'str-pricing' || currentPage === 'str-reports') && !hasSTR) {
+        setCurrentPage('menu');
+      }
+      // If on FIN page but no FIN access, redirect to menu
+      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'bank-connect' || currentPage === 'powerbi' || currentPage === 'fin-reports') && !hasFIN) {
+        setCurrentPage('menu');
+      }
+    }
+  }, [hasSTR, hasFIN, modulesLoading, currentPage]);
 
   // Show login page if not authenticated
   if (!isAuthenticated && !loading) {
@@ -220,9 +235,10 @@ function AppContent() {
         );
 
       case 'powerbi':
+        // Legacy route - redirect to fin-reports
         return (
           <ProtectedRoute 
-            requiredRoles={['Finance_CRUD', 'Finance_Read', 'Finance_Export', 'STR_CRUD', 'STR_Read', 'STR_Export']}
+            requiredRoles={['Finance_CRUD', 'Finance_Read', 'Finance_Export']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -230,7 +246,7 @@ function AppContent() {
                 <HStack justify="space-between">
                   <HStack>
                     <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">📈 myAdmin Reports</Heading>
+                    <Heading color="orange.400" size="lg">📊 FIN Reports</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -238,7 +254,55 @@ function AppContent() {
                   </HStack>
                 </HStack>
               </Box>
-              <MyAdminReportsNew />
+              <FINReports />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'fin-reports':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Finance_CRUD', 'Finance_Read', 'Finance_Export']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">📊 FIN Reports</Heading>
+                  </HStack>
+                  <HStack spacing={3}>
+                    <TenantSelector size="sm" />
+                    <UserMenu onLogout={logout} mode={status.mode} />
+                  </HStack>
+                </HStack>
+              </Box>
+              <FINReports />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'str-reports':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['STR_CRUD', 'STR_Read', 'STR_Export']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                    <Heading color="orange.400" size="lg">📈 STR Reports</Heading>
+                  </HStack>
+                  <HStack spacing={3}>
+                    <TenantSelector size="sm" />
+                    <UserMenu onLogout={logout} mode={status.mode} />
+                  </HStack>
+                </HStack>
+              </Box>
+              <STRReports />
             </Box>
           </ProtectedRoute>
         );
@@ -299,10 +363,17 @@ function AppContent() {
                     </Button>
                   )}
 
-                  {/* Reports - All authenticated users with any module access */}
-                  {(hasFIN || hasSTR) && (
-                    <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('powerbi')}>
-                      📈 myAdmin Reports
+                  {/* FIN Reports - Finance module users */}
+                  {hasFIN && (user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read', 'Finance_Export'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('fin-reports')}>
+                      📊 FIN Reports
+                    </Button>
+                  )}
+
+                  {/* STR Reports - STR module users */}
+                  {hasSTR && (user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="cyan" onClick={() => setCurrentPage('str-reports')}>
+                      📈 STR Reports
                     </Button>
                   )}
 

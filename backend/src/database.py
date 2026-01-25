@@ -260,8 +260,8 @@ class DatabaseManager:
         return self.execute_query(f"SELECT Ref2 FROM {table_name} WHERE Ref1 = %s", (ref1,))
     
     def get_bank_account_lookups(self):
-        """Get bank account lookup data"""
-        return self.execute_query("SELECT rekeningNummer, Account, administration FROM vw_lookup_accounts")
+        """Get bank account lookup data from vw_rekeningnummers (actual bank accounts only)"""
+        return self.execute_query("SELECT rekeningNummer, Account, administration FROM vw_rekeningnummers")
     
     def get_existing_sequences(self, iban, table_name='mutaties'):
         """Get existing Ref2 sequences for a specific IBAN within last 2 years"""

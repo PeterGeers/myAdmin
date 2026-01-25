@@ -1550,21 +1550,18 @@ def banking_migrate_revolut_ref2(user_email, user_roles):
 # STR (Short Term Rental) routes
 @app.route('/api/str/upload', methods=['POST', 'OPTIONS'])
 @cognito_required(required_permissions=['str_create'])
-def str_upload(user_email, user_roles):
+@tenant_required()
+def str_upload(user_email, user_roles, tenant, user_tenants):
     """Upload and process single STR file"""
     if request.method == 'OPTIONS':
         return jsonify({'status': 'OK'})
         
     try:
-
-        
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file provided'}), 400
         
         file = request.files['file']
         platform = request.form.get('platform', 'airbnb')
-        
-
         
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
@@ -1573,13 +1570,14 @@ def str_upload(user_email, user_roles):
         temp_path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(temp_path)
         
-
-        
         str_processor = STRProcessor(test_mode=flag)
-
         
         bookings = str_processor.process_str_files([temp_path], platform)
-
+        
+        # Add administration (tenant) to all bookings
+        if bookings:
+            for booking in bookings:
+                booking['administration'] = tenant
         
         if bookings:
             separated = str_processor.separate_by_status(bookings)
@@ -1606,13 +1604,13 @@ def str_upload(user_email, user_roles):
             'planned': convert_types(separated['planned']),
             'already_loaded': convert_types(separated.get('already_loaded', [])),
             'summary': convert_types(summary),
-            'platform': platform
+            'platform': platform,
+            'administration': tenant
         }
         
         return jsonify(response_data)
         
     except Exception as e:
-
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -1621,13 +1619,20 @@ def str_upload(user_email, user_roles):
 
 @app.route('/api/str/save', methods=['POST'])
 @cognito_required(required_permissions=['bookings_create'])
-def str_save(user_email, user_roles):
+@tenant_required()
+def str_save(user_email, user_roles, tenant, user_tenants):
     """Save STR bookings to database like R script"""
 
     try:
         data = request.get_json()
         realised_bookings = data.get('realised', [])
         planned_bookings = data.get('planned', [])
+        
+        # Add administration (tenant) to all bookings
+        for booking in realised_bookings:
+            booking['administration'] = tenant
+        for booking in planned_bookings:
+            booking['administration'] = tenant
         
         str_db = STRDatabase(test_mode=flag)
         str_processor = STRProcessor(test_mode=flag)
@@ -1652,7 +1657,7 @@ def str_save(user_email, user_roles):
         return jsonify({
             'success': True,
             'results': results,
-            'message': f'Processed {len(realised_bookings)} realised, {len(planned_bookings)} planned bookings'
+            'message': f'Processed {len(realised_bookings)} realised, {len(planned_bookings)} planned bookings for {tenant}'
         })
         
     except Exception as e:
@@ -2175,27 +2180,36 @@ def toeristenbelasting_available_years(user_email, user_roles):
 
 @app.route('/api/reports/aangifte-ib', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
-def aangifte_ib(user_email, user_roles):
+@tenant_required()
+def aangifte_ib(user_email, user_roles, tenant, user_tenants):
     """Get Aangifte IB data grouped by Parent and Aangifte (using in-memory cache)"""
     try:
         # Get parameters
         year = request.args.get('year')
-        administration = request.args.get('administration', 'all')
+        administration = request.args.get('administration', tenant)  # Default to current tenant
         
         if not year:
             return jsonify({'success': False, 'error': 'Year is required'}), 400
+        
+        # Validate user has access to requested administration
+        if administration not in user_tenants:
+            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
         
         # Get cache instance
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
         
         # Ensure cache is loaded (will auto-refresh if needed)
-        cache.get_data(db)
+        df = cache.get_data(db)
+        
+        # SECURITY: Filter by user's accessible tenants
+        df = df[df['administration'].isin(user_tenants)]
         
         # Query from cache (much faster than SQL)
         summary_data = cache.query_aangifte_ib(year, administration)
         available_years = cache.get_available_years()
-        available_administrations = cache.get_available_administrations(year)
+        # Only show administrations user has access to
+        available_administrations = [admin for admin in cache.get_available_administrations(year) if admin in user_tenants]
         
         return jsonify({
             'success': True,

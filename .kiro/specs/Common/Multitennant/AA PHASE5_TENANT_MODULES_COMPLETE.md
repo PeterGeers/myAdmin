@@ -130,14 +130,16 @@ CREATE TABLE tenant_modules (
 - [ ] **Test GoodwinSolutions tenant**:
   - [x] Verify all Finance menu items visible
   - [x] Verify all STR menu items visible
-  - [ ] Test each Finance function works
-  - [ ] Test each STR function works
+  - [x] Test each Finance function works
+  - [x] Test each STR function works  MyAdminReportsNew.tsx
 
-- [ ] **Test PeterPrive tenant**:
-  - [ ] Verify Finance menu items visible
-  - [ ] Verify STR menu items HIDDEN
-  - [ ] Test Finance functions work
-  - [ ] Verify STR pages return 403 if accessed directly
+
+
+- [x] **Test PeterPrive tenant**:
+  - [x] Verify Finance menu items visible
+  - [x] Verify STR menu items HIDDEN
+  - [x] Test Finance functions work
+  - [x] Verify STR pages return 403 if accessed directly  (Not visible)
 
 - [ ] **Test tenant switching**:
   - [ ] Switch from GoodwinSolutions to PeterPrive

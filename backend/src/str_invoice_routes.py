@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 import os
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 
 str_invoice_bp = Blueprint('str_invoice', __name__)
 
@@ -15,8 +16,9 @@ def test_page(user_email, user_roles):
 
 @str_invoice_bp.route('/search-booking', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def search_booking(user_email, user_roles):
-    """Search for booking by guest name or reservation code"""
+@tenant_required()
+def search_booking(user_email, user_roles, tenant, user_tenants):
+    """Search for booking by guest name or reservation code - filtered by tenant and date range"""
     try:
         query = request.args.get('query', '').strip()
         if not query:
@@ -26,36 +28,59 @@ def search_booking(user_email, user_roles):
         limit_param = request.args.get('limit', '20')
         limit = 0 if limit_param in ['0', 'all'] else int(limit_param)
         
+        # Get startDate parameter (default to 90 days ago if not provided)
+        start_date_param = request.args.get('startDate', '')
+        if start_date_param:
+            start_date = start_date_param
+        else:
+            start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+        
+        # Current date (no future bookings)
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
         
-        # Search by guest name or reservation code using regex-like matching
+        # Search by guest name or reservation code with tenant and date filtering
         if limit > 0:
             search_query = """
             SELECT * FROM vw_bnb_total 
-            WHERE guestName LIKE %s OR reservationCode LIKE %s
+            WHERE (guestName LIKE %s OR reservationCode LIKE %s)
+            AND administration = %s
+            AND checkinDate >= %s
+            AND checkinDate <= %s
             ORDER BY checkinDate DESC
             LIMIT %s
             """
             search_pattern = f"%{query}%"
-            cursor.execute(search_query, [search_pattern, search_pattern, limit])
+            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, current_date, limit])
         else:
-            # No limit - return all results
+            # No limit - return all results (but still filtered by tenant and date)
             search_query = """
             SELECT * FROM vw_bnb_total 
-            WHERE guestName LIKE %s OR reservationCode LIKE %s
+            WHERE (guestName LIKE %s OR reservationCode LIKE %s)
+            AND administration = %s
+            AND checkinDate >= %s
+            AND checkinDate <= %s
             ORDER BY checkinDate DESC
             """
             search_pattern = f"%{query}%"
-            cursor.execute(search_query, [search_pattern, search_pattern])
+            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, current_date])
         
         results = cursor.fetchall()
         
         cursor.close()
         connection.close()
         
-        return jsonify({'success': True, 'bookings': results})
+        return jsonify({
+            'success': True, 
+            'bookings': results, 
+            'date_range': {
+                'from': start_date,
+                'to': current_date
+            }
+        })
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

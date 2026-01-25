@@ -9,19 +9,25 @@ import calendar
 from database import DatabaseManager
 import logging
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 
 str_channel_bp = Blueprint('str_channel', __name__)
 
 @str_channel_bp.route('/calculate', methods=['POST'])
 @cognito_required(required_permissions=['str_read'])
-def calculate_str_channel_revenue(user_email, user_roles):
+@tenant_required()
+def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
     """Calculate STR channel revenue for a specific month and year"""
     try:
         data = request.get_json()
         year = data.get('year', datetime.now().year)
         month = data.get('month', datetime.now().month)
-        administration = data.get('administration', 'GoodwinSolutions')
+        administration = data.get('administration', tenant)  # Default to current tenant
         test_mode = data.get('test_mode', True)
+        
+        # Validate user has access to requested administration
+        if administration not in user_tenants:
+            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
         
         # Calculate last day of month
         last_day = calendar.monthrange(year, month)[1]
@@ -38,10 +44,10 @@ def calculate_str_channel_revenue(user_email, user_roles):
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Query to get channel revenue data
+        # Query to get channel revenue data - EXACT match on administration
         query = """
         SELECT 
-            Administration,
+            administration,
             CASE 
                 WHEN ReferenceNumber LIKE '%AIRBNB%' THEN 'AirBnB'
                 ELSE ReferenceNumber
@@ -50,10 +56,10 @@ def calculate_str_channel_revenue(user_email, user_roles):
             SUM(Amount) as TransactionAmount
         FROM vw_mutaties 
         WHERE TransactionDate <= %s
-        AND Administration LIKE %s
+        AND administration = %s
         AND Reknum LIKE '1600%'
         AND (ReferenceNumber REGEXP %s)
-        GROUP BY Administration, 
+        GROUP BY administration, 
                  CASE 
                      WHEN ReferenceNumber LIKE '%AIRBNB%' THEN 'AirBnB'
                      ELSE ReferenceNumber
@@ -62,7 +68,7 @@ def calculate_str_channel_revenue(user_email, user_roles):
         HAVING ABS(SUM(Amount)) > 0.01
         """
         
-        cursor.execute(query, (end_date, f"%{administration}%", pattern))
+        cursor.execute(query, (end_date, administration, pattern))
         channel_data = cursor.fetchall()
         
         # Process the data to create transactions
@@ -86,7 +92,7 @@ def calculate_str_channel_revenue(user_email, user_roles):
                 'Ref2': '',
                 'Ref3': '',
                 'Ref4': '',
-                'Administration': row['Administration']
+                'administration': row['administration']
             }
             transactions.append(revenue_transaction)
             
@@ -104,7 +110,7 @@ def calculate_str_channel_revenue(user_email, user_roles):
                 'Ref2': '',
                 'Ref3': '',
                 'Ref4': '',
-                'Administration': row['Administration']
+                'administration': row['administration']
             }
             transactions.append(vat_transaction)
         
@@ -192,13 +198,18 @@ def save_str_channel_transactions(user_email, user_roles):
 
 @str_channel_bp.route('/preview', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def preview_str_channel_data(user_email, user_roles):
+@tenant_required()
+def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
     """Preview STR channel data for a specific month"""
     try:
         year = int(request.args.get('year', datetime.now().year))
         month = int(request.args.get('month', datetime.now().month))
-        administration = request.args.get('administration', 'GoodwinSolutions')
+        administration = request.args.get('administration', tenant)  # Default to current tenant
         test_mode = request.args.get('test_mode', 'true').lower() == 'true'
+        
+        # Validate user has access to requested administration
+        if administration not in user_tenants:
+            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
         
         # Calculate last day of month
         last_day = calendar.monthrange(year, month)[1]
@@ -212,10 +223,10 @@ def preview_str_channel_data(user_email, user_roles):
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Query to get raw channel data
+        # Query to get raw channel data - EXACT match on administration
         query = """
         SELECT 
-            Administration,
+            administration,
             ReferenceNumber,
             Reknum,
             COUNT(*) as transaction_count,
@@ -224,15 +235,15 @@ def preview_str_channel_data(user_email, user_roles):
             MAX(TransactionDate) as last_date
         FROM vw_mutaties 
         WHERE TransactionDate <= %s
-        AND Administration LIKE %s
+        AND administration = %s
         AND Reknum LIKE '1600%'
         AND (ReferenceNumber REGEXP %s)
-        GROUP BY Administration, ReferenceNumber, Reknum
+        GROUP BY administration, ReferenceNumber, Reknum
         HAVING ABS(SUM(Amount)) > 0.01
-        ORDER BY Administration, ReferenceNumber
+        ORDER BY administration, ReferenceNumber
         """
         
-        cursor.execute(query, (end_date, f"%{administration}%", pattern))
+        cursor.execute(query, (end_date, administration, pattern))
         preview_data = cursor.fetchall()
         
         cursor.close()

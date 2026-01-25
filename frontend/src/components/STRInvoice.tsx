@@ -22,7 +22,9 @@ import {
   ModalHeader,
   ModalBody,
   ModalCloseButton,
-  useDisclosure
+  useDisclosure,
+  FormControl,
+  FormLabel
 } from '@chakra-ui/react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 
@@ -48,14 +50,20 @@ const STRInvoice: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [customBilling, setCustomBilling] = useState({ name: '', address: '', city: '' });
   const [showBillingForm, setShowBillingForm] = useState(false);
+  const [startDate, setStartDate] = useState(() => {
+    // Default to 90 days ago
+    const date = new Date();
+    date.setDate(date.getDate() - 90);
+    return date.toISOString().split('T')[0];
+  });
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const loadAllBookings = useCallback(async () => {
     setLoading(true);
     try {
-      // Use "2" to match most bookings (appears in dates, codes, etc.) with limit=all
-      const response = await authenticatedGet('/api/str-invoice/search-booking?query=2&limit=all');
+      // Use "2" to match most bookings with limit=all and startDate filter
+      const response = await authenticatedGet(`/api/str-invoice/search-booking?query=2&limit=all&startDate=${startDate}`);
       const data = await response.json();
 
       if (data.success) {
@@ -90,9 +98,9 @@ const STRInvoice: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, startDate]);
 
-  // Load all bookings on component mount
+  // Load all bookings on component mount and when startDate changes
   useEffect(() => {
     loadAllBookings();
   }, [loadAllBookings]);
@@ -193,36 +201,54 @@ const STRInvoice: React.FC = () => {
             <Text fontSize="lg" fontWeight="semibold">Filter Bookings</Text>
             
             <HStack>
-              <Input
-                placeholder="Filter by guest name, reservation code, channel, or listing"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  // Auto-filter as user types
-                  if (e.target.value.trim()) {
-                    const query = e.target.value.toLowerCase();
-                    const filtered = allBookings.filter(booking => 
-                      booking.guestName?.toLowerCase().includes(query) ||
-                      booking.reservationCode?.toLowerCase().includes(query) ||
-                      booking.channel?.toLowerCase().includes(query) ||
-                      booking.listing?.toLowerCase().includes(query)
-                    );
-                    setSearchResults(filtered);
-                  } else {
-                    setSearchResults(allBookings);
-                  }
-                }}
-                onKeyPress={(e) => e.key === 'Enter' && searchBookings()}
-              />
-              <Select value={language} onChange={(e) => setLanguage(e.target.value)} width="150px">
-                <option value="nl">Nederlands</option>
-                <option value="en">English</option>
-              </Select>
+              <FormControl maxW="180px">
+                <FormLabel fontSize="sm">Start Date</FormLabel>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  size="md"
+                />
+              </FormControl>
+              <FormControl flex="1">
+                <FormLabel fontSize="sm">Search</FormLabel>
+                <Input
+                  placeholder="Filter by guest name, reservation code, channel, or listing"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    // Auto-filter as user types
+                    if (e.target.value.trim()) {
+                      const query = e.target.value.toLowerCase();
+                      const filtered = allBookings.filter(booking => 
+                        booking.guestName?.toLowerCase().includes(query) ||
+                        booking.reservationCode?.toLowerCase().includes(query) ||
+                        booking.channel?.toLowerCase().includes(query) ||
+                        booking.listing?.toLowerCase().includes(query)
+                      );
+                      setSearchResults(filtered);
+                    } else {
+                      setSearchResults(allBookings);
+                    }
+                  }}
+                  onKeyPress={(e) => e.key === 'Enter' && searchBookings()}
+                />
+              </FormControl>
+              <FormControl maxW="150px">
+                <FormLabel fontSize="sm">Language</FormLabel>
+                <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                  <option value="nl">Nederlands</option>
+                  <option value="en">English</option>
+                </Select>
+              </FormControl>
+            </HStack>
+            <HStack>
               <Button 
                 colorScheme="blue" 
                 onClick={searchBookings}
                 isLoading={loading}
                 loadingText="Filtering..."
+                size="sm"
               >
                 Filter
               </Button>
@@ -233,8 +259,18 @@ const STRInvoice: React.FC = () => {
                   setSearchResults(allBookings);
                 }}
                 isDisabled={loading}
+                size="sm"
               >
                 Clear
+              </Button>
+              <Button 
+                colorScheme="green" 
+                onClick={loadAllBookings}
+                isLoading={loading}
+                loadingText="Reloading..."
+                size="sm"
+              >
+                Reload
               </Button>
             </HStack>
           </VStack>

@@ -305,11 +305,11 @@ const BankingProcessor: React.FC = () => {
   const [sequenceResult, setSequenceResult] = useState<any>(null);
   const [checkingSequence, setCheckingSequence] = useState(false);
   const [sequenceStartDate, setSequenceStartDate] = useState('2025-01-01');
-  const [selectedAccount, setSelectedAccount] = useState('1002-GoodwinSolutions');
+  const [selectedAccount, setSelectedAccount] = useState('');
   
   // Check Reference state
   const [checkRefFilters, setCheckRefFilters] = useState({
-    administration: 'all',
+    administration: currentTenant || 'GoodwinSolutions',
     ledger: 'all',
     referenceNumber: 'all'
   });
@@ -324,7 +324,7 @@ const BankingProcessor: React.FC = () => {
   const [strChannelFilters, setStrChannelFilters] = useState({
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
-    administration: 'GoodwinSolutions'
+    administration: currentTenant || 'GoodwinSolutions'
   });
   const [strChannelPreview, setStrChannelPreview] = useState<any[]>([]);
   const [strChannelTransactions, setStrChannelTransactions] = useState<any[]>([]);
@@ -990,6 +990,41 @@ const BankingProcessor: React.FC = () => {
     }
   }, [currentTenant, fetchMutaties, fetchLookupData]);
 
+  // Set initial selectedAccount when lookupData changes
+  useEffect(() => {
+    if (lookupData.bank_accounts.length > 0 && !selectedAccount) {
+      const firstAccount = lookupData.bank_accounts[0];
+      setSelectedAccount(`${firstAccount.Account}-${firstAccount.administration}`);
+    }
+  }, [lookupData.bank_accounts, selectedAccount]);
+
+  // Update checkRefFilters when tenant changes
+  useEffect(() => {
+    if (currentTenant) {
+      setCheckRefFilters(prev => ({
+        ...prev,
+        administration: currentTenant
+      }));
+      // Clear data when tenant changes
+      setRefSummaryData([]);
+      setSelectedReferenceDetails([]);
+    }
+  }, [currentTenant]);
+
+  // Update strChannelFilters when tenant changes
+  useEffect(() => {
+    if (currentTenant) {
+      setStrChannelFilters(prev => ({
+        ...prev,
+        administration: currentTenant
+      }));
+      // Clear data when tenant changes
+      setStrChannelPreview([]);
+      setStrChannelTransactions([]);
+      setStrChannelSummary(null);
+    }
+  }, [currentTenant]);
+
   return (
     <Box w="100%" p={4}>
       <Tabs variant="enclosed" colorScheme="blue">
@@ -1473,12 +1508,14 @@ const BankingProcessor: React.FC = () => {
                       color="white"
                       size="sm"
                     >
-                      <option value="1002-GoodwinSolutions">1002 - GoodwinSolutions</option>
-                      <option value="1011-GoodwinSolutions">1011 - GoodwinSolutions</option>
-                      <option value="1012-GoodwinSolutions">1012 - GoodwinSolutions</option>
-                      <option value="1003-PeterPrive">1003 - PeterPrive</option>
-                      <option value="1011-PeterPrive">1011 - PeterPrive</option>
-                      <option value="1012-PeterPrive">1012 - PeterPrive</option>
+                      {lookupData.bank_accounts.map((account) => (
+                        <option 
+                          key={`${account.Account}-${account.administration}`} 
+                          value={`${account.Account}-${account.administration}`}
+                        >
+                          {account.Account} - {account.administration}
+                        </option>
+                      ))}
                     </Select>
                   </FormControl>
                   <FormControl maxW="130px">
@@ -1644,21 +1681,14 @@ const BankingProcessor: React.FC = () => {
                 <HStack spacing={4} mb={4} wrap="wrap">
                   <FormControl maxW="180px">
                     <FormLabel color="white" fontSize="sm">Administration</FormLabel>
-                    <Select
-                      value={checkRefFilters.administration}
-                      onChange={(e) => {
-                        setCheckRefFilters(prev => ({...prev, administration: e.target.value, ledger: 'all'}));
-                        setRefSummaryData([]);
-                        setSelectedReferenceDetails([]);
-                      }}
-                      bg="gray.600"
+                    <Input
+                      value={currentTenant || checkRefFilters.administration}
+                      isReadOnly
+                      bg="gray.700"
                       color="white"
                       size="sm"
-                    >
-                      <option value="all">All</option>
-                      <option value="GoodwinSolutions">GoodwinSolutions</option>
-                      <option value="PeterPrive">PeterPrive</option>
-                    </Select>
+                      cursor="not-allowed"
+                    />
                   </FormControl>
                   <FormControl maxW="150px">
                     <FormLabel color="white" fontSize="sm">Ledger</FormLabel>
@@ -1687,34 +1717,6 @@ const BankingProcessor: React.FC = () => {
                     alignSelf="flex-end"
                   >
                     Check References
-                  </Button>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        setLoading(true);
-                        const response = await authenticatedPost('/api/cache/refresh');
-                        const data = await response.json();
-                        if (data.success) {
-                          alert(`Cache refreshed successfully!\n${data.record_count.toLocaleString()} records loaded.`);
-                          // Clear current data to force re-fetch
-                          setRefSummaryData([]);
-                          setSelectedReferenceDetails([]);
-                        } else {
-                          alert(`Cache refresh failed: ${data.error}`);
-                        }
-                      } catch (error) {
-                        alert(`Error refreshing cache: ${error}`);
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    isLoading={loading}
-                    colorScheme="blue"
-                    size="sm"
-                    alignSelf="flex-end"
-                    title="Refresh cache after updating records in database"
-                  >
-                    🔄 Refresh Cache
                   </Button>
                 </HStack>
 
@@ -1843,16 +1845,14 @@ const BankingProcessor: React.FC = () => {
                   </FormControl>
                   <FormControl maxW="180px">
                     <FormLabel color="white" fontSize="sm">Administration</FormLabel>
-                    <Select
-                      value={strChannelFilters.administration}
-                      onChange={(e) => setStrChannelFilters(prev => ({...prev, administration: e.target.value}))}
-                      bg="gray.600"
+                    <Input
+                      value={currentTenant || strChannelFilters.administration}
+                      isReadOnly
+                      bg="gray.700"
                       color="white"
                       size="sm"
-                    >
-                      <option value="GoodwinSolutions">GoodwinSolutions</option>
-                      <option value="PeterPrive">PeterPrive</option>
-                    </Select>
+                      cursor="not-allowed"
+                    />
                   </FormControl>
                   <Button
                     onClick={fetchStrChannelPreview}

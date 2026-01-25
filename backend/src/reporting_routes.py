@@ -514,81 +514,78 @@ def get_available_data(data_type, user_email, user_roles):
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
 def get_check_reference(user_email, user_roles, tenant, user_tenants):
-    """Get check reference data with transactions and summary using cache"""
+    """Get check reference data with transactions and summary - DIRECT DATABASE QUERY (NO CACHE)"""
     try:
         test_mode = request.args.get('testMode', 'false').lower() == 'true'
         reference_number = request.args.get('referenceNumber', 'all')
-        administration = request.args.get('administration', 'all')
+        administration = request.args.get('administration', tenant)  # Default to current tenant
         ledger = request.args.get('ledger', 'all')
         
-        # Get cache instance
-        cache = get_cache()
+        # Validate user has access to requested administration
+        if administration not in user_tenants:
+            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+        
         db = DatabaseManager(test_mode=test_mode)
         
-        # Get cached data
-        df = cache.get_data(db)
-        
-        # Filter: ReferenceNumber not null and not empty
-        df_filtered = df[(df['ReferenceNumber'].notna()) & (df['ReferenceNumber'] != '')].copy()
-        
-        # Strip whitespace and normalize case for grouping
-        df_filtered['ReferenceNumber'] = df_filtered['ReferenceNumber'].str.strip()
-        
-        # TENANT FILTER: Only show data for user's accessible tenants
-        df_filtered = df_filtered[df_filtered['administration'].isin(user_tenants)]
-        
-        # Apply filters
-        if administration != 'all':
-            # Validate user has access to requested administration
-            if administration not in user_tenants:
-                return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
-            df_filtered = df_filtered[df_filtered['administration'] == administration]
+        # Build WHERE clause for tenant filtering
+        where_conditions = [
+            "ReferenceNumber IS NOT NULL",
+            "ReferenceNumber != ''",
+            "administration = %s"
+        ]
+        params = [administration]
         
         if ledger != 'all':
             # Extract just the account number (first part before space)
             account_num = ledger.split(' ')[0] if ' ' in ledger else ledger
-            df_filtered = df_filtered[df_filtered['Reknum'] == account_num]
+            where_conditions.append("Reknum = %s")
+            params.append(account_num)
         
-        if reference_number != 'all':
-            # Case-insensitive comparison (restored from SQL behavior)
-            df_filtered = df_filtered[df_filtered['ReferenceNumber'].str.lower() == reference_number.lower()]
+        where_clause = " AND ".join(where_conditions)
         
-        # Create a normalized reference column for case-insensitive grouping
-        df_filtered['ReferenceNumber_normalized'] = df_filtered['ReferenceNumber'].str.lower()
+        # Get reference summary
+        summary_query = f"""
+            SELECT 
+                ReferenceNumber,
+                COUNT(*) as transaction_count,
+                SUM(Amount) as total_amount
+            FROM vw_mutaties
+            WHERE {where_clause}
+            GROUP BY ReferenceNumber
+            HAVING ABS(SUM(Amount)) > 0.01
+            ORDER BY ABS(SUM(Amount)) DESC
+        """
         
-        # Get reference summary - group by normalized (lowercase) reference
-        summary_df = df_filtered.groupby('ReferenceNumber_normalized', as_index=False).agg({
-            'ReferenceNumber': 'first',  # Keep the first occurrence's original case
-            'Amount': ['count', 'sum']
-        })
-        summary_df.columns = ['ReferenceNumber_normalized', 'ReferenceNumber', 'transaction_count', 'total_amount']
-        
-        # Drop the normalized column from output
-        summary_df = summary_df[['ReferenceNumber', 'transaction_count', 'total_amount']]
-        
-        # Filter out near-zero amounts
-        summary_df = summary_df[summary_df['total_amount'].abs() > 0.01]
-        
-        # Sort by absolute amount descending
-        summary_df = summary_df.sort_values('total_amount', key=lambda x: x.abs(), ascending=False)
-        
-        summary = summary_df.to_dict('records')
+        summary = db.execute_query(summary_query, tuple(params))
         
         # Get detailed transactions if specific reference selected
         transactions = []
         if reference_number != 'all':
-            transactions_df = df_filtered[[
-                'TransactionDate', 'TransactionNumber', 'TransactionDescription', 
-                'Amount', 'Reknum', 'AccountName', 'Administration'
-            ]].copy()
+            detail_conditions = where_conditions + ["ReferenceNumber = %s"]
+            detail_params = params + [reference_number]
+            detail_where = " AND ".join(detail_conditions)
             
-            # Sort by date descending
-            transactions_df = transactions_df.sort_values('TransactionDate', ascending=False)
+            transactions_query = f"""
+                SELECT 
+                    TransactionDate,
+                    TransactionNumber,
+                    TransactionDescription,
+                    Amount,
+                    Reknum,
+                    AccountName,
+                    administration as Administration
+                FROM vw_mutaties
+                WHERE {detail_where}
+                ORDER BY TransactionDate DESC
+            """
             
-            transactions = transactions_df.to_dict('records')
+            transactions = db.execute_query(transactions_query, tuple(detail_params))
         
         return jsonify({'success': True, 'transactions': transactions, 'summary': summary})
     except Exception as e:
+        print(f"Error in get_check_reference: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @reporting_bp.route('/reference-analysis', methods=['GET'])
