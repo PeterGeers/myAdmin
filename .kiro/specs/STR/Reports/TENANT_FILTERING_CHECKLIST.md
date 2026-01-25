@@ -1,113 +1,173 @@
-# STR Reports - Tenant Filtering Checklist
+# STR/BNB Reports - Tenant Filtering Checklist
 
 ## Overview
 
-This checklist tracks tenant filtering implementation for STR (Short-Term Rental) reporting endpoints in `bnb_routes.py`.
-
-**Status:** 🔴 Not Started - To be implemented after FIN Reports completion
-
-**Note:** The frontend/backend split has been completed (see REPORTS_MODULE_SPLIT.md). STR reports are now in `STRReports.tsx` using `BnbReportsGroup`, and proper STR endpoints are in `bnb_routes.py` under `/api/bnb/*`.
+This checklist tracks the implementation of tenant filtering for all STR (Short-Term Rental) and BNB (Bed & Breakfast) report endpoints. The goal is to ensure proper multi-tenant data isolation and security.
 
 ## Endpoints Requiring Tenant Filtering
 
-### ❌ Missing @tenant_required()
+### BNB Routes (`bnb_routes.py`)
 
-#### BNB/STR Routes (`bnb_routes.py`)
+All BNB endpoints query the `bnb` table which contains an `administration` column for tenant filtering.
 
-- [ ] 1. `/api/bnb/bnb-listing-data` - ❌ No filtering
-  - **Data Source:** `vw_bnb_total` view (has `administration` column)
-  - **Frontend Usage:** `BnbActualsReport.tsx`, `myAdminReports.tsx`
-  - **Security Risk:** HIGH - Listing data is tenant-specific
-  - **Implementation:** Add `@tenant_required()` and filter by user_tenants
+#### Data Retrieval Endpoints
 
-- [ ] 2. `/api/bnb/bnb-channel-data` - ❌ No filtering
-  - **Data Source:** `vw_bnb_total` view (has `administration` column)
-  - **Frontend Usage:** `BnbActualsReport.tsx`, `myAdminReports.tsx`
-  - **Security Risk:** HIGH - Channel data is tenant-specific
-  - **Implementation:** Add `@tenant_required()` and filter by user_tenants
+- [ ] 1. `/api/bnb/bnb-listing-data` - Missing tenant filtering
+- [ ] 2. `/api/bnb/bnb-channel-data` - Missing tenant filtering
+- [ ] 3. `/api/bnb/bnb-actuals` - Missing tenant filtering
+- [ ] 4. `/api/bnb/bnb-filter-options` - Missing tenant filtering
+- [ ] 5. `/api/bnb/bnb-violin-data` - Missing tenant filtering
+- [ ] 6. `/api/bnb/bnb-returning-guests` - Missing tenant filtering
+- [ ] 7. `/api/bnb/bnb-guest-bookings` - Missing tenant filtering
+- [ ] 8. `/api/bnb/bnb-table` - Missing tenant filtering
 
-- [ ] 3. `/api/bnb/bnb-filter-options` - ❌ No filtering
-  - **Data Source:** `vw_bnb_total` view (has `administration` column)
-  - **Frontend Usage:** `BnbActualsReport.tsx`, `BnbViolinsReport.tsx`, `myAdminReports.tsx`
-  - **Security Risk:** MEDIUM - Metadata exposure
-  - **Implementation:** Add `@tenant_required()` and filter options by user_tenants
+### STR Channel Routes (`str_channel_routes.py`)
 
-- [ ] 4. `/api/bnb/bnb-actuals` - ❌ No filtering
-  - **Data Source:** TBD (needs investigation)
-  - **Frontend Usage:** TBD
-  - **Security Risk:** HIGH - Actuals data is tenant-specific
-  - **Implementation:** Add `@tenant_required()` and filter by user_tenants
+#### Already Implemented
 
-- [ ] 5. `/api/bnb/bnb-violin-data` - ❌ No filtering
-  - **Data Source:** `vw_bnb_total` view (has `administration` column)
-  - **Frontend Usage:** `BnbViolinsReport.tsx`, `myAdminReports.tsx`
-  - **Security Risk:** HIGH - Revenue data is tenant-specific
-  - **Implementation:** Add `@tenant_required()` and filter by user_tenants
+- [x] 9. `/api/str-channel/calculate` - Has tenant filtering
+- [x] 10. `/api/str-channel/preview` - Has tenant filtering
 
-- [ ] 6. `/api/bnb/bnb-returning-guests` - ❌ No filtering
-  - **Data Source:** `vw_bnb_total` view (has `administration` column)
-  - **Frontend Usage:** `BnbReturningGuestsReport.tsx`, `myAdminReports.tsx`
-  - **Security Risk:** HIGH - Guest data is tenant-specific
-  - **Implementation:** Add `@tenant_required()` and filter by user_tenants
+#### Missing Tenant Filtering
 
-- [ ] 7. `/api/bnb/bnb-guest-bookings` - ❌ No filtering
-  - **Data Source:** `vw_bnb_total` view (has `administration` column)
-  - **Frontend Usage:** `BnbReturningGuestsReport.tsx`, `myAdminReports.tsx`
-  - **Security Risk:** HIGH - Guest booking data is tenant-specific
-  - **Implementation:** Add `@tenant_required()` and filter by user_tenants
+- [ ] 11. `/api/str-channel/save` - Missing tenant filtering
 
-### 🗑️ Duplicate Endpoints to Remove
+### STR Invoice Routes (`str_invoice_routes.py`)
 
-#### These exist in `reporting_routes.py` but are DUPLICATES (should be removed):
+#### Already Implemented
 
-- [ ] `/api/reports/bnb-table` - Remove from reporting_routes.py (no equivalent in bnb_routes.py - needs migration)
-- [ ] `/api/reports/bnb-filter-options` - Remove from reporting_routes.py (duplicate of `/api/bnb/bnb-filter-options`)
-- [ ] `/api/reports/bnb-listing-data` - Remove from reporting_routes.py (duplicate of `/api/bnb/bnb-listing-data`)
-- [ ] `/api/reports/bnb-channel-data` - Remove from reporting_routes.py (duplicate of `/api/bnb/bnb-channel-data`)
+- [x] 12. `/api/str-invoice/search-booking` - Has tenant filtering
 
-**Action Required:**
+#### Missing Tenant Filtering
 
-1. Check if `/api/reports/bnb-table` has unique functionality
-2. If yes, migrate to `/api/bnb/bnb-table` in bnb_routes.py
-3. Update frontend to use `/api/bnb/*` endpoints
-4. Remove duplicates from reporting_routes.py
+- [ ] 13. `/api/str-invoice/generate-invoice` - Missing tenant filtering
+- [ ] 14. `/api/str-invoice/upload-template-to-drive` - Review needed
+- [ ] 15. `/api/str-invoice/test` - Diagnostic endpoint
+
+## Implementation Details
+
+### Task 1: `/api/bnb/bnb-listing-data`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Add WHERE administration IN (user_tenants) to SQL query
+
+### Task 2: `/api/bnb/bnb-channel-data`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Add WHERE administration IN (user_tenants) to SQL query
+
+### Task 3: `/api/bnb/bnb-actuals`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Add WHERE administration IN (user_tenants) to SQL query
+
+### Task 4: `/api/bnb/bnb-filter-options`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Filter years, listings, and channels by user_tenants
+
+### Task 5: `/api/bnb/bnb-violin-data`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Add WHERE administration IN (user_tenants) to SQL query
+
+### Task 6: `/api/bnb/bnb-returning-guests`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Add WHERE administration IN (user_tenants) to SQL query
+
+### Task 7: `/api/bnb/bnb-guest-bookings`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Add WHERE administration IN (user_tenants) to SQL query
+
+### Task 8: `/api/bnb/bnb-table`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Add WHERE administration IN (user_tenants) to SQL query
+
+### Task 11: `/api/str-channel/save`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Validate all transactions Administration field is in user_tenants
+
+### Task 13: `/api/str-invoice/generate-invoice`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Required Changes**:
+- Add @tenant_required() decorator
+- Add tenant and user_tenants parameters
+- Validate booking administration against user_tenants
+
+### Task 14: `/api/str-invoice/upload-template-to-drive`
+**Current Status**: Has @cognito_required but no tenant filtering
+**Decision Needed**: Are invoice templates tenant-specific or global?
+
+### Task 15: `/api/str-invoice/test`
+**Current Status**: Diagnostic endpoint with no required permissions
+**Review Needed**: Should be restricted to SysAdmin or removed in production
+
+## Priority Classification
+
+### HIGH PRIORITY (Security Critical)
+- Task 1: bnb-listing-data
+- Task 2: bnb-channel-data
+- Task 7: bnb-guest-bookings
+- Task 8: bnb-table
+- Task 13: generate-invoice
+
+### MEDIUM PRIORITY
+- Task 3: bnb-actuals
+- Task 4: bnb-filter-options
+- Task 5: bnb-violin-data
+- Task 6: bnb-returning-guests
+- Task 11: str-channel save
+
+### LOW PRIORITY
+- Task 14: upload-template-to-drive
+- Task 15: test endpoint
 
 ## Implementation Strategy
 
-### For BNB Endpoints:
+### For BNB Routes:
+1. Import tenant_required from auth.tenant_context
+2. Add @tenant_required() decorator after @cognito_required()
+3. Add tenant and user_tenants parameters
+4. Build tenant filter with placeholders
+5. Apply filter to all SQL queries
 
-1. Add `@tenant_required()` decorator
-2. Add `tenant` and `user_tenants` parameters to function signature
-3. Add `WHERE administration IN (...)` to SQL queries
-4. Use `user_tenants` parameter from decorator
-5. Ensure no cross-tenant data leakage
-
-### For Filter/Options Endpoints:
-
-1. Add `@tenant_required()` decorator
-2. Filter available options by `user_tenants`
-3. Ensure no cross-tenant data leakage in dropdown options
+### For STR Routes:
+1. Add @tenant_required() decorator
+2. Validate administration parameter against user_tenants
+3. Return 403 for unauthorized access
 
 ## Testing Plan
 
-For each endpoint:
-
-1. Test with GoodwinSolutions tenant
-2. Test with PeterPrive tenant
-3. Verify no cross-tenant data leakage
-4. Verify proper error messages for unauthorized access
-5. Test frontend components with tenant context
-
-## Dependencies
-
-- ✅ `@tenant_required()` decorator (already implemented in `auth/tenant_context.py`)
-- ✅ `vw_bnb_total` view has `administration` column
-- ⏳ Complete FIN Reports tenant filtering first
-- ⏳ Clean up duplicate endpoints in reporting_routes.py
+Test each endpoint with:
+1. Single tenant user
+2. Multi-tenant user
+3. Unauthorized tenant access
+4. SysAdmin user (if applicable)
 
 ## Notes
 
-- All BNB data is tenant-specific (different properties per tenant)
-- Priority: Implement after FIN Reports completion
-- Frontend/Backend split is complete (see REPORTS_MODULE_SPLIT.md)
-- Proper STR endpoints are in `bnb_routes.py` under `/api/bnb/*`
+- tenant_required decorator needs to be imported in bnb_routes.py
+- All BNB endpoints use bnb table or vw_bnb_total view
+- STR endpoints use vw_mutaties and vw_bnb_total views

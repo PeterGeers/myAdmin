@@ -3,12 +3,14 @@ from database import DatabaseManager
 import numpy as np
 from collections import defaultdict
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 
 bnb_bp = Blueprint('bnb', __name__)
 
 @bnb_bp.route('/bnb-listing-data', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_listing_data(user_email, user_roles):
+@tenant_required()
+def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
     """Get BNB data summarized by listing"""
     try:
         years = request.args.get('years', '').split(',')
@@ -23,6 +25,11 @@ def get_bnb_listing_data(user_email, user_roles):
         # Build WHERE clause
         where_conditions = []
         params = []
+        
+        # Add tenant filter
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        where_conditions.append(f"administration IN ({placeholders})")
+        params.extend(user_tenants)
         
         if years and years != ['']:
             placeholders = ','.join(['%s'] * len(years))
@@ -73,7 +80,8 @@ def get_bnb_listing_data(user_email, user_roles):
 
 @bnb_bp.route('/bnb-channel-data', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_channel_data(user_email, user_roles):
+@tenant_required()
+def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
     """Get BNB data summarized by channel"""
     try:
         years = request.args.get('years', '').split(',')
@@ -88,6 +96,11 @@ def get_bnb_channel_data(user_email, user_roles):
         # Build WHERE clause
         where_conditions = []
         params = []
+        
+        # Add tenant filter
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        where_conditions.append(f"administration IN ({placeholders})")
+        params.extend(user_tenants)
         
         if years and years != ['']:
             placeholders = ','.join(['%s'] * len(years))
@@ -138,11 +151,11 @@ def get_bnb_channel_data(user_email, user_roles):
 
 @bnb_bp.route('/bnb-actuals', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_actuals(user_email, user_roles):
+@tenant_required()
+def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
     """Get BNB actuals data"""
     try:
         years = request.args.get('years', '').split(',')
-        administration = request.args.get('administration', 'all')
         
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
@@ -150,6 +163,11 @@ def get_bnb_actuals(user_email, user_roles):
         
         where_conditions = []
         params = []
+        
+        # Add tenant filter
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        where_conditions.append(f"administration IN ({placeholders})")
+        params.extend(user_tenants)
         
         if years and years != ['']:
             placeholders = ','.join(['%s'] * len(years))
@@ -182,23 +200,29 @@ def get_bnb_actuals(user_email, user_roles):
 
 @bnb_bp.route('/bnb-filter-options', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_filter_options(user_email, user_roles):
+@tenant_required()
+def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
     """Get available filter options for BNB data"""
     try:
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor()
         
+        # Build tenant filter with placeholders for user_tenants
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        
         # Get distinct years
-        cursor.execute("SELECT DISTINCT year FROM bnb WHERE year IS NOT NULL ORDER BY year DESC")
+        years_query = f"SELECT DISTINCT year FROM bnb WHERE year IS NOT NULL AND administration IN ({placeholders}) ORDER BY year DESC"
+        cursor.execute(years_query, user_tenants)
         years = [str(row[0]) for row in cursor.fetchall()]
         
         # Get distinct listings
-        cursor.execute("SELECT DISTINCT listing FROM bnb WHERE listing IS NOT NULL ORDER BY listing")
+        listings_query = f"SELECT DISTINCT listing FROM bnb WHERE listing IS NOT NULL AND administration IN ({placeholders}) ORDER BY listing"
+        cursor.execute(listings_query, user_tenants)
         listings = [row[0] for row in cursor.fetchall()]
         
         # Get distinct channels with normalization
-        cursor.execute("""
+        channels_query = f"""
             SELECT DISTINCT 
                 CASE 
                     WHEN LOWER(channel) = 'booking.com' THEN 'Booking.com'
@@ -206,9 +230,10 @@ def get_bnb_filter_options(user_email, user_roles):
                     ELSE channel 
                 END as channel 
             FROM bnb 
-            WHERE channel IS NOT NULL 
+            WHERE channel IS NOT NULL AND administration IN ({placeholders})
             ORDER BY channel
-        """)
+        """
+        cursor.execute(channels_query, user_tenants)
         channels = [row[0] for row in cursor.fetchall()]
         
         cursor.close()
@@ -226,7 +251,8 @@ def get_bnb_filter_options(user_email, user_roles):
 
 @bnb_bp.route('/bnb-violin-data', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_violin_data(user_email, user_roles):
+@tenant_required()
+def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
     """Get BNB data for violin plots"""
     try:
         years = request.args.get('years', '').split(',')
@@ -241,6 +267,11 @@ def get_bnb_violin_data(user_email, user_roles):
         # Build WHERE clause
         where_conditions = []
         params = []
+        
+        # Add tenant filter
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        where_conditions.append(f"administration IN ({placeholders})")
+        params.extend(user_tenants)
         
         if years and years != ['']:
             placeholders = ','.join(['%s'] * len(years))
@@ -305,24 +336,29 @@ def get_bnb_violin_data(user_email, user_roles):
 
 @bnb_bp.route('/bnb-returning-guests', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_returning_guests(user_email, user_roles):
+@tenant_required()
+def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
     """Get returning guests summary"""
     try:
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
         
+        # Build tenant filter with placeholders for user_tenants
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        
         # Get guest summary with booking count > 1
-        query = """
+        query = f"""
             SELECT guestName, COUNT(*) as aantal
             FROM bnb 
             WHERE guestName IS NOT NULL AND guestName != ''
+            AND administration IN ({placeholders})
             GROUP BY guestName
             HAVING COUNT(*) > 1
             ORDER BY aantal DESC, guestName ASC
         """
         
-        cursor.execute(query)
+        cursor.execute(query, user_tenants)
         results = cursor.fetchall()
         
         cursor.close()
@@ -335,7 +371,8 @@ def get_bnb_returning_guests(user_email, user_roles):
 
 @bnb_bp.route('/bnb-guest-bookings', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_guest_bookings(user_email, user_roles):
+@tenant_required()
+def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
     """Get all bookings for a specific guest"""
     try:
         guest_name = request.args.get('guestName')
@@ -346,15 +383,21 @@ def get_bnb_guest_bookings(user_email, user_roles):
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
         
-        query = """
+        # Build tenant filter with placeholders for user_tenants
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        
+        query = f"""
             SELECT checkinDate, checkoutDate, channel, listing, nights, 
-                   amountGross, amountNett, reservationCode
+                   amountGross, amountNett, reservationCode, administration
             FROM bnb 
-            WHERE guestName = %s
+            WHERE guestName = %s AND administration IN ({placeholders})
             ORDER BY checkinDate DESC
         """
         
-        cursor.execute(query, [guest_name])
+        # Combine guest_name with user_tenants for query parameters
+        params = [guest_name] + user_tenants
+        
+        cursor.execute(query, params)
         results = cursor.fetchall()
         
         cursor.close()
@@ -367,7 +410,8 @@ def get_bnb_guest_bookings(user_email, user_roles):
 
 @bnb_bp.route('/bnb-table', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def get_bnb_table(user_email, user_roles):
+@tenant_required()
+def get_bnb_table(user_email, user_roles, tenant, user_tenants):
     """Get BNB table data with PowerBI-style filters"""
     try:
         from datetime import datetime
@@ -386,6 +430,11 @@ def get_bnb_table(user_email, user_roles):
         
         where_parts = ["checkinDate BETWEEN %s AND %s"]
         params = [date_from, date_to]
+        
+        # Add tenant filter
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        where_parts.append(f"administration IN ({placeholders})")
+        params.extend(user_tenants)
         
         for key, value in conditions.items():
             if value != 'all':
