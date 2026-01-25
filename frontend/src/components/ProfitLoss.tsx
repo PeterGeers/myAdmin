@@ -207,7 +207,7 @@ const ProfitLoss: React.FC = () => {
         listing: bnbFilters.listing
       });
       
-      const response = await fetch(`http://localhost:5000/api/reports/bnb-table?${params}`);
+      const response = await fetch(`http://localhost:5000/api/bnb/bnb-table?${params}`);
       const data = await response.json();
       
       if (data.success) {

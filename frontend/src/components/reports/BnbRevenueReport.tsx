@@ -107,7 +107,7 @@ const BnbRevenueReport: React.FC = () => {
         listing: bnbFilters.listing
       });
       
-      const response = await authenticatedGet(buildApiUrl('/api/reports/bnb-table', params));
+      const response = await authenticatedGet(buildApiUrl('/api/bnb/bnb-table', params));
       const data = await response.json();
       
       if (data.success) {

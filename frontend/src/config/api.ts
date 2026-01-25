@@ -6,9 +6,8 @@ export const API_BASE_URL = ''; // Empty string for relative URLs
 export const API_ENDPOINTS = {
   // Reports
   MUTATIES_TABLE: '/api/reports/mutaties-table',
-  BNB_FILTER_OPTIONS: '/api/reports/bnb-filter-options',
-  BNB_LISTING_DATA: '/api/reports/bnb-listing-data',
-  BNB_CHANNEL_DATA: '/api/reports/bnb-channel-data',
+  BNB_LISTING_DATA: '/api/bnb/bnb-listing-data',
+  BNB_CHANNEL_DATA: '/api/bnb/bnb-channel-data',
   AVAILABLE_YEARS: '/api/reports/available-years',
   ACTUALS_PROFITLOSS: '/api/reports/actuals-profitloss',
   ACTUALS_BALANCE: '/api/reports/actuals-balance',

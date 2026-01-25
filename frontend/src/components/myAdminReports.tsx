@@ -871,7 +871,7 @@ const MyAdminReports: React.FC<MyAdminReportsProps> = ({ defaultTabIndex = 0, hi
         listing: bnbFilters.listing
       });
       
-      const response = await fetch(buildApiUrl('/api/reports/bnb-table', params));
+      const response = await fetch(buildApiUrl('/api/bnb/bnb-table', params));
       const data = await response.json();
       
       if (data.success) {
@@ -911,7 +911,7 @@ const MyAdminReports: React.FC<MyAdminReportsProps> = ({ defaultTabIndex = 0, hi
 
   const fetchBnbFilterOptions = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/reports/bnb-filter-options'));
+      const response = await fetch(buildApiUrl('/api/bnb/bnb-filter-options'));
       const data = await response.json();
       if (data.success) {
         setBnbFilterOptions({
@@ -937,14 +937,14 @@ const MyAdminReports: React.FC<MyAdminReportsProps> = ({ defaultTabIndex = 0, hi
       });
       
       // Fetch listing data
-      const listingResponse = await fetch(buildApiUrl('/api/reports/bnb-listing-data', params));
+      const listingResponse = await fetch(buildApiUrl('/api/bnb/bnb-listing-data', params));
       const listingResult = await listingResponse.json();
       if (listingResult.success) {
         setBnbListingData(listingResult.data);
       }
 
       // Fetch channel data
-      const channelResponse = await fetch(buildApiUrl('/api/reports/bnb-channel-data', params));
+      const channelResponse = await fetch(buildApiUrl('/api/bnb/bnb-channel-data', params));
       const channelResult = await channelResponse.json();
       if (channelResult.success) {
         setBnbChannelData(channelResult.data);

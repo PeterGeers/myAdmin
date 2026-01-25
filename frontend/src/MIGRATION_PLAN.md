@@ -12,10 +12,10 @@ Based on the 401 errors, these components need immediate attention:
 
 1. **BnbRevenueReport.tsx** - Line 109
    - `/api/reports/bnb-table`
-2. **BnbActualsReport.tsx** - Lines 327, 334, 350
-   - `/api/reports/bnb-listing-data`
-   - `/api/reports/bnb-channel-data`
-   - `/api/reports/bnb-filter-options`
+2. **BnbActualsReport.tsx** - ✅ MIGRATED
+   - `/api/bnb/bnb-listing-data` (migrated from `/api/reports/bnb-listing-data`)
+   - `/api/bnb/bnb-channel-data` (migrated from `/api/reports/bnb-channel-data`)
+   - `/api/bnb/bnb-filter-options` (migrated from `/api/reports/bnb-filter-options`)
 
 3. **BnbViolinsReport.tsx** - Lines 299, 317
    - `/api/bnb/bnb-violin-data`

@@ -364,3 +364,52 @@ def get_bnb_guest_bookings(user_email, user_roles):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@bnb_bp.route('/bnb-table', methods=['GET'])
+@cognito_required(required_permissions=['str_read'])
+def get_bnb_table(user_email, user_roles):
+    """Get BNB table data with PowerBI-style filters"""
+    try:
+        from datetime import datetime
+        
+        db = DatabaseManager(test_mode=False)
+        connection = db.get_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        date_from = request.args.get('dateFrom', datetime.now().strftime('%Y-01-01'))
+        date_to = request.args.get('dateTo', datetime.now().strftime('%Y-%m-%d'))
+        
+        conditions = {
+            'channel': request.args.get('channel', 'all'),
+            'listing': request.args.get('listing', 'all')
+        }
+        
+        where_parts = ["checkinDate BETWEEN %s AND %s"]
+        params = [date_from, date_to]
+        
+        for key, value in conditions.items():
+            if value != 'all':
+                where_parts.append(f"{key} = %s")
+                params.append(value)
+        
+        where_clause = " AND ".join(where_parts)
+        
+        query = f"""
+            SELECT checkinDate, checkoutDate, channel, listing, nights, guests,
+                   amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
+                   guestName, reservationCode
+            FROM vw_bnb_total
+            WHERE {where_clause}
+            ORDER BY checkinDate DESC
+            LIMIT 1000
+        """
+        
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+        
+        return jsonify({'success': True, 'data': results})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

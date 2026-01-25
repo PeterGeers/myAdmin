@@ -2223,27 +2223,35 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants):
 
 @app.route('/api/reports/aangifte-ib-details', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
-def aangifte_ib_details(user_email, user_roles):
+@tenant_required()
+def aangifte_ib_details(user_email, user_roles, tenant, user_tenants):
     """Get underlying accounts for a specific Parent and Aangifte (using in-memory cache)"""
     try:
         # Get parameters
         year = request.args.get('year')
-        administration = request.args.get('administration', 'all')
+        administration = request.args.get('administration', tenant)  # Default to current tenant
         parent = request.args.get('parent')
         aangifte = request.args.get('aangifte')
         
         if not all([year, parent, aangifte]):
             return jsonify({'success': False, 'error': 'Year, parent, and aangifte are required'}), 400
         
+        # Validate user has access to requested administration
+        if administration not in user_tenants:
+            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+        
         # Get cache instance
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
         
         # Ensure cache is loaded (will auto-refresh if needed)
-        cache.get_data(db)
+        df = cache.get_data(db)
         
-        # Query from cache (much faster than SQL)
-        details_data = cache.query_aangifte_ib_details(year, administration, parent, aangifte)
+        # SECURITY: Filter by user's accessible tenants
+        df = df[df['Administration'].isin(user_tenants)]
+        
+        # Query from cache (much faster than SQL) with tenant filtering
+        details_data = cache.query_aangifte_ib_details(year, administration, parent, aangifte, user_tenants)
         
         return jsonify({
             'success': True,
@@ -2257,16 +2265,21 @@ def aangifte_ib_details(user_email, user_roles):
 
 @app.route('/api/reports/aangifte-ib-export', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
-def aangifte_ib_export(user_email, user_roles):
+@tenant_required()
+def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
     """Generate HTML export for Aangifte IB report with account details"""
     try:
         data = request.get_json()
         year = data.get('year')
-        administration = data.get('administration', 'all')
+        administration = data.get('administration', tenant)  # Default to current tenant
         report_data = data.get('data', [])
         
         if not year:
             return jsonify({'success': False, 'error': 'Year is required'}), 400
+        
+        # Validate user has access to requested administration
+        if administration != 'all' and administration not in user_tenants:
+            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
         
         # Get cache instance for account details
         cache = get_cache()
@@ -2362,7 +2375,8 @@ def aangifte_ib_export(user_email, user_roles):
                 
                 # Get account details for this Parent and Aangifte
                 try:
-                    details = cache.query_aangifte_ib_details(year, administration, parent, aangifte)
+                    # SECURITY: Pass user_tenants to filter cached data
+                    details = cache.query_aangifte_ib_details(year, administration, parent, aangifte, user_tenants)
                     
                     # Filter out zero amounts
                     non_zero_details = [d for d in details if abs(float(d.get('Amount', 0))) >= 0.01]
@@ -2402,8 +2416,9 @@ def aangifte_ib_export(user_email, user_roles):
 
 @app.route('/api/reports/aangifte-ib-xlsx-export', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
-def aangifte_ib_xlsx_export(user_email, user_roles):
-    """Generate XLSX export for Aangifte IB"""
+@tenant_required()
+def aangifte_ib_xlsx_export(user_email, user_roles, tenant, user_tenants):
+    """Generate XLSX export for Aangifte IB with tenant filtering"""
     try:
         data = request.get_json()
         administrations = data.get('administrations', [])
@@ -2412,11 +2427,23 @@ def aangifte_ib_xlsx_export(user_email, user_roles):
         if not administrations or not years:
             return jsonify({'success': False, 'error': 'Administrations and years are required'}), 400
         
-        # Debug: Check available administrations
+        # Validate all requested administrations against user_tenants
+        unauthorized_admins = [admin for admin in administrations if admin not in user_tenants]
+        if unauthorized_admins:
+            return jsonify({
+                'success': False, 
+                'error': f'Access denied to administrations: {", ".join(unauthorized_admins)}'
+            }), 403
+        
+        # Debug: Check available administrations (filtered by user_tenants)
         db = DatabaseManager(test_mode=flag)
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT DISTINCT Administration FROM vw_mutaties WHERE Administration IS NOT NULL ORDER BY Administration")
+        
+        # Build query with tenant filtering
+        placeholders = ', '.join(['%s'] * len(user_tenants))
+        query = f"SELECT DISTINCT Administration FROM vw_mutaties WHERE Administration IN ({placeholders}) ORDER BY Administration"
+        cursor.execute(query, user_tenants)
         available_admins = [row['Administration'] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -2438,8 +2465,9 @@ def aangifte_ib_xlsx_export(user_email, user_roles):
 
 @app.route('/api/reports/aangifte-ib-xlsx-export-stream', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
-def aangifte_ib_xlsx_export_stream(user_email, user_roles):
-    """Generate XLSX export for Aangifte IB with streaming progress"""
+@tenant_required()
+def aangifte_ib_xlsx_export_stream(user_email, user_roles, tenant, user_tenants):
+    """Generate XLSX export for Aangifte IB with streaming progress and tenant filtering"""
     from flask import Response
     import json
     
@@ -2455,6 +2483,14 @@ def aangifte_ib_xlsx_export_stream(user_email, user_roles):
         
         if not administrations or not years:
             return jsonify({'success': False, 'error': 'Administrations and years are required'}), 400
+        
+        # Validate all requested administrations against user_tenants
+        unauthorized_admins = [admin for admin in administrations if admin not in user_tenants]
+        if unauthorized_admins:
+            return jsonify({
+                'success': False, 
+                'error': f'Access denied to administrations: {", ".join(unauthorized_admins)}'
+            }), 403
         
         def generate_progress():
             try:

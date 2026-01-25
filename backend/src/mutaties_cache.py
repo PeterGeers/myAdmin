@@ -182,7 +182,7 @@ class MutatiesCache:
         
         return summary.to_dict('records')
     
-    def query_aangifte_ib_details(self, year, administration, parent, aangifte):
+    def query_aangifte_ib_details(self, year, administration, parent, aangifte, user_tenants=None):
         """
         Query detailed accounts for specific Parent and Aangifte
         
@@ -191,6 +191,7 @@ class MutatiesCache:
             administration: Administration to filter
             parent: Parent category
             aangifte: Aangifte category
+            user_tenants: List of tenants user has access to (for security filtering)
             
         Returns:
             list: Account details with amounts
@@ -199,6 +200,10 @@ class MutatiesCache:
             raise ValueError("Cache not loaded")
         
         df = self.data.copy()
+        
+        # SECURITY: Filter by user's accessible tenants first
+        if user_tenants is not None:
+            df = df[df['Administration'].isin(user_tenants)]
         
         # Apply VW logic
         year_end = pd.to_datetime(f"{year}-12-31")

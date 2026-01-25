@@ -23,56 +23,41 @@ Filter cached data by user_tenants for security
 
 #### Reporting Routes (`reporting_routes.py`)
 
-- [ ] 6. `/api/reports/financial-summary` - ❌ Filters by `administration` parameter
-- [ ] 7. `/api/reports/str-revenue` - ❌ No filtering (STR data)
-- [ ] 8. `/api/reports/account-summary` - ❌ No tenant filtering
-- [ ] 9. `/api/reports/mutaties-table` - ❌ Filters by `administration` parameter
+- [x] 6. `/api/reports/financial-summary` - ✅ Filters by `administration` parameter
+- [x] 7. `/api/reports/str-revenue` - ✅ Has @tenant_required() and filters by user_tenants
+- [x] 8. `/api/reports/account-summary` - ✅ Has @tenant_required() and filters by administration
+- [x] 9. `/api/reports/mutaties-table` - ✅ Has @tenant_required() and filters by user_tenants
 
-- [ ] 10. `/api/reports/<table>-fields` - ❌ No filtering
-- [ ] 11. `/api/reports/balance-data` - ❌ Filters by `administration` parameter
-- [ ] 12. `/api/reports/bnb-table` - ❌ No filtering (STR data)
-- [ ] 13. `/api/reports/trends-data` - ❌ Filters by `administration` parameter
-- [ ] 14. `/api/reports/available-<data_type>` - ❌ No filtering
+- [x] 10. `/api/reports/<table>-fields` - ✅ REMOVED (dead code - no usage found)
 
-15. `/api/reports/reference-analysis` - ❌ Filters by `administration` parameter
-16. `/api/reports/bnb-filter-options` - ❌ No filtering (STR data)
-17. `/api/reports/bnb-listing-data` - ❌ No filtering (STR data)
-18. `/api/reports/bnb-channel-data` - ❌ No filtering (STR data)
-19. `/api/reports/available-years` - ❌ No filtering
+- [x] 11. `/api/reports/balance-data` - ✅ Has @tenant_required() and filters by user_tenants
+- [x] 12. `/api/reports/bnb-table` - ✅ MOVED to `/api/bnb/bnb-table` in bnb_routes.py (STR module)
+- [x] 13. `/api/reports/trends-data` - ✅ Has @tenant_required() and validates administration
+- [x] 14. `/api/reports/available-<data_type>` - ✅ Has @tenant_required() and filters by user_tenants
+
+- [x] 15. `/api/reports/reference-analysis` - ✅ Has @tenant_required() and validates administration
+- [x] 16. `/api/reports/bnb-filter-options` - 🗑️ DUPLICATE/DEAD CODE REMOVED - Migrated to `/api/bnb/bnb-filter-options`
+
+- [x] 17. `/api/reports/bnb-listing-data` - ✅ MIGRATED to `/api/bnb/bnb-listing-data` (frontend updated)
+
+- [x] 18. `/api/reports/bnb-channel-data` - ✅ MIGRATED to `/api/bnb/bnb-channel-data` (frontend updated)
+- [x] 19. `/api/reports/available-years` - ✅ Has @tenant_required() and filters by user_tenants
 
 #### Aangifte IB Routes (`app.py`)
 
-20. `/api/reports/aangifte-ib-details` - ❌ Uses cache
-21. `/api/reports/aangifte-ib-export` - ❌ Uses cache
-22. `/api/reports/aangifte-ib-xlsx-export` - ❌ Uses cache
-23. `/api/reports/aangifte-ib-xlsx-export-stream` - ❌ Uses cache
+- [x] 20. `/api/reports/aangifte-ib-details` - ✅ Has @tenant_required() and filters by user_tenants
+- [x] 21. `/api/reports/aangifte-ib-export` - ✅ Has @tenant_required() and validates administration
+- [x] 22. `/api/reports/aangifte-ib-xlsx-export` - ✅ Has @tenant_required() and validates administrations
+- [x] 23. `/api/reports/aangifte-ib-xlsx-export-stream` - ✅ Has @tenant_required() and validates administrations
 
-## Priority Fixes
+**Note:**
 
-### HIGH PRIORITY (FIN Reports - Direct Data Access)
-
-- actuals-balance
-- actuals-profitloss
-- mutaties-table
-- balance-data
-- trends-data
-- reference-analysis
-- aangifte-ib-details
-- aangifte-ib-export
-
-### MEDIUM PRIORITY (Metadata/Options)
-
-- filter-options (already done)
-- available-<data_type>
-- <table>-fields
-
-### LOW PRIORITY (STR Reports - Should be in STR module)
-
-- str-revenue
-- bnb-table
-- bnb-filter-options
-- bnb-listing-data
-- bnb-channel-data
+- Frontend/Backend split was completed (see REPORTS_MODULE_SPLIT.md)
+- FINReports.tsx uses FinancialReportsGroup (FIN only)
+- STRReports.tsx uses BnbReportsGroup (STR only)
+- Proper STR endpoints are in bnb_routes.py under `/api/bnb/*`
+- These duplicates in reporting_routes.py are legacy code from before the split
+- str-revenue endpoint was already completed in FIN Reports as it was used there
 
 ## Implementation Strategy
 
