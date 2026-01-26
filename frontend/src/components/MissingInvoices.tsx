@@ -1,8 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Box, Text, Progress, VStack, Input } from '@chakra-ui/react';
 import { processMissingInvoices } from '../utils/missingInvoicesProcessor';
+import { useTenant } from '../context/TenantContext';
 
 const MissingInvoices: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
@@ -11,6 +13,11 @@ const MissingInvoices: React.FC = () => {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    if (!currentTenant) {
+      setStatus('Error: No tenant selected. Please select a tenant first.');
+      return;
+    }
 
     setIsProcessing(true);
     setProgress(0);
@@ -39,7 +46,7 @@ const MissingInvoices: React.FC = () => {
           type="file"
           accept=".csv"
           onChange={handleFileUpload}
-          disabled={isProcessing}
+          disabled={isProcessing || !currentTenant}
         />
         
         <Text fontSize="sm" color="gray.600">

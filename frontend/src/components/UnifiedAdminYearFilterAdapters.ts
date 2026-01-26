@@ -159,7 +159,7 @@ const createBtwFilterAdapter = (
     },
     availableYears,
     multiSelectYears: false, // Single select for BTW
-    showAdministration: true,
+    showAdministration: false, // Hidden - administration is now handled by tenant context
     showYears: true,
   };
 };
@@ -231,7 +231,7 @@ const createAangifteIbFilterAdapter = (
     },
     availableYears,
     multiSelectYears: false, // Single select for Aangifte IB
-    showAdministration: true,
+    showAdministration: false, // Hidden - tenant handling now manages administration selection
     showYears: true,
   };
 };

@@ -6,6 +6,7 @@ import {
   Progress, Stat, StatLabel, StatNumber, StatGroup, Select
 } from '@chakra-ui/react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
+import { useTenant } from '../context/TenantContext';
 
 interface ValidationRecord {
   status: string;
@@ -33,18 +34,21 @@ interface UpdateFormData {
 }
 
 const PDFValidation: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [validationResults, setValidationResults] = useState<ValidationRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState({ total: 0, ok: 0, failed: 0 });
   const [selectedYear, setSelectedYear] = useState('2025');
-  const [selectedAdmin, setSelectedAdmin] = useState('all');
+  // Remove selectedAdmin state as we'll use currentTenant instead
   const [availableAdmins, setAvailableAdmins] = useState<string[]>([]);
   const [updateForm, setUpdateForm] = useState<UpdateFormData>({ old_ref3: '', old_ref4: '', reference_number: '', ref3: '', ref4: '' });
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const loadAdministrations = React.useCallback(async () => {
+    if (!currentTenant) return;
+    
     try {
-      const response = await authenticatedGet(`/api/pdf/get-administrations?year=${selectedYear}`);
+      const response = await authenticatedGet(`/api/pdf/get-administrations?year=${selectedYear}`, { tenant: currentTenant });
       const data = await response.json();
       if (data.success) {
         setAvailableAdmins(data.administrations);
@@ -52,9 +56,14 @@ const PDFValidation: React.FC = () => {
     } catch (error) {
       console.error('Error loading administrations:', error);
     }
-  }, [selectedYear]);
+  }, [selectedYear, currentTenant]);
 
   const validateUrls = async () => {
+    if (!currentTenant) {
+      console.error('No tenant selected');
+      return;
+    }
+    
     setLoading(true);
     setProgress({ total: 0, ok: 0, failed: 0 });
     setValidationResults([]);
@@ -70,9 +79,9 @@ const PDFValidation: React.FC = () => {
         return;
       }
       
-      // EventSource with auth token in URL (not ideal but necessary for SSE)
+      // EventSource with auth token and tenant in URL
       const eventSource = new EventSource(
-        `http://localhost:5000/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${selectedAdmin}&token=${encodeURIComponent(tokens.idToken)}`
+        `http://localhost:5000/api/pdf/validate-urls-stream?year=${selectedYear}&administration=${currentTenant}&token=${encodeURIComponent(tokens.idToken)}`
       );
       
       eventSource.onmessage = (event) => {
@@ -111,7 +120,7 @@ const PDFValidation: React.FC = () => {
     }
   };
 
-  // Load administrations when year changes
+  // Load administrations when year or tenant changes
   React.useEffect(() => {
     loadAdministrations();
   }, [selectedYear, loadAdministrations]);
@@ -129,7 +138,7 @@ const PDFValidation: React.FC = () => {
 
   const revalidateUrl = async (newUrl: string, oldUrl: string) => {
     try {
-      const response = await authenticatedGet(`/api/pdf/validate-single-url?url=${encodeURIComponent(newUrl)}`);
+      const response = await authenticatedGet(`/api/pdf/validate-single-url?url=${encodeURIComponent(newUrl)}`, { tenant: currentTenant || undefined });
       const data = await response.json();
       
       if (data.success) {
@@ -156,7 +165,7 @@ const PDFValidation: React.FC = () => {
 
   const updateRecord = async () => {
     try {
-      const response = await authenticatedPost('/api/pdf/update-record', updateForm);
+      const response = await authenticatedPost('/api/pdf/update-record', updateForm, { tenant: currentTenant || undefined });
       const data = await response.json();
       
       if (data.success) {
@@ -225,23 +234,24 @@ const PDFValidation: React.FC = () => {
             <option value="2015">2015</option>
             <option value="all">All Years</option>
           </Select>
-          <Select 
-            value={selectedAdmin} 
-            onChange={(e) => setSelectedAdmin(e.target.value)}
-            width="180px"
-            bg="gray.700"
-            color="white"
+          <Text color="gray.300" minW="150px">
+            Tenant: {currentTenant || 'No tenant selected'}
+          </Text>
+          <Button 
+            colorScheme="orange" 
+            onClick={validateUrls} 
+            isLoading={loading}
+            isDisabled={!currentTenant}
           >
-            <option value="all">All Administrations</option>
-            {availableAdmins.map(admin => (
-              <option key={admin} value={admin}>{admin}</option>
-            ))}
-          </Select>
-          <Button colorScheme="orange" onClick={validateUrls} isLoading={loading}>
             Validate PDF URLs
           </Button>
           {validationResults.length > 0 && (
-            <Button colorScheme="blue" onClick={validateUrls} isLoading={loading}>
+            <Button 
+              colorScheme="blue" 
+              onClick={validateUrls} 
+              isLoading={loading}
+              isDisabled={!currentTenant}
+            >
               Refresh Results
             </Button>
           )}

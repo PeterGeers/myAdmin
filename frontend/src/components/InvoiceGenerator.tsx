@@ -4,8 +4,10 @@ import {
   Alert, AlertIcon, HStack
 } from '@chakra-ui/react';
 import { generateReceipt, downloadReceipt } from '../utils/receiptGenerator';
+import { useTenant } from '../context/TenantContext';
 
 const InvoiceGenerator: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [companyName, setCompanyName] = useState('Intratuin');
   const [filename, setFilename] = useState('Intratuin 202502.jpg');
   const [totalAmount, setTotalAmount] = useState('193.29');
@@ -15,6 +17,11 @@ const InvoiceGenerator: React.FC = () => {
   const [message, setMessage] = useState('');
 
   const generateInvoice = () => {
+    if (!currentTenant) {
+      setMessage('Error: No tenant selected. Please select a tenant first.');
+      return;
+    }
+    
     try {
       setLoading(true);
       
@@ -105,6 +112,7 @@ const InvoiceGenerator: React.FC = () => {
           onClick={generateInvoice}
           isLoading={loading}
           size="lg"
+          isDisabled={!currentTenant}
         >
           Genereer Kassabon
         </Button>

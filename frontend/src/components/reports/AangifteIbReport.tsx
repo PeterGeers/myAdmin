@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Alert,
+  AlertIcon,
   Box,
   Button,
   Card,
@@ -20,6 +22,8 @@ import {
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
 import { authenticatedGet, authenticatedPost } from '../../services/apiService';
+import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
+import { useTenant } from '../../context/TenantContext';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createAangifteIbFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 
@@ -47,11 +51,12 @@ interface XlsxExportProgress {
 }
 
 const AangifteIbReport: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [aangifteIbData, setAangifteIbData] = useState<AangifteIbRecord[]>([]);
   const [aangifteIbDetails, setAangifteIbDetails] = useState<AangifteIbDetail[]>([]);
   const [aangifteIbFilters, setAangifteIbFilters] = useState({
     year: new Date().getFullYear().toString(),
-    administration: 'all'
+    administration: currentTenant || 'all'
   });
   const [aangifteIbAvailableYears, setAangifteIbAvailableYears] = useState<string[]>([]);
   const [aangifteIbLoading, setAangifteIbLoading] = useState(false);
@@ -59,16 +64,16 @@ const AangifteIbReport: React.FC = () => {
   const [expandedAangifteRows, setExpandedAangifteRows] = useState<Set<string>>(new Set());
   const [xlsxExportLoading, setXlsxExportLoading] = useState(false);
   const [xlsxExportProgress, setXlsxExportProgress] = useState<XlsxExportProgress | null>(null);
+  const [tenantSwitching, setTenantSwitching] = useState(false);
 
   const fetchAangifteIbData = async () => {
     setAangifteIbLoading(true);
     try {
-      const params = new URLSearchParams({
-        year: aangifteIbFilters.year,
-        administration: aangifteIbFilters.administration
-      });
+      const params = {
+        year: aangifteIbFilters.year
+      };
       
-      const response = await authenticatedGet(buildApiUrl('/api/reports/aangifte-ib', params));
+      const response = await tenantAwareGet('/api/reports/aangifte-ib', params);
       const data = await response.json();
       
       if (data.success) {
@@ -84,14 +89,13 @@ const AangifteIbReport: React.FC = () => {
 
   const fetchAangifteIbDetails = async (parent: string, aangifte: string) => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         year: aangifteIbFilters.year,
-        administration: aangifteIbFilters.administration,
         parent: parent,
         aangifte: aangifte
-      });
+      };
       
-      const response = await authenticatedGet(buildApiUrl('/api/reports/aangifte-ib-details', params));
+      const response = await tenantAwareGet('/api/reports/aangifte-ib-details', params);
       const data = await response.json();
       
       if (data.success) {
@@ -104,14 +108,17 @@ const AangifteIbReport: React.FC = () => {
   };
 
   const handleExportHtml = async () => {
-    const exportData = {
-      year: aangifteIbFilters.year,
-      administration: aangifteIbFilters.administration,
-      data: aangifteIbData
-    };
-    
     try {
-      const response = await authenticatedPost('/api/reports/aangifte-ib-export', exportData);
+      // Validate tenant selection
+      const tenant = requireTenant();
+      
+      const exportData = {
+        year: aangifteIbFilters.year,
+        administration: tenant,
+        data: aangifteIbData
+      };
+      
+      const response = await tenantAwarePost('/api/reports/aangifte-ib-export', exportData);
       const data = await response.json();
       if (data.success) {
         const blob = new Blob([data.html], { type: 'text/html' });
@@ -124,19 +131,27 @@ const AangifteIbReport: React.FC = () => {
       }
     } catch (err) {
       console.error('Export error:', err);
+      if (err instanceof Error && err.message.includes('No tenant selected')) {
+        alert('Error: No tenant selected. Please select a tenant first.');
+      } else {
+        alert('Export failed. Please try again.');
+      }
     }
   };
 
   const handleGenerateXlsx = async () => {
-    console.log('Starting XLSX export with streaming...');
-    setXlsxExportLoading(true);
-    setXlsxExportProgress(null);
-    
     try {
-      const response = await authenticatedPost(
+      // Validate tenant selection
+      const tenant = requireTenant();
+      
+      console.log('Starting XLSX export with streaming...');
+      setXlsxExportLoading(true);
+      setXlsxExportProgress(null);
+      
+      const response = await tenantAwarePost(
         '/api/reports/aangifte-ib-xlsx-export-stream',
         {
-          administrations: [aangifteIbFilters.administration],
+          administrations: [tenant],
           years: [aangifteIbFilters.year]
         }
       );
@@ -201,7 +216,11 @@ const AangifteIbReport: React.FC = () => {
       }
     } catch (err) {
       console.error('XLSX export error:', err);
-      alert('Failed to export XLSX files. Check console for details.');
+      if (err instanceof Error && err.message.includes('No tenant selected')) {
+        alert('Error: No tenant selected. Please select a tenant first.');
+      } else {
+        alert('Failed to export XLSX files. Check console for details.');
+      }
     } finally {
       setXlsxExportLoading(false);
     }
@@ -213,6 +232,29 @@ const AangifteIbReport: React.FC = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aangifteIbFilters.year, aangifteIbFilters.administration]);
+
+  // Auto-refresh on tenant change
+  useEffect(() => {
+    if (currentTenant) {
+      setTenantSwitching(true);
+      
+      // Update filters with current tenant
+      setAangifteIbFilters(prev => ({
+        ...prev,
+        administration: currentTenant
+      }));
+      
+      // Clear previous tenant data
+      setAangifteIbData([]);
+      setAangifteIbDetails([]);
+      setSelectedAangifteRow(null);
+      setExpandedAangifteRows(new Set());
+      setXlsxExportProgress(null);
+      
+      // Reset tenant switching state after a brief delay
+      setTimeout(() => setTenantSwitching(false), 100);
+    }
+  }, [currentTenant]);
 
   const renderTableRows = () => {
     const grouped = aangifteIbData.reduce((acc, row) => {
@@ -388,6 +430,13 @@ const AangifteIbReport: React.FC = () => {
 
   return (
     <VStack spacing={4} align="stretch">
+      {!currentTenant && (
+        <Alert status="warning">
+          <AlertIcon />
+          No tenant selected. Please select a tenant first.
+        </Alert>
+      )}
+      
       <Card bg="gray.700">
         <CardBody>
           <HStack spacing={4} flexWrap="nowrap">
@@ -398,13 +447,13 @@ const AangifteIbReport: React.FC = () => {
                 aangifteIbAvailableYears
               )}
               size="sm"
-              isLoading={aangifteIbLoading}
+              isLoading={aangifteIbLoading || tenantSwitching}
             />
             <Button 
               colorScheme="orange"
               onClick={handleExportHtml}
               size="sm"
-              isDisabled={aangifteIbData.length === 0}
+              isDisabled={aangifteIbData.length === 0 || !currentTenant || tenantSwitching}
             >
               Export HTML
             </Button>
@@ -413,7 +462,7 @@ const AangifteIbReport: React.FC = () => {
               onClick={handleGenerateXlsx}
               isLoading={xlsxExportLoading}
               size="sm"
-              isDisabled={!aangifteIbFilters.administration || !aangifteIbFilters.year}
+              isDisabled={!currentTenant || !aangifteIbFilters.year || tenantSwitching}
             >
               Generate XLSX
             </Button>

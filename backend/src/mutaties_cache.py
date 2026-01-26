@@ -174,7 +174,7 @@ class MutatiesCache:
         
         # Filter by administration
         if administration != 'all':
-            df = df[df['Administration'].str.startswith(administration)]
+            df = df[df['administration'].str.startswith(administration)]
         
         # Group by Parent and Aangifte
         summary = df.groupby(['Parent', 'Aangifte'])['Amount'].sum().reset_index()
@@ -203,7 +203,7 @@ class MutatiesCache:
         
         # SECURITY: Filter by user's accessible tenants first
         if user_tenants is not None:
-            df = df[df['Administration'].isin(user_tenants)]
+            df = df[df['administration'].isin(user_tenants)]
         
         # Apply VW logic
         year_end = pd.to_datetime(f"{year}-12-31")
@@ -215,7 +215,7 @@ class MutatiesCache:
         
         # Filter by criteria
         if administration != 'all':
-            df = df[df['Administration'].str.startswith(administration)]
+            df = df[df['administration'].str.startswith(administration)]
         
         df = df[(df['Parent'] == parent) & (df['Aangifte'] == aangifte)]
         
@@ -251,7 +251,7 @@ class MutatiesCache:
         if year:
             df = df[df['jaar'] == int(year)]
         
-        admins = df['Administration'].dropna().unique()
+        admins = df['administration'].dropna().unique()
         return sorted(admins.tolist())
 
 

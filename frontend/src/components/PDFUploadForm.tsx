@@ -19,6 +19,7 @@ import React, { useEffect, useState } from 'react';
 import * as Yup from 'yup';
 import { buildApiUrl } from '../config';
 import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
+import { useTenant } from '../context/TenantContext';
 import DuplicateWarningDialog from './DuplicateWarningDialog';
 import InvoiceGenerator from './InvoiceGenerator';
 import MissingInvoices from './MissingInvoices';
@@ -46,7 +47,10 @@ const validationSchema = Yup.object({
 });
 
 const PDFUploadForm: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [loading, setLoading] = useState(false);
+  const [tenantSwitching, setTenantSwitching] = useState(false);
+  const [message, setMessage] = useState<string>('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [parsedData, setParsedData] = useState<any>(null);
   const [vendorData, setVendorData] = useState<any>(null);
@@ -69,14 +73,37 @@ const PDFUploadForm: React.FC = () => {
     fetchFolders();
   }, []);
 
+  // SECURITY: Auto-refresh on tenant change to ensure data isolation
+  // Clears all previous tenant data and refreshes folders for new tenant
+  useEffect(() => {
+    if (currentTenant) {
+      setTenantSwitching(true);
+      
+      // Clear previous tenant data when switching to prevent data leakage
+      setParsedData(null);
+      setVendorData(null);
+      setPreparedTransactions([]);
+      setPendingTransactions([]);
+      setDuplicateInfo(null);
+      setShowDuplicateDialog(false);
+      
+      // Refresh folders for new tenant
+      fetchFolders().finally(() => {
+        setTenantSwitching(false);
+      });
+    }
+  }, [currentTenant]);
+
   const fetchFolders = async () => {
     try {
-      const response = await authenticatedGet('/api/folders');
+      const response = await authenticatedGet('/api/folders', { tenant: currentTenant || undefined });
       const data = await response.json();
       setAllFolders(data);
       setFilteredFolders(data);
+      setMessage(''); // Clear any previous error messages
     } catch (error) {
       console.error('Error fetching folders:', error);
+      setMessage('Error loading folders. Please try refreshing the page.');
     }
   };
 
@@ -109,14 +136,24 @@ const PDFUploadForm: React.FC = () => {
   const handleSubmit = async (values: any, formikHelpers?: any) => {
     if (loading) return; // Prevent multiple submissions
     
+    // SECURITY: Validate tenant selection before any file processing
+    // This prevents cross-tenant data access and ensures data isolation
+    if (!currentTenant) {
+      setMessage('Error: No tenant selected. Please select a tenant first.');
+      return;
+    }
+    
     if (filteredFolders.length > 1) {
-      alert('Please narrow down to exactly 1 folder before uploading.');
+      setMessage('Please narrow down to exactly 1 folder before uploading.');
       return;
     }
     if (filteredFolders.length === 0) {
-      alert('No folders match your search. Please adjust the filter.');
+      setMessage('No folders match your search. Please adjust the filter.');
       return;
     }
+    
+    // Clear any previous messages
+    setMessage('');
     
     setLoading(true);
     const formData = new FormData();
@@ -129,6 +166,7 @@ const PDFUploadForm: React.FC = () => {
       formData.append('folderName', values.folderId);
       
       const responseObj = await authenticatedFormData('/api/upload', formData, {
+        tenant: currentTenant || undefined,
         onUploadProgress: (progressEvent) => {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
           setUploadProgress(progress);
@@ -257,7 +295,7 @@ const PDFUploadForm: React.FC = () => {
         }
         
         // Fallback if duplicate info is not properly formatted
-        alert(error.response.data.message || 'This file has already been uploaded.');
+        setMessage(error.response.data.message || 'This file has already been uploaded.');
         setLoading(false);
         return;
       }
@@ -283,6 +321,7 @@ const PDFUploadForm: React.FC = () => {
             retryFormData.append('useExisting', 'true');
             
             const responseObj = await authenticatedFormData('/api/upload', retryFormData, {
+              tenant: currentTenant || undefined,
               onUploadProgress: (progressEvent) => {
                 const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
                 setUploadProgress(progress);
@@ -311,7 +350,7 @@ const PDFUploadForm: React.FC = () => {
       
       // Generic error handling for non-duplicate errors
       if (error.response?.status !== 409) {
-        alert(`Upload failed: ${error.response?.data?.message || error.message || 'Unknown error'}`);
+        setMessage(`Upload failed: ${error.response?.data?.message || error.message || 'Unknown error'}`);
       }
     } finally {
       setLoading(false);
@@ -322,7 +361,7 @@ const PDFUploadForm: React.FC = () => {
     try {
       const responseObj = await authenticatedPost('/api/approve-transactions', {
         transactions: preparedTransactions
-      });
+      }, { tenant: currentTenant || undefined });
       const response = await responseObj.json();
       alert(response.message);
       setPreparedTransactions([]);
@@ -338,7 +377,7 @@ const PDFUploadForm: React.FC = () => {
     try {
       await authenticatedPost('/api/create-folder', {
         folderName: newFolderName
-      });
+      }, { tenant: currentTenant || undefined });
       
       // Refresh the folders list after creating
       await fetchFolders();
@@ -366,7 +405,7 @@ const PDFUploadForm: React.FC = () => {
             transaction_date: duplicateInfo.newTransaction.transactionDate,
             transaction_amount: duplicateInfo.newTransaction.transactionAmount
           }
-        });
+        }, { tenant: currentTenant || undefined });
       }
       
       // Check if we have pending transactions (old flow) or need to retry upload (new flow)
@@ -393,6 +432,7 @@ const PDFUploadForm: React.FC = () => {
             formData.append('forceUpload', 'true');
             
             const responseObj = await authenticatedFormData('/api/upload', formData, {
+              tenant: currentTenant || undefined,
               onUploadProgress: (progressEvent) => {
                 const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total!);
                 setUploadProgress(progress);
@@ -445,7 +485,7 @@ const PDFUploadForm: React.FC = () => {
             new_file_url: duplicateInfo.newTransaction.ref3,
             existing_file_url: duplicateInfo.existingTransaction.ref3
           }
-        });
+        }, { tenant: currentTenant || undefined });
       }
       
       // Clear all pending data
@@ -487,6 +527,14 @@ const PDFUploadForm: React.FC = () => {
         {({ setFieldValue, errors, touched, values }) => (
           <Form>
             <VStack spacing={4}>
+              {message && (
+                <Box p={3} bg={message.startsWith('Error') ? 'red.100' : 'blue.100'} borderRadius="md" w="full">
+                  <Text color={message.startsWith('Error') ? 'red.700' : 'blue.700'} fontSize="sm">
+                    {message}
+                  </Text>
+                </Box>
+              )}
+              
               <FormControl isInvalid={!!(errors.file && touched.file)}>
                 <FormLabel>Select File (PDF, JPG, PNG, MHTML, EML)</FormLabel>
                 <Input
@@ -537,6 +585,7 @@ const PDFUploadForm: React.FC = () => {
                       size="sm"
                       colorScheme="green"
                       color="white"
+                      isDisabled={!currentTenant || tenantSwitching}
                     >
                       + New
                     </Button>
@@ -559,7 +608,7 @@ const PDFUploadForm: React.FC = () => {
                       placeholder="Folder name"
                       flex={1}
                     />
-                    <Button onClick={createFolder} colorScheme="green" size="sm">
+                    <Button onClick={createFolder} colorScheme="green" size="sm" isDisabled={!currentTenant}>
                       Create
                     </Button>
                     <Button onClick={() => setShowCreateFolder(false)} size="sm">
@@ -574,10 +623,10 @@ const PDFUploadForm: React.FC = () => {
                 bg="brand.orange" 
                 color="white" 
                 _hover={{bg: "#e55a00"}} 
-                isLoading={loading} 
-                loadingText={uploadProgress < 100 ? "Uploading..." : "Checking for duplicates..."}
+                isLoading={loading || tenantSwitching} 
+                loadingText={tenantSwitching ? "Switching tenant..." : (uploadProgress < 100 ? "Uploading..." : "Checking for duplicates...")}
                 w="full"
-                isDisabled={filteredFolders.length !== 1}
+                isDisabled={filteredFolders.length !== 1 || !currentTenant || tenantSwitching}
               >
                 Upload & Process {filteredFolders.length !== 1 ? `(${filteredFolders.length} folders)` : ''}
               </Button>
@@ -861,7 +910,7 @@ const PDFUploadForm: React.FC = () => {
           ))}
           
           <HStack spacing={4} mt={6}>
-            <Button colorScheme="green" onClick={approveTransactions} size="lg">
+            <Button colorScheme="green" onClick={approveTransactions} size="lg" isDisabled={!currentTenant}>
               ✓ Approve & Save to Database
             </Button>
             <Button variant="outline" onClick={() => setPreparedTransactions([])}>

@@ -67,8 +67,8 @@ class BTWProcessor:
             # Filter by date
             df_filtered = df[df['TransactionDate'] <= end_date].copy()
             
-            # Filter by administration (LIKE pattern)
-            df_filtered = df_filtered[df_filtered['Administration'].str.startswith(administration)]
+            # Filter by administration (LIKE pattern) - lowercase column name
+            df_filtered = df_filtered[df_filtered['administration'].str.startswith(administration)]
             
             # Filter by BTW accounts
             df_filtered = df_filtered[df_filtered['Reknum'].isin(['2010', '2020', '2021'])]
@@ -99,8 +99,8 @@ class BTWProcessor:
             # Filter by year and quarter
             df_filtered = df[(df['jaar'] == int(year)) & (df['kwartaal'] == int(quarter))].copy()
             
-            # Filter by administration (LIKE pattern)
-            df_filtered = df_filtered[df_filtered['Administration'].str.startswith(administration)]
+            # Filter by administration (LIKE pattern) - lowercase column name
+            df_filtered = df_filtered[df_filtered['administration'].str.startswith(administration)]
             
             # Filter by BTW and revenue accounts
             df_filtered = df_filtered[df_filtered['Reknum'].isin(['2010', '2020', '2021', '8001', '8002', '8003'])]

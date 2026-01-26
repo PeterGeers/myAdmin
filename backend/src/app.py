@@ -506,6 +506,41 @@ def scalability_performance(user_email, user_roles):
         }), 500
 
 # Cache Management Endpoints
+@app.route('/api/cache/warmup', methods=['POST'])
+@cognito_required(required_permissions=['actuals_read'])
+def cache_warmup(user_email, user_roles):
+    """Warmup the cache (load it if not already loaded)"""
+    try:
+        cache = get_cache()
+        
+        # Check if cache is already loaded
+        if cache.data is not None:
+            return jsonify({
+                'success': True,
+                'message': 'Cache already loaded',
+                'record_count': len(cache.data),
+                'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None
+            })
+        
+        # Load the cache
+        db = DatabaseManager(test_mode=flag)
+        cache.get_data(db)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cache loaded successfully',
+            'record_count': len(cache.data),
+            'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None
+        })
+    except Exception as e:
+        print(f"Error in cache_warmup: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/cache/status', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
 def cache_status(user_email, user_roles):
@@ -1149,6 +1184,11 @@ def banking_save_transactions(user_email, user_roles, tenant, user_tenants):
         # Save only new transactions
         processor = BankingProcessor(test_mode=test_mode)
         saved_count = processor.save_approved_transactions(transactions_to_save)
+        
+        # Invalidate cache after saving transactions
+        if saved_count > 0:
+            invalidate_cache()
+            print(f"[CACHE] Invalidated cache after saving {saved_count} transactions", flush=True)
         
         total_count = len(transactions)
         duplicate_count = total_count - len(transactions_to_save)

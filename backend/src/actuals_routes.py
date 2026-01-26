@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 import os
+import logging
 from dotenv import load_dotenv
 from api_schemas import validate_response_schema
 from mutaties_cache import get_cache
@@ -36,29 +37,29 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
         df = cache.get_data(db)
         
         # SECURITY: Filter by user's accessible tenants first
-        df = df[df['Administration'].isin(user_tenants)]
+        df = df[df['administration'].isin(user_tenants)]
         
         # Filter: VW = 'N' (balance accounts)
         filtered = df[df['VW'] == 'N'].copy()
         
         # Filter by administration
         if administration != 'all':
-            filtered = filtered[filtered['Administration'] == administration]
+            filtered = filtered[filtered['administration'] == administration]
         
         # Filter by year: from beginning up to max selected year
         max_year = max([int(y) for y in years])
         filtered = filtered[filtered['jaar'] <= max_year]
         
-        # Group by Parent and ledger
-        grouped = filtered.groupby(['Parent', 'ledger'], as_index=False).agg({
+        # Group by Parent, Reknum, and AccountName
+        grouped = filtered.groupby(['Parent', 'Reknum', 'AccountName'], as_index=False).agg({
             'Amount': 'sum'
         })
         
         # Filter out zero amounts
         grouped = grouped[grouped['Amount'] != 0]
         
-        # Sort by Parent and ledger
-        grouped = grouped.sort_values(['Parent', 'ledger'])
+        # Sort by Parent and Reknum
+        grouped = grouped.sort_values(['Parent', 'Reknum'])
         
         # Convert to list of dicts
         results = grouped.to_dict('records')
@@ -69,6 +70,7 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
+        logging.error(f"Error in get_actuals_balance: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)
@@ -100,14 +102,14 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         df = cache.get_data(db)
         
         # SECURITY: Filter by user's accessible tenants first
-        df = df[df['Administration'].isin(user_tenants)]
+        df = df[df['administration'].isin(user_tenants)]
         
         # Filter: VW = 'Y' (profit/loss accounts)
         filtered = df[df['VW'] == 'Y'].copy()
         
         # Filter by administration
         if administration != 'all':
-            filtered = filtered[filtered['Administration'] == administration]
+            filtered = filtered[filtered['administration'] == administration]
         
         # Filter by years
         year_list = [int(y) for y in years]
@@ -115,14 +117,14 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         
         # Group based on groupBy parameter
         if group_by == 'quarter':
-            group_cols = ['Parent', 'ledger', 'jaar', 'kwartaal']
-            sort_cols = ['Parent', 'ledger', 'jaar', 'kwartaal']
+            group_cols = ['Parent', 'Reknum', 'AccountName', 'jaar', 'kwartaal']
+            sort_cols = ['Parent', 'Reknum', 'jaar', 'kwartaal']
         elif group_by == 'month':
-            group_cols = ['Parent', 'ledger', 'jaar', 'maand']
-            sort_cols = ['Parent', 'ledger', 'jaar', 'maand']
+            group_cols = ['Parent', 'Reknum', 'AccountName', 'jaar', 'maand']
+            sort_cols = ['Parent', 'Reknum', 'jaar', 'maand']
         else:  # Default to year
-            group_cols = ['Parent', 'ledger', 'jaar']
-            sort_cols = ['Parent', 'ledger', 'jaar']
+            group_cols = ['Parent', 'Reknum', 'AccountName', 'jaar']
+            sort_cols = ['Parent', 'Reknum', 'jaar']
         
         # Group and aggregate
         grouped = filtered.groupby(group_cols, as_index=False).agg({
@@ -147,6 +149,7 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
+        logging.error(f"Error in get_actuals_profitloss: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)

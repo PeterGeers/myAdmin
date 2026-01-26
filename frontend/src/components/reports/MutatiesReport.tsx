@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
+  Alert,
+  AlertIcon,
   Button,
   Card,
   CardBody,
@@ -17,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
 import { authenticatedGet } from '../../services/apiService';
+import { useTenant } from '../../context/TenantContext';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -29,6 +32,7 @@ interface MutatiesRecord {
 }
 
 const MutatiesReport: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [mutatiesData, setMutatiesData] = useState<MutatiesRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [sortField, setSortField] = useState<string>('');
@@ -44,31 +48,9 @@ const MutatiesReport: React.FC = () => {
   const [mutatiesFilters, setMutatiesFilters] = useState({
     dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
     dateTo: new Date().toISOString().split('T')[0],
-    administration: 'all',
+    administration: currentTenant || 'all',
     profitLoss: 'all'
   });
-
-  const handleSort = (field: string) => {
-    const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
-    setSortField(field);
-    setSortDirection(newDirection);
-    
-    const sortedData = [...mutatiesData].sort((a, b) => {
-      let aVal = a[field as keyof MutatiesRecord];
-      let bVal = b[field as keyof MutatiesRecord];
-      
-      if (field === 'Amount') {
-        aVal = Number(aVal) || 0;
-        bVal = Number(bVal) || 0;
-      }
-      
-      if (aVal < bVal) return newDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return newDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-    
-    setMutatiesData(sortedData);
-  };
 
   const filteredMutatiesData = useMemo(() => {
     return mutatiesData.filter(row => {
@@ -79,29 +61,6 @@ const MutatiesReport: React.FC = () => {
       });
     });
   }, [mutatiesData, searchFilters]);
-
-  const fetchMutatiesData = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        dateFrom: mutatiesFilters.dateFrom,
-        dateTo: mutatiesFilters.dateTo,
-        administration: mutatiesFilters.administration,
-        profitLoss: mutatiesFilters.profitLoss
-      });
-      
-      const response = await authenticatedGet(buildApiUrl('/api/reports/mutaties-table', params));
-      const data = await response.json();
-      
-      if (data.success) {
-        setMutatiesData(data.data);
-      }
-    } catch (err) {
-      console.error('Error fetching mutaties data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const exportMutatiesCsv = useCallback(() => {
     const csvContent = [
@@ -126,10 +85,103 @@ const MutatiesReport: React.FC = () => {
     URL.revokeObjectURL(url);
   }, [filteredMutatiesData, mutatiesFilters.dateFrom, mutatiesFilters.dateTo]);
 
+  const fetchMutatiesData = async () => {
+    setLoading(true);
+    try {
+      // Validate tenant before making API call
+      if (!currentTenant) {
+        console.error('No tenant selected for mutaties data fetch');
+        return;
+      }
+
+      const params = new URLSearchParams({
+        dateFrom: mutatiesFilters.dateFrom,
+        dateTo: mutatiesFilters.dateTo,
+        administration: currentTenant || 'all', // Use current tenant instead of filter
+        profitLoss: mutatiesFilters.profitLoss
+      });
+      
+      const response = await authenticatedGet(buildApiUrl('/api/reports/mutaties-table', params));
+      const data = await response.json();
+      
+      if (data.success) {
+        setMutatiesData(data.data);
+      } else {
+        console.error('Failed to fetch mutaties data:', data.message || 'Unknown error');
+      }
+    } catch (err) {
+      console.error('Error fetching mutaties data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchMutatiesData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-refresh on tenant change
+  useEffect(() => {
+    if (currentTenant) {
+      // Update filters with current tenant
+      setMutatiesFilters(prev => ({
+        ...prev,
+        administration: currentTenant
+      }));
+      
+      // Clear previous tenant data to prevent data leakage
+      setMutatiesData([]);
+      
+      // Clear search filters to avoid confusion
+      setSearchFilters({
+        TransactionDescription: '',
+        Reknum: '',
+        AccountName: '',
+        Administration: '',
+        ReferenceNumber: ''
+      });
+      
+      // Reset sorting
+      setSortField('');
+      setSortDirection('desc');
+      
+      // Fetch new data for current tenant
+      fetchMutatiesData();
+    }
+  }, [currentTenant]);
+
+  // Tenant validation - show alert if no tenant selected
+  if (!currentTenant) {
+    return (
+      <Alert status="warning">
+        <AlertIcon />
+        No tenant selected. Please select a tenant first.
+      </Alert>
+    );
+  }
+
+  const handleSort = (field: string) => {
+    const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortField(field);
+    setSortDirection(newDirection);
+    
+    const sortedData = [...mutatiesData].sort((a, b) => {
+      let aVal = a[field as keyof MutatiesRecord];
+      let bVal = b[field as keyof MutatiesRecord];
+      
+      if (field === 'Amount') {
+        aVal = Number(aVal) || 0;
+        bVal = Number(bVal) || 0;
+      }
+      
+      if (aVal < bVal) return newDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return newDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    setMutatiesData(sortedData);
+  };
 
   return (
     <VStack spacing={4} align="stretch">

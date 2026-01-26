@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+  Alert,
+  AlertIcon,
   Box,
   Button,
   Card,
@@ -28,6 +30,7 @@ import { buildApiUrl } from '../../config';
 import { authenticatedGet } from '../../services/apiService';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createRefAnalysisFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
+import { useTenant } from '../../context/TenantContext';
 
 interface ReferenceAnalysisTransaction {
   TransactionDate: string;
@@ -51,9 +54,11 @@ interface AccountOption {
 }
 
 const ReferenceAnalysisReport: React.FC = () => {
+  const { currentTenant } = useTenant();
+  
   const [refAnalysisFilters, setRefAnalysisFilters] = useState({
     years: [new Date().getFullYear().toString()],
-    administration: 'all',
+    administration: currentTenant || 'all',
     referenceNumber: '',
     accounts: [] as string[]
   });
@@ -67,17 +72,39 @@ const ReferenceAnalysisReport: React.FC = () => {
     return Array.from({ length: 10 }, (_, i) => (currentYear - i).toString());
   });
 
+  // Auto-refresh on tenant change
+  useEffect(() => {
+    if (currentTenant) {
+      // Update filters with new tenant
+      setRefAnalysisFilters(prev => ({
+        ...prev,
+        administration: currentTenant
+      }));
+      
+      // Clear previous tenant data
+      setRefAnalysisData([]);
+      setRefTrendData([]);
+      setAvailableRefAccounts([]);
+    }
+  }, [currentTenant]);
+
   const fetchReferenceAnalysis = async () => {
+    // Validate tenant selection before processing
+    if (!currentTenant) {
+      console.error('No tenant selected for reference analysis');
+      return;
+    }
+
     setRefAnalysisLoading(true);
     try {
       const params = new URLSearchParams({
         years: refAnalysisFilters.years.join(','),
-        administration: refAnalysisFilters.administration,
+        administration: currentTenant, // Use current tenant instead of filter value
         reference_number: refAnalysisFilters.referenceNumber,
         accounts: refAnalysisFilters.accounts.join(',')
       });
       
-      const response = await authenticatedGet(buildApiUrl('/api/reporting/reference-analysis', params));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/reference-analysis', params));
       const data = await response.json();
       
       if (data.success) {
@@ -94,6 +121,14 @@ const ReferenceAnalysisReport: React.FC = () => {
 
   return (
     <VStack spacing={4} align="stretch">
+      {/* Tenant validation alert */}
+      {!currentTenant && (
+        <Alert status="warning">
+          <AlertIcon />
+          No tenant selected. Please select a tenant first to view reference analysis data.
+        </Alert>
+      )}
+
       <Card bg="gray.700">
         <CardBody>
           <VStack spacing={4} align="stretch">
@@ -102,6 +137,7 @@ const ReferenceAnalysisReport: React.FC = () => {
               <Box minW="150px">
                 <UnifiedAdminYearFilter
                   {...createRefAnalysisFilterAdapter(refAnalysisFilters, setRefAnalysisFilters, availableYears)}
+                  showAdministration={false}
                   size="sm"
                 />
               </Box>
@@ -167,6 +203,7 @@ const ReferenceAnalysisReport: React.FC = () => {
                   colorScheme="orange" 
                   onClick={fetchReferenceAnalysis} 
                   isLoading={refAnalysisLoading}
+                  isDisabled={!currentTenant}
                   size="xs"
                   mt={6}
                 >
@@ -290,19 +327,16 @@ const ReferenceAnalysisReport: React.FC = () => {
             <VStack spacing={3} align="start">
               <Heading size="md" color="white">Reference Number Analysis Instructions</Heading>
               <Text color="white" fontSize="sm">
-                1. Select administration (or All for combined analysis)
+                1. Choose one or more years to include in the analysis
               </Text>
               <Text color="white" fontSize="sm">
-                2. Choose one or more years to include in the analysis
+                2. Enter a reference number or regex pattern (e.g., "AMZN" or ".*Amazon.*")
               </Text>
               <Text color="white" fontSize="sm">
-                3. Enter a reference number or regex pattern (e.g., "AMZN" or ".*Amazon.*")
+                3. Optionally filter by specific accounts
               </Text>
               <Text color="white" fontSize="sm">
-                4. Optionally filter by specific accounts
-              </Text>
-              <Text color="white" fontSize="sm">
-                5. Click "Analyze" to view trends and transactions
+                4. Click "Analyze" to view trends and transactions
               </Text>
               <Text color="gray.400" fontSize="xs">
                 The trend chart shows quarterly spending patterns with amounts displayed above each data point.

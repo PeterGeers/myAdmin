@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
+  AlertIcon,
   Button,
   Card,
   CardBody,
@@ -33,7 +35,8 @@ import {
   YAxis
 } from 'recharts';
 import { buildApiUrl } from '../../config';
-import { authenticatedGet } from '../../services/apiService';
+import { authenticatedGet, authenticatedPost } from '../../services/apiService';
+import { useTenant } from '../../context/TenantContext';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createActualsFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 
@@ -54,16 +57,19 @@ interface ActualsFilters {
 }
 
 const ActualsReport: React.FC = () => {
+  const { currentTenant } = useTenant();
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
   const [profitLossData, setProfitLossData] = useState<BalanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [tenantSwitching, setTenantSwitching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
   const [drillDownLevel, setDrillDownLevel] = useState<'year' | 'quarter' | 'month'>('year');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   
   const [actualsFilters, setActualsFilters] = useState<ActualsFilters>({
     years: [new Date().getFullYear().toString()],
-    administration: 'all',
+    administration: currentTenant || 'all',
     displayFormat: '2dec'
   });
 
@@ -111,10 +117,13 @@ const ActualsReport: React.FC = () => {
       }
       
       // Group ledgers by name and accumulate amounts by period
-      if (!acc[row.Parent].ledgers[row.ledger]) {
-        acc[row.Parent].ledgers[row.ledger] = {};
+      // Use ledger field, or fallback to Reknum + AccountName if ledger is missing
+      const ledgerKey = row.ledger || `${row.Reknum || ''} ${row.AccountName || ''}`.trim() || 'Unknown';
+      
+      if (!acc[row.Parent].ledgers[ledgerKey]) {
+        acc[row.Parent].ledgers[ledgerKey] = {};
         columnKeys.forEach(key => {
-          acc[row.Parent].ledgers[row.ledger][key] = 0;
+          acc[row.Parent].ledgers[ledgerKey][key] = 0;
         });
       }
       
@@ -132,7 +141,7 @@ const ActualsReport: React.FC = () => {
       }
       
       if (columnKeys.includes(periodKey)) {
-        acc[row.Parent].ledgers[row.ledger][periodKey] = (acc[row.Parent].ledgers[row.ledger][periodKey] || 0) + (Number(row.Amount) || 0);
+        acc[row.Parent].ledgers[ledgerKey][periodKey] = (acc[row.Parent].ledgers[ledgerKey][periodKey] || 0) + (Number(row.Amount) || 0);
       }
       
       // Calculate parent totals
@@ -321,10 +330,20 @@ const ActualsReport: React.FC = () => {
 
   const fetchActualsData = async () => {
     setLoading(true);
+    setError(null);
     try {
+      // Validate tenant before making API call
+      if (!currentTenant) {
+        console.warn('[SECURITY] Attempted to fetch actuals data without tenant selection');
+        setError('No tenant selected. Please select a tenant to view actuals data.');
+        return;
+      }
+
+      console.log('[TENANT SECURITY] Fetching actuals data for tenant:', currentTenant);
+
       const params = new URLSearchParams({
         years: actualsFilters.years.join(','),
-        administration: actualsFilters.administration,
+        administration: currentTenant, // Use current tenant instead of filter
         groupBy: drillDownLevel
       });
       
@@ -332,17 +351,38 @@ const ActualsReport: React.FC = () => {
       const balanceResponse = await authenticatedGet(buildApiUrl('/api/reports/actuals-balance', params));
       const balanceResult = await balanceResponse.json();
       if (balanceResult.success) {
-        setBalanceData(balanceResult.data);
+        console.log('[TENANT SECURITY] Balance data fetched successfully for tenant:', currentTenant);
+        // Transform data to add ledger field (Reknum + AccountName)
+        const transformedData = balanceResult.data.map((row: any) => ({
+          ...row,
+          ledger: `${row.Reknum || ''} ${row.AccountName || ''}`.trim()
+        }));
+        setBalanceData(transformedData);
+      } else {
+        console.error('[TENANT SECURITY] Failed to fetch balance data for tenant:', currentTenant, balanceResult.message);
+        setError(`Failed to fetch balance data: ${balanceResult.message || 'Unknown error'}`);
       }
 
       // Profit/Loss data (VW = Y)
       const profitLossResponse = await authenticatedGet(buildApiUrl('/api/reports/actuals-profitloss', params));
       const profitLossResult = await profitLossResponse.json();
       if (profitLossResult.success) {
-        setProfitLossData(profitLossResult.data);
+        console.log('[TENANT SECURITY] Profit/Loss data fetched successfully for tenant:', currentTenant);
+        console.log('[DEBUG] Sample P&L row before transformation:', profitLossResult.data[0]);
+        // Transform data to add ledger field (Reknum + AccountName)
+        const transformedData = profitLossResult.data.map((row: any) => ({
+          ...row,
+          ledger: `${row.Reknum || ''} ${row.AccountName || ''}`.trim()
+        }));
+        console.log('[DEBUG] Sample P&L row after transformation:', transformedData[0]);
+        setProfitLossData(transformedData);
+      } else {
+        console.error('[TENANT SECURITY] Failed to fetch profit/loss data for tenant:', currentTenant, profitLossResult.message);
+        setError(`Failed to fetch profit/loss data: ${profitLossResult.message || 'Unknown error'}`);
       }
     } catch (err) {
-      console.error('Error fetching actuals data:', err);
+      console.error('[TENANT SECURITY] Error fetching actuals data for tenant:', currentTenant, err);
+      setError(`Error loading actuals data. Please check your connection and try again.`);
     } finally {
       setLoading(false);
     }
@@ -350,20 +390,51 @@ const ActualsReport: React.FC = () => {
 
   const fetchAvailableYears = async () => {
     try {
-      const response = await authenticatedGet(buildApiUrl('/api/reports/available-years'));
+      // Validate tenant before making API call
+      if (!currentTenant) {
+        console.warn('[SECURITY] Attempted to fetch available years without tenant selection');
+        return;
+      }
+
+      console.log('[TENANT SECURITY] Fetching available years for tenant:', currentTenant);
+
+      const params = new URLSearchParams({
+        administration: currentTenant
+      });
+      
+      const response = await authenticatedGet(buildApiUrl('/api/reports/available-years', params));
       const data = await response.json();
       if (data.success) {
+        console.log('[TENANT SECURITY] Available years fetched successfully for tenant:', currentTenant);
         setAvailableYears(data.years);
+      } else {
+        console.error('[TENANT SECURITY] Failed to fetch available years for tenant:', currentTenant, data.message);
+        setError(`Failed to fetch available years: ${data.message || 'Unknown error'}`);
       }
     } catch (err) {
-      console.error('Error fetching available years:', err);
+      console.error('[TENANT SECURITY] Error fetching available years for tenant:', currentTenant, err);
+      setError('Error loading available years. Please check your connection and try again.');
     }
   };
 
   // Initial data fetch
   useEffect(() => {
-    fetchAvailableYears();
-  }, []);
+    if (currentTenant) {
+      // Warmup cache on component mount
+      authenticatedPost('/api/cache/warmup', {})
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            console.log('[CACHE] Cache warmed up:', data.message);
+          }
+        })
+        .catch(err => {
+          console.warn('[CACHE] Cache warmup failed (non-critical):', err);
+        });
+      
+      fetchAvailableYears();
+    }
+  }, [currentTenant]);
 
   // Refetch when drill-down level changes
   useEffect(() => {
@@ -381,13 +452,72 @@ const ActualsReport: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actualsFilters.years, actualsFilters.administration]);
 
+  // Auto-refresh on tenant change
+  useEffect(() => {
+    if (currentTenant) {
+      console.log('[TENANT CHANGE] Tenant changed to:', currentTenant);
+      console.log('[TENANT CHANGE] Clearing previous tenant data for security');
+      
+      setTenantSwitching(true);
+      setError(null); // Clear any previous errors
+      
+      // Update filters with current tenant
+      setActualsFilters(prev => ({
+        ...prev,
+        administration: currentTenant
+      }));
+      
+      // Clear previous tenant data to prevent data leakage
+      setBalanceData([]);
+      setProfitLossData([]);
+      
+      // Reset expanded state
+      setExpandedParents(new Set());
+      
+      // Fetch new data for current tenant
+      Promise.all([
+        fetchAvailableYears(),
+        actualsFilters.years.length > 0 ? fetchActualsData() : Promise.resolve()
+      ]).catch((err) => {
+        console.error('[TENANT CHANGE] Error during tenant switch:', err);
+      }).finally(() => {
+        setTenantSwitching(false);
+        console.log('[TENANT CHANGE] Tenant switch completed for:', currentTenant);
+      });
+    }
+  }, [currentTenant]);
+
 
   return (
     <VStack spacing={4} align="stretch">
+      {/* Error message */}
+      {error && (
+        <Alert status="error">
+          <AlertIcon />
+          {error}
+        </Alert>
+      )}
+
+      {/* Tenant validation - show alert if no tenant selected */}
+      {!currentTenant && (
+        <Alert status="warning">
+          <AlertIcon />
+          No tenant selected. Please select a tenant first.
+        </Alert>
+      )}
+
+      {/* Tenant switching indicator */}
+      {tenantSwitching && (
+        <Alert status="info" bg="blue.500" color="white" mb={4}>
+          <AlertIcon color="white" />
+          Switching tenant... Please wait while data is being loaded.
+        </Alert>
+      )}
+
       <Card bg="gray.700">
         <CardBody>
           <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            {/* Unified Administration and Year Filter */}
+            {/* Unified Year Filter (Administration hidden - using tenant context) */}
             <GridItem colSpan={{ base: 1, md: 2 }}>
               <UnifiedAdminYearFilter
                 {...createActualsFilterAdapter(
@@ -395,8 +525,9 @@ const ActualsReport: React.FC = () => {
                   setActualsFilters,
                   availableYears
                 )}
+                showAdministration={false}
                 size="sm"
-                isLoading={loading}
+                isLoading={loading || tenantSwitching}
               />
             </GridItem>
             <GridItem>
@@ -424,7 +555,7 @@ const ActualsReport: React.FC = () => {
                     setDrillDownLevel('year');
                     setExpandedParents(new Set());
                   }}
-                  isLoading={loading && drillDownLevel !== 'year'}
+                  isLoading={loading && drillDownLevel !== 'year' || tenantSwitching}
                 >
                   📅 Year
                 </Button>
@@ -435,7 +566,7 @@ const ActualsReport: React.FC = () => {
                     setDrillDownLevel('quarter');
                     setExpandedParents(new Set());
                   }}
-                  isLoading={loading && drillDownLevel !== 'quarter'}
+                  isLoading={loading && drillDownLevel !== 'quarter' || tenantSwitching}
                 >
                   📊 Quarter
                 </Button>
@@ -446,14 +577,14 @@ const ActualsReport: React.FC = () => {
                     setDrillDownLevel('month');
                     setExpandedParents(new Set());
                   }}
-                  isLoading={loading && drillDownLevel !== 'month'}
+                  isLoading={loading && drillDownLevel !== 'month' || tenantSwitching}
                 >
                   📈 Month
                 </Button>
               </HStack>
             </GridItem>
             <GridItem>
-              <Button colorScheme="orange" onClick={fetchActualsData} isLoading={loading} size="sm">
+              <Button colorScheme="orange" onClick={fetchActualsData} isLoading={loading || tenantSwitching} size="sm">
                 Update Data
               </Button>
             </GridItem>

@@ -7,12 +7,11 @@ import logging
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 import calendar
-
-logger = logging.getLogger(__name__)
 from database import DatabaseManager
-import logging
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+
+logger = logging.getLogger(__name__)
 
 str_channel_bp = Blueprint('str_channel', __name__)
 

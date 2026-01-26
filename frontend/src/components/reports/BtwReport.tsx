@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Alert,
+  AlertIcon,
   Box,
   Button,
   Card,
@@ -15,12 +17,16 @@ import {
 } from '@chakra-ui/react';
 import { buildApiUrl } from '../../config';
 import { authenticatedGet, authenticatedPost } from '../../services/apiService';
+import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
+import { useTenant } from '../../context/TenantContext';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createBtwFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 
 const BtwReport: React.FC = () => {
+  const { currentTenant } = useTenant();
+  
   const [btwFilters, setBtwFilters] = useState({
-    administration: 'GoodwinSolutions',
+    administration: currentTenant || 'GoodwinSolutions',
     year: new Date().getFullYear().toString(),
     quarter: '1'
   });
@@ -31,7 +37,7 @@ const BtwReport: React.FC = () => {
 
   const fetchBtwAvailableYears = async () => {
     try {
-      const response = await authenticatedGet(buildApiUrl('/api/reports/available-years'));
+      const response = await tenantAwareGet('/api/reports/available-years');
       const data = await response.json();
       if (data.success) {
         setBtwAvailableYears(data.years);
@@ -42,9 +48,18 @@ const BtwReport: React.FC = () => {
   };
 
   const generateBtwReport = async () => {
+    // Validate tenant selection before processing
+    try {
+      requireTenant();
+    } catch (error) {
+      console.error('Tenant validation failed:', error);
+      alert('Error: No tenant selected. Please select a tenant first.');
+      return;
+    }
+
     setBtwLoading(true);
     try {
-      const response = await authenticatedPost(
+      const response = await tenantAwarePost(
         '/api/btw/generate-report',
         btwFilters
       );
@@ -56,9 +71,11 @@ const BtwReport: React.FC = () => {
         setBtwTransaction(data.transaction);
       } else {
         console.error('BTW report generation failed:', data.error);
+        alert('Failed to generate BTW report: ' + data.error);
       }
     } catch (err) {
       console.error('Error generating BTW report:', err);
+      alert('Error generating BTW report: ' + err);
     } finally {
       setBtwLoading(false);
     }
@@ -67,9 +84,18 @@ const BtwReport: React.FC = () => {
   const saveBtwTransaction = async () => {
     if (!btwTransaction) return;
     
+    // Validate tenant selection before processing
+    try {
+      requireTenant();
+    } catch (error) {
+      console.error('Tenant validation failed:', error);
+      alert('Error: No tenant selected. Please select a tenant first.');
+      return;
+    }
+    
     setBtwLoading(true);
     try {
-      const response = await authenticatedPost(
+      const response = await tenantAwarePost(
         '/api/btw/save-transaction',
         { transaction: btwTransaction }
       );
@@ -79,7 +105,7 @@ const BtwReport: React.FC = () => {
       if (data.success) {
         const filename = `BTW_${btwFilters.administration}_${btwFilters.year}_Q${btwFilters.quarter}.html`;
         
-        const uploadResponse = await authenticatedPost(
+        const uploadResponse = await tenantAwarePost(
           '/api/btw/upload-report',
           { 
             html_content: btwReport, 
@@ -109,8 +135,33 @@ const BtwReport: React.FC = () => {
     fetchBtwAvailableYears();
   }, []);
 
+  // Auto-refresh on tenant change
+  useEffect(() => {
+    if (currentTenant) {
+      // Update filters with new tenant
+      setBtwFilters(prev => ({
+        ...prev,
+        administration: currentTenant
+      }));
+      
+      // Clear previous tenant data
+      setBtwReport('');
+      setBtwTransaction(null);
+      
+      // Refresh available years for new tenant
+      fetchBtwAvailableYears();
+    }
+  }, [currentTenant]);
+
   return (
     <VStack spacing={4} align="stretch">
+      {!currentTenant && (
+        <Alert status="warning">
+          <AlertIcon />
+          No tenant selected. Please select a tenant first to generate BTW reports.
+        </Alert>
+      )}
+
       <UnifiedAdminYearFilter
         {...createBtwFilterAdapter(btwFilters, setBtwFilters, btwAvailableYears)}
         size="sm"
@@ -140,6 +191,7 @@ const BtwReport: React.FC = () => {
                 colorScheme="orange" 
                 onClick={generateBtwReport} 
                 isLoading={btwLoading}
+                isDisabled={!currentTenant}
                 size="sm"
               >
                 Generate BTW Report
@@ -159,6 +211,7 @@ const BtwReport: React.FC = () => {
                   colorScheme="green" 
                   onClick={saveBtwTransaction}
                   isLoading={btwLoading}
+                  isDisabled={!currentTenant}
                   size="sm"
                 >
                   Save Transaction & Upload Report
