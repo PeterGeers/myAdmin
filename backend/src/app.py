@@ -1455,7 +1455,8 @@ def banking_check_sequence(user_email, user_roles):
 
 @app.route('/api/banking/check-revolut-balance', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_check_revolut_balance(user_email, user_roles):
+@tenant_required()
+def banking_check_revolut_balance(user_email, user_roles, tenant, user_tenants):
     """Check Revolut balance gaps by comparing calculated vs Ref3 balance"""
     try:
         processor = BankingProcessor(test_mode=flag)

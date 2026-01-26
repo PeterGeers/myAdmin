@@ -1,14 +1,13 @@
+logger = logging.getLogger(__name__)
+
 """
 STR Channel Revenue Routes
 Handles monthly STR channel revenue calculations based on account 1600 transactions
 """
 
-import logging
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 import calendar
-
-logger = logging.getLogger(__name__)
 from database import DatabaseManager
 import logging
 from auth.cognito_utils import cognito_required
@@ -135,8 +134,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         
     except Exception as e:
         logging.error(f"Error calculating STR channel revenue: {str(e)}")
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @str_channel_bp.route('/save', methods=['POST'])
 @cognito_required(required_permissions=['bookings_create'])
@@ -214,8 +212,7 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
         
     except Exception as e:
         logging.error(f"Error saving STR channel transactions: {str(e)}")
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @str_channel_bp.route('/preview', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -284,5 +281,4 @@ def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
         
     except Exception as e:
         logging.error(f"Error previewing STR channel data: {str(e)}")
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500

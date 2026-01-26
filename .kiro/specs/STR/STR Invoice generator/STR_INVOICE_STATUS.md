@@ -47,20 +47,19 @@ The backend is working perfectly, but the frontend is not showing search results
 4. **Frontend not running** - Frontend dev server might not be started
 5. **Proxy not working** - Frontend proxy to backend might not be configured correctly
 
-## 🔧 Diagnostic Tools Created
+## 🔧 Alternative Diagnostic Methods
 
-### 1. API Test Page
+### 1. Direct API Testing
 
-A diagnostic web page has been created to test the API directly in the browser:
+You can test the API directly using curl or a REST client:
 
-**URL**: `http://localhost:5000/api/str-invoice/test`
+```bash
+# Test search endpoint
+curl "http://localhost:5000/api/str-invoice/search-booking?query=Davies"
 
-This page allows you to:
-
-- Test search by guest name
-- Test search by reservation code
-- Check database connectivity
-- Simulate frontend API calls
+# Test with authentication headers if needed
+curl -H "Authorization: Bearer YOUR_TOKEN" "http://localhost:5000/api/str-invoice/search-booking?query=Davies"
+```
 
 ### 2. Test Scripts
 
@@ -70,11 +69,14 @@ This page allows you to:
 
 ## 📋 Next Steps for User
 
-### Step 1: Open the Diagnostic Page
+### Step 1: Test API Directly
 
 1. Make sure backend is running: `cd backend && python src/app.py`
-2. Open browser and go to: `http://localhost:5000/api/str-invoice/test`
-3. Click the test buttons to verify API is working
+2. Use curl or a REST client to test the API:
+   ```bash
+   curl "http://localhost:5000/api/str-invoice/search-booking?query=Davies"
+   ```
+3. Verify the API returns the expected JSON response
 
 ### Step 2: Check Frontend
 
@@ -94,7 +96,7 @@ Please provide:
 1. Screenshot of browser console (F12 → Console tab)
 2. Screenshot of network request (F12 → Network tab)
 3. What happens when you click Search button?
-4. Does the diagnostic page work? (`http://localhost:5000/api/str-invoice/test`)
+4. Output from direct API testing using curl or REST client
 
 ## 🎯 Expected Behavior
 

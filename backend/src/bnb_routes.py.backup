@@ -79,8 +79,7 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': results})
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-channel-data', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -151,8 +150,7 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': results})
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-actuals', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -201,8 +199,7 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-filter-options', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -253,8 +250,7 @@ def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-violin-data', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -339,8 +335,7 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': results})
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-returning-guests', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -375,8 +370,7 @@ def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': results})
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-guest-bookings', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -415,8 +409,7 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': results})
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @bnb_bp.route('/bnb-table', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
@@ -471,5 +464,4 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
         
         return jsonify({'success': True, 'data': results})
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500

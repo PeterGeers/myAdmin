@@ -24,15 +24,12 @@ interface TenantSelectorProps {
  * Persists selection to localStorage for convenience.
  */
 export default function TenantSelector({ size = 'sm', showLabel = true }: TenantSelectorProps) {
-  const { currentTenant, availableTenants, setCurrentTenant } = useTenant();
+  const { currentTenant, availableTenants, setCurrentTenant, hasMultipleTenants } = useTenant();
 
-  // Don't render if user has no tenants at all
-  if (!availableTenants || availableTenants.length === 0) {
+  // Don't render if user has no tenants at all or only has single tenant
+  if (!availableTenants || availableTenants.length === 0 || !hasMultipleTenants) {
     return null;
   }
-
-  // For single tenant, show but disable the selector
-  const isSingleTenant = availableTenants.length === 1;
 
   return (
     <HStack spacing={2}>
@@ -53,8 +50,6 @@ export default function TenantSelector({ size = 'sm', showLabel = true }: Tenant
         _focus={{ bg: 'gray.600', borderColor: 'orange.400' }}
         width="auto"
         minW="150px"
-        isDisabled={isSingleTenant}
-        cursor={isSingleTenant ? 'default' : 'pointer'}
       >
         {availableTenants.map((tenant) => (
           <option key={tenant} value={tenant}>

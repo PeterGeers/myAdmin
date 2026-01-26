@@ -143,9 +143,23 @@ pytest --cov=src tests/
 
 ## Documentation
 
+- **Complete Documentation Index**: `docs/README.md`
 - **Setup Guides**: `docs/guides/`
 - **Investigation Summaries**: `docs/summaries/`
+- **Security Analysis**: `docs/code_review_summary.md`
+- **Performance Optimization**: `docs/performance_optimization_recommendations.sql`
 - **API Documentation**: Available at `/api/docs` when server is running
+
+### Security & Code Quality
+
+- **Security Analysis Tools**: `scripts/security_analysis/`
+- **Latest Security Review**: `docs/code_review_summary.md`
+- **SQL Security Report**: `docs/sql_security_report.txt`
+
+### Performance
+
+- **Database Optimization Guide**: `docs/performance_optimization_recommendations.sql`
+- **Performance Analysis Tools**: `scripts/security_analysis/tenant_performance_analysis.py`
 
 ## Key Features
 

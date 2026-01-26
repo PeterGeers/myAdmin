@@ -80,8 +80,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @str_invoice_bp.route('/generate-invoice', methods=['POST'])
 @cognito_required(required_permissions=['str_create'])
@@ -149,8 +148,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 def calculate_invoice_details(booking):
     """Calculate all invoice details from booking data"""
@@ -370,7 +368,7 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
                     results.append({
                         'template': tenant_template_name,
                         'status': 'error',
-                        'error': 'Internal server error',
+                        'error': str(e),
                         'tenant': tenant
                     })
             else:
@@ -390,5 +388,4 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500

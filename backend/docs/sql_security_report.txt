@@ -1,0 +1,426 @@
+================================================================================
+SQL INJECTION SECURITY ANALYSIS REPORT
+================================================================================
+
+SUMMARY:
+  Files analyzed: 3
+  Total queries: 63
+  Vulnerabilities: 53
+  Warnings: 0
+  Safe queries: 10
+
+FILE: backend/src/bnb_routes.py
+------------------------------------------------------------
+🚨 VULNERABILITIES:
+  Line 14: WARNING
+    Query: """Get BNB data summarized by listing"""
+    try:
+        years = request.args.get('years', '').spli...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 68: WARNING
+    Query: """
+        
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        
+    ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 139: WARNING
+    Query: """
+        
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        
+    ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 205: VULNERABLE
+    Query: """Get available filter options for BNB data"""
+    try:
+        db = DatabaseManager(test_mode=Fals...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 235: WARNING
+    Query: """
+        cursor.execute(channels_query, user_tenants)
+        channels = [row[0] for row in curso...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 310: VULNERABLE
+    Query: """
+        else:  # nightsPerStay
+            query = f"""
+            SELECT listing, 
+           ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 341: VULNERABLE
+    Query: """Get returning guests summary"""
+    try:
+        db = DatabaseManager(test_mode=False)
+        co...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 376: VULNERABLE
+    Query: """Get all bookings for a specific guest"""
+    try:
+        guest_name = request.args.get('guestNam...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 415: VULNERABLE
+    Query: """Get BNB table data with PowerBI-style filters"""
+    try:
+        from datetime import datetime
+ ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 57: WARNING
+    Query: f"""
+        SELECT {', '.join(select_fields)},
+               SUM(amountGross) as amountGross,
+    ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 128: WARNING
+    Query: f"""
+        SELECT {', '.join(select_fields)},
+               SUM(amountGross) as amountGross,
+    ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 179: WARNING
+    Query: f"""
+            SELECT year, SUM(amountNett) as total_amount
+            FROM bnb 
+            {whe...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 225: WARNING
+    Query: f"""
+            SELECT DISTINCT 
+                CASE 
+                    WHEN LOWER(channel) = 'b...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 298: WARNING
+    Query: f"""
+            SELECT listing, 
+                   CASE 
+                       WHEN LOWER(channel...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 312: WARNING
+    Query: f"""
+            SELECT listing, 
+                   CASE 
+                       WHEN LOWER(channel...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 351: WARNING
+    Query: f"""
+            SELECT guestName, COUNT(*) as aantal
+            FROM bnb 
+            WHERE guestN...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 389: WARNING
+    Query: f"""
+            SELECT checkinDate, checkoutDate, channel, listing, nights, 
+                   amo...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 446: WARNING
+    Query: f"""
+            SELECT checkinDate, checkoutDate, channel, listing, nights, guests,
+               ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+
+  Line 57: VULNERABLE
+    Query: "
+        SELECT {', '.join(select_fields)},
+               SUM(amountGross) as amountGross,
+       ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 128: VULNERABLE
+    Query: "
+        SELECT {', '.join(select_fields)},
+               SUM(amountGross) as amountGross,
+       ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 179: VULNERABLE
+    Query: "
+            SELECT year, SUM(amountNett) as total_amount
+            FROM bnb 
+            {where_...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 215: VULNERABLE
+    Query: "SELECT DISTINCT year FROM bnb WHERE year IS NOT NULL AND administration IN ({placeholders}) ORDER B...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 220: VULNERABLE
+    Query: "SELECT DISTINCT listing FROM bnb WHERE listing IS NOT NULL AND administration IN ({placeholders}) O...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 225: VULNERABLE
+    Query: "
+            SELECT DISTINCT 
+                CASE 
+                    WHEN LOWER(channel) = 'book...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 298: VULNERABLE
+    Query: "
+            SELECT listing, 
+                   CASE 
+                       WHEN LOWER(channel) =...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 312: VULNERABLE
+    Query: "
+            SELECT listing, 
+                   CASE 
+                       WHEN LOWER(channel) =...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 351: VULNERABLE
+    Query: "
+            SELECT guestName, COUNT(*) as aantal
+            FROM bnb 
+            WHERE guestName...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 389: VULNERABLE
+    Query: "
+            SELECT checkinDate, checkoutDate, channel, listing, nights, 
+                   amount...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 446: VULNERABLE
+    Query: "
+            SELECT checkinDate, checkoutDate, channel, listing, nights, guests,
+                  ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 47: WARNING
+    Query: '] * len(channel_list))
+            where_conditions.append(f"channel IN ({placeholders})")
+        ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 58: VULNERABLE
+    Query: '.join(select_fields)},
+               SUM(amountGross) as amountGross,
+               SUM(amountNet...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 118: WARNING
+    Query: '] * len(channel_list))
+            where_conditions.append(f"channel IN ({placeholders})")
+        ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 129: VULNERABLE
+    Query: '.join(select_fields)},
+               SUM(amountGross) as amountGross,
+               SUM(amountNet...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 173: WARNING
+    Query: '] * len(years))
+            where_conditions.append(f"year IN ({placeholders})")
+            params...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 212: VULNERABLE
+    Query: '] * len(user_tenants))
+        
+        # Get distinct years
+        years_query = f"SELECT DISTINC...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 289: WARNING
+    Query: '] * len(channel_list))
+            where_conditions.append(f"channel IN ({placeholders})")
+        ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 302: VULNERABLE
+    Query: '
+                       ELSE channel 
+                   END as channel, 
+                   year,
+...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 387: WARNING
+    Query: '] * len(user_tenants))
+        
+        query = f"""
+            SELECT checkinDate, checkoutDate, ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 440: VULNERABLE
+    Query: ':
+                where_parts.append(f"{key} = %s")
+                params.append(value)
+        
+ ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+✅ SAFE QUERIES:
+  Line 54: Properly parameterized
+  Line 125: Properly parameterized
+  Line 293: Properly parameterized
+  Line 296: Properly parameterized
+  Line 348: Properly parameterized
+
+
+FILE: backend/src/str_channel_routes.py
+------------------------------------------------------------
+🚨 VULNERABILITIES:
+  Line 1: VULNERABLE
+    Query: """
+STR Channel Revenue Routes
+Handles monthly STR channel revenue calculations based on account 160...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 141: WARNING
+    Query: """Save STR channel revenue transactions to database"""
+    try:
+        data = request.get_json()
+ ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Possible string concatenation in SQL query
+
+  Line 176: WARNING
+    Query: f"""
+        INSERT INTO {table_name} 
+        (TransactionDate, TransactionNumber, TransactionDescr...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses f-string - ensure no user input is interpolated
+    Issue: Possible string concatenation in SQL query
+
+  Line 141: VULNERABLE
+    Query: "
+    try:
+        data = request.get_json()
+        transactions = data.get('transactions', [])
+   ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 176: VULNERABLE
+    Query: "
+        INSERT INTO {table_name} 
+        (TransactionDate, TransactionNumber, TransactionDescript...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 181: VULNERABLE
+    Query: "
+        
+        saved_count = 0
+        for transaction in transactions:
+            cursor.execu...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 30: VULNERABLE
+    Query: '}), 403
+        
+        # Calculate last day of month
+        last_day = calendar.monthrange(year,...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 170: VULNERABLE
+    Query: '
+        
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Inse...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 228: VULNERABLE
+    Query: '}), 403
+        
+        # Calculate last day of month
+        last_day = calendar.monthrange(year,...
+    Issue: Uses string formatting which can lead to SQL injection
+
+✅ SAFE QUERIES:
+  Line 48: Properly parameterized
+  Line 243: Properly parameterized
+
+
+FILE: backend/src/str_invoice_routes.py
+------------------------------------------------------------
+🚨 VULNERABILITIES:
+  Line 15: VULNERABLE
+    Query: """Search for booking by guest name or reservation code - filtered by tenant and date range"""
+    t...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 86: VULNERABLE
+    Query: """Generate STR invoice for a specific booking"""
+    try:
+        data = request.get_json()
+       ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 101: VULNERABLE
+    Query: "
+        SELECT amountGross, checkinDate, checkoutDate, guestName, channel, 
+               listing...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 33: VULNERABLE
+    Query: ')
+        
+        db = DatabaseManager(test_mode=False)
+        connection = db.get_connection()
+ ...
+    Issue: Uses string formatting which can lead to SQL injection
+
+  Line 94: VULNERABLE
+    Query: '}), 400
+        
+        # Get booking details
+        db = DatabaseManager(test_mode=False)
+      ...
+    Issue: Uses string formatting which can lead to SQL injection
+    Issue: Uses .format() method which can be vulnerable
+
+✅ SAFE QUERIES:
+  Line 54: Properly parameterized
+  Line 41: Properly parameterized
+  Line 54: Properly parameterized
+
+
+SECURITY RECOMMENDATIONS:
+========================================
+1. Always use parameterized queries with %s placeholders
+2. Never use string formatting (.format(), %, f-strings) with user input
+3. Validate and sanitize all user inputs before database operations
+4. Use whitelist validation for dynamic table/column names
+5. Implement proper error handling that doesn't leak sensitive information

@@ -29,6 +29,12 @@ tags:
     description: Banking data processing
   - name: STR
     description: Short-Term Rental management
+  - name: BNB
+    description: Bed & Breakfast reporting and analytics
+  - name: STR-Channel
+    description: STR channel transaction management
+  - name: STR-Invoice
+    description: STR invoice generation and management
   - name: Pricing
     description: Pricing optimization
   - name: BTW
@@ -338,6 +344,18 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from AWS Cognito authentication
+    TenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant
+      description: Tenant identifier for multi-tenant operations
+
   schemas:
     # Standard Response Formats
     StandardResponse:
@@ -646,3 +664,786 @@ components:
           items:
             type: string
           example: ["Main", "Secondary"]
+
+    # Tenant Filtering Schemas
+    TenantAccessDeniedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Access denied to administration: UnauthorizedTenant"
+        status:
+          type: string
+          example: "error"
+
+    # BNB Response Schemas
+    BNBListingDataResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              listing:
+                type: string
+                example: "Child Friendly"
+              channel:
+                type: string
+                example: "Airbnb"
+              year:
+                type: string
+                example: "2024"
+              revenue:
+                type: number
+                example: 15000.50
+              bookings:
+                type: integer
+                example: 45
+              administration:
+                type: string
+                example: "PeterPrive"
+
+    BNBChannelDataResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              channel:
+                type: string
+                example: "Airbnb"
+              revenue:
+                type: number
+                example: 25000.75
+              bookings:
+                type: integer
+                example: 78
+              administration:
+                type: string
+                example: "PeterPrive"
+
+    BNBTableDataResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              listing:
+                type: string
+                example: "Child Friendly"
+              channel:
+                type: string
+                example: "Airbnb"
+              guestName:
+                type: string
+                example: "John Doe"
+              reservationCode:
+                type: string
+                example: "ABC123"
+              checkIn:
+                type: string
+                format: date
+                example: "2024-06-15"
+              checkOut:
+                type: string
+                format: date
+                example: "2024-06-20"
+              revenue:
+                type: number
+                example: 750.00
+              administration:
+                type: string
+                example: "PeterPrive"
+
+    BNBGuestBookingsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              guestName:
+                type: string
+                example: "John Doe"
+              totalBookings:
+                type: integer
+                example: 3
+              totalRevenue:
+                type: number
+                example: 2250.00
+              lastBooking:
+                type: string
+                format: date
+                example: "2024-08-15"
+              administration:
+                type: string
+                example: "PeterPrive"
+
+    BNBActualsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+                example: "2024-06"
+              actualRevenue:
+                type: number
+                example: 8500.00
+              plannedRevenue:
+                type: number
+                example: 9000.00
+              variance:
+                type: number
+                example: -500.00
+              administration:
+                type: string
+                example: "PeterPrive"
+
+    BNBFilterOptionsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        years:
+          type: array
+          items:
+            type: string
+          example: ["2023", "2024", "2025"]
+        listings:
+          type: array
+          items:
+            type: string
+          example: ["Child Friendly", "Adult Only", "Pet Friendly"]
+        channels:
+          type: array
+          items:
+            type: string
+          example: ["Airbnb", "Booking.com", "Direct"]
+        note:
+          type: string
+          example: "Filter options are limited to user's accessible tenants"
+
+    BNBViolinDataResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+                example: "Revenue Distribution"
+              values:
+                type: array
+                items:
+                  type: number
+                example: [500, 750, 1000, 1250, 1500]
+              administration:
+                type: string
+                example: "PeterPrive"
+
+    BNBReturningGuestsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            totalGuests:
+              type: integer
+              example: 150
+            returningGuests:
+              type: integer
+              example: 45
+            returnRate:
+              type: number
+              example: 30.0
+            topReturningGuests:
+              type: array
+              items:
+                type: object
+                properties:
+                  guestName:
+                    type: string
+                    example: "John Doe"
+                  bookingCount:
+                    type: integer
+                    example: 5
+                  totalRevenue:
+                    type: number
+                    example: 3750.00
+
+    # STR Channel Schemas
+    STRChannelSaveRequest:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              Administration:
+                type: string
+                example: "PeterPrive"
+              TransactionDate:
+                type: string
+                format: date
+                example: "2024-06-15"
+              Amount:
+                type: number
+                example: 750.00
+              Description:
+                type: string
+                example: "Airbnb booking payment"
+              ReferenceNumber:
+                type: string
+                example: "REF123456"
+
+    STRChannelSaveResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        savedTransactions:
+          type: integer
+          example: 15
+        message:
+          type: string
+          example: "Successfully saved 15 transactions"
+
+    # STR Invoice Schemas
+    STRInvoiceGenerateRequest:
+      type: object
+      properties:
+        bookingId:
+          type: string
+          example: "booking_123"
+        administration:
+          type: string
+          example: "PeterPrive"
+        templateType:
+          type: string
+          enum: ["nl", "en"]
+          example: "nl"
+
+    STRInvoiceGenerateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        invoiceUrl:
+          type: string
+          example: "https://drive.google.com/file/d/abc123/view"
+        invoiceId:
+          type: string
+          example: "INV-2024-001"
+        bookingId:
+          type: string
+          example: "booking_123"
+        administration:
+          type: string
+          example: "PeterPrive"
+
+    STRTemplateUploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Template upload completed for tenant: PeterPrive"
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              template:
+                type: string
+                example: "PeterPrive_str_invoice_nl.html"
+              status:
+                type: string
+                example: "uploaded"
+              url:
+                type: string
+                example: "https://drive.google.com/file/d/abc123/view"
+              tenant:
+                type: string
+                example: "PeterPrive"
+        tenant:
+          type: string
+          example: "PeterPrive"
+        tenant_folder_url:
+          type: string
+          example: "https://drive.google.com/drive/folders/xyz789"
+
+  # BNB Endpoints
+  /bnb/bnb-listing-data:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB listing data
+      description: Retrieve BNB listing performance data filtered by user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: year
+          in: query
+          description: Year filter
+          required: false
+          schema:
+            type: string
+            example: "2024"
+        - name: listing
+          in: query
+          description: Listing filter
+          required: false
+          schema:
+            type: string
+            example: "Child Friendly"
+        - name: channel
+          in: query
+          description: Channel filter
+          required: false
+          schema:
+            type: string
+            example: "Airbnb"
+      responses:
+        '200':
+          description: BNB listing data filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBListingDataResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /bnb/bnb-channel-data:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB channel data
+      description: Retrieve BNB channel performance data filtered by user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: year
+          in: query
+          description: Year filter
+          required: false
+          schema:
+            type: string
+            example: "2024"
+        - name: listing
+          in: query
+          description: Listing filter
+          required: false
+          schema:
+            type: string
+            example: "Child Friendly"
+        - name: channel
+          in: query
+          description: Channel filter
+          required: false
+          schema:
+            type: string
+            example: "Airbnb"
+      responses:
+        '200':
+          description: BNB channel data filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBChannelDataResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /bnb/bnb-table:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB table data
+      description: Retrieve BNB table view data filtered by user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: year
+          in: query
+          description: Year filter
+          required: false
+          schema:
+            type: string
+            example: "2024"
+        - name: listing
+          in: query
+          description: Listing filter
+          required: false
+          schema:
+            type: string
+            example: "Child Friendly"
+        - name: channel
+          in: query
+          description: Channel filter
+          required: false
+          schema:
+            type: string
+            example: "Airbnb"
+      responses:
+        '200':
+          description: BNB table data filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBTableDataResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /bnb/bnb-guest-bookings:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB guest bookings
+      description: Retrieve BNB guest booking data filtered by user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: year
+          in: query
+          description: Year filter
+          required: false
+          schema:
+            type: string
+            example: "2024"
+        - name: listing
+          in: query
+          description: Listing filter
+          required: false
+          schema:
+            type: string
+            example: "Child Friendly"
+        - name: channel
+          in: query
+          description: Channel filter
+          required: false
+          schema:
+            type: string
+            example: "Airbnb"
+      responses:
+        '200':
+          description: BNB guest bookings filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBGuestBookingsResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /bnb/bnb-actuals:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB actuals data
+      description: Retrieve BNB actual performance data filtered by user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: year
+          in: query
+          description: Year filter
+          required: false
+          schema:
+            type: string
+            example: "2024"
+        - name: listing
+          in: query
+          description: Listing filter
+          required: false
+          schema:
+            type: string
+            example: "Child Friendly"
+        - name: channel
+          in: query
+          description: Channel filter
+          required: false
+          schema:
+            type: string
+            example: "Airbnb"
+      responses:
+        '200':
+          description: BNB actuals data filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBActualsResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /bnb/bnb-filter-options:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB filter options
+      description: Retrieve available filter options (years, listings, channels) for user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      responses:
+        '200':
+          description: BNB filter options filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBFilterOptionsResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /bnb/bnb-violin-data:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB violin plot data
+      description: Retrieve BNB violin plot data filtered by user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: year
+          in: query
+          description: Year filter
+          required: false
+          schema:
+            type: string
+            example: "2024"
+        - name: listing
+          in: query
+          description: Listing filter
+          required: false
+          schema:
+            type: string
+            example: "Child Friendly"
+        - name: channel
+          in: query
+          description: Channel filter
+          required: false
+          schema:
+            type: string
+            example: "Airbnb"
+      responses:
+        '200':
+          description: BNB violin plot data filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBViolinDataResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /bnb/bnb-returning-guests:
+    get:
+      tags:
+        - BNB
+      summary: Get BNB returning guests data
+      description: Retrieve BNB returning guests analysis filtered by user's accessible tenants
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: year
+          in: query
+          description: Year filter
+          required: false
+          schema:
+            type: string
+            example: "2024"
+        - name: listing
+          in: query
+          description: Listing filter
+          required: false
+          schema:
+            type: string
+            example: "Child Friendly"
+        - name: channel
+          in: query
+          description: Channel filter
+          required: false
+          schema:
+            type: string
+            example: "Airbnb"
+      responses:
+        '200':
+          description: BNB returning guests data filtered by tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BNBReturningGuestsResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  # STR Channel Endpoints
+  /str-channel/save:
+    post:
+      tags:
+        - STR-Channel
+      summary: Save STR channel transactions
+      description: Save STR channel transactions with tenant validation
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/STRChannelSaveRequest'
+      responses:
+        '200':
+          description: Transactions saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/STRChannelSaveResponse'
+        '403':
+          description: Access denied - transactions contain unauthorized tenant data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  # STR Invoice Endpoints
+  /str-invoice/generate-invoice:
+    post:
+      tags:
+        - STR-Invoice
+      summary: Generate STR invoice
+      description: Generate invoice for STR booking with tenant validation
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/STRInvoiceGenerateRequest'
+      responses:
+        '200':
+          description: Invoice generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/STRInvoiceGenerateResponse'
+        '403':
+          description: Access denied - booking belongs to unauthorized tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+  /str-invoice/upload-template:
+    post:
+      tags:
+        - STR-Invoice
+      summary: Upload STR invoice template
+      description: Upload tenant-specific STR invoice templates to Google Drive
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                templates:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Template files to upload
+      responses:
+        '200':
+          description: Templates uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/STRTemplateUploadResponse'
+        '403':
+          description: Access denied - insufficient tenant permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAccessDeniedResponse'
