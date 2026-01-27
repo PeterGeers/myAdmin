@@ -1,0 +1,4 @@
+id,administration,last_analysis_date,transactions_analyzed,patterns_discovered,date_range_from,date_range_to,created_at,updated_at
+12,PeterPrive,"2026-01-26 20:44:59",3109,1048,2024-01-27,2026-01-26,"2025-12-19 16:33:27","2026-01-26 20:44:59"
+99,GoodwinSolutions,"2026-01-26 20:31:32",2698,600,2024-01-27,2026-01-26,"2026-01-21 22:12:08","2026-01-26 20:31:32"
+105,TestIncremental,"2026-01-21 22:13:42",17,0,2024-01-22,2026-01-21,"2026-01-21 22:13:42","2026-01-21 22:13:42"

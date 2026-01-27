@@ -229,7 +229,7 @@ class PatternAnalyzer:
         # Calculate confidence scores and filter patterns
         filtered_patterns = {}
         for key, pattern in debet_patterns.items():
-            if pattern['occurrences'] >= 1:  # Minimum 1 occurrence (learn from first entry)
+            if pattern['occurrences'] >= 2:  # Minimum 2 occurrences
                 pattern['confidence'] = min(pattern['occurrences'] / 10.0, 1.0)  # Max confidence 1.0
                 pattern['reference_numbers'] = list(pattern['reference_numbers'])
                 pattern['avg_amount'] = sum(pattern['amounts']) / len(pattern['amounts'])
@@ -293,7 +293,7 @@ class PatternAnalyzer:
         # Calculate confidence scores and filter patterns
         filtered_patterns = {}
         for key, pattern in credit_patterns.items():
-            if pattern['occurrences'] >= 1:  # Minimum 1 occurrence (learn from first entry)
+            if pattern['occurrences'] >= 2:  # Minimum 2 occurrences
                 pattern['confidence'] = min(pattern['occurrences'] / 10.0, 1.0)  # Max confidence 1.0
                 pattern['reference_numbers'] = list(pattern['reference_numbers'])
                 pattern['avg_amount'] = sum(pattern['amounts']) / len(pattern['amounts'])
@@ -722,8 +722,7 @@ class PatternAnalyzer:
             
             # Apply debet patterns
             if not updated_tx.get('Debet'):
-                # Use reference_patterns (verb patterns) for debet prediction
-                debet_prediction = self._predict_debet(updated_tx, patterns['reference_patterns'], administration)
+                debet_prediction = self._predict_debet(updated_tx, patterns['debet_patterns'], administration)
                 if debet_prediction:
                     updated_tx['Debet'] = debet_prediction['value']
                     updated_tx['_debet_confidence'] = debet_prediction['confidence']
@@ -732,8 +731,7 @@ class PatternAnalyzer:
             
             # Apply credit patterns
             if not updated_tx.get('Credit'):
-                # Use reference_patterns (verb patterns) for credit prediction
-                credit_prediction = self._predict_credit(updated_tx, patterns['reference_patterns'], administration)
+                credit_prediction = self._predict_credit(updated_tx, patterns['credit_patterns'], administration)
                 if credit_prediction:
                     updated_tx['Credit'] = credit_prediction['value']
                     updated_tx['_credit_confidence'] = credit_prediction['confidence']
@@ -791,15 +789,8 @@ class PatternAnalyzer:
             # No valid verb - leave empty for manual fixing
             return None
         
-        # Parse compound verb to get company name only
-        is_compound = '|' in verb
-        if is_compound:
-            verb_company = verb.split('|', 1)[0]
-        else:
-            verb_company = verb
-        
-        # Look for exact pattern match: Administration + Credit (bank account) + Verb Company
-        pattern_key = f"{administration}_{credit}_{verb_company}"
+        # Look for exact pattern match: Administration + Credit (bank account) + Verb
+        pattern_key = f"{administration}_{credit}_{verb}"
         
         # Get reference patterns (which contain verb patterns)
         patterns = self.get_filtered_patterns(administration)
@@ -823,7 +814,7 @@ class PatternAnalyzer:
             if (pattern.get('verb') == verb and 
                 pattern.get('credit_account') == credit and
                 pattern.get('administration') == administration and
-                pattern.get('occurrences', 0) >= 1):  # Accept single occurrence patterns
+                pattern.get('occurrences', 0) >= 2):  # Require multiple occurrences
                 matching_patterns.append((key, pattern))
         
         if matching_patterns:
@@ -868,15 +859,8 @@ class PatternAnalyzer:
             # No valid verb - leave empty for manual fixing
             return None
         
-        # Parse compound verb to get company name only
-        is_compound = '|' in verb
-        if is_compound:
-            verb_company = verb.split('|', 1)[0]
-        else:
-            verb_company = verb
-        
-        # Look for exact pattern match: Administration + Debet (bank account) + Verb Company
-        pattern_key = f"{administration}_{debet}_{verb_company}"
+        # Look for exact pattern match: Administration + Debet (bank account) + Verb
+        pattern_key = f"{administration}_{debet}_{verb}"
         
         # Get reference patterns (which contain verb patterns)
         patterns = self.get_filtered_patterns(administration)
@@ -900,7 +884,7 @@ class PatternAnalyzer:
             if (pattern.get('verb') == verb and 
                 pattern.get('debet_account') == debet and
                 pattern.get('administration') == administration and
-                pattern.get('occurrences', 0) >= 1):  # Accept single occurrence patterns
+                pattern.get('occurrences', 0) >= 2):  # Require multiple occurrences
                 matching_patterns.append((key, pattern))
         
         if matching_patterns:
@@ -992,7 +976,7 @@ class PatternAnalyzer:
                 matching_patterns.append((key, pattern, 'exact_verb', 1.0))
             elif is_compound and pattern.get('verb_company') == verb_company and pattern.get('is_compound'):
                 # Both compound: same company, different reference (high confidence only)
-                if pattern.get('occurrences', 0) >= 2:  # Require 2+ occurrences for compound matching
+                if pattern.get('occurrences', 0) >= 3:  # Require multiple occurrences
                     matching_patterns.append((key, pattern, 'company_match', 0.8))
         
         if matching_patterns:
@@ -1336,6 +1320,11 @@ class PatternAnalyzer:
         
         # Return the best match
         best_score, best_key, best_pattern = scored_patterns[0]
+        
+        # Log conflict resolution for debugging
+        print(f"🔀 Resolved pattern conflict for verb '{best_pattern.get('verb')}': "
+              f"Selected {best_pattern.get('reference_number')} "
+              f"(score: {best_score:.1f}, {len(matching_patterns)} alternatives)")
         
         return (best_key, best_pattern)
     

@@ -1,0 +1,17 @@
+Field,Type,Null,Key,Default,Extra
+id,int,NO,PRI,NULL,auto_increment
+administration,varchar(100),NO,MUL,NULL,
+bank_account,varchar(50),NO,,NULL,
+verb,varchar(255),NO,MUL,NULL,
+verb_company,varchar(255),YES,,NULL,
+verb_reference,varchar(255),YES,,NULL,
+is_compound,tinyint(1),YES,,0,
+reference_number,varchar(255),YES,,NULL,
+debet_account,varchar(50),YES,,NULL,
+credit_account,varchar(50),YES,,NULL,
+occurrences,int,YES,,1,
+confidence,"decimal(5,4)",YES,,NULL,
+last_seen,date,YES,MUL,NULL,
+sample_description,text,YES,,NULL,
+created_at,timestamp,YES,,CURRENT_TIMESTAMP,DEFAULT_GENERATED
+updated_at,timestamp,YES,,CURRENT_TIMESTAMP,"DEFAULT_GENERATED on update CURRENT_TIMESTAMP"

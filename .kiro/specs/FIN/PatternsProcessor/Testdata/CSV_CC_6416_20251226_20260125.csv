@@ -1,0 +1,4 @@
+"Tegenrekening IBAN","Munt","Creditcard Nummer","Productnaam","Creditcard Regel1","Creditcard Regel2","Transactiereferentie","Datum","Bedrag","Omschrijving","Oorspr bedrag","Oorspr munt","Koers"
+"NL80RABO0107936917","EUR","6416","Rabo BusinessCard Visa","P.J.A. GEERS","GOODWIN SOLUTIONS B.V","0015000000003","2025-12-28","+30,17","Verrekening vorig overzicht","","",""
+"NL80RABO0107936917","EUR","6416","Rabo BusinessCard Visa","P.J.A. GEERS","GOODWIN SOLUTIONS B.V","0015000000004","2026-01-01","-20,58","AWS EMEA                 aws.amazon.coLUX   Token: 0xxxx0000","","",""
+"NL80RABO0107936917","EUR","6416","Rabo BusinessCard Visa","P.J.A. GEERS","GOODWIN SOLUTIONS B.V","0015000000005","2026-01-01","-8,10","GOOGLE*WORKSPACE JUSTM   CC GOOGLE.COMIRL   Token: 0xxxx0000","","",""

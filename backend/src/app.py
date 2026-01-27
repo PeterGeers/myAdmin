@@ -1050,6 +1050,11 @@ def banking_apply_patterns(user_email, user_roles, tenant, user_tenants):
         # Use current tenant instead of getting from transaction
         administration = tenant
         
+        # Add administration to each transaction if not present
+        for tx in transactions:
+            if 'administration' not in tx or not tx['administration']:
+                tx['administration'] = administration
+        
         if use_enhanced:
             # Use enhanced pattern analysis system
             processor = BankingProcessor(test_mode=test_mode)

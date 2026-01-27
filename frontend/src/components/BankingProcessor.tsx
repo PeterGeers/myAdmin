@@ -704,13 +704,16 @@ const BankingProcessor: React.FC = () => {
           let iban = '';
           
           // Determine IBAN based on file type
-          if (file.name.toLowerCase().endsWith('.tsv')) {
-            // Revolut TSV files - use hardcoded IBAN
+          const isRevolutFile = file.name.toLowerCase().endsWith('.tsv') || 
+                               file.name.toLowerCase().startsWith('account-statement');
+          
+          if (isRevolutFile) {
+            // Revolut files (TSV or CSV) - use hardcoded IBAN
             iban = 'NL08REVO7549383472';
             console.log('[TENANT VALIDATION] File:', file.name);
-            console.log('[TENANT VALIDATION] Revolut TSV file - using hardcoded IBAN:', iban);
+            console.log('[TENANT VALIDATION] Revolut file detected - using hardcoded IBAN:', iban);
           } else {
-            // CSV files - extract IBAN from first column
+            // Other CSV files - extract IBAN from first column
             const firstDataRow = allRows[1]; // Skip header
             const columns = parseCSVRow(firstDataRow);
             iban = columns[0] || '';
@@ -750,12 +753,17 @@ const BankingProcessor: React.FC = () => {
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
           const currentIndex = transactionIndex + i;
-          const columns = file.name.toLowerCase().endsWith('.tsv')
+          const isRevolutFile = file.name.toLowerCase().endsWith('.tsv') || 
+                               file.name.toLowerCase().startsWith('account-statement');
+          
+          const columns = isRevolutFile && file.name.toLowerCase().endsWith('.tsv')
             ? row.split('\t').map(col => col.trim())
             : parseCSVRow(row);
 
-          if (file.name.toLowerCase().endsWith('.tsv')) {
-            const header = headerRow.split('\t').map(col => col.trim());
+          if (isRevolutFile) {
+            const header = file.name.toLowerCase().endsWith('.tsv')
+              ? headerRow.split('\t').map(col => col.trim())
+              : parseCSVRow(headerRow);
             const revolutTransactions = processRevolutTransaction(
               columns, currentIndex,
               lookupData.bank_accounts.find(ba => ba.rekeningNummer === 'NL08REVO7549383472'),
@@ -918,28 +926,31 @@ const BankingProcessor: React.FC = () => {
         // Update transactions with pattern predictions (suggestions filled in fields)
         setTransactions(data.transactions);
         
+        // Extract results from enhanced_results or fallback to legacy format
+        const results = data.enhanced_results || data;
+        
         // Store pattern results and suggestions for approval dialog
         const patternData = {
-          patterns_found: data.patterns_found,
-          predictions_made: data.predictions_made || {
+          patterns_found: data.patterns_found || results.total_transactions || 0,
+          predictions_made: results.predictions_made || {
             debet: 0,
             credit: 0,
             reference: 0
           },
-          confidence_scores: data.confidence_scores || [],
-          average_confidence: data.average_confidence || 0,
+          confidence_scores: results.confidence_scores || [],
+          average_confidence: results.average_confidence || 0,
           enhanced_results: data.enhanced_results
         };
         
         setPatternResults(patternData);
         setPatternSuggestions(patternData);
         
-        const totalPredictions = Object.values(data.predictions_made || {}).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0);
+        const totalPredictions = Object.values(patternData.predictions_made).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0);
         
         if (totalPredictions > 0) {
           // Show approval dialog for pattern suggestions
           setShowPatternApproval(true);
-          setMessage(`🔍 Found ${totalPredictions} pattern suggestions from ${data.patterns_found} historical patterns. Please review and approve the suggestions.`);
+          setMessage(`🔍 Found ${totalPredictions} pattern suggestions. Please review and approve the suggestions.`);
         } else {
           setMessage(`ℹ️ No pattern suggestions found. You may need to fill in the fields manually.`);
         }
