@@ -37,7 +37,11 @@ pip-delete-this-directory.txt
 !**/example.*
 
 #### cache
-h-dcn
+cache/
+backend/cache/
+*.cache
+.cache/
+
 # Database
 *.db
 *.sqlite3
