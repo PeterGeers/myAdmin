@@ -237,19 +237,167 @@ Railway.app is a modern Platform-as-a-Service (PaaS) that would enable myAdmin t
 
 1. **Google Drive Integration**
    - Requires credentials.json and token.json
-   - Need to configure as Railway secrets
-   - **Risk**: MEDIUM (configuration complexity)
+   - **ISSUE**: Currently single credentials for all tenants (not multi-tenant compliant)
+   - **Solution**: See [TENANT_SPECIFIC_GOOGLE_DRIVE.md](./TENANT_SPECIFIC_GOOGLE_DRIVE.md)
+   - **✅ CHOSEN APPROACH**: Hybrid Railway + MySQL Encryption (see below)
+   - **Risk**: MEDIUM → LOW (after implementing tenant-specific credentials)
 
-2. **File Storage (Reports, Uploads)**
+2. **STR Invoice Template Storage**
+   - **ISSUE**: `str_invoice_routes.py` uses GoogleDriveService to load templates from hardcoded folder ID
+   - **Current**: Templates stored in Google Drive folder `12FJAYbX5MI3wpGxwahcHykRQfUCRZob1`
+   - **Problem**: Not clear if this should use credentials or be tenant-specific
+   - **Questions to Answer**:
+     - Should templates be tenant-specific or shared across all tenants?
+     - Should templates be stored in Google Drive, database, or filesystem?
+     - Who manages template updates (admin UI or manual upload)?
+   - **Recommended Solution**:
+     - **Option A**: Store templates in database with admin UI for management (tenant-specific)
+     - **Option B**: Store templates in Railway volumes (shared across tenants)
+     - **Option C**: Keep in Google Drive but clarify if it needs credentials per tenant
+   - **Risk**: MEDIUM (needs architecture decision before Railway migration)
+
+3. **File Storage (Reports, Uploads)**
    - Current: Local filesystem + OneDrive mount
    - Railway: Ephemeral filesystem (resets on deploy)
    - **Solution**: Use Railway volumes or external storage (S3)
    - **Risk**: MEDIUM (architecture change required)
+   - **Note**: See also STR Invoice Templates issue above
 
-3. **Domain Configuration**
+4. **Domain Configuration**
    - Need to update DNS for admin.pgeers.nl
    - Railway provides custom domain support
    - **Risk**: LOW (DNS change only)
+
+---
+
+### ✅ CHOSEN APPROACH: Credentials Management Strategy
+
+**Decision Date**: January 2026
+**Status**: Approved for Implementation
+
+**Decision**: Railway for generic secrets, MySQL for tenant-specific secrets (encryption key stored in Railway generic secrets)
+
+#### Architecture: Hybrid Railway + MySQL Encryption
+
+**Rationale**: Optimal balance of cost ($0), security, scalability, and zero-downtime for tenant changes.
+
+#### Structure
+
+**Railway Environment Variables (Generic/Shared Secrets)** - $0/month
+
+```bash
+# Database Connection
+DB_HOST=mysql.railway.app
+DB_PASSWORD=SecurePassword123!
+
+# OpenRouter AI
+OPENROUTER_API_KEY=sk-or-v1-abc123...
+
+# AWS Services
+AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG...
+
+# Cognito
+COGNITO_CLIENT_SECRET=abc123def456...
+
+# Encryption Key (for tenant secrets in MySQL)
+CREDENTIALS_ENCRYPTION_KEY=fernet_key_base64...
+```
+
+**MySQL Database (Tenant-Specific Secrets - Encrypted)** - $0/month
+
+```sql
+CREATE TABLE tenant_credentials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id VARCHAR(100) NOT NULL,
+    credential_type VARCHAR(50) NOT NULL,
+    encrypted_value TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_tenant_cred (tenant_id, credential_type)
+);
+```
+
+**Stored Data Example**:
+
+- `tenant_id`: goodwinsolutions
+- `credential_type`: google_drive
+- `encrypted_value`: gAAAAABf... (encrypted JSON with credentials + folder_id)
+
+#### Benefits
+
+1. **Cost**: $0/month (no AWS Secrets Manager fees)
+2. **Zero Downtime**: Tenant credential changes don't require restart
+3. **Scalability**: Unlimited tenants at no additional cost
+4. **Security**: Encryption key separate from encrypted data
+5. **Management**: Can build admin UI for tenant credentials
+6. **Separation of Concerns**:
+   - Generic/shared secrets → Railway (infrastructure level)
+   - Tenant-specific secrets → MySQL (application level)
+   - Encryption key → Railway (infrastructure level)
+
+#### Impact Analysis
+
+**When Generic Secret Changes** (Rare - quarterly):
+
+```
+Action: Update Railway environment variable
+Downtime: 10-30 seconds (automatic restart)
+Affected: All tenants
+Frequency: Rare (maybe once per quarter)
+```
+
+**When Tenant Secret Changes** (Common - tenant-specific):
+
+```
+Action: UPDATE in MySQL via admin API
+Downtime: 0 seconds (no restart needed)
+Affected: Only that specific tenant
+Frequency: Common (tenant onboarding, credential rotation)
+```
+
+#### Implementation Components
+
+1. **Database Schema**: `tenant_credentials` table with encryption
+2. **Encryption Service**: Python service using Fernet encryption
+3. **Updated GoogleDriveService**: Reads from encrypted database
+4. **Admin API**: Routes for credential management
+5. **Audit Logging**: Track credential changes
+
+#### Cost Comparison vs Alternatives
+
+| Approach               | Monthly Cost | Downtime on Change | Scalability   |
+| ---------------------- | ------------ | ------------------ | ------------- |
+| **Railway + MySQL** ✅ | **$0**       | **0 sec (tenant)** | **Unlimited** |
+| Railway + AWS Secrets  | $1.20        | 0 sec (both)       | Linear cost   |
+| AWS Secrets only       | $1.20        | 0 sec (both)       | Linear cost   |
+| Railway only           | $0           | 10-30 sec (all)    | Poor          |
+
+#### Security Considerations
+
+- ✅ Encryption key stored separately from encrypted data
+- ✅ Fernet encryption (AES-128 in CBC mode)
+- ✅ Railway encrypts environment variables at rest
+- ✅ MySQL connection encrypted in transit (TLS)
+- ✅ Audit logging for credential access/changes
+- ✅ Role-based access control for credential management
+
+#### Migration Path
+
+**Phase 1**: Implement encryption service and database schema
+**Phase 2**: Migrate existing credentials to encrypted database
+**Phase 3**: Update GoogleDriveService to use encrypted credentials
+**Phase 4**: Build admin UI for credential management
+**Phase 5**: Remove old credentials.json files
+
+**Estimated Implementation Time**: 6-8 hours
+
+**Reference Documentation**:
+
+- [TENANT_SPECIFIC_GOOGLE_DRIVE.md](./TENANT_SPECIFIC_GOOGLE_DRIVE.md) - Detailed analysis of all options
+- [CREDENTIALS_FILE_STRUCTURE.md](./CREDENTIALS_FILE_STRUCTURE.md) - Current credential file locations
+
+---
 
 ### ❌ Challenging Components
 

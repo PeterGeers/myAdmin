@@ -1,26 +1,52 @@
-# GitGuardian configuration for H-DCN Dashboard
+# GitGuardian Configuration for myAdmin
+# https://docs.gitguardian.com/ggshield-docs/reference/configuration
+
 version: 2
 
-# Secret scanning configuration
+# Secret detection settings
 secret:
-  # Show all policy breaks, not just secrets
+  # Don't show actual secret values in output (security)
   show_secrets: false
   
-  # Ignore specific patterns that are false positives
-  ignore_known_secrets: true
-  
-  # Ignore test files with example/test JWT tokens
+  # Paths to exclude from scanning
   ignored_paths:
-    - "test_*.py"
-    - "test_*.html"
-    - "**/tests/**"
-    - "**/__tests__/**"
-    - "decode_*.py"
-    - "trigger_*.py"
-    - ".env"
-    - "**/.env"
-    - ".secrets"
-    - "**/.secrets"
+    - "**/.venv/**"
+    - "**/venv/**"
+    - "**/node_modules/**"
+    - "**/.git/**"
+    - "**/build/**"
+    - "**/dist/**"
+    - "**/__pycache__/**"
+    - "**/*.pyc"
+    - "**/mysql_data/**"
+    - "**/logs/**"
+    - "**/.pytest_cache/**"
+    - "**/.hypothesis/**"
+    - "**/coverage/**"
+    - "**/*.log"
+    - "**/terraform.tfstate*"
+    - "**/.terraform/**"
+    - "**/*.example"
+    - "**/example.*"
+    - "**/*-example.*"
+    - "**/*.md"
+  
+  # Ignore known test/placeholder secrets
+  ignored_matches:
+    - name: "Test API Keys"
+      match: "sk-test-"
+    - name: "Example placeholders"
+      match: "your-.*-here"
+    - name: "Placeholder values"
+      match: "REPLACE_ME|YOUR_.*|EXAMPLE_.*"
+    - name: "Localhost URLs"
+      match: "http://localhost"
 
-# Exit codes
-exit_zero: false  # Return non-zero exit code when secrets are found
+# Exit with error code if secrets found (fail the commit)
+exit_zero: false
+
+# Verbose output for debugging
+verbose: false
+
+# Maximum commits to scan in pre-commit hook
+max_commits_for_hook: 50

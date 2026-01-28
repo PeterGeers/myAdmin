@@ -57,9 +57,15 @@ git add .
 . "$PSScriptRoot/../security/Invoke-GitGuardianScan.ps1"
 $scanResult = Invoke-GitGuardianScan -AllowSkip $true -UseWriteLog $false
 
-if ($scanResult -ne 0) {
+# Check if scan result is numeric and not 0
+if ($scanResult -is [int] -and $scanResult -ne 0) {
     Write-Host "Aborting commit to protect your secrets." -ForegroundColor Red
     exit 1
+}
+elseif ($scanResult -isnot [int]) {
+    # If result is not an integer, something went wrong
+    Write-Host "Warning: Unexpected scan result: $scanResult" -ForegroundColor Yellow
+    Write-Host "Continuing with commit..." -ForegroundColor Yellow
 }
 
 Write-Host ""

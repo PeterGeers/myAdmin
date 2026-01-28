@@ -66,9 +66,13 @@ def list_users(user_email, user_roles):
         
         users = []
         for user in response.get('Users', []):
+            # Extract attributes
+            attributes = {attr['Name']: attr['Value'] for attr in user.get('Attributes', [])}
+            
             user_data = {
                 'username': user.get('Username'),
-                'email': next((attr['Value'] for attr in user.get('Attributes', []) if attr['Name'] == 'email'), None),
+                'email': attributes.get('email'),
+                'name': attributes.get('name'),  # Get name attribute
                 'status': user.get('UserStatus'),
                 'enabled': user.get('Enabled'),
                 'created': user.get('UserCreateDate').isoformat() if user.get('UserCreateDate') else None,
@@ -109,6 +113,7 @@ def create_user(user_email, user_roles):
     try:
         data = request.get_json()
         email = data.get('email')
+        name = data.get('name')
         password = data.get('password')
         groups = data.get('groups', [])
         
@@ -118,14 +123,21 @@ def create_user(user_email, user_roles):
                 'error': 'Email and password are required'
             }), 400
         
+        # Build user attributes
+        user_attributes = [
+            {'Name': 'email', 'Value': email},
+            {'Name': 'email_verified', 'Value': 'true'}
+        ]
+        
+        # Add name if provided
+        if name:
+            user_attributes.append({'Name': 'name', 'Value': name})
+        
         # Create user
         response = cognito_client.admin_create_user(
             UserPoolId=USER_POOL_ID,
             Username=email,
-            UserAttributes=[
-                {'Name': 'email', 'Value': email},
-                {'Name': 'email_verified', 'Value': 'true'}
-            ],
+            UserAttributes=user_attributes,
             TemporaryPassword=password,
             MessageAction='SUPPRESS'  # Don't send welcome email
         )
@@ -319,6 +331,44 @@ def delete_user(username, user_email, user_roles):
         return jsonify({
             'success': True,
             'message': f'User {username} deleted'
+        })
+        
+    except ClientError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@admin_bp.route('/users/<username>/attributes', methods=['PUT'])
+@cognito_required(required_roles=['SysAdmin'])
+def update_user_attributes(username, user_email, user_roles):
+    """Update user attributes (e.g., name)"""
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        
+        if name is None:
+            return jsonify({
+                'success': False,
+                'error': 'name attribute is required'
+            }), 400
+        
+        # Build attributes list
+        user_attributes = []
+        if name:  # Only update if name is provided and not empty
+            user_attributes.append({'Name': 'name', 'Value': name})
+        
+        if user_attributes:
+            cognito_client.admin_update_user_attributes(
+                UserPoolId=USER_POOL_ID,
+                Username=username,
+                UserAttributes=user_attributes
+            )
+        
+        return jsonify({
+            'success': True,
+            'message': f'User {username} attributes updated'
         })
         
     except ClientError as e:

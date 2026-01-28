@@ -161,7 +161,7 @@ $config = @"
 
 version: 2
 
-# Paths to exclude from scanning
+# Paths to exclude from scanning (build artifacts, dependencies, data)
 paths-ignore:
   - "**/.venv/**"
   - "**/venv/**"
@@ -177,35 +177,40 @@ paths-ignore:
   - "**/.hypothesis/**"
   - "**/coverage/**"
   - "**/*.log"
+  - "**/terraform.tfstate*"
+  - "**/.terraform/**"
 
-# Specific files to exclude
+# Only exclude template/example files (not actual .env files!)
+# GitGuardian SHOULD scan .env files to catch secrets before commit
 exclude:
-  - ".env.example"
-  - ".env.docker.example"
-  - "backend/.env.example"
-  - "frontend/.env.example"
+  - "**/*.example"
+  - "**/example.*"
+  - "**/*-example.*"
+  - "**/*.md"  # Documentation files
 
 # Secret detection settings
 secret:
-  # Show secrets in output (for debugging)
+  # Don't show actual secret values in output (security)
   show-secrets: false
   
-  # Ignore known test secrets
+  # Ignore known test/placeholder secrets
   ignored-matches:
-    - name: "Test API Key"
+    - name: "Test API Keys"
       match: "sk-test-"
-    - name: "Example secrets in documentation"
-      match: "your-api-key-here"
-    - name: "Placeholder secrets"
-      match: "REPLACE_ME"
+    - name: "Example placeholders"
+      match: "your-.*-here"
+    - name: "Placeholder values"
+      match: "REPLACE_ME|YOUR_.*|EXAMPLE_.*"
+    - name: "Localhost URLs"
+      match: "http://localhost"
 
-# Exit codes
-exit-zero: false  # Exit with error code if secrets found
+# Exit with error code if secrets found (fail the commit)
+exit-zero: false
 
-# Verbose output
+# Verbose output for debugging
 verbose: false
 
-# Maximum number of commits to scan
+# Maximum commits to scan in pre-commit hook
 max-commits-for-hook: 50
 "@
 

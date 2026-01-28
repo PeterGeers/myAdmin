@@ -141,20 +141,20 @@ CREATE TABLE tenant_modules (
   - [x] Test Finance functions work
   - [x] Verify STR pages return 403 if accessed directly  (Not visible)
 
-- [ ] **Test tenant switching**:
-  - [ ] Switch from GoodwinSolutions to PeterPrive
-  - [ ] Verify menu updates immediately
-  - [ ] Switch back to GoodwinSolutions
-  - [ ] Verify menu shows all items again
+- [x] **Test tenant switching**:
+  - [x] Switch from GoodwinSolutions to PeterPrive
+  - [x] Verify menu updates immediately
+  - [x] Switch back to GoodwinSolutions
+  - [x] Verify menu shows all items again
 
-- [ ] **Test role combinations**:
-  - [ ] User with Finance_CRUD only (no STR items)
-  - [ ] User with STR_CRUD only (no Finance items)
-  - [ ] User with both roles (sees enabled modules)
+- [x] **Test role combinations**:
+  - [x] User with Finance_CRUD only (no STR items)
+  - [x] User with STR_CRUD only (no Finance items)
+  - [x] User with both roles (sees enabled modules)
 
-- [ ] **Test Tenant_Admin functions**:
-  - [ ] Enable/disable modules via API
-  - [ ] Verify menu updates after module change
+- [x] **Test Tenant_Admin functions**:
+  - [x] Enable/disable modules via API
+  - [x] Verify menu updates after module change
 
 ### API Testing:
 

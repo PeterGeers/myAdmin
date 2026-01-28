@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "AWS Keys - c:\\Users\\peter\\aws\\myAdmin\\scripts\\CICD\\docs\\DOCUMENTATION.md", "match": "a1b7d447756ff455d1a9c9be5cdf859aca8dd1f5834ff5793065e6724d346905"}]}
+{"last_found_secrets": [{"name": "AWS Keys - commit://staged/scripts/CICD/docs/DOCUMENTATION.md", "match": "a1b7d447756ff455d1a9c9be5cdf859aca8dd1f5834ff5793065e6724d346905"}]}

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box, VStack, HStack, Heading, Button, Table, Thead, Tbody, Tr, Th, Td,
   Badge, useToast, Spinner, Text, Modal, ModalOverlay, ModalContent,
   ModalHeader, ModalBody, ModalFooter, ModalCloseButton, useDisclosure,
-  Divider, Checkbox, Stack, FormControl, FormLabel, Input
+  Divider, Checkbox, Stack, FormControl, FormLabel, Input, Tabs, TabList,
+  TabPanels, Tab, TabPanel, Select
 } from '@chakra-ui/react';
 import { EditIcon, AddIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
@@ -12,6 +13,7 @@ import { buildApiUrl } from '../config';
 interface User {
   username: string;
   email: string;
+  name?: string;  // Display name from Cognito
   status: string;
   enabled: boolean;
   groups: string[];
@@ -32,8 +34,19 @@ export default function SystemAdmin() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [modalMode, setModalMode] = useState<'edit' | 'create'>('edit');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [editUserName, setEditUserName] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  
+  // Filter and sort state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchName, setSearchName] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [sortField, setSortField] = useState<'email' | 'name' | 'status' | 'created'>('email');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -83,9 +96,82 @@ export default function SystemAdmin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Filtered and sorted users
+  const filteredAndSortedUsers = useMemo(() => {
+    let filtered = [...users];
+
+    // Search filter - email
+    if (searchTerm) {
+      filtered = filtered.filter(user => 
+        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Search filter - name
+    if (searchName) {
+      filtered = filtered.filter(user => 
+        user.name?.toLowerCase().includes(searchName.toLowerCase())
+      );
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(user => 
+        user.status === statusFilter
+      );
+    }
+
+    // Role filter
+    if (roleFilter !== 'all') {
+      filtered = filtered.filter(user => 
+        user.groups.includes(roleFilter)
+      );
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'email':
+          comparison = a.email.localeCompare(b.email);
+          break;
+        case 'name':
+          comparison = (a.name || '').localeCompare(b.name || '');
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'created':
+          comparison = new Date(a.created).getTime() - new Date(b.created).getTime();
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [users, searchTerm, searchName, statusFilter, roleFilter, sortField, sortDirection]);
+
+  // Get unique statuses from users for dynamic dropdown
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set(users.map(user => user.status));
+    return Array.from(statuses).sort();
+  }, [users]);
+
+  const handleSort = (field: 'email' | 'name' | 'status' | 'created') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   const openEditModal = (user: User) => {
     setSelectedUser(user);
     setSelectedRoles([...user.groups]);
+    setEditUserName(user.name || '');
     setModalMode('edit');
     onOpen();
   };
@@ -93,6 +179,8 @@ export default function SystemAdmin() {
   const openCreateModal = () => {
     setSelectedUser(null);
     setNewUserEmail('');
+    setNewUserName('');
+    setEditUserName('');
     setNewUserPassword('');
     setSelectedRoles([]);
     setModalMode('create');
@@ -102,6 +190,8 @@ export default function SystemAdmin() {
   const closeModal = () => {
     setSelectedUser(null);
     setNewUserEmail('');
+    setNewUserName('');
+    setEditUserName('');
     setNewUserPassword('');
     setSelectedRoles([]);
     onClose();
@@ -147,6 +237,7 @@ export default function SystemAdmin() {
         },
         body: JSON.stringify({
           email: newUserEmail,
+          name: newUserName || undefined,
           password: newUserPassword,
           groups: selectedRoles
         })
@@ -185,6 +276,20 @@ export default function SystemAdmin() {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
 
+      // Update display name if changed
+      if (editUserName !== (selectedUser.name || '')) {
+        await fetch(buildApiUrl(`/api/admin/users/${selectedUser.username}/attributes`), {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            name: editUserName || undefined 
+          })
+        });
+      }
+
       // Determine roles to add and remove
       const rolesToAdd = selectedRoles.filter(r => !selectedUser.groups.includes(r));
       const rolesToRemove = selectedUser.groups.filter(r => !selectedRoles.includes(r));
@@ -213,7 +318,7 @@ export default function SystemAdmin() {
 
       toast({
         title: 'Success',
-        description: 'User roles updated',
+        description: 'User updated successfully',
         status: 'success',
         duration: 3000,
       });
@@ -320,93 +425,217 @@ export default function SystemAdmin() {
 
   return (
     <Box p={8}>
-      <VStack spacing={8} align="stretch">
-        {/* Header with Add User Button */}
-        <HStack justify="space-between">
-          <Heading color="orange.400" size="xl">User & Role Management</Heading>
-          <Button 
-            leftIcon={<AddIcon />}
-            colorScheme="orange" 
-            onClick={openCreateModal}
-          >
-            Add User
-          </Button>
-        </HStack>
+      <VStack spacing={6} align="stretch">
+        {/* Header */}
+        <Heading color="orange.400" size="xl">User & Role Management</Heading>
 
-        {/* Users Table */}
-        <Box>
-          <Heading size="md" color="gray.300" mb={4}>Users ({users.length})</Heading>
-          <Box overflowX="auto" bg="gray.800" borderRadius="md" p={4}>
-            <Table variant="simple" size="sm">
-              <Thead>
-                <Tr>
-                  <Th color="gray.400">Email</Th>
-                  <Th color="gray.400">Status</Th>
-                  <Th color="gray.400">Roles</Th>
-                  <Th color="gray.400">Created</Th>
-                  <Th color="gray.400">Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {users.map((user) => (
-                  <Tr key={user.username} _hover={{ bg: 'gray.700' }}>
-                    <Td color="gray.300">{user.email}</Td>
-                    <Td>
-                      <Badge colorScheme={user.enabled ? 'green' : 'red'}>
-                        {user.status}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <HStack spacing={2} flexWrap="wrap">
-                        {user.groups.length > 0 ? (
-                          user.groups.map((group) => (
-                            <Badge key={group} colorScheme="blue">
-                              {group}
-                            </Badge>
-                          ))
-                        ) : (
-                          <Text color="gray.500" fontSize="sm">No roles</Text>
-                        )}
-                      </HStack>
-                    </Td>
-                    <Td color="gray.400" fontSize="xs">
-                      {new Date(user.created).toLocaleDateString()}
-                    </Td>
-                    <Td>
-                      <Button 
-                        size="sm" 
-                        leftIcon={<EditIcon />}
-                        colorScheme="orange" 
-                        variant="ghost"
-                        onClick={() => openEditModal(user)}
-                      >
-                        Manage
-                      </Button>
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </Box>
-        </Box>
+        {/* Tabs */}
+        <Tabs colorScheme="orange" variant="enclosed">
+          <TabList>
+            <Tab _selected={{ color: 'orange.400', borderColor: 'orange.400', borderBottomColor: 'gray.800' }}>
+              Users ({users.length})
+            </Tab>
+            <Tab _selected={{ color: 'orange.400', borderColor: 'orange.400', borderBottomColor: 'gray.800' }}>
+              Roles ({groups.length})
+            </Tab>
+          </TabList>
 
-        {/* Available Roles */}
-        <Box>
-          <Heading size="md" color="gray.300" mb={4}>Available Roles ({groups.length})</Heading>
-          <Box bg="gray.800" borderRadius="md" p={4}>
-            <VStack align="stretch" spacing={2}>
-              {groups.map((group) => (
-                <HStack key={group.name} justify="space-between" p={3} bg="gray.700" borderRadius="md">
-                  <VStack align="start" spacing={0}>
-                    <Text color="orange.400" fontWeight="bold">{group.name}</Text>
-                    <Text color="gray.400" fontSize="sm">{group.description}</Text>
-                  </VStack>
-                  <Badge colorScheme="purple">Precedence: {group.precedence}</Badge>
+          <TabPanels>
+            {/* Users Tab */}
+            <TabPanel px={0}>
+              <VStack spacing={4} align="stretch">
+                {/* Add User Button */}
+                <HStack justify="flex-end">
+                  <Button 
+                    leftIcon={<AddIcon />}
+                    colorScheme="orange" 
+                    onClick={openCreateModal}
+                  >
+                    Add User
+                  </Button>
                 </HStack>
-              ))}
-            </VStack>
-          </Box>
-        </Box>
+
+                {/* Users Table */}
+                <Box overflowX="auto" bg="gray.800" borderRadius="md" p={4}>
+                  {/* Search Row */}
+                  <HStack spacing={2} mb={4} wrap="wrap">
+                    <Input
+                      placeholder="Search Email"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                      w="200px"
+                    />
+                    <Input
+                      placeholder="Search Name"
+                      value={searchName}
+                      onChange={(e) => setSearchName(e.target.value)}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                      w="200px"
+                    />
+                    <Select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                      w="150px"
+                    >
+                      <option value="all">All Status</option>
+                      {uniqueStatuses.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </Select>
+                    <Select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      bg="gray.600"
+                      color="white"
+                      size="sm"
+                      w="200px"
+                    >
+                      <option value="all">All Roles</option>
+                      {[...groups].sort((a, b) => a.name.localeCompare(b.name)).map((group) => (
+                        <option key={group.name} value={group.name}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </Select>
+                    <Text color="gray.400" fontSize="sm" whiteSpace="nowrap">
+                      {filteredAndSortedUsers.length} of {users.length} users
+                    </Text>
+                  </HStack>
+
+                  <Table variant="simple" size="sm">
+                    <Thead>
+                      <Tr>
+                        <Th color="white" width="40px"></Th>
+                        <Th 
+                          color="white" 
+                          cursor="pointer" 
+                          onClick={() => handleSort('email')}
+                        >
+                          Email {sortField === 'email' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </Th>
+                        <Th 
+                          color="white" 
+                          cursor="pointer" 
+                          onClick={() => handleSort('name')}
+                        >
+                          Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </Th>
+                        <Th 
+                          color="white"
+                          cursor="pointer"
+                          onClick={() => handleSort('status')}
+                        >
+                          Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </Th>
+                        <Th color="white">Roles</Th>
+                        <Th 
+                          color="white"
+                          cursor="pointer"
+                          onClick={() => handleSort('created')}
+                        >
+                          Created {sortField === 'created' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {filteredAndSortedUsers.map((user) => (
+                        <Tr 
+                          key={user.username} 
+                          _hover={{ bg: 'gray.700', cursor: 'pointer' }}
+                          onClick={() => openEditModal(user)}
+                        >
+                          <Td>
+                            <EditIcon color="orange.400" />
+                          </Td>
+                          <Td color="gray.300">{user.email}</Td>
+                          <Td color="gray.300">{user.name || '-'}</Td>
+                          <Td>
+                            <Badge colorScheme={user.enabled ? 'green' : 'red'}>
+                              {user.status}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            <HStack spacing={2} flexWrap="wrap">
+                              {user.groups.length > 0 ? (
+                                user.groups.map((group) => (
+                                  <Badge key={group} colorScheme="blue">
+                                    {group}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <Text color="gray.500" fontSize="sm">No roles</Text>
+                              )}
+                            </HStack>
+                          </Td>
+                          <Td color="gray.400" fontSize="xs">
+                            {new Date(user.created).toLocaleDateString()}
+                          </Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </Box>
+              </VStack>
+            </TabPanel>
+
+            {/* Roles Tab */}
+            <TabPanel px={0}>
+              <VStack spacing={4} align="stretch">
+                {/* Add Role Button */}
+                <HStack justify="flex-end">
+                  <Button 
+                    leftIcon={<AddIcon />}
+                    colorScheme="orange" 
+                    size="sm"
+                    onClick={() => {
+                      toast({
+                        title: 'Coming Soon',
+                        description: 'Role creation feature will be available soon',
+                        status: 'info',
+                        duration: 3000,
+                      });
+                    }}
+                  >
+                    Add Role
+                  </Button>
+                </HStack>
+
+                {/* Roles List */}
+                <Box bg="gray.800" borderRadius="md" p={4}>
+                  <VStack align="stretch" spacing={2}>
+                    {[...groups].sort((a, b) => a.name.localeCompare(b.name)).map((group) => {
+                      const userCount = users.filter(user => user.groups.includes(group.name)).length;
+                      return (
+                        <HStack key={group.name} justify="space-between" p={3} bg="gray.700" borderRadius="md">
+                          <VStack align="start" spacing={0} flex={1}>
+                            <Text color="orange.400" fontWeight="bold">{group.name}</Text>
+                            <Text color="gray.400" fontSize="sm">{group.description}</Text>
+                          </VStack>
+                          <HStack spacing={3}>
+                            <Badge colorScheme="blue" fontSize="sm">
+                              {userCount} {userCount === 1 ? 'user' : 'users'}
+                            </Badge>
+                            <Badge colorScheme="purple">Precedence: {group.precedence}</Badge>
+                          </HStack>
+                        </HStack>
+                      );
+                    })}
+                  </VStack>
+                </Box>
+              </VStack>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </VStack>
 
       {/* User Management Modal */}
@@ -435,6 +664,23 @@ export default function SystemAdmin() {
                       _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
                     />
                   </FormControl>
+                  <FormControl>
+                    <FormLabel color="gray.300">Display Name</FormLabel>
+                    <Input
+                      type="text"
+                      placeholder="John Doe (optional)"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      bg="gray.700"
+                      color="white"
+                      borderColor="gray.600"
+                      _hover={{ borderColor: 'gray.500' }}
+                      _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
+                    />
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      This name will be displayed in the application header
+                    </Text>
+                  </FormControl>
                   <FormControl isRequired>
                     <FormLabel color="gray.300">Temporary Password</FormLabel>
                     <Input
@@ -459,15 +705,51 @@ export default function SystemAdmin() {
               {modalMode === 'edit' && selectedUser && (
                 <>
                   <Box>
-                    <Text color="gray.300" fontWeight="bold" mb={2}>User Status</Text>
-                    <HStack>
-                      <Badge colorScheme={selectedUser.enabled ? 'green' : 'red'} fontSize="md" p={2}>
-                        {selectedUser.status}
-                      </Badge>
-                      <Text color="gray.400" fontSize="sm">
-                        Created: {new Date(selectedUser.created).toLocaleDateString()}
-                      </Text>
-                    </HStack>
+                    <Text color="gray.300" fontWeight="bold" mb={3}>User Information</Text>
+                    <VStack align="stretch" spacing={3}>
+                      <FormControl>
+                        <FormLabel color="gray.400" fontSize="sm">Email (cannot be changed)</FormLabel>
+                        <Input
+                          value={selectedUser.email}
+                          isReadOnly
+                          bg="gray.900"
+                          borderColor="gray.600"
+                          color="gray.400"
+                          cursor="not-allowed"
+                        />
+                      </FormControl>
+                      
+                      <FormControl>
+                        <FormLabel color="gray.300">Display Name</FormLabel>
+                        <Input
+                          type="text"
+                          placeholder="John Doe"
+                          value={editUserName}
+                          onChange={(e) => setEditUserName(e.target.value)}
+                          bg="gray.700"
+                          color="white"
+                          borderColor="gray.600"
+                          _hover={{ borderColor: 'gray.500' }}
+                          _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
+                        />
+                        <Text fontSize="xs" color="gray.500" mt={1}>
+                          This name will be displayed in the application header
+                        </Text>
+                      </FormControl>
+
+                      <HStack>
+                        <Text color="gray.400" fontSize="sm" minW="80px">Status:</Text>
+                        <Badge colorScheme={selectedUser.enabled ? 'green' : 'red'} fontSize="md">
+                          {selectedUser.status}
+                        </Badge>
+                      </HStack>
+                      <HStack>
+                        <Text color="gray.400" fontSize="sm" minW="80px">Created:</Text>
+                        <Text color="gray.400" fontSize="sm">
+                          {new Date(selectedUser.created).toLocaleDateString()}
+                        </Text>
+                      </HStack>
+                    </VStack>
                   </Box>
                   <Divider borderColor="gray.600" />
                 </>
@@ -479,7 +761,7 @@ export default function SystemAdmin() {
                   {modalMode === 'edit' ? 'Manage Roles' : 'Assign Roles'}
                 </Text>
                 <Stack spacing={2}>
-                  {groups.map((group) => (
+                  {[...groups].sort((a, b) => a.name.localeCompare(b.name)).map((group) => (
                     <Box
                       key={group.name}
                       p={3}

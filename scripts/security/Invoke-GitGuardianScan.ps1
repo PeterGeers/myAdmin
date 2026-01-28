@@ -119,9 +119,11 @@ function Invoke-GitGuardianScan {
     # Run ggshield scan on staged files
     Write-Output-Message "Scanning staged changes for secrets..." "INFO"
     ggshield secret scan pre-commit
+    $exitCode = $LASTEXITCODE
 
-    if ($LASTEXITCODE -ne 0) {
+    if ($exitCode -ne 0) {
         Write-Output-Message "" "ERROR"
+        Write-Output-Message "❌ GitGuardian scan failed with exit code: $exitCode" "ERROR"
         Write-Output-Message "❌ GitGuardian detected secrets in your code!" "ERROR"
         Write-Output-Message "" "ERROR"
         Write-Output-Message "Actions required:" "WARN"
@@ -143,5 +145,5 @@ function Invoke-GitGuardianScan {
     return 0
 }
 
-# Export the function
-Export-ModuleMember -Function Invoke-GitGuardianScan
+# Note: Export-ModuleMember is not needed for .ps1 files that are dot-sourced
+# The function is automatically available when the script is dot-sourced with: . script.ps1
