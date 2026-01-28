@@ -85,7 +85,7 @@ const MutatiesReport: React.FC = () => {
     URL.revokeObjectURL(url);
   }, [filteredMutatiesData, mutatiesFilters.dateFrom, mutatiesFilters.dateTo]);
 
-  const fetchMutatiesData = async () => {
+  const fetchMutatiesData = useCallback(async () => {
     setLoading(true);
     try {
       // Validate tenant before making API call
@@ -114,7 +114,7 @@ const MutatiesReport: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentTenant, mutatiesFilters.dateFrom, mutatiesFilters.dateTo, mutatiesFilters.profitLoss]);
 
   useEffect(() => {
     fetchMutatiesData();
@@ -149,7 +149,7 @@ const MutatiesReport: React.FC = () => {
       // Fetch new data for current tenant
       fetchMutatiesData();
     }
-  }, [currentTenant]);
+  }, [currentTenant, fetchMutatiesData]);
 
   // Tenant validation - show alert if no tenant selected
   if (!currentTenant) {

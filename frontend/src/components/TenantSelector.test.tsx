@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import TenantSelector from './TenantSelector';
 
 // Mock the tenant context
@@ -33,9 +33,9 @@ describe('TenantSelector', () => {
       hasMultipleTenants: true
     });
 
-    const { getByTestId } = render(<TenantSelector />);
+    render(<TenantSelector />);
 
-    expect(getByTestId('tenant-select')).toBeInTheDocument();
+    expect(screen.getByTestId('tenant-select')).toBeInTheDocument();
   });
 
   it('should not render for users with single tenant', () => {

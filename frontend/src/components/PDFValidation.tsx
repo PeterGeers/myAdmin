@@ -39,24 +39,8 @@ const PDFValidation: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState({ total: 0, ok: 0, failed: 0 });
   const [selectedYear, setSelectedYear] = useState('2025');
-  // Remove selectedAdmin state as we'll use currentTenant instead
-  const [availableAdmins, setAvailableAdmins] = useState<string[]>([]);
   const [updateForm, setUpdateForm] = useState<UpdateFormData>({ old_ref3: '', old_ref4: '', reference_number: '', ref3: '', ref4: '' });
   const { isOpen, onOpen, onClose } = useDisclosure();
-
-  const loadAdministrations = React.useCallback(async () => {
-    if (!currentTenant) return;
-    
-    try {
-      const response = await authenticatedGet(`/api/pdf/get-administrations?year=${selectedYear}`, { tenant: currentTenant });
-      const data = await response.json();
-      if (data.success) {
-        setAvailableAdmins(data.administrations);
-      }
-    } catch (error) {
-      console.error('Error loading administrations:', error);
-    }
-  }, [selectedYear, currentTenant]);
 
   const validateUrls = async () => {
     if (!currentTenant) {
@@ -119,11 +103,6 @@ const PDFValidation: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // Load administrations when year or tenant changes
-  React.useEffect(() => {
-    loadAdministrations();
-  }, [selectedYear, loadAdministrations]);
 
   const openUpdateModal = (record: ValidationRecord['record']) => {
     setUpdateForm({

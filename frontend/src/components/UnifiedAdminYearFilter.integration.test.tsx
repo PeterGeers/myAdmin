@@ -45,7 +45,7 @@ describe('UnifiedAdminYearFilter Tab Integration Tests', () => {
       const adapter = createBtwFilterAdapter(btwFilters, mockSetFilters, availableYears);
       
       expect(adapter.multiSelectYears).toBe(false); // Single select for BTW
-      expect(adapter.showAdministration).toBe(true);
+      expect(adapter.showAdministration).toBe(false); // Hidden - tenant context handles administration
       expect(adapter.showYears).toBe(true);
       expect(adapter.yearValues).toEqual(['2024']);
       expect(adapter.administrationValue).toBe('GoodwinSolutions');
@@ -81,7 +81,7 @@ describe('UnifiedAdminYearFilter Tab Integration Tests', () => {
       const adapter = createAangifteIbFilterAdapter(aangifteFilters, mockSetFilters, availableYears);
       
       expect(adapter.multiSelectYears).toBe(false); // Single select for Aangifte IB
-      expect(adapter.showAdministration).toBe(true);
+      expect(adapter.showAdministration).toBe(false); // Hidden - tenant context handles administration
       expect(adapter.showYears).toBe(true);
       expect(adapter.yearValues).toEqual(['2024']);
       expect(adapter.administrationValue).toBe('all');

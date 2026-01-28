@@ -100,6 +100,76 @@ def list_users(user_email, user_roles):
         }), 500
 
 
+@admin_bp.route('/users', methods=['POST'])
+@cognito_required(required_roles=['SysAdmin'])
+def create_user(user_email, user_roles):
+    """Create a new user in the Cognito User Pool"""
+    print(f"➕ Create user called by: {user_email} with roles: {user_roles}", flush=True)
+    
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
+        groups = data.get('groups', [])
+        
+        if not email or not password:
+            return jsonify({
+                'success': False,
+                'error': 'Email and password are required'
+            }), 400
+        
+        # Create user
+        response = cognito_client.admin_create_user(
+            UserPoolId=USER_POOL_ID,
+            Username=email,
+            UserAttributes=[
+                {'Name': 'email', 'Value': email},
+                {'Name': 'email_verified', 'Value': 'true'}
+            ],
+            TemporaryPassword=password,
+            MessageAction='SUPPRESS'  # Don't send welcome email
+        )
+        
+        username = response['User']['Username']
+        
+        # Add user to groups
+        for group_name in groups:
+            try:
+                cognito_client.admin_add_user_to_group(
+                    UserPoolId=USER_POOL_ID,
+                    Username=username,
+                    GroupName=group_name
+                )
+            except ClientError as e:
+                print(f"⚠️ Failed to add user to group {group_name}: {e}", flush=True)
+        
+        return jsonify({
+            'success': True,
+            'message': f'User {email} created successfully',
+            'username': username
+        })
+        
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        
+        if error_code == 'UsernameExistsException':
+            return jsonify({
+                'success': False,
+                'error': 'A user with this email already exists'
+            }), 400
+        elif error_code == 'InvalidPasswordException':
+            return jsonify({
+                'success': False,
+                'error': 'Password does not meet requirements (minimum 8 characters)'
+            }), 400
+        else:
+            return jsonify({
+                'success': False,
+                'error': error_message
+            }), 500
+
+
 @admin_bp.route('/groups', methods=['GET', 'OPTIONS'])
 @cognito_required(required_roles=['SysAdmin'])
 def list_groups(user_email, user_roles):

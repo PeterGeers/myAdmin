@@ -18,6 +18,10 @@ from datetime import datetime
 # Role-based permission mapping
 # Official Cognito Groups only - no legacy roles
 ROLE_PERMISSIONS = {
+    # Super Admin - Full system access (wildcard permission)
+    'Administrators': ['*'],  # Legacy admin role with full access
+    'System_CRUD': ['*'],     # System-level CRUD with full access
+    
     # System Administration - system config ONLY, NO user data access
     'SysAdmin': [
         'system_config', 'system_logs', 'system_audit', 'system_read',

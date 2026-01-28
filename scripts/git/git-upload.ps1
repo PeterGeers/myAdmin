@@ -54,32 +54,12 @@ Write-Host "Adding files..." -ForegroundColor Yellow
 git add .
 
 # Run GitGuardian secret scan before committing
-Write-Host "🔍 Scanning for secrets with GitGuardian..." -ForegroundColor Cyan
-$ggshieldInstalled = Get-Command ggshield -ErrorAction SilentlyContinue
+. "$PSScriptRoot/../security/Invoke-GitGuardianScan.ps1"
+$scanResult = Invoke-GitGuardianScan -AllowSkip $true -UseWriteLog $false
 
-if ($ggshieldInstalled) {
-    # Run ggshield scan on staged files
-    ggshield secret scan pre-commit
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host ""
-        Write-Host "❌ GitGuardian detected secrets in your code!" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "Actions required:" -ForegroundColor Yellow
-        Write-Host "1. Review the secrets detected above" -ForegroundColor White
-        Write-Host "2. Remove or replace them with environment variables" -ForegroundColor White
-        Write-Host "3. Run this script again" -ForegroundColor White
-        Write-Host ""
-        Write-Host "Aborting commit to protect your secrets." -ForegroundColor Red
-        exit 1
-    }
-    
-    Write-Host "✅ No secrets detected - safe to commit" -ForegroundColor Green
-}
-else {
-    Write-Host "⚠️  GitGuardian CLI (ggshield) not installed" -ForegroundColor Yellow
-    Write-Host "   Install with: pip install ggshield" -ForegroundColor Gray
-    Write-Host "   Continuing without secret scan..." -ForegroundColor Gray
+if ($scanResult -ne 0) {
+    Write-Host "Aborting commit to protect your secrets." -ForegroundColor Red
+    exit 1
 }
 
 Write-Host ""

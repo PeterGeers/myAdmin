@@ -273,9 +273,7 @@ describe('FINReports Component', () => {
       });
 
       // Act
-      act(() => {
-        rerender(<FINReports />);
-      });
+      rerender(<FINReports />);
 
       // Assert - should show loading state
       expect(screen.getByTestId('spinner')).toBeInTheDocument();

@@ -14,6 +14,14 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AuthProvider } from '../context/AuthContext';
 
+// Import mocked functions
+import { getCurrentUser, signOut, signInWithRedirect, fetchAuthSession } from 'aws-amplify/auth';
+
+// Import components after mocks
+import ProtectedRoute from '../components/ProtectedRoute';
+import Login from '../pages/Login';
+import Unauthorized from '../pages/Unauthorized';
+
 // Mock AWS Amplify auth functions
 jest.mock('aws-amplify/auth', () => ({
   getCurrentUser: jest.fn(),
@@ -51,14 +59,6 @@ jest.mock('@chakra-ui/icons', () => ({
   LockIcon: { name: 'LockIcon' },
   CheckCircleIcon: { name: 'CheckCircleIcon' },
 }));
-
-// Import mocked functions
-import { getCurrentUser, signOut, signInWithRedirect, fetchAuthSession } from 'aws-amplify/auth';
-
-// Import components after mocks
-import ProtectedRoute from '../components/ProtectedRoute';
-import Login from '../pages/Login';
-import Unauthorized from '../pages/Unauthorized';
 
 // Helper to wrap components with providers
 const renderWithProviders = (ui: React.ReactElement) => {

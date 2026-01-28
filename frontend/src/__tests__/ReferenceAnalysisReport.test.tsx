@@ -13,6 +13,10 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+// Import the component after mocks
+import ReferenceAnalysisReport from '../components/reports/ReferenceAnalysisReport';
+import { authenticatedGet } from '../services/apiService';
+
 // Mock all Chakra UI components
 jest.mock('@chakra-ui/react', () => ({
   Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
@@ -113,10 +117,6 @@ const mockUseTenant = jest.fn();
 jest.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant(),
 }));
-
-// Import the component after mocks
-import ReferenceAnalysisReport from '../components/reports/ReferenceAnalysisReport';
-import { authenticatedGet } from '../services/apiService';
 
 // Mock API response
 const mockApiResponse = {

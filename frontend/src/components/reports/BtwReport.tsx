@@ -15,8 +15,6 @@ import {
   Text,
   VStack
 } from '@chakra-ui/react';
-import { buildApiUrl } from '../../config';
-import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';

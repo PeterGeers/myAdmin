@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
   AlertIcon,
@@ -328,7 +328,7 @@ const ActualsReport: React.FC = () => {
     return rows;
   };
 
-  const fetchActualsData = async () => {
+  const fetchActualsData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -386,9 +386,9 @@ const ActualsReport: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentTenant, actualsFilters.years, drillDownLevel]);
 
-  const fetchAvailableYears = async () => {
+  const fetchAvailableYears = useCallback(async () => {
     try {
       // Validate tenant before making API call
       if (!currentTenant) {
@@ -415,7 +415,7 @@ const ActualsReport: React.FC = () => {
       console.error('[TENANT SECURITY] Error fetching available years for tenant:', currentTenant, err);
       setError('Error loading available years. Please check your connection and try again.');
     }
-  };
+  }, [currentTenant]);
 
   // Initial data fetch
   useEffect(() => {
@@ -434,23 +434,21 @@ const ActualsReport: React.FC = () => {
       
       fetchAvailableYears();
     }
-  }, [currentTenant]);
+  }, [currentTenant, fetchAvailableYears]);
 
   // Refetch when drill-down level changes
   useEffect(() => {
     if (actualsFilters.years.length > 0) {
       fetchActualsData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drillDownLevel]);
+  }, [drillDownLevel, actualsFilters.years.length, fetchActualsData]);
 
   // Refetch when filters change
   useEffect(() => {
     if (actualsFilters.years.length > 0) {
       fetchActualsData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actualsFilters.years, actualsFilters.administration]);
+  }, [actualsFilters.years, actualsFilters.years.length, actualsFilters.administration, fetchActualsData, fetchAvailableYears]);
 
   // Auto-refresh on tenant change
   useEffect(() => {
@@ -485,7 +483,7 @@ const ActualsReport: React.FC = () => {
         console.log('[TENANT CHANGE] Tenant switch completed for:', currentTenant);
       });
     }
-  }, [currentTenant]);
+  }, [currentTenant, actualsFilters.years.length, fetchActualsData, fetchAvailableYears]);
 
 
   return (
@@ -555,7 +553,7 @@ const ActualsReport: React.FC = () => {
                     setDrillDownLevel('year');
                     setExpandedParents(new Set());
                   }}
-                  isLoading={loading && drillDownLevel !== 'year' || tenantSwitching}
+                  isLoading={(loading && drillDownLevel !== 'year') || tenantSwitching}
                 >
                   📅 Year
                 </Button>
@@ -566,7 +564,7 @@ const ActualsReport: React.FC = () => {
                     setDrillDownLevel('quarter');
                     setExpandedParents(new Set());
                   }}
-                  isLoading={loading && drillDownLevel !== 'quarter' || tenantSwitching}
+                  isLoading={(loading && drillDownLevel !== 'quarter') || tenantSwitching}
                 >
                   📊 Quarter
                 </Button>
@@ -577,7 +575,7 @@ const ActualsReport: React.FC = () => {
                     setDrillDownLevel('month');
                     setExpandedParents(new Set());
                   }}
-                  isLoading={loading && drillDownLevel !== 'month' || tenantSwitching}
+                  isLoading={(loading && drillDownLevel !== 'month') || tenantSwitching}
                 >
                   📈 Month
                 </Button>

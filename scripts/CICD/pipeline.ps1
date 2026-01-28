@@ -62,6 +62,19 @@ Write-Log "╚══════════════════════
 
 $startTime = Get-Date
 
+# Stage -1: Environment Validation (NEW)
+Write-Log "" "INFO"
+Write-Log "═══ STAGE -1: ENVIRONMENT VALIDATION ═══" "PIPELINE"
+Write-Log "Validating environment configuration..." "INFO"
+
+& "scripts/cicd/validate-environment.ps1" -Environment $Environment
+
+if ($LASTEXITCODE -ne 0) {
+    Exit-WithError "Environment validation failed. Fix the errors and try again."
+}
+
+Write-Log "Environment validation passed" "SUCCESS"
+
 # Stage 0: Git Operations
 if (-not $SkipGit) {
     Write-Log "" "INFO"
@@ -86,63 +99,21 @@ if (-not $SkipGit) {
                 Write-Log "" "INFO"
                 Write-Log "Running GitGuardian security scan..." "INFO"
                 
-                # Check if ggshield is installed
-                try {
-                    ggshield --version | Out-Null
-                    $ggInstalled = $true
-                }
-                catch {
-                    $ggInstalled = $false
-                }
+                # Use shared GitGuardian scanning module
+                . "$PSScriptRoot/../security/Invoke-GitGuardianScan.ps1"
+                $scanResult = Invoke-GitGuardianScan -AllowSkip $false -UseWriteLog $true
                 
-                if ($ggInstalled) {
-                    # Check if API key is configured
-                    if ($env:GITGUARDIAN_API_KEY) {
-                        Write-Log "Scanning for secrets in staged changes..." "INFO"
-                        
-                        # Scan staged changes
-                        ggshield secret scan pre-commit
-                        
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Log "╔════════════════════════════════════════════════════════════╗" "ERROR"
-                            Write-Log "║  🚨 SECURITY ALERT: Secrets detected in your changes!     ║" "ERROR"
-                            Write-Log "╚════════════════════════════════════════════════════════════╝" "ERROR"
-                            Write-Log "" "ERROR"
-                            Write-Log "GitGuardian found potential secrets in your code." "ERROR"
-                            Write-Log "Please review the output above and remove any secrets." "ERROR"
-                            Write-Log "" "ERROR"
-                            Write-Log "Common secrets to check:" "ERROR"
-                            Write-Log "  • API keys (OpenRouter, AWS, Google)" "ERROR"
-                            Write-Log "  • Database passwords" "ERROR"
-                            Write-Log "  • JWT secrets" "ERROR"
-                            Write-Log "  • Cognito credentials" "ERROR"
-                            Write-Log "" "ERROR"
-                            
-                            if (-not $Force) {
-                                $override = Read-Host "Override security check and continue anyway? (type 'OVERRIDE' to continue)"
-                                if ($override -ne "OVERRIDE") {
-                                    Exit-WithError "Pipeline stopped due to security scan failure"
-                                }
-                                Write-Log "⚠ Security check overridden by user" "WARN"
-                            }
-                            else {
-                                Write-Log "⚠ Force mode: Continuing despite security scan failure" "WARN"
-                            }
+                if ($scanResult -ne 0) {
+                    if (-not $Force) {
+                        $override = Read-Host "Override security check and continue anyway? (type 'OVERRIDE' to continue)"
+                        if ($override -ne "OVERRIDE") {
+                            Exit-WithError "Pipeline stopped due to security scan failure"
                         }
-                        else {
-                            Write-Log "✓ No secrets detected" "SUCCESS"
-                        }
+                        Write-Log "⚠ Security check overridden by user" "WARN"
                     }
                     else {
-                        Write-Log "⚠ GitGuardian API key not configured" "WARN"
-                        Write-Log "  Set GITGUARDIAN_API_KEY environment variable to enable scanning" "WARN"
-                        Write-Log "  Or run: scripts/security/install-gitguardian.ps1" "WARN"
+                        Write-Log "⚠ Force mode: Continuing despite security scan failure" "WARN"
                     }
-                }
-                else {
-                    Write-Log "⚠ GitGuardian not installed" "WARN"
-                    Write-Log "  Install with: scripts/security/install-gitguardian.ps1" "WARN"
-                    Write-Log "  Continuing without security scan..." "WARN"
                 }
                 
                 Write-Log "" "INFO"
@@ -294,11 +265,22 @@ Write-Log "" "INFO"
 Write-Log "═══ STAGE 1: BUILD ═══" "PIPELINE"
 Write-Log "Running build script..." "INFO"
 
+# Capture build script output and log it to pipeline log
+$buildScriptPath = "scripts/cicd/build.ps1"
 if ($SkipTests) {
-    & "scripts/cicd/build.ps1" -SkipTests
+    Write-Log "Build parameters: -SkipTests" "INFO"
+    & $buildScriptPath -SkipTests 2>&1 | ForEach-Object {
+        $line = $_.ToString()
+        Add-Content -Path $PipelineLog -Value $line
+        Write-Host $line
+    }
 }
 else {
-    & "scripts/cicd/build.ps1"
+    & $buildScriptPath 2>&1 | ForEach-Object {
+        $line = $_.ToString()
+        Add-Content -Path $PipelineLog -Value $line
+        Write-Host $line
+    }
 }
 
 if ($LASTEXITCODE -ne 0) {
@@ -318,7 +300,14 @@ $deployParams = @{
 if ($SkipBackup) { $deployParams.SkipBackup = $true }
 if ($Force) { $deployParams.Force = $true }
 
-& "scripts/cicd/deploy.ps1" @deployParams
+Write-Log "Deployment parameters: Environment=$Environment, SkipBackup=$SkipBackup, Force=$Force" "INFO"
+
+# Capture deployment script output and log it to pipeline log
+& "scripts/cicd/deploy.ps1" @deployParams 2>&1 | ForEach-Object {
+    $line = $_.ToString()
+    Add-Content -Path $PipelineLog -Value $line
+    Write-Host $line
+}
 
 if ($LASTEXITCODE -ne 0) {
     Exit-WithError "Deployment stage failed"

@@ -40,7 +40,7 @@ import {
   YAxis
 } from 'recharts';
 import { buildApiUrl } from '../../config';
-import { authenticatedGet, authenticatedPost } from '../../services/apiService';
+import { authenticatedGet } from '../../services/apiService';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createBnbActualsFilterAdapter, BnbActualsFilters } from '../UnifiedAdminYearFilterAdapters';
 

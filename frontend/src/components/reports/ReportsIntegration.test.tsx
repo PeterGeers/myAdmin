@@ -6,6 +6,28 @@
  */
 
 // Mock Chakra UI before any imports
+import React from 'react';
+
+// Import main component
+import MyAdminReportsNew from '../MyAdminReportsNew';
+
+// Import group components
+import BnbReportsGroup from './BnbReportsGroup';
+import FinancialReportsGroup from './FinancialReportsGroup';
+
+// Import all individual report components
+import BnbRevenueReport from './BnbRevenueReport';
+import BnbActualsReport from './BnbActualsReport';
+import BnbViolinsReport from './BnbViolinsReport';
+import BnbReturningGuestsReport from './BnbReturningGuestsReport';
+import BnbFutureReport from './BnbFutureReport';
+import ToeristenbelastingReport from './ToeristenbelastingReport';
+import MutatiesReport from './MutatiesReport';
+import ActualsReport from './ActualsReport';
+import BtwReport from './BtwReport';
+import ReferenceAnalysisReport from './ReferenceAnalysisReport';
+import AangifteIbReport from './AangifteIbReport';
+
 jest.mock('@chakra-ui/react', () => ({
   Box: 'div',
   VStack: 'div',
@@ -36,28 +58,6 @@ jest.mock('axios');
 
 // Mock plotly
 jest.mock('react-plotly.js', () => () => null);
-
-import React from 'react';
-
-// Import main component
-import MyAdminReportsNew from '../MyAdminReportsNew';
-
-// Import group components
-import BnbReportsGroup from './BnbReportsGroup';
-import FinancialReportsGroup from './FinancialReportsGroup';
-
-// Import all individual report components
-import BnbRevenueReport from './BnbRevenueReport';
-import BnbActualsReport from './BnbActualsReport';
-import BnbViolinsReport from './BnbViolinsReport';
-import BnbReturningGuestsReport from './BnbReturningGuestsReport';
-import BnbFutureReport from './BnbFutureReport';
-import ToeristenbelastingReport from './ToeristenbelastingReport';
-import MutatiesReport from './MutatiesReport';
-import ActualsReport from './ActualsReport';
-import BtwReport from './BtwReport';
-import ReferenceAnalysisReport from './ReferenceAnalysisReport';
-import AangifteIbReport from './AangifteIbReport';
 
 describe('Reports Integration Tests', () => {
   describe('Component Imports', () => {

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, VStack, HStack, Heading, Button, Table, Thead, Tbody, Tr, Th, Td,
-  Badge, useToast, Spinner, Text, Select, AlertDialog,
-  AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent,
-  AlertDialogOverlay, useDisclosure
+  Badge, useToast, Spinner, Text, Modal, ModalOverlay, ModalContent,
+  ModalHeader, ModalBody, ModalFooter, ModalCloseButton, useDisclosure,
+  Divider, Checkbox, Stack, FormControl, FormLabel, Input
 } from '@chakra-ui/react';
+import { EditIcon, AddIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { buildApiUrl } from '../config';
 
@@ -27,13 +28,14 @@ export default function SystemAdmin() {
   const [users, setUsers] = useState<User[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [modalMode, setModalMode] = useState<'edit' | 'create'>('edit');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [deleteUsername, setDeleteUsername] = useState<string>('');
-  const cancelRef = React.useRef<HTMLButtonElement>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -81,33 +83,87 @@ export default function SystemAdmin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addUserToGroup = async (username: string, groupName: string) => {
+  const openEditModal = (user: User) => {
+    setSelectedUser(user);
+    setSelectedRoles([...user.groups]);
+    setModalMode('edit');
+    onOpen();
+  };
+
+  const openCreateModal = () => {
+    setSelectedUser(null);
+    setNewUserEmail('');
+    setNewUserPassword('');
+    setSelectedRoles([]);
+    setModalMode('create');
+    onOpen();
+  };
+
+  const closeModal = () => {
+    setSelectedUser(null);
+    setNewUserEmail('');
+    setNewUserPassword('');
+    setSelectedRoles([]);
+    onClose();
+  };
+
+  const toggleRole = (roleName: string) => {
+    setSelectedRoles(prev => 
+      prev.includes(roleName) 
+        ? prev.filter(r => r !== roleName)
+        : [...prev, roleName]
+    );
+  };
+
+  const handleSaveUser = async () => {
+    if (modalMode === 'edit' && selectedUser) {
+      await updateUserRoles();
+    } else if (modalMode === 'create') {
+      await createUser();
+    }
+  };
+
+  const createUser = async () => {
+    if (!newUserEmail || !newUserPassword) {
+      toast({
+        title: 'Validation Error',
+        description: 'Email and password are required',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setActionLoading(true);
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
       
-      const response = await fetch(buildApiUrl(`/api/admin/users/${username}/groups`), {
+      const response = await fetch(buildApiUrl('/api/admin/users'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ groupName })
+        body: JSON.stringify({
+          email: newUserEmail,
+          password: newUserPassword,
+          groups: selectedRoles
+        })
       });
 
       if (response.ok) {
         toast({
           title: 'Success',
-          description: `Added ${username} to ${groupName}`,
+          description: 'User created successfully',
           status: 'success',
           duration: 3000,
         });
         await loadData();
-        setSelectedUser(null);
-        setSelectedGroup('');
+        closeModal();
       } else {
-        throw new Error('Failed to add user to group');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create user');
       }
     } catch (error) {
       toast({
@@ -121,30 +177,48 @@ export default function SystemAdmin() {
     }
   };
 
-  const removeUserFromGroup = async (username: string, groupName: string) => {
+  const updateUserRoles = async () => {
+    if (!selectedUser) return;
+
     setActionLoading(true);
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
-      
-      const response = await fetch(buildApiUrl(`/api/admin/users/${username}/groups/${groupName}`), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        }
-      });
 
-      if (response.ok) {
-        toast({
-          title: 'Success',
-          description: `Removed ${username} from ${groupName}`,
-          status: 'success',
-          duration: 3000,
+      // Determine roles to add and remove
+      const rolesToAdd = selectedRoles.filter(r => !selectedUser.groups.includes(r));
+      const rolesToRemove = selectedUser.groups.filter(r => !selectedRoles.includes(r));
+
+      // Add roles
+      for (const role of rolesToAdd) {
+        await fetch(buildApiUrl(`/api/admin/users/${selectedUser.username}/groups`), {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ groupName: role })
         });
-        await loadData();
-      } else {
-        throw new Error('Failed to remove user from group');
       }
+
+      // Remove roles
+      for (const role of rolesToRemove) {
+        await fetch(buildApiUrl(`/api/admin/users/${selectedUser.username}/groups/${role}`), {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          }
+        });
+      }
+
+      toast({
+        title: 'Success',
+        description: 'User roles updated',
+        status: 'success',
+        duration: 3000,
+      });
+      await loadData();
+      closeModal();
     } catch (error) {
       toast({
         title: 'Error',
@@ -157,14 +231,16 @@ export default function SystemAdmin() {
     }
   };
 
-  const toggleUserStatus = async (username: string, enable: boolean) => {
+  const toggleUserStatus = async (enable: boolean) => {
+    if (!selectedUser) return;
+
     setActionLoading(true);
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
       
       const action = enable ? 'enable' : 'disable';
-      const response = await fetch(buildApiUrl(`/api/admin/users/${username}/${action}`), {
+      const response = await fetch(buildApiUrl(`/api/admin/users/${selectedUser.username}/${action}`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -179,6 +255,7 @@ export default function SystemAdmin() {
           duration: 3000,
         });
         await loadData();
+        closeModal();
       } else {
         throw new Error(`Failed to ${action} user`);
       }
@@ -194,18 +271,15 @@ export default function SystemAdmin() {
     }
   };
 
-  const confirmDeleteUser = (username: string) => {
-    setDeleteUsername(username);
-    onOpen();
-  };
-
   const deleteUser = async () => {
+    if (!selectedUser) return;
+
     setActionLoading(true);
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
       
-      const response = await fetch(buildApiUrl(`/api/admin/users/${deleteUsername}`), {
+      const response = await fetch(buildApiUrl(`/api/admin/users/${selectedUser.username}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -220,7 +294,7 @@ export default function SystemAdmin() {
           duration: 3000,
         });
         await loadData();
-        onClose();
+        closeModal();
       } else {
         throw new Error('Failed to delete user');
       }
@@ -247,7 +321,17 @@ export default function SystemAdmin() {
   return (
     <Box p={8}>
       <VStack spacing={8} align="stretch">
-        <Heading color="orange.400" size="xl">User & Role Management</Heading>
+        {/* Header with Add User Button */}
+        <HStack justify="space-between">
+          <Heading color="orange.400" size="xl">User & Role Management</Heading>
+          <Button 
+            leftIcon={<AddIcon />}
+            colorScheme="orange" 
+            onClick={openCreateModal}
+          >
+            Add User
+          </Button>
+        </HStack>
 
         {/* Users Table */}
         <Box>
@@ -265,7 +349,7 @@ export default function SystemAdmin() {
               </Thead>
               <Tbody>
                 {users.map((user) => (
-                  <Tr key={user.username}>
+                  <Tr key={user.username} _hover={{ bg: 'gray.700' }}>
                     <Td color="gray.300">{user.email}</Td>
                     <Td>
                       <Badge colorScheme={user.enabled ? 'green' : 'red'}>
@@ -274,33 +358,14 @@ export default function SystemAdmin() {
                     </Td>
                     <Td>
                       <HStack spacing={2} flexWrap="wrap">
-                        {user.groups.map((group) => (
-                          <Badge key={group} colorScheme="blue" cursor="pointer"
-                            onClick={() => removeUserFromGroup(user.username, group)}>
-                            {group} ✕
-                          </Badge>
-                        ))}
-                        {selectedUser === user.username ? (
-                          <HStack>
-                            <Select size="xs" value={selectedGroup} onChange={(e) => setSelectedGroup(e.target.value)}
-                              bg="gray.700" color="white" w="150px">
-                              <option value="">Select role...</option>
-                              {groups.filter(g => !user.groups.includes(g.name)).map((group) => (
-                                <option key={group.name} value={group.name}>{group.name}</option>
-                              ))}
-                            </Select>
-                            <Button size="xs" colorScheme="green" onClick={() => addUserToGroup(user.username, selectedGroup)}
-                              isDisabled={!selectedGroup || actionLoading}>
-                              Add
-                            </Button>
-                            <Button size="xs" onClick={() => { setSelectedUser(null); setSelectedGroup(''); }}>
-                              Cancel
-                            </Button>
-                          </HStack>
+                        {user.groups.length > 0 ? (
+                          user.groups.map((group) => (
+                            <Badge key={group} colorScheme="blue">
+                              {group}
+                            </Badge>
+                          ))
                         ) : (
-                          <Button size="xs" colorScheme="orange" onClick={() => setSelectedUser(user.username)}>
-                            + Add Role
-                          </Button>
+                          <Text color="gray.500" fontSize="sm">No roles</Text>
                         )}
                       </HStack>
                     </Td>
@@ -308,18 +373,15 @@ export default function SystemAdmin() {
                       {new Date(user.created).toLocaleDateString()}
                     </Td>
                     <Td>
-                      <HStack spacing={2}>
-                        <Button size="xs" colorScheme={user.enabled ? 'red' : 'green'}
-                          onClick={() => toggleUserStatus(user.username, !user.enabled)}
-                          isLoading={actionLoading}>
-                          {user.enabled ? 'Disable' : 'Enable'}
-                        </Button>
-                        <Button size="xs" colorScheme="red" variant="outline"
-                          onClick={() => confirmDeleteUser(user.username)}
-                          isLoading={actionLoading}>
-                          Delete
-                        </Button>
-                      </HStack>
+                      <Button 
+                        size="sm" 
+                        leftIcon={<EditIcon />}
+                        colorScheme="orange" 
+                        variant="ghost"
+                        onClick={() => openEditModal(user)}
+                      >
+                        Manage
+                      </Button>
                     </Td>
                   </Tr>
                 ))}
@@ -347,27 +409,146 @@ export default function SystemAdmin() {
         </Box>
       </VStack>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
-        <AlertDialogOverlay>
-          <AlertDialogContent bg="gray.800">
-            <AlertDialogHeader fontSize="lg" fontWeight="bold" color="orange.400">
-              Delete User
-            </AlertDialogHeader>
-            <AlertDialogBody color="gray.300">
-              Are you sure you want to delete user <strong>{deleteUsername}</strong>? This action cannot be undone.
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onClose}>
-                Cancel
-              </Button>
-              <Button colorScheme="red" onClick={deleteUser} ml={3} isLoading={actionLoading}>
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+      {/* User Management Modal */}
+      <Modal isOpen={isOpen} onClose={closeModal} size="xl">
+        <ModalOverlay />
+        <ModalContent bg="gray.800" color="white">
+          <ModalHeader color="orange.400">
+            {modalMode === 'edit' ? `Manage User: ${selectedUser?.email}` : 'Create New User'}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={6} align="stretch">
+              {/* Create User Form */}
+              {modalMode === 'create' && (
+                <>
+                  <FormControl isRequired>
+                    <FormLabel color="gray.300">Email</FormLabel>
+                    <Input
+                      type="email"
+                      placeholder="user@example.com"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      bg="gray.700"
+                      borderColor="gray.600"
+                      _hover={{ borderColor: 'gray.500' }}
+                      _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
+                    />
+                  </FormControl>
+                  <FormControl isRequired>
+                    <FormLabel color="gray.300">Temporary Password</FormLabel>
+                    <Input
+                      type="password"
+                      placeholder="Minimum 8 characters"
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      bg="gray.700"
+                      borderColor="gray.600"
+                      _hover={{ borderColor: 'gray.500' }}
+                      _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
+                    />
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      User will be required to change password on first login
+                    </Text>
+                  </FormControl>
+                  <Divider borderColor="gray.600" />
+                </>
+              )}
+
+              {/* User Status (Edit Mode Only) */}
+              {modalMode === 'edit' && selectedUser && (
+                <>
+                  <Box>
+                    <Text color="gray.300" fontWeight="bold" mb={2}>User Status</Text>
+                    <HStack>
+                      <Badge colorScheme={selectedUser.enabled ? 'green' : 'red'} fontSize="md" p={2}>
+                        {selectedUser.status}
+                      </Badge>
+                      <Text color="gray.400" fontSize="sm">
+                        Created: {new Date(selectedUser.created).toLocaleDateString()}
+                      </Text>
+                    </HStack>
+                  </Box>
+                  <Divider borderColor="gray.600" />
+                </>
+              )}
+
+              {/* Role Management */}
+              <Box>
+                <Text color="gray.300" fontWeight="bold" mb={3}>
+                  {modalMode === 'edit' ? 'Manage Roles' : 'Assign Roles'}
+                </Text>
+                <Stack spacing={2}>
+                  {groups.map((group) => (
+                    <Box
+                      key={group.name}
+                      p={3}
+                      bg="gray.700"
+                      borderRadius="md"
+                      borderWidth="1px"
+                      borderColor={selectedRoles.includes(group.name) ? 'orange.400' : 'gray.600'}
+                    >
+                      <Checkbox
+                        isChecked={selectedRoles.includes(group.name)}
+                        onChange={() => toggleRole(group.name)}
+                        colorScheme="orange"
+                      >
+                        <VStack align="start" spacing={0} ml={2}>
+                          <Text color="white" fontWeight="bold">{group.name}</Text>
+                          <Text color="gray.400" fontSize="sm">{group.description}</Text>
+                        </VStack>
+                      </Checkbox>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+
+              {/* Danger Zone (Edit Mode Only) */}
+              {modalMode === 'edit' && selectedUser && (
+                <>
+                  <Divider borderColor="gray.600" />
+                  <Box>
+                    <Text color="red.400" fontWeight="bold" mb={3}>Danger Zone</Text>
+                    <VStack spacing={2} align="stretch">
+                      <Button
+                        colorScheme={selectedUser.enabled ? 'yellow' : 'green'}
+                        variant="outline"
+                        onClick={() => toggleUserStatus(!selectedUser.enabled)}
+                        isLoading={actionLoading}
+                        size="sm"
+                      >
+                        {selectedUser.enabled ? 'Disable User' : 'Enable User'}
+                      </Button>
+                      <Button
+                        colorScheme="red"
+                        variant="outline"
+                        onClick={deleteUser}
+                        isLoading={actionLoading}
+                        size="sm"
+                      >
+                        Delete User Permanently
+                      </Button>
+                    </VStack>
+                  </Box>
+                </>
+              )}
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="orange"
+              onClick={handleSaveUser}
+              isLoading={actionLoading}
+            >
+              {modalMode === 'edit' ? 'Save Changes' : 'Create User'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

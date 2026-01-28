@@ -17,7 +17,6 @@ import {
 import { Form, Formik } from 'formik';
 import React, { useEffect, useState } from 'react';
 import * as Yup from 'yup';
-import { buildApiUrl } from '../config';
 import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
 import DuplicateWarningDialog from './DuplicateWarningDialog';
@@ -69,17 +68,25 @@ const PDFUploadForm: React.FC = () => {
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
 
+  // Initial load - fetch folders on mount and when tenant changes
   useEffect(() => {
-    fetchFolders();
-  }, []);
-
-  // SECURITY: Auto-refresh on tenant change to ensure data isolation
-  // Clears all previous tenant data and refreshes folders for new tenant
-  useEffect(() => {
+    const fetchFolders = async () => {
+      try {
+        const response = await authenticatedGet('/api/folders', { tenant: currentTenant || undefined });
+        const data = await response.json();
+        setAllFolders(data);
+        setFilteredFolders(data);
+        setMessage(''); // Clear any previous error messages
+      } catch (error) {
+        console.error('Error fetching folders:', error);
+        setMessage('Error loading folders. Please try refreshing the page.');
+      }
+    };
+    
     if (currentTenant) {
       setTenantSwitching(true);
       
-      // Clear previous tenant data when switching to prevent data leakage
+      // SECURITY: Clear previous tenant data when switching to prevent data leakage
       setParsedData(null);
       setVendorData(null);
       setPreparedTransactions([]);
@@ -87,25 +94,15 @@ const PDFUploadForm: React.FC = () => {
       setDuplicateInfo(null);
       setShowDuplicateDialog(false);
       
-      // Refresh folders for new tenant
+      // Fetch folders for new tenant
       fetchFolders().finally(() => {
         setTenantSwitching(false);
       });
+    } else {
+      // Initial load when no tenant yet
+      fetchFolders();
     }
   }, [currentTenant]);
-
-  const fetchFolders = async () => {
-    try {
-      const response = await authenticatedGet('/api/folders', { tenant: currentTenant || undefined });
-      const data = await response.json();
-      setAllFolders(data);
-      setFilteredFolders(data);
-      setMessage(''); // Clear any previous error messages
-    } catch (error) {
-      console.error('Error fetching folders:', error);
-      setMessage('Error loading folders. Please try refreshing the page.');
-    }
-  };
 
   const handleSearch = (value: string, setFieldValue: any) => {
     setSearchTerm(value);
@@ -380,7 +377,11 @@ const PDFUploadForm: React.FC = () => {
       }, { tenant: currentTenant || undefined });
       
       // Refresh the folders list after creating
-      await fetchFolders();
+      const response = await authenticatedGet('/api/folders', { tenant: currentTenant || undefined });
+      const data = await response.json();
+      setAllFolders(data);
+      setFilteredFolders(data);
+      
       setNewFolderName('');
       setShowCreateFolder(false);
       alert('Folder created successfully!');

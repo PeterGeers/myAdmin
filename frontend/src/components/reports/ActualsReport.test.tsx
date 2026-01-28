@@ -10,7 +10,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ActualsReport from './ActualsReport';
 import { useTenant } from '../../context/TenantContext';
-import { authenticatedGet } from '../../services/apiService';
+import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 
 // Mock dependencies
 jest.mock('../../context/TenantContext');
@@ -83,6 +83,7 @@ jest.mock('../UnifiedAdminYearFilterAdapters', () => ({
 
 const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
 const mockAuthenticatedGet = authenticatedGet as jest.MockedFunction<typeof authenticatedGet>;
+const mockAuthenticatedPost = authenticatedPost as jest.MockedFunction<typeof authenticatedPost>;
 
 const mockBalanceData = [
   {
@@ -119,6 +120,11 @@ const mockAvailableYears = ['2023', '2024'];
 describe('ActualsReport', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Mock authenticatedPost for cache warmup
+    mockAuthenticatedPost.mockResolvedValue({
+      json: () => Promise.resolve({ success: true })
+    } as Response);
     
     // Default mock responses
     mockAuthenticatedGet.mockImplementation((url: string) => {

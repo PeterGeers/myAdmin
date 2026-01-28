@@ -41,7 +41,8 @@
   },
   "scripts": {
     "start": "set NODE_OPTIONS=--no-deprecation && react-scripts start",
-    "build": "set NODE_OPTIONS=--no-deprecation && react-scripts build",
+    "build": "set NODE_OPTIONS=--no-deprecation && set DISABLE_ESLINT_PLUGIN=false && react-scripts build",
+    "build:ci": "set NODE_OPTIONS=--no-deprecation && set DISABLE_ESLINT_PLUGIN=true && react-scripts build",
     "test": "react-scripts test",
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
     "eject": "react-scripts eject"

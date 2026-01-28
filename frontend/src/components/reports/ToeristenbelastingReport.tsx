@@ -12,7 +12,6 @@ import {
   Text,
   VStack
 } from '@chakra-ui/react';
-import { buildApiUrl } from '../../config';
 import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 
 const ToeristenbelastingReport: React.FC = () => {

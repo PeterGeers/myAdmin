@@ -12,6 +12,8 @@ import {
   createTenantParams
 } from './tenantApiService';
 
+import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete } from './apiService';
+
 // Mock the base API service
 jest.mock('./apiService', () => ({
   authenticatedGet: jest.fn(),
@@ -19,8 +21,6 @@ jest.mock('./apiService', () => ({
   authenticatedPut: jest.fn(),
   authenticatedDelete: jest.fn()
 }));
-
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete } from './apiService';
 
 const mockAuthenticatedGet = authenticatedGet as jest.MockedFunction<typeof authenticatedGet>;
 const mockAuthenticatedPost = authenticatedPost as jest.MockedFunction<typeof authenticatedPost>;

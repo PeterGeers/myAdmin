@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import App from './App';
+
 // Mock fetch for API calls
 global.fetch = jest.fn(() =>
   Promise.resolve({
@@ -102,8 +104,6 @@ jest.mock('./App', () => {
     return renderPage();
   };
 });
-
-import App from './App';
 
 describe('App Routing', () => {
   beforeEach(() => {

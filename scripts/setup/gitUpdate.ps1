@@ -13,46 +13,19 @@ Write-Host "🔍 Checking for credentials..." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Running GitGuardian security scan..." -ForegroundColor Cyan
 
-# Check if ggshield is installed
-try {
-    ggshield --version | Out-Null
-    $ggInstalled = $true
-}
-catch {
-    $ggInstalled = $false
-    Write-Host "⚠ GitGuardian not installed - using basic checks only" -ForegroundColor Yellow
-    Write-Host "  Install with: scripts/security/install-gitguardian.ps1" -ForegroundColor Yellow
+# Use shared GitGuardian scanning module
+. "$PSScriptRoot/../security/Invoke-GitGuardianScan.ps1"
+$scanResult = Invoke-GitGuardianScan -AllowSkip $true -UseWriteLog $false
+
+if ($scanResult -ne 0) {
+    Write-Host "Aborting due to security scan failure." -ForegroundColor Red
+    exit 1
 }
 
-if ($ggInstalled -and $env:GITGUARDIAN_API_KEY) {
-    Write-Host "Scanning with GitGuardian..." -ForegroundColor Cyan
-    
-    # Scan current changes
-    ggshield secret scan pre-commit
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host ""
-        Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Red
-        Write-Host "║  🚨 SECURITY ALERT: Secrets detected in your changes!     ║" -ForegroundColor Red
-        Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "GitGuardian found potential secrets in your code." -ForegroundColor Red
-        Write-Host "Please review the output above and remove any secrets." -ForegroundColor Red
-        Write-Host ""
-        Write-Host "Common secrets to check:" -ForegroundColor Yellow
-        Write-Host "  • API keys (OpenRouter, AWS, Google, Cognito)" -ForegroundColor Yellow
-        Write-Host "  • Database passwords" -ForegroundColor Yellow
-        Write-Host "  • JWT secrets" -ForegroundColor Yellow
-        Write-Host "  • Private keys" -ForegroundColor Yellow
-        Write-Host ""
-        exit 1
-    }
-    
-    Write-Host "✅ GitGuardian scan passed - no secrets detected" -ForegroundColor Green
-}
-else {
+# If GitGuardian scan passed or was skipped, continue with basic checks
+if ($scanResult -eq 0) {
     # Fallback to basic regex checks
-    Write-Host "Using basic credential checks..." -ForegroundColor Yellow
+    Write-Host "Running additional basic credential checks..." -ForegroundColor Yellow
     
     $files = git diff --name-only HEAD 2>$null | Where-Object { $_ -and (Test-Path $_) }
     $blocked = $false
