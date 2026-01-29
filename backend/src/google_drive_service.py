@@ -4,51 +4,125 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.http import MediaFileUpload
 import os
+import json
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
+logger = logging.getLogger(__name__)
+
 class GoogleDriveService:
-    def __init__(self):
+    def __init__(self, administration: str):
+        """
+        Initialize GoogleDriveService for a specific administration/tenant.
+        
+        Args:
+            administration: The tenant/administration identifier (e.g., 'GoodwinSolutions', 'PeterPrive')
+        """
+        self.administration = administration
         self.service = self._authenticate()
     
     def _authenticate(self):
-        # Check if running in Docker container
-        if os.path.exists('/app/credentials.json'):
-            # Docker environment
-            credentials_path = '/app/credentials.json'
-            token_path = '/app/token.json'
-        else:
-            # Local development environment
-            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            credentials_path = os.path.join(backend_dir, 'credentials.json')
-            token_path = os.path.join(backend_dir, 'token.json')
+        """
+        Authenticate with Google Drive using credentials from database.
         
-        print(f"Looking for credentials at: {credentials_path}")
-        print(f"Credentials file exists: {os.path.exists(credentials_path)}")
-        print(f"Token path: {token_path}")
-        print(f"Token file exists: {os.path.exists(token_path)}")
+        Retrieves tenant-specific credentials from the database and uses them
+        to authenticate with Google Drive API.
         
-        creds = None
-        if os.path.exists(token_path):
-            creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-        
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                if os.path.exists(credentials_path):
-                    flow = InstalledAppFlow.from_client_secrets_file(credentials_path, SCOPES)
-                    creds = flow.run_local_server(port=0)
-                else:
-                    raise Exception(f"Credentials file not found at {credentials_path}")
+        Returns:
+            Google Drive API service instance
             
-            with open(token_path, 'w') as token:
-                token.write(creds.to_json())
-        
-        return build('drive', 'v3', credentials=creds)
+        Raises:
+            Exception: If credentials are not found or authentication fails
+        """
+        try:
+            # Import here to avoid circular dependencies
+            from database import DatabaseManager
+            from services.credential_service import CredentialService
+            
+            # Initialize database and credential service
+            db = DatabaseManager()
+            credential_service = CredentialService(db)
+            
+            # Retrieve credentials from database
+            logger.info(f"Retrieving Google Drive credentials for administration: {self.administration}")
+            
+            # Get OAuth credentials (credentials.json content)
+            oauth_creds = credential_service.get_credential(
+                self.administration, 
+                'google_drive_oauth'
+            )
+            
+            if not oauth_creds:
+                raise Exception(
+                    f"Google Drive OAuth credentials not found for administration '{self.administration}'. "
+                    "Please run the migration script to store credentials in the database."
+                )
+            
+            # Get token (token.json content) if it exists
+            token_data = credential_service.get_credential(
+                self.administration,
+                'google_drive_token'
+            )
+            
+            creds = None
+            
+            # If we have a token, try to use it
+            if token_data:
+                try:
+                    # Create Credentials object from token data
+                    creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+                    logger.info(f"Loaded existing token for administration: {self.administration}")
+                except Exception as e:
+                    logger.warning(f"Failed to load token: {e}")
+                    creds = None
+            
+            # Check if credentials are valid or need refresh
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    # Refresh the token
+                    logger.info(f"Refreshing expired token for administration: {self.administration}")
+                    creds.refresh(Request())
+                    
+                    # Store the refreshed token back to database
+                    token_info = json.loads(creds.to_json())
+                    credential_service.store_credential(
+                        self.administration,
+                        'google_drive_token',
+                        token_info
+                    )
+                    logger.info(f"Refreshed token stored for administration: {self.administration}")
+                else:
+                    # Need to do OAuth flow
+                    logger.info(f"Starting OAuth flow for administration: {self.administration}")
+                    
+                    # Create flow from OAuth credentials
+                    from google_auth_oauthlib.flow import Flow
+                    
+                    flow = Flow.from_client_config(
+                        oauth_creds,
+                        scopes=SCOPES,
+                        redirect_uri='urn:ietf:wg:oauth:2.0:oob'
+                    )
+                    
+                    # For now, raise an exception - OAuth flow requires user interaction
+                    # In production, this should be handled through the Tenant Admin UI
+                    raise Exception(
+                        f"OAuth token not found or invalid for administration '{self.administration}'. "
+                        "Please complete OAuth flow through the Tenant Admin UI or run the migration script."
+                    )
+            
+            # Build and return the service
+            service = build('drive', 'v3', credentials=creds)
+            logger.info(f"Successfully authenticated Google Drive for administration: {self.administration}")
+            return service
+            
+        except Exception as e:
+            logger.error(f"Failed to authenticate Google Drive for administration '{self.administration}': {e}")
+            raise
     
     def list_subfolders(self):
         # Use test or production folder based on TEST_MODE

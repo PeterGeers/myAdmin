@@ -19,7 +19,7 @@
 
 ## 🎯 Critical Decisions (MADE)
 
-### ✅ Credentials Management
+### ✅ Decision 1: Credentials Management
 
 **Decision**: Railway for generic secrets, MySQL for tenant-specific secrets
 
@@ -43,170 +43,287 @@ MySQL Database → Tenant secrets (encrypted Google Drive credentials)
 
 ---
 
-## ⏸️ Pending Decisions
+### ✅ Decision 2: Template Storage & Management
 
-### 1. Template Storage (STR Invoices)
+**Decision**: MySQL metadata + tenant-owned storage
 
-**Options**: Database | Railway Volumes | Google Drive
-**Impact**: MEDIUM
-**Needed By**: Before Railway migration
+**Structure**:
 
-### 2. File Storage (Reports/Uploads)
+- **MySQL**: Template metadata (location, type, field mappings)
+- **Storage**: Templates stored in tenant's Google Drive
+- **Management**: Tenant Administrator via Tenant Admin Module
 
-**Options**: Railway Volumes | S3 | Google Cloud Storage  
-**Impact**: MEDIUM
-**Needed By**: Before Railway migration
-
----
-
-## 🚀 Implementation Plan
-
-### Phase 1: Credentials Setup (Day 1)
-
-**1.1 Generate Encryption Key**
-
-```bash
-python scripts/generate_encryption_key.py
-# Output: CREDENTIALS_ENCRYPTION_KEY=...
-```
-
-**1.2 Create Database Table**
+**Database Tables**:
 
 ```sql
-CREATE TABLE tenant_credentials (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    tenant_id VARCHAR(100) NOT NULL,
-    credential_type VARCHAR(50) NOT NULL,
-    encrypted_value TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_tenant_cred (tenant_id, credential_type)
-);
+tenant_template_config (
+    tenant_id, template_type, template_file_id,
+    field_mappings, is_active
+)
 ```
 
-**1.3 Implement Encryption Service**
+**Template Types** (all XML with field mappings):
 
-- Create `backend/src/services/credential_service.py`
-- Methods: `store_credential()`, `get_credential()`, `delete_credential()`
+- Financial reports (template: XML → output: Excel)
+- STR invoices (template: XML → output: HTML with logo)
+- BTW Aangifte (template: XML → output: XML)
+- Toeristenbelasting (template: XML → output: XML)
+- IB Aangifte (template: XML → output: XML)
 
-**1.4 Update GoogleDriveService**
-
-- Change `__init__()` to accept `tenant_id`
-- Read credentials from database instead of files
-
-**1.5 Migrate Existing Credentials**
-
-```bash
-python scripts/migrate_credentials_to_db.py
-```
-
-**1.6 Test Locally**
-
-```bash
-docker-compose up
-# Test Google Drive access for both tenants
-```
-
-### Phase 2: Railway Setup (Day 2)
-
-**2.1 Create Railway Account**
-
-- Sign up at railway.app
-- Create new project "myadmin-production"
-
-**2.2 Create MySQL Database**
-
-- Add MySQL service in Railway
-- Note connection details
-
-**2.3 Configure Environment Variables**
-
-```bash
-# In Railway dashboard, add:
-DB_HOST=<railway-mysql-host>
-DB_PASSWORD=<railway-generated>
-OPENROUTER_API_KEY=<your-key>
-AWS_ACCESS_KEY_ID=<your-key>
-AWS_SECRET_ACCESS_KEY=<your-secret>
-COGNITO_CLIENT_SECRET=<your-secret>
-CREDENTIALS_ENCRYPTION_KEY=<generated-key>
-```
-
-**2.4 Import Database**
-
-```bash
-# Export local
-mysqldump finance > production_backup.sql
-
-# Import to Railway
-mysql -h <railway-host> -u root -p railway < production_backup.sql
-```
-
-### Phase 3: Deploy Application (Day 3)
-
-**3.1 Connect GitHub**
-
-- Link Railway to your GitHub repo
-- Set deploy branch to `main`
-
-**3.2 Configure Build**
-
-- Railway auto-detects Dockerfile
-- Verify build settings
-
-**3.3 Deploy**
-
-- Push to main branch
-- Railway auto-deploys
-
-**3.4 Test**
-
-- Test all endpoints
-- Verify Google Drive access
-- Check tenant isolation
-
-### Phase 4: Go Live (Day 4)
-
-**4.1 Update DNS**
-
-```
-admin.pgeers.nl → Railway URL
-```
-
-**4.2 Monitor**
-
-- Check Railway logs
-- Verify all features working
-
-**4.3 Backup**
-
-- Keep local database for 1 week
+**Why**: Flexible, tenant-controlled, supports custom field mappings
 
 ---
 
-## 📁 File Cleanup (Before Migration)
+### ✅ Decision 3: File Storage Strategy
 
-### Delete These Files:
+**Decision**: Tenant-owned storage with myAdmin system tenant
+
+**Principles**:
+
+1. Data storage on storage owned/managed by tenant
+2. Generic templates stored centrally in myAdmin tenant
+3. No OneDrive dependency
+
+**Storage Options**:
+
+- **Current tenants**: Google Drive
+- **New tenants**: Google Drive (default) or AWS S3 (optional)
+
+**Folder Structure**:
+
+**myAdmin Tenant** (System):
 
 ```
-❌ backend/data/credentials.json (duplicate)
-❌ backend/data/token.json (duplicate)
+myAdmin Google Drive/
+├── Generic Templates/
+│   ├── default_invoice.html
+│   ├── default_financial_report.xlsx
+│   └── default_str_invoice.html
+├── Email Templates/
+│   ├── password_recovery.html
+│   └── invoice_delivery.html
+└── Platform Assets/
+    ├── Logos/
+    └── Branding/
 ```
 
-### Clean Up frontend/.env:
-
-```bash
-# REMOVE all backend secrets, keep only:
-REACT_APP_API_URL=http://localhost:5000
-```
-
-### Keep These Files:
+**Client Tenants** (GoodwinSolutions, PeterPrive, etc.):
 
 ```
-✅ backend/.env (all secrets for local dev)
-✅ backend/credentials.json (until migrated to DB)
-✅ backend/token.json (until migrated to DB)
+Tenant Google Drive/
+├── Templates/
+│   ├── financial_report.xlsx (migrated from OneDrive)
+│   ├── str_invoice.html
+│   ├── btw_aangifte.xml (migrated from hardcoded)
+│   ├── toeristenbelasting.xml (migrated from hardcoded)
+│   └── ib_aangifte.xml (migrated from hardcoded)
+├── Invoices/
+└── Reports/
 ```
+
+**Migration Actions**:
+
+- ✅ Create myAdmin system tenant with Google Drive
+- ✅ Migrate OneDrive templates to tenant Google Drive
+- ✅ Convert hardcoded tax forms to XML templates
+- ✅ Remove OneDrive mount dependency
+
+**Why**: Tenant data sovereignty, scalable, clear separation
+
+---
+
+### ✅ Decision 4: myAdmin System Tenant
+
+**Decision**: Create myAdmin tenant for platform management
+
+**Purpose**:
+
+- Store generic templates
+- Platform assets (logos, branding)
+- Email templates
+- myAdmin invoicing (invoice your clients)
+- Cognito management (tenants and roles)
+- Other SysAdmin tasks
+
+**Access**: SysAdmin only
+
+**Storage**: Own Google Drive with separate credentials
+
+**Modules**:
+
+- Tenant Admin Module (access to own tenant admin features)
+- Cognito Management
+- Platform Configuration
+
+**Why**: Clear separation of platform vs client data, professional invoicing
+
+---
+
+### ✅ Decision 5: Tenant Admin Module
+
+**Decision**: Build Tenant Admin Module for tenant-specific management
+
+**Features**:
+
+1. **Tenant Credentials Management**
+   - Google Drive credentials
+   - AWS S3 credentials (if applicable)
+   - Other storage credentials
+
+2. **User & Role Allocation**
+   - Manage tenant users
+   - Assign roles within tenant
+   - View user activity
+
+3. **Storage Configuration**
+   - Configure folder IDs
+   - Set storage type (Google Drive/S3)
+   - Manage storage quotas
+
+4. **Template Management**
+   - Upload/update templates
+   - Configure field mappings
+   - Preview templates
+   - Activate/deactivate templates
+   - Support for logos/images
+
+**Access**:
+
+- **Tenant Administrators**:
+  - ✅ Full access to their own tenant only
+  - ✅ Create/manage users within their tenant
+  - ✅ Assign users to their tenant
+  - ✅ Assign roles to users (from available roles)
+  - ✅ Manage tenant credentials, templates, storage
+- **SysAdmin**:
+  - ✅ Access to myAdmin tenant (platform management)
+  - ✅ Tenants: Create, Read, Update, Delete
+  - ✅ Roles: Create, Read, Update, Delete (Cognito groups)
+  - ✅ Tenant-Role Allocation: Define which roles are available per tenant
+  - ✅ View users (for troubleshooting only)
+  - ❌ NO access to tenant data (invoices, reports, templates)
+  - ❌ NO access to tenant credentials (encrypted, tenant-managed)
+  - ❌ NO user creation (tenant administrators do this)
+  - ❌ NO user-tenant assignment (tenant administrators do this)
+
+**Why**: Self-service for tenants, data privacy, clear separation of responsibilities
+
+---
+
+### ✅ Decision 6: User Access Control
+
+**Decision**: Tenant Administrator creates user accounts and sends invitations
+
+**Fact**: Tenant Administrator creates user in Cognito, assigns tenant + role, and sends invitation email. User logs in with pre-configured access.
+
+**Why**: Full tenant control, no approval workflow needed, secure by default
+
+---
+
+## 🏗️ Architecture Summary
+
+### System Components
+
+**Frontend (React)**
+
+- Hosted on Railway
+- Communicates with Backend API
+- Uses AWS Cognito for authentication
+- Tenant selection for multi-tenant access
+
+**Backend (Python/Flask)**
+
+- Hosted on Railway
+- Reads generic secrets from Railway environment variables
+- Reads tenant secrets from MySQL (encrypted)
+- Manages all business logic and API endpoints
+
+**Database (MySQL)**
+
+- Hosted on Railway
+- Stores all application data
+- Stores encrypted tenant credentials
+- Stores template metadata and field mappings
+
+**Storage (Google Drive / S3)**
+
+- Tenant-owned storage
+- Templates, invoices, reports, logos
+- Accessed via tenant-specific credentials from MySQL
+
+**Authentication (AWS Cognito)**
+
+- User management and authentication
+- Role-based access control (RBAC)
+- Tenant-role allocation
+
+**Notifications (AWS SNS)**
+
+- Email notifications
+- System alerts
+
+### Data Flow
+
+**User Login:**
+
+```
+User logs in → Cognito authenticates → Backend validates token →
+Frontend loads with tenant list in header → User switches tenant from dropdown → Access granted
+```
+
+**Template Processing:**
+
+```
+User requests report → Backend reads template metadata from MySQL →
+Fetches XML template from tenant's Google Drive → Applies field mappings →
+Generates output (HTML/Excel/XML) → User chooses:
+  - Store in tenant's Google Drive (default)
+  - Download to local device
+```
+
+**Credentials Access:**
+
+```
+Backend needs tenant credentials → Reads from MySQL tenant_credentials table →
+Decrypts using CREDENTIALS_ENCRYPTION_KEY from Railway env → Uses credentials
+```
+
+### Security Model
+
+**Generic Secrets** (Railway Environment Variables):
+
+- Database password
+- API keys (OpenRouter, etc.)
+- AWS credentials (Cognito, SNS)
+- Encryption key for tenant credentials
+
+**Tenant Secrets** (MySQL Encrypted):
+
+- Google Drive credentials per tenant
+- S3 credentials per tenant (if applicable)
+- Encrypted with AES-256 using key from Railway
+
+**Access Control**:
+
+- SysAdmin: Platform management, no tenant data access
+- Tenant Administrator: Full control of their tenant only
+- Users: Access based on assigned roles within tenant
+
+### Tenant Structure
+
+**myAdmin Tenant** (System):
+
+- Generic templates for all tenants
+- Platform assets and branding
+- Email templates
+- SysAdmin access only
+
+**Client Tenants** (GoodwinSolutions, PeterPrive, etc.):
+
+- Tenant-specific templates with field mappings
+- Tenant data (invoices, reports, transactions)
+- Tenant credentials (encrypted)
+- Tenant Administrator + assigned users
 
 ---
 
@@ -252,66 +369,27 @@ REACT_APP_API_URL=http://localhost:5000
 **Read These in Order**:
 
 1. **This file** - Master plan (you are here)
-2. `CREDENTIALS_IMPLEMENTATION.md` - Detailed code examples
-3. `OPEN_ISSUES.md` - Track pending decisions
+2. `TASKS.md` - Implementation tasks (to be created)
+3. `OPEN_ISSUES.md` - All issues resolved (reference only)
 
-**Reference Only** (don't read unless needed):
+**Archived** (old analysis files, not needed):
 
-- `Impact Analysis.md` - Full 2500-line analysis
-- `TENANT_SPECIFIC_GOOGLE_DRIVE.md` - Options analysis
-- `CREDENTIALS_FILE_STRUCTURE.md` - Current file locations
-
----
-
-## ✅ Checklist
-
-### Before Starting
-
-- [ ] Read this master plan
-- [ ] Decide on template storage
-- [ ] Decide on file storage
-- [ ] Backup current database
-
-### Phase 1 (Credentials)
-
-- [ ] Generate encryption key
-- [ ] Create database table
-- [ ] Implement CredentialService
-- [ ] Update GoogleDriveService
-- [ ] Migrate credentials
-- [ ] Test locally
-
-### Phase 2 (Railway Setup)
-
-- [ ] Create Railway account
-- [ ] Create MySQL database
-- [ ] Configure env vars
-- [ ] Import database
-
-### Phase 3 (Deploy)
-
-- [ ] Connect GitHub
-- [ ] Deploy application
-- [ ] Test all features
-
-### Phase 4 (Go Live)
-
-- [ ] Update DNS
-- [ ] Monitor production
-- [ ] Verify everything works
+- `archive/Impact Analysis.md` - Original 2500-line analysis
+- `archive/TENANT_SPECIFIC_GOOGLE_DRIVE.md` - Options analysis (decision made)
+- `archive/CREDENTIALS_FILE_STRUCTURE.md` - Old file structure (cleaned up)
 
 ---
 
 ## 🆘 Quick Help
 
-**Confused about credentials?**
-→ See "How It Works" section above
+**Confused about architecture?**
+→ See "Architecture Summary" section above
 
-**Need code examples?**
-→ See `CREDENTIALS_IMPLEMENTATION.md`
+**Need implementation tasks?**
+→ See `TASKS.md` (to be created)
 
 **Have questions?**
-→ See `OPEN_ISSUES.md`
+→ See `OPEN_ISSUES.md` (all resolved)
 
-**Want full details?**
-→ See `Impact Analysis.md` (warning: 2500 lines)
+**Want to see old analysis?**
+→ See `archive/` folder (not needed for implementation)

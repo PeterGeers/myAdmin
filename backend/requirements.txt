@@ -23,3 +23,4 @@ boto3==1.42.30
 phonenumbers==9.0.22
 PyJWT==2.10.1
 python-jose==3.5.0
+cryptography==41.0.7
