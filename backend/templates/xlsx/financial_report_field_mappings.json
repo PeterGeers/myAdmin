@@ -1,0 +1,4 @@
+{
+  "template_path": "backend/templates/xlsx/template.xlsx",
+  "output_base_path": "backend/reports"
+}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BTW aangifte - {{ year }} Q{{ quarter }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2, h3 { color: #333; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        .summary { background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .amount { text-align: right; }
+        .highlight { background-color: #ffffcc; font-weight: bold; }
+        .positive { color: #006400; }
+        .negative { color: #8b0000; }
+        .footer { margin-top: 30px; font-size: 0.9em; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>BTW aangifte</h1>
+    <p><strong>Auteur:</strong> myAdmin</p>
+    
+    <p>Dit overzicht laat de gegevens zien voor de BTW aangifte van <strong>{{ administration }}</strong> 
+    Boekjaar <strong>{{ year }}</strong> en kwartaal <strong>{{ quarter }}</strong> en opmaakdatum <strong>{{ end_date }}</strong></p>
+    
+    <h3>Eindbalans t/m {{ end_date }}</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Reknum</th>
+                <th>AccountName</th>
+                <th class="amount">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+{{ balance_rows }}
+        </tbody>
+    </table>
+    
+    <h3>Gegevens kwartaal {{ year }} - {{ quarter }}</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Reknum</th>
+                <th>AccountName</th>
+                <th class="amount">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+{{ quarter_rows }}
+        </tbody>
+    </table>
+    
+    <div class="summary">
+        <h3>Samenvatting</h3>
+        <ul>
+            <li><strong>Netto:</strong> {{ payment_instruction }}</li>
+            <li><strong>Ontvangen BTW:</strong> {{ received_btw }}</li>
+            <li><strong>Vooruitbetaalde BTW:</strong> {{ prepaid_btw }}</li>
+        </ul>
+        
+        <p><a href="https://mijnzakelijk.belastingdienst.nl/GTService/#/inloggen" target="_blank">
+        Inloggen belastingdienst</a></p>
+    </div>
+    
+    <p class="footer"><em>Gegenereerd op: {{ generated_date }}</em></p>
+</body>
+</html>

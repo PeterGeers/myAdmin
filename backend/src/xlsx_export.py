@@ -9,22 +9,83 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from google_drive_service import GoogleDriveService
 import io
 from googleapiclient.http import MediaIoBaseDownload
+from services.template_service import TemplateService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class XLSXExportProcessor:
     def __init__(self, test_mode=False):
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
-        self.template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'xlsx', 'template.xlsx')
-        # Check if running in Docker/container environment
+        self.template_service = TemplateService(self.db)
+        # Default template path (fallback)
+        self.default_template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'xlsx', 'template.xlsx')
+        # Default output path (fallback)
         if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
-            # Running in container - use mounted volume path
-            self.output_base_path = '/app/reports'
-            # Ensure the directory exists in container
-            os.makedirs(self.output_base_path, exist_ok=True)
+            self.default_output_base_path = '/app/reports'
+            os.makedirs(self.default_output_base_path, exist_ok=True)
         else:
-            # Running on Windows - use the original path
-            self.output_base_path = r'C:\Users\peter\OneDrive\Admin\reports'
+            self.default_output_base_path = r'C:\Users\peter\OneDrive\Admin\reports'
         self.folder_search_log = []
+        logger.info("XLSXExportProcessor initialized with TemplateService")
+    
+    def _get_template_path(self, administration):
+        """Get template path for administration using TemplateService"""
+        try:
+            # Get template metadata from TemplateService
+            metadata = self.template_service.get_template_metadata(
+                administration, 
+                'financial_report_xlsx'
+            )
+            
+            if metadata and metadata.get('field_mappings'):
+                field_mappings = metadata['field_mappings']
+                template_path = field_mappings.get('template_path')
+                
+                if template_path and os.path.exists(template_path):
+                    logger.info(
+                        f"Using template path from TemplateService for {administration}: "
+                        f"{template_path}"
+                    )
+                    return template_path
+                else:
+                    logger.warning(
+                        f"Template path from database not found: {template_path}, "
+                        f"using default"
+                    )
+        except Exception as e:
+            logger.warning(f"Could not get template path from TemplateService: {e}")
+        
+        logger.info(f"Using default template path for {administration}")
+        return self.default_template_path
+    
+    def _get_output_base_path(self, administration):
+        """Get output base path for administration using TemplateService"""
+        try:
+            # Get template metadata from TemplateService
+            metadata = self.template_service.get_template_metadata(
+                administration,
+                'financial_report_xlsx'
+            )
+            
+            if metadata and metadata.get('field_mappings'):
+                field_mappings = metadata['field_mappings']
+                output_path = field_mappings.get('output_base_path')
+                
+                if output_path:
+                    # Ensure directory exists
+                    os.makedirs(output_path, exist_ok=True)
+                    logger.info(
+                        f"Using output path from TemplateService for {administration}: "
+                        f"{output_path}"
+                    )
+                    return output_path
+        except Exception as e:
+            logger.warning(f"Could not get output path from TemplateService: {e}")
+        
+        logger.info(f"Using default output path for {administration}")
+        return self.default_output_base_path
         
     def make_ledgers(self, year, administration):
         """Calculate starting balance and add all transactions for specific year and administration"""
@@ -90,8 +151,11 @@ class XLSXExportProcessor:
     
     def export_files(self, data, year, administration):
         """Export files and create folder structure"""
+        # Get output base path for this administration
+        output_base_path = self._get_output_base_path(administration)
+        
         # Create output folder
-        folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+        folder_path = os.path.join(output_base_path, f"{administration}{year}")
         try:
             os.makedirs(folder_path, exist_ok=True)
         except OSError as e:
@@ -189,7 +253,7 @@ class XLSXExportProcessor:
         
         return downloaded_count
     
-    def write_workbook(self, data, filename, sheet_name='data'):
+    def write_workbook(self, data, filename, sheet_name='data', administration=None):
         """Write data to Excel workbook using template"""
         # Ensure output directory exists - create full path if needed
         output_dir = os.path.dirname(filename)
@@ -202,10 +266,13 @@ class XLSXExportProcessor:
                 filename = os.path.basename(filename)
                 print(f"Falling back to current directory: {filename}")
         
+        # Get template path for this administration
+        template_path = self._get_template_path(administration) if administration else self.default_template_path
+        
         # Copy template if target file doesn't exist
         if not os.path.exists(filename):
-            if os.path.exists(self.template_path):
-                shutil.copy2(self.template_path, filename)
+            if os.path.exists(template_path):
+                shutil.copy2(template_path, filename)
             else:
                 # Create new workbook if template doesn't exist
                 from openpyxl import Workbook
@@ -297,21 +364,24 @@ class XLSXExportProcessor:
                         })
                         continue
                     
+                    # Get output base path for this administration
+                    output_base_path = self._get_output_base_path(administration)
+                    
                     # Create output folder and filename
-                    folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+                    folder_path = os.path.join(output_base_path, f"{administration}{year}")
                     filename = os.path.join(folder_path, f"{administration}{year}.xlsx")
                     
                     # Ensure base output directory exists
                     try:
-                        os.makedirs(self.output_base_path, exist_ok=True)
+                        os.makedirs(output_base_path, exist_ok=True)
                     except OSError as e:
-                        print(f"Warning: Could not create base output directory {self.output_base_path}: {e}")
+                        print(f"Warning: Could not create base output directory {output_base_path}: {e}")
                         # Use current directory as fallback
                         filename = f"{administration}{year}.xlsx"
                         print(f"Using current directory for output: {filename}")
                     
-                    # Write workbook
-                    output_file = self.write_workbook(ledger_data, filename, 'data')
+                    # Write workbook (pass administration for template lookup)
+                    output_file = self.write_workbook(ledger_data, filename, 'data', administration)
                     print(f"Created file: {output_file}")
                     
                     # Export files (create folder structure)
@@ -387,15 +457,18 @@ class XLSXExportProcessor:
                         }
                         continue
                     
+                    # Get output base path for this administration
+                    output_base_path = self._get_output_base_path(administration)
+                    
                     # Create output folder and filename
-                    folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+                    folder_path = os.path.join(output_base_path, f"{administration}{year}")
                     filename = os.path.join(folder_path, f"{administration}{year}.xlsx")
                     
                     # Ensure base output directory exists
                     try:
-                        os.makedirs(self.output_base_path, exist_ok=True)
+                        os.makedirs(output_base_path, exist_ok=True)
                     except OSError as e:
-                        print(f"Warning: Could not create base output directory {self.output_base_path}: {e}")
+                        print(f"Warning: Could not create base output directory {output_base_path}: {e}")
                         # Use current directory as fallback
                         filename = f"{administration}{year}.xlsx"
                         print(f"Using current directory for output: {filename}")
@@ -410,7 +483,7 @@ class XLSXExportProcessor:
                         'status': f'Creating Excel file for {administration} {year}...'
                     }
                     
-                    output_file = self.write_workbook(ledger_data, filename, 'data')
+                    output_file = self.write_workbook(ledger_data, filename, 'data', administration)
                     print(f"Created file: {output_file}")
                     
                     # Export files (create folder structure) with progress
@@ -502,8 +575,11 @@ class XLSXExportProcessor:
     
     def export_files_with_progress_generator(self, data, year, administration):
         """Export files with progress reporting as a generator"""
+        # Get output base path for this administration
+        output_base_path = self._get_output_base_path(administration)
+        
         # Create output folder
-        folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+        folder_path = os.path.join(output_base_path, f"{administration}{year}")
         try:
             os.makedirs(folder_path, exist_ok=True)
         except OSError as e:
@@ -617,8 +693,11 @@ class XLSXExportProcessor:
 
     def export_files_with_progress(self, data, year, administration, progress_callback=None):
         """Export files with progress reporting for individual file downloads"""
+        # Get output base path for this administration
+        output_base_path = self._get_output_base_path(administration)
+        
         # Create output folder
-        folder_path = os.path.join(self.output_base_path, f"{administration}{year}")
+        folder_path = os.path.join(output_base_path, f"{administration}{year}")
         try:
             os.makedirs(folder_path, exist_ok=True)
         except OSError as e:

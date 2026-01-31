@@ -111,7 +111,7 @@ This document breaks down the Railway migration into manageable phases with deta
 
 #### 2.1 Database Schema
 
-- [ ] Create `tenant_template_config` table
+- [x] Create `tenant_template_config` table
   ```sql
   CREATE TABLE tenant_template_config (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -126,57 +126,585 @@ This document breaks down the Railway migration into manageable phases with deta
       INDEX idx_tenant (administration)
   );
   ```
-- [ ] Test table creation locally
-- [ ] Document field_mappings JSON structure
+- [x] Test table creation locally
+- [x] Document field_mappings JSON structure
 
 #### 2.2 Template Service
 
-- [ ] Create `backend/src/services/template_service.py`
-- [ ] Implement `get_template_metadata(administration, template_type)` method
-- [ ] Implement `fetch_template_from_drive(file_id, administration)` method
-- [ ] Implement `apply_field_mappings(template_xml, data, mappings)` method
-- [ ] Implement `generate_output(template, data, output_format)` method
-- [ ] Write unit tests
+- [x] Create `backend/src/services/template_service.py`
+- [x] Implement `get_template_metadata(administration, template_type)` method
+- [x] Implement `fetch_template_from_drive(file_id, administration)` method
+- [x] Implement `apply_field_mappings(template_xml, data, mappings)` method
+- [x] Implement `generate_output(template, data, output_format)` method
+- [x] Write and or update unit and integration tests in line with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
+- [x] consolidate the Template Service related .md files in backend\src\services
 
-#### 2.3 Convert Existing Templates to XML
+#### 2.3 Convert Existing Templates to XML/HTML
 
-- [ ] Convert financial report template to XML with field mappings
-- [ ] Convert STR invoice template to XML with field mappings
-- [ ] Convert BTW Aangifte (currently hardcoded) to XML template
-- [ ] Convert Toeristenbelasting (currently hardcoded) to XML template
-- [ ] Convert IB Aangifte (currently hardcoded) to XML template
-- [ ] Document field mapping structure for each template
+**Architecture Documentation Review**:
+
+- [x] Review and update template system architecture documentation
+  - [x] `.kiro/specs/Common/Railway migration/IMPACT_ANALYSIS_SUMMARY.md` - Update template approach section
+  - [x] `.kiro/specs/Common/templates/analysis.md` - Verify all decisions are documented
+  - [x] `backend/src/services/template_service.py` - Confirm it remains simple (no changes needed)
+  - [x] `backend/templates/README.md` - Document template structure and architecture
+  - [x] `backend/templates/xml/IMPLEMENTATION_SUMMARY.md` - Track implementation status
+
+**HTML Reports (Viewing/Analysis - Customizable per tenant)**:
+
+- [x] Convert Aangifte IB HTML Report template (hierarchical view of income/expenses)
+  - [x] Create HTML template with placeholders (`backend/templates/html/aangifte_ib_template.html`)
+  - [x] Create `backend/src/report_generators/` module structure
+    - [x] Create `backend/src/report_generators/__init__.py`
+    - [x] Create `backend/src/report_generators/common_formatters.py` (shared utilities for formatting)
+    - [x] Create `backend/src/report_generators/README.md` (document module purpose, patterns, and usage)
+    - [x] Create unit tests `backend/tests/unit/test_common_formatters.py` (73 tests, all passing)
+  - [x] Create Aangifte IB generator
+    - [x] Create `backend/src/report_generators/aangifte_ib_generator.py`
+    - [x] Implement `generate_table_rows(report_data, cache, year, administration, user_tenants)` function
+    - [x] Implement hierarchical row generation (parent → aangifte → accounts)
+    - [x] Implement amount formatting and CSS class assignment
+    - [x] Export function in `__init__.py`
+  - [x] Update `backend/src/app.py` route `aangifte_ib_export()`
+    - [x] Import report_generators module
+    - [x] Replace hardcoded HTML generation with generator + TemplateService
+    - [x] Pass generated table_rows to TemplateService
+  - [x] Test end-to-end with real data
+    - [x] Test with GoodwinSolutions tenant
+    - [x] Test with PeterPrive tenant
+    - [x] Verify output matches expected format
+    - [x] Compare with example output (`backend/templates/xml/Aangifte_IB_GoodwinSolutions_2025.html`)
+- [x] Convert STR invoices (NL/UK) template to HTML with field mappings
+  - [x] Create HTML templates with placeholders
+    - [x] `backend/templates/html/str_invoice_nl_template.html` (Dutch version)
+    - [x] `backend/templates/html/str_invoice_en_template.html` (English version)
+  - [x] Create STR invoice generator
+    - [x] Create `backend/src/report_generators/str_invoice_generator.py`
+    - [x] Implement `generate_table_rows(invoice_data, language)` function
+    - [x] Implement `prepare_invoice_data(booking_data, custom_billing)` function
+    - [x] Support both Dutch (NL) and English (EN) languages
+    - [x] Handle conditional line items (VAT, tourist tax)
+    - [x] Export functions in `__init__.py`
+  - [x] Update `backend/src/str_invoice_routes.py` route `generate_invoice()`
+    - [x] Import str_invoice_generator module
+    - [x] Replace old invoice generation with generator + template approach
+    - [x] Use template files from `backend/templates/html/`
+  - [x] Document field mappings
+    - [x] Create `backend/templates/html/STR_INVOICE_FIELD_MAPPINGS.md`
+    - [x] Document all placeholder fields
+    - [x] Document company information fields
+    - [x] Document booking and billing fields
+    - [x] Document financial fields and calculations
+    - [x] Document conditional logic (VAT, tourist tax)
+    - [x] Document language support (NL/EN)
+  - [x] Create unit tests
+    - [x] Create `backend/tests/unit/test_str_invoice_generator.py`
+    - [x] Test `generate_table_rows()` with various scenarios (12 tests)
+    - [x] Test `prepare_invoice_data()` with various inputs
+    - [x] Test language support (NL and EN)
+    - [x] Test conditional line items
+    - [x] All tests passing (12/12)
+- [x] Convert BTW Aangifte HTML Report (VAT calculations and breakdowns)
+  - [x] Create HTML template with placeholders (`backend/templates/html/btw_aangifte_template.html`)
+  - [x] Create BTW Aangifte generator
+    - [x] Create `backend/src/report_generators/btw_aangifte_generator.py`
+    - [x] Implement `generate_btw_report(cache, db, administration, year, quarter)` function
+    - [x] Implement balance data retrieval (accounts 2010, 2020, 2021)
+    - [x] Implement quarter data retrieval (BTW + revenue accounts)
+    - [x] Implement BTW calculations (total balance, received BTW, prepaid BTW)
+    - [x] Implement table row formatting
+    - [x] Export function in `__init__.py`
+  - [x] Update `backend/src/app.py` route `btw_generate_report()`
+    - [x] Import btw_aangifte_generator module
+    - [x] Replace BTWProcessor hardcoded HTML with generator + template approach
+    - [x] Use template file from `backend/templates/html/`
+  - [x] Document field mappings
+    - [x] Create `backend/templates/html/BTW_AANGIFTE_FIELD_MAPPINGS.md`
+    - [x] Document all placeholder fields
+    - [x] Document balance and quarter data structure
+    - [x] Document calculation logic
+    - [x] Document data sources and queries
+  - [x] Create unit tests
+    - [x] Create `backend/tests/unit/test_btw_aangifte_generator.py`
+    - [x] Test quarter end date calculation (5 tests)
+    - [x] Test BTW calculations (4 tests)
+    - [x] Test table row formatting (3 tests)
+    - [x] Test template data preparation (2 tests)
+    - [x] Test data retrieval functions (3 tests)
+    - [x] Test main report generation (1 test)
+    - [x] All tests passing (18/18)
+- [x] Convert Toeristenbelasting HTML Report (tourist tax calculations)
+  - [x] Create HTML template with placeholders (`backend/templates/html/toeristenbelasting_template.html`)
+  - [x] Create Toeristenbelasting generator
+    - [x] Create `backend/src/report_generators/toeristenbelasting_generator.py`
+    - [x] Implement `generate_toeristenbelasting_report(cache, bnb_cache, db, year)` function
+    - [x] Implement configuration retrieval (contact info, accommodation details)
+    - [x] Implement BNB data retrieval (bookings, cancellations, realised)
+    - [x] Implement rental statistics calculation (nights, occupancy rates)
+    - [x] Implement financial data retrieval (tourist tax, revenue, service fees)
+    - [x] Implement taxable revenue calculation
+    - [x] Implement template data preparation with formatting
+    - [x] Export function in `__init__.py`
+  - [x] Update `backend/src/toeristenbelasting_processor.py`
+    - [x] Import report_generators module
+    - [x] Replace hardcoded HTML generation with generator + TemplateService
+    - [x] Use template file from `backend/templates/html/`
+    - [x] Remove old helper methods (\_get_bnb_data, \_get_tourist_tax_from_account, etc.)
+    - [x] Remove old \_generate_html_report method
+  - [x] Document field mappings
+    - [x] Create `backend/templates/html/TOERISTENBELASTING_FIELD_MAPPINGS.md`
+    - [x] Document all placeholder fields
+    - [x] Document contact and accommodation fields
+    - [x] Document rental statistics fields
+    - [x] Document financial calculation fields
+    - [x] Document data sources (BNB cache, mutaties cache)
+    - [x] Document calculation logic (tourist tax formula, taxable revenue)
+  - [x] Create unit tests
+    - [x] Create `backend/tests/unit/test_toeristenbelasting_generator.py`
+    - [x] Test configuration retrieval (1 test)
+    - [x] Test rental statistics calculation (2 tests)
+    - [x] Test financial data retrieval (3 tests)
+    - [x] Test taxable revenue calculation (1 test)
+    - [x] Test financial data aggregation (1 test)
+    - [x] Test template data preparation (1 test)
+    - [x] Test main report generation (2 tests)
+    - [x] All tests passing (11/11)
+
+**Other**:
+
+- [x] Manage financial report generate XLSX template to be used with variable storage of template and local storage of output
+- [x] Document field mapping structure for each template
+
+- [x] Validate all tests created in section 2.3 comply with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
+
+**Note**: HTML Reports are customizable per tenant and stored in their Google Drive. Official XBRL/XML tax forms have been moved to a separate specification at `.kiro/specs/FIN/AANGIFTE_XBRL/` and will be implemented post-Railway migration.
 
 #### 2.4 Migrate Templates to Google Drive
 
-- [ ] Create template folders in each tenant's Google Drive
-- [ ] Upload XML templates to tenant Google Drives
-- [ ] Store template metadata in `tenant_template_config` table
-- [ ] Verify templates are accessible
+- [x] Create template folders in each tenant's Google Drive
+- [x] Upload templates to tenant Google Drives
+- [x] Store template metadata in `tenant_template_config` table
+- [x] Verify templates are accessible in line with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
 
 #### 2.5 Update Report Generation Routes
 
-- [ ] Update financial report generation to use TemplateService
-- [ ] Update STR invoice generation to use TemplateService
-- [ ] Update tax form generation to use TemplateService
-- [ ] Add option to download vs store in Drive
-- [ ] Test all report types
+- [x] Update financial report generation to use TemplateService
+- [x] Update STR invoice generation to use TemplateService
+- [x] Update tax form generation to use TemplateService
+- [x] Add output destination options
+  - [x] Implement download to local filesystem (return to frontend)
+  - [x] Implement upload to Google Drive (save to tenant's Drive)
+  - [x] Add `output_destination` parameter to report endpoints (`download`, `gdrive`, `s3`)
+  - [x] Implement S3 upload (future option)
+- [x] Test all report types in line with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
 
-#### 2.6 Testing
+#### 2.6 Template Preview and Validation
 
-- [ ] Test each template type generation
-- [ ] Verify field mappings work correctly
-- [ ] Test download to local device
-- [ ] Test store to Google Drive
-- [ ] Run integration tests
+**Reference Documentation**:
+
+- Requirements: `.kiro/specs/Common/template-preview-validation/requirements.md`
+- Design: `.kiro/specs/Common/template-preview-validation/design.md`
+- AI Assistance Approach: `.kiro/specs/Common/template-preview-validation/AI_ASSISTANCE_APPROACH.md`
+- Testing: `.kiro\specs\Common\CICD\TEST_ORGANIZATION.md`
+
+**Estimated Time**: 6.5-7.5 days
+
+**Overview**: Enable Tenant Administrators to safely upload, preview, and validate custom report templates before activating them. Includes AI-powered assistance for fixing template errors (privacy-first approach - no SysAdmin access to tenant data).
+
+##### 2.6.1 Database Schema Updates
+
+- [ ] Extend `tenant_template_config` table for versioning
+  - [ ] Add `version` column (INT, default 1)
+  - [ ] Add `approved_by` column (VARCHAR(255))
+  - [ ] Add `approved_at` column (TIMESTAMP)
+  - [ ] Add `approval_notes` column (TEXT)
+  - [ ] Add `previous_file_id` column (VARCHAR(255))
+  - [ ] Add `status` column (ENUM: 'draft', 'active', 'archived', default 'active')
+  - [ ] Test schema changes locally
+  - [ ] Create migration script
+
+- [ ] Create `template_validation_log` table
+  - [ ] Create table with columns: id, administration, template_type, validation_result, errors (JSON), warnings (JSON), validated_by, validated_at
+  - [ ] Add indexes: (administration, template_type), (validated_at)
+  - [ ] Test table creation locally
+  - [ ] Document table structure
+
+- [ ] Create `ai_usage_log` table (for cost tracking)
+  - [ ] Create table with columns: id, administration, feature, tokens_used, cost_estimate, created_at
+  - [ ] Add indexes: (administration), (created_at)
+  - [ ] Test table creation locally
+
+##### 2.6.2 Backend - TemplatePreviewService
+
+- [ ] Create `backend/src/services/template_preview_service.py`
+  - [ ] Implement `__init__(db, administration)` constructor
+  - [ ] Implement `generate_preview(template_type, template_content, field_mappings)` method
+  - [ ] Implement `validate_template(template_type, template_content)` method
+  - [ ] Implement `fetch_sample_data(template_type)` method
+  - [ ] Implement `approve_template(template_type, template_content, field_mappings, user_email, notes)` method
+  - [ ] Implement `_render_template(template_content, sample_data, field_mappings)` method
+
+- [ ] Implement HTML Syntax Validation
+  - [ ] Create `_validate_html_syntax(template_content)` method
+  - [ ] Use HTMLParser to check for well-formed HTML
+  - [ ] Detect unclosed tags
+  - [ ] Detect mismatched closing tags
+  - [ ] Return structured error list
+
+- [ ] Implement Placeholder Validation
+  - [ ] Create `_validate_placeholders(template_type, template_content)` method
+  - [ ] Define required placeholders per template type (str_invoice_nl, btw_aangifte, aangifte_ib, toeristenbelasting, financial_report)
+  - [ ] Extract placeholders from template using regex
+  - [ ] Check for missing required placeholders
+  - [ ] Return structured error list
+
+- [ ] Implement Security Validation
+  - [ ] Create `_validate_security(template_content)` method
+  - [ ] Check for script tags (not allowed)
+  - [ ] Check for event handlers (onclick, onload, etc. - not allowed)
+  - [ ] Check for external resources (warn if present)
+  - [ ] Return structured error/warning list
+
+- [ ] Implement Sample Data Fetching
+  - [ ] Create `_fetch_str_invoice_sample()` method (most recent booking)
+  - [ ] Create `_fetch_btw_sample()` method (most recent quarter data)
+  - [ ] Create `_fetch_aangifte_ib_sample()` method (most recent year data)
+  - [ ] Create `_fetch_toeristenbelasting_sample()` method (most recent year data)
+  - [ ] Create `_fetch_generic_sample()` method (placeholder data)
+  - [ ] Handle cases where no sample data exists
+
+- [ ] Write unit tests for TemplatePreviewService
+  - [ ] Test HTML syntax validation (valid HTML, unclosed tags, mismatched tags)
+  - [ ] Test placeholder validation (all present, missing required)
+  - [ ] Test security validation (script tags, event handlers, external resources)
+  - [ ] Test sample data fetching for each template type
+  - [ ] Test preview generation (success and failure cases)
+  - [ ] Test validation logging
+
+##### 2.6.3 Backend - AI Template Assistant
+
+- [ ] Setup OpenRouter API Integration
+  - [ ] Create OpenRouter account and get API key
+  - [ ] Add `OPENROUTER_API_KEY` to environment variables
+  - [ ] Document API key setup in README
+
+- [ ] Create `backend/src/services/ai_template_assistant.py`
+  - [ ] Implement `__init__()` constructor (load API key, set model)
+  - [ ] Implement `get_fix_suggestions(template_type, template_content, validation_errors, required_placeholders)` method
+  - [ ] Implement `_build_prompt(template_type, template_content, validation_errors, required_placeholders)` method
+  - [ ] Implement `_sanitize_template(template_content)` method (remove PII: emails, phones, addresses)
+  - [ ] Implement `_format_errors(errors)` method
+  - [ ] Implement `_parse_ai_response(response_text)` method (extract JSON from AI response)
+  - [ ] Implement `apply_auto_fixes(template_content, fixes)` method
+  - [ ] Implement `_add_placeholder(template, code_to_add, location)` method
+
+- [ ] Create AI Usage Tracking
+  - [ ] Create `AIUsageTracker` class
+  - [ ] Implement `log_ai_request(administration, template_type, tokens_used)` method
+  - [ ] Calculate cost estimates based on token usage
+  - [ ] Store in `ai_usage_log` table
+
+- [ ] Write unit tests for AITemplateAssistant
+  - [ ] Test prompt building
+  - [ ] Test template sanitization (removes emails, phones, addresses)
+  - [ ] Test AI response parsing (JSON extraction)
+  - [ ] Test auto-fix application
+  - [ ] Mock OpenRouter API calls
+
+##### 2.6.4 Backend - API Routes
+
+- [ ] Create `backend/src/tenant_admin_routes.py` blueprint
+  - [ ] Setup blueprint with prefix `/api/tenant-admin`
+  - [ ] Import required services and decorators
+
+- [ ] Implement POST `/api/tenant-admin/templates/preview`
+  - [ ] Add `@require_tenant_admin` decorator
+  - [ ] Validate request (template_type, template_content required)
+  - [ ] Call TemplatePreviewService.generate_preview()
+  - [ ] Return preview HTML + validation results
+  - [ ] Handle errors (400 for validation failures, 500 for server errors)
+
+- [ ] Implement POST `/api/tenant-admin/templates/validate`
+  - [ ] Add `@require_tenant_admin` decorator
+  - [ ] Validate request
+  - [ ] Call TemplatePreviewService.validate_template()
+  - [ ] Return validation results only (faster than full preview)
+
+- [ ] Implement POST `/api/tenant-admin/templates/approve`
+  - [ ] Add `@require_tenant_admin` decorator
+  - [ ] Validate request
+  - [ ] Call TemplatePreviewService.approve_template()
+  - [ ] Save template to Google Drive
+  - [ ] Update database metadata
+  - [ ] Archive previous version
+  - [ ] Return success with template_id and file_id
+
+- [ ] Implement POST `/api/tenant-admin/templates/reject`
+  - [ ] Add `@require_tenant_admin` decorator
+  - [ ] Log rejection with reason
+  - [ ] Return success message
+
+- [ ] Implement POST `/api/tenant-admin/templates/ai-help`
+  - [ ] Add `@require_tenant_admin` decorator
+  - [ ] Validate request
+  - [ ] Call AITemplateAssistant.get_fix_suggestions()
+  - [ ] Log AI usage for cost tracking
+  - [ ] Return AI suggestions with fixes
+  - [ ] Handle AI service unavailable (fallback to generic help)
+
+- [ ] Implement POST `/api/tenant-admin/templates/apply-ai-fixes`
+  - [ ] Add `@require_tenant_admin` decorator
+  - [ ] Validate request
+  - [ ] Call AITemplateAssistant.apply_auto_fixes()
+  - [ ] Return fixed template content
+  - [ ] Log fix application
+
+- [ ] Add Content Security Policy headers
+  - [ ] Implement `@after_request` handler
+  - [ ] Add CSP headers (no scripts, self-only styles, no external resources)
+  - [ ] Test CSP enforcement
+
+- [ ] Register blueprint in main app
+  - [ ] Import tenant_admin_bp in `backend/src/app.py`
+  - [ ] Register blueprint with app
+  - [ ] Test all endpoints are accessible
+
+- [ ] Write API integration tests
+  - [ ] Test preview endpoint (auth required, success, validation failure)
+  - [ ] Test validate endpoint
+  - [ ] Test approve endpoint (saves to Drive, updates DB)
+  - [ ] Test reject endpoint
+  - [ ] Test AI help endpoint (with mocked OpenRouter)
+  - [ ] Test apply fixes endpoint
+  - [ ] Test tenant isolation (cannot access other tenant's templates)
+
+##### 2.6.5 Frontend - Template Management Components
+
+- [ ] Create component structure
+  - [ ] Create `frontend/src/components/TenantAdmin/TemplateManagement/` directory
+  - [ ] Create component index file
+
+- [ ] Create `TemplateManagement.tsx` (main container)
+  - [ ] Setup state management (template content, validation, preview, loading)
+  - [ ] Implement `handleUpload()` function (read file, call preview API)
+  - [ ] Implement `handleApprove()` function (call approve API)
+  - [ ] Implement `handleReject()` function (call reject API)
+  - [ ] Compose child components
+  - [ ] Add error handling and loading states
+
+- [ ] Create `TemplateUpload.tsx` component
+  - [ ] File input for HTML template upload
+  - [ ] Template type selector dropdown (str_invoice_nl, btw_aangifte, etc.)
+  - [ ] Field mappings editor (optional)
+  - [ ] Upload button with loading state
+  - [ ] File size validation (max 5MB)
+  - [ ] File type validation (HTML only)
+
+- [ ] Create `TemplatePreview.tsx` component
+  - [ ] Iframe for displaying preview HTML
+  - [ ] Sandbox iframe (allow-same-origin only, no scripts)
+  - [ ] Responsive sizing
+  - [ ] Loading skeleton
+  - [ ] Preview note ("This shows how your template will look with sample data")
+
+- [ ] Create `ValidationResults.tsx` component
+  - [ ] Success indicator (green checkmark)
+  - [ ] Error list (red, with icons)
+  - [ ] Warning list (yellow, with icons)
+  - [ ] Display error type, message, line number (if available)
+  - [ ] Collapsible sections for errors/warnings
+
+- [ ] Create `FieldMappingEditor.tsx` component
+  - [ ] JSON editor for field mappings
+  - [ ] Syntax highlighting
+  - [ ] Validation for JSON format
+  - [ ] Help text with examples
+  - [ ] Optional (can use default mappings)
+
+- [ ] Create `TemplateApproval.tsx` component
+  - [ ] Approve button (green, enabled only if valid)
+  - [ ] Reject button (red, always enabled)
+  - [ ] Notes textarea (optional, for approval)
+  - [ ] Reason textarea (optional, for rejection)
+  - [ ] Confirmation dialogs
+  - [ ] Loading states
+
+- [ ] Create `AIHelpButton.tsx` component
+  - [ ] "Get AI Help" button (robot icon)
+  - [ ] Disabled if no validation errors
+  - [ ] Loading state while AI analyzes
+  - [ ] Display AI suggestions in modal/panel
+  - [ ] Show analysis text
+  - [ ] Show list of fixes with code examples
+  - [ ] "Apply All Auto-Fixes" button
+  - [ ] Individual fix accept/reject buttons
+  - [ ] Confidence indicator
+  - [ ] Fallback message if AI unavailable
+
+- [ ] Add routing and navigation
+  - [ ] Add route `/tenant-admin/templates` in React Router
+  - [ ] Add navigation link in Tenant Admin menu
+  - [ ] Add breadcrumbs
+
+- [ ] Add styling
+  - [ ] Create CSS/SCSS for all components
+  - [ ] Responsive design (mobile, tablet, desktop)
+  - [ ] Consistent with existing UI theme
+  - [ ] Accessibility (ARIA labels, keyboard navigation)
+
+##### 2.6.6 Frontend - API Integration
+
+- [ ] Create API service file
+  - [ ] Create `frontend/src/services/templateApi.ts`
+  - [ ] Implement `previewTemplate(templateType, content, mappings)` function
+  - [ ] Implement `validateTemplate(templateType, content)` function
+  - [ ] Implement `approveTemplate(templateType, content, mappings, notes)` function
+  - [ ] Implement `rejectTemplate(templateType, reason)` function
+  - [ ] Implement `getAIHelp(templateType, content, errors)` function
+  - [ ] Implement `applyAIFixes(content, fixes)` function
+  - [ ] Add authentication headers
+  - [ ] Add error handling
+
+- [ ] Add TypeScript types
+  - [ ] Create `frontend/src/types/template.ts`
+  - [ ] Define `TemplateType` enum
+  - [ ] Define `ValidationError` interface
+  - [ ] Define `ValidationResult` interface
+  - [ ] Define `PreviewResponse` interface
+  - [ ] Define `AIFixSuggestion` interface
+  - [ ] Define `AIHelpResponse` interface
+
+##### 2.6.7 Testing
+
+- [ ] Backend Unit Tests
+  - [ ] Test TemplatePreviewService (all validation methods)
+  - [ ] Test AITemplateAssistant (sanitization, prompt building, parsing)
+  - [ ] Test sample data fetching for all template types
+  - [ ] Test template rendering with field mappings
+  - [ ] Achieve 80%+ code coverage
+
+- [ ] Backend Integration Tests
+  - [ ] Test full preview generation flow (upload → validate → preview)
+  - [ ] Test approval workflow (approve → save to Drive → update DB)
+  - [ ] Test AI help flow (request → sanitize → call API → parse response)
+  - [ ] Test tenant isolation (cannot access other tenant's data)
+  - [ ] Test with real database and Google Drive (test environment)
+
+- [ ] API Tests
+  - [ ] Test all endpoints with authentication
+  - [ ] Test all endpoints without authentication (should fail)
+  - [ ] Test request validation (missing fields, invalid types)
+  - [ ] Test error responses (400, 401, 500)
+  - [ ] Test rate limiting (if implemented)
+
+- [ ] Frontend Unit Tests
+  - [ ] Test TemplateManagement component (state management, handlers)
+  - [ ] Test TemplateUpload component (file validation, upload)
+  - [ ] Test ValidationResults component (error/warning display)
+  - [ ] Test AIHelpButton component (AI interaction)
+  - [ ] Mock API calls
+
+- [ ] Frontend Integration Tests
+  - [ ] Test full user flow (upload → preview → approve)
+  - [ ] Test validation error display
+  - [ ] Test AI help interaction
+  - [ ] Test rejection flow
+  - [ ] Use React Testing Library
+
+- [ ] End-to-End Tests
+  - [ ] Test complete workflow from UI to database
+  - [ ] Test with real templates for each type
+  - [ ] Test AI assistance with real OpenRouter API (staging)
+  - [ ] Test error scenarios (invalid template, no sample data, AI unavailable)
+  - [ ] Test on different browsers (Chrome, Firefox, Safari)
+
+##### 2.6.8 Documentation
+
+- [ ] Update API documentation
+  - [ ] Document all new endpoints in OpenAPI/Swagger
+  - [ ] Include request/response schemas
+  - [ ] Include authentication requirements
+  - [ ] Include error codes and messages
+
+- [ ] Create user guide for Tenant Administrators
+  - [ ] How to upload a template
+  - [ ] Understanding validation errors
+  - [ ] Using AI assistance
+  - [ ] Field mapping reference for each template type
+  - [ ] Best practices for template customization
+  - [ ] Troubleshooting common issues
+
+- [ ] Create developer documentation
+  - [ ] Architecture overview
+  - [ ] Adding new template types
+  - [ ] Adding new validation rules
+  - [ ] Extending AI assistance
+  - [ ] Testing guide
+
+- [ ] Update README files
+  - [ ] Update main README with new feature
+  - [ ] Update backend README with new services
+  - [ ] Update frontend README with new components
+
+##### 2.6.9 Deployment
+
+- [ ] Environment Configuration
+  - [ ] Add `OPENROUTER_API_KEY` to Railway environment
+  - [ ] Add `TEMPLATE_MAX_SIZE_MB=5` to environment
+  - [ ] Add `TEMPLATE_PREVIEW_TIMEOUT=30` to environment
+  - [ ] Document all new environment variables
+
+- [ ] Database Migration
+  - [ ] Create migration script for schema changes
+  - [ ] Test migration on staging database
+  - [ ] Run migration on production database
+  - [ ] Verify data integrity after migration
+
+- [ ] Deploy Backend
+  - [ ] Deploy new services and routes to Railway
+  - [ ] Verify all endpoints are accessible
+  - [ ] Test with staging data
+  - [ ] Monitor logs for errors
+
+- [ ] Deploy Frontend
+  - [ ] Build production bundle
+  - [ ] Deploy to hosting (Railway/Vercel)
+  - [ ] Verify all components load correctly
+  - [ ] Test user flows in production
+
+- [ ] Monitoring and Alerts
+  - [ ] Setup logging for template operations
+  - [ ] Setup alerts for high validation failure rates
+  - [ ] Setup alerts for AI API errors
+  - [ ] Monitor AI usage costs
+  - [ ] Track preview generation times
 
 **Deliverables**:
 
-- ✅ All templates converted to XML
+- ✅ Template preview and validation system
+- ✅ AI-powered template assistance (privacy-first)
+- ✅ Complete frontend UI for template management
+- ✅ Comprehensive testing (unit, integration, E2E)
+- ✅ User and developer documentation
+- ✅ Deployed to production with monitoring
+
+#### 2.7 Testing
+
+- [ ] Test each template type generation inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
+- [ ] Verify field mappings work correctly
+- [ ] Test download to local device inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
+- [ ] Test store to Google Drive inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
+- [ ] Run integration tests inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
+
+**Deliverables**:
+
+- ✅ All templates converted to HTML
 - ✅ Template metadata in database
 - ✅ Working TemplateService
 - ✅ Updated report generation routes
 - ✅ All tests passing
+
+**Note**: Official XBRL tax forms (IB Aangifte XBRL, BTW Aangifte XBRL) have been moved to a separate specification at `.kiro/specs/FIN/AANGIFTE_XBRL/` and will be implemented post-Railway migration. Research and documentation are complete.
 
 ---
 

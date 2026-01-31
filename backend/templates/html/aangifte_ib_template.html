@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aangifte IB - {{ year }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        .parent-row { background-color: #e6e6e6; font-weight: bold; }
+        .aangifte-row { background-color: #f9f9f9; font-weight: bold; }
+        .account-row { background-color: #ffffff; font-size: 0.9em; }
+        .resultaat-positive { background-color: #ffcccc; font-weight: bold; }
+        .resultaat-negative { background-color: #ccffcc; font-weight: bold; }
+        .grand-total { background-color: #ffa500; font-weight: bold; color: white; }
+        .amount { text-align: right; }
+        .indent-1 { padding-left: 20px; }
+        .indent-2 { padding-left: 40px; }
+    </style>
+</head>
+<body>
+    <h1>Aangifte Inkomstenbelasting - {{ year }}</h1>
+    <p><strong>Administration:</strong> {{ administration }}</p>
+    <p><strong>Generated:</strong> {{ generated_date }}</p>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Parent</th>
+                <th>Aangifte / Account</th>
+                <th>Description</th>
+                <th class="amount">Amount (€)</th>
+            </tr>
+        </thead>
+        <tbody>
+{{ table_rows }}
+        </tbody>
+    </table>
+</body>
+</html>

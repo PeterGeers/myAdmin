@@ -45,32 +45,69 @@ MySQL Database → Tenant secrets (encrypted Google Drive credentials)
 
 ### ✅ Decision 2: Template Storage & Management
 
-**Decision**: MySQL metadata + tenant-owned storage
+**Decision**: MySQL metadata + tenant-owned storage + hybrid generation approach
 
 **Structure**:
 
 - **MySQL**: Template metadata (location, type, field mappings)
 - **Storage**: Templates stored in tenant's Google Drive
 - **Management**: Tenant Administrator via Tenant Admin Module
+- **Generation**: Hybrid approach - TemplateService for simple placeholders, `report_generators/` module for complex sections
 
 **Database Tables**:
 
 ```sql
 tenant_template_config (
-    tenant_id, template_type, template_file_id,
+    administration, template_type, template_file_id,
     field_mappings, is_active
 )
 ```
 
-**Template Types** (all XML with field mappings):
+**Template Types**:
 
-- Financial reports (template: XML → output: Excel)
-- STR invoices (template: XML → output: HTML with logo)
-- BTW Aangifte (template: XML → output: XML)
-- Toeristenbelasting (template: XML → output: XML)
-- IB Aangifte (template: XML → output: XML)
+**HTML Reports** (Viewing/Analysis - Customizable per tenant):
 
-**Why**: Flexible, tenant-controlled, supports custom field mappings
+- Aangifte IB HTML Report (template: HTML → output: HTML) - Hierarchical view with pre-generated table rows
+- BTW Aangifte HTML Report (template: HTML → output: HTML) - VAT calculations and breakdowns
+- STR invoices NL/UK (template: HTML → output: HTML with logo)
+- Toeristenbelasting HTML Report (template: HTML → output: HTML)
+- Financial reports (template: XLSX → output: Excel) - Uses openpyxl for cell manipulation
+
+**Official Tax Forms** (Submission to Belastingdienst - NOT customizable):
+
+- IB Aangifte XBRL (template: XML → output: XML) - Official income tax return
+- BTW Aangifte XBRL (template: XML → output: XML) - Official VAT return
+- Toeristenbelasting XML (template: XML → output: XML) - Official tourist tax (if exists)
+
+**Architecture Pattern**:
+
+```python
+# For complex hierarchical data (e.g., Aangifte IB):
+# 1. Route handler queries data
+# 2. report_generators/ module pre-generates complex sections (table rows)
+# 3. TemplateService applies simple placeholder replacement
+# 4. Output returned to user or saved to storage
+
+from report_generators import generate_aangifte_ib_table_rows
+
+table_rows = generate_aangifte_ib_table_rows(data, cache, year, admin, user_tenants)
+template_data = {'year': year, 'table_rows': table_rows, ...}
+html = template_service.apply_field_mappings(template, template_data, mappings)
+```
+
+**Output Destinations** (user-selectable):
+
+- Download to local filesystem (return to frontend)
+- Upload to tenant's Google Drive
+- Upload to S3 (future option)
+
+**Why**:
+
+- Flexible and tenant-controlled
+- Supports custom field mappings
+- Keeps TemplateService simple (placeholder replacement only)
+- Complex logic in Python (testable, maintainable)
+- Clear separation: HTML reports (customizable) vs Tax forms (official schemas)
 
 ---
 

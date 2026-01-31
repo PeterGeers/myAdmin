@@ -1,0 +1,178 @@
+{
+  "fields": {
+    "reservationCode": {
+      "source": "database",
+      "path": "reservationCode",
+      "format": "text",
+      "default": ""
+    },
+    "guestName": {
+      "source": "database",
+      "path": "guestName",
+      "format": "text",
+      "default": ""
+    },
+    "channel": {
+      "source": "database",
+      "path": "channel",
+      "format": "text",
+      "default": ""
+    },
+    "listing": {
+      "source": "database",
+      "path": "listing",
+      "format": "text",
+      "default": ""
+    },
+    "checkinDate": {
+      "source": "database",
+      "path": "checkinDate",
+      "format": "date",
+      "default": ""
+    },
+    "checkoutDate": {
+      "source": "database",
+      "path": "checkoutDate",
+      "format": "date",
+      "default": ""
+    },
+    "nights": {
+      "source": "database",
+      "path": "nights",
+      "format": "number",
+      "default": 0
+    },
+    "guests": {
+      "source": "database",
+      "path": "guests",
+      "format": "number",
+      "default": 0
+    },
+    "net_amount": {
+      "source": "database",
+      "path": "net_amount",
+      "format": "currency",
+      "transform": "round",
+      "default": 0
+    },
+    "vat_amount": {
+      "source": "database",
+      "path": "vat_amount",
+      "format": "currency",
+      "transform": "round",
+      "default": 0
+    },
+    "tourist_tax": {
+      "source": "database",
+      "path": "tourist_tax",
+      "format": "currency",
+      "transform": "round",
+      "default": 0
+    },
+    "amountGross": {
+      "source": "database",
+      "path": "amountGross",
+      "format": "currency",
+      "transform": "round",
+      "default": 0
+    },
+    "company_name": {
+      "source": "static",
+      "path": "company_name",
+      "format": "text",
+      "default": "Jabaki a Goodwin Solutions Company"
+    },
+    "company_address": {
+      "source": "static",
+      "path": "company_address",
+      "format": "text",
+      "default": "Beemsterstraat 3"
+    },
+    "company_postal_city": {
+      "source": "static",
+      "path": "company_postal_city",
+      "format": "text",
+      "default": "2131 ZA Hoofddorp"
+    },
+    "company_country": {
+      "source": "static",
+      "path": "company_country",
+      "format": "text",
+      "default": "Nederland"
+    },
+    "company_vat": {
+      "source": "static",
+      "path": "company_vat",
+      "format": "text",
+      "default": "NL812613764B02"
+    },
+    "company_coc": {
+      "source": "static",
+      "path": "company_coc",
+      "format": "text",
+      "default": "24352408"
+    },
+    "contact_email": {
+      "source": "static",
+      "path": "contact_email",
+      "format": "text",
+      "default": "peter@jabaki.nl"
+    },
+    "billing_name": {
+      "source": "database",
+      "path": "billing_name",
+      "format": "text",
+      "default": ""
+    },
+    "billing_address": {
+      "source": "database",
+      "path": "billing_address",
+      "format": "text",
+      "default": ""
+    },
+    "billing_city": {
+      "source": "database",
+      "path": "billing_city",
+      "format": "text",
+      "default": ""
+    },
+    "invoice_date": {
+      "source": "database",
+      "path": "invoice_date",
+      "format": "date",
+      "default": ""
+    },
+    "due_date": {
+      "source": "database",
+      "path": "due_date",
+      "format": "date",
+      "default": ""
+    },
+    "table_rows": {
+      "source": "calculation",
+      "path": "table_rows",
+      "format": "text",
+      "default": ""
+    }
+  },
+  "conditionals": [
+    {
+      "field": "vat_amount",
+      "operator": "gt",
+      "value": 0,
+      "action": "show"
+    },
+    {
+      "field": "tourist_tax",
+      "operator": "gt",
+      "value": 0,
+      "action": "show"
+    }
+  ],
+  "formatting": {
+    "locale": "nl_NL",
+    "currency": "EUR",
+    "date_format": "DD-MM-YYYY",
+    "number_decimals": 2
+  }
+}

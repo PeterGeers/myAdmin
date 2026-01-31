@@ -180,6 +180,10 @@ class MutatiesCache:
         summary = df.groupby(['Parent', 'Aangifte'])['Amount'].sum().reset_index()
         summary.columns = ['Parent', 'Aangifte', 'Amount']
         
+        # Sort by Parent (ascending) and Aangifte (alphabetically) to match database order
+        # The Aangifte field comes from rekeningschema.Belastingaangifte which has a natural order
+        summary = summary.sort_values(['Parent', 'Aangifte'], ascending=[True, True])
+        
         return summary.to_dict('records')
     
     def query_aangifte_ib_details(self, year, administration, parent, aangifte, user_tenants=None):

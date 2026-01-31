@@ -174,4 +174,4 @@ python -m pytest backend/tests/unit/test_google_drive.py -v
 
 ---
 
-**Imple
+**Implementation Complete**: The `_authenticate()` method now successfully reads credentials from the database, providing secure, tenant-specific Google Drive authentication.

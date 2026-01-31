@@ -2,59 +2,21 @@
 
 This package contains business logic services for the myAdmin application.
 
+## Services Overview
+
+- **CredentialService**: Secure storage and retrieval of tenant-specific credentials using AES-256 encryption
+- **TemplateService**: XML template management with flexible field mappings and multi-format output generation
+- **GoogleDriveService**: Tenant-specific Google Drive integration for file storage and retrieval
+
+---
+
 ## CredentialService
 
 The `CredentialService` provides secure storage and retrieval of tenant-specific credentials using AES-256 encryption.
 
-### Features
+**Documentation**: See `IMPLEMENTATION_SUMMARY.md` for detailed implementation information.
 
-- **Encryption**: AES-256 encryption using Fernet (symmetric encryption)
-- **Key Derivation**: PBKDF2-HMAC-SHA256 with 100,000 iterations
-- **Multi-tenant**: Isolated credential storage per tenant
-- **Flexible Storage**: Supports strings, dictionaries, and JSON-serializable objects
-- **CRUD Operations**: Complete create, read, update, delete functionality
-
-### Setup
-
-1. **Install Dependencies**:
-
-   ```bash
-   pip install cryptography==41.0.7
-   ```
-
-2. **Create Database Table**:
-
-   ```sql
-   CREATE TABLE tenant_credentials (
-       id INT AUTO_INCREMENT PRIMARY KEY,
-       tenant_id VARCHAR(100) NOT NULL,
-       credential_type VARCHAR(50) NOT NULL,
-       encrypted_value TEXT NOT NULL,
-       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-       UNIQUE KEY unique_tenant_cred (tenant_id, credential_type),
-       INDEX idx_tenant (tenant_id)
-   );
-   ```
-
-3. **Set Encryption Key**:
-
-   ```bash
-   # In .env file
-   CREDENTIALS_ENCRYPTION_KEY=your_secure_encryption_key_here
-   ```
-
-   Or generate a secure key:
-
-   ```python
-   import secrets
-   key = secrets.token_urlsafe(32)
-   print(f"CREDENTIALS_ENCRYPTION_KEY={key}")
-   ```
-
-### Usage
-
-#### Basic Usage
+### Quick Start
 
 ```python
 from database import DatabaseManager
@@ -65,221 +27,111 @@ db = DatabaseManager()
 service = CredentialService(db)
 
 # Store credentials
-google_creds = {
+service.store_credential("GoodwinSolutions", "google_drive", {
     "client_id": "123.apps.googleusercontent.com",
-    "client_secret": "secret_key",
-    "refresh_token": "refresh_token_value"
-}
-service.store_credential("GoodwinSolutions", "google_drive", google_creds)
+    "client_secret": "secret_key"
+})
 
 # Retrieve credentials
 creds = service.get_credential("GoodwinSolutions", "google_drive")
-print(creds["client_id"])  # 123.apps.googleusercontent.com
-
-# List all credential types for a tenant
-credentials = service.list_credential_types("GoodwinSolutions")
-for cred in credentials:
-    print(f"{cred['type']} - created: {cred['created_at']}")
-
-# Check if credential exists
-exists = service.credential_exists("GoodwinSolutions", "google_drive")
-
-# Delete credential
-service.delete_credential("GoodwinSolutions", "google_drive")
 ```
 
-#### Storing Different Types
+For detailed documentation, see `IMPLEMENTATION_SUMMARY.md`.
+
+---
+
+## TemplateService
+
+The `TemplateService` manages XML templates with flexible field mappings and multi-format output generation.
+
+**Documentation**: See `TEMPLATE_SERVICE_DOCUMENTATION.md` for complete documentation.
+
+### Quick Start
 
 ```python
-# String credential (API key)
-service.store_credential("tenant1", "api_key", "sk_live_123456789")
-
-# Dictionary credential (OAuth)
-oauth_creds = {
-    "access_token": "ya29.xxx",
-    "refresh_token": "1//xxx",
-    "expires_in": 3599
-}
-service.store_credential("tenant1", "oauth", oauth_creds)
-
-# Complex nested object
-service_account = {
-    "type": "service_account",
-    "project_id": "my-project",
-    "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
-    "client_email": "service@project.iam.gserviceaccount.com"
-}
-service.store_credential("tenant1", "service_account", service_account)
-```
-
-#### Error Handling
-
-```python
-try:
-    creds = service.get_credential("tenant1", "google_drive")
-    if creds is None:
-        print("Credentials not found")
-except Exception as e:
-    print(f"Error retrieving credentials: {e}")
-```
-
-### API Reference
-
-#### `__init__(db_manager, encryption_key=None)`
-
-Initialize the credential service.
-
-- `db_manager`: DatabaseManager instance
-- `encryption_key`: Optional encryption key (reads from env if not provided)
-
-#### `encrypt_credential(value) -> str`
-
-Encrypt a credential value.
-
-- `value`: String, dict, or JSON-serializable object
-- Returns: Base64-encoded encrypted string
-
-#### `decrypt_credential(encrypted_value) -> Any`
-
-Decrypt an encrypted credential.
-
-- `encrypted_value`: Base64-encoded encrypted string
-- Returns: Decrypted value (string or dict)
-
-#### `store_credential(tenant_id, credential_type, value) -> bool`
-
-Store or update a credential.
-
-- `tenant_id`: Tenant identifier
-- `credential_type`: Type of credential (e.g., 'google_drive', 's3')
-- `value`: Credential value to store
-- Returns: True if successful
-
-#### `get_credential(tenant_id, credential_type) -> Optional[Any]`
-
-Retrieve a credential.
-
-- `tenant_id`: Tenant identifier
-- `credential_type`: Type of credential
-- Returns: Decrypted credential or None if not found
-
-#### `delete_credential(tenant_id, credential_type) -> bool`
-
-Delete a credential.
-
-- `tenant_id`: Tenant identifier
-- `credential_type`: Type of credential
-- Returns: True if deleted, False if not found
-
-#### `list_credential_types(tenant_id) -> list`
-
-List all credential types for a tenant.
-
-- `tenant_id`: Tenant identifier
-- Returns: List of dicts with 'type', 'created_at', 'updated_at'
-
-#### `credential_exists(tenant_id, credential_type) -> bool`
-
-Check if a credential exists.
-
-- `tenant_id`: Tenant identifier
-- `credential_type`: Type of credential
-- Returns: True if exists, False otherwise
-
-### Security Considerations
-
-1. **Encryption Key**: Store the encryption key securely in environment variables, never in code
-2. **Key Rotation**: If you need to rotate the encryption key, decrypt all credentials with the old key and re-encrypt with the new key
-3. **Access Control**: Ensure only authorized services can access the CredentialService
-4. **Tenant Isolation**: The service enforces tenant isolation - credentials are never shared between tenants
-5. **Logging**: Credential values are never logged, only metadata (tenant_id, credential_type)
-
-### Testing
-
-Run unit tests:
-
-```bash
-pytest tests/test_credential_service.py -v
-```
-
-Run integration tests (requires database):
-
-```bash
-pytest tests/test_credential_service_integration.py -v -m integration
-```
-
-Run example script:
-
-```bash
-python src/services/credential_service_example.py
-```
-
-### Migration from File-Based Credentials
-
-To migrate existing file-based credentials (e.g., `credentials.json`, `token.json`):
-
-```python
-import json
 from database import DatabaseManager
-from services.credential_service import CredentialService
+from services.template_service import TemplateService
 
-# Initialize service
+# Initialize
 db = DatabaseManager()
-service = CredentialService(db)
+template_service = TemplateService(db)
 
-# Read existing credentials
-with open('credentials.json', 'r') as f:
-    google_creds = json.load(f)
+# Get template metadata
+metadata = template_service.get_template_metadata('GoodwinSolutions', 'financial_report')
 
-with open('token.json', 'r') as f:
-    google_token = json.load(f)
+# Fetch template from Google Drive
+template_xml = template_service.fetch_template_from_drive(
+    metadata['template_file_id'],
+    'GoodwinSolutions'
+)
 
-# Store in database
-service.store_credential("GoodwinSolutions", "google_drive_credentials", google_creds)
-service.store_credential("GoodwinSolutions", "google_drive_token", google_token)
+# Apply field mappings
+data = {'company_name': 'Goodwin Solutions', 'total_revenue': 150000.00}
+processed = template_service.apply_field_mappings(
+    template_xml,
+    data,
+    metadata['field_mappings']
+)
 
-# Verify
-retrieved = service.get_credential("GoodwinSolutions", "google_drive_credentials")
-print("Migration successful!" if retrieved else "Migration failed!")
+# Generate output
+html_output = template_service.generate_output(processed, data, 'html')
 ```
 
-### Railway Deployment
+### Features
 
-For Railway deployment:
+- ✅ Database-backed template configuration
+- ✅ Flexible field mapping with nested data support
+- ✅ Multiple formatting types (currency, date, number, text)
+- ✅ Value transformations (abs, round, uppercase, lowercase)
+- ✅ Conditional logic support
+- ✅ Multi-format output (HTML, XML, Excel*, PDF*)
 
-1. Set the encryption key in Railway environment variables:
+\*Excel and PDF generation are placeholders for Phase 2.5
 
-   ```
-   CREDENTIALS_ENCRYPTION_KEY=your_secure_key_here
-   ```
+---
 
-2. Ensure the `tenant_credentials` table exists in the Railway MySQL database
+## GoogleDriveService
 
-3. The service will automatically use the Railway environment variables
+The `GoogleDriveService` provides tenant-specific Google Drive integration.
 
-### Troubleshooting
+**Documentation**: See `GOOGLE_DRIVE_UPDATE_SUMMARY.md` for implementation details.
 
-**Error: "Encryption key not found"**
+### Quick Start
 
-- Solution: Set `CREDENTIALS_ENCRYPTION_KEY` in your `.env` file or environment variables
+```python
+from google_drive_service import GoogleDriveService
 
-**Error: "Failed to decrypt credential"**
+# Initialize with tenant
+drive_service = GoogleDriveService('GoodwinSolutions')
 
-- Solution: Ensure you're using the same encryption key that was used to encrypt the data
+# List folders
+folders = drive_service.list_subfolders('parent_folder_id')
 
-**Error: "Table 'tenant_credentials' doesn't exist"**
+# Upload file
+file_id = drive_service.upload_file('local_file.pdf', 'folder_id')
+```
 
-- Solution: Run the CREATE TABLE statement to create the table
+---
 
-**Credentials not found**
+## Documentation Index
 
-- Solution: Verify the tenant_id and credential_type are correct
-- Check if the credential was actually stored using `credential_exists()`
+- `IMPLEMENTATION_SUMMARY.md` - CredentialService implementation details
+- `TEMPLATE_SERVICE_DOCUMENTATION.md` - Complete TemplateService documentation
+- `GOOGLE_DRIVE_UPDATE_SUMMARY.md` - GoogleDriveService database integration
+- `README.md` - This file (overview and quick start)
 
-### Future Enhancements
+---
 
-- [ ] Key rotation support
-- [ ] Credential versioning
-- [ ] Audit logging for credential access
-- [ ] Automatic credential expiration
-- [ ] Support for credential metadata (tags, descriptions)
+## Testing
+
+Run all service tests:
+
+```bash
+# Unit tests
+pytest backend/tests/unit/test_credential_service.py -v
+pytest backend/tests/unit/test_template_service.py -v
+pytest backend/tests/unit/test_google_drive.py -v
+
+# Integration tests
+pytest backend/tests/integration/ -v
+```

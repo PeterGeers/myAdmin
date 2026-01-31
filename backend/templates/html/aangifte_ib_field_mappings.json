@@ -1,0 +1,128 @@
+{
+  "template_type": "aangifte_ib_html",
+  "description": "Aangifte Inkomstenbelasting (Income Tax Return) HTML Report Template",
+  "version": "1.0",
+  "output_format": "html",
+  
+  "template_location": {
+    "storage_type": "google_drive",
+    "file_id": "STORED_IN_tenant_template_config.template_file_id",
+    "note": "Template file ID is stored in tenant_template_config table"
+  },
+  
+  "output_storage": {
+    "default_destination": "download",
+    "available_destinations": [
+      "download",
+      "google_drive"
+    ],
+    "google_drive_folder": "Reports/Aangifte_IB",
+    "note": "User can choose destination when generating report"
+  },
+  
+  "formatting": {
+    "locale": "nl_NL",
+    "currency": "EUR",
+    "date_format": "%Y-%m-%d %H:%M:%S",
+    "number_decimals": 2,
+    "thousands_separator": ".",
+    "decimal_separator": ","
+  },
+  
+  "fields": {
+    "year": {
+      "path": "year",
+      "type": "integer",
+      "description": "Report year"
+    },
+    "administration": {
+      "path": "administration",
+      "type": "string",
+      "description": "Administration/tenant identifier"
+    },
+    "generated_date": {
+      "path": "generated_date",
+      "type": "string",
+      "format": "datetime",
+      "description": "Report generation timestamp"
+    },
+    "table_rows": {
+      "path": "table_rows",
+      "type": "array",
+      "format": "pre_generated",
+      "description": "Pre-generated list of row dictionaries (not HTML strings)",
+      "note": "Generator returns structured data, template converts to HTML"
+    }
+  },
+  
+  "row_structure": {
+    "description": "Each row in table_rows array is a dictionary with these fields",
+    "fields": {
+      "row_type": {
+        "type": "string",
+        "values": ["parent", "aangifte", "account", "resultaat", "grand_total"]
+      },
+      "parent": {
+        "type": "string",
+        "description": "Parent code or label (e.g., '1000', 'RESULTAAT')"
+      },
+      "aangifte": {
+        "type": "string",
+        "description": "Aangifte name or account number"
+      },
+      "description": {
+        "type": "string",
+        "description": "Account description"
+      },
+      "amount": {
+        "type": "string",
+        "description": "Formatted amount (e.g., '1.234,56')"
+      },
+      "amount_raw": {
+        "type": "float",
+        "description": "Raw numeric amount"
+      },
+      "css_class": {
+        "type": "string",
+        "description": "CSS class for styling"
+      },
+      "indent_level": {
+        "type": "integer",
+        "values": [0, 1, 2],
+        "description": "Indentation level (0=none, 1=aangifte, 2=account)"
+      }
+    }
+  },
+  
+  "data_source": {
+    "description": "Data comes from mutaties_cache queries",
+    "queries": {
+      "summary": {
+        "method": "cache.query_aangifte_ib(year, administration)",
+        "returns": "List of {Parent, Aangifte, Amount}"
+      },
+      "details": {
+        "method": "cache.query_aangifte_ib_details(year, administration, parent, aangifte, user_tenants)",
+        "returns": "List of {Reknum, AccountName, Amount}"
+      }
+    }
+  },
+  
+  "calculations": {
+    "resultaat": {
+      "description": "Net result from P&L accounts only",
+      "formula": "Sum of all amounts where Parent starts with 4, 5, 6, 7, 8, or 9",
+      "note": "Balance sheet accounts (1000-3000) are excluded"
+    },
+    "grand_total": {
+      "description": "Should be close to zero for balanced accounts",
+      "formula": "0.0 (hardcoded, represents balance)",
+      "note": "Not actually calculated, just displayed as verification"
+    }
+  },
+  
+  "filtering": {
+    "zero_amounts": "Rows with abs(amount) < 0.01 are filtered out",
+    "security": "user_tenants parameter ensures tenant isolation"
+  }
+}

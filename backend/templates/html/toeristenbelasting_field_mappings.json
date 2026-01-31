@@ -1,0 +1,215 @@
+{
+  "version": "1.0",
+  "template_type": "toeristenbelasting_html",
+  "description": "Toeristenbelasting (Tourist Tax) Declaration HTML Report Template",
+  "output_format": "html",
+  "template_location": {
+    "storage_type": "google_drive",
+    "file_id": "STORED_IN_tenant_template_config.template_file_id",
+    "note": "Template file ID is stored in tenant_template_config table"
+  },
+  "output_storage": {
+    "default_destination": "download",
+    "available_destinations": [
+      "download",
+      "google_drive"
+    ],
+    "google_drive_folder": "Reports/Toeristenbelasting",
+    "note": "User can choose destination when generating report"
+  },
+  "fields": {
+    "year": {
+      "path": "year",
+      "type": "string",
+      "description": "Report year"
+    },
+    "next_year": {
+      "path": "next_year",
+      "type": "string",
+      "description": "Next year (for projections)"
+    },
+    "datum": {
+      "path": "datum",
+      "type": "string",
+      "format": "date",
+      "description": "Report generation date (DD-MM-YYYY)"
+    },
+    "functie": {
+      "path": "functie",
+      "type": "string",
+      "description": "Function/role"
+    },
+    "telefoonnummer": {
+      "path": "telefoonnummer",
+      "type": "string",
+      "description": "Phone number"
+    },
+    "email": {
+      "path": "email",
+      "type": "string",
+      "format": "email",
+      "description": "Email address"
+    },
+    "naam": {
+      "path": "naam",
+      "type": "string",
+      "description": "Name"
+    },
+    "plaats": {
+      "path": "plaats",
+      "type": "string",
+      "description": "City/location"
+    },
+    "periode_van": {
+      "path": "periode_van",
+      "type": "string",
+      "format": "date",
+      "description": "Period start date (1-1-YYYY)"
+    },
+    "periode_tm": {
+      "path": "periode_tm",
+      "type": "string",
+      "format": "date",
+      "description": "Period end date (31-12-YYYY)"
+    },
+    "aantal_kamers": {
+      "path": "aantal_kamers",
+      "type": "string",
+      "description": "Number of rooms"
+    },
+    "aantal_slaapplaatsen": {
+      "path": "aantal_slaapplaatsen",
+      "type": "string",
+      "description": "Number of beds"
+    },
+    "totaal_verhuurde_nachten": {
+      "path": "totaal_verhuurde_nachten",
+      "type": "string",
+      "description": "Total rented nights"
+    },
+    "cancelled_nachten": {
+      "path": "cancelled_nachten",
+      "type": "string",
+      "description": "Cancelled nights"
+    },
+    "verhuurde_kamers_inwoners": {
+      "path": "verhuurde_kamers_inwoners",
+      "type": "string",
+      "description": "Nights rented to residents (always 0)"
+    },
+    "totaal_belastbare_nachten": {
+      "path": "totaal_belastbare_nachten",
+      "type": "string",
+      "description": "Total taxable nights"
+    },
+    "kamerbezettingsgraad": {
+      "path": "kamerbezettingsgraad",
+      "type": "string",
+      "format": "percentage",
+      "description": "Room occupancy rate"
+    },
+    "bedbezettingsgraad": {
+      "path": "bedbezettingsgraad",
+      "type": "string",
+      "format": "percentage",
+      "description": "Bed occupancy rate"
+    },
+    "saldo_toeristenbelasting": {
+      "path": "saldo_toeristenbelasting",
+      "type": "string",
+      "format": "currency",
+      "description": "Total tourist tax collected"
+    },
+    "ontvangsten_excl_btw_excl_toeristenbelasting": {
+      "path": "ontvangsten_excl_btw_excl_toeristenbelasting",
+      "type": "string",
+      "format": "currency",
+      "description": "Revenue excl. VAT and tourist tax"
+    },
+    "ontvangsten_logies_inwoners": {
+      "path": "ontvangsten_logies_inwoners",
+      "type": "string",
+      "format": "currency",
+      "description": "Revenue from residents (always 0)"
+    },
+    "kortingen_provisie_commissie": {
+      "path": "kortingen_provisie_commissie",
+      "type": "string",
+      "format": "currency",
+      "description": "Service fees/commissions"
+    },
+    "no_show_omzet": {
+      "path": "no_show_omzet",
+      "type": "string",
+      "format": "currency",
+      "description": "No-show revenue"
+    },
+    "totaal_2_3_4": {
+      "path": "totaal_2_3_4",
+      "type": "string",
+      "format": "currency",
+      "description": "Total of items 2, 3, 4"
+    },
+    "belastbare_omzet_logies": {
+      "path": "belastbare_omzet_logies",
+      "type": "string",
+      "format": "currency",
+      "description": "Taxable accommodation revenue"
+    },
+    "verwachte_belastbare_omzet_volgend_jaar": {
+      "path": "verwachte_belastbare_omzet_volgend_jaar",
+      "type": "string",
+      "format": "currency",
+      "description": "Expected next year revenue"
+    }
+  },
+  "data_source": {
+    "description": "Data comes from BNB cache and mutaties cache",
+    "sources": {
+      "bnb_cache": {
+        "methods": ["query_by_year()", "query_cancelled_by_year()", "query_realised_by_year()"],
+        "fields": ["nights", "amountGross", "amountVat"],
+        "purpose": "Calculate rental statistics and no-show revenue"
+      },
+      "mutaties_cache": {
+        "accounts": {
+          "8003": "Total revenue (includes VAT and tourist tax)",
+          "4007": "Service fees from booking sites"
+        },
+        "purpose": "Calculate tourist tax and revenue components"
+      }
+    }
+  },
+  "calculations": {
+    "tourist_tax": {
+      "formula": "(Account 8003 Total / 106.2) * 6.2",
+      "description": "Extract tourist tax from revenue including VAT and tax"
+    },
+    "revenue_excl_vat_tax": {
+      "formula": "Account 8003 Total - Tourist Tax",
+      "description": "Revenue excluding VAT and tourist tax"
+    },
+    "taxable_revenue": {
+      "formula": "[1] - ([2] + [3] + [4])",
+      "description": "Revenue minus residents, fees, and no-show amounts"
+    },
+    "occupancy_rates": {
+      "max_nights": "Number of Rooms * 365",
+      "room_occupancy": "(Realised Nights / Max Nights) * 100",
+      "bed_occupancy": "Room Occupancy * 0.90"
+    },
+    "next_year_projection": {
+      "formula": "Taxable Revenue * 1.05",
+      "description": "Simple 5% increase for planning"
+    }
+  },
+  "formatting": {
+    "locale": "nl_NL",
+    "currency": "EUR",
+    "date_format": "DD-MM-YYYY",
+    "number_decimals": 2,
+    "decimal_separator": ",",
+    "thousands_separator": ".",
+    "percentage_decimals": 2
+  }
+}

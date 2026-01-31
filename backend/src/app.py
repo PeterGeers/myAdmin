@@ -37,6 +37,8 @@ from performance_optimizer import performance_middleware, register_performance_e
 from security_audit import SecurityAudit, register_security_endpoints
 from mutaties_cache import get_cache, invalidate_cache
 from bnb_cache import get_bnb_cache
+from report_generators import generate_table_rows
+from services.template_service import TemplateService
 
 # Load environment variables from .env file
 load_dotenv()
@@ -2115,12 +2117,20 @@ def str_future_trend(user_email, user_roles):
 @app.route('/api/btw/generate-report', methods=['POST'])
 @cognito_required(required_permissions=['btw_read', 'btw_process'])
 def btw_generate_report(user_email, user_roles):
-    """Generate BTW declaration report"""
+    """Generate BTW declaration report using TemplateService with field mappings
+    
+    Supports multiple output destinations:
+    - download: Return content to frontend for download (default)
+    - gdrive: Upload to tenant's Google Drive
+    - s3: Upload to AWS S3 (future implementation)
+    """
     try:
         data = request.get_json()
         administration = data.get('administration')
         year = data.get('year')
         quarter = data.get('quarter')
+        output_destination = data.get('output_destination', 'download')  # Default to download
+        folder_id = data.get('folder_id')  # Optional Google Drive folder ID
         
         if not all([administration, year, quarter]):
             return jsonify({
@@ -2128,12 +2138,133 @@ def btw_generate_report(user_email, user_roles):
                 'error': 'Administration, year, and quarter are required'
             }), 400
         
-        btw_processor = BTWProcessor(test_mode=flag)
-        result = btw_processor.generate_btw_report(administration, year, quarter)
+        # Get cache and database instances
+        cache = get_cache()
+        db = DatabaseManager(test_mode=flag)
+        cache.get_data(db)
         
-        return jsonify(result)
+        # Generate structured report data using new generator
+        from report_generators import btw_aangifte_generator
+        
+        report_data = btw_aangifte_generator.generate_btw_report(
+            cache=cache,
+            db=db,
+            administration=administration,
+            year=int(year),
+            quarter=int(quarter)
+        )
+        
+        if not report_data.get('success'):
+            return jsonify(report_data), 500
+        
+        # Initialize TemplateService
+        template_service = TemplateService(db)
+        
+        # Prepare template data
+        template_data = btw_aangifte_generator.prepare_template_data(report_data)
+        
+        # Try to get template metadata from database
+        template_type = 'btw_aangifte_html'
+        metadata = None
+        
+        try:
+            metadata = template_service.get_template_metadata(administration, template_type)
+        except Exception as e:
+            logger.warning(f"Could not get template metadata from database: {e}")
+        
+        # Load template
+        if metadata and metadata.get('template_file_id'):
+            # Load from Google Drive
+            try:
+                template_content = template_service.fetch_template_from_drive(
+                    metadata['template_file_id'],
+                    administration
+                )
+                field_mappings = metadata.get('field_mappings', {})
+            except Exception as e:
+                logger.error(f"Failed to fetch template from Google Drive: {e}")
+                # Fallback to filesystem
+                metadata = None
+        
+        if not metadata:
+            # Fallback: Load from filesystem
+            template_path = os.path.join('backend', 'templates', 'html', 'btw_aangifte_template.html')
+            
+            if not os.path.exists(template_path):
+                logger.error(f"Template not found: {template_path}")
+                return jsonify({'success': False, 'error': 'Template not found'}), 500
+            
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            
+            # Use default field mappings (simple placeholder replacement)
+            field_mappings = {
+                'fields': {key: {'path': key, 'format': 'text'} for key in template_data.keys()},
+                'formatting': {
+                    'locale': 'nl_NL',
+                    'currency': 'EUR',
+                    'date_format': 'YYYY-MM-DD',
+                    'number_decimals': 2
+                }
+            }
+        
+        # Apply field mappings using TemplateService
+        html_report = template_service.apply_field_mappings(
+            template_content,
+            template_data,
+            field_mappings
+        )
+        
+        # Generate filename
+        filename = f'BTW_Aangifte_{administration}_{year}_Q{quarter}.html'
+        
+        # Handle output destination
+        from services.output_service import OutputService
+        output_service = OutputService(db)
+        
+        output_result = output_service.handle_output(
+            content=html_report,
+            filename=filename,
+            destination=output_destination,
+            administration=administration,
+            content_type='text/html',
+            folder_id=folder_id
+        )
+        
+        # Prepare transaction for saving (using existing logic)
+        btw_processor = BTWProcessor(test_mode=flag)
+        transaction = btw_processor._prepare_btw_transaction(
+            administration, 
+            year, 
+            quarter, 
+            report_data['calculations']
+        )
+        
+        # Return result based on destination
+        if output_destination == 'download':
+            return jsonify({
+                'success': True,
+                'html_report': output_result['content'],
+                'transaction': transaction,
+                'calculations': report_data['calculations'],
+                'quarter_end_date': report_data['metadata']['end_date'],
+                'filename': output_result['filename']
+            })
+        else:
+            # For gdrive or s3, return URL and metadata
+            return jsonify({
+                'success': True,
+                'destination': output_result['destination'],
+                'url': output_result.get('url'),
+                'transaction': transaction,
+                'calculations': report_data['calculations'],
+                'quarter_end_date': report_data['metadata']['end_date'],
+                'filename': output_result['filename'],
+                'message': output_result['message']
+            })
         
     except Exception as e:
+        logger.error(f"Failed to generate BTW report: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/btw/save-transaction', methods=['POST'])
@@ -2183,10 +2314,18 @@ def btw_upload_report(user_email, user_roles):
 @app.route('/api/toeristenbelasting/generate-report', methods=['POST'])
 @cognito_required(required_permissions=['str_read', 'reports_read'])
 def toeristenbelasting_generate_report(user_email, user_roles):
-    """Generate Toeristenbelasting declaration report"""
+    """Generate Toeristenbelasting declaration report
+    
+    Supports multiple output destinations:
+    - download: Return content to frontend for download (default)
+    - gdrive: Upload to tenant's Google Drive
+    - s3: Upload to AWS S3 (future implementation)
+    """
     try:
         data = request.get_json()
         year = data.get('year')
+        output_destination = data.get('output_destination', 'download')  # Default to download
+        folder_id = data.get('folder_id')  # Optional Google Drive folder ID
         
         if not year:
             return jsonify({
@@ -2196,6 +2335,43 @@ def toeristenbelasting_generate_report(user_email, user_roles):
         
         processor = ToeristenbelastingProcessor(test_mode=flag)
         result = processor.generate_toeristenbelasting_report(year)
+        
+        # If report generation failed, return error
+        if not result.get('success'):
+            return jsonify(result), 500
+        
+        # Handle output destination if report was successful
+        if output_destination != 'download':
+            # Get administration from result (should be in the report data)
+            # For now, we'll use a default or extract from the report
+            # This may need to be passed as a parameter in the future
+            administration = result.get('administration', 'default')
+            
+            db = DatabaseManager(test_mode=flag)
+            from services.output_service import OutputService
+            output_service = OutputService(db)
+            
+            # Generate filename
+            filename = f'Toeristenbelasting_{administration}_{year}.html'
+            
+            output_result = output_service.handle_output(
+                content=result.get('html_report', ''),
+                filename=filename,
+                destination=output_destination,
+                administration=administration,
+                content_type='text/html',
+                folder_id=folder_id
+            )
+            
+            # Update result with output information
+            result['destination'] = output_result['destination']
+            result['url'] = output_result.get('url')
+            result['filename'] = output_result['filename']
+            result['message'] = output_result['message']
+            
+            # Remove html_report from response for gdrive/s3 destinations
+            if 'html_report' in result:
+                del result['html_report']
         
         return jsonify(result)
         
@@ -2313,12 +2489,20 @@ def aangifte_ib_details(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
 def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
-    """Generate HTML export for Aangifte IB report with account details"""
+    """Generate HTML export for Aangifte IB report using TemplateService with field mappings
+    
+    Supports multiple output destinations:
+    - download: Return content to frontend for download (default)
+    - gdrive: Upload to tenant's Google Drive
+    - s3: Upload to AWS S3 (future implementation)
+    """
     try:
         data = request.get_json()
         year = data.get('year')
         administration = data.get('administration', tenant)  # Default to current tenant
         report_data = data.get('data', [])
+        output_destination = data.get('output_destination', 'download')  # Default to download
+        folder_id = data.get('folder_id')  # Optional Google Drive folder ID
         
         if not year:
             return jsonify({'success': False, 'error': 'Year is required'}), 400
@@ -2334,131 +2518,165 @@ def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
         # Ensure cache is loaded
         cache.get_data(db)
         
-        # Calculate totals
-        parent_totals = {}
-        grand_total = 0
-        for row in report_data:
-            parent = row['Parent']
-            amount = float(row['Amount'])
-            if parent not in parent_totals:
-                parent_totals[parent] = 0
-            parent_totals[parent] += amount
-            grand_total += amount
+        # Use report_generators to generate table rows
+        table_rows_data = generate_table_rows(
+            report_data=report_data,
+            cache=cache,
+            year=year,
+            administration=administration,
+            user_tenants=user_tenants
+        )
         
-        parent4000_total = parent_totals.get('4000', 0)
-        parent8000_total = parent_totals.get('8000', 0)
-        resultaat = parent4000_total + parent8000_total
+        # Convert row data to HTML
+        table_rows_html = _render_table_rows(table_rows_data)
         
-        # Generate HTML
-        html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Aangifte IB - {year}</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; }}
-        h1 {{ color: #333; }}
-        table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        th {{ background-color: #f2f2f2; font-weight: bold; }}
-        .parent-row {{ background-color: #e6e6e6; font-weight: bold; }}
-        .aangifte-row {{ background-color: #f9f9f9; font-weight: bold; }}
-        .account-row {{ background-color: #ffffff; font-size: 0.9em; }}
-        .resultaat-positive {{ background-color: #ffcccc; font-weight: bold; }}
-        .resultaat-negative {{ background-color: #ccffcc; font-weight: bold; }}
-        .grand-total {{ background-color: #ffa500; font-weight: bold; color: white; }}
-        .amount {{ text-align: right; }}
-        .indent-1 {{ padding-left: 20px; }}
-        .indent-2 {{ padding-left: 40px; }}
-    </style>
-</head>
-<body>
-    <h1>Aangifte Inkomstenbelasting - {year}</h1>
-    <p><strong>Administration:</strong> {administration if administration != 'all' else 'All'}</p>
-    <p><strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Parent</th>
-                <th>Aangifte / Account</th>
-                <th>Description</th>
-                <th class="amount">Amount (€)</th>
-            </tr>
-        </thead>
-        <tbody>
-"""
+        # Initialize TemplateService
+        template_service = TemplateService(db)
         
-        # Group data by parent
-        grouped = {}
-        for row in report_data:
-            parent = row['Parent']
-            if parent not in grouped:
-                grouped[parent] = []
-            grouped[parent].append(row)
+        # Prepare template data
+        template_data = {
+            'year': str(year),
+            'administration': administration if administration != 'all' else 'All',
+            'generated_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'table_rows': table_rows_html
+        }
         
-        # Add rows with account details
-        for parent, items in sorted(grouped.items()):
-            parent_total = sum(float(item['Amount']) for item in items)
+        # Try to get template metadata from database
+        template_type = 'aangifte_ib_html'
+        metadata = None
+        
+        try:
+            metadata = template_service.get_template_metadata(administration, template_type)
+        except Exception as e:
+            logger.warning(f"Could not get template metadata from database: {e}")
+        
+        # Load template
+        if metadata and metadata.get('template_file_id'):
+            # Load from Google Drive
+            try:
+                template_content = template_service.fetch_template_from_drive(
+                    metadata['template_file_id'],
+                    administration
+                )
+                field_mappings = metadata.get('field_mappings', {})
+            except Exception as e:
+                logger.error(f"Failed to fetch template from Google Drive: {e}")
+                # Fallback to filesystem
+                metadata = None
+        
+        if not metadata:
+            # Fallback: Load from filesystem
+            template_path = os.path.join(
+                os.path.dirname(__file__),
+                '..',
+                'templates',
+                'html',
+                'aangifte_ib_template.html'
+            )
             
-            # Skip parent groups with zero total
-            if abs(parent_total) < 0.01:
-                continue
-                
-            html_content += f'<tr class="parent-row"><td>{parent}</td><td></td><td></td><td class="amount">{parent_total:,.2f}</td></tr>'
+            if not os.path.exists(template_path):
+                logger.error(f"Template not found: {template_path}")
+                return jsonify({'success': False, 'error': 'Template not found'}), 500
             
-            for item in items:
-                amount = float(item['Amount'])
-                
-                # Skip items with zero amounts
-                if abs(amount) < 0.01:
-                    continue
-                
-                aangifte = item['Aangifte']
-                
-                # Add Aangifte subtotal row
-                html_content += f'<tr class="aangifte-row"><td class="indent-1"></td><td>{aangifte}</td><td></td><td class="amount">{amount:,.2f}</td></tr>'
-                
-                # Get account details for this Parent and Aangifte
-                try:
-                    # SECURITY: Pass user_tenants to filter cached data
-                    details = cache.query_aangifte_ib_details(year, administration, parent, aangifte, user_tenants)
-                    
-                    # Filter out zero amounts
-                    non_zero_details = [d for d in details if abs(float(d.get('Amount', 0))) >= 0.01]
-                    
-                    # Add account detail rows
-                    for detail in non_zero_details:
-                        reknum = detail.get('Reknum', '')
-                        account_name = detail.get('AccountName', '')
-                        detail_amount = float(detail.get('Amount', 0))
-                        html_content += f'<tr class="account-row"><td class="indent-2"></td><td>{reknum}</td><td>{account_name}</td><td class="amount">{detail_amount:,.2f}</td></tr>'
-                except Exception as e:
-                    print(f"Error fetching details for {parent}-{aangifte}: {e}", flush=True)
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            
+            # Use default field mappings (simple placeholder replacement)
+            field_mappings = {
+                'fields': {key: {'path': key, 'format': 'text'} for key in template_data.keys()},
+                'formatting': {
+                    'locale': 'nl_NL',
+                    'date_format': '%Y-%m-%d %H:%M:%S',
+                    'number_decimals': 2
+                }
+            }
         
-        # Add resultaat row
-        if abs(resultaat) >= 0.01:
-            resultaat_class = 'resultaat-positive' if resultaat >= 0 else 'resultaat-negative'
-            html_content += f'<tr class="{resultaat_class}"><td>RESULTAAT</td><td></td><td></td><td class="amount">{resultaat:,.2f}</td></tr>'
+        # Apply field mappings using TemplateService
+        html_content = template_service.apply_field_mappings(
+            template_content,
+            template_data,
+            field_mappings
+        )
         
-        # Add grand total
-        html_content += f'<tr class="grand-total"><td>GRAND TOTAL</td><td></td><td></td><td class="amount">{grand_total:,.2f}</td></tr>'
+        # Generate filename
+        filename = f'Aangifte_IB_{administration}_{year}.html'
         
-        html_content += """
-        </tbody>
-    </table>
-</body>
-</html>
-"""
+        # Handle output destination
+        from services.output_service import OutputService
+        output_service = OutputService(db)
         
-        return jsonify({
-            'success': True,
-            'html': html_content,
-            'filename': f'Aangifte_IB_{administration}_{year}.html'
-        })
+        output_result = output_service.handle_output(
+            content=html_content,
+            filename=filename,
+            destination=output_destination,
+            administration=administration,
+            content_type='text/html',
+            folder_id=folder_id
+        )
+        
+        # Return result based on destination
+        if output_destination == 'download':
+            return jsonify({
+                'success': True,
+                'html': output_result['content'],
+                'filename': output_result['filename']
+            })
+        else:
+            # For gdrive or s3, return URL and metadata
+            return jsonify({
+                'success': True,
+                'destination': output_result['destination'],
+                'url': output_result.get('url'),
+                'filename': output_result['filename'],
+                'message': output_result['message']
+            })
         
     except Exception as e:
+        print(f"Error in aangifte_ib_export: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _render_table_rows(rows_data):
+    """
+    Convert row data dictionaries to HTML table rows.
+    
+    Args:
+        rows_data: List of row dictionaries from generate_table_rows()
+    
+    Returns:
+        HTML string of table rows
+    """
+    html_rows = []
+    
+    for row in rows_data:
+        row_type = row.get('row_type', '')
+        css_class = row.get('css_class', '')
+        parent = row.get('parent', '')
+        aangifte = row.get('aangifte', '')
+        description = row.get('description', '')
+        amount = row.get('amount', '')
+        indent_level = row.get('indent_level', 0)
+        
+        # Apply indentation class
+        parent_td_class = ''
+        if indent_level == 1:
+            parent_td_class = ' class="indent-1"'
+        elif indent_level == 2:
+            parent_td_class = ' class="indent-2"'
+        
+        # Build table row
+        html_row = f'<tr class="{css_class}">'
+        html_row += f'<td{parent_td_class}>{parent}</td>'
+        html_row += f'<td>{aangifte}</td>'
+        html_row += f'<td>{description}</td>'
+        html_row += f'<td class="amount">{amount}</td>'
+        html_row += '</tr>'
+        
+        html_rows.append(html_row)
+    
+    return '\n'.join(html_rows)
 
 @app.route('/api/reports/aangifte-ib-xlsx-export', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])

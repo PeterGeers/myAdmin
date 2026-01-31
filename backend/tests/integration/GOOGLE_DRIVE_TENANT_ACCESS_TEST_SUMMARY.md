@@ -6,6 +6,16 @@
 
 ---
 
+## ⚠️ SCOPE NOTICE
+
+This report validates **ONLY** the test file `test_google_drive_real_access.py` from **Phase 1.6** of the Railway migration.
+
+**This does NOT cover all integration tests** - only the Google Drive real access tests with actual credentials.
+
+For other integration test reports, see `README_REPORTS.md` in this directory.
+
+---
+
 ## Test Results
 
 ### Real API Access Test

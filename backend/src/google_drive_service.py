@@ -73,6 +73,14 @@ class GoogleDriveService:
             # If we have a token, try to use it
             if token_data:
                 try:
+                    # Ensure token_data has client_id and client_secret from oauth_creds
+                    if 'client_id' not in token_data and 'installed' in oauth_creds:
+                        token_data['client_id'] = oauth_creds['installed']['client_id']
+                        token_data['client_secret'] = oauth_creds['installed']['client_secret']
+                    elif 'client_id' not in token_data and 'web' in oauth_creds:
+                        token_data['client_id'] = oauth_creds['web']['client_id']
+                        token_data['client_secret'] = oauth_creds['web']['client_secret']
+                    
                     # Create Credentials object from token data
                     creds = Credentials.from_authorized_user_info(token_data, SCOPES)
                     logger.info(f"Loaded existing token for administration: {self.administration}")

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+  IB Aangifte XBRL Template
+  Official Income Tax Return XML for Belastingdienst
+  
+  NOTE: This is a PLACEHOLDER template. The actual XBRL format must be obtained 
+  from the Belastingdienst and must validate against their official XSD schema.
+  
+  XBRL (eXtensible Business Reporting Language) is used for official tax submissions.
+  
+  Resources:
+  - Belastingdienst XBRL specifications: https://www.belastingdienst.nl/
+  - Dutch Tax Authority technical documentation
+  
+  This template is NOT customizable per tenant - all tenants must use the same
+  official format as required by Belastingdienst.
+-->
+<xbrl xmlns="http://www.xbrl.org/2003/instance"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:link="http://www.xbrl.org/2003/linkbase"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+      xmlns:bd="http://www.belastingdienst.nl/xbrl/taxonomy">
+  
+  <!-- Context Definition -->
+  <context id="CurrentYear">
+    <entity>
+      <identifier scheme="http://www.belastingdienst.nl">{{ bsn_number }}</identifier>
+    </entity>
+    <period>
+      <startDate>{{ year }}-01-01</startDate>
+      <endDate>{{ year }}-12-31</endDate>
+    </period>
+  </context>
+  
+  <!-- Unit Definition (Euro) -->
+  <unit id="EUR">
+    <measure>iso4217:EUR</measure>
+  </unit>
+  
+  <!-- 
+    PLACEHOLDER FIELDS - Replace with actual XBRL taxonomy elements
+    The actual field names and structure must match Belastingdienst requirements
+  -->
+  
+  <!-- Box 1: Inkomen uit werk en woning (Income from work and home) -->
+  <bd:InkomenUitWerkEnWoning contextRef="CurrentYear" unitRef="EUR" decimals="2">
+    {{ box1_income }}
+  </bd:InkomenUitWerkEnWoning>
+  
+  <!-- Box 2: Inkomen uit aanmerkelijk belang (Income from substantial interest) -->
+  <bd:InkomenUitAanmerkelijkBelang contextRef="CurrentYear" unitRef="EUR" decimals="2">
+    {{ box2_income }}
+  </bd:InkomenUitAanmerkelijkBelang>
+  
+  <!-- Box 3: Inkomen uit sparen en beleggen (Income from savings and investments) -->
+  <bd:InkomenUitSparenEnBeleggen contextRef="CurrentYear" unitRef="EUR" decimals="2">
+    {{ box3_income }}
+  </bd:InkomenUitSparenEnBeleggen>
+  
+  <!-- Winst uit onderneming (Business profit) -->
+  <bd:WinstUitOnderneming contextRef="CurrentYear" unitRef="EUR" decimals="2">
+    {{ business_profit }}
+  </bd:WinstUitOnderneming>
+  
+  <!-- Aftrekposten (Deductions) -->
+  <bd:Aftrekposten contextRef="CurrentYear" unitRef="EUR" decimals="2">
+    {{ deductions }}
+  </bd:Aftrekposten>
+  
+  <!-- Belastbaar inkomen (Taxable income) -->
+  <bd:BelastbaarInkomen contextRef="CurrentYear" unitRef="EUR" decimals="2">
+    {{ taxable_income }}
+  </bd:BelastbaarInkomen>
+  
+  <!-- Te betalen belasting (Tax to be paid) -->
+  <bd:TeBetalenBelasting contextRef="CurrentYear" unitRef="EUR" decimals="2">
+    {{ tax_amount }}
+  </bd:TeBetalenBelasting>
+  
+</xbrl>

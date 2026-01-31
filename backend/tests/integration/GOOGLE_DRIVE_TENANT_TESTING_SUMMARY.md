@@ -1,5 +1,17 @@
 # Google Drive Service Tenant Testing Summary
 
+---
+
+## ⚠️ SCOPE NOTICE
+
+This report validates **ONLY** the test file `test_google_drive_service_tenants.py` from **Phase 1.6** of the Railway migration.
+
+**This does NOT cover all integration tests** - only the GoogleDriveService tenant isolation tests.
+
+For other integration test reports, see `README_REPORTS.md` in this directory.
+
+---
+
 ## Overview
 
 Integration tests have been created and successfully executed to verify that GoogleDriveService works correctly with both tenants (GoodwinSolutions and PeterPrive) using credentials stored in the database.
