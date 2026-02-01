@@ -923,19 +923,19 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         const isAdminUndefined = testProps.showAdministration === undefined;
         if (isAdminUndefined) {
           // Should default to showing administration
-          expect(screen.queryByTestId('administration-section')).toBeInTheDocument();
+          expect(screen.getByTestId('administration-section')).toBeInTheDocument();
         }
         
         const isYearsUndefined = testProps.showYears === undefined;
         if (isYearsUndefined) {
           // Should default to showing years
-          expect(screen.queryByTestId('year-section')).toBeInTheDocument();
+          expect(screen.getByTestId('year-section')).toBeInTheDocument();
         }
         
         const isMultiSelectUndefined = testProps.multiSelectYears === undefined && testProps.showYears !== false;
         if (isMultiSelectUndefined) {
           // Should default to multi-select
-          expect(screen.queryByTestId('year-menu-button')).toBeInTheDocument();
+          expect(screen.getByTestId('year-menu-button')).toBeInTheDocument();
         }
 
         // Test that component maintains core functionality across all configurations
@@ -1591,11 +1591,11 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         
         // 2. Should maintain proper section visibility based on props
         if (scenario.props.showAdministration) {
-          expect(screen.queryByTestId('administration-section')).toBeInTheDocument();
+          expect(screen.getByTestId('administration-section')).toBeInTheDocument();
         }
         
         if (scenario.props.showYears) {
-          expect(screen.queryByTestId('year-section')).toBeInTheDocument();
+          expect(screen.getByTestId('year-section')).toBeInTheDocument();
         }
         
         // 3. Should maintain proper accessibility attributes even with errors
