@@ -323,11 +323,10 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         const adminState = getAdministrationSectionState(testProps);
         expect(adminState.isVisible).toBe(adminState.shouldShowAdmin);
         
-        if (adminState.shouldShowAdmin) {
-          expect(adminState.adminLabel).toBeInTheDocument();
-          expect(adminState.adminSelect).toBeInTheDocument();
-          expect(adminState.hasAriaLabel).toBe(true);
-        }
+        // Check elements match expected visibility
+        expect(adminState.adminLabel !== null).toBe(adminState.shouldShowAdmin);
+        expect(adminState.adminSelect !== null).toBe(adminState.shouldShowAdmin);
+        expect(adminState.hasAriaLabel).toBe(adminState.shouldShowAdmin);
         
         unmount();
       }
@@ -341,15 +340,19 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         const yearState = getYearSectionState(testProps);
         expect(yearState.isVisible).toBe(yearState.shouldShowYears);
         
-        if (yearState.shouldShowYears) {
-          expect(yearState.yearLabel).toBeInTheDocument();
-          if (yearState.isMultiSelect) {
-            expect(yearState.yearButton).toBeInTheDocument();
-            expect(yearState.yearButton).toHaveAttribute('aria-haspopup', 'menu');
-          } else {
-            expect(yearState.yearSelect).toBeInTheDocument();
-          }
-        }
+        // Check elements match expected visibility
+        expect(yearState.yearLabel !== null).toBe(yearState.shouldShowYears);
+        
+        // Check multi-select vs single-select rendering
+        const shouldHaveButton = yearState.shouldShowYears && yearState.isMultiSelect;
+        const shouldHaveSelect = yearState.shouldShowYears && !yearState.isMultiSelect;
+        
+        expect(yearState.yearButton !== null).toBe(shouldHaveButton);
+        expect(yearState.yearSelect !== null).toBe(shouldHaveSelect);
+        
+        // Check aria attributes when button exists
+        const hasAriaHaspopup = yearState.yearButton?.hasAttribute('aria-haspopup') ?? false;
+        expect(hasAriaHaspopup).toBe(shouldHaveButton);
         
         unmount();
       }
@@ -375,9 +378,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         const loadingState = getLoadingState(testProps);
         expect(loadingState.isVisible).toBe(loadingState.shouldShowLoading);
         
-        if (loadingState.shouldShowLoading) {
-          expect(loadingState.loadingText).toBeInTheDocument();
-        }
+        // Check loading text matches expected visibility
+        expect(loadingState.loadingText !== null).toBe(loadingState.shouldShowLoading);
         
         unmount();
       }
@@ -390,10 +392,18 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         
         const disabledState = getDisabledState(testProps);
         
-        if (disabledState.shouldBeDisabled) {
-          expect(disabledState.allSelectsDisabled).toBe(true);
-          expect(disabledState.allButtonsDisabled).toBe(true);
-        }
+        // Elements are disabled when disabled=true OR isLoading=true
+        const shouldAllBeDisabled = testProps.disabled === true || testProps.isLoading === true;
+        
+        // Check selects: if any exist, verify their disabled state
+        const selectsMatchExpectation = disabledState.selectElements.length === 0 || 
+          disabledState.allSelectsDisabled === shouldAllBeDisabled;
+        expect(selectsMatchExpectation).toBe(true);
+        
+        // Check buttons: if any exist, verify their disabled state
+        const buttonsMatchExpectation = disabledState.buttonElements.length === 0 || 
+          disabledState.allButtonsDisabled === shouldAllBeDisabled;
+        expect(buttonsMatchExpectation).toBe(true);
         
         unmount();
       }
