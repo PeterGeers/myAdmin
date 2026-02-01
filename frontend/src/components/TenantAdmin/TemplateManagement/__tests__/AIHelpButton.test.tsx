@@ -8,7 +8,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AIHelpButton } from '../AIHelpButton';
-import type { AIHelpResponse, AIFixSuggestion } from '../../../../types/template';
+import type { AIHelpResponse } from '../../../../types/template';
 
 
 

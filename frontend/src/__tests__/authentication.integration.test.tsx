@@ -39,7 +39,7 @@ jest.mock('@chakra-ui/react', () => ({
   Heading: ({ children, ...props }: any) => <h1 {...props}>{children}</h1>,
   Text: ({ children, ...props }: any) => <p {...props}>{children}</p>,
   Button: ({ children, onClick, ...props }: any) => <button onClick={onClick} {...props}>{children}</button>,
-  Image: (props: any) => <img {...props} />,
+  Image: (props: any) => <img alt="" {...props} />,
   Container: ({ children }: any) => <div>{children}</div>,
   Divider: () => <hr />,
   Link: ({ children, onClick, ...props }: any) => <a onClick={onClick} {...props}>{children}</a>,

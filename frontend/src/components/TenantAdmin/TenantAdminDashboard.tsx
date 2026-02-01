@@ -15,7 +15,6 @@ import {
   HStack,
   Button,
   SimpleGrid,
-  Icon,
   Badge,
 } from '@chakra-ui/react';
 import { TemplateManagement } from './TemplateManagement';

@@ -21,7 +21,6 @@ import {
   Textarea,
   Collapse,
   useDisclosure,
-  Icon,
 } from '@chakra-ui/react';
 import { TemplateType } from '../../../services/templateApi';
 

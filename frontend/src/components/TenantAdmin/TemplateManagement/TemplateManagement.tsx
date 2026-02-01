@@ -28,7 +28,6 @@ import * as templateApi from '../../../services/templateApi';
 import type {
   TemplateType,
   ValidationResult,
-  PreviewResponse,
   AIHelpResponse,
   AIFixSuggestion,
 } from '../../../services/templateApi';

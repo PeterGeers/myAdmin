@@ -6,7 +6,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ProtectedRoute from './ProtectedRoute';
-import { AuthProvider } from '../context/AuthContext';
 
 // Mock the auth context
 jest.mock('../context/AuthContext', () => ({

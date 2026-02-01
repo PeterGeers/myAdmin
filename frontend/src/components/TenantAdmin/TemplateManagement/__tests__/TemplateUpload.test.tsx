@@ -8,7 +8,6 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TemplateUpload } from '../TemplateUpload';
-import type { TemplateType } from '../../../../types/template';
 
 // Mock Chakra UI components to avoid dependency issues
 jest.mock('@chakra-ui/react', () => ({

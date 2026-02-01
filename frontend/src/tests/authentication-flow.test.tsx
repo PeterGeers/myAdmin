@@ -14,7 +14,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Login from '../pages/Login';
-import { getCurrentUser, signIn, signOut, fetchAuthSession } from 'aws-amplify/auth';
+import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 
 // Mock AWS Amplify
 jest.mock('aws-amplify/auth');
@@ -48,7 +48,7 @@ jest.mock('@chakra-ui/react', () => ({
   },
   Image: ({ ...props }: any) => {
     const { maxW, mb, ...domProps } = props;
-    return <img {...domProps} />;
+    return <img alt="" {...domProps} />;
   },
   Container: ({ children }: any) => <div>{children}</div>,
   Divider: () => <hr />,

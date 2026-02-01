@@ -5,7 +5,7 @@ import {
   Table, Thead, Tbody, Tr, Th, Td, TableContainer,
   Tabs, TabList, TabPanels, Tab, TabPanel, Badge
 } from '@chakra-ui/react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface MutatiesRecord {
   TransactionDate: string;

@@ -5,7 +5,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { TenantProvider, useTenant } from './TenantContext';
-import { AuthProvider } from './AuthContext';
 
 // Mock AuthContext
 jest.mock('./AuthContext', () => ({
