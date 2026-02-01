@@ -790,7 +790,6 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         
         // Component should adapt grid layout based on size
         // Small size should use single column, medium and large should use two columns
-        const expectedColumns = currentSize === 'sm' ? '1fr' : '1fr 1fr';
         // Note: In real implementation, this would be checked via computed styles
         // Here we verify the component renders without errors for all sizes
         expect(mainContainer).toBeInTheDocument();
@@ -920,16 +919,6 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
 
         // Test prop validation and default handling
         // Component should handle undefined/null props gracefully
-        const propsWithDefaults = {
-          ...testProps,
-          showAdministration: testProps.showAdministration ?? true,
-          showYears: testProps.showYears ?? true,
-          multiSelectYears: testProps.multiSelectYears ?? true,
-          size: testProps.size ?? 'md',
-          isLoading: testProps.isLoading ?? false,
-          disabled: testProps.disabled ?? false
-        };
-
         // Verify defaults are applied correctly
         const isAdminUndefined = testProps.showAdministration === undefined;
         if (isAdminUndefined) {
@@ -1088,7 +1077,6 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           selectElements.forEach(select => {
             expect(select).toBeDisabled();
             // Should have disabled styling (opacity, cursor, etc.)
-            const computedStyle = window.getComputedStyle(select);
             // Note: In real implementation, we would check for disabled styling
             expect(select).toHaveAttribute('disabled');
           });
@@ -1152,7 +1140,6 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           
           if (element.tagName.toLowerCase() === 'button') {
             // Buttons should have proper ARIA attributes
-            const ariaLabel = element.getAttribute('aria-label');
             const ariaHaspopup = element.getAttribute('aria-haspopup');
             
             // Menu buttons should have haspopup attribute
