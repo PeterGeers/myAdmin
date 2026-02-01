@@ -327,22 +327,29 @@ def handle_404(e):
 def get_folders(user_email, user_roles):
     """Return available vendor folders with optional regex filtering"""
     try:
+        # Get tenant from request header
+        from auth.tenant_context import get_current_tenant
+        tenant = get_current_tenant(request)
+        
+        if not tenant:
+            return jsonify({'error': 'No tenant specified. Please select a tenant.'}), 400
+        
         regex_pattern = request.args.get('regex')
-        print(f"get_folders called, flag={flag}, regex={regex_pattern}", flush=True)
+        print(f"get_folders called for tenant={tenant}, flag={flag}, regex={regex_pattern}", flush=True)
         
         if flag:  # Test mode - use local folders
             folders = list(config.vendor_folders.values())
             print(f"Test mode: returning {len(folders)} local folders", flush=True)
         else:  # Production mode - use Google Drive folders
             try:
-                print("Production mode: fetching Google Drive folders", flush=True)
-                drive_service = GoogleDriveService()
+                print(f"Production mode: fetching Google Drive folders for tenant={tenant}", flush=True)
+                drive_service = GoogleDriveService(administration=tenant)
                 drive_folders = drive_service.list_subfolders()
                 print(f"Raw drive_folders result: {type(drive_folders)}, length: {len(drive_folders) if drive_folders else 0}", flush=True)
                 folders = [folder['name'] for folder in drive_folders]
-                print(f"Google Drive: found {len(folders)} folders", flush=True)
+                print(f"Google Drive: found {len(folders)} folders for tenant={tenant}", flush=True)
             except Exception as e:
-                print(f"Google Drive error: {type(e).__name__}: {e}", flush=True)
+                print(f"Google Drive error for tenant={tenant}: {type(e).__name__}: {e}", flush=True)
                 import traceback
                 traceback.print_exc()
                 # Fallback to local folders if Google Drive fails
@@ -677,7 +684,8 @@ def bnb_cache_invalidate(user_email, user_roles):
 
 @app.route('/api/create-folder', methods=['POST'])
 @cognito_required(required_permissions=['invoices_create'])
-def create_folder(user_email, user_roles):
+@tenant_required()
+def create_folder(user_email, user_roles, tenant, user_tenants):
     """Create a new folder in Google Drive"""
     try:
         data = request.get_json()
@@ -689,16 +697,17 @@ def create_folder(user_email, user_roles):
             
             # Create Google Drive folder in correct parent
             try:
-                drive_service = GoogleDriveService()
+                print(f"Creating Google Drive folder for tenant: {tenant}", flush=True)
+                drive_service = GoogleDriveService(administration=tenant)
                 use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
                 parent_folder_id = os.getenv('TEST_FACTUREN_FOLDER_ID') if use_test else os.getenv('FACTUREN_FOLDER_ID')
                 
                 if parent_folder_id:
                     drive_result = drive_service.create_folder(folder_name, parent_folder_id)
-                    print(f"Created Google Drive folder: {folder_name} in {'test' if use_test else 'production'} parent", flush=True)
+                    print(f"Created Google Drive folder: {folder_name} in {'test' if use_test else 'production'} parent for tenant {tenant}", flush=True)
                     return jsonify({'success': True, 'path': folder_path, 'drive_folder': drive_result})
             except Exception as drive_error:
-                print(f"Google Drive folder creation failed: {drive_error}", flush=True)
+                print(f"Google Drive folder creation failed for tenant {tenant}: {drive_error}", flush=True)
             
             return jsonify({'success': True, 'path': folder_path})
         return jsonify({'success': False, 'error': 'No folder name provided'}), 400
@@ -758,7 +767,8 @@ def upload_file(user_email, user_roles, tenant, user_tenants):
                         print(f"Using cached file info for {filename}", flush=True)
                         drive_result = upload_cache[cache_key]
                     else:
-                        drive_service = GoogleDriveService()
+                        print(f"Initializing Google Drive service for tenant: {tenant}", flush=True)
+                        drive_service = GoogleDriveService(administration=tenant)
                         drive_folders = drive_service.list_subfolders()
                         
                         # Find the folder ID for the selected folder
@@ -793,7 +803,7 @@ def upload_file(user_email, user_roles, tenant, user_tenants):
                                 'url': f'http://localhost:5000/uploads/{filename}'
                             }
                 except Exception as e:
-                    print(f"Google Drive upload failed: {type(e).__name__}: {str(e)}", flush=True)
+                    print(f"Google Drive upload failed for tenant {tenant}: {type(e).__name__}: {str(e)}", flush=True)
                     import traceback
                     traceback.print_exc()
                     # Fallback to local storage

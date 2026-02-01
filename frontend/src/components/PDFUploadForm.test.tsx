@@ -167,11 +167,7 @@ describe('PDFUploadForm - Tenant Handling', () => {
     it('should handle API errors gracefully', async () => {
       authenticatedGet.mockRejectedValue(new Error('API Error'));
 
-      try {
-        await authenticatedGet('/api/folders', { tenant: 'tenant1' });
-      } catch (error) {
-        expect((error as Error).message).toBe('API Error');
-      }
+      await expect(authenticatedGet('/api/folders', { tenant: 'tenant1' })).rejects.toThrow('API Error');
     });
   });
 

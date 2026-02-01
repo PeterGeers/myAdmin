@@ -292,6 +292,166 @@ const generateTestProps = (): DuplicateWarningProps => ({
   isLoading: Math.random() > 0.7
 });
 
+// Helper function to verify dialog is open with correct structure
+const verifyDialogStructure = (container: HTMLElement) => {
+  const modal = screen.getByRole('dialog');
+  expect(modal).toBeInTheDocument();
+  expect(modal).toHaveAttribute('aria-modal', 'true');
+  expect(modal).toHaveAttribute('role', 'dialog');
+
+  const modalContent = container.querySelector('[role="dialog"]');
+  expect(modalContent).toBeInTheDocument();
+
+  expect(screen.getByText('⚠️ Duplicate Invoice Detected')).toBeInTheDocument();
+  expect(screen.getByText('Transaction Comparison')).toBeInTheDocument();
+  
+  return modal;
+};
+
+// Helper function to verify match count message
+const verifyMatchCountMessage = (matchCount: number) => {
+  const expectedPattern = matchCount === 1
+    ? /An existing transaction with the same reference number, date, and amount was found/
+    : new RegExp(`${matchCount} existing transactions`);
+  
+  expect(screen.getByText(expectedPattern)).toBeInTheDocument();
+};
+
+// Helper function to verify transaction fields are displayed
+const verifyTransactionFields = () => {
+  const transactionFields = [
+    'Date', 'Description', 'Amount', 'Reference', 'Debet', 'Credit', 
+    'Ref1', 'Ref2', 'File URL', 'Filename'
+  ];
+  
+  transactionFields.forEach(field => {
+    expect(screen.getByText(field)).toBeInTheDocument();
+  });
+};
+
+// Helper function to verify formatted amounts
+const verifyFormattedAmounts = (existingAmount: number, newAmount: number) => {
+  const formattedExistingAmount = `€${Number(existingAmount).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`;
+  const formattedNewAmount = `€${Number(newAmount).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`;
+  
+  expect(screen.getByText(formattedExistingAmount)).toBeInTheDocument();
+  expect(screen.getByText(formattedNewAmount)).toBeInTheDocument();
+};
+
+// Helper function to get and verify buttons
+const getAndVerifyButtons = () => {
+  const buttons = screen.getAllByRole('button');
+  const continueButton = buttons.find(btn => btn.textContent?.includes('Continue') || btn.textContent?.includes('Processing'));
+  const cancelButton = buttons.find(btn => btn.textContent?.includes('Cancel Import'));
+  
+  expect(continueButton).toBeInTheDocument();
+  expect(cancelButton).toBeInTheDocument();
+  expect(continueButton).toHaveAttribute('type', 'button');
+  expect(cancelButton).toHaveAttribute('type', 'button');
+  
+  return { continueButton, cancelButton };
+};
+
+// Helper function to verify loading state
+const verifyLoadingState = (container: HTMLElement, isLoading: boolean, continueButton: Element | undefined) => {
+  const closeButton = container.querySelector('[aria-label="Close"]');
+  
+  expect(continueButton).toBeDefined();
+  
+  if (isLoading) {
+    expect(continueButton).toBeDisabled();
+    expect(screen.getByText('Processing...')).toBeInTheDocument();
+    expect(closeButton).not.toBeInTheDocument();
+  } else {
+    expect(continueButton).not.toBeDisabled();
+    expect(closeButton).toBeInTheDocument();
+  }
+};
+
+// Helper function to verify file information section
+const verifyFileInformation = (existingRef3: string | undefined, newRef3: string | undefined) => {
+  const hasFileInfo = existingRef3 || newRef3;
+  
+  if (!hasFileInfo) {
+    return;
+  }
+  
+  expect(screen.getByText('File Information')).toBeInTheDocument();
+  
+  if (existingRef3) {
+    expect(screen.getByText('Existing File:')).toBeInTheDocument();
+    const existingFileLink = screen.getByRole('link', { name: existingRef3 });
+    expect(existingFileLink).toHaveAttribute('href', existingRef3);
+    expect(existingFileLink).toHaveAttribute('target', '_blank');
+  }
+  
+  if (newRef3) {
+    expect(screen.getByText('New File:')).toBeInTheDocument();
+    const newFileLink = screen.getByRole('link', { name: newRef3 });
+    expect(newFileLink).toHaveAttribute('href', newRef3);
+    expect(newFileLink).toHaveAttribute('target', '_blank');
+  }
+};
+
+// Helper function to verify decision help section
+const verifyDecisionHelp = (container: HTMLElement) => {
+  expect(screen.getByText('What would you like to do?')).toBeInTheDocument();
+  expect(screen.getByText('Continue:')).toBeInTheDocument();
+  expect(container.textContent).toContain('Process this as a new transaction');
+  expect(screen.getByText('Cancel:')).toBeInTheDocument();
+  expect(container.textContent).toContain('Stop processing and clean up uploaded files');
+};
+
+// Helper function to test button interactions
+const testButtonInteractions = (
+  isLoading: boolean,
+  continueButton: Element | undefined,
+  cancelButton: Element | undefined,
+  mockOnContinue: jest.Mock,
+  mockOnCancel: jest.Mock
+) => {
+  if (isLoading || !continueButton || !cancelButton) {
+    return;
+  }
+  
+  fireEvent.click(continueButton);
+  expect(mockOnContinue).toHaveBeenCalledTimes(1);
+
+  mockOnContinue.mockClear();
+  fireEvent.click(cancelButton);
+  expect(mockOnCancel).toHaveBeenCalledTimes(1);
+};
+
+// Helper function to verify match/diff badges
+const verifyMatchDiffBadges = (container: HTMLElement, existingTransaction: Transaction, newTransaction: Transaction) => {
+  const badges = screen.getAllByText(/MATCH|DIFF/);
+  expect(badges.length).toBeGreaterThan(0);
+  
+  const transactionFieldKeys: (keyof Transaction)[] = [
+    'transactionDate', 'transactionDescription', 'transactionAmount', 
+    'referenceNumber', 'debet', 'credit', 'ref1', 'ref2', 'ref3', 'ref4'
+  ];
+  
+  transactionFieldKeys.forEach(field => {
+    const existingValue = existingTransaction[field];
+    const newValue = newTransaction[field];
+    const isMatch = existingValue === newValue;
+    
+    const fieldRow = container.querySelector(`[data-testid="transaction-row-${field}"]`);
+    
+    if (!fieldRow) {
+      return;
+    }
+    
+    const badge = fieldRow.querySelector('.badge');
+    if (!badge) {
+      return;
+    }
+    
+    expect(badge.textContent).toBe(isMatch ? 'MATCH' : 'DIFF');
+  });
+};
+
 describe('DuplicateWarningDialog Property Tests', () => {
   /**
    * **Feature: duplicate-invoice-detection, Property 6: User Interface Consistency**
@@ -318,153 +478,63 @@ describe('DuplicateWarningDialog Property Tests', () => {
       );
 
       try {
-        if (testProps.isOpen) {
-          // **Requirement 2.1**: Dialog should display all data from existing transaction in a popup window
-          const modal = screen.getByRole('dialog');
-          expect(modal).toBeInTheDocument();
-          expect(modal).toHaveAttribute('aria-modal', 'true');
-
-          // **Requirement 7.1**: Should use consistent styling with existing myAdmin interface
-          const modalContent = container.querySelector('[role="dialog"]');
-          expect(modalContent).toBeInTheDocument();
-
-          // **Requirement 2.2**: Should show all relevant information about the existing transaction
-          const { existingTransaction, newTransaction, matchCount } = testProps.duplicateInfo;
-
-          // Check that duplicate warning header is present
-          expect(screen.getByText('⚠️ Duplicate Invoice Detected')).toBeInTheDocument();
-
-          // Check that match count information is displayed
-          if (matchCount === 1) {
-            expect(screen.getByText(/An existing transaction with the same reference number, date, and amount was found/)).toBeInTheDocument();
-          } else {
-            expect(screen.getByText(new RegExp(`${matchCount} existing transactions`))).toBeInTheDocument();
-          }
-
-          // **Requirement 7.2**: Should format data clearly and readably
-          // Check that transaction comparison table is present
-          expect(screen.getByText('Transaction Comparison')).toBeInTheDocument();
-          
-          // Verify all transaction fields are displayed in the comparison table
-          const transactionFields = [
-            'Date', 'Description', 'Amount', 'Reference', 'Debet', 'Credit', 
-            'Ref1', 'Ref2', 'File URL', 'Filename'
-          ];
-          
-          transactionFields.forEach(field => {
-            expect(screen.getByText(field)).toBeInTheDocument();
-          });
-
-          // Check that amounts are properly formatted
-          const formattedExistingAmount = `€${Number(existingTransaction.transactionAmount).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`;
-          const formattedNewAmount = `€${Number(newTransaction.transactionAmount).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`;
-          
-          expect(screen.getByText(formattedExistingAmount)).toBeInTheDocument();
-          expect(screen.getByText(formattedNewAmount)).toBeInTheDocument();
-
-          // **Requirement 7.3**: Should provide clear visual feedback and button states
-          const buttons = screen.getAllByRole('button');
-          const continueButton = buttons.find(btn => btn.textContent?.includes('Continue') || btn.textContent?.includes('Processing'));
-          const cancelButton = buttons.find(btn => btn.textContent?.includes('Cancel Import'));
-          
-          expect(continueButton).toBeInTheDocument();
-          expect(cancelButton).toBeInTheDocument();
-
-          // **Requirement 7.4**: Should prevent other actions until user makes a decision
-          // Modal should not close on overlay click or escape when not loading
-          expect(modal).toHaveAttribute('aria-modal', 'true');
-
-          // **Requirement 7.5**: Should display appropriate loading indicators
-          if (testProps.isLoading) {
-            expect(continueButton).toBeDisabled();
-            expect(screen.getByText('Processing...')).toBeInTheDocument();
-            
-            // Close button should be hidden during loading
-            const closeButton = container.querySelector('[aria-label="Close"]');
-            expect(closeButton).not.toBeInTheDocument();
-          } else {
-            expect(continueButton).not.toBeDisabled();
-            expect(cancelButton).not.toBeDisabled();
-            
-            // Close button should be present when not loading
-            const closeButton = container.querySelector('[aria-label="Close"]');
-            expect(closeButton).toBeInTheDocument();
-          }
-
-          // Check file information section if URLs are present
-          if (existingTransaction.ref3 || newTransaction.ref3) {
-            expect(screen.getByText('File Information')).toBeInTheDocument();
-            
-            if (existingTransaction.ref3) {
-              expect(screen.getByText('Existing File:')).toBeInTheDocument();
-              const existingFileLink = screen.getByRole('link', { name: existingTransaction.ref3 });
-              expect(existingFileLink).toHaveAttribute('href', existingTransaction.ref3);
-              expect(existingFileLink).toHaveAttribute('target', '_blank');
-            }
-            
-            if (newTransaction.ref3) {
-              expect(screen.getByText('New File:')).toBeInTheDocument();
-              const newFileLink = screen.getByRole('link', { name: newTransaction.ref3 });
-              expect(newFileLink).toHaveAttribute('href', newTransaction.ref3);
-              expect(newFileLink).toHaveAttribute('target', '_blank');
-            }
-          }
-
-          // Check decision help section
-          expect(screen.getByText('What would you like to do?')).toBeInTheDocument();
-          expect(screen.getByText('Continue:')).toBeInTheDocument();
-          expect(container.textContent).toContain('Process this as a new transaction');
-          expect(screen.getByText('Cancel:')).toBeInTheDocument();
-          expect(container.textContent).toContain('Stop processing and clean up uploaded files');
-
-          // Test button interactions (only if not loading)
-          if (!testProps.isLoading && continueButton && cancelButton) {
-            // Test continue button
-            fireEvent.click(continueButton);
-            expect(mockOnContinue).toHaveBeenCalledTimes(1);
-
-            // Reset mock and test cancel button
-            mockOnContinue.mockClear();
-            fireEvent.click(cancelButton);
-            expect(mockOnCancel).toHaveBeenCalledTimes(1);
-          }
-
-          // **Requirement 2.3, 2.4, 2.5**: Check match/diff badges for field comparison
-          const badges = screen.getAllByText(/MATCH|DIFF/);
-          expect(badges.length).toBeGreaterThan(0);
-          
-          // Verify that matching fields show MATCH badge and different fields show DIFF badge
-          const transactionFieldKeys: (keyof typeof existingTransaction)[] = [
-            'transactionDate', 'transactionDescription', 'transactionAmount', 
-            'referenceNumber', 'debet', 'credit', 'ref1', 'ref2', 'ref3', 'ref4'
-          ];
-          
-          transactionFieldKeys.forEach(field => {
-            const existingValue = existingTransaction[field];
-            const newValue = newTransaction[field];
-            const isMatch = existingValue === newValue;
-            
-            // Find the row containing this field's data
-            const fieldRow = container.querySelector(`[data-testid="transaction-row-${field}"]`);
-            
-            if (fieldRow) {
-              const badge = fieldRow.querySelector('.badge');
-              if (badge) {
-                expect(badge.textContent).toBe(isMatch ? 'MATCH' : 'DIFF');
-              }
-            }
-          });
-
-          // Test accessibility attributes
-          expect(modal).toHaveAttribute('role', 'dialog');
-          expect(continueButton).toHaveAttribute('type', 'button');
-          expect(cancelButton).toHaveAttribute('type', 'button');
-
-        } else {
-          // When dialog is closed, it should not be in the document
-          expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-          expect(screen.queryByText('⚠️ Duplicate Invoice Detected')).not.toBeInTheDocument();
+        // Test based on dialog open state
+        const isDialogOpen = testProps.isOpen;
+        
+        // Verify closed state
+        const dialogElement = screen.queryByRole('dialog');
+        const warningText = screen.queryByText('⚠️ Duplicate Invoice Detected');
+        
+        // When closed, dialog should not be present
+        const shouldBeAbsent = !isDialogOpen;
+        expect(dialogElement === null).toBe(shouldBeAbsent);
+        expect(warningText === null).toBe(shouldBeAbsent);
+        
+        // Skip further checks if dialog is closed
+        if (!isDialogOpen) {
+          unmount();
+          continue;
         }
+
+        // Dialog is open - verify all requirements
+        const { existingTransaction, newTransaction, matchCount } = testProps.duplicateInfo;
+        
+        // **Requirement 2.1**: Dialog should display all data from existing transaction in a popup window
+        // **Requirement 7.1**: Should use consistent styling with existing myAdmin interface
+        verifyDialogStructure(container);
+
+        // **Requirement 2.2**: Should show all relevant information about the existing transaction
+        verifyMatchCountMessage(matchCount);
+
+        // **Requirement 7.2**: Should format data clearly and readably
+        verifyTransactionFields();
+        verifyFormattedAmounts(existingTransaction.transactionAmount, newTransaction.transactionAmount);
+
+        // **Requirement 7.3**: Should provide clear visual feedback and button states
+        const { continueButton, cancelButton } = getAndVerifyButtons();
+
+        // **Requirement 7.4**: Should prevent other actions until user makes a decision
+        // Modal should not close on overlay click or escape when not loading
+        const modal = screen.getByRole('dialog');
+        expect(modal).toHaveAttribute('aria-modal', 'true');
+
+        // **Requirement 7.5**: Should display appropriate loading indicators
+        verifyLoadingState(container, testProps.isLoading || false, continueButton);
+        
+        // Cancel button should always be enabled (even during loading)
+        expect(cancelButton).not.toBeDisabled();
+
+        // Check file information section
+        verifyFileInformation(existingTransaction.ref3, newTransaction.ref3);
+
+        // Check decision help section
+        verifyDecisionHelp(container);
+
+        // Test button interactions
+        testButtonInteractions(testProps.isLoading || false, continueButton, cancelButton, mockOnContinue, mockOnCancel);
+
+        // **Requirement 2.3, 2.4, 2.5**: Check match/diff badges for field comparison
+        verifyMatchDiffBadges(container, existingTransaction, newTransaction);
 
       } catch (error) {
         console.error('UI consistency test failed for props:', testProps);
@@ -574,16 +644,14 @@ describe('DuplicateWarningDialog Property Tests', () => {
       expect(cancelButton).not.toBeDisabled();
       
       // Clicking disabled continue button should not trigger callback
-      if (continueButton) {
-        fireEvent.click(continueButton);
-        expect(mockOnContinue).not.toHaveBeenCalled();
-      }
+      const continueButtonElement = continueButton as Element;
+      fireEvent.click(continueButtonElement);
+      expect(mockOnContinue).not.toHaveBeenCalled();
       
       // Clicking cancel should still work
-      if (cancelButton) {
-        fireEvent.click(cancelButton);
-        expect(mockOnCancel).toHaveBeenCalledTimes(1);
-      }
+      const cancelButtonElement = cancelButton as Element;
+      fireEvent.click(cancelButtonElement);
+      expect(mockOnCancel).toHaveBeenCalledTimes(1);
       
     } finally {
       unmount();

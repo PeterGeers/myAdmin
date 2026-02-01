@@ -901,7 +901,57 @@ This document breaks down the Railway migration into manageable phases with deta
   - `CREDENTIALS_ENCRYPTION_KEY`
 - [ ] Verify all variables are set correctly
 
-#### 5.3 Database Migration
+#### 5.3 Google Drive Tenant Integration Fixes
+
+**Context**: GoogleDriveService was updated to require tenant-specific credentials, but several endpoints were not passing the tenant parameter, causing files to be stored locally instead of in Google Drive.
+
+- [x] Fix `/api/folders` endpoint (Line 325 in app.py)
+  - [x] Add tenant extraction from `X-Tenant` header
+  - [x] Pass tenant to `GoogleDriveService(administration=tenant)`
+  - [x] Add error handling for missing tenant
+  - [x] Test folder loading for both tenants (GoodwinSolutions, PeterPrive)
+
+- [x] Fix `/api/upload` endpoint (Line 768 in app.py)
+  - [x] Pass tenant to `GoogleDriveService(administration=tenant)` during file upload
+  - [x] Ensure files are uploaded to correct tenant's Google Drive
+  - [x] Verify Google Drive URLs are returned (not local URLs)
+  - [x] Test file upload for both tenants
+
+- [x] Fix `/api/create-folder` endpoint (Line 686 in app.py)
+  - [x] Add `@tenant_required()` decorator
+  - [x] Update function signature to include tenant parameters
+  - [x] Pass tenant to `GoogleDriveService(administration=tenant)`
+  - [x] Test folder creation in correct tenant's Google Drive
+
+- [ ] Verify all other GoogleDriveService instantiations
+  - [ ] Search codebase for `GoogleDriveService()` calls
+  - [ ] Ensure all pass `administration=tenant` parameter
+  - [ ] Update any remaining instances
+
+- [ ] Test complete Google Drive integration
+  - [ ] Test folder loading (dropdown populates correctly)
+  - [ ] Test file upload (files go to Google Drive, not local storage)
+  - [ ] Test folder creation (new folders appear in correct Drive)
+  - [ ] Test with multiple tenants (verify isolation)
+  - [ ] Verify Google Drive URLs are returned in all cases
+
+**Impact**: These fixes ensure that:
+
+- Files are uploaded to the correct tenant's Google Drive account
+- Folder lists are loaded from the correct tenant's Google Drive
+- New folders are created in the correct tenant's Google Drive
+- Tenant data isolation is maintained
+- No files are stored locally in production
+
+**Testing Checklist**:
+
+- [x] Local testing completed (January 31, 2026)
+- [ ] Staging environment testing
+- [ ] Production deployment verification
+- [ ] Monitor logs for Google Drive errors
+- [ ] Verify no local file storage in production
+
+#### 5.4 Database Migration
 
 - [ ] Export local database:
   ```bash
@@ -914,21 +964,34 @@ This document breaks down the Railway migration into manageable phases with deta
 - [ ] Verify all tables and data migrated
 - [ ] Test database connection from Railway
 
-#### 5.4 GitHub Integration
+#### 5.4 Database Migration
+
+- [ ] Export local database:
+  ```bash
+  mysqldump finance > production_backup.sql
+  ```
+- [ ] Import to Railway MySQL:
+  ```bash
+  mysql -h <railway-host> -u root -p railway < production_backup.sql
+  ```
+- [ ] Verify all tables and data migrated
+- [ ] Test database connection from Railway
+
+#### 5.5 GitHub Integration
 
 - [ ] Connect Railway to GitHub repository
 - [ ] Set deploy branch to `main`
 - [ ] Configure build settings (Railway auto-detects Dockerfile)
 - [ ] Verify build configuration
 
-#### 5.5 Initial Deployment
+#### 5.6 Initial Deployment
 
 - [ ] Push to main branch
 - [ ] Monitor Railway deployment logs
 - [ ] Wait for successful deployment
 - [ ] Note Railway application URL
 
-#### 5.6 Testing on Railway
+#### 5.7 Testing on Railway
 
 - [ ] Test frontend loads correctly
 - [ ] Test user login (Cognito)
@@ -939,7 +1002,7 @@ This document breaks down the Railway migration into manageable phases with deta
 - [ ] Test user creation and invitation
 - [ ] Run smoke tests on all modules
 
-#### 5.7 DNS Configuration
+#### 5.8 DNS Configuration
 
 - [ ] Update DNS record:
   ```
@@ -949,14 +1012,14 @@ This document breaks down the Railway migration into manageable phases with deta
 - [ ] Test access via custom domain
 - [ ] Verify SSL certificate
 
-#### 5.8 Monitoring Setup
+#### 5.9 Monitoring Setup
 
 - [ ] Configure Railway logging
 - [ ] Set up error alerts
 - [ ] Monitor application performance
 - [ ] Check database connection pool
 
-#### 5.9 Go Live Checklist
+#### 5.10 Go Live Checklist
 
 - [ ] Verify all features working on production
 - [ ] Test with real user accounts
@@ -966,7 +1029,7 @@ This document breaks down the Railway migration into manageable phases with deta
 - [ ] Keep local database backup for 1 week
 - [ ] Document production URLs and credentials
 
-#### 5.10 Post-Deployment
+#### 5.11 Post-Deployment
 
 - [ ] Monitor logs for 24 hours
 - [ ] Fix any issues that arise

@@ -200,7 +200,7 @@ expect(screen.getByText("Done")).toBeInTheDocument();
 
 - [x] Remove unused imports (23 warnings fixed)
 - [x] Add missing alt text (2 warnings fixed)
-- [ ] Fix conditional expect calls (199 warnings)
+- [x] Fix conditional expect calls (199 warnings)
 - [ ] Fix direct node access (113 warnings)
 - [ ] Fix multiple assertions in waitFor (44 warnings)
 - [ ] Fix container methods (38 warnings)
