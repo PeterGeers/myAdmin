@@ -509,7 +509,7 @@ export const TemplateManagement: React.FC = () => {
                     onRequestHelp={handleAIHelp}
                     onApplyFixes={handleApplyAIFixes}
                     aiSuggestions={state.aiSuggestions}
-                    hasErrors={state.validationResult?.errors.length > 0 || false}
+                    hasErrors={(state.validationResult?.errors?.length ?? 0) > 0}
                     loading={state.loading}
                     disabled={state.loading}
                   />
