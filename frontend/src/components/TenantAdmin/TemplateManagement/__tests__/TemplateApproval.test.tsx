@@ -157,7 +157,7 @@ describe('TemplateApproval', () => {
       const approveButton = screen.getByRole('button', { name: /approve template/i });
       await user.click(approveButton);
       
-      expect(screen.getByText(/approve template/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /approve template/i })).toBeInTheDocument();
       expect(screen.getByText(/save the template to google drive/i)).toBeInTheDocument();
     });
 
@@ -190,7 +190,8 @@ describe('TemplateApproval', () => {
       const approveButton = screen.getByRole('button', { name: /approve template/i });
       await user.click(approveButton);
       
-      expect(screen.getByLabelText(/approval notes/i)).toBeInTheDocument();
+      expect(screen.getByText(/approval notes/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/add any notes about this approval/i)).toBeInTheDocument();
     });
 
     it('shows what happens next information', async () => {
@@ -225,7 +226,7 @@ describe('TemplateApproval', () => {
       const approveButton = screen.getByRole('button', { name: /approve template/i });
       await user.click(approveButton);
       
-      const textarea = screen.getByLabelText(/approval notes/i);
+      const textarea = screen.getByPlaceholderText(/add any notes about this approval/i);
       await user.type(textarea, 'Updated branding');
       
       expect(textarea).toHaveValue('Updated branding');
@@ -263,7 +264,7 @@ describe('TemplateApproval', () => {
       const approveButton = screen.getByRole('button', { name: /approve template/i });
       await user.click(approveButton);
       
-      const textarea = screen.getByLabelText(/approval notes/i);
+      const textarea = screen.getByPlaceholderText(/add any notes about this approval/i);
       await user.type(textarea, 'Updated branding');
       
       const confirmButton = screen.getByRole('button', { name: /confirm approval/i });
@@ -307,7 +308,7 @@ describe('TemplateApproval', () => {
       const approveButton = screen.getByRole('button', { name: /approve template/i });
       await user.click(approveButton);
       
-      const textarea = screen.getByLabelText(/approval notes/i);
+      const textarea = screen.getByPlaceholderText(/add any notes about this approval/i);
       await user.type(textarea, 'Test notes');
       
       // Close dialog
@@ -318,7 +319,7 @@ describe('TemplateApproval', () => {
       await user.click(approveButton);
       
       // Notes should be cleared
-      const newTextarea = screen.getByLabelText(/approval notes/i);
+      const newTextarea = screen.getByPlaceholderText(/add any notes about this approval/i);
       expect(newTextarea).toHaveValue('');
     });
   });
@@ -337,7 +338,7 @@ describe('TemplateApproval', () => {
       const rejectButton = screen.getByRole('button', { name: /reject template/i });
       await user.click(rejectButton);
       
-      expect(screen.getByText(/reject template/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /reject template/i })).toBeInTheDocument();
       expect(screen.getByText(/discard the template without saving/i)).toBeInTheDocument();
     });
 
@@ -354,7 +355,8 @@ describe('TemplateApproval', () => {
       const rejectButton = screen.getByRole('button', { name: /reject template/i });
       await user.click(rejectButton);
       
-      expect(screen.getByLabelText(/rejection reason/i)).toBeInTheDocument();
+      expect(screen.getByText(/rejection reason/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/why is this template being rejected/i)).toBeInTheDocument();
     });
 
     it('shows what happens next information', async () => {
@@ -388,7 +390,7 @@ describe('TemplateApproval', () => {
       const rejectButton = screen.getByRole('button', { name: /reject template/i });
       await user.click(rejectButton);
       
-      const textarea = screen.getByLabelText(/rejection reason/i);
+      const textarea = screen.getByPlaceholderText(/why is this template being rejected/i);
       await user.type(textarea, 'Does not meet brand guidelines');
       
       expect(textarea).toHaveValue('Does not meet brand guidelines');
@@ -426,7 +428,7 @@ describe('TemplateApproval', () => {
       const rejectButton = screen.getByRole('button', { name: /reject template/i });
       await user.click(rejectButton);
       
-      const textarea = screen.getByLabelText(/rejection reason/i);
+      const textarea = screen.getByPlaceholderText(/why is this template being rejected/i);
       await user.type(textarea, 'Missing required fields');
       
       const confirmButton = screen.getByRole('button', { name: /confirm rejection/i });
@@ -470,7 +472,7 @@ describe('TemplateApproval', () => {
       const rejectButton = screen.getByRole('button', { name: /reject template/i });
       await user.click(rejectButton);
       
-      const textarea = screen.getByLabelText(/rejection reason/i);
+      const textarea = screen.getByPlaceholderText(/why is this template being rejected/i);
       await user.type(textarea, 'Test reason');
       
       // Close dialog
@@ -481,7 +483,7 @@ describe('TemplateApproval', () => {
       await user.click(rejectButton);
       
       // Reason should be cleared
-      const newTextarea = screen.getByLabelText(/rejection reason/i);
+      const newTextarea = screen.getByPlaceholderText(/why is this template being rejected/i);
       expect(newTextarea).toHaveValue('');
     });
   });
