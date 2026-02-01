@@ -792,7 +792,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
       'should handle empty states gracefully for configuration %#',
       (testProps) => {
         const propsWithMocks = { ...testProps, onAdministrationChange: jest.fn(), onYearChange: jest.fn() };
-        const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
         
         const hasEmptyAdminOptions = testProps.administrationOptions.length === 0;
         const hasEmptyYearOptions = testProps.availableYears.length === 0;
@@ -861,7 +861,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         onYearChange: mockYearChange
       };
 
-      const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+      const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
 
       try {
         // Component should always render successfully regardless of configuration
@@ -1122,7 +1122,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         onYearChange: mockYearChange
       };
 
-      const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+      const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
 
       try {
         // Test loading state feedback
@@ -1524,7 +1524,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
     ];
 
     errorScenarios.forEach((scenario, index) => {
-      const { container, unmount } = render(<MockUnifiedAdminYearFilter {...scenario.props} />);
+      const { unmount } = render(<MockUnifiedAdminYearFilter {...scenario.props} />);
 
       try {
         // Component should always render without crashing, regardless of error conditions
