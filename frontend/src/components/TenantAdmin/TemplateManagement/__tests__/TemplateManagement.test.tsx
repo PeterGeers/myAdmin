@@ -52,9 +52,9 @@ describe('TemplateManagement', () => {
     it('renders step indicator', () => {
       render(<TemplateManagement />);
       
-      expect(screen.getByText(/upload/i)).toBeInTheDocument();
-      expect(screen.getByText(/preview & validate/i)).toBeInTheDocument();
-      expect(screen.getByText(/approve/i)).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: /step 1: upload/i })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: /step 2: preview and validate/i })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: /step 3: approve/i })).toBeInTheDocument();
     });
   });
 
@@ -509,7 +509,7 @@ describe('TemplateManagement', () => {
       render(<TemplateManagement />);
       
       // Upload step should be active
-      const uploadStep = screen.getByText(/upload/i).closest('div');
+      const uploadStep = screen.getByRole('group', { name: /step 1: upload/i });
       expect(uploadStep).toHaveAttribute('aria-current', 'step');
     });
   });

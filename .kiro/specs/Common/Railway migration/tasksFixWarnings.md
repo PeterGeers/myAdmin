@@ -70,17 +70,17 @@ These are test logic issues, not mock issues:
 
 - [x] Run test: `npm test -- --testPathPattern="AIHelpButton.test.tsx" --no-coverage --watchAll=false`
 - [x] Identify failing tests
-- [ ] Fix test logic and assertions
-- [ ] Verify all tests pass
-- [ ] Commit: `git add . && git commit -m "Fix AIHelpButton.test.tsx" && git push`
+- [x] Fix test logic and assertions
+- [x] Verify all tests pass
+- [x] Commit: `git add . && git commit -m "Fix AIHelpButton.test.tsx" && git push`
 
 #### Task 3: Fix TemplateManagement.test.tsx
 
-- [ ] Run test: `npm test -- --testPathPattern="TemplateManagement.test.tsx" --no-coverage --watchAll=false`
-- [ ] Identify failing tests
-- [ ] Fix test logic and assertions
-- [ ] Verify all tests pass
-- [ ] Commit: `git add . && git commit -m "Fix TemplateManagement.test.tsx" && git push`
+- [x] Run test: `npm test -- --testPathPattern="TemplateManagement.test.tsx" --no-coverage --watchAll=false`
+- [x] Identify failing tests
+- [x] Fix test logic and assertions
+- [x] Verify all tests pass
+- [x] Commit: `git add . && git commit -m "Fix TemplateManagement.test.tsx" && git push`
 
 #### Task 4: Fix TemplatePreview.test.tsx
 
