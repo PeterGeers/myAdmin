@@ -304,28 +304,44 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
    * 
    * **Validates: Requirements 1.1, 1.2, 4.1, 4.4**
    */
-  it('should render all required elements consistently for any valid configuration', () => {
+  describe('Property 1: Component Rendering Consistency', () => {
     const configurations = generateTestConfigurations();
-    
-    configurations.forEach((testProps, index) => {
-      const { container, unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
 
-      try {
-        // Component should always render a container
+    test.each(configurations)(
+      'should always render a container for configuration %#',
+      (testProps) => {
+        const { container, unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
         expect(container.firstChild).toBeInTheDocument();
+        unmount();
+      }
+    );
+
+    test.each(configurations)(
+      'should render administration section correctly for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
         
-        // Check administration section rendering
         const adminState = getAdministrationSectionState(testProps);
         expect(adminState.isVisible).toBe(adminState.shouldShowAdmin);
+        
         if (adminState.shouldShowAdmin) {
           expect(adminState.adminLabel).toBeInTheDocument();
           expect(adminState.adminSelect).toBeInTheDocument();
           expect(adminState.hasAriaLabel).toBe(true);
         }
+        
+        unmount();
+      }
+    );
 
-        // Check year section rendering
+    test.each(configurations)(
+      'should render year section correctly for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const yearState = getYearSectionState(testProps);
         expect(yearState.isVisible).toBe(yearState.shouldShowYears);
+        
         if (yearState.shouldShowYears) {
           expect(yearState.yearLabel).toBeInTheDocument();
           if (yearState.isMultiSelect) {
@@ -335,38 +351,68 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
             expect(yearState.yearSelect).toBeInTheDocument();
           }
         }
+        
+        unmount();
+      }
+    );
 
-        // Check consistent styling - should have gray background
+    test.each(configurations)(
+      'should have consistent styling for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const mainContainer = screen.getByTestId('unified-filter-container');
         expect(mainContainer).toHaveStyle({ backgroundColor: '#2D3748' });
+        
+        unmount();
+      }
+    );
 
-        // Check loading state rendering
+    test.each(configurations)(
+      'should render loading state correctly for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const loadingState = getLoadingState(testProps);
         expect(loadingState.isVisible).toBe(loadingState.shouldShowLoading);
+        
         if (loadingState.shouldShowLoading) {
           expect(loadingState.loadingText).toBeInTheDocument();
         }
+        
+        unmount();
+      }
+    );
 
-        // Check disabled state - all interactive elements should be disabled
+    test.each(configurations)(
+      'should handle disabled state correctly for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const disabledState = getDisabledState(testProps);
+        
         if (disabledState.shouldBeDisabled) {
           expect(disabledState.allSelectsDisabled).toBe(true);
           expect(disabledState.allButtonsDisabled).toBe(true);
         }
-
-        // Verify accessibility attributes
-        const selectElements = screen.queryAllByRole('combobox');
-        selectElements.forEach(select => {
-          // Should have proper ARIA attributes
-          expect(select).toHaveAttribute('aria-label');
-        });
-      } catch (error) {
-        console.error(`Test failed for configuration ${index}:`, testProps);
-        throw error;
-      } finally {
+        
         unmount();
       }
-    });
+    );
+
+    test.each(configurations)(
+      'should have proper accessibility attributes for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
+        const selectElements = screen.queryAllByRole('combobox');
+        selectElements.forEach(select => {
+          expect(select).toHaveAttribute('aria-label');
+        });
+        
+        unmount();
+      }
+    );
   });
 
   // Data retrieval helper - returns administration options state without assertions
@@ -491,29 +537,27 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
    * 
    * **Validates: Requirements 2.1, 2.2, 2.3, 4.3**
    */
-  it('should handle all selection operations correctly for any valid input', () => {
-    const configurations = generateTestConfigurations();
-    
-    configurations.forEach((testProps, index) => {
-      // Skip configurations that don't have both sections enabled for this test
-      if (testProps.showAdministration === false && testProps.showYears === false) {
-        return;
-      }
+  /**
+   * **Feature: unified-admin-year-filter, Property 3: Selection Behavior Correctness**
+   * 
+   * For any valid selection operation (single administration, multiple years, or mixed selections), 
+   * the component should handle all supported administration options, manage multi-select year 
+   * functionality correctly, and display current selections clearly
+   * 
+   * **Validates: Requirements 2.1, 2.2, 2.3, 4.3**
+   */
+  describe('Property 3: Selection Behavior Correctness', () => {
+    const configurations = generateTestConfigurations().filter(
+      props => props.showAdministration !== false || props.showYears !== false
+    );
 
-      const mockAdminChange = jest.fn();
-      const mockYearChange = jest.fn();
-      
-      const propsWithMocks = {
-        ...testProps,
-        onAdministrationChange: mockAdminChange,
-        onYearChange: mockYearChange
-      };
-
-      const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
-
-      try {
-        // Test administration selection behavior
+    test.each(configurations)(
+      'should handle administration selection correctly for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const adminOptionsState = getAdministrationOptionsState(testProps);
+        
         if (adminOptionsState.shouldCheck) {
           adminOptionsState.options.forEach(({ option, element, isDisabled, expectedDisabled }) => {
             expect(element).toBeInTheDocument();
@@ -522,9 +566,18 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           });
           expect(adminOptionsState.currentValue).toBe(testProps.administrationValue);
         }
+        
+        unmount();
+      }
+    );
 
-        // Test year selection behavior - multi-select
+    test.each(configurations)(
+      'should handle multi-select year behavior correctly for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const multiSelectState = getMultiSelectYearsState(testProps);
+        
         if (multiSelectState.shouldCheck) {
           expect(multiSelectState.actualText).toBe(multiSelectState.expectedText);
           if (multiSelectState.yearMenu) {
@@ -533,9 +586,18 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
             });
           }
         }
+        
+        unmount();
+      }
+    );
 
-        // Test year selection behavior - single-select
+    test.each(configurations)(
+      'should handle single-select year behavior correctly for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const singleSelectState = getSingleSelectYearState(testProps);
+        
         if (singleSelectState.shouldCheck) {
           singleSelectState.options.forEach(({ year, element, isPresent }) => {
             expect(isPresent).toBe(true);
@@ -543,8 +605,16 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           });
           expect(singleSelectState.actualValue).toBe(singleSelectState.expectedValue);
         }
+        
+        unmount();
+      }
+    );
 
-        // Test that selections are properly constrained to available options
+    test.each(configurations)(
+      'should constrain selections to available options for configuration %#',
+      (testProps) => {
+        render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         // All selected years should be in available years
         testProps.yearValues.forEach(selectedYear => {
           expect(testProps.availableYears).toContain(selectedYear);
@@ -556,15 +626,31 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           const validValues = testProps.administrationOptions.map(opt => opt.value);
           expect(validValues).toContain(testProps.administrationValue);
         }
+      }
+    );
 
-        // Test disabled state behavior - selections should not be changeable
+    test.each(configurations)(
+      'should disable selections when disabled or loading for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         const shouldBeDisabled = testProps.disabled || testProps.isLoading;
+        
         if (shouldBeDisabled) {
           const disabledState = getDisabledState(testProps);
           expect(disabledState.allSelectsDisabled).toBe(true);
           expect(disabledState.allButtonsDisabled).toBe(true);
         }
+        
+        unmount();
+      }
+    );
 
+    test.each(configurations)(
+      'should display correct placeholder text for configuration %#',
+      (testProps) => {
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
+        
         // Test placeholder behavior for administration
         const shouldCheckAdminPlaceholder = testProps.showAdministration !== false && !testProps.administrationValue;
         const adminSelect = screen.queryByLabelText('Administration filter');
@@ -588,14 +674,10 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
             }
           }
         }
-
-      } catch (error) {
-        console.error(`Selection behavior test failed for configuration ${index}:`, testProps);
-        throw error;
-      } finally {
+        
         unmount();
       }
-    });
+    );
   });
 
   /**
@@ -607,197 +689,157 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
    * 
    * **Validates: Requirements 1.3, 1.4, 2.4, 2.5, 3.4**
    */
-  it('should maintain consistent state management and API callbacks for any filter change', () => {
-    const configurations = generateTestConfigurations();
-    
-    configurations.forEach((testProps, index) => {
-      // Skip configurations that don't have interactive elements
-      if (testProps.disabled || testProps.isLoading) {
-        return;
-      }
+  describe('Property 2: State Management and API Consistency', () => {
+    const interactiveConfigurations = generateTestConfigurations().filter(
+      props => !props.disabled && !props.isLoading
+    );
 
-      const mockAdminChange = jest.fn();
-      const mockYearChange = jest.fn();
-      
-      const propsWithMocks = {
-        ...testProps,
-        onAdministrationChange: mockAdminChange,
-        onYearChange: mockYearChange
-      };
-
-      const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
-
-      try {
-        // Test administration state management
+    test.each(interactiveConfigurations)(
+      'should manage administration state correctly for configuration %#',
+      (testProps) => {
+        const mockAdminChange = jest.fn();
+        const propsWithMocks = { ...testProps, onAdministrationChange: mockAdminChange, onYearChange: jest.fn() };
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        
         if (testProps.showAdministration !== false && testProps.administrationOptions.length > 0) {
           const adminSelect = screen.queryByLabelText('Administration filter');
           if (adminSelect) {
-            // Test that callback is triggered with correct values
-            const availableOptions = testProps.administrationOptions.filter(opt => !opt.disabled);
-            const hasAvailableOptions = availableOptions.length > 0;
-            
-            if (hasAvailableOptions) {
-              const testOption = availableOptions[0];
-              
-              // Simulate selection change
-              adminSelect.dispatchEvent(new Event('change', { bubbles: true }));
-              Object.defineProperty(adminSelect, 'value', { value: testOption.value, writable: true });
-              adminSelect.dispatchEvent(new Event('change', { bubbles: true }));
-
-              // Verify callback receives correct value
-              // Note: In real implementation, this would be called, but in mock we simulate the behavior
-              expect(adminSelect).toHaveValue(testProps.administrationValue);
-              
-              // Verify state isolation - component should not modify external state directly
-              // The callback pattern ensures parent component controls the state
-              expect(typeof propsWithMocks.onAdministrationChange).toBe('function');
-            }
+            expect(adminSelect).toHaveValue(testProps.administrationValue);
+            expect(typeof propsWithMocks.onAdministrationChange).toBe('function');
           }
         }
+        
+        unmount();
+      }
+    );
 
-        // Test year state management for multi-select
-        const shouldTestMultiSelectYear = testProps.showYears !== false && 
-                                         testProps.multiSelectYears !== false && 
-                                         testProps.availableYears.length > 0;
-        if (shouldTestMultiSelectYear) {
+    test.each(interactiveConfigurations)(
+      'should manage multi-select year state correctly for configuration %#',
+      (testProps) => {
+        const mockYearChange = jest.fn();
+        const propsWithMocks = { ...testProps, onAdministrationChange: jest.fn(), onYearChange: mockYearChange };
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        
+        const shouldTest = testProps.showYears !== false && 
+                          testProps.multiSelectYears !== false && 
+                          testProps.availableYears.length > 0;
+        
+        if (shouldTest) {
           const yearButton = screen.queryByTestId('year-menu-button');
           if (yearButton) {
-            // Test that year selections are properly managed
             const currentYears = testProps.yearValues;
-            const availableYears = testProps.availableYears;
-            
-            // Verify current state is correctly displayed
             const hasSelectedYears = currentYears.length > 0;
             const expectedText = hasSelectedYears ? currentYears.sort().join(', ') : 'Select years...';
             expect(yearButton).toHaveTextContent(expectedText);
-
-            // Verify all selected years are valid (in available years)
-            currentYears.forEach(selectedYear => {
-              expect(availableYears).toContain(selectedYear);
-            });
-
-            // Test callback function exists and is callable
-            expect(typeof propsWithMocks.onYearChange).toBe('function');
             
-            // Test that year changes maintain array structure
-            // In multi-select mode, onYearChange should always receive an array
-            const testYear = availableYears[0];
-            const hasTestYear = testYear !== undefined;
-            if (hasTestYear) {
-              // Simulate adding a year
-              const newYears = currentYears.includes(testYear) 
-                ? currentYears.filter(y => y !== testYear)
-                : [...currentYears, testYear];
-              
-              // Verify the callback would receive an array
-              expect(Array.isArray(newYears)).toBe(true);
-            }
+            currentYears.forEach(selectedYear => {
+              expect(testProps.availableYears).toContain(selectedYear);
+            });
+            
+            expect(typeof propsWithMocks.onYearChange).toBe('function');
           }
         }
+        
+        unmount();
+      }
+    );
 
-        // Test year state management for single-select
-        const shouldTestSingleSelectYear = testProps.showYears !== false && 
-                                          testProps.multiSelectYears === false && 
-                                          testProps.availableYears.length > 0;
-        if (shouldTestSingleSelectYear) {
+    test.each(interactiveConfigurations)(
+      'should manage single-select year state correctly for configuration %#',
+      (testProps) => {
+        const mockYearChange = jest.fn();
+        const propsWithMocks = { ...testProps, onAdministrationChange: jest.fn(), onYearChange: mockYearChange };
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        
+        const shouldTest = testProps.showYears !== false && 
+                          testProps.multiSelectYears === false && 
+                          testProps.availableYears.length > 0;
+        
+        if (shouldTest) {
           const yearSelect = screen.queryByLabelText('Year filter');
           if (yearSelect) {
-            // Test that single year selection is properly managed
             const currentYear = testProps.yearValues.length > 0 ? testProps.yearValues[0] : '';
-            
-            // Verify current state is correctly displayed
             expect(yearSelect).toHaveValue(currentYear);
             
-            // Verify selected year is valid (in available years or empty)
-            const hasCurrentYear = currentYear !== '';
-            if (hasCurrentYear) {
+            if (currentYear !== '') {
               expect(testProps.availableYears).toContain(currentYear);
             }
-
-            // Test callback function exists and is callable
-            expect(typeof propsWithMocks.onYearChange).toBe('function');
             
-            // Test that single year changes maintain array structure for API consistency
-            // Even in single-select mode, onYearChange should receive an array for consistency
-            const testYear = testProps.availableYears[0];
-            const hasTestYear = testYear !== undefined;
-            if (hasTestYear) {
-              // Simulate year selection
-              yearSelect.dispatchEvent(new Event('change', { bubbles: true }));
-              Object.defineProperty(yearSelect, 'value', { value: testYear, writable: true });
-              yearSelect.dispatchEvent(new Event('change', { bubbles: true }));
-
-              // Verify the component maintains consistent API
-              expect(yearSelect).toHaveValue(currentYear);
-            }
+            expect(typeof propsWithMocks.onYearChange).toBe('function');
           }
         }
+        
+        unmount();
+      }
+    );
 
-        // Test state isolation and immutability
-        // Component should not mutate props directly
+    test.each(interactiveConfigurations)(
+      'should maintain state isolation and immutability for configuration %#',
+      (testProps) => {
+        const propsWithMocks = { ...testProps, onAdministrationChange: jest.fn(), onYearChange: jest.fn() };
         const originalAdminValue = testProps.administrationValue;
         const originalYearValues = [...testProps.yearValues];
         
-        // After rendering and potential interactions, original props should be unchanged
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        
         expect(testProps.administrationValue).toBe(originalAdminValue);
         expect(testProps.yearValues).toEqual(originalYearValues);
-
-        // Test backward compatibility with existing filter structures
-        // Component should work with different callback signatures
-        expect(propsWithMocks.onAdministrationChange).toBeDefined();
-        expect(propsWithMocks.onYearChange).toBeDefined();
         
-        // Callbacks should be functions that can accept the expected parameters
-        expect(typeof propsWithMocks.onAdministrationChange).toBe('function');
-        expect(typeof propsWithMocks.onYearChange).toBe('function');
+        unmount();
+      }
+    );
 
-        // Test that component handles empty states gracefully
+    test.each(interactiveConfigurations)(
+      'should handle empty states gracefully for configuration %#',
+      (testProps) => {
+        const propsWithMocks = { ...testProps, onAdministrationChange: jest.fn(), onYearChange: jest.fn() };
+        const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        
         const hasEmptyAdminOptions = testProps.administrationOptions.length === 0;
         const hasEmptyYearOptions = testProps.availableYears.length === 0;
         
-        if (hasEmptyAdminOptions) {
-          // Should not crash with empty administration options
+        if (hasEmptyAdminOptions || hasEmptyYearOptions) {
           expect(container.firstChild).toBeInTheDocument();
         }
         
-        if (hasEmptyYearOptions) {
-          // Should not crash with empty year options
-          expect(container.firstChild).toBeInTheDocument();
-        }
+        unmount();
+      }
+    );
 
-        // Test that component maintains consistent behavior across re-renders
-        // State should be stable and predictable
+    test.each(interactiveConfigurations)(
+      'should maintain consistent rendering across re-renders for configuration %#',
+      (testProps) => {
+        const propsWithMocks = { ...testProps, onAdministrationChange: jest.fn(), onYearChange: jest.fn() };
+        const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
         const containerContent = container.textContent;
-        expect(containerContent).toBeDefined();
         
-        // Component should render the same way given the same props
         const { container: container2, unmount: unmount2 } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
         expect(container2.textContent).toBe(containerContent);
+        
+        unmount();
         unmount2();
+      }
+    );
 
-        // Test API consistency - callbacks should maintain expected signatures
-        // Administration callback should accept string
-        const shouldTestAdminCallback = testProps.showAdministration !== false;
-        if (shouldTestAdminCallback) {
-          expect(() => {
-            propsWithMocks.onAdministrationChange('test-value');
-          }).not.toThrow();
+    test.each(interactiveConfigurations)(
+      'should maintain API callback consistency for configuration %#',
+      (testProps) => {
+        const mockAdminChange = jest.fn();
+        const mockYearChange = jest.fn();
+        const propsWithMocks = { ...testProps, onAdministrationChange: mockAdminChange, onYearChange: mockYearChange };
+        
+        render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        
+        if (testProps.showAdministration !== false) {
+          expect(() => propsWithMocks.onAdministrationChange('test-value')).not.toThrow();
         }
-
-        // Year callback should accept string array
-        const shouldTestYearCallback = testProps.showYears !== false;
-        if (shouldTestYearCallback) {
+        
+        if (testProps.showYears !== false) {
           expect(() => propsWithMocks.onYearChange(['2024'])).not.toThrow();
           expect(() => propsWithMocks.onYearChange([])).not.toThrow();
         }
-
-      } catch (error) {
-        console.error(`State management test failed for configuration ${index}:`, testProps);
-        throw error;
-      } finally {
-        unmount();
       }
-    });
+    );
   });
 
   /**

@@ -352,6 +352,10 @@ expect(screen.getByText("Done")).toBeInTheDocument();
 - [x] Add missing alt text (2 warnings fixed)
 - [x] Fix Template Management test failures (56 tests now passing)
 - [x] Fix ValidationResults.test.tsx (28 tests passing, useDisclosure mock fixed)
+- [x] Phase 1.1: Fix unused variables in UnifiedAdminYearFilter.test.tsx (4 warnings fixed)
+- [x] Phase 1.2: Fix prefer-presence-queries in UnifiedAdminYearFilter.test.tsx (3 warnings fixed)
+- [x] Phase 1.3: Fix simple querySelector calls in UnifiedAdminYearFilter.test.tsx (4 warnings fixed)
+- [x] Phase 2.1: Refactor helper functions to separate assertion logic (improved code quality, reduced container warnings)
 - [ ] Fix conditional expect calls (199 warnings) - mostly in UnifiedAdminYearFilter.test.tsx
 - [ ] Fix direct node access (113 warnings) - multiple files
 - [ ] Fix multiple assertions in waitFor (44 warnings)
@@ -423,15 +427,15 @@ expect(screen.getByText("Done")).toBeInTheDocument();
 
 #### Phase 2: Refactor Helper Functions (Estimated: 2-3 hours, Impact: ~40 warnings)
 
-- [ ] **Task 2.1**: Refactor verification helpers to separate assertion logic
-  - [ ] Refactor `verifyAdministrationSection` helper
-  - [ ] Refactor `verifyYearSection` helper
-  - [ ] Refactor `verifyLoadingState` helper
-  - [ ] Refactor `verifyDisabledState` helper
-  - [ ] Create assertion-free helpers that return data instead of performing assertions
-  - [ ] Move assertions to test bodies with clear preconditions
-  - [ ] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
-  - [ ] Commit: `git add . && git commit -m "Phase 2.1: Refactor helper functions in UnifiedAdminYearFilter.test.tsx" && git push`
+- [x] **Task 2.1**: Refactor verification helpers to separate assertion logic
+  - [x] Refactor `verifyAdministrationSection` helper
+  - [x] Refactor `verifyYearSection` helper
+  - [x] Refactor `verifyLoadingState` helper
+  - [x] Refactor `verifyDisabledState` helper
+  - [x] Create assertion-free helpers that return data instead of performing assertions
+  - [x] Move assertions to test bodies with clear preconditions
+  - [x] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
+  - [x] Commit: `git add . && git commit -m "Phase 2.1: Refactor helper functions in UnifiedAdminYearFilter.test.tsx" && git push`
 
 #### Phase 3: Restructure Property Tests (Estimated: 4-6 hours, Impact: ~100 warnings)
 
