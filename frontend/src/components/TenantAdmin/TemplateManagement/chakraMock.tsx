@@ -140,7 +140,7 @@ export const chakraMock = {
     const { isChecked, onChange, isDisabled, ...domProps } = props;
     return (
       <label>
-        <input type="checkbox" checked={isChecked} onChange={onChange} disabled={isDisabled} role="checkbox" {...domProps} />
+        <input type="checkbox" checked={isChecked} onChange={onChange} disabled={isDisabled} {...domProps} />
         {children}
       </label>
     );
