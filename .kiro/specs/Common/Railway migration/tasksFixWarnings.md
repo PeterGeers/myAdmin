@@ -220,7 +220,7 @@ const element = container.querySelector(".class");
 - [x] Fix direct node access at line 283
 - [x] Run tests: `npm test -- --testPathPattern="ValidationResults.test.tsx" --no-coverage --watchAll=false`
 - [x] Verify all tests pass
-- [-] Git commit: `git add . && git commit -m "Fix ValidationResults.test.tsx warnings" && git push`
+- [x] Git commit: `git add . && git commit -m "Fix ValidationResults.test.tsx warnings" && git push`
 
 ---
 
@@ -229,11 +229,13 @@ const element = container.querySelector(".class");
 **File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplatePreview.test.tsx`  
 **Total Warnings**: 4
 
-- [ ] Fix direct node access at line 37
-- [ ] Fix direct node access at line 160
-- [ ] Run tests: `npm test -- --testPathPattern="TemplatePreview.test.tsx" --no-coverage --watchAll=false`
+- [x] Check current warnings: `npm run lint 2>&1 | Select-String "TemplatePreview.test.tsx"`
+- [x] Fix direct node access at line 37
+- [x] Fix direct node access at line 160
+- [x] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplatePreview.test.tsx"`
+- [x] Run tests: `npm test -- --testPathPattern="TemplatePreview.test.tsx" --no-coverage --watchAll=false`
 - [ ] Verify all tests pass
-- [ ] Git commit: `git add . && git commit -m "Fix TemplatePreview.test.tsx warnings" && git push`
+- [-] Git commit: `git add . && git commit -m "Fix TemplatePreview.test.tsx warnings" && git push`
 
 ---
 
@@ -242,8 +244,10 @@ const element = container.querySelector(".class");
 **File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateApproval.test.tsx`  
 **Total Warnings**: 4
 
+- [ ] Check current warnings: `npm run lint 2>&1 | Select-String "TemplateApproval.test.tsx"`
 - [ ] Fix direct node access at line 505
 - [ ] Fix direct node access at line 522
+- [ ] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateApproval.test.tsx"`
 - [ ] Run tests: `npm test -- --testPathPattern="TemplateApproval.test.tsx" --no-coverage --watchAll=false`
 - [ ] Verify all tests pass
 - [ ] Git commit: `git add . && git commit -m "Fix TemplateApproval.test.tsx warnings" && git push`
@@ -255,8 +259,10 @@ const element = container.querySelector(".class");
 **File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateManagement.test.tsx`  
 **Total Warnings**: 2
 
+- [ ] Check current warnings: `npm run lint 2>&1 | Select-String "TemplateManagement.test.tsx"`
 - [ ] Remove unused variable `mockApplyAIFixes` at line 26
 - [ ] Fix multiple assertions in waitFor at line 101
+- [ ] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateManagement.test.tsx"`
 - [ ] Run tests: `npm test -- --testPathPattern="TemplateManagement.test.tsx" --no-coverage --watchAll=false`
 - [ ] Verify all tests pass
 - [ ] Git commit: `git add . && git commit -m "Fix TemplateManagement.test.tsx warnings" && git push`
@@ -268,8 +274,10 @@ const element = container.querySelector(".class");
 **File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx`  
 **Total Warnings**: 4
 
+- [ ] Check current warnings: `npm run lint 2>&1 | Select-String "TemplateUpload.test.tsx"`
 - [ ] Remove unused variables at line 32 (`leftIcon`, `variant`, `colorScheme`)
 - [ ] Fix multiple assertions in waitFor at line 204
+- [ ] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateUpload.test.tsx"`
 - [ ] Run tests: `npm test -- --testPathPattern="TemplateUpload.test.tsx" --no-coverage --watchAll=false`
 - [ ] Verify all tests pass
 - [ ] Git commit: `git add . && git commit -m "Fix TemplateUpload.test.tsx warnings" && git push`
@@ -281,7 +289,9 @@ const element = container.querySelector(".class");
 **File**: `src/components/TenantAdmin/TemplateManagement/chakraMock.tsx`  
 **Total Warnings**: 1
 
+- [ ] Check current warnings: `npm run lint 2>&1 | Select-String "chakraMock.tsx"`
 - [ ] Remove redundant role definition at line 143
+- [ ] Verify warnings reduced: `npm run lint 2>&1 | Select-String "chakraMock.tsx"`
 - [ ] Run all Template Management tests: `npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --watchAll=false`
 - [ ] Verify no regression
 - [ ] Git commit: `git add . && git commit -m "Fix chakraMock.tsx redundant role warning" && git push`
