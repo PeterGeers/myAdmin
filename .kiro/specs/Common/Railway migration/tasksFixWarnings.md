@@ -264,8 +264,8 @@ const element = container.querySelector(".class");
 - [x] Fix multiple assertions in waitFor at line 101
 - [x] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateManagement.test.tsx"`
 - [x] Run tests: `npm test -- --testPathPattern="TemplateManagement.test.tsx" --no-coverage --watchAll=false`
-- [ ] Verify all tests pass
-- [-] Git commit: `git add . && git commit -m "Fix TemplateManagement.test.tsx warnings" && git push`
+- [x] Verify all tests pass
+- [x] Git commit: `git add . && git commit -m "Fix TemplateManagement.test.tsx warnings" && git push`
 
 ---
 
@@ -274,13 +274,13 @@ const element = container.querySelector(".class");
 **File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx`  
 **Total Warnings**: 4
 
-- [ ] Check current warnings: `npm run lint 2>&1 | Select-String "TemplateUpload.test.tsx"`
-- [ ] Remove unused variables at line 32 (`leftIcon`, `variant`, `colorScheme`)
-- [ ] Fix multiple assertions in waitFor at line 204
-- [ ] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateUpload.test.tsx"`
-- [ ] Run tests: `npm test -- --testPathPattern="TemplateUpload.test.tsx" --no-coverage --watchAll=false`
+- [x] Check current warnings: `npm run lint 2>&1 | Select-String "TemplateUpload.test.tsx"`
+- [x] Remove unused variables at line 32 (`leftIcon`, `variant`, `colorScheme`)
+- [x] Fix multiple assertions in waitFor at line 204
+- [x] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateUpload.test.tsx"`
+- [x] Run tests: `npm test -- --testPathPattern="TemplateUpload.test.tsx" --no-coverage --watchAll=false`
 - [ ] Verify all tests pass
-- [ ] Git commit: `git add . && git commit -m "Fix TemplateUpload.test.tsx warnings" && git push`
+- [-] Git commit: `git add . && git commit -m "Fix TemplateUpload.test.tsx warnings" && git push`
 
 ---
 

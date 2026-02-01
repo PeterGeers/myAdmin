@@ -29,7 +29,7 @@ jest.mock('@chakra-ui/react', () => ({
     return <p {...domProps}>{children}</p>;
   },
   Button: ({ children, onClick, ...props }: any) => {
-    const { isDisabled, isLoading, loadingText, leftIcon, variant, colorScheme, size, w, flex, mb } = props;
+    const { isDisabled, isLoading, loadingText } = props;
     return (
       <button onClick={onClick} disabled={isDisabled || isLoading}>
         {isLoading && loadingText ? loadingText : children}
@@ -54,14 +54,11 @@ jest.mock('@chakra-ui/react', () => ({
     );
   },
   FormControl: ({ children, ...props }: any) => {
-    const { isInvalid, isRequired } = props;
+    const { isInvalid } = props;
     return <div data-invalid={isInvalid}>{children}</div>;
   },
   FormLabel: ({ children }: any) => <label>{children}</label>,
-  FormHelperText: ({ children, ...props }: any) => {
-    const { color, fontSize } = props;
-    return <div>{children}</div>;
-  },
+  FormHelperText: ({ children }: any) => <div>{children}</div>,
   FormErrorMessage: ({ children }: any) => <div role="alert">{children}</div>,
   Collapse: ({ children }: any) => <div>{children}</div>,
   Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
@@ -201,8 +198,10 @@ describe('TemplateUpload', () => {
       await waitFor(() => {
         const errorElement = screen.queryByRole('alert');
         expect(errorElement).toBeInTheDocument();
-        expect(errorElement).toHaveTextContent(/only html files/i);
       }, { timeout: 3000 });
+      
+      const errorElement = screen.getByRole('alert');
+      expect(errorElement).toHaveTextContent(/only html files/i);
     });
 
     it('rejects files larger than 5MB', async () => {
