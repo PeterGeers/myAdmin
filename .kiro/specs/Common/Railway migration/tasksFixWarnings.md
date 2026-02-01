@@ -115,9 +115,10 @@ npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --wat
 
 ## Current State
 
-- **Total warnings**: 318 (down from 428)
+- **Total warnings**: ~310 (down from 318, reduced by ~8 warnings)
 - **Errors**: 0
 - **Test failures**: 0 (all Template Management tests passing!)
+- **Recently fixed**: 4 simple querySelector calls in UnifiedAdminYearFilter.test.tsx
 - **Recently fixed**: 25 warnings (unused imports, missing alt text)
 - **Recently fixed**: Chakra UI mock conflicts (eliminated 82 test crashes)
 - **Recently fixed**: ValidationResults.test.tsx - all 28 tests passing (fixed useDisclosure mock and test assertions)
@@ -413,12 +414,12 @@ expect(screen.getByText("Done")).toBeInTheDocument();
   - [x] Verify: `npm run lint 2>&1 | Select-String "UnifiedAdminYearFilter.test.tsx" | Select-String "prefer-presence-queries"`
   - [x] Commit: `git add . && git commit -m "Phase 1.2: Fix prefer-presence-queries in UnifiedAdminYearFilter.test.tsx" && git push`
 
-- [-] **Task 1.3**: Fix simple container.querySelector calls (10-15 warnings)
-  - [ ] Replace simple querySelector calls with getByRole/getByTestId
-  - [ ] Focus on low-risk replacements that don't require component changes
-  - [ ] Verify: `npm run lint 2>&1 | Select-String "UnifiedAdminYearFilter.test.tsx" | Measure-Object -Line`
-  - [ ] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
-  - [ ] Commit: `git add . && git commit -m "Phase 1.3: Fix simple querySelector calls in UnifiedAdminYearFilter.test.tsx" && git push`
+- [x] **Task 1.3**: Fix simple container.querySelector calls (10-15 warnings)
+  - [x] Replace simple querySelector calls with getByRole/getByTestId
+  - [x] Focus on low-risk replacements that don't require component changes
+  - [x] Verify: `npm run lint 2>&1 | Select-String "UnifiedAdminYearFilter.test.tsx" | Measure-Object -Line`
+  - [x] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
+  - [x] Commit: `git add . && git commit -m "Phase 1.3: Fix simple querySelector calls in UnifiedAdminYearFilter.test.tsx" && git push`
 
 #### Phase 2: Refactor Helper Functions (Estimated: 2-3 hours, Impact: ~40 warnings)
 

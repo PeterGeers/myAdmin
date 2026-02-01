@@ -223,86 +223,75 @@ const generateTestConfigurations = () => {
 };
 
 describe('UnifiedAdminYearFilter Property Tests', () => {
-  // Helper function to verify administration section
-  const verifyAdministrationSection = (
-    container: HTMLElement,
-    testProps: UnifiedAdminYearFilterProps
-  ) => {
+  // Data retrieval helper - returns administration section state without assertions
+  const getAdministrationSectionState = (testProps: UnifiedAdminYearFilterProps) => {
     const shouldShowAdmin = testProps.showAdministration !== false;
     const adminSection = screen.queryByTestId('administration-section');
-    
-    expect(adminSection !== null).toBe(shouldShowAdmin);
-    
-    if (!shouldShowAdmin) {
-      return;
-    }
-    
     const adminLabel = screen.queryByText('Administration');
-    expect(adminLabel).toBeInTheDocument();
-    
     const adminSelect = screen.queryByLabelText('Administration filter');
-    expect(adminSelect).toBeInTheDocument();
-    expect(adminSelect).toHaveAttribute('aria-label');
+    
+    return {
+      shouldShowAdmin,
+      isVisible: adminSection !== null,
+      adminSection,
+      adminLabel,
+      adminSelect,
+      hasAriaLabel: adminSelect?.hasAttribute('aria-label') ?? false
+    };
   };
 
-  // Helper function to verify year section
-  const verifyYearSection = (
-    container: HTMLElement,
-    testProps: UnifiedAdminYearFilterProps
-  ) => {
+  // Data retrieval helper - returns year section state without assertions
+  const getYearSectionState = (testProps: UnifiedAdminYearFilterProps) => {
     const shouldShowYears = testProps.showYears !== false;
     const yearSection = screen.queryByTestId('year-section');
-    
-    expect(yearSection !== null).toBe(shouldShowYears);
-    
-    if (!shouldShowYears) {
-      return;
-    }
-    
     const isMultiSelect = testProps.multiSelectYears !== false;
     const yearLabel = screen.queryByText(isMultiSelect ? 'Years' : 'Year');
-    expect(yearLabel).toBeInTheDocument();
+    const yearButton = screen.queryByTestId('year-menu-button');
+    const yearSelect = screen.queryByLabelText('Year filter');
     
-    if (isMultiSelect) {
-      const yearButton = screen.queryByTestId('year-menu-button');
-      expect(yearButton).toBeInTheDocument();
-      expect(yearButton).toHaveAttribute('aria-haspopup', 'menu');
-    } else {
-      const yearSelect = screen.queryByLabelText('Year filter');
-      expect(yearSelect).toBeInTheDocument();
-    }
+    return {
+      shouldShowYears,
+      isVisible: yearSection !== null,
+      yearSection,
+      isMultiSelect,
+      yearLabel,
+      yearButton,
+      yearSelect,
+      hasMenuButton: yearButton !== null,
+      hasSelectElement: yearSelect !== null
+    };
   };
 
-  // Helper function to verify loading state
-  const verifyLoadingState = (testProps: UnifiedAdminYearFilterProps) => {
+  // Data retrieval helper - returns loading state without assertions
+  const getLoadingState = (testProps: UnifiedAdminYearFilterProps) => {
     const shouldShowLoading = testProps.isLoading === true;
     const loadingIndicator = screen.queryByTestId('loading-indicator');
+    const loadingText = screen.queryByText('Loading filter options...');
     
-    expect(loadingIndicator !== null).toBe(shouldShowLoading);
-    
-    if (shouldShowLoading) {
-      expect(screen.getByText('Loading filter options...')).toBeInTheDocument();
-    }
+    return {
+      shouldShowLoading,
+      isVisible: loadingIndicator !== null,
+      loadingIndicator,
+      loadingText,
+      hasLoadingText: loadingText !== null
+    };
   };
 
-  // Helper function to verify disabled state
-  const verifyDisabledState = (container: HTMLElement, testProps: UnifiedAdminYearFilterProps) => {
+  // Data retrieval helper - returns disabled state without assertions
+  const getDisabledState = (testProps: UnifiedAdminYearFilterProps) => {
     const shouldBeDisabled = testProps.disabled === true;
+    const selectElements = screen.queryAllByRole('combobox');
+    const buttonElements = screen.queryAllByRole('button');
     
-    if (!shouldBeDisabled) {
-      return;
-    }
-    
-    const selectElements = Array.from(container.querySelectorAll('select'));
-    const buttonElements = Array.from(container.querySelectorAll('button'));
-    
-    selectElements.forEach(select => {
-      expect(select).toBeDisabled();
-    });
-    
-    buttonElements.forEach(button => {
-      expect(button).toBeDisabled();
-    });
+    return {
+      shouldBeDisabled,
+      selectElements,
+      buttonElements,
+      allSelectsDisabled: selectElements.every(el => (el as HTMLSelectElement).disabled),
+      allButtonsDisabled: buttonElements.every(el => (el as HTMLButtonElement).disabled),
+      disabledSelectCount: selectElements.filter(el => (el as HTMLSelectElement).disabled).length,
+      disabledButtonCount: buttonElements.filter(el => (el as HTMLButtonElement).disabled).length
+    };
   };
 
   /**
@@ -326,23 +315,47 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         expect(container.firstChild).toBeInTheDocument();
         
         // Check administration section rendering
-        verifyAdministrationSection(container, testProps);
+        const adminState = getAdministrationSectionState(testProps);
+        expect(adminState.isVisible).toBe(adminState.shouldShowAdmin);
+        if (adminState.shouldShowAdmin) {
+          expect(adminState.adminLabel).toBeInTheDocument();
+          expect(adminState.adminSelect).toBeInTheDocument();
+          expect(adminState.hasAriaLabel).toBe(true);
+        }
 
         // Check year section rendering
-        verifyYearSection(container, testProps);
+        const yearState = getYearSectionState(testProps);
+        expect(yearState.isVisible).toBe(yearState.shouldShowYears);
+        if (yearState.shouldShowYears) {
+          expect(yearState.yearLabel).toBeInTheDocument();
+          if (yearState.isMultiSelect) {
+            expect(yearState.yearButton).toBeInTheDocument();
+            expect(yearState.yearButton).toHaveAttribute('aria-haspopup', 'menu');
+          } else {
+            expect(yearState.yearSelect).toBeInTheDocument();
+          }
+        }
 
         // Check consistent styling - should have gray background
         const mainContainer = screen.getByTestId('unified-filter-container');
         expect(mainContainer).toHaveStyle({ backgroundColor: '#2D3748' });
 
         // Check loading state rendering
-        verifyLoadingState(testProps);
+        const loadingState = getLoadingState(testProps);
+        expect(loadingState.isVisible).toBe(loadingState.shouldShowLoading);
+        if (loadingState.shouldShowLoading) {
+          expect(loadingState.loadingText).toBeInTheDocument();
+        }
 
         // Check disabled state - all interactive elements should be disabled
-        verifyDisabledState(container, testProps);
+        const disabledState = getDisabledState(testProps);
+        if (disabledState.shouldBeDisabled) {
+          expect(disabledState.allSelectsDisabled).toBe(true);
+          expect(disabledState.allButtonsDisabled).toBe(true);
+        }
 
         // Verify accessibility attributes
-        const selectElements = Array.from(container.querySelectorAll('select'));
+        const selectElements = screen.queryAllByRole('combobox');
         selectElements.forEach(select => {
           // Should have proper ARIA attributes
           expect(select).toHaveAttribute('aria-label');
@@ -356,99 +369,117 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
     });
   });
 
-  // Helper function to verify administration options
-  const verifyAdministrationOptions = (
-    container: HTMLElement,
-    testProps: UnifiedAdminYearFilterProps
-  ) => {
+  // Data retrieval helper - returns administration options state without assertions
+  const getAdministrationOptionsState = (testProps: UnifiedAdminYearFilterProps) => {
     const shouldCheck = testProps.showAdministration !== false && 
                        testProps.administrationOptions.length > 0 &&
                        !testProps.disabled &&
                        !testProps.isLoading;
     
-    if (!shouldCheck) {
-      return;
-    }
-    
     const adminSelect = screen.queryByLabelText('Administration filter');
-    if (!adminSelect) {
-      return;
+    
+    if (!shouldCheck || !adminSelect) {
+      return {
+        shouldCheck,
+        adminSelect: null,
+        options: [],
+        currentValue: ''
+      };
     }
     
-    testProps.administrationOptions.forEach(option => {
-      const optionElement = within(adminSelect as HTMLElement).getByRole('option', { name: option.label });
-      expect(optionElement).toBeInTheDocument();
-      expect(optionElement).toHaveTextContent(option.label);
-      
-      const shouldBeDisabled = option.disabled === true;
-      expect((optionElement as HTMLOptionElement).disabled).toBe(shouldBeDisabled);
+    const options = testProps.administrationOptions.map(option => {
+      const optionElement = within(adminSelect as HTMLElement).queryByRole('option', { name: option.label });
+      return {
+        option,
+        element: optionElement,
+        isDisabled: optionElement ? (optionElement as HTMLOptionElement).disabled : false,
+        expectedDisabled: option.disabled === true
+      };
     });
 
-    expect(adminSelect).toHaveValue(testProps.administrationValue);
+    return {
+      shouldCheck,
+      adminSelect,
+      options,
+      currentValue: (adminSelect as HTMLSelectElement).value
+    };
   };
 
-  // Helper function to verify multi-select year behavior
-  const verifyMultiSelectYears = (
-    container: HTMLElement,
-    testProps: UnifiedAdminYearFilterProps
-  ) => {
+  // Data retrieval helper - returns multi-select year state without assertions
+  const getMultiSelectYearsState = (testProps: UnifiedAdminYearFilterProps) => {
     const shouldCheck = testProps.showYears !== false &&
                        testProps.availableYears.length > 0 &&
                        testProps.multiSelectYears !== false &&
                        !testProps.disabled &&
                        !testProps.isLoading;
     
-    if (!shouldCheck) {
-      return;
-    }
-    
     const yearButton = screen.queryByTestId('year-menu-button');
-    if (!yearButton) {
-      return;
+    const yearMenu = screen.queryByTestId('year-menu');
+    
+    if (!shouldCheck || !yearButton) {
+      return {
+        shouldCheck,
+        yearButton: null,
+        yearMenu: null,
+        expectedText: '',
+        hasSelectedYears: false,
+        availableYears: []
+      };
     }
     
     const hasSelectedYears = testProps.yearValues.length > 0;
     const expectedText = hasSelectedYears
       ? testProps.yearValues.sort().join(', ')
       : 'Select years...';
-    expect(yearButton).toHaveTextContent(expectedText);
 
-    const yearMenu = screen.queryByTestId('year-menu');
-    if (yearMenu) {
-      testProps.availableYears.forEach(year => {
-        expect(container.textContent).toContain(year);
-      });
-    }
+    return {
+      shouldCheck,
+      yearButton,
+      yearMenu,
+      expectedText,
+      actualText: yearButton.textContent || '',
+      hasSelectedYears,
+      availableYears: testProps.availableYears
+    };
   };
 
-  // Helper function to verify single-select year behavior
-  const verifySingleSelectYear = (
-    container: HTMLElement,
-    testProps: UnifiedAdminYearFilterProps
-  ) => {
+  // Data retrieval helper - returns single-select year state without assertions
+  const getSingleSelectYearState = (testProps: UnifiedAdminYearFilterProps) => {
     const shouldCheck = testProps.showYears !== false &&
                        testProps.availableYears.length > 0 &&
                        testProps.multiSelectYears === false &&
                        !testProps.disabled &&
                        !testProps.isLoading;
     
-    if (!shouldCheck) {
-      return;
-    }
-    
     const yearSelect = screen.queryByLabelText('Year filter');
-    if (!yearSelect) {
-      return;
+    
+    if (!shouldCheck || !yearSelect) {
+      return {
+        shouldCheck,
+        yearSelect: null,
+        options: [],
+        expectedValue: ''
+      };
     }
     
-    testProps.availableYears.forEach(year => {
-      const optionElement = within(yearSelect as HTMLElement).getByRole('option', { name: year });
-      expect(optionElement).toBeInTheDocument();
-      expect(optionElement).toHaveTextContent(year);
+    const options = testProps.availableYears.map(year => {
+      const optionElement = within(yearSelect as HTMLElement).queryByRole('option', { name: year });
+      return {
+        year,
+        element: optionElement,
+        isPresent: optionElement !== null
+      };
     });
 
     const expectedValue = testProps.yearValues.length > 0 ? testProps.yearValues[0] : '';
-    expect(yearSelect).toHaveValue(expectedValue);
+
+    return {
+      shouldCheck,
+      yearSelect,
+      options,
+      expectedValue,
+      actualValue: (yearSelect as HTMLSelectElement).value
+    };
   };
 
   /**
@@ -482,13 +513,36 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
 
       try {
         // Test administration selection behavior
-        verifyAdministrationOptions(container, testProps);
+        const adminOptionsState = getAdministrationOptionsState(testProps);
+        if (adminOptionsState.shouldCheck) {
+          adminOptionsState.options.forEach(({ option, element, isDisabled, expectedDisabled }) => {
+            expect(element).toBeInTheDocument();
+            expect(element).toHaveTextContent(option.label);
+            expect(isDisabled).toBe(expectedDisabled);
+          });
+          expect(adminOptionsState.currentValue).toBe(testProps.administrationValue);
+        }
 
         // Test year selection behavior - multi-select
-        verifyMultiSelectYears(container, testProps);
+        const multiSelectState = getMultiSelectYearsState(testProps);
+        if (multiSelectState.shouldCheck) {
+          expect(multiSelectState.actualText).toBe(multiSelectState.expectedText);
+          if (multiSelectState.yearMenu) {
+            multiSelectState.availableYears.forEach(year => {
+              expect(screen.getByTestId('unified-filter-container').textContent).toContain(year);
+            });
+          }
+        }
 
         // Test year selection behavior - single-select
-        verifySingleSelectYear(container, testProps);
+        const singleSelectState = getSingleSelectYearState(testProps);
+        if (singleSelectState.shouldCheck) {
+          singleSelectState.options.forEach(({ year, element, isPresent }) => {
+            expect(isPresent).toBe(true);
+            expect(element).toHaveTextContent(year);
+          });
+          expect(singleSelectState.actualValue).toBe(singleSelectState.expectedValue);
+        }
 
         // Test that selections are properly constrained to available options
         // All selected years should be in available years
@@ -506,23 +560,16 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         // Test disabled state behavior - selections should not be changeable
         const shouldBeDisabled = testProps.disabled || testProps.isLoading;
         if (shouldBeDisabled) {
-          const selectElements = Array.from(container.querySelectorAll('select'));
-          const buttonElements = Array.from(container.querySelectorAll('button'));
-          
-          selectElements.forEach(select => {
-            expect(select).toBeDisabled();
-          });
-          
-          buttonElements.forEach(button => {
-            expect(button).toBeDisabled();
-          });
+          const disabledState = getDisabledState(testProps);
+          expect(disabledState.allSelectsDisabled).toBe(true);
+          expect(disabledState.allButtonsDisabled).toBe(true);
         }
 
         // Test placeholder behavior for administration
         const shouldCheckAdminPlaceholder = testProps.showAdministration !== false && !testProps.administrationValue;
         const adminSelect = screen.queryByLabelText('Administration filter');
         if (shouldCheckAdminPlaceholder && adminSelect) {
-          expect(container.textContent).toContain('Select administration...');
+          expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select administration...');
         }
 
         // Test placeholder behavior for years
@@ -537,7 +584,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           } else {
             const yearSelect = screen.queryByLabelText('Year filter');
             if (yearSelect) {
-              expect(container.textContent).toContain('Select year...');
+              expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select year...');
             }
           }
         }
