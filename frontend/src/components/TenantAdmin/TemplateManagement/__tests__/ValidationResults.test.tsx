@@ -267,7 +267,7 @@ describe('ValidationResults', () => {
       
       render(<ValidationResults validationResult={validResult} />);
       
-      const statusBox = screen.getByText(/template valid/i).closest('div');
+      const statusBox = screen.getByTestId('validation-status-box');
       expect(statusBox).toHaveStyle({ backgroundColor: expect.stringContaining('green') });
     });
 
@@ -280,7 +280,7 @@ describe('ValidationResults', () => {
       
       render(<ValidationResults validationResult={invalidResult} />);
       
-      const statusBox = screen.getByText(/validation failed/i).closest('div');
+      const statusBox = screen.getByTestId('validation-status-box');
       expect(statusBox).toHaveStyle({ backgroundColor: expect.stringContaining('red') });
     });
   });

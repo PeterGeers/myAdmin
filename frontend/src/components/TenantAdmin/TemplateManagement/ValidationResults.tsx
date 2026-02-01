@@ -69,6 +69,7 @@ export const ValidationResults: React.FC<ValidationResultsProps> = ({
         borderRadius="md"
         border="1px solid"
         borderColor={is_valid ? 'green.700' : 'red.700'}
+        data-testid="validation-status-box"
       >
         <HStack spacing={3}>
           <Icon

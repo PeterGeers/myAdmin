@@ -1,5 +1,22 @@
 # Complete CI/CD Pipeline
 # This script runs the full pipeline: build -> deploy -> verify
+#
+# USAGE:
+#   .\scripts\CICD\pipeline.ps1 [-Environment staging|production] [-Force] [-m "commit message"]
+#
+# EXAMPLES:
+#   .\scripts\CICD\pipeline.ps1 -m "Fix tests"
+#   .\scripts\CICD\pipeline.ps1 -Force -m "Deploy to staging"
+#   .\scripts\CICD\pipeline.ps1 -Environment production -m "Release v1.0"
+#
+# PARAMETERS:
+#   -m, -CommitMessage    Git commit message (like git commit -m)
+#   -Force                Skip all confirmation prompts
+#   -Environment          Target environment (staging or production)
+#   -SkipTests            Skip running tests during build
+#   -SkipBackup           Skip database backup before deploy
+#   -SkipGit              Skip all git operations
+#   -Tag                  Create a git tag for this deployment
 
 param(
     [Parameter(Mandatory = $false)]
@@ -12,6 +29,7 @@ param(
     [switch]$Force = $false,
     
     [Parameter(Mandatory = $false)]
+    [Alias("m")]
     [string]$CommitMessage = "",
     
     [Parameter(Mandatory = $false)]

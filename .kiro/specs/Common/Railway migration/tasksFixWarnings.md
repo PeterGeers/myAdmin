@@ -96,15 +96,14 @@ These are test logic issues, not mock issues:
 - [x] Identify failing tests
 - [x] Fix test logic and assertions
 - [x] Verify all tests pass
-- [ ] Commit: `git add . && git commit -m "Fix TemplateApproval.test.tsx" && git push`
+- [x] Commit: `git add . && git commit -m "Fix TemplateApproval.test.tsx" && git push`
 
 #### Task 6: Final Verification
 
-- [ ] Run all Template Management tests: `npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --watchAll=false`
-- [ ] Verify all 145 tests pass
-- [ ] Run full test suite: `npm test -- --no-coverage --watchAll=false`
-- [ ] Verify no regression in other test suites
-- [ ] Commit: `git add . && git commit -m "Complete Template Management test fixes - all 145 tests passing" && git push`
+- [x] Run all Template Management tests: `npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --watchAll=false`
+- [x] Verify all 145 tests pass
+- [x] Run full test suite: `npm test -- --no-coverage --watchAll=false`
+- [x] Verify no regression in other test suites
 
 ### Test Command
 
@@ -210,70 +209,82 @@ const element = container.querySelector(".class");
 - Redundant role definitions (1 warning in chakraMock.tsx)
 - React Hook dependency warnings (2 warnings)
 
-## Tasks
+## Tasks - Template by Template Approach
 
-### Task 1: Fix Conditional Expect Calls
+### Task 1: Fix ValidationResults.test.tsx
 
-**Priority**: High
-**Effort**: Medium
-**Files**:
+**File**: `src/components/TenantAdmin/TemplateManagement/__tests__/ValidationResults.test.tsx`  
+**Total Warnings**: 4
 
-- `src/components/DuplicateWarningDialog.test.tsx` (majority of issues)
-- `src/components/PDFUploadForm.test.tsx`
+- [x] Fix direct node access at line 270
+- [x] Fix direct node access at line 283
+- [x] Run tests: `npm test -- --testPathPattern="ValidationResults.test.tsx" --no-coverage --watchAll=false`
+- [x] Verify all tests pass
+- [-] Git commit: `git add . && git commit -m "Fix ValidationResults.test.tsx warnings" && git push`
 
-**Approach**:
+---
 
-1. Identify conditional logic in tests
-2. Restructure into separate test cases
-3. Use test.each() for parameterized tests where appropriate
+### Task 2: Fix TemplatePreview.test.tsx
 
-### Task 2: Fix Direct Node Access
+**File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplatePreview.test.tsx`  
+**Total Warnings**: 4
 
-**Priority**: High
-**Effort**: High
-**Files**: Multiple test files across codebase
+- [ ] Fix direct node access at line 37
+- [ ] Fix direct node access at line 160
+- [ ] Run tests: `npm test -- --testPathPattern="TemplatePreview.test.tsx" --no-coverage --watchAll=false`
+- [ ] Verify all tests pass
+- [ ] Git commit: `git add . && git commit -m "Fix TemplatePreview.test.tsx warnings" && git push`
 
-**Approach**:
+---
 
-1. Add `data-testid` attributes to components where needed
-2. Replace `.closest()` with proper queries
-3. Use `within()` for scoped queries
+### Task 3: Fix TemplateApproval.test.tsx
 
-### Task 3: Fix Multiple Assertions in waitFor
+**File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateApproval.test.tsx`  
+**Total Warnings**: 4
 
-**Priority**: Medium
-**Effort**: Low
-**Files**: Multiple test files
+- [ ] Fix direct node access at line 505
+- [ ] Fix direct node access at line 522
+- [ ] Run tests: `npm test -- --testPathPattern="TemplateApproval.test.tsx" --no-coverage --watchAll=false`
+- [ ] Verify all tests pass
+- [ ] Git commit: `git add . && git commit -m "Fix TemplateApproval.test.tsx warnings" && git push`
 
-**Approach**:
+---
 
-1. Move non-async assertions outside `waitFor()`
-2. Split into multiple `waitFor()` calls if needed
-3. Use `findBy*` queries instead of `waitFor(() => getBy*())`
+### Task 4: Fix TemplateManagement.test.tsx
 
-### Task 4: Fix Container Methods
+**File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateManagement.test.tsx`  
+**Total Warnings**: 2
 
-**Priority**: Medium
-**Effort**: Medium
-**Files**: Multiple test files
+- [ ] Remove unused variable `mockApplyAIFixes` at line 26
+- [ ] Fix multiple assertions in waitFor at line 101
+- [ ] Run tests: `npm test -- --testPathPattern="TemplateManagement.test.tsx" --no-coverage --watchAll=false`
+- [ ] Verify all tests pass
+- [ ] Git commit: `git add . && git commit -m "Fix TemplateManagement.test.tsx warnings" && git push`
 
-**Approach**:
+---
 
-1. Replace `container.querySelector()` with Testing Library queries
-2. Add test IDs where semantic queries aren't possible
-3. Use `screen` instead of destructuring `container`
+### Task 5: Fix TemplateUpload.test.tsx
 
-### Task 5: Fix Remaining Warnings
+**File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx`  
+**Total Warnings**: 4
 
-**Priority**: Low
-**Effort**: Low
+- [ ] Remove unused variables at line 32 (`leftIcon`, `variant`, `colorScheme`)
+- [ ] Fix multiple assertions in waitFor at line 204
+- [ ] Run tests: `npm test -- --testPathPattern="TemplateUpload.test.tsx" --no-coverage --watchAll=false`
+- [ ] Verify all tests pass
+- [ ] Git commit: `git add . && git commit -m "Fix TemplateUpload.test.tsx warnings" && git push`
 
-**Approach**:
+---
 
-1. Replace `queryBy*` with `getBy*` where appropriate
-2. Remove side effects from `waitFor` callbacks
-3. Clean up redundant role definitions
-4. Remove any remaining unused variables
+### Task 6: Fix chakraMock.tsx
+
+**File**: `src/components/TenantAdmin/TemplateManagement/chakraMock.tsx`  
+**Total Warnings**: 1
+
+- [ ] Remove redundant role definition at line 143
+- [ ] Run all Template Management tests: `npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --watchAll=false`
+- [ ] Verify no regression
+- [ ] Git commit: `git add . && git commit -m "Fix chakraMock.tsx redundant role warning" && git push`
 
 ## Implementation Notes
 
