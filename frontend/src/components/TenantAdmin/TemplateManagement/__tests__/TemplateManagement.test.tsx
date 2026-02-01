@@ -23,7 +23,6 @@ describe('TemplateManagement', () => {
   const mockApproveTemplate = templateApi.approveTemplate as jest.MockedFunction<typeof templateApi.approveTemplate>;
   const mockRejectTemplate = templateApi.rejectTemplate as jest.MockedFunction<typeof templateApi.rejectTemplate>;
   const mockGetAIHelp = templateApi.getAIHelp as jest.MockedFunction<typeof templateApi.getAIHelp>;
-  const mockApplyAIFixes = templateApi.applyAIFixes as jest.MockedFunction<typeof templateApi.applyAIFixes>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -98,8 +97,8 @@ describe('TemplateManagement', () => {
       // Wait for preview to appear
       await waitFor(() => {
         expect(screen.getByText(/validation results/i)).toBeInTheDocument();
-        expect(screen.getByText(/template preview/i)).toBeInTheDocument();
       });
+      expect(screen.getByText(/template preview/i)).toBeInTheDocument();
     });
 
     it('shows success message for valid template', async () => {
