@@ -169,12 +169,15 @@ export const chakraMock = {
     const { as, boxSize, color, mt, ...domProps } = props;
     return <span {...domProps}>{as?.name || 'icon'}</span>;
   },
-  useDisclosure: () => ({
-    isOpen: false,
-    onOpen: jest.fn(),
-    onClose: jest.fn(),
-    onToggle: jest.fn(),
-  }),
+  useDisclosure: (options?: { defaultIsOpen?: boolean }) => {
+    const [isOpen, setIsOpen] = React.useState(options?.defaultIsOpen ?? false);
+    return {
+      isOpen,
+      onOpen: jest.fn(() => setIsOpen(true)),
+      onClose: jest.fn(() => setIsOpen(false)),
+      onToggle: jest.fn(() => setIsOpen(!isOpen)),
+    };
+  },
   useToast: () => jest.fn(),
 };
 

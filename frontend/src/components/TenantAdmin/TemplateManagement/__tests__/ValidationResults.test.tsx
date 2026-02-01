@@ -125,7 +125,9 @@ describe('ValidationResults', () => {
       render(<ValidationResults validationResult={invalidResult} />);
       
       expect(screen.getByText(/placeholder:/i)).toBeInTheDocument();
-      expect(screen.getByText(/invoice_number/)).toBeInTheDocument();
+      // Use getAllByText since "invoice_number" appears in both the message and the placeholder field
+      const invoiceNumberElements = screen.getAllByText(/invoice_number/);
+      expect(invoiceNumberElements.length).toBeGreaterThan(0);
     });
   });
 
@@ -239,8 +241,8 @@ describe('ValidationResults', () => {
       const errorsHeader = screen.getByText(/errors \(2\)/i);
       await user.click(errorsHeader);
       
-      // Content should be hidden (Chakra Collapse uses display: none)
-      expect(screen.queryByText(/error message 1/i)).not.toBeVisible();
+      // Content should be hidden (Chakra Collapse removes from DOM when collapsed)
+      expect(screen.queryByText(/error message 1/i)).not.toBeInTheDocument();
     });
 
     it('can collapse warnings section', async () => {
@@ -251,7 +253,7 @@ describe('ValidationResults', () => {
       await user.click(warningsHeader);
       
       // Content should be hidden
-      expect(screen.queryByText(/warning message 1/i)).not.toBeVisible();
+      expect(screen.queryByText(/warning message 1/i)).not.toBeInTheDocument();
     });
   });
 
