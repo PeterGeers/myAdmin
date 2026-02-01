@@ -502,7 +502,10 @@ describe('TemplateApproval', () => {
       const approveButton = screen.getByRole('button', { name: /approve template/i });
       await user.click(approveButton);
       
-      const dialog = screen.getByText(/save the template to google drive/i).closest('[role="dialog"]');
+      // Check that the dialog message is present
+      expect(screen.getByText(/save the template to google drive/i)).toBeInTheDocument();
+      // Verify the dialog exists with green border styling
+      const dialog = screen.getByRole('dialog');
       expect(dialog).toHaveStyle({ borderColor: expect.stringContaining('green') });
     });
 
@@ -519,7 +522,10 @@ describe('TemplateApproval', () => {
       const rejectButton = screen.getByRole('button', { name: /reject template/i });
       await user.click(rejectButton);
       
-      const dialog = screen.getByText(/discard the template without saving/i).closest('[role="dialog"]');
+      // Check that the dialog message is present
+      expect(screen.getByText(/discard the template without saving/i)).toBeInTheDocument();
+      // Verify the dialog exists with red border styling
+      const dialog = screen.getByRole('dialog');
       expect(dialog).toHaveStyle({ borderColor: expect.stringContaining('red') });
     });
   });

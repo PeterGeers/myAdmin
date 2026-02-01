@@ -234,8 +234,8 @@ const element = container.querySelector(".class");
 - [x] Fix direct node access at line 160
 - [x] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplatePreview.test.tsx"`
 - [x] Run tests: `npm test -- --testPathPattern="TemplatePreview.test.tsx" --no-coverage --watchAll=false`
-- [ ] Verify all tests pass
-- [-] Git commit: `git add . && git commit -m "Fix TemplatePreview.test.tsx warnings" && git push`
+- [x] Verify all tests pass
+- [x] Git commit: `git add . && git commit -m "Fix TemplatePreview.test.tsx warnings" && git push`
 
 ---
 
@@ -244,13 +244,13 @@ const element = container.querySelector(".class");
 **File**: `src/components/TenantAdmin/TemplateManagement/__tests__/TemplateApproval.test.tsx`  
 **Total Warnings**: 4
 
-- [ ] Check current warnings: `npm run lint 2>&1 | Select-String "TemplateApproval.test.tsx"`
-- [ ] Fix direct node access at line 505
-- [ ] Fix direct node access at line 522
-- [ ] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateApproval.test.tsx"`
-- [ ] Run tests: `npm test -- --testPathPattern="TemplateApproval.test.tsx" --no-coverage --watchAll=false`
+- [x] Check current warnings: `npm run lint 2>&1 | Select-String "TemplateApproval.test.tsx"`
+- [x] Fix direct node access at line 505
+- [x] Fix direct node access at line 522
+- [x] Verify warnings reduced: `npm run lint 2>&1 | Select-String "TemplateApproval.test.tsx"`
+- [x] Run tests: `npm test -- --testPathPattern="TemplateApproval.test.tsx" --no-coverage --watchAll=false`
 - [ ] Verify all tests pass
-- [ ] Git commit: `git add . && git commit -m "Fix TemplateApproval.test.tsx warnings" && git push`
+- [-] Git commit: `git add . && git commit -m "Fix TemplateApproval.test.tsx warnings" && git push`
 
 ---
 
