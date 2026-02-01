@@ -6,6 +6,7 @@ This module provides API endpoints for Tenant_Admin role to manage:
 - Tenant secrets (API keys, credentials)
 - Tenant users and role assignments
 - Tenant audit logs
+- Template preview and validation (for template customization)
 
 Based on the architecture at .kiro/specs/Common/Multitennant/architecture.md
 """
@@ -23,13 +24,74 @@ from database import DatabaseManager
 import os
 import json
 import boto3
-from typing import Dict, Any, List
+import logging
+from typing import Dict, Any, List, Optional
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+
+# Create blueprint for tenant admin routes
+# Note: Routes define their own full paths (e.g., /api/tenant/config, /api/tenant-admin/templates/preview)
 tenant_admin_bp = Blueprint('tenant_admin', __name__)
 
 # Initialize Cognito client
 cognito_client = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
 USER_POOL_ID = os.getenv('COGNITO_USER_POOL_ID')
+
+
+# ============================================================================
+# Security: Content Security Policy Headers
+# ============================================================================
+
+
+@tenant_admin_bp.after_request
+def add_security_headers(response):
+    """
+    Add Content Security Policy headers to all tenant admin responses.
+    
+    This provides defense-in-depth security for template preview and validation:
+    - Prevents execution of inline scripts
+    - Restricts resource loading to same origin
+    - Blocks external resources
+    - Prevents clickjacking
+    
+    Applied to all routes in this blueprint.
+    """
+    # Content Security Policy
+    # - default-src 'self': Only load resources from same origin
+    # - script-src 'none': No JavaScript execution allowed
+    # - style-src 'self' 'unsafe-inline': Allow inline styles (needed for template previews)
+    # - img-src 'self' data:: Allow images from same origin and data URIs
+    # - font-src 'self': Only fonts from same origin
+    # - connect-src 'self': Only API calls to same origin
+    # - frame-ancestors 'none': Prevent clickjacking
+    # - base-uri 'self': Restrict base tag URLs
+    # - form-action 'self': Only submit forms to same origin
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'none'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
+    response.headers['Content-Security-Policy'] = csp_policy
+    
+    # Additional security headers
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    
+    return response
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 
 def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
@@ -435,3 +497,670 @@ def remove_tenant_role_endpoint(username, role, user_email, user_roles):
     except Exception as e:
         print(f"Error removing tenant role: {e}", flush=True)
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# Template Preview and Validation Routes
+# ============================================================================
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/preview', methods=['POST'])
+@cognito_required(required_permissions=[])
+def preview_template_endpoint(user_email, user_roles):
+    """
+    Generate template preview with sample data (Tenant_Admin only)
+    
+    Request body:
+    {
+        "template_type": "str_invoice_nl",
+        "template_content": "<html>...</html>",
+        "field_mappings": {}  // optional
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "preview_html": "<html>...</html>",
+        "validation": {
+            "is_valid": true,
+            "errors": [],
+            "warnings": []
+        },
+        "sample_data_info": {
+            "source": "database",
+            "record_date": "2026-01-01",
+            "message": "Using most recent data"
+        }
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+        
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+        
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+        
+        # Validate request body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+        
+        template_type = data.get('template_type')
+        template_content = data.get('template_content')
+        field_mappings = data.get('field_mappings', {})
+        
+        if not template_type:
+            return jsonify({'error': 'template_type is required'}), 400
+        
+        if not template_content:
+            return jsonify({'error': 'template_content is required'}), 400
+        
+        # Get database connection
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        # Initialize TemplatePreviewService
+        from services.template_preview_service import TemplatePreviewService
+        preview_service = TemplatePreviewService(db, tenant)
+        
+        # Generate preview
+        result = preview_service.generate_preview(
+            template_type=template_type,
+            template_content=template_content,
+            field_mappings=field_mappings
+        )
+        
+        # Audit log
+        logger.info(
+            f"AUDIT: Template preview generated by {user_email} for {tenant}, "
+            f"type={template_type}, success={result.get('success')}"
+        )
+        
+        # Return appropriate status code based on success
+        if result.get('success'):
+            return jsonify(result), 200
+        else:
+            # Validation failed or preview generation failed
+            return jsonify(result), 400
+        
+    except Exception as e:
+        logger.error(f"Error generating template preview: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/validate', methods=['POST'])
+@cognito_required(required_permissions=[])
+def validate_template_endpoint(user_email, user_roles):
+    """
+    Validate template without generating preview (Tenant_Admin only)
+    
+    This endpoint is faster than preview as it only validates the template
+    without fetching sample data or generating the full preview HTML.
+    
+    Request body:
+    {
+        "template_type": "str_invoice_nl",
+        "template_content": "<html>...</html>"
+    }
+    
+    Returns:
+    {
+        "is_valid": true,
+        "errors": [],
+        "warnings": [],
+        "checks_performed": ["html_syntax", "required_placeholders", "security_scan", "file_size"]
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+        
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+        
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+        
+        # Validate request body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+        
+        template_type = data.get('template_type')
+        template_content = data.get('template_content')
+        
+        if not template_type:
+            return jsonify({'error': 'template_type is required'}), 400
+        
+        if not template_content:
+            return jsonify({'error': 'template_content is required'}), 400
+        
+        # Get database connection
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        # Initialize TemplatePreviewService
+        from services.template_preview_service import TemplatePreviewService
+        preview_service = TemplatePreviewService(db, tenant)
+        
+        # Validate template (no preview generation)
+        result = preview_service.validate_template(
+            template_type=template_type,
+            template_content=template_content
+        )
+        
+        # Audit log
+        logger.info(
+            f"AUDIT: Template validation by {user_email} for {tenant}, "
+            f"type={template_type}, valid={result.get('is_valid')}"
+        )
+        
+        # Return validation results
+        return jsonify(result), 200
+        
+    except Exception as e:
+        logger.error(f"Error validating template: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/approve', methods=['POST'])
+@cognito_required(required_permissions=[])
+def approve_template_endpoint(user_email, user_roles):
+    """
+    Approve and activate template (Tenant_Admin only)
+    
+    This endpoint:
+    1. Validates the template
+    2. Saves template to Google Drive
+    3. Updates database metadata
+    4. Archives previous version
+    5. Logs approval
+    
+    Request body:
+    {
+        "template_type": "str_invoice_nl",
+        "template_content": "<html>...</html>",
+        "field_mappings": {},  // optional
+        "notes": "Updated invoice layout"  // optional
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "template_id": "tmpl_str_invoice_nl_2",
+        "file_id": "1abc...xyz",
+        "message": "Template approved and activated",
+        "previous_version": {
+            "file_id": "1def...uvw",
+            "archived_at": "2026-02-01T12:00:00"
+        }
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+        
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+        
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+        
+        # Validate request body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+        
+        template_type = data.get('template_type')
+        template_content = data.get('template_content')
+        field_mappings = data.get('field_mappings', {})
+        notes = data.get('notes', '')
+        
+        if not template_type:
+            return jsonify({'error': 'template_type is required'}), 400
+        
+        if not template_content:
+            return jsonify({'error': 'template_content is required'}), 400
+        
+        # Get database connection
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        # Initialize TemplatePreviewService
+        from services.template_preview_service import TemplatePreviewService
+        preview_service = TemplatePreviewService(db, tenant)
+        
+        # Approve template (validates, saves to Drive, updates DB, archives previous)
+        result = preview_service.approve_template(
+            template_type=template_type,
+            template_content=template_content,
+            field_mappings=field_mappings,
+            user_email=user_email,
+            notes=notes
+        )
+        
+        # Audit log
+        if result.get('success'):
+            logger.info(
+                f"AUDIT: Template approved by {user_email} for {tenant}, "
+                f"type={template_type}, file_id={result.get('file_id')}"
+            )
+        else:
+            logger.warning(
+                f"AUDIT: Template approval failed by {user_email} for {tenant}, "
+                f"type={template_type}, reason={result.get('message')}"
+            )
+        
+        # Return appropriate status code based on success
+        if result.get('success'):
+            return jsonify(result), 200
+        else:
+            # Approval failed (validation or save error)
+            return jsonify(result), 400
+        
+    except Exception as e:
+        logger.error(f"Error approving template: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/reject', methods=['POST'])
+@cognito_required(required_permissions=[])
+def reject_template_endpoint(user_email, user_roles):
+    """
+    Reject template with reason (Tenant_Admin only)
+    
+    This endpoint logs template rejection for audit purposes.
+    No changes are made to the database or Google Drive.
+    
+    Request body:
+    {
+        "template_type": "str_invoice_nl",
+        "reason": "Template does not meet brand guidelines"
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "message": "Template rejection logged"
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+        
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+        
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+        
+        # Validate request body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+        
+        template_type = data.get('template_type')
+        reason = data.get('reason', 'No reason provided')
+        
+        if not template_type:
+            return jsonify({'error': 'template_type is required'}), 400
+        
+        # Log rejection with reason
+        logger.info(
+            f"AUDIT: Template rejected by {user_email} for {tenant}, "
+            f"type={template_type}, reason={reason}"
+        )
+        
+        # Return success message
+        return jsonify({
+            'success': True,
+            'message': 'Template rejection logged'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error rejecting template: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/ai-help', methods=['POST'])
+@cognito_required(required_permissions=[])
+def ai_help_template_endpoint(user_email, user_roles):
+    """
+    Get AI-powered fix suggestions for template errors (Tenant_Admin only)
+    
+    This endpoint uses OpenRouter AI to analyze template validation errors
+    and provide intelligent fix suggestions with code examples.
+    
+    Request body:
+    {
+        "template_type": "str_invoice_nl",
+        "template_content": "<html>...</html>",
+        "validation_errors": [
+            {
+                "type": "missing_placeholder",
+                "message": "Required placeholder missing",
+                "placeholder": "invoice_number"
+            }
+        ],
+        "required_placeholders": ["invoice_number", "guest_name", ...]
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "ai_suggestions": {
+            "analysis": "The template is missing required placeholders...",
+            "fixes": [
+                {
+                    "issue": "Missing placeholder: invoice_number",
+                    "suggestion": "Add {{ invoice_number }} to display the invoice number",
+                    "code_example": "<h1>Invoice {{ invoice_number }}</h1>",
+                    "location": "header section",
+                    "confidence": "high"
+                }
+            ],
+            "auto_fixable": true
+        },
+        "tokens_used": 1234,
+        "cost_estimate": 0.001
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+        
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+        
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+        
+        # Validate request body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+        
+        template_type = data.get('template_type')
+        template_content = data.get('template_content')
+        validation_errors = data.get('validation_errors', [])
+        required_placeholders = data.get('required_placeholders', [])
+        
+        if not template_type:
+            return jsonify({'error': 'template_type is required'}), 400
+        
+        if not template_content:
+            return jsonify({'error': 'template_content is required'}), 400
+        
+        if not validation_errors:
+            return jsonify({'error': 'validation_errors is required'}), 400
+        
+        # Get database connection
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        # Initialize AITemplateAssistant
+        from services.ai_template_assistant import AITemplateAssistant
+        ai_assistant = AITemplateAssistant(db)
+        
+        # Get AI fix suggestions
+        result = ai_assistant.get_fix_suggestions(
+            template_type=template_type,
+            template_content=template_content,
+            validation_errors=validation_errors,
+            required_placeholders=required_placeholders,
+            administration=tenant
+        )
+        
+        # Log AI usage for cost tracking
+        if result.get('success') and result.get('tokens_used'):
+            logger.info(
+                f"AUDIT: AI assistance used by {user_email} for {tenant}, "
+                f"type={template_type}, tokens={result.get('tokens_used')}, "
+                f"cost=${result.get('cost_estimate', 0):.4f}"
+            )
+        else:
+            logger.warning(
+                f"AUDIT: AI assistance failed for {user_email} in {tenant}, "
+                f"type={template_type}, error={result.get('error', 'unknown')}"
+            )
+        
+        # Return AI suggestions or fallback to generic help
+        if result.get('success'):
+            return jsonify(result), 200
+        else:
+            # AI service unavailable - return generic help
+            generic_help = _get_generic_help(validation_errors, required_placeholders)
+            return jsonify({
+                'success': True,
+                'ai_suggestions': generic_help,
+                'fallback': True,
+                'message': 'AI service unavailable, showing generic help'
+            }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting AI help: {e}")
+        
+        # Try to provide generic help even on error
+        try:
+            generic_help = _get_generic_help(
+                data.get('validation_errors', []),
+                data.get('required_placeholders', [])
+            )
+            return jsonify({
+                'success': True,
+                'ai_suggestions': generic_help,
+                'fallback': True,
+                'message': 'Error occurred, showing generic help'
+            }), 200
+        except:
+            return jsonify({
+                'error': 'Internal server error',
+                'details': str(e)
+            }), 500
+
+
+def _get_generic_help(validation_errors: List[Dict], required_placeholders: List[str]) -> Dict[str, Any]:
+    """
+    Generate generic help when AI service is unavailable.
+    
+    Args:
+        validation_errors: List of validation error dictionaries
+        required_placeholders: List of required placeholder names
+        
+    Returns:
+        Dictionary with generic fix suggestions
+    """
+    fixes = []
+    
+    # Generate fixes for each error type
+    for error in validation_errors:
+        error_type = error.get('type', 'unknown')
+        
+        if error_type == 'missing_placeholder':
+            placeholder = error.get('placeholder', 'unknown')
+            fixes.append({
+                'issue': f"Missing placeholder: {placeholder}",
+                'suggestion': f"Add {{{{ {placeholder} }}}} to your template where you want to display this value",
+                'code_example': f"<p>{{{{ {placeholder} }}}}</p>",
+                'location': 'anywhere in template body',
+                'confidence': 'high'
+            })
+        
+        elif error_type == 'security_error':
+            fixes.append({
+                'issue': error.get('message', 'Security issue detected'),
+                'suggestion': 'Remove script tags and event handlers from your template. Use CSS for styling instead.',
+                'code_example': '<!-- Remove: <script>...</script> and onclick="..." -->',
+                'location': 'throughout template',
+                'confidence': 'high'
+            })
+        
+        elif error_type == 'syntax_error':
+            fixes.append({
+                'issue': error.get('message', 'HTML syntax error'),
+                'suggestion': 'Check for unclosed or mismatched HTML tags. Ensure all opening tags have corresponding closing tags.',
+                'code_example': '<!-- Correct: <div>content</div> -->',
+                'location': error.get('line', 'unknown line'),
+                'confidence': 'medium'
+            })
+        
+        else:
+            fixes.append({
+                'issue': error.get('message', 'Validation error'),
+                'suggestion': 'Review the error message and fix the issue in your template',
+                'code_example': '',
+                'location': 'see error details',
+                'confidence': 'low'
+            })
+    
+    return {
+        'analysis': f"Found {len(validation_errors)} validation error(s). Here are generic suggestions to fix them.",
+        'fixes': fixes,
+        'auto_fixable': False,
+        'note': 'These are generic suggestions. For more intelligent help, ensure AI service is configured.'
+    }
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/apply-ai-fixes', methods=['POST'])
+@cognito_required(required_permissions=[])
+def apply_ai_fixes_endpoint(user_email, user_roles):
+    """
+    Apply AI-suggested fixes to template (Tenant_Admin only)
+    
+    This endpoint applies auto-fixes suggested by the AI to the template content.
+    
+    Request body:
+    {
+        "template_content": "<html>...</html>",
+        "fixes": [
+            {
+                "issue": "Missing placeholder: invoice_number",
+                "code_to_add": "{{ invoice_number }}",
+                "location": "header"
+            }
+        ]
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "fixed_template": "<html>...fixed content...</html>",
+        "fixes_applied": 3,
+        "message": "Successfully applied 3 fixes"
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+        
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+        
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+        
+        # Validate request body
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body required'}), 400
+        
+        template_content = data.get('template_content')
+        fixes = data.get('fixes', [])
+        
+        if not template_content:
+            return jsonify({'error': 'template_content is required'}), 400
+        
+        if not fixes:
+            return jsonify({'error': 'fixes is required'}), 400
+        
+        # Get database connection
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        # Initialize AITemplateAssistant
+        from services.ai_template_assistant import AITemplateAssistant
+        ai_assistant = AITemplateAssistant(db)
+        
+        # Apply auto-fixes
+        result = ai_assistant.apply_auto_fixes(
+            template_content=template_content,
+            fixes=fixes
+        )
+        
+        # The apply_auto_fixes method returns the fixed template string
+        # We need to wrap it in a response structure
+        fixes_applied = len([f for f in fixes if f.get('auto_fixable', False)])
+        
+        response = {
+            'success': True,
+            'fixed_template': result,
+            'fixes_applied': fixes_applied,
+            'message': f'Successfully applied {fixes_applied} fixes'
+        }
+        
+        # Log fix application
+        logger.info(
+            f"AUDIT: AI fixes applied by {user_email} for {tenant}, "
+            f"fixes_applied={fixes_applied}"
+        )
+        
+        # Return fixed template content
+        return jsonify(response), 200
+        
+    except Exception as e:
+        logger.error(f"Error applying AI fixes: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500

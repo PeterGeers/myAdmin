@@ -75,7 +75,20 @@ DB_PASSWORD=your_password
 DB_NAME=finance
 SNS_TOPIC_ARN=your_sns_topic_arn
 AWS_REGION=eu-west-1
+OPENROUTER_API_KEY=sk-or-v1-your-api-key-here
 ```
+
+**OpenRouter API Setup:**
+
+The OpenRouter API is used for AI-powered features like template validation assistance. To set it up:
+
+1. Create an account at [OpenRouter.ai](https://openrouter.ai/)
+2. Navigate to the API Keys section in your dashboard
+3. Generate a new API key
+4. Copy the key (starts with `sk-or-v1-`)
+5. Add it to your `.env` file as `OPENROUTER_API_KEY`
+
+**Note**: The OpenRouter API is optional for basic functionality but required for AI template assistance features.
 
 ### 3. Start Backend
 
@@ -181,15 +194,33 @@ pytest --cov=src tests/
 
 ## Environment Variables
 
-| Variable             | Description        | Example           |
-| -------------------- | ------------------ | ----------------- |
-| `DB_HOST`            | Database host      | `localhost`       |
-| `DB_USER`            | Database user      | `peter`           |
-| `DB_PASSWORD`        | Database password  | `your_password`   |
-| `DB_NAME`            | Database name      | `finance`         |
-| `SNS_TOPIC_ARN`      | AWS SNS topic ARN  | `arn:aws:sns:...` |
-| `AWS_REGION`         | AWS region         | `eu-west-1`       |
-| `OPENROUTER_API_KEY` | OpenRouter API key | `sk-or-v1-...`    |
+| Variable                     | Description                           | Example              | Required |
+| ---------------------------- | ------------------------------------- | -------------------- | -------- |
+| `DB_HOST`                    | Database host                         | `localhost`          | Yes      |
+| `DB_USER`                    | Database user                         | `peter`              | Yes      |
+| `DB_PASSWORD`                | Database password                     | `your_password`      | Yes      |
+| `DB_NAME`                    | Database name                         | `finance`            | Yes      |
+| `SNS_TOPIC_ARN`              | AWS SNS topic ARN                     | `arn:aws:sns:...`    | Yes      |
+| `AWS_REGION`                 | AWS region                            | `eu-west-1`          | Yes      |
+| `OPENROUTER_API_KEY`         | OpenRouter API key for AI features    | `sk-or-v1-...`       | Optional |
+| `CREDENTIALS_ENCRYPTION_KEY` | Encryption key for tenant credentials | `64-char-hex-string` | Yes      |
+
+### OpenRouter API Key
+
+The `OPENROUTER_API_KEY` enables AI-powered features in the application:
+
+- **Template Validation Assistance**: AI helps fix template errors and suggests improvements
+- **Smart Error Analysis**: Provides context-aware suggestions for template issues
+- **Auto-Fix Capabilities**: Can automatically fix common template problems
+
+**How to obtain:**
+
+1. Visit [OpenRouter.ai](https://openrouter.ai/)
+2. Sign up for an account
+3. Generate an API key from your dashboard
+4. Add the key to your `.env` file
+
+**Cost**: OpenRouter charges per API call based on the model used. Monitor usage in the `ai_usage_log` table.
 
 ## Troubleshooting
 

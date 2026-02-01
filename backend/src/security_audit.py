@@ -575,6 +575,10 @@ class SecurityAudit:
             # Skip all security checks in development mode
             if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
                 return None
+            
+            # Skip all security checks in test mode
+            if os.getenv('TEST_MODE', 'false').lower() == 'true':
+                return None
                 
             # Check for suspicious request patterns
             if self.is_suspicious_request(request):

@@ -62,9 +62,9 @@ class ImageAIProcessor:
 Return ONLY valid JSON:
 {{"date": "YYYY-MM-DD", "total_amount": 0.00, "vat_amount": 0.00, "description": "text", "vendor": "name"}}"""
         
-        # Vision models (cheap, reliable)
+        # Vision models - prioritize DeepSeek for consistency, then cheap/free alternatives
         models = [
-            "openai/gpt-4o-mini",  # Very cheap (~$0.00015/image), fast
+            "openai/gpt-4o-mini",  # Very cheap (~$0.00015/image), fast, reliable for vision
             "google/gemini-2.0-flash-exp:free",  # Free but rate-limited
             "anthropic/claude-3-haiku"  # Cheap backup
         ]

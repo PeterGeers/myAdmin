@@ -1,3 +1,7 @@
+Add AI Usage Tracking to invoice processor
+Add rate limiting to api cals
+
+
 * Build a STR Pricing front-end as a component
 ** Start the calculation model as designed in test_hybrid_pricing.py
 *** delete rows in pricing_recommendations before loading new rows, 

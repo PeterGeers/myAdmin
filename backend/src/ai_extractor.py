@@ -56,14 +56,14 @@ Rules:
             print("No API key available, skipping AI extraction")
             return self._fallback_data(vendor_hint)
         
-        # Try free models first, then paid as fallback
+        # Try DeepSeek first (very cheap, excellent for structured extraction), then free models as fallback
         models = [
-            "meta-llama/llama-3.2-3b-instruct:free",  # Free
-            "moonshotai/kimi-k2:free",  # Free
-            "deepseek/deepseek-chat",  # Very cheap
+            "deepseek/deepseek-chat",  # Primary: Very cheap ($0.27/$1.10 per 1M tokens), excellent for invoice extraction
+            "meta-llama/llama-3.2-3b-instruct:free",  # Free fallback
+            "moonshotai/kimi-k2:free",  # Free fallback
             "google/gemini-flash-1.5",  # Free, very fast
-            "microsoft/phi-3-mini-128k-instruct:free",  # Free
-            "openai/gpt-3.5-turbo"  # Paid fallback
+            "microsoft/phi-3-mini-128k-instruct:free",  # Free fallback
+            "openai/gpt-3.5-turbo"  # Paid fallback (last resort)
         ]
         
         for model in models:

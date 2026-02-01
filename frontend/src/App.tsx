@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text } from '@chakra-ui/react';
+import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text, Breadcrumb, BreadcrumbItem, BreadcrumbLink } from '@chakra-ui/react';
+import { ChevronRightIcon } from '@chakra-ui/icons';
 import PDFUploadForm from './components/PDFUploadForm';
 import BankConnect from './components/BankConnect';
 import BankingProcessor from './components/BankingProcessor';
@@ -16,10 +17,10 @@ import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TenantProvider } from './context/TenantContext';
 import { useTenantModules } from './hooks/useTenantModules';
-
+import { TenantAdminDashboard } from './components/TenantAdmin/TenantAdminDashboard';
 import SystemAdmin from './components/SystemAdmin';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
@@ -219,10 +220,20 @@ function AppContent() {
             <Box minH="100vh" bg="gray.900">
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">⚙️ System Administration</Heading>
-                  </HStack>
+                  <VStack align="start" spacing={1}>
+                    <HStack>
+                      <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                      <Heading color="orange.400" size="lg">⚙️ System Administration</Heading>
+                    </HStack>
+                    <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />} fontSize="sm" color="gray.400" ml={20}>
+                      <BreadcrumbItem>
+                        <BreadcrumbLink onClick={() => setCurrentPage('menu')}>Dashboard</BreadcrumbLink>
+                      </BreadcrumbItem>
+                      <BreadcrumbItem isCurrentPage>
+                        <BreadcrumbLink>System Administration</BreadcrumbLink>
+                      </BreadcrumbItem>
+                    </Breadcrumb>
+                  </VStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
                     <UserMenu onLogout={logout} mode={status.mode} />
@@ -230,6 +241,40 @@ function AppContent() {
                 </HStack>
               </Box>
               <SystemAdmin />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'tenant-admin':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Tenant_Admin']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <VStack align="start" spacing={1}>
+                    <HStack>
+                      <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
+                      <Heading color="orange.400" size="lg">🏢 Tenant Administration</Heading>
+                    </HStack>
+                    <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />} fontSize="sm" color="gray.400" ml={20}>
+                      <BreadcrumbItem>
+                        <BreadcrumbLink onClick={() => setCurrentPage('menu')}>Dashboard</BreadcrumbLink>
+                      </BreadcrumbItem>
+                      <BreadcrumbItem isCurrentPage>
+                        <BreadcrumbLink>Tenant Administration</BreadcrumbLink>
+                      </BreadcrumbItem>
+                    </Breadcrumb>
+                  </VStack>
+                  <HStack spacing={3}>
+                    <TenantSelector size="sm" />
+                    <UserMenu onLogout={logout} mode={status.mode} />
+                  </HStack>
+                </HStack>
+              </Box>
+              <TenantAdminDashboard />
             </Box>
           </ProtectedRoute>
         );
@@ -381,6 +426,13 @@ function AppContent() {
                   {(user?.roles?.some(role => ['SysAdmin'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="gray" onClick={() => setCurrentPage('system-admin')}>
                       ⚙️ System Administration
+                    </Button>
+                  )}
+
+                  {/* Tenant Administration - Tenant_Admin only */}
+                  {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="pink" onClick={() => setCurrentPage('tenant-admin')}>
+                      🏢 Tenant Administration
                     </Button>
                   )}
                   

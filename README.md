@@ -16,6 +16,7 @@ cd frontend && npm start     # Port 3000
 ## Components
 
 ### 📄 Import Invoices
+
 - Upload PDFs, EML, and MHTML files to Google Drive or local storage
 - AI‑powered universal invoice data extraction via OpenRouter API
 - Traditional vendor‑specific parsers as fallback (250+ formats)
@@ -24,18 +25,21 @@ cd frontend && npm start     # Port 3000
 - MySQL storage with metadata
 
 ### 🏦 Banking Processor
+
 - Process CSV bank statements (Rabobank format)
 - Pattern matching for automatic account assignment
 - Duplicate detection & filtering
 - Bulk transaction import
 
 ### 🏠 STR (Short‑Term‑Rental) Processor
+
 - Process Airbnb/Booking.com revenue files
 - Separate realized vs planned bookings
 - Generate future revenue summaries
 - Multi‑platform support
 
 ### 💰 STR Pricing Optimizer
+
 - AI‑powered pricing recommendations with business logic
 - Historical vs recommended ADR comparison
 - Quarterly summary tables per listing
@@ -45,6 +49,7 @@ cd frontend && npm start     # Port 3000
 - 14‑month pricing strategy generation
 
 ### 📊 myAdmin Reports
+
 - Interactive dashboards with Recharts
 - P&L statements & balance sheets
 - BNB revenue analytics (violin/box plots)
@@ -54,6 +59,7 @@ cd frontend && npm start     # Port 3000
 - Reference‑number validation
 
 ### 🔍 PDF Validation System
+
 - Validate Google‑Drive URLs in transaction records
 - Real‑time progress with dynamic progress bar
 - Year & admin filtering
@@ -87,6 +93,7 @@ If you generate the ID automatically, validate the length and character set befo
 ## Test / Production Mode
 
 ### Environment Switching
+
 Toggle between test & production using `.env`:
 
 ```env
@@ -104,7 +111,29 @@ TEST_FACTUREN_FOLDER_ID=your_test_folder_id
 TEST_FACTUREN_FOLDER_NAME=testFacturen
 ```
 
+### OpenRouter API Setup
+
+The OpenRouter API powers AI features including invoice extraction and template validation:
+
+1. **Create Account**: Visit [OpenRouter.ai](https://openrouter.ai/) and sign up
+2. **Generate API Key**: Navigate to your dashboard and create a new API key
+3. **Configure**: Add the key to your `.env` file:
+   ```env
+   OPENROUTER_API_KEY=sk-or-v1-your-api-key-here
+   ```
+4. **Verify**: The key should start with `sk-or-v1-` and be approximately 64 characters
+
+**Features enabled by OpenRouter:**
+
+- Universal invoice data extraction (AI-powered)
+- Template validation assistance
+- Smart error analysis and auto-fix suggestions
+- STR pricing optimization recommendations
+
+**Note**: Some features will fall back to traditional methods if the API key is not configured.
+
 ### Features
+
 - Automatic database and Google‑Drive folder switching
 - Mode indicator displayed in all function headers
 - Route & schema validation at startup
