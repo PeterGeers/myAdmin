@@ -5,10 +5,8 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: finance
       MYSQL_USER: peter
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - ./mysql_data:/var/lib/mysql # Host directory mapping - survives volume deletion
     ports:
@@ -28,12 +26,6 @@ services:
       - ./backend/.env
     environment:
       - DB_HOST=mysql
-      - DB_NAME=${DB_NAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - TEST_MODE=${TEST_MODE}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - FACTUREN_FOLDER_ID=${FACTUREN_FOLDER_ID}
-      - TEST_FACTUREN_FOLDER_ID=${TEST_FACTUREN_FOLDER_ID}
       - FLASK_DEBUG=true
       - DOCKER_ENV=true
     volumes:
