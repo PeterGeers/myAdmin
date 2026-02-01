@@ -4,13 +4,73 @@
 
 ## Overview
 
-Fix remaining 428 ESLint warnings in the frontend codebase to improve code quality and follow testing best practices.
+Fix remaining ESLint warnings and test failures in the frontend codebase to improve code quality and follow testing best practices.
+
+## URGENT: Fix Template Management Test Failures (56 tests)
+
+**Status**: Not started
+**Priority**: HIGH
+**Created**: 2026-02-01
+
+### Issue
+
+Template Management tests were created today (2026-02-01 17:11) with duplicate/conflicting Chakra UI mock definitions. The duplicate mocks have been removed, but 56 tests still fail due to test logic issues.
+
+### What Was Fixed
+
+- ✅ Removed duplicate mock definitions from:
+  - `ValidationResults.test.tsx`
+  - `AIHelpButton.test.tsx`
+  - `TemplateManagement.test.tsx`
+- ✅ All tests now use centralized `chakraMock.tsx`
+- ✅ "Element type is invalid" errors eliminated (was causing 82 test failures)
+- ✅ 87 tests now passing (up from 0)
+
+### Remaining Issues (56 test failures)
+
+These are test logic issues, not mock issues:
+
+- Wrong assertions
+- Missing test data/mocks
+- Incorrect DOM queries (e.g., `getByText(/upload/i)` matching multiple elements)
+- Test expectations not matching actual component behavior
+
+### Files Affected
+
+1. `frontend/src/components/TenantAdmin/TemplateManagement/__tests__/ValidationResults.test.tsx`
+2. `frontend/src/components/TenantAdmin/TemplateManagement/__tests__/AIHelpButton.test.tsx`
+3. `frontend/src/components/TenantAdmin/TemplateManagement/__tests__/TemplateManagement.test.tsx`
+4. `frontend/src/components/TenantAdmin/TemplateManagement/__tests__/TemplatePreview.test.tsx`
+5. `frontend/src/components/TenantAdmin/TemplateManagement/__tests__/TemplateApproval.test.tsx`
+
+### Action Required
+
+1. Run tests individually to identify specific failures
+2. Fix assertions and test logic for each failing test
+3. **After each successful test fix**: Commit and push changes immediately
+   ```bash
+   git add .
+   git commit -m "Fix [test name] in [file]"
+   git push
+   ```
+4. Ensure all 145 Template Management tests pass
+5. Verify no regression in other test suites
+
+### Test Command
+
+```bash
+npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --watchAll=false
+```
+
+---
 
 ## Current State
 
 - **Total warnings**: 428
 - **Errors**: 0
+- **Test failures**: 56 (Template Management tests)
 - **Recently fixed**: 25 warnings (unused imports, missing alt text)
+- **Recently fixed**: Chakra UI mock conflicts (eliminated 82 test crashes)
 
 ## Warning Breakdown
 

@@ -587,7 +587,6 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           if (adminSelect) {
             // Test that callback is triggered with correct values
             const availableOptions = testProps.administrationOptions.filter(opt => !opt.disabled);
-            const availableOptions = testProps.administrationOptions.filter(opt => !opt.disabled);
             const hasAvailableOptions = availableOptions.length > 0;
             
             if (hasAvailableOptions) {
