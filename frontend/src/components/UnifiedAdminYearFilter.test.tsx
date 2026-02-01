@@ -310,9 +310,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
     test.each(configurations)(
       'should always render a container for configuration %#',
       (testProps) => {
-        const { container, unmount } = render(<MockUnifiedAdminYearFilter {...testProps} />);
-        expect(container.firstChild).toBeInTheDocument();
-        unmount();
+        render(<MockUnifiedAdminYearFilter {...testProps} />);
+        expect(screen.getByTestId('unified-filter-container')).toBeInTheDocument();
       }
     );
 
@@ -799,7 +798,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         const hasEmptyYearOptions = testProps.availableYears.length === 0;
         
         if (hasEmptyAdminOptions || hasEmptyYearOptions) {
-          expect(container.firstChild).toBeInTheDocument();
+          expect(screen.getByTestId('unified-filter-container')).toBeInTheDocument();
         }
         
         unmount();
@@ -810,14 +809,12 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
       'should maintain consistent rendering across re-renders for configuration %#',
       (testProps) => {
         const propsWithMocks = { ...testProps, onAdministrationChange: jest.fn(), onYearChange: jest.fn() };
-        const { container, unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
-        const containerContent = container.textContent;
-        
-        const { container: container2, unmount: unmount2 } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
-        expect(container2.textContent).toBe(containerContent);
-        
+        const { unmount } = render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        const containerContent = screen.getByTestId('unified-filter-container').textContent;
         unmount();
-        unmount2();
+        
+        render(<MockUnifiedAdminYearFilter {...propsWithMocks} />);
+        expect(screen.getByTestId('unified-filter-container').textContent).toBe(containerContent);
       }
     );
 
@@ -868,7 +865,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
 
       try {
         // Component should always render successfully regardless of configuration
-        expect(container.firstChild).toBeInTheDocument();
+        expect(screen.getByTestId('unified-filter-container')).toBeInTheDocument();
         const mainContainer = screen.getByTestId('unified-filter-container');
         expect(mainContainer).toBeInTheDocument();
 
@@ -922,8 +919,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         const loadingIndicator = screen.queryByTestId('loading-indicator');
         expect(loadingIndicator !== null).toBe(isLoading);
         
-        const selectElements = Array.from(container.querySelectorAll('select'));
-        const buttonElements = Array.from(container.querySelectorAll('button'));
+        const selectElements = screen.queryAllByRole('combobox');
+        const buttonElements = screen.queryAllByRole('button');
         
         // Verify loading state affects all interactive elements
         if (isLoading) {
@@ -982,11 +979,11 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         // Test graceful handling of edge cases
         // Empty options arrays should not crash the component
         if (testProps.administrationOptions.length === 0) {
-          expect(container.firstChild).toBeInTheDocument();
+          expect(screen.getByTestId('unified-filter-container')).toBeInTheDocument();
         }
         
         if (testProps.availableYears.length === 0) {
-          expect(container.firstChild).toBeInTheDocument();
+          expect(screen.getByTestId('unified-filter-container')).toBeInTheDocument();
         }
 
         // Test that component maintains consistent styling across configurations
@@ -1141,8 +1138,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           expect(loadingIndicator).toHaveAttribute('aria-live', 'polite');
           
           // All interactive elements should be disabled during loading
-          const selectElements = Array.from(container.querySelectorAll('select'));
-          const buttonElements = Array.from(container.querySelectorAll('button'));
+          const selectElements = screen.queryAllByRole('combobox');
+          const buttonElements = screen.queryAllByRole('button');
           
           selectElements.forEach(select => {
             expect(select).toBeDisabled();
@@ -1153,15 +1150,15 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           });
           
           // Loading state should provide visual feedback (spinner or loading text)
-          expect(container.textContent).toContain('Loading filter options...');
+          expect(screen.getByTestId('unified-filter-container').textContent).toContain('Loading filter options...');
         }
 
         // Test disabled state feedback
         const isDisabled = testProps.disabled === true;
         if (isDisabled) {
           // All interactive elements should be disabled and provide visual feedback
-          const selectElements = Array.from(container.querySelectorAll('select'));
-          const buttonElements = Array.from(container.querySelectorAll('button'));
+          const selectElements = screen.queryAllByRole('combobox');
+          const buttonElements = screen.queryAllByRole('button');
           
           selectElements.forEach(select => {
             expect(select).toBeDisabled();
@@ -1179,8 +1176,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         const isEnabledAndNotLoading = !isDisabled && !isLoading;
         if (isEnabledAndNotLoading) {
           // Interactive elements should be enabled when not disabled and not loading
-          const selectElements = Array.from(container.querySelectorAll('select'));
-          const buttonElements = Array.from(container.querySelectorAll('button'));
+          const selectElements = screen.queryAllByRole('combobox');
+          const buttonElements = screen.queryAllByRole('button');
           
           selectElements.forEach(select => {
             expect(select).not.toBeDisabled();
@@ -1194,8 +1191,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         // Test hover state feedback (simulated through CSS classes and attributes)
         if (!testProps.disabled && !testProps.isLoading) {
           // Interactive elements should have hover feedback capabilities
-          const selectElements = Array.from(container.querySelectorAll('select'));
-          const buttonElements = Array.from(container.querySelectorAll('button'));
+          const selectElements = screen.queryAllByRole('combobox');
+          const buttonElements = screen.queryAllByRole('button');
           
           // Elements should have proper cursor styling for hover states
           selectElements.forEach(select => {
@@ -1211,9 +1208,9 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
 
         // Test focus state feedback and accessibility
         const interactiveElements = [
-          ...Array.from(container.querySelectorAll('select')),
-          ...Array.from(container.querySelectorAll('button')),
-          ...Array.from(container.querySelectorAll('input[type="checkbox"]'))
+          ...screen.queryAllByRole('combobox'),
+          ...screen.queryAllByRole('button'),
+          ...screen.queryAllByRole('checkbox')
         ];
 
         interactiveElements.forEach(element => {
@@ -1243,7 +1240,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           const adminSelect = screen.queryByLabelText('Administration filter');
           if (adminSelect && !testProps.administrationValue) {
             // Should show appropriate placeholder when no selection
-            expect(container.textContent).toContain('Select administration...');
+            expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select administration...');
           }
         }
 
@@ -1262,7 +1259,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
             const yearSelect = screen.queryByLabelText('Year filter');
             if (yearSelect && testProps.yearValues.length === 0) {
               // Should show appropriate placeholder for single-select
-              expect(container.textContent).toContain('Select year...');
+              expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select year...');
             }
           }
         }
@@ -1274,15 +1271,20 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         expect(mainContainer).toHaveStyle({ backgroundColor: '#2D3748' }); // gray.700
         
         // Text elements should have consistent white color
-        const textElements = Array.from(container.querySelectorAll('label, span'));
-        textElements.forEach(textElement => {
-          if (textElement.textContent && 
-              (textElement.textContent.includes('Administration') || 
-               textElement.textContent.includes('Year'))) {
-            // Labels should have white text (in real implementation, we'd check computed styles)
-            expect(textElement).toBeInTheDocument();
+        // Check that labels are present and accessible
+        if (testProps.showAdministration !== false) {
+          const adminLabel = screen.queryByText('Administration');
+          if (adminLabel) {
+            expect(adminLabel).toBeInTheDocument();
           }
-        });
+        }
+        
+        if (testProps.showYears !== false) {
+          const yearLabel = screen.queryByText(testProps.multiSelectYears !== false ? 'Years' : 'Year');
+          if (yearLabel) {
+            expect(yearLabel).toBeInTheDocument();
+          }
+        }
 
         // Test error state feedback (if error exists)
         if (testProps.administrationOptions.length === 0 && testProps.showAdministration !== false) {
@@ -1351,8 +1353,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         // Test that feedback states don't conflict
         // Loading and disabled states should work together properly
         if (testProps.isLoading && testProps.disabled) {
-          const selectElements = Array.from(container.querySelectorAll('select'));
-          const buttonElements = Array.from(container.querySelectorAll('button'));
+          const selectElements = screen.queryAllByRole('combobox');
+          const buttonElements = screen.queryAllByRole('button');
           
           // All elements should be disabled when both loading and disabled
           [...selectElements, ...buttonElements].forEach(element => {
@@ -1526,7 +1528,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
 
       try {
         // Component should always render without crashing, regardless of error conditions
-        expect(container.firstChild).toBeInTheDocument();
+        expect(screen.getByTestId('unified-filter-container')).toBeInTheDocument();
         const mainContainer = screen.getByTestId('unified-filter-container');
         expect(mainContainer).toBeInTheDocument();
 
@@ -1540,7 +1542,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           expect(adminSelect).toBeInTheDocument();
           
           // Should show placeholder text when no options available
-          expect(container.textContent).toContain('Select administration...');
+          expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select administration...');
           
           // Component should not crash with empty options
           expect(mainContainer).toBeInTheDocument();
@@ -1560,7 +1562,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
             // Single-select should handle empty years gracefully
             const yearSelect = screen.queryByLabelText('Year filter');
             expect(yearSelect).toBeInTheDocument();
-            expect(container.textContent).toContain('Select year...');
+            expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select year...');
           }
           
           // Component should not crash with empty year options
@@ -1575,8 +1577,8 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           expect(screen.getByText('Loading filter options...')).toBeInTheDocument();
           
           // Should disable all interactions during loading
-          const selectElements = Array.from(container.querySelectorAll('select'));
-          const buttonElements = Array.from(container.querySelectorAll('button'));
+          const selectElements = screen.queryAllByRole('combobox');
+          const buttonElements = screen.queryAllByRole('button');
           
           selectElements.forEach(select => {
             expect(select).toBeDisabled();
@@ -1688,12 +1690,12 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         }
         
         // 3. Should maintain proper accessibility attributes even with errors
-        const selectElements = Array.from(container.querySelectorAll('select'));
+        const selectElements = screen.queryAllByRole('combobox');
         selectElements.forEach(select => {
           expect(select).toHaveAttribute('aria-label');
         });
         
-        const buttonElements = Array.from(container.querySelectorAll('button'));
+        const buttonElements = screen.queryAllByRole('button');
         buttonElements.forEach(button => {
           if (button.getAttribute('data-testid') === 'year-menu-button') {
             expect(button).toHaveAttribute('aria-haspopup', 'menu');
@@ -1722,14 +1724,14 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         
         // Should show appropriate placeholder text
         if (scenario.props.showAdministration && scenario.props.administrationOptions.length === 0) {
-          expect(container.textContent).toContain('Select administration...');
+          expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select administration...');
         }
         
         if (scenario.props.showYears && scenario.props.availableYears.length === 0) {
           if (scenario.props.multiSelectYears) {
-            expect(container.textContent).toContain('Select years...');
+            expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select years...');
           } else {
-            expect(container.textContent).toContain('Select year...');
+            expect(screen.getByTestId('unified-filter-container').textContent).toContain('Select year...');
           }
         }
 
