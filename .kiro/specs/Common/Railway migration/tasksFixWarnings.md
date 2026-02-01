@@ -64,11 +64,11 @@ These are test logic issues, not mock issues:
 - [x] Identify failing tests
 - [x] Fix test logic and assertions
 - [x] Verify all tests pass
-- [-] Commit: `git add . && git commit -m "Fix ValidationResults.test.tsx" && git push`
+- [x] Commit: `git add . && git commit -m "Fix ValidationResults.test.tsx" && git push`
 
 #### Task 2: Fix AIHelpButton.test.tsx
 
-- [ ] Run test: `npm test -- --testPathPattern="AIHelpButton.test.tsx" --no-coverage --watchAll=false`
+- [x] Run test: `npm test -- --testPathPattern="AIHelpButton.test.tsx" --no-coverage --watchAll=false`
 - [x] Identify failing tests
 - [ ] Fix test logic and assertions
 - [ ] Verify all tests pass
