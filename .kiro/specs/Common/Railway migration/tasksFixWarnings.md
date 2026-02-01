@@ -115,9 +115,10 @@ npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --wat
 
 ## Current State
 
-- **Total warnings**: 199 (down from ~310, reduced by ~111 warnings across all phases!)
+- **Total warnings**: 189 (down from ~310, reduced by ~121 warnings across all phases!)
 - **Errors**: 0
 - **Test failures**: 0 (all tests passing, including 1489 UnifiedAdminYearFilter tests!)
+- **Recently fixed**: Phase 5.1 - Fixed 10 conditional expect warnings in Property 1 rendering tests
 - **Recently fixed**: Phase 4.2 - Removed 4 unused container variables in UnifiedAdminYearFilter.test.tsx
 - **Recently fixed**: Phase 4.1 - Eliminated all direct node access warnings in UnifiedAdminYearFilter.test.tsx
 - **Recently fixed**: Restructured property tests into smaller focused tests using test.each()
@@ -363,11 +364,12 @@ expect(screen.getByText("Done")).toBeInTheDocument();
 - [x] Phase 3.1: Restructure property tests into smaller focused tests (improved test organization)
 - [x] Phase 4.1: Fix direct node access warnings in UnifiedAdminYearFilter.test.tsx (~202 warnings fixed!)
 - [x] Phase 4.2: Remove unused container variables in UnifiedAdminYearFilter.test.tsx (4 warnings fixed)
-- [ ] Fix conditional expect calls (~136 warnings remaining) - mostly in UnifiedAdminYearFilter.test.tsx
+- [x] Phase 5.1: Fix conditional expects in Property 1 rendering tests (10 warnings fixed)
+- [ ] Fix remaining conditional expect calls (~126 warnings remaining) - mostly in UnifiedAdminYearFilter.test.tsx
 - [ ] Fix direct node access (~10 warnings remaining) - other files
 - [ ] Fix multiple assertions in waitFor (~44 warnings)
 - [ ] Fix unused variables (~5 warnings remaining)
-- [ ] Fix remaining warnings (~10 warnings)
+- [ ] Fix remaining warnings (~4 warnings)
 
 ## Success Criteria
 
@@ -478,11 +480,12 @@ expect(screen.getByText("Done")).toBeInTheDocument();
 
 ----- check that seems to work npm run lint 2>&1 | Out-String | Select-String -Pattern "(\d+) problems \((\d+) errors, (\d+) warnings\)"
 
-- [ ] **Task 5.1**: Fix conditional expect warnings in helper functions
-  - [ ] Extract conditional logic before assertions
-  - [ ] Use separate test cases for different conditions
-  - [ ] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
-  - [ ] Commit: `git add . && git commit -m "Phase 5.1: Fix conditional expects in helpers" && git push`
+- [x] **Task 5.1**: Fix conditional expect warnings in helper functions
+  - [x] Extract conditional logic before assertions
+  - [x] Use separate test cases for different conditions
+  - [x] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
+  - [x] Commit: `git add . && git commit -m "Phase 5.1: Fix conditional expects in helpers" && git push`
+  - **Result**: Fixed 10 conditional expect warnings in Property 1 rendering tests. Warnings reduced from 199 to 189. All 1489 tests passing. Refactored administration section, year section, loading state, and disabled state tests to avoid conditional expects by using boolean comparisons instead of if statements.
 
 - [ ] **Task 5.2**: Fix conditional expect warnings in property test bodies
   - [ ] Lines: 503-1558 (majority of file)
