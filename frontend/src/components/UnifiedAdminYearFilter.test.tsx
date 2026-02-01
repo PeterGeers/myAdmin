@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 
 // Mock the UnifiedAdminYearFilter component for testing
@@ -43,7 +43,7 @@ const MockUnifiedAdminYearFilter: React.FC<UnifiedAdminYearFilterProps> = ({
       data-testid="unified-filter-container"
       style={{ backgroundColor: '#2D3748', padding: '16px', borderRadius: '6px' }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: size === 'sm' ? '1fr' : '1fr 1fr', gap: '16px' }}>
+      <div data-testid="filter-grid-container" style={{ display: 'grid', gridTemplateColumns: size === 'sm' ? '1fr' : '1fr 1fr', gap: '16px' }}>
         {showAdministration && (
           <div data-testid="administration-section">
             <label htmlFor="admin-select" style={{ color: 'white', fontSize: '14px' }}>
@@ -376,7 +376,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
     }
     
     testProps.administrationOptions.forEach(option => {
-      const optionElement = container.querySelector(`option[value="${option.value}"]`);
+      const optionElement = within(adminSelect as HTMLElement).getByRole('option', { name: option.label });
       expect(optionElement).toBeInTheDocument();
       expect(optionElement).toHaveTextContent(option.label);
       
@@ -442,7 +442,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
     }
     
     testProps.availableYears.forEach(year => {
-      const optionElement = container.querySelector(`option[value="${year}"]`);
+      const optionElement = within(yearSelect as HTMLElement).getByRole('option', { name: year });
       expect(optionElement).toBeInTheDocument();
       expect(optionElement).toHaveTextContent(year);
     });
@@ -910,7 +910,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
         expect(mainContainer).toHaveAttribute('data-testid', 'unified-filter-container');
         
         // Grid layout should be properly configured
-        const gridContainer = mainContainer.querySelector('div[style*="grid"]');
+        const gridContainer = screen.queryByTestId('filter-grid-container');
         const hasGridContainer = gridContainer !== null;
         if (hasGridContainer) {
           const gridStyle = gridContainer.getAttribute('style');
@@ -1571,7 +1571,7 @@ describe('UnifiedAdminYearFilter Property Tests', () => {
           if (adminSelect) {
             // Should render disabled options but handle them gracefully
             scenario.props.administrationOptions.forEach(option => {
-              const optionElement = container.querySelector(`option[value="${option.value}"]`);
+              const optionElement = within(adminSelect as HTMLElement).queryByRole('option', { name: option.label });
               if (optionElement && 'disabled' in option && option.disabled === true) {
                 expect(optionElement).toBeDisabled();
               }
