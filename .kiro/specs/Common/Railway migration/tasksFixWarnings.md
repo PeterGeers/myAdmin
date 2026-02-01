@@ -91,6 +91,38 @@ The `docker-compose.yml` file had redundant `environment` section entries that u
 
 - `5e80e0e` - Fix docker-compose environment variable loading
 
+## Health Check Authentication Issue Fixed (2026-02-01)
+
+**Status**: ✅ COMPLETED
+**Priority**: CRITICAL
+**Completed**: 2026-02-01 23:56
+
+### Issue
+
+Deployment health checks were failing with 401 Unauthorized errors. The `/api/health` endpoint had authentication requirements, causing the deployment script's health check to fail after 12 attempts, triggering a rollback.
+
+### Root Cause
+
+The health endpoint had the `@cognito_required` decorator, which required authentication headers. Health check endpoints should be publicly accessible for monitoring and deployment verification.
+
+### Fix
+
+- Removed `@cognito_required` decorator from `/api/health` endpoint
+- Removed `user_email` and `user_roles` parameters (no longer needed)
+- Added comment clarifying no authentication is required
+- Health endpoint now returns 200 OK without authentication
+
+### Result
+
+- ✅ Health endpoint accessible without authentication
+- ✅ Returns 200 OK status
+- ✅ Deployment health checks pass successfully
+- ✅ No more 401 errors during deployment
+
+### Commit
+
+- `23aaabf` - Fix health endpoint authentication requirement
+
 ## URGENT: Fix Template Management Test Failures (56 tests)
 
 **Status**: Not started
