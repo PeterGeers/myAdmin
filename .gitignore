@@ -105,8 +105,6 @@ gmail_urls_output.csv
 
 # Test files
 test/
-*test.py
-test_*.py
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -315,6 +313,12 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
 
 # Added by ggshield
 .cache_ggshield
