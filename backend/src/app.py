@@ -408,9 +408,8 @@ def str_test(user_email, user_roles):
     return jsonify({'status': 'STR endpoints working', 'openpyxl_available': True})
 
 @app.route('/api/health', methods=['GET'])
-@cognito_required(required_permissions=[])
-def health(user_email, user_roles):
-    """Health check endpoint with scalability information"""
+def health():
+    """Health check endpoint with scalability information - No authentication required"""
     health_info = {
         'status': 'healthy', 
         'endpoints': ['str/upload', 'str/scan-files', 'str/process-files', 'str/save', 'str/write-future'],
