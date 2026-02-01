@@ -115,9 +115,10 @@ npm test -- --testPathPattern="TemplateManagement/__tests__" --no-coverage --wat
 
 ## Current State
 
-- **Total warnings**: ~1 (down from ~310, reduced by ~309 warnings across all phases!)
+- **Total warnings**: 199 (down from ~310, reduced by ~111 warnings across all phases!)
 - **Errors**: 0
 - **Test failures**: 0 (all tests passing, including 1489 UnifiedAdminYearFilter tests!)
+- **Recently fixed**: Phase 4.2 - Removed 4 unused container variables in UnifiedAdminYearFilter.test.tsx
 - **Recently fixed**: Phase 4.1 - Eliminated all direct node access warnings in UnifiedAdminYearFilter.test.tsx
 - **Recently fixed**: Restructured property tests into smaller focused tests using test.each()
 - **Recently fixed**: Refactored helper functions to separate assertion logic
@@ -361,12 +362,12 @@ expect(screen.getByText("Done")).toBeInTheDocument();
 - [x] Phase 2.1: Refactor helper functions to separate assertion logic (improved code quality, reduced container warnings)
 - [x] Phase 3.1: Restructure property tests into smaller focused tests (improved test organization)
 - [x] Phase 4.1: Fix direct node access warnings in UnifiedAdminYearFilter.test.tsx (~202 warnings fixed!)
-- [ ] Fix conditional expect calls (199 warnings) - mostly in UnifiedAdminYearFilter.test.tsx
-- [ ] Fix direct node access (113 warnings) - multiple files
-- [ ] Fix multiple assertions in waitFor (44 warnings)
-- [ ] Fix container methods (38 warnings) - mostly in UnifiedAdminYearFilter.test.tsx
-- [ ] Fix unused variables (24 warnings)
-- [ ] Fix remaining warnings (~20 warnings)
+- [x] Phase 4.2: Remove unused container variables in UnifiedAdminYearFilter.test.tsx (4 warnings fixed)
+- [ ] Fix conditional expect calls (~136 warnings remaining) - mostly in UnifiedAdminYearFilter.test.tsx
+- [ ] Fix direct node access (~10 warnings remaining) - other files
+- [ ] Fix multiple assertions in waitFor (~44 warnings)
+- [ ] Fix unused variables (~5 warnings remaining)
+- [ ] Fix remaining warnings (~10 warnings)
 
 ## Success Criteria
 
@@ -464,15 +465,18 @@ expect(screen.getByText("Done")).toBeInTheDocument();
   - [x] Commit: `git add . && git commit -m "Phase 4.1: Fix direct node access in UnifiedAdminYearFilter.test.tsx" && git push`
   - **Result**: Successfully eliminated all direct node access warnings. Warnings reduced from ~203 to just 1 line. All 1489 tests passing.
 
-- [ ] **Task 4.2**: Fix container methods warnings (~20 warnings)
-  - [ ] Lines: 345, 379, 445, 512, 678, 823, 956, 1089, 1234
-  - [ ] Replace querySelectorAll with getAllByRole()
-  - [ ] Use within() for scoped queries
-  - [ ] Query specific elements by accessible names
-  - [ ] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
-  - [ ] Commit: `git add . && git commit -m "Phase 4.2: Fix container methods in UnifiedAdminYearFilter.test.tsx" && git push`
+- [x] **Task 4.2**: Fix container methods warnings (~20 warnings)
+  - [x] Lines: 345, 379, 445, 512, 678, 823, 956, 1089, 1234
+  - [x] Replace querySelectorAll with getAllByRole()
+  - [x] Use within() for scoped queries
+  - [x] Query specific elements by accessible names
+  - [x] Run tests: `npm test -- --testPathPattern="UnifiedAdminYearFilter.test.tsx" --no-coverage --watchAll=false`
+  - [x] Commit: `git add . && git commit -m "Phase 4.2: Fix container methods in UnifiedAdminYearFilter.test.tsx" && git push`
+  - **Result**: Container methods were already fixed in Phase 4.1. Removed 4 unused `container` variables (lines 795, 864, 1125, 1527). Warnings reduced from 203 to 199. All 1489 tests passing.
 
 #### Phase 5: Fix Conditional Expect Warnings (Estimated: 6-8 hours, Impact: ~140 warnings)
+
+----- check that seems to work npm run lint 2>&1 | Out-String | Select-String -Pattern "(\d+) problems \((\d+) errors, (\d+) warnings\)"
 
 - [ ] **Task 5.1**: Fix conditional expect warnings in helper functions
   - [ ] Extract conditional logic before assertions
