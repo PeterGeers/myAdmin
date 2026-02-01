@@ -53,6 +53,43 @@ Fix remaining ESLint warnings and test failures in the frontend codebase to impr
 - `b0ed5aa` - Update task documentation with CI/CD fixes
 - `2a20aed` - Fix GoogleDriveService unit tests with proper mocking
 - `a2ecb0b` - Remove unimplemented financial report template test file
+- `5e80e0e` - Fix docker-compose environment variable loading
+
+## Deployment Stage Failures Fixed (2026-02-01)
+
+**Status**: ✅ COMPLETED
+**Priority**: CRITICAL
+**Completed**: 2026-02-01 23:15
+
+### Issue
+
+Deployment stage was failing because docker-compose couldn't load environment variables properly. The backend container was restarting due to missing required variables:
+
+- `DB_PASSWORD`
+- `DB_NAME`
+- `FACTUREN_FOLDER_ID`
+
+### Root Cause
+
+The `docker-compose.yml` file had redundant `environment` section entries that used shell variable substitution syntax (`${VAR_NAME}`). Docker Compose tries to substitute these from the shell environment first, and since they weren't set there, they defaulted to empty strings - even though the variables existed in the `backend/.env` file loaded via `env_file`.
+
+### Fix
+
+- Removed redundant environment variable declarations from docker-compose.yml
+- Kept only container-specific overrides (DB_HOST, FLASK_DEBUG, DOCKER_ENV)
+- Let `env_file: - ./backend/.env` handle loading all other variables
+- MySQL service now also relies on env_file for passwords
+
+### Result
+
+- ✅ Docker containers start successfully
+- ✅ All environment variables loaded correctly from backend/.env
+- ✅ No more "variable not set" warnings
+- ✅ Deployment stage completes successfully
+
+### Commit
+
+- `5e80e0e` - Fix docker-compose environment variable loading
 
 ## URGENT: Fix Template Management Test Failures (56 tests)
 
