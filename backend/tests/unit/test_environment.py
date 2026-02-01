@@ -66,44 +66,67 @@ class TestEnvironmentModeSwitching:
             db = DatabaseManager(test_mode=False)
             assert db.test_mode is False
     
+    @patch('database.DatabaseManager')
+    @patch('services.credential_service.CredentialService')
     @patch.dict(os.environ, {'TEST_MODE': 'true', 'TEST_FACTUREN_FOLDER_ID': 'test_folder_id'})
     @patch('google_drive_service.build')
     @patch('google_drive_service.Credentials')
     @patch('google_drive_service.os.path.exists')
-    def test_google_drive_service_test_mode(self, mock_exists, mock_creds, mock_build):
+    def test_google_drive_service_test_mode(self, mock_exists, mock_creds, mock_build, mock_cred_service, mock_db):
+        # Mock database and credential service
+        mock_db_instance = Mock()
+        mock_db.return_value = mock_db_instance
+        
+        mock_cred_service_instance = Mock()
+        mock_cred_service.return_value = mock_cred_service_instance
+        mock_cred_service_instance.get_credential.return_value = '{"client_id": "test"}'
+        
+        # Mock Google credentials
         mock_exists.return_value = True
         mock_creds_instance = Mock()
         mock_creds_instance.valid = True
-        mock_creds.from_authorized_user_file.return_value = mock_creds_instance
+        mock_creds.from_authorized_user_info.return_value = mock_creds_instance
+        
+        # Mock Google Drive service
         mock_service = Mock()
         mock_build.return_value = mock_service
         
         drive = GoogleDriveService(administration='test_admin')
         
-        # Test that it uses test folder ID when in test mode
-        with patch.object(drive, 'list_subfolders') as mock_list:
-            mock_list.return_value = []
-            drive.list_subfolders()
-            # Verify it's using the test environment variables
+        # Verify the service was created
+        assert drive is not None
+        assert drive.administration == 'test_admin'
     
+    @patch('database.DatabaseManager')
+    @patch('services.credential_service.CredentialService')
     @patch.dict(os.environ, {'TEST_MODE': 'false', 'FACTUREN_FOLDER_ID': 'prod_folder_id'})
     @patch('google_drive_service.build')
     @patch('google_drive_service.Credentials')
     @patch('google_drive_service.os.path.exists')
-    def test_google_drive_service_production_mode(self, mock_exists, mock_creds, mock_build):
+    def test_google_drive_service_production_mode(self, mock_exists, mock_creds, mock_build, mock_cred_service, mock_db):
+        # Mock database and credential service
+        mock_db_instance = Mock()
+        mock_db.return_value = mock_db_instance
+        
+        mock_cred_service_instance = Mock()
+        mock_cred_service.return_value = mock_cred_service_instance
+        mock_cred_service_instance.get_credential.return_value = '{"client_id": "test"}'
+        
+        # Mock Google credentials
         mock_exists.return_value = True
         mock_creds_instance = Mock()
         mock_creds_instance.valid = True
-        mock_creds.from_authorized_user_file.return_value = mock_creds_instance
+        mock_creds.from_authorized_user_info.return_value = mock_creds_instance
+        
+        # Mock Google Drive service
         mock_service = Mock()
         mock_build.return_value = mock_service
         
         drive = GoogleDriveService(administration='prod_admin')
         
-        # Test that it uses production folder ID when in production mode
-        with patch.object(drive, 'list_subfolders') as mock_list:
-            mock_list.return_value = []
-            drive.list_subfolders()
+        # Verify the service was created
+        assert drive is not None
+        assert drive.administration == 'prod_admin'
     
     def test_pdf_processor_initialization(self):
         # Test that PDFProcessor can be initialized with different modes
