@@ -378,8 +378,38 @@ SELECT id,
     year,
     q,
     m,
-    country
-FROM bnb;
+    country,
+    'actual' AS source_type
+FROM bnb
+UNION ALL
+SELECT id,
+    sourceFile,
+    administration,
+    channel,
+    listing,
+    checkinDate,
+    checkoutDate,
+    nights,
+    guests,
+    amountGross,
+    amountNett,
+    amountChannelFee,
+    amountTouristTax,
+    amountVat,
+    guestName,
+    phone,
+    reservationCode,
+    reservationDate,
+    status,
+    pricePerNight,
+    daysBeforeReservation,
+    addInfo,
+    year,
+    q,
+    m,
+    country,
+    'planned' AS source_type
+FROM bnbplanned;
 -- Verify vw_readreferences uses lowercase (it should already)
 -- This view should already use lowercase 'administration' based on architecture doc
 -- ============================================================================

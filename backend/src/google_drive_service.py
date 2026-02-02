@@ -93,34 +93,40 @@ class GoogleDriveService:
                 if creds and creds.expired and creds.refresh_token:
                     # Refresh the token
                     logger.info(f"Refreshing expired token for administration: {self.administration}")
-                    creds.refresh(Request())
-                    
-                    # Store the refreshed token back to database
-                    token_info = json.loads(creds.to_json())
-                    credential_service.store_credential(
-                        self.administration,
-                        'google_drive_token',
-                        token_info
-                    )
-                    logger.info(f"Refreshed token stored for administration: {self.administration}")
+                    try:
+                        creds.refresh(Request())
+                        
+                        # Store the refreshed token back to database
+                        token_info = json.loads(creds.to_json())
+                        credential_service.store_credential(
+                            self.administration,
+                            'google_drive_token',
+                            token_info
+                        )
+                        logger.info(f"✅ Refreshed token stored for administration: {self.administration}")
+                    except Exception as refresh_error:
+                        # Token refresh failed - likely the refresh token is invalid/expired
+                        logger.error(f"❌ Token refresh failed for {self.administration}: {refresh_error}")
+                        logger.error(f"⚠️  The refresh token may have expired or been revoked.")
+                        logger.error(f"📝 Action required: Run 'python backend/refresh_google_token.py' to re-authenticate")
+                        logger.error(f"📝 Then run: python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}")
+                        
+                        raise Exception(
+                            f"Google Drive token refresh failed for '{self.administration}'. "
+                            f"The refresh token may have expired or been revoked. "
+                            f"Please run: python backend/refresh_google_token.py && "
+                            f"python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}"
+                        )
                 else:
                     # Need to do OAuth flow
-                    logger.info(f"Starting OAuth flow for administration: {self.administration}")
+                    logger.warning(f"⚠️  No valid token found for administration: {self.administration}")
+                    logger.error(f"📝 Action required: Run 'python backend/refresh_google_token.py' to authenticate")
+                    logger.error(f"📝 Then run: python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}")
                     
-                    # Create flow from OAuth credentials
-                    from google_auth_oauthlib.flow import Flow
-                    
-                    flow = Flow.from_client_config(
-                        oauth_creds,
-                        scopes=SCOPES,
-                        redirect_uri='urn:ietf:wg:oauth:2.0:oob'
-                    )
-                    
-                    # For now, raise an exception - OAuth flow requires user interaction
-                    # In production, this should be handled through the Tenant Admin UI
                     raise Exception(
                         f"OAuth token not found or invalid for administration '{self.administration}'. "
-                        "Please complete OAuth flow through the Tenant Admin UI or run the migration script."
+                        f"Please run: python backend/refresh_google_token.py && "
+                        f"python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}"
                     )
             
             # Build and return the service

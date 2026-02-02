@@ -503,7 +503,8 @@ class TemplatePreviewService:
         Check for required placeholders.
         
         Validates that all required placeholders for the template type
-        are present in the template content.
+        are present in the template content. Supports both legacy placeholder
+        names and database column names for backward compatibility.
         
         Args:
             template_type: Type of template
@@ -515,25 +516,45 @@ class TemplatePreviewService:
         errors = []
         
         # Define required placeholders per template type
+        # Each entry can have multiple acceptable names (legacy and new)
         REQUIRED_PLACEHOLDERS = {
             'str_invoice_nl': [
-                'invoice_number', 'guest_name', 'checkin_date',
-                'checkout_date', 'amount_gross', 'company_name'
+                ['invoice_number', 'reservationCode'],  # Either is acceptable
+                ['guest_name', 'billing_name', 'guestName'],
+                ['checkin_date', 'checkinDate'],
+                ['checkout_date', 'checkoutDate'],
+                ['amount_gross', 'amountGross', 'table_rows'],  # amount_gross or table with amounts
+                ['company_name']
             ],
             'str_invoice_en': [
-                'invoice_number', 'guest_name', 'checkin_date',
-                'checkout_date', 'amount_gross', 'company_name'
+                ['invoice_number', 'reservationCode'],
+                ['guest_name', 'billing_name', 'guestName'],
+                ['checkin_date', 'checkinDate'],
+                ['checkout_date', 'checkoutDate'],
+                ['amount_gross', 'amountGross', 'table_rows'],
+                ['company_name']
             ],
             'btw_aangifte': [
-                'year', 'quarter', 'administration', 'balance_rows',
-                'quarter_rows', 'payment_instruction'
+                ['year'],
+                ['quarter'],
+                ['administration'],
+                ['balance_rows'],
+                ['quarter_rows'],
+                ['payment_instruction']
             ],
             'aangifte_ib': [
-                'year', 'administration', 'table_rows', 'generated_date'
+                ['year'],
+                ['administration'],
+                ['table_rows'],
+                ['generated_date']
             ],
             'toeristenbelasting': [
-                'year', 'contact_name', 'contact_email', 'nights_total',
-                'revenue_total', 'tourist_tax_total'
+                ['year'],
+                ['contact_name'],
+                ['contact_email'],
+                ['nights_total'],
+                ['revenue_total'],
+                ['tourist_tax_total']
             ]
         }
         
@@ -544,13 +565,28 @@ class TemplatePreviewService:
         found_placeholders = set(placeholders)
         
         # Check for missing required placeholders
-        for placeholder in required:
-            if placeholder not in found_placeholders:
+        for placeholder_options in required:
+            # Ensure it's a list
+            if isinstance(placeholder_options, str):
+                placeholder_options = [placeholder_options]
+            
+            # Check if ANY of the acceptable names is present
+            found = any(opt in found_placeholders for opt in placeholder_options)
+            
+            if not found:
+                # Use the first option as the primary name in error message
+                primary_name = placeholder_options[0]
+                alternatives = placeholder_options[1:] if len(placeholder_options) > 1 else []
+                
+                message = f"Required placeholder '{{{{ {primary_name} }}}}' not found"
+                if alternatives:
+                    message += f" (alternatives: {', '.join(['{{ ' + alt + ' }}' for alt in alternatives])})"
+                
                 errors.append({
                     'type': 'missing_placeholder',
-                    'message': f"Required placeholder '{{{{ {placeholder} }}}}' not found",
+                    'message': message,
                     'severity': 'error',
-                    'placeholder': placeholder
+                    'placeholder': primary_name
                 })
         
         return errors
@@ -580,16 +616,18 @@ class TemplatePreviewService:
                 'severity': 'error'
             })
         
-        # Check for event handlers
+        # Check for event handlers (improved regex to avoid false positives)
+        # Match event handlers like onclick=, onload=, etc. but not content="...on="
+        # Use word boundary and ensure it's an actual HTML attribute
         event_handlers = re.findall(
-            r'on\w+\s*=',
+            r'<[^>]*\s(on\w+)\s*=',
             template_content,
             re.IGNORECASE
         )
         if event_handlers:
             issues.append({
                 'type': 'security_error',
-                'message': 'Event handlers (onclick, onload, etc.) are not allowed',
+                'message': f'Event handlers are not allowed: {", ".join(set(event_handlers))}',
                 'severity': 'error'
             })
         

@@ -429,6 +429,110 @@ def health():
     
     return jsonify(health_info)
 
+@app.route('/api/google-drive/token-health', methods=['GET'])
+@cognito_required(required_roles=['SysAdmin', 'Tenant_Admin'])
+def google_drive_token_health(user_email, user_roles):
+    """Check Google Drive token health for all tenants"""
+    from datetime import datetime
+    from services.credential_service import CredentialService
+    
+    try:
+        db = DatabaseManager()
+        credential_service = CredentialService(db)
+        
+        tenants = ['GoodwinSolutions', 'PeterPrive']
+        results = {}
+        
+        for tenant in tenants:
+            try:
+                token_data = credential_service.get_credential(tenant, 'google_drive_token')
+                
+                if not token_data or 'expiry' not in token_data:
+                    results[tenant] = {
+                        'status': 'error',
+                        'message': 'Token not found',
+                        'action_required': True
+                    }
+                    continue
+                
+                # Parse expiry date
+                expiry_str = token_data['expiry']
+                try:
+                    expiry_date = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
+                except:
+                    try:
+                        expiry_date = datetime.strptime(expiry_str, "%d-%m-%Y %H:%M:%S")
+                    except:
+                        results[tenant] = {
+                            'status': 'error',
+                            'message': f'Invalid expiry format: {expiry_str}',
+                            'action_required': True
+                        }
+                        continue
+                
+                now = datetime.now()
+                if expiry_date.tzinfo:
+                    from datetime import timezone
+                    now = datetime.now(timezone.utc)
+                
+                days_until_expiry = (expiry_date - now).days
+                
+                if days_until_expiry < 0:
+                    results[tenant] = {
+                        'status': 'expired',
+                        'message': f'Token expired {abs(days_until_expiry)} days ago',
+                        'expiry_date': expiry_str,
+                        'action_required': True,
+                        'recovery_steps': [
+                            'python backend/refresh_google_token.py',
+                            f'python scripts/credentials/migrate_credentials_to_db.py --tenant {tenant}',
+                            'docker-compose restart backend'
+                        ]
+                    }
+                elif days_until_expiry <= 7:
+                    results[tenant] = {
+                        'status': 'warning',
+                        'message': f'Token expires in {days_until_expiry} days',
+                        'expiry_date': expiry_str,
+                        'action_required': False,
+                        'recommendation': 'Refresh token soon'
+                    }
+                else:
+                    results[tenant] = {
+                        'status': 'healthy',
+                        'message': f'Token valid for {days_until_expiry} days',
+                        'expiry_date': expiry_str,
+                        'action_required': False
+                    }
+            
+            except Exception as e:
+                results[tenant] = {
+                    'status': 'error',
+                    'message': str(e),
+                    'action_required': True
+                }
+        
+        # Overall status
+        overall_status = 'healthy'
+        if any(r['status'] == 'expired' for r in results.values()):
+            overall_status = 'critical'
+        elif any(r['status'] == 'warning' for r in results.values()):
+            overall_status = 'warning'
+        elif any(r['status'] == 'error' for r in results.values()):
+            overall_status = 'error'
+        
+        return jsonify({
+            'overall_status': overall_status,
+            'tenants': results,
+            'checked_at': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'overall_status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/api/scalability/status', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
 def scalability_status(user_email, user_roles):

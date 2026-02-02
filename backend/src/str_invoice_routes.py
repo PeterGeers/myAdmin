@@ -32,8 +32,16 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         else:
             start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
         
-        # Current date (no future bookings)
-        current_date = datetime.now().strftime('%Y-%m-%d')
+        # Get includeFuture parameter (default False for invoice generation)
+        include_future = request.args.get('includeFuture', 'false').lower() == 'true'
+        
+        # End date: current date or future date based on includeFuture parameter
+        if include_future:
+            # Include bookings up to 1 year in the future
+            end_date = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d')
+        else:
+            # Only include past and current bookings (for invoice generation)
+            end_date = datetime.now().strftime('%Y-%m-%d')
         
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
@@ -51,7 +59,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             LIMIT %s
             """
             search_pattern = f"%{query}%"
-            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, current_date, limit])
+            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date, limit])
         else:
             # No limit - return all results (but still filtered by tenant and date)
             search_query = """
@@ -63,7 +71,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             ORDER BY checkinDate DESC
             """
             search_pattern = f"%{query}%"
-            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, current_date])
+            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date])
         
         results = cursor.fetchall()
         
@@ -75,7 +83,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             'bookings': results, 
             'date_range': {
                 'from': start_date,
-                'to': current_date
+                'to': end_date
             }
         })
         

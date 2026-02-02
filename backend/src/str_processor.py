@@ -582,12 +582,16 @@ class STRProcessor:
             else:
                 df = pd.read_csv(file_path)
             
+            print(f"DEBUG Direct: File has {len(df)} rows", flush=True)
+            print(f"DEBUG Direct: Columns: {list(df.columns)}", flush=True)
+            
             transactions = []
             
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 # Filter only reservation type records like R code
                 record_type = row.get('type', '')
                 if str(record_type).lower() != 'reservation':
+                    print(f"DEBUG Direct: Row {idx} skipped - type='{record_type}' (not 'reservation')", flush=True)
                     continue
                 
                 # Map direct booking columns
@@ -617,12 +621,30 @@ class STRProcessor:
                 # Determine booking status based on check-in date
                 today = date.today()
                 try:
-                    checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d').date()
+                    # Convert checkin_date to string and handle various formats
+                    checkin_str = str(checkin_date).strip()
+                    
+                    # Try different date formats
+                    checkin_dt = None
+                    for date_format in ['%Y-%m-%d', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S']:
+                        try:
+                            checkin_dt = datetime.strptime(checkin_str.split()[0], date_format).date()
+                            break
+                        except:
+                            continue
+                    
+                    if checkin_dt is None:
+                        # If all formats fail, try pandas to_datetime
+                        checkin_dt = pd.to_datetime(checkin_str).date()
+                    
                     if checkin_dt > today:
                         booking_status = 'planned'
                     else:
                         booking_status = 'realised'
-                except:
+                    
+                    print(f"DEBUG: Booking {booking_id} - Check-in: {checkin_dt}, Today: {today}, Status: {booking_status}", flush=True)
+                except Exception as e:
+                    print(f"WARNING: Failed to parse check-in date '{checkin_date}' for booking {booking_id}: {e}. Defaulting to 'realised'", flush=True)
                     booking_status = 'realised'
                 
                 # Calculate checkout date
@@ -630,8 +652,23 @@ class STRProcessor:
                     checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
                     checkout_dt = checkin_dt + pd.Timedelta(days=int(nights))
                     checkout_date = checkout_dt.strftime('%Y-%m-%d')
-                except:
-                    checkout_date = str(checkin_date)
+                    print(f"DEBUG: Booking {booking_id} - Checkout calculated: {checkout_date} (checkin + {nights} nights)", flush=True)
+                except Exception as e:
+                    print(f"WARNING: Failed to calculate checkout date for booking {booking_id}: {e}. Trying fallback calculation.", flush=True)
+                    # Fallback: try to parse checkin_date and add nights
+                    try:
+                        from datetime import timedelta
+                        # Try to parse the date in various formats
+                        if isinstance(checkin_date, str):
+                            checkin_dt = pd.to_datetime(checkin_date)
+                        else:
+                            checkin_dt = pd.to_datetime(str(checkin_date))
+                        checkout_dt = checkin_dt + timedelta(days=int(nights))
+                        checkout_date = checkout_dt.strftime('%Y-%m-%d')
+                        print(f"DEBUG: Booking {booking_id} - Checkout calculated via fallback: {checkout_date}", flush=True)
+                    except Exception as e2:
+                        print(f"ERROR: All checkout calculations failed for booking {booking_id}: {e2}. Using checkin date.", flush=True)
+                        checkout_date = str(checkin_date)
                 
                 # Use generic tax calculation function
                 tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, channel_fee)
@@ -681,11 +718,23 @@ class STRProcessor:
                 # Source file info
                 source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
                 
+                # Clean checkin_date to remove time portion
+                try:
+                    if isinstance(checkin_date, str):
+                        # If it's a string with timestamp, parse and format as date only
+                        checkin_date_clean = pd.to_datetime(checkin_date).strftime('%Y-%m-%d')
+                    else:
+                        # If it's already a date object, format it
+                        checkin_date_clean = pd.to_datetime(checkin_date).strftime('%Y-%m-%d')
+                except:
+                    # Fallback: just use string representation
+                    checkin_date_clean = str(checkin_date).split()[0] if ' ' in str(checkin_date) else str(checkin_date)
+                
                 transaction = {
                     'sourceFile': source_file,
                     'channel': channel,
                     'listing': self._normalize_listing_name(str(listing)),
-                    'checkinDate': str(checkin_date),
+                    'checkinDate': checkin_date_clean,
                     'checkoutDate': checkout_date,
                     'nights': int(nights) if nights else 0,
                     'guests': int(guests) if guests else 0,
@@ -711,6 +760,9 @@ class STRProcessor:
             
             return transactions
         except Exception as e:
+            print(f"ERROR in _process_direct: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return []
     
     def _process_booking_payout(self, file_path: str) -> Dict:

@@ -94,7 +94,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
                 'Ref2': '',
                 'Ref3': '',
                 'Ref4': '',
-                'administration': row['administration']
+                'Administration': row['administration']
             }
             transactions.append(revenue_transaction)
             
@@ -112,7 +112,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
                 'Ref2': '',
                 'Ref3': '',
                 'Ref4': '',
-                'administration': row['administration']
+                'Administration': row['administration']
             }
             transactions.append(vat_transaction)
         

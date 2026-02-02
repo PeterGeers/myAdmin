@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{ reservationCode }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            max-width: 300px;
+            height: auto;
+        }
+
+        .company-info {
+            text-align: right;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .invoice-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 30px 0 20px 0;
+            color: #2c5aa0;
+        }
+
+        .invoice-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+
+        .invoice-info,
+        .guest-info {
+            width: 48%;
+        }
+
+        .invoice-info h3,
+        .guest-info h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+
+        .invoice-info p,
+        .guest-info p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        .booking-details {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 20px 0;
+            border-left: 4px solid #2c5aa0;
+        }
+
+        .booking-details h3 {
+            margin: 0 0 10px 0;
+            color: #2c5aa0;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+        }
+
+        .amount-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .amount-table th,
+        .amount-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .amount-table th:nth-child(3),
+        .amount-table th:nth-child(4),
+        .amount-table td:nth-child(3),
+        .amount-table td:nth-child(4) {
+            text-align: right;
+        }
+
+        .amount-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+
+        .amount-table .total-row {
+            font-weight: bold;
+            background: #f0f8ff;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+        }
+
+        .payment-info {
+            background: #fff3cd;
+            padding: 15px;
+            margin: 20px 0;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+        }
+
+        .payment-info h4 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header">
+            <img src="/jabaki-logo.png" alt="Jabaki Logo" class="logo">
+            <div class="company-info">
+                <strong>{{ company_name }}</strong><br>
+                {{ company_address }}<br>
+                {{ company_postal_city }}<br>
+                {{ company_country }}<br>
+                VAT: {{ company_vat }}<br>
+                CoC: {{ company_coc }}
+            </div>
+        </div>
+
+        <h1 class="invoice-title">INVOICE</h1>
+
+        <div class="invoice-details">
+            <div class="invoice-info">
+                <h3>Invoice Details</h3>
+                <p><strong>Invoice Number:</strong> {{ reservationCode }}</p>
+                <p><strong>Invoice Date:</strong> {{ invoice_date }}</p>
+                <p><strong>Due Date:</strong> {{ due_date }}</p>
+                <p><strong>Channel:</strong> {{ channel }}</p>
+            </div>
+            <div class="guest-info">
+                <h3>Bill To</h3>
+                <p><strong>{{ billing_name }}</strong></p>
+                <p>{{ billing_address }}</p>
+                <p>{{ billing_city }}</p>
+            </div>
+        </div>
+
+        <div class="booking-details">
+            <h3>Stay Details</h3>
+            <div class="details-grid">
+                <div><strong>Property:</strong> {{ listing }}</div>
+                <div><strong>Number of guests:</strong> {{ guests }}</div>
+                <div><strong>Number of nights:</strong> {{ nights }}</div>
+                <div><strong>Check-in:</strong> {{ checkinDate }}</div>
+                <div><strong>Check-out:</strong> {{ checkoutDate }}</div>
+            </div>
+        </div>
+
+        <table class="amount-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+{{ table_rows }}
+            </tbody>
+        </table>
+
+        <div class="payment-info">
+            <h4>Payment Information</h4>
+            <p>This invoice has been paid via {{ channel }}.</p>
+        </div>
+
+        <div class="footer">
+            <p>Thank you for your stay! We hope to welcome you again soon.</p>
+            <p>For questions about this invoice, please contact us at {{ contact_email }}.</p>
+        </div>
+    </div>
+</body>
+</html>
