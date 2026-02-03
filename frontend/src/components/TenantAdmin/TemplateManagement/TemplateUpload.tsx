@@ -5,7 +5,7 @@
  * Includes template type selection and optional field mappings editor.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -21,8 +21,15 @@ import {
   Textarea,
   Collapse,
   useDisclosure,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+  Spinner,
+  Badge,
+  useToast,
 } from '@chakra-ui/react';
-import { TemplateType } from '../../../services/templateApi';
+import { TemplateType, getCurrentTemplate, CurrentTemplateResponse } from '../../../services/templateApi';
 
 /**
  * Component props
@@ -66,9 +73,47 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
     templateType?: string;
     fieldMappings?: string;
   }>({});
+  const [currentTemplate, setCurrentTemplate] = useState<CurrentTemplateResponse | null>(null);
+  const [loadingCurrent, setLoadingCurrent] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isOpen: showMappings, onToggle: toggleMappings } = useDisclosure();
+  const toast = useToast();
+
+  /**
+   * Load current template when template type changes
+   */
+  useEffect(() => {
+    if (!templateType) {
+      setCurrentTemplate(null);
+      setFieldMappings('{}'); // Reset field mappings
+      return;
+    }
+
+    const loadCurrentTemplate = async () => {
+      setLoadingCurrent(true);
+      
+      try {
+        const response = await getCurrentTemplate(templateType);
+        setCurrentTemplate(response);
+        
+        // Auto-load field mappings from current template
+        if (response.field_mappings && Object.keys(response.field_mappings).length > 0) {
+          setFieldMappings(JSON.stringify(response.field_mappings, null, 2));
+        } else {
+          setFieldMappings('{}');
+        }
+      } catch (err) {
+        // 404 is expected if no template exists yet
+        setCurrentTemplate(null);
+        setFieldMappings('{}');
+      } finally {
+        setLoadingCurrent(false);
+      }
+    };
+
+    loadCurrentTemplate();
+  }, [templateType]);
 
   /**
    * Clear all errors
@@ -139,6 +184,24 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
   const handleTemplateTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     clearErrors();
     setTemplateType(event.target.value as TemplateType);
+    // Current template will be loaded by useEffect
+  };
+
+  /**
+   * Download current template
+   */
+  const handleDownloadCurrent = () => {
+    if (!currentTemplate) return;
+
+    const blob = new Blob([currentTemplate.template_content], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentTemplate.template_type}_current.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   /**
@@ -208,6 +271,53 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
   };
 
   /**
+   * Load current template for modification
+   */
+  const handleLoadCurrent = async () => {
+    if (!templateType) {
+      toast({
+        title: 'Select template type first',
+        description: 'Please select a template type before loading the current template',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setLoadingCurrent(true);
+    try {
+      const response = await getCurrentTemplate(templateType as TemplateType);
+      
+      // Create a File object from the template content
+      const blob = new Blob([response.template_content], { type: 'text/html' });
+      const file = new File([blob], `${templateType}_current.html`, { type: 'text/html' });
+      
+      setSelectedFile(file);
+      
+      // Load field mappings if they exist
+      if (response.field_mappings && Object.keys(response.field_mappings).length > 0) {
+        setFieldMappings(JSON.stringify(response.field_mappings, null, 2));
+      }
+      
+      toast({
+        title: 'Template loaded',
+        description: `Current ${templateType} template loaded. Modify and upload when ready.`,
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to load template',
+        description: error instanceof Error ? error.message : 'No active template found',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setLoadingCurrent(false);
+    }
+  };
+
+  /**
    * Get selected template description
    */
   const selectedTemplateDescription = TEMPLATE_TYPES.find(
@@ -239,6 +349,59 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
           <FormErrorMessage>{errors.templateType}</FormErrorMessage>
         )}
       </FormControl>
+
+      {/* Current Template Info */}
+      {templateType && (
+        <Box>
+          {loadingCurrent ? (
+            <HStack spacing={2} p={3} bg="gray.800" borderRadius="md">
+              <Spinner size="sm" />
+              <Text fontSize="sm" color="gray.400">Loading current template...</Text>
+            </HStack>
+          ) : currentTemplate ? (
+            <Alert status="info" variant="left-accent" bg="blue.900" borderColor="blue.500">
+              <AlertIcon />
+              <Box flex="1">
+                <AlertTitle fontSize="sm">Current Active Template</AlertTitle>
+                <AlertDescription fontSize="xs" color="gray.300">
+                  Version {currentTemplate.metadata.version} • 
+                  Approved {new Date(currentTemplate.metadata.approved_at).toLocaleDateString()} by {currentTemplate.metadata.approved_by}
+                  {currentTemplate.field_mappings && Object.keys(currentTemplate.field_mappings).length > 0 && (
+                    <Badge ml={2} colorScheme="purple" fontSize="xs">Custom Mappings</Badge>
+                  )}
+                </AlertDescription>
+                <HStack spacing={2} mt={2}>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    colorScheme="blue"
+                    onClick={handleDownloadCurrent}
+                    isDisabled={disabled || loading}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    colorScheme="blue"
+                    onClick={handleLoadCurrent}
+                    isDisabled={disabled || loading}
+                  >
+                    Load & Modify
+                  </Button>
+                </HStack>
+              </Box>
+            </Alert>
+          ) : (
+            <Alert status="warning" variant="left-accent" bg="yellow.900" borderColor="yellow.500">
+              <AlertIcon />
+              <AlertDescription fontSize="xs">
+                No active template found for this type. You'll be creating the first one.
+              </AlertDescription>
+            </Alert>
+          )}
+        </Box>
+      )}
 
       {/* File Upload */}
       <FormControl isInvalid={!!errors.file} isRequired>
@@ -295,15 +458,49 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
               value={fieldMappings}
               onChange={handleFieldMappingsChange}
               placeholder='{"field_name": "custom_value"}'
-              rows={6}
+              rows={25}
+              minHeight="500px"
               fontFamily="monospace"
-              fontSize="sm"
+              fontSize="xs"
               isDisabled={disabled || loading}
               bg="gray.800"
               aria-label="Field Mappings (JSON)"
+              resize="vertical"
+              whiteSpace="pre"
+              overflowX="auto"
             />
+            <HStack spacing={2} mt={2}>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  try {
+                    const parsed = JSON.parse(fieldMappings);
+                    setFieldMappings(JSON.stringify(parsed, null, 2));
+                    setErrors((prev) => ({ ...prev, fieldMappings: undefined }));
+                  } catch (err) {
+                    setErrors((prev) => ({ ...prev, fieldMappings: 'Invalid JSON format' }));
+                  }
+                }}
+                isDisabled={disabled || loading}
+              >
+                Format JSON
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  setFieldMappings('{}');
+                  setErrors((prev) => ({ ...prev, fieldMappings: undefined }));
+                }}
+                isDisabled={disabled || loading}
+              >
+                Clear
+              </Button>
+            </HStack>
             <FormHelperText color="gray.400" fontSize="xs">
-              Optional: Customize field mappings in JSON format. Leave empty to use defaults.
+              Optional: Customize field mappings in JSON format. Leave empty to auto-generate from template placeholders.
+              The textarea is resizable - drag the bottom-right corner to expand.
             </FormHelperText>
             {errors.fieldMappings && (
               <FormErrorMessage>{errors.fieldMappings}</FormErrorMessage>

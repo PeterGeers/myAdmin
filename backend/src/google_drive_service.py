@@ -241,6 +241,38 @@ class GoogleDriveService:
             print(f"Error checking file existence: {e}")
             return {'exists': False}
     
+    def download_file_content(self, file_id):
+        """
+        Download file content from Google Drive by file ID
+        
+        Args:
+            file_id: Google Drive file ID
+            
+        Returns:
+            str: File content as string
+        """
+        try:
+            from googleapiclient.http import MediaIoBaseDownload
+            import io
+            
+            request = self.service.files().get_media(fileId=file_id)
+            file_buffer = io.BytesIO()
+            downloader = MediaIoBaseDownload(file_buffer, request)
+            
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+            
+            # Get content as string
+            file_buffer.seek(0)
+            content = file_buffer.read().decode('utf-8')
+            
+            return content
+            
+        except Exception as e:
+            print(f"Error downloading file content: {e}", flush=True)
+            raise Exception(f"Failed to download file from Google Drive: {str(e)}")
+    
     def create_folder(self, folder_name, parent_id):
         file_metadata = {
             'name': folder_name,

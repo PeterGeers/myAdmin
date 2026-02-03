@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "name": "API Postman Testing",
+  "description": "Monitors backend API source code changes and automatically runs Postman collection tests to validate functionality",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "backend/src/*.py",
+      "backend\\src\\*.py",
+      "backend/src/routes/*.py",
+      "backend\\src\\routes\\*.py",
+      "backend/src/services/*.py",
+      "backend\\src\\services\\*.py",
+      "backend/src/models/*.py",
+      "backend\\src\\models\\*.py",
+      "backend/requirements.txt",
+      "backend/.env"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Backend API code has been modified. Please check if a .postman.json file exists in the project root. If it exists, read the collection ID from it and run the Postman collection tests, showing me the results. If any tests fail, analyze the failures and propose fixes. If the .postman.json file doesn't exist, ask me if I want to create a Postman collection for the backend API."
+  }
+}

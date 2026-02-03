@@ -189,6 +189,11 @@ class TemplatePreviewService:
             
             is_valid = len(errors) == 0
             
+            # Log detailed error information
+            if errors:
+                for error in errors:
+                    logger.warning(f"Validation error: {error}")
+            
             logger.info(
                 f"Template validation completed: "
                 f"valid={is_valid}, errors={len(errors)}, warnings={len(warnings)}"
@@ -302,6 +307,11 @@ class TemplatePreviewService:
                     'validation': validation
                 }
             
+            # 1.5. Auto-generate field_mappings if empty
+            if not field_mappings or not field_mappings.get('fields'):
+                logger.info(f"Auto-generating field_mappings for template type '{template_type}'")
+                field_mappings = self._generate_default_field_mappings(template_type, template_content)
+            
             # 2. Get current template metadata (if exists)
             current_metadata = self.template_service.get_template_metadata(
                 self.administration,
@@ -376,9 +386,10 @@ class TemplatePreviewService:
         field_mappings: Dict[str, Any]
     ) -> str:
         """
-        Render template with sample data.
+        Render template with sample data using simple placeholder replacement.
         
         Replaces placeholders in template with actual values from sample data.
+        Does NOT use Jinja2 - only simple {{ placeholder }} replacement.
         
         Args:
             template_content: Template HTML content
@@ -397,19 +408,22 @@ class TemplatePreviewService:
             # Find all placeholders
             placeholders = re.findall(r'\{\{\s*(\w+)\s*\}\}', template_content)
             
+            logger.debug(f"Found {len(placeholders)} placeholders to replace")
+            
             for placeholder in placeholders:
                 # Get value from sample data
                 value = sample_data.get(placeholder, f'[{placeholder}]')
                 
                 # Format value if it's a number or date
                 if isinstance(value, (int, float)):
-                    value = f"{value:,.2f}"
+                    value = f"{value:.2f}"
                 elif isinstance(value, datetime):
                     value = value.strftime('%d-%m-%Y')
                 
                 # Replace placeholder
                 pattern = r'\{\{\s*' + placeholder + r'\s*\}\}'
                 rendered = re.sub(pattern, str(value), rendered)
+                logger.debug(f"Replaced {placeholder} with {value}")
             
             logger.debug("Template rendering completed")
             
@@ -523,16 +537,14 @@ class TemplatePreviewService:
                 ['guest_name', 'billing_name', 'guestName'],
                 ['checkin_date', 'checkinDate'],
                 ['checkout_date', 'checkoutDate'],
-                ['amount_gross', 'amountGross', 'table_rows'],  # amount_gross or table with amounts
-                ['company_name']
+                ['amount_gross', 'amountGross', 'table_rows']  # amount_gross or table with amounts
             ],
             'str_invoice_en': [
                 ['invoice_number', 'reservationCode'],
                 ['guest_name', 'billing_name', 'guestName'],
                 ['checkin_date', 'checkinDate'],
                 ['checkout_date', 'checkoutDate'],
-                ['amount_gross', 'amountGross', 'table_rows'],
-                ['company_name']
+                ['amount_gross', 'amountGross', 'table_rows']
             ],
             'btw_aangifte': [
                 ['year'],
@@ -561,8 +573,15 @@ class TemplatePreviewService:
         required = REQUIRED_PLACEHOLDERS.get(template_type, [])
         
         # Find all placeholders in template
-        placeholders = re.findall(r'\{\{\s*(\w+)\s*\}\}', template_content)
-        found_placeholders = set(placeholders)
+        # Updated regex to handle Jinja2 filters like {{ "%.2f"|format(variable) }}
+        # This matches both simple {{ variable }} and filtered {{ ... | filter(variable) }}
+        simple_placeholders = re.findall(r'\{\{\s*(\w+)\s*\}\}', template_content)
+        filtered_placeholders = re.findall(r'\{\{[^}]*\|\s*\w+\((\w+)\)', template_content)
+        
+        # Combine both types
+        found_placeholders = set(simple_placeholders + filtered_placeholders)
+        
+        logger.debug(f"Found placeholders: {found_placeholders}")
         
         # Check for missing required placeholders
         for placeholder_options in required:
@@ -1225,3 +1244,122 @@ class TemplatePreviewService:
         except Exception as e:
             logger.error(f"Failed to log template approval: {e}")
             # Don't raise - logging failure shouldn't block approval
+
+    def _generate_default_field_mappings(self, template_type: str, template_content: str) -> Dict[str, Any]:
+        """
+        Auto-generate default field_mappings by extracting placeholders from template.
+        
+        Args:
+            template_type: Type of template
+            template_content: Template HTML content
+            
+        Returns:
+            Dictionary with default field_mappings structure
+        """
+        try:
+            logger.info(f"Generating default field_mappings for template type '{template_type}'")
+            
+            # Extract all placeholders from template
+            placeholders = set(re.findall(r'\{\{\s*(\w+)\s*\}\}', template_content))
+            
+            # Define static company fields
+            static_fields = {
+                'company_name': 'Jabaki a Goodwin Solutions Company',
+                'company_address': 'Beemsterstraat 3',
+                'company_postal_city': '2131 ZA Hoofddorp',
+                'company_country': 'Netherlands' if 'en' in template_type else 'Nederland',
+                'company_vat': 'NL812613764B02',
+                'company_coc': '24352408',
+                'contact_email': 'peter@jabaki.nl'
+            }
+            
+            # Define field formats based on common naming patterns
+            def get_field_format(field_name: str) -> str:
+                if 'amount' in field_name.lower() or 'tax' in field_name.lower() or 'vat' in field_name.lower():
+                    return 'currency'
+                elif 'date' in field_name.lower():
+                    return 'date'
+                elif field_name in ['nights', 'guests']:
+                    return 'number'
+                else:
+                    return 'text'
+            
+            # Build fields configuration
+            fields = {}
+            for placeholder in placeholders:
+                if placeholder in static_fields:
+                    # Static company field
+                    fields[placeholder] = {
+                        'path': placeholder,
+                        'format': 'text',
+                        'source': 'static',
+                        'default': static_fields[placeholder]
+                    }
+                elif placeholder == 'table_rows':
+                    # Special calculated field
+                    fields[placeholder] = {
+                        'path': placeholder,
+                        'format': 'text',
+                        'source': 'calculation',
+                        'default': ''
+                    }
+                else:
+                    # Database field
+                    field_format = get_field_format(placeholder)
+                    fields[placeholder] = {
+                        'path': placeholder,
+                        'format': field_format,
+                        'source': 'database',
+                        'default': 0 if field_format in ['currency', 'number'] else ''
+                    }
+                    
+                    # Add transform for currency fields
+                    if field_format == 'currency':
+                        fields[placeholder]['transform'] = 'round'
+            
+            # Build complete field_mappings structure
+            field_mappings = {
+                'fields': fields,
+                'formatting': {
+                    'locale': 'en_US' if 'en' in template_type else 'nl_NL',
+                    'currency': 'EUR',
+                    'date_format': 'DD-MM-YYYY',
+                    'number_decimals': 2
+                },
+                'conditionals': []
+            }
+            
+            # Add conditionals for STR invoices
+            if 'str_invoice' in template_type:
+                field_mappings['conditionals'] = [
+                    {
+                        'field': 'vat_amount',
+                        'operator': 'gt',
+                        'value': 0,
+                        'action': 'show'
+                    },
+                    {
+                        'field': 'tourist_tax',
+                        'operator': 'gt',
+                        'value': 0,
+                        'action': 'show'
+                    }
+                ]
+            
+            logger.info(f"Generated field_mappings with {len(fields)} fields")
+            
+            return field_mappings
+            
+        except Exception as e:
+            logger.error(f"Failed to generate default field_mappings: {e}")
+            # Return minimal fallback
+            return {
+                'fields': {},
+                'formatting': {
+                    'locale': 'nl_NL',
+                    'currency': 'EUR',
+                    'date_format': 'DD-MM-YYYY',
+                    'number_decimals': 2
+                },
+                'conditionals': []
+            }

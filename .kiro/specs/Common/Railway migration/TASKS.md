@@ -629,11 +629,11 @@ This document breaks down the Railway migration into manageable phases with deta
 
 ##### 2.6.8 Documentation
 
-- [ ] Update API documentation
-  - [ ] Document all new endpoints in OpenAPI/Swagger
-  - [ ] Include request/response schemas
-  - [ ] Include authentication requirements
-  - [ ] Include error codes and messages
+- [x] Update API documentation
+  - [x] Document all new endpoints in OpenAPI/Swagger
+  - [x] Include request/response schemas
+  - [x] Include authentication requirements
+  - [x] Include error codes and messages
 
 - [ ] Create user guide for Tenant Administrators
   - [ ] How to upload a template

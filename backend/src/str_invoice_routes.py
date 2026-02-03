@@ -160,6 +160,23 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
         # Add table_rows to invoice_data
         invoice_data['table_rows'] = table_rows
         
+        # DEBUG: Log invoice data structure to file
+        debug_file = os.path.join(os.path.dirname(__file__), '..', 'invoice_debug.log')
+        with open(debug_file, 'a', encoding='utf-8') as f:
+            f.write(f"\n{'='*80}\n")
+            f.write(f"INVOICE DATA DEBUG - {datetime.now().isoformat()}\n")
+            f.write(f"Language: {language}\n")
+            f.write(f"Reservation: {reservation_code}\n")
+            f.write(f"{'='*80}\n")
+            f.write(f"Invoice data keys: {list(invoice_data.keys())}\n\n")
+            f.write(f"Sample values:\n")
+            for key in ['company_name', 'reservationCode', 'table_rows', 'billing_name', 'channel']:
+                value = invoice_data.get(key, 'MISSING')
+                if key == 'table_rows':
+                    f.write(f"  {key}: {len(str(value))} chars - First 200: {str(value)[:200]}\n")
+                else:
+                    f.write(f"  {key}: {value}\n")
+        
         # Try to get template metadata from database
         template_type = f'str_invoice_{language}'
         metadata = None
@@ -212,6 +229,22 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
             invoice_data,
             field_mappings
         )
+        
+        # DEBUG: Check if placeholders were replaced - write to file
+        debug_file = os.path.join(os.path.dirname(__file__), '..', 'invoice_debug.log')
+        with open(debug_file, 'a', encoding='utf-8') as f:
+            f.write(f"\nTEMPLATE RENDERING DEBUG\n")
+            f.write(f"Template length: {len(template_content)} chars\n")
+            f.write(f"Rendered HTML length: {len(html_content)} chars\n")
+            f.write(f"Template source: {'Google Drive' if metadata else 'Filesystem'}\n")
+            f.write(f"\nPlaceholder check:\n")
+            unreplaced = ['{{ company_name }}', '{{ reservationCode }}', '{{ table_rows }}', '{{ channel }}']
+            for placeholder in unreplaced:
+                still_there = placeholder in html_content
+                f.write(f"  {placeholder}: {'STILL PRESENT (BAD!)' if still_there else 'Replaced (good)'}\n")
+            f.write(f"\nFirst 500 chars of rendered HTML:\n")
+            f.write(html_content[:500])
+            f.write(f"\n{'='*80}\n\n")
         
         # Generate filename
         filename = f'Invoice_{reservation_code}_{language.upper()}.html'

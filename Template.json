@@ -1,0 +1,1676 @@
+[
+  {
+    "id": 1,
+    "administration": "GoodwinSolutions",
+    "template_type": "aangifte_ib_html",
+    "template_file_id": "1YDH4hYjZLYJ3bLJKwwFuwbJ8rzXex82G",
+    "field_mappings": {
+      "fields": {
+        "year": {
+          "path": "year",
+          "type": "integer",
+          "description": "Report year"
+        },
+        "table_rows": {
+          "note": "Generator returns structured data, template converts to HTML",
+          "path": "table_rows",
+          "type": "array",
+          "format": "pre_generated",
+          "description": "Pre-generated list of row dictionaries (not HTML strings)"
+        },
+        "administration": {
+          "path": "administration",
+          "type": "string",
+          "description": "Administration/tenant identifier"
+        },
+        "generated_date": {
+          "path": "generated_date",
+          "type": "string",
+          "format": "datetime",
+          "description": "Report generation timestamp"
+        }
+      },
+      "version": "1.0",
+      "filtering": {
+        "security": "user_tenants parameter ensures tenant isolation",
+        "zero_amounts": "Rows with abs(amount) < 0.01 are filtered out"
+      },
+      "formatting": {
+        "locale": "nl_NL",
+        "currency": "EUR",
+        "date_format": "%Y-%m-%d %H:%M:%S",
+        "number_decimals": 2,
+        "decimal_separator": ",",
+        "thousands_separator": "."
+      },
+      "data_source": {
+        "queries": {
+          "details": {
+            "method": "cache.query_aangifte_ib_details(year, administration, parent, aangifte, user_tenants)",
+            "returns": "List of {Reknum, AccountName, Amount}"
+          },
+          "summary": {
+            "method": "cache.query_aangifte_ib(year, administration)",
+            "returns": "List of {Parent, Aangifte, Amount}"
+          }
+        },
+        "description": "Data comes from mutaties_cache queries"
+      },
+      "description": "Aangifte Inkomstenbelasting (Income Tax Return) HTML Report Template",
+      "calculations": {
+        "resultaat": {
+          "note": "Balance sheet accounts (1000-3000) are excluded",
+          "formula": "Sum of all amounts where Parent starts with 4, 5, 6, 7, 8, or 9",
+          "description": "Net result from P&L accounts only"
+        },
+        "grand_total": {
+          "note": "Not actually calculated, just displayed as verification",
+          "formula": "0.0 (hardcoded, represents balance)",
+          "description": "Should be close to zero for balanced accounts"
+        }
+      },
+      "output_format": "html",
+      "row_structure": {
+        "fields": {
+          "amount": {
+            "type": "string",
+            "description": "Formatted amount (e.g., '1.234,56')"
+          },
+          "parent": {
+            "type": "string",
+            "description": "Parent code or label (e.g., '1000', 'RESULTAAT')"
+          },
+          "aangifte": {
+            "type": "string",
+            "description": "Aangifte name or account number"
+          },
+          "row_type": {
+            "type": "string",
+            "values": [
+              "parent",
+              "aangifte",
+              "account",
+              "resultaat",
+              "grand_total"
+            ]
+          },
+          "css_class": {
+            "type": "string",
+            "description": "CSS class for styling"
+          },
+          "amount_raw": {
+            "type": "float",
+            "description": "Raw numeric amount"
+          },
+          "description": {
+            "type": "string",
+            "description": "Account description"
+          },
+          "indent_level": {
+            "type": "integer",
+            "values": [
+              0,
+              1,
+              2
+            ],
+            "description": "Indentation level (0=none, 1=aangifte, 2=account)"
+          }
+        },
+        "description": "Each row in table_rows array is a dictionary with these fields"
+      },
+      "template_type": "aangifte_ib_html",
+      "output_storage": {
+        "note": "User can choose destination when generating report",
+        "default_destination": "download",
+        "google_drive_folder": "Reports/Aangifte_IB",
+        "available_destinations": [
+          "download",
+          "google_drive"
+        ]
+      },
+      "template_location": {
+        "note": "Template file ID is stored in tenant_template_config table",
+        "file_id": "STORED_IN_tenant_template_config.template_file_id",
+        "storage_type": "google_drive"
+      }
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:57:55",
+    "updated_at": "2026-01-31 16:17:00"
+  },
+  {
+    "id": 2,
+    "administration": "GoodwinSolutions",
+    "template_type": "btw_aangifte_html",
+    "template_file_id": "1NIXR3HnlnAcSX6TAQd7Oy5R8OVjt8FtQ",
+    "field_mappings": {
+      "fields": {
+        "year": {
+          "path": "year",
+          "type": "integer",
+          "description": "Report year"
+        },
+        "quarter": {
+          "path": "quarter",
+          "type": "integer",
+          "description": "Quarter number (1-4)"
+        },
+        "end_date": {
+          "path": "end_date",
+          "type": "string",
+          "format": "date",
+          "description": "Quarter end date (YYYY-MM-DD)"
+        },
+        "prepaid_btw": {
+          "path": "prepaid_btw",
+          "type": "string",
+          "format": "currency",
+          "description": "Prepaid BTW amount (formatted)"
+        },
+        "balance_rows": {
+          "note": "Generated by btw_aangifte_generator._format_table_rows()",
+          "path": "balance_rows",
+          "type": "string",
+          "format": "html",
+          "description": "Pre-generated HTML table rows for balance data"
+        },
+        "quarter_rows": {
+          "note": "Generated by btw_aangifte_generator._format_table_rows()",
+          "path": "quarter_rows",
+          "type": "string",
+          "format": "html",
+          "description": "Pre-generated HTML table rows for quarter data"
+        },
+        "received_btw": {
+          "path": "received_btw",
+          "type": "string",
+          "format": "currency",
+          "description": "Total received BTW (formatted)"
+        },
+        "administration": {
+          "path": "administration",
+          "type": "string",
+          "description": "Administration/tenant identifier"
+        },
+        "generated_date": {
+          "path": "generated_date",
+          "type": "string",
+          "format": "datetime",
+          "description": "Report generation timestamp"
+        },
+        "payment_instruction": {
+          "path": "payment_instruction",
+          "type": "string",
+          "description": "Payment instruction (te betalen/ontvangen)"
+        }
+      },
+      "version": "1.0",
+      "formatting": {
+        "locale": "nl_NL",
+        "currency": "EUR",
+        "date_format": "YYYY-MM-DD",
+        "number_decimals": 2,
+        "decimal_separator": ",",
+        "thousands_separator": "."
+      },
+      "data_source": {
+        "queries": {
+          "balance": {
+            "method": "Filter by date <= end_date, accounts 2010, 2020, 2021",
+            "returns": "List of {Reknum, AccountName, Amount}"
+          },
+          "quarter": {
+            "method": "Filter by year and quarter, accounts 2010, 2020, 2021, 8001, 8002, 8003",
+            "returns": "List of {Reknum, AccountName, Amount}"
+          }
+        },
+        "description": "Data comes from mutaties_cache queries"
+      },
+      "description": "BTW Aangifte (VAT Declaration) HTML Report Template",
+      "calculations": {
+        "prepaid_btw": {
+          "formula": "Received BTW - Total Balance",
+          "description": "Prepaid BTW amount"
+        },
+        "received_btw": {
+          "formula": "Sum of accounts 2020, 2021 from quarter data",
+          "description": "Total received BTW for the quarter"
+        },
+        "total_balance": {
+          "formula": "Sum of all balance data (accounts 2010, 2020, 2021)",
+          "description": "Total BTW balance up to quarter end"
+        },
+        "payment_instruction": {
+          "formula": "If Total Balance >= 0: 'te ontvangen', else: 'te betalen'",
+          "description": "Payment instruction based on balance"
+        }
+      },
+      "output_format": "html",
+      "template_type": "btw_aangifte_html",
+      "output_storage": {
+        "note": "User can choose destination when generating report",
+        "default_destination": "download",
+        "google_drive_folder": "Reports/BTW",
+        "available_destinations": [
+          "download",
+          "google_drive"
+        ]
+      },
+      "template_location": {
+        "note": "Template file ID is stored in tenant_template_config table",
+        "file_id": "STORED_IN_tenant_template_config.template_file_id",
+        "storage_type": "google_drive"
+      }
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:57:58",
+    "updated_at": "2026-01-31 16:17:00"
+  },
+  {
+    "id": 6,
+    "administration": "GoodwinSolutions",
+    "template_type": "financial_report_xlsx",
+    "template_file_id": "1ZxKDNfVPDCsADel3HpWu6Xu2aeFqS63a",
+    "field_mappings": {
+      "template_path": "backend/templates/xlsx/template.xlsx",
+      "output_base_path": "backend/reports"
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:08",
+    "updated_at": "2026-01-31 16:17:00"
+  },
+  {
+    "id": 5,
+    "administration": "GoodwinSolutions",
+    "template_type": "str_invoice_en",
+    "template_file_id": "1-4XGkuae6WhGBvD1KPLuZ9q24n1Miz5Q",
+    "field_mappings": {
+      "fields": {
+        "guests": {
+          "path": "guests",
+          "format": "number",
+          "source": "database",
+          "default": 0
+        },
+        "nights": {
+          "path": "nights",
+          "format": "number",
+          "source": "database",
+          "default": 0
+        },
+        "channel": {
+          "path": "channel",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "listing": {
+          "path": "listing",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "due_date": {
+          "path": "due_date",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "guestName": {
+          "path": "guestName",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "net_amount": {
+          "path": "net_amount",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "table_rows": {
+          "path": "table_rows",
+          "format": "text",
+          "source": "calculation",
+          "default": ""
+        },
+        "vat_amount": {
+          "path": "vat_amount",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "amountGross": {
+          "path": "amountGross",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "checkinDate": {
+          "path": "checkinDate",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "company_coc": {
+          "path": "company_coc",
+          "format": "text",
+          "source": "static",
+          "default": "24352408"
+        },
+        "company_vat": {
+          "path": "company_vat",
+          "format": "text",
+          "source": "static",
+          "default": "NL812613764B02"
+        },
+        "tourist_tax": {
+          "path": "tourist_tax",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "billing_city": {
+          "path": "billing_city",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "billing_name": {
+          "path": "billing_name",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "checkoutDate": {
+          "path": "checkoutDate",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "company_name": {
+          "path": "company_name",
+          "format": "text",
+          "source": "static",
+          "default": "Jabaki a Goodwin Solutions Company"
+        },
+        "invoice_date": {
+          "path": "invoice_date",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "contact_email": {
+          "path": "contact_email",
+          "format": "text",
+          "source": "static",
+          "default": "peter@jabaki.nl"
+        },
+        "billing_address": {
+          "path": "billing_address",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "company_address": {
+          "path": "company_address",
+          "format": "text",
+          "source": "static",
+          "default": "Beemsterstraat 3"
+        },
+        "company_country": {
+          "path": "company_country",
+          "format": "text",
+          "source": "static",
+          "default": "Netherlands"
+        },
+        "reservationCode": {
+          "path": "reservationCode",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "company_postal_city": {
+          "path": "company_postal_city",
+          "format": "text",
+          "source": "static",
+          "default": "2131 ZA Hoofddorp"
+        }
+      },
+      "formatting": {
+        "locale": "en_US",
+        "currency": "EUR",
+        "date_format": "DD-MM-YYYY",
+        "number_decimals": 2
+      },
+      "conditionals": [
+        {
+          "field": "vat_amount",
+          "value": 0,
+          "action": "show",
+          "operator": "gt"
+        },
+        {
+          "field": "tourist_tax",
+          "value": 0,
+          "action": "show",
+          "operator": "gt"
+        }
+      ]
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:05",
+    "updated_at": "2026-01-31 18:14:43"
+  },
+  {
+    "id": 4,
+    "administration": "GoodwinSolutions",
+    "template_type": "str_invoice_nl",
+    "template_file_id": "1N211-KYGWU_hcXpfhf3vxbdOa_OjZvJo",
+    "field_mappings": {
+      "guest_name": "guestName",
+      "amount_gross": "amountGross",
+      "checkin_date": "checkinDate",
+      "company_name": "companyName",
+      "checkout_date": "checkoutDate",
+      "invoice_number": "reservationCode"
+    },
+    "version": 2,
+    "approved_by": "test@example.com",
+    "approved_at": "2026-02-01 12:07:03",
+    "approval_notes": "Test with field mappings",
+    "previous_file_id": "1sS1Wd1GqCW_TEcNj_I5nW5hVUTY8l77W",
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:03",
+    "updated_at": "2026-02-01 12:07:03"
+  },
+  {
+    "id": 3,
+    "administration": "GoodwinSolutions",
+    "template_type": "toeristenbelasting_html",
+    "template_file_id": "10SJH12oBAqJiXsLmKCwnIY9wkaiqRtIp",
+    "field_mappings": {
+      "fields": {
+        "naam": {
+          "path": "naam",
+          "type": "string",
+          "description": "Name"
+        },
+        "year": {
+          "path": "year",
+          "type": "string",
+          "description": "Report year"
+        },
+        "datum": {
+          "path": "datum",
+          "type": "string",
+          "format": "date",
+          "description": "Report generation date (DD-MM-YYYY)"
+        },
+        "email": {
+          "path": "email",
+          "type": "string",
+          "format": "email",
+          "description": "Email address"
+        },
+        "plaats": {
+          "path": "plaats",
+          "type": "string",
+          "description": "City/location"
+        },
+        "functie": {
+          "path": "functie",
+          "type": "string",
+          "description": "Function/role"
+        },
+        "next_year": {
+          "path": "next_year",
+          "type": "string",
+          "description": "Next year (for projections)"
+        },
+        "periode_tm": {
+          "path": "periode_tm",
+          "type": "string",
+          "format": "date",
+          "description": "Period end date (31-12-YYYY)"
+        },
+        "periode_van": {
+          "path": "periode_van",
+          "type": "string",
+          "format": "date",
+          "description": "Period start date (1-1-YYYY)"
+        },
+        "totaal_2_3_4": {
+          "path": "totaal_2_3_4",
+          "type": "string",
+          "format": "currency",
+          "description": "Total of items 2, 3, 4"
+        },
+        "aantal_kamers": {
+          "path": "aantal_kamers",
+          "type": "string",
+          "description": "Number of rooms"
+        },
+        "no_show_omzet": {
+          "path": "no_show_omzet",
+          "type": "string",
+          "format": "currency",
+          "description": "No-show revenue"
+        },
+        "telefoonnummer": {
+          "path": "telefoonnummer",
+          "type": "string",
+          "description": "Phone number"
+        },
+        "cancelled_nachten": {
+          "path": "cancelled_nachten",
+          "type": "string",
+          "description": "Cancelled nights"
+        },
+        "bedbezettingsgraad": {
+          "path": "bedbezettingsgraad",
+          "type": "string",
+          "format": "percentage",
+          "description": "Bed occupancy rate"
+        },
+        "aantal_slaapplaatsen": {
+          "path": "aantal_slaapplaatsen",
+          "type": "string",
+          "description": "Number of beds"
+        },
+        "kamerbezettingsgraad": {
+          "path": "kamerbezettingsgraad",
+          "type": "string",
+          "format": "percentage",
+          "description": "Room occupancy rate"
+        },
+        "belastbare_omzet_logies": {
+          "path": "belastbare_omzet_logies",
+          "type": "string",
+          "format": "currency",
+          "description": "Taxable accommodation revenue"
+        },
+        "saldo_toeristenbelasting": {
+          "path": "saldo_toeristenbelasting",
+          "type": "string",
+          "format": "currency",
+          "description": "Total tourist tax collected"
+        },
+        "totaal_verhuurde_nachten": {
+          "path": "totaal_verhuurde_nachten",
+          "type": "string",
+          "description": "Total rented nights"
+        },
+        "totaal_belastbare_nachten": {
+          "path": "totaal_belastbare_nachten",
+          "type": "string",
+          "description": "Total taxable nights"
+        },
+        "verhuurde_kamers_inwoners": {
+          "path": "verhuurde_kamers_inwoners",
+          "type": "string",
+          "description": "Nights rented to residents (always 0)"
+        },
+        "ontvangsten_logies_inwoners": {
+          "path": "ontvangsten_logies_inwoners",
+          "type": "string",
+          "format": "currency",
+          "description": "Revenue from residents (always 0)"
+        },
+        "kortingen_provisie_commissie": {
+          "path": "kortingen_provisie_commissie",
+          "type": "string",
+          "format": "currency",
+          "description": "Service fees/commissions"
+        },
+        "verwachte_belastbare_omzet_volgend_jaar": {
+          "path": "verwachte_belastbare_omzet_volgend_jaar",
+          "type": "string",
+          "format": "currency",
+          "description": "Expected next year revenue"
+        },
+        "ontvangsten_excl_btw_excl_toeristenbelasting": {
+          "path": "ontvangsten_excl_btw_excl_toeristenbelasting",
+          "type": "string",
+          "format": "currency",
+          "description": "Revenue excl. VAT and tourist tax"
+        }
+      },
+      "version": "1.0",
+      "formatting": {
+        "locale": "nl_NL",
+        "currency": "EUR",
+        "date_format": "DD-MM-YYYY",
+        "number_decimals": 2,
+        "decimal_separator": ",",
+        "percentage_decimals": 2,
+        "thousands_separator": "."
+      },
+      "data_source": {
+        "sources": {
+          "bnb_cache": {
+            "fields": [
+              "nights",
+              "amountGross",
+              "amountVat"
+            ],
+            "methods": [
+              "query_by_year()",
+              "query_cancelled_by_year()",
+              "query_realised_by_year()"
+            ],
+            "purpose": "Calculate rental statistics and no-show revenue"
+          },
+          "mutaties_cache": {
+            "purpose": "Calculate tourist tax and revenue components",
+            "accounts": {
+              "4007": "Service fees from booking sites",
+              "8003": "Total revenue (includes VAT and tourist tax)"
+            }
+          }
+        },
+        "description": "Data comes from BNB cache and mutaties cache"
+      },
+      "description": "Toeristenbelasting (Tourist Tax) Declaration HTML Report Template",
+      "calculations": {
+        "tourist_tax": {
+          "formula": "(Account 8003 Total / 106.2) * 6.2",
+          "description": "Extract tourist tax from revenue including VAT and tax"
+        },
+        "occupancy_rates": {
+          "max_nights": "Number of Rooms * 365",
+          "bed_occupancy": "Room Occupancy * 0.90",
+          "room_occupancy": "(Realised Nights / Max Nights) * 100"
+        },
+        "taxable_revenue": {
+          "formula": "[1] - ([2] + [3] + [4])",
+          "description": "Revenue minus residents, fees, and no-show amounts"
+        },
+        "next_year_projection": {
+          "formula": "Taxable Revenue * 1.05",
+          "description": "Simple 5% increase for planning"
+        },
+        "revenue_excl_vat_tax": {
+          "formula": "Account 8003 Total - Tourist Tax",
+          "description": "Revenue excluding VAT and tourist tax"
+        }
+      },
+      "output_format": "html",
+      "template_type": "toeristenbelasting_html",
+      "output_storage": {
+        "note": "User can choose destination when generating report",
+        "default_destination": "download",
+        "google_drive_folder": "Reports/Toeristenbelasting",
+        "available_destinations": [
+          "download",
+          "google_drive"
+        ]
+      },
+      "template_location": {
+        "note": "Template file ID is stored in tenant_template_config table",
+        "file_id": "STORED_IN_tenant_template_config.template_file_id",
+        "storage_type": "google_drive"
+      }
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:00",
+    "updated_at": "2026-01-31 16:17:00"
+  },
+  {
+    "id": 7,
+    "administration": "PeterPrive",
+    "template_type": "aangifte_ib_html",
+    "template_file_id": "1qE0xbsqOn02AY0RYHePASUsevsrfmGFL",
+    "field_mappings": {
+      "fields": {
+        "year": {
+          "path": "year",
+          "type": "integer",
+          "description": "Report year"
+        },
+        "table_rows": {
+          "note": "Generator returns structured data, template converts to HTML",
+          "path": "table_rows",
+          "type": "array",
+          "format": "pre_generated",
+          "description": "Pre-generated list of row dictionaries (not HTML strings)"
+        },
+        "administration": {
+          "path": "administration",
+          "type": "string",
+          "description": "Administration/tenant identifier"
+        },
+        "generated_date": {
+          "path": "generated_date",
+          "type": "string",
+          "format": "datetime",
+          "description": "Report generation timestamp"
+        }
+      },
+      "version": "1.0",
+      "filtering": {
+        "security": "user_tenants parameter ensures tenant isolation",
+        "zero_amounts": "Rows with abs(amount) < 0.01 are filtered out"
+      },
+      "formatting": {
+        "locale": "nl_NL",
+        "currency": "EUR",
+        "date_format": "%Y-%m-%d %H:%M:%S",
+        "number_decimals": 2,
+        "decimal_separator": ",",
+        "thousands_separator": "."
+      },
+      "data_source": {
+        "queries": {
+          "details": {
+            "method": "cache.query_aangifte_ib_details(year, administration, parent, aangifte, user_tenants)",
+            "returns": "List of {Reknum, AccountName, Amount}"
+          },
+          "summary": {
+            "method": "cache.query_aangifte_ib(year, administration)",
+            "returns": "List of {Parent, Aangifte, Amount}"
+          }
+        },
+        "description": "Data comes from mutaties_cache queries"
+      },
+      "description": "Aangifte Inkomstenbelasting (Income Tax Return) HTML Report Template",
+      "calculations": {
+        "resultaat": {
+          "note": "Balance sheet accounts (1000-3000) are excluded",
+          "formula": "Sum of all amounts where Parent starts with 4, 5, 6, 7, 8, or 9",
+          "description": "Net result from P&L accounts only"
+        },
+        "grand_total": {
+          "note": "Not actually calculated, just displayed as verification",
+          "formula": "0.0 (hardcoded, represents balance)",
+          "description": "Should be close to zero for balanced accounts"
+        }
+      },
+      "output_format": "html",
+      "row_structure": {
+        "fields": {
+          "amount": {
+            "type": "string",
+            "description": "Formatted amount (e.g., '1.234,56')"
+          },
+          "parent": {
+            "type": "string",
+            "description": "Parent code or label (e.g., '1000', 'RESULTAAT')"
+          },
+          "aangifte": {
+            "type": "string",
+            "description": "Aangifte name or account number"
+          },
+          "row_type": {
+            "type": "string",
+            "values": [
+              "parent",
+              "aangifte",
+              "account",
+              "resultaat",
+              "grand_total"
+            ]
+          },
+          "css_class": {
+            "type": "string",
+            "description": "CSS class for styling"
+          },
+          "amount_raw": {
+            "type": "float",
+            "description": "Raw numeric amount"
+          },
+          "description": {
+            "type": "string",
+            "description": "Account description"
+          },
+          "indent_level": {
+            "type": "integer",
+            "values": [
+              0,
+              1,
+              2
+            ],
+            "description": "Indentation level (0=none, 1=aangifte, 2=account)"
+          }
+        },
+        "description": "Each row in table_rows array is a dictionary with these fields"
+      },
+      "template_type": "aangifte_ib_html",
+      "output_storage": {
+        "note": "User can choose destination when generating report",
+        "default_destination": "download",
+        "google_drive_folder": "Reports/Aangifte_IB",
+        "available_destinations": [
+          "download",
+          "google_drive"
+        ]
+      },
+      "template_location": {
+        "note": "Template file ID is stored in tenant_template_config table",
+        "file_id": "STORED_IN_tenant_template_config.template_file_id",
+        "storage_type": "google_drive"
+      }
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:10",
+    "updated_at": "2026-01-31 16:17:00"
+  },
+  {
+    "id": 8,
+    "administration": "PeterPrive",
+    "template_type": "btw_aangifte_html",
+    "template_file_id": "1TvIGTSMKt9VsIc6siveEhPsxYGKJs7fi",
+    "field_mappings": {
+      "fields": {
+        "year": {
+          "path": "year",
+          "type": "integer",
+          "description": "Report year"
+        },
+        "quarter": {
+          "path": "quarter",
+          "type": "integer",
+          "description": "Quarter number (1-4)"
+        },
+        "end_date": {
+          "path": "end_date",
+          "type": "string",
+          "format": "date",
+          "description": "Quarter end date (YYYY-MM-DD)"
+        },
+        "prepaid_btw": {
+          "path": "prepaid_btw",
+          "type": "string",
+          "format": "currency",
+          "description": "Prepaid BTW amount (formatted)"
+        },
+        "balance_rows": {
+          "note": "Generated by btw_aangifte_generator._format_table_rows()",
+          "path": "balance_rows",
+          "type": "string",
+          "format": "html",
+          "description": "Pre-generated HTML table rows for balance data"
+        },
+        "quarter_rows": {
+          "note": "Generated by btw_aangifte_generator._format_table_rows()",
+          "path": "quarter_rows",
+          "type": "string",
+          "format": "html",
+          "description": "Pre-generated HTML table rows for quarter data"
+        },
+        "received_btw": {
+          "path": "received_btw",
+          "type": "string",
+          "format": "currency",
+          "description": "Total received BTW (formatted)"
+        },
+        "administration": {
+          "path": "administration",
+          "type": "string",
+          "description": "Administration/tenant identifier"
+        },
+        "generated_date": {
+          "path": "generated_date",
+          "type": "string",
+          "format": "datetime",
+          "description": "Report generation timestamp"
+        },
+        "payment_instruction": {
+          "path": "payment_instruction",
+          "type": "string",
+          "description": "Payment instruction (te betalen/ontvangen)"
+        }
+      },
+      "version": "1.0",
+      "formatting": {
+        "locale": "nl_NL",
+        "currency": "EUR",
+        "date_format": "YYYY-MM-DD",
+        "number_decimals": 2,
+        "decimal_separator": ",",
+        "thousands_separator": "."
+      },
+      "data_source": {
+        "queries": {
+          "balance": {
+            "method": "Filter by date <= end_date, accounts 2010, 2020, 2021",
+            "returns": "List of {Reknum, AccountName, Amount}"
+          },
+          "quarter": {
+            "method": "Filter by year and quarter, accounts 2010, 2020, 2021, 8001, 8002, 8003",
+            "returns": "List of {Reknum, AccountName, Amount}"
+          }
+        },
+        "description": "Data comes from mutaties_cache queries"
+      },
+      "description": "BTW Aangifte (VAT Declaration) HTML Report Template",
+      "calculations": {
+        "prepaid_btw": {
+          "formula": "Received BTW - Total Balance",
+          "description": "Prepaid BTW amount"
+        },
+        "received_btw": {
+          "formula": "Sum of accounts 2020, 2021 from quarter data",
+          "description": "Total received BTW for the quarter"
+        },
+        "total_balance": {
+          "formula": "Sum of all balance data (accounts 2010, 2020, 2021)",
+          "description": "Total BTW balance up to quarter end"
+        },
+        "payment_instruction": {
+          "formula": "If Total Balance >= 0: 'te ontvangen', else: 'te betalen'",
+          "description": "Payment instruction based on balance"
+        }
+      },
+      "output_format": "html",
+      "template_type": "btw_aangifte_html",
+      "output_storage": {
+        "note": "User can choose destination when generating report",
+        "default_destination": "download",
+        "google_drive_folder": "Reports/BTW",
+        "available_destinations": [
+          "download",
+          "google_drive"
+        ]
+      },
+      "template_location": {
+        "note": "Template file ID is stored in tenant_template_config table",
+        "file_id": "STORED_IN_tenant_template_config.template_file_id",
+        "storage_type": "google_drive"
+      }
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:13",
+    "updated_at": "2026-01-31 16:17:00"
+  },
+  {
+    "id": 12,
+    "administration": "PeterPrive",
+    "template_type": "financial_report_xlsx",
+    "template_file_id": "1vDgGpBWAwjrrgqKsLxIkm4VcYZcWN4n6",
+    "field_mappings": {
+      "template_path": "backend/templates/xlsx/template.xlsx",
+      "output_base_path": "backend/reports"
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:23",
+    "updated_at": "2026-01-31 16:17:00"
+  },
+  {
+    "id": 11,
+    "administration": "PeterPrive",
+    "template_type": "str_invoice_en",
+    "template_file_id": "1rZ0hc2yCvRQnEaEK4O_DAmt2160q375V",
+    "field_mappings": {
+      "fields": {
+        "guests": {
+          "path": "guests",
+          "format": "number",
+          "source": "database",
+          "default": 0
+        },
+        "nights": {
+          "path": "nights",
+          "format": "number",
+          "source": "database",
+          "default": 0
+        },
+        "channel": {
+          "path": "channel",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "listing": {
+          "path": "listing",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "due_date": {
+          "path": "due_date",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "guestName": {
+          "path": "guestName",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "net_amount": {
+          "path": "net_amount",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "table_rows": {
+          "path": "table_rows",
+          "format": "text",
+          "source": "calculation",
+          "default": ""
+        },
+        "vat_amount": {
+          "path": "vat_amount",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "amountGross": {
+          "path": "amountGross",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "checkinDate": {
+          "path": "checkinDate",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "company_coc": {
+          "path": "company_coc",
+          "format": "text",
+          "source": "static",
+          "default": ""
+        },
+        "company_vat": {
+          "path": "company_vat",
+          "format": "text",
+          "source": "static",
+          "default": ""
+        },
+        "tourist_tax": {
+          "path": "tourist_tax",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "billing_city": {
+          "path": "billing_city",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "billing_name": {
+          "path": "billing_name",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "checkoutDate": {
+          "path": "checkoutDate",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "company_name": {
+          "path": "company_name",
+          "format": "text",
+          "source": "static",
+          "default": "Peter Geers"
+        },
+        "invoice_date": {
+          "path": "invoice_date",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "contact_email": {
+          "path": "contact_email",
+          "format": "text",
+          "source": "static",
+          "default": "peter@geers.nl"
+        },
+        "billing_address": {
+          "path": "billing_address",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "company_address": {
+          "path": "company_address",
+          "format": "text",
+          "source": "static",
+          "default": "Beemsterstraat 3"
+        },
+        "company_country": {
+          "path": "company_country",
+          "format": "text",
+          "source": "static",
+          "default": "Netherlands"
+        },
+        "reservationCode": {
+          "path": "reservationCode",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "company_postal_city": {
+          "path": "company_postal_city",
+          "format": "text",
+          "source": "static",
+          "default": "2131 ZA Hoofddorp"
+        }
+      },
+      "formatting": {
+        "locale": "en_US",
+        "currency": "EUR",
+        "date_format": "DD-MM-YYYY",
+        "number_decimals": 2
+      },
+      "conditionals": [
+        {
+          "field": "vat_amount",
+          "value": 0,
+          "action": "show",
+          "operator": "gt"
+        },
+        {
+          "field": "tourist_tax",
+          "value": 0,
+          "action": "show",
+          "operator": "gt"
+        }
+      ]
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:20",
+    "updated_at": "2026-01-31 18:14:43"
+  },
+  {
+    "id": 10,
+    "administration": "PeterPrive",
+    "template_type": "str_invoice_nl",
+    "template_file_id": "1-oebrBuNdCMEhQ74GyjzhlVOzqUjAG8s",
+    "field_mappings": {
+      "fields": {
+        "guests": {
+          "path": "guests",
+          "format": "number",
+          "source": "database",
+          "default": 0
+        },
+        "nights": {
+          "path": "nights",
+          "format": "number",
+          "source": "database",
+          "default": 0
+        },
+        "channel": {
+          "path": "channel",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "listing": {
+          "path": "listing",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "due_date": {
+          "path": "due_date",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "guestName": {
+          "path": "guestName",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "net_amount": {
+          "path": "net_amount",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "table_rows": {
+          "path": "table_rows",
+          "format": "text",
+          "source": "calculation",
+          "default": ""
+        },
+        "vat_amount": {
+          "path": "vat_amount",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "amountGross": {
+          "path": "amountGross",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "checkinDate": {
+          "path": "checkinDate",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "company_coc": {
+          "path": "company_coc",
+          "format": "text",
+          "source": "static",
+          "default": ""
+        },
+        "company_vat": {
+          "path": "company_vat",
+          "format": "text",
+          "source": "static",
+          "default": ""
+        },
+        "tourist_tax": {
+          "path": "tourist_tax",
+          "format": "currency",
+          "source": "database",
+          "default": 0,
+          "transform": "round"
+        },
+        "billing_city": {
+          "path": "billing_city",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "billing_name": {
+          "path": "billing_name",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "checkoutDate": {
+          "path": "checkoutDate",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "company_name": {
+          "path": "company_name",
+          "format": "text",
+          "source": "static",
+          "default": "Peter Geers"
+        },
+        "invoice_date": {
+          "path": "invoice_date",
+          "format": "date",
+          "source": "database",
+          "default": ""
+        },
+        "contact_email": {
+          "path": "contact_email",
+          "format": "text",
+          "source": "static",
+          "default": "peter@geers.nl"
+        },
+        "billing_address": {
+          "path": "billing_address",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "company_address": {
+          "path": "company_address",
+          "format": "text",
+          "source": "static",
+          "default": "Beemsterstraat 3"
+        },
+        "company_country": {
+          "path": "company_country",
+          "format": "text",
+          "source": "static",
+          "default": "Nederland"
+        },
+        "reservationCode": {
+          "path": "reservationCode",
+          "format": "text",
+          "source": "database",
+          "default": ""
+        },
+        "company_postal_city": {
+          "path": "company_postal_city",
+          "format": "text",
+          "source": "static",
+          "default": "2131 ZA Hoofddorp"
+        }
+      },
+      "formatting": {
+        "locale": "nl_NL",
+        "currency": "EUR",
+        "date_format": "DD-MM-YYYY",
+        "number_decimals": 2
+      },
+      "conditionals": [
+        {
+          "field": "vat_amount",
+          "value": 0,
+          "action": "show",
+          "operator": "gt"
+        },
+        {
+          "field": "tourist_tax",
+          "value": 0,
+          "action": "show",
+          "operator": "gt"
+        }
+      ]
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:18",
+    "updated_at": "2026-01-31 18:14:43"
+  },
+  {
+    "id": 9,
+    "administration": "PeterPrive",
+    "template_type": "toeristenbelasting_html",
+    "template_file_id": "1C3SoJmhxvwUTiXBts1nnYMAdAVQsUx_X",
+    "field_mappings": {
+      "fields": {
+        "naam": {
+          "path": "naam",
+          "type": "string",
+          "description": "Name"
+        },
+        "year": {
+          "path": "year",
+          "type": "string",
+          "description": "Report year"
+        },
+        "datum": {
+          "path": "datum",
+          "type": "string",
+          "format": "date",
+          "description": "Report generation date (DD-MM-YYYY)"
+        },
+        "email": {
+          "path": "email",
+          "type": "string",
+          "format": "email",
+          "description": "Email address"
+        },
+        "plaats": {
+          "path": "plaats",
+          "type": "string",
+          "description": "City/location"
+        },
+        "functie": {
+          "path": "functie",
+          "type": "string",
+          "description": "Function/role"
+        },
+        "next_year": {
+          "path": "next_year",
+          "type": "string",
+          "description": "Next year (for projections)"
+        },
+        "periode_tm": {
+          "path": "periode_tm",
+          "type": "string",
+          "format": "date",
+          "description": "Period end date (31-12-YYYY)"
+        },
+        "periode_van": {
+          "path": "periode_van",
+          "type": "string",
+          "format": "date",
+          "description": "Period start date (1-1-YYYY)"
+        },
+        "totaal_2_3_4": {
+          "path": "totaal_2_3_4",
+          "type": "string",
+          "format": "currency",
+          "description": "Total of items 2, 3, 4"
+        },
+        "aantal_kamers": {
+          "path": "aantal_kamers",
+          "type": "string",
+          "description": "Number of rooms"
+        },
+        "no_show_omzet": {
+          "path": "no_show_omzet",
+          "type": "string",
+          "format": "currency",
+          "description": "No-show revenue"
+        },
+        "telefoonnummer": {
+          "path": "telefoonnummer",
+          "type": "string",
+          "description": "Phone number"
+        },
+        "cancelled_nachten": {
+          "path": "cancelled_nachten",
+          "type": "string",
+          "description": "Cancelled nights"
+        },
+        "bedbezettingsgraad": {
+          "path": "bedbezettingsgraad",
+          "type": "string",
+          "format": "percentage",
+          "description": "Bed occupancy rate"
+        },
+        "aantal_slaapplaatsen": {
+          "path": "aantal_slaapplaatsen",
+          "type": "string",
+          "description": "Number of beds"
+        },
+        "kamerbezettingsgraad": {
+          "path": "kamerbezettingsgraad",
+          "type": "string",
+          "format": "percentage",
+          "description": "Room occupancy rate"
+        },
+        "belastbare_omzet_logies": {
+          "path": "belastbare_omzet_logies",
+          "type": "string",
+          "format": "currency",
+          "description": "Taxable accommodation revenue"
+        },
+        "saldo_toeristenbelasting": {
+          "path": "saldo_toeristenbelasting",
+          "type": "string",
+          "format": "currency",
+          "description": "Total tourist tax collected"
+        },
+        "totaal_verhuurde_nachten": {
+          "path": "totaal_verhuurde_nachten",
+          "type": "string",
+          "description": "Total rented nights"
+        },
+        "totaal_belastbare_nachten": {
+          "path": "totaal_belastbare_nachten",
+          "type": "string",
+          "description": "Total taxable nights"
+        },
+        "verhuurde_kamers_inwoners": {
+          "path": "verhuurde_kamers_inwoners",
+          "type": "string",
+          "description": "Nights rented to residents (always 0)"
+        },
+        "ontvangsten_logies_inwoners": {
+          "path": "ontvangsten_logies_inwoners",
+          "type": "string",
+          "format": "currency",
+          "description": "Revenue from residents (always 0)"
+        },
+        "kortingen_provisie_commissie": {
+          "path": "kortingen_provisie_commissie",
+          "type": "string",
+          "format": "currency",
+          "description": "Service fees/commissions"
+        },
+        "verwachte_belastbare_omzet_volgend_jaar": {
+          "path": "verwachte_belastbare_omzet_volgend_jaar",
+          "type": "string",
+          "format": "currency",
+          "description": "Expected next year revenue"
+        },
+        "ontvangsten_excl_btw_excl_toeristenbelasting": {
+          "path": "ontvangsten_excl_btw_excl_toeristenbelasting",
+          "type": "string",
+          "format": "currency",
+          "description": "Revenue excl. VAT and tourist tax"
+        }
+      },
+      "version": "1.0",
+      "formatting": {
+        "locale": "nl_NL",
+        "currency": "EUR",
+        "date_format": "DD-MM-YYYY",
+        "number_decimals": 2,
+        "decimal_separator": ",",
+        "percentage_decimals": 2,
+        "thousands_separator": "."
+      },
+      "data_source": {
+        "sources": {
+          "bnb_cache": {
+            "fields": [
+              "nights",
+              "amountGross",
+              "amountVat"
+            ],
+            "methods": [
+              "query_by_year()",
+              "query_cancelled_by_year()",
+              "query_realised_by_year()"
+            ],
+            "purpose": "Calculate rental statistics and no-show revenue"
+          },
+          "mutaties_cache": {
+            "purpose": "Calculate tourist tax and revenue components",
+            "accounts": {
+              "4007": "Service fees from booking sites",
+              "8003": "Total revenue (includes VAT and tourist tax)"
+            }
+          }
+        },
+        "description": "Data comes from BNB cache and mutaties cache"
+      },
+      "description": "Toeristenbelasting (Tourist Tax) Declaration HTML Report Template",
+      "calculations": {
+        "tourist_tax": {
+          "formula": "(Account 8003 Total / 106.2) * 6.2",
+          "description": "Extract tourist tax from revenue including VAT and tax"
+        },
+        "occupancy_rates": {
+          "max_nights": "Number of Rooms * 365",
+          "bed_occupancy": "Room Occupancy * 0.90",
+          "room_occupancy": "(Realised Nights / Max Nights) * 100"
+        },
+        "taxable_revenue": {
+          "formula": "[1] - ([2] + [3] + [4])",
+          "description": "Revenue minus residents, fees, and no-show amounts"
+        },
+        "next_year_projection": {
+          "formula": "Taxable Revenue * 1.05",
+          "description": "Simple 5% increase for planning"
+        },
+        "revenue_excl_vat_tax": {
+          "formula": "Account 8003 Total - Tourist Tax",
+          "description": "Revenue excluding VAT and tourist tax"
+        }
+      },
+      "output_format": "html",
+      "template_type": "toeristenbelasting_html",
+      "output_storage": {
+        "note": "User can choose destination when generating report",
+        "default_destination": "download",
+        "google_drive_folder": "Reports/Toeristenbelasting",
+        "available_destinations": [
+          "download",
+          "google_drive"
+        ]
+      },
+      "template_location": {
+        "note": "Template file ID is stored in tenant_template_config table",
+        "file_id": "STORED_IN_tenant_template_config.template_file_id",
+        "storage_type": "google_drive"
+      }
+    },
+    "version": 1,
+    "approved_by": null,
+    "approved_at": null,
+    "approval_notes": null,
+    "previous_file_id": null,
+    "status": "active",
+    "is_active": 1,
+    "created_at": "2026-01-31 15:58:15",
+    "updated_at": "2026-01-31 16:17:00"
+  }
+]

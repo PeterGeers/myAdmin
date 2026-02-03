@@ -17,6 +17,7 @@ import type {
   RejectionResponse,
   ApplyFixesResponse,
   FieldMappings,
+  CurrentTemplateResponse,
 } from '../types/template';
 
 // Re-export types from the types file
@@ -31,6 +32,7 @@ export type {
   RejectionResponse,
   ApplyFixesResponse,
   FieldMappings,
+  CurrentTemplateResponse,
 } from '../types/template';
 
 /**
@@ -205,6 +207,27 @@ export async function applyAIFixes(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Failed to apply AI fixes');
+  }
+
+  return response.json();
+}
+
+/**
+ * Get the current active template for a template type
+ * 
+ * @param templateType - Type of template to retrieve
+ * @returns Current template response with content and metadata
+ */
+export async function getCurrentTemplate(
+  templateType: TemplateType
+): Promise<CurrentTemplateResponse> {
+  const response = await authenticatedRequest(`/api/tenant-admin/templates/${templateType}`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to get current template');
   }
 
   return response.json();

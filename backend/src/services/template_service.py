@@ -477,9 +477,16 @@ class TemplateService:
             Formatted number string
         """
         try:
-            decimals = formatting.get('number_decimals', 2)
             numeric_value = float(value)
-            return f"{numeric_value:,.{decimals}f}"
+            
+            # Check if it's a whole number (integer)
+            if numeric_value == int(numeric_value):
+                # Format as integer without decimals
+                return str(int(numeric_value))
+            else:
+                # Format with decimals
+                decimals = formatting.get('number_decimals', 2)
+                return f"{numeric_value:,.{decimals}f}"
         except Exception as e:
             logger.warning(f"Failed to format number: {e}")
             return str(value)

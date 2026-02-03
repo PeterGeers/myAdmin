@@ -1,0 +1,15 @@
+{
+  "workspace": {
+    "id": "e5123b85-2d0d-47c4-8586-d7ddcca0b0f5",
+    "name": "Peter's Workspace"
+  },
+  "collections": [
+    {
+      "id": "48572055-7f362ad3-ac67-4f81-9f20-d14ee17bf356",
+      "name": "Kiro Test Collection",
+      "description": "Sample test collection created via Kiro"
+    }
+  ],
+  "environments": [],
+  "notes": "This file stores Postman workspace, collection, and environment IDs for automated testing. Update this file when you create new collections or environments."
+}

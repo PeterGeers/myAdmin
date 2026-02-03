@@ -43,6 +43,12 @@ tags:
     description: Financial reporting
   - name: Health
     description: Service health monitoring
+  - name: Tenant Administration
+    description: Tenant configuration and user management (Tenant_Admin only)
+  - name: Template Management
+    description: Template preview, validation, and AI-assisted editing (Tenant_Admin only)
+  - name: Tenant Module Management
+    description: Tenant module access control
 
 paths:
   /health:
@@ -342,6 +348,350 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  # Tenant Administration Endpoints
+  /tenant/config:
+    get:
+      tags:
+        - Tenant Administration
+      summary: Get tenant configuration
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      responses:
+        '200':
+          description: Tenant configuration retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  tenant:
+                    type: string
+                  configs:
+                    type: array
+                    items:
+                      type: object
+        '403':
+          description: Tenant admin access required
+    post:
+      tags:
+        - Tenant Administration
+      summary: Set tenant configuration
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - config_key
+                - config_value
+              properties:
+                config_key:
+                  type: string
+                config_value:
+                  type: string
+                is_secret:
+                  type: boolean
+      responses:
+        '200':
+          description: Configuration updated
+        '403':
+          description: Tenant admin access required
+
+  /tenant/users:
+    get:
+      tags:
+        - Tenant Administration
+      summary: Get tenant users
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      responses:
+        '200':
+          description: Tenant users retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  users:
+                    type: array
+                    items:
+                      type: object
+        '403':
+          description: Tenant admin access required
+
+  /tenant/users/{username}/roles:
+    post:
+      tags:
+        - Tenant Administration
+      summary: Assign role to user
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum: [Finance_CRUD, Finance_Read, Finance_Export, STR_CRUD, STR_Read, STR_Export]
+      responses:
+        '200':
+          description: Role assigned successfully
+        '403':
+          description: Tenant admin access required
+
+  # Template Management Endpoints
+  /tenant-admin/templates/{template_type}:
+    get:
+      tags:
+        - Template Management
+      summary: Get current active template
+      description: Retrieve the currently active template content and metadata
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: template_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [str_invoice_nl, str_invoice_en, btw_aangifte, aangifte_ib, toeristenbelasting, financial_report]
+      responses:
+        '200':
+          description: Template retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  template_type:
+                    type: string
+                  template_content:
+                    type: string
+                  field_mappings:
+                    type: object
+                  metadata:
+                    type: object
+        '404':
+          description: No active template found
+        '403':
+          description: Tenant admin access required
+
+  /tenant-admin/templates/preview:
+    post:
+      tags:
+        - Template Management
+      summary: Generate template preview with sample data
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_type
+                - template_content
+              properties:
+                template_type:
+                  type: string
+                  enum: [str_invoice_nl, str_invoice_en, btw_aangifte, aangifte_ib, toeristenbelasting]
+                template_content:
+                  type: string
+                field_mappings:
+                  type: object
+      responses:
+        '200':
+          description: Preview generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  preview_html:
+                    type: string
+                  validation:
+                    type: object
+        '400':
+          description: Validation failed
+        '403':
+          description: Tenant admin access required
+
+  /tenant-admin/templates/validate:
+    post:
+      tags:
+        - Template Management
+      summary: Validate template (faster than preview)
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_type
+                - template_content
+              properties:
+                template_type:
+                  type: string
+                template_content:
+                  type: string
+      responses:
+        '200':
+          description: Validation completed
+        '403':
+          description: Tenant admin access required
+
+  /tenant-admin/templates/approve:
+    post:
+      tags:
+        - Template Management
+      summary: Approve and activate template
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_type
+                - template_content
+              properties:
+                template_type:
+                  type: string
+                template_content:
+                  type: string
+                field_mappings:
+                  type: object
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Template approved and activated
+        '403':
+          description: Tenant admin access required
+
+  /tenant-admin/templates/ai-help:
+    post:
+      tags:
+        - Template Management
+      summary: Get AI-powered fix suggestions
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_type
+                - template_content
+                - validation_errors
+              properties:
+                template_type:
+                  type: string
+                template_content:
+                  type: string
+                validation_errors:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: AI suggestions generated
+        '403':
+          description: Tenant admin access required
+
+  # Tenant Module Management
+  /tenant/modules:
+    get:
+      tags:
+        - Tenant Module Management
+      summary: Get tenant module access
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      responses:
+        '200':
+          description: Module access retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  modules:
+                    type: object
+                    properties:
+                      Finance:
+                        type: boolean
+                      STR:
+                        type: boolean
+    post:
+      tags:
+        - Tenant Module Management
+      summary: Update tenant module access
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - module
+                - enabled
+              properties:
+                module:
+                  type: string
+                  enum: [Finance, STR]
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Module access updated
+        '403':
+          description: Tenant admin access required
 
 components:
   securitySchemes:

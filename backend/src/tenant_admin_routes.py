@@ -504,6 +504,133 @@ def remove_tenant_role_endpoint(username, role, user_email, user_roles):
 # ============================================================================
 
 
+@tenant_admin_bp.route('/api/tenant-admin/templates/<template_type>', methods=['GET'])
+@cognito_required(required_permissions=[])
+def get_current_template_endpoint(template_type, user_email, user_roles):
+    """
+    Get current active template (Tenant_Admin only)
+    
+    Returns the currently active template content and metadata for the specified type.
+    
+    Path parameters:
+        template_type: Type of template (str_invoice_nl, btw_aangifte, etc.)
+    
+    Returns:
+    {
+        "success": true,
+        "template_type": "str_invoice_nl",
+        "template_content": "<html>...</html>",
+        "field_mappings": {},
+        "metadata": {
+            "file_id": "1abc...xyz",
+            "version": 2,
+            "approved_by": "admin@example.com",
+            "approved_at": "2026-02-01T12:00:00",
+            "is_active": true
+        }
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+        
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+        
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+        
+        # Validate template type
+        valid_types = ['str_invoice_nl', 'str_invoice_en', 'btw_aangifte', 'aangifte_ib', 'toeristenbelasting', 'financial_report']
+        if template_type not in valid_types:
+            return jsonify({
+                'error': 'Invalid template type',
+                'valid_types': valid_types
+            }), 400
+        
+        # Get database connection
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        # Get template metadata from database
+        query = """
+            SELECT template_file_id, field_mappings, version, approved_by, 
+                   approved_at, is_active, status
+            FROM tenant_template_config
+            WHERE administration = %s AND template_type = %s AND is_active = TRUE
+            ORDER BY version DESC
+            LIMIT 1
+        """
+        result = db.execute_query(query, [tenant, template_type], fetch=True)
+        
+        if not result or len(result) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No active template found',
+                'message': f'No active template found for type: {template_type}',
+                'template_type': template_type
+            }), 404
+        
+        template_metadata = result[0]
+        file_id = template_metadata.get('template_file_id')
+        
+        # Fetch template content from Google Drive
+        try:
+            from google_drive_service import GoogleDriveService
+            drive_service = GoogleDriveService(administration=tenant)
+            template_content = drive_service.download_file_content(file_id)
+        except Exception as e:
+            logger.error(f"Error fetching template from Google Drive: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to fetch template from Google Drive',
+                'details': str(e)
+            }), 500
+        
+        # Parse field mappings (stored as JSON)
+        field_mappings = template_metadata.get('field_mappings')
+        if isinstance(field_mappings, str):
+            try:
+                field_mappings = json.loads(field_mappings)
+            except:
+                field_mappings = {}
+        
+        # Audit log
+        logger.info(
+            f"AUDIT: Template retrieved by {user_email} for {tenant}, "
+            f"type={template_type}, file_id={file_id}"
+        )
+        
+        # Return template data
+        return jsonify({
+            'success': True,
+            'template_type': template_type,
+            'template_content': template_content,
+            'field_mappings': field_mappings or {},
+            'metadata': {
+                'file_id': file_id,
+                'version': template_metadata.get('version', 1),
+                'approved_by': template_metadata.get('approved_by'),
+                'approved_at': str(template_metadata.get('approved_at')) if template_metadata.get('approved_at') else None,
+                'is_active': template_metadata.get('is_active', True),
+                'status': template_metadata.get('status', 'active')
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting current template: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
 @tenant_admin_bp.route('/api/tenant-admin/templates/preview', methods=['POST'])
 @cognito_required(required_permissions=[])
 def preview_template_endpoint(user_email, user_roles):

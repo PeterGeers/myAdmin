@@ -341,6 +341,49 @@ export interface ApplyAIFixesRequest {
 }
 
 /**
+ * Current template response structure
+ * 
+ * Response from get current template API endpoint.
+ */
+export interface CurrentTemplateResponse {
+  /** Whether the request was successful */
+  success: boolean;
+  
+  /** Template type */
+  template_type: TemplateType;
+  
+  /** Template HTML content */
+  template_content: string;
+  
+  /** Custom field mappings (if any) */
+  field_mappings?: FieldMappings;
+  
+  /** Template metadata */
+  metadata: {
+    /** Template version */
+    version: string;
+    
+    /** Approval date */
+    approved_at: string;
+    
+    /** Approved by user */
+    approved_by: string;
+    
+    /** Google Drive file ID */
+    file_id: string;
+    
+    /** Template status */
+    status: string;
+    
+    /** Optional approval notes */
+    notes?: string;
+  };
+  
+  /** Success message */
+  message: string;
+}
+
+/**
  * Template type labels
  * 
  * Human-readable labels for template types.
