@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"match": "069e847ec1cb0c76456945581d4a5b3ebda17c6828e14cbf2acf8f23a40b2459", "name": "Username Password - c:\\Users\\peter\\aws\\myAdmin\\.vscode\\settings.json"}]}
+{"last_found_secrets": [{"name": "Username Password - commit://staged/.vscode/settings.json", "match": "069e847ec1cb0c76456945581d4a5b3ebda17c6828e14cbf2acf8f23a40b2459"}]}
