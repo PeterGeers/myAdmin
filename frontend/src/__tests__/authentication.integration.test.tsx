@@ -399,8 +399,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should allow access when user has any of the required roles', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAccountantUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockAccountantToken));
+      setupAuthenticatedMocks(mockAccountantUser, mockAccountantToken, ['Accountants']);
 
       const MultiRoleComponent = () => <div>Multi Role Content</div>;
 
