@@ -381,8 +381,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should show unauthorized page with role information', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockViewerUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockViewerToken));
+      setupAuthenticatedMocks(mockViewerUser, mockViewerToken, ['Viewers']);
 
       const AdminComponent = () => <div>Admin Only Content</div>;
 
