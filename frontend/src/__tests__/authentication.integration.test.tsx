@@ -269,8 +269,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should redirect to login after logout', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAdminUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockAdminToken));
+      setupAuthenticatedMocks(mockAdminUser, mockAdminToken, ['Administrators']);
       (signOut as jest.Mock).mockResolvedValue(undefined);
 
       const TestComponent = () => {
