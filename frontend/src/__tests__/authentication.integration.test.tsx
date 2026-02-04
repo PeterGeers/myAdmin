@@ -417,8 +417,7 @@ describe('Authentication Integration Tests', () => {
 
   describe('Logout Functionality', () => {
     it('should successfully logout user', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAdminUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockAdminToken));
+      setupAuthenticatedMocks(mockAdminUser, mockAdminToken, ['Administrators']);
       (signOut as jest.Mock).mockResolvedValue(undefined);
 
       renderWithProviders(<Unauthorized requiredRoles={['Administrators']} />);
