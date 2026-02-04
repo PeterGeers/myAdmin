@@ -348,8 +348,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should allow viewer access to reports only', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockViewerUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockViewerToken));
+      setupAuthenticatedMocks(mockViewerUser, mockViewerToken, ['Viewers']);
 
       const ReportsComponent = () => <div>Reports Content</div>;
 
