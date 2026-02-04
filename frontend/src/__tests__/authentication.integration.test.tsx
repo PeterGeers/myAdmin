@@ -364,8 +364,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should block viewer from accessing admin pages', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockViewerUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockViewerToken));
+      setupAuthenticatedMocks(mockViewerUser, mockViewerToken, ['Viewers']);
 
       const AdminComponent = () => <div>Admin Only Content</div>;
 
