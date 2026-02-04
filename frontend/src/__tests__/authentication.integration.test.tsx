@@ -146,6 +146,17 @@ const setupAuthenticatedMocks = (user: any, token: string, roles: string[]) => {
   (authService.getCurrentUserName as jest.Mock).mockResolvedValue(user.username);
   (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue(roles);
   (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue(['tenant1']);
+  
+  // Mock role checking functions
+  (authService.hasRole as jest.Mock).mockImplementation((userRoles: string[], requiredRole: string) => 
+    roles.includes(requiredRole)
+  );
+  (authService.hasAnyRole as jest.Mock).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
+    requiredRoles.some(role => roles.includes(role))
+  );
+  (authService.hasAllRoles as jest.Mock).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
+    requiredRoles.every(role => roles.includes(role))
+  );
 };
 
 // Helper to setup unauthenticated state mocks
@@ -305,8 +316,7 @@ describe('Authentication Integration Tests', () => {
 
   describe('Role-Based Access Control', () => {
     it('should allow admin access to all pages', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAdminUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockAdminToken));
+      setupAuthenticatedMocks(mockAdminUser, mockAdminToken, ['Administrators']);
 
       const AdminComponent = () => <div>Admin Only Content</div>;
 
@@ -322,8 +332,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should allow accountant access to financial pages', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAccountantUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockAccountantToken));
+      setupAuthenticatedMocks(mockAccountantUser, mockAccountantToken, ['Accountants']);
 
       const FinancialComponent = () => <div>Financial Content</div>;
 
