@@ -95,12 +95,20 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
       
       try {
         const response = await getCurrentTemplate(templateType);
-        setCurrentTemplate(response);
         
-        // Auto-load field mappings from current template
-        if (response.field_mappings && Object.keys(response.field_mappings).length > 0) {
-          setFieldMappings(JSON.stringify(response.field_mappings, null, 2));
+        // Check if response is successful and has template data
+        if (response.success && response.template_content) {
+          setCurrentTemplate(response);
+          
+          // Auto-load field mappings from current template
+          if (response.field_mappings && Object.keys(response.field_mappings).length > 0) {
+            setFieldMappings(JSON.stringify(response.field_mappings, null, 2));
+          } else {
+            setFieldMappings('{}');
+          }
         } else {
+          // No template found or unsuccessful response
+          setCurrentTemplate(null);
           setFieldMappings('{}');
         }
       } catch (err) {
@@ -191,7 +199,7 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
    * Download current template
    */
   const handleDownloadCurrent = () => {
-    if (!currentTemplate) return;
+    if (!currentTemplate || !currentTemplate.success || !currentTemplate.template_content) return;
 
     const blob = new Blob([currentTemplate.template_content], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -288,6 +296,10 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
     try {
       const response = await getCurrentTemplate(templateType as TemplateType);
       
+      if (!response.success || !response.template_content) {
+        throw new Error('No active template found');
+      }
+      
       // Create a File object from the template content
       const blob = new Blob([response.template_content], { type: 'text/html' });
       const file = new File([blob], `${templateType}_current.html`, { type: 'text/html' });
@@ -358,7 +370,7 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
               <Spinner size="sm" />
               <Text fontSize="sm" color="gray.400">Loading current template...</Text>
             </HStack>
-          ) : currentTemplate ? (
+          ) : currentTemplate && currentTemplate.success && currentTemplate.metadata ? (
             <Alert status="info" variant="left-accent" bg="blue.900" borderColor="blue.500">
               <AlertIcon />
               <Box flex="1">

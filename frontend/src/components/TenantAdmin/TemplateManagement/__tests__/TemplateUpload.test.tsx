@@ -8,11 +8,25 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TemplateUpload } from '../TemplateUpload';
+import * as templateApi from '../../../../services/templateApi';
+
+// Mock the template API
+jest.mock('../../../../services/templateApi', () => ({
+  getCurrentTemplate: jest.fn(),
+  TemplateType: {
+    STR_INVOICE_NL: 'str_invoice_nl',
+    STR_INVOICE_EN: 'str_invoice_en',
+    BTW_AANGIFTE: 'btw_aangifte',
+    AANGIFTE_IB: 'aangifte_ib',
+    TOERISTENBELASTING: 'toeristenbelasting',
+    FINANCIAL_REPORT: 'financial_report',
+  },
+}));
 
 // Mock Chakra UI components to avoid dependency issues
 jest.mock('@chakra-ui/react', () => ({
   Box: ({ children, ...props }: any) => {
-    const { bg, p, borderRadius, ...domProps } = props;
+    const { bg, p, borderRadius, flex, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
   },
   VStack: ({ children, ...props }: any) => {
@@ -20,18 +34,18 @@ jest.mock('@chakra-ui/react', () => ({
     return <div {...domProps}>{children}</div>;
   },
   HStack: ({ children, ...props }: any) => {
-    const { spacing, ...domProps } = props;
+    const { spacing, mt, borderRadius, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
   },
   Heading: ({ children }: any) => <h1>{children}</h1>,
   Text: ({ children, ...props }: any) => {
-    const { fontSize, color, ...domProps } = props;
+    const { fontSize, color, fontWeight, mb, ...domProps } = props;
     return <p {...domProps}>{children}</p>;
   },
   Button: ({ children, onClick, ...props }: any) => {
-    const { isDisabled, isLoading, loadingText } = props;
+    const { isDisabled, isLoading, loadingText, colorScheme, size, variant, ...domProps } = props;
     return (
-      <button onClick={onClick} disabled={isDisabled || isLoading}>
+      <button onClick={onClick} disabled={isDisabled || isLoading} {...domProps}>
         {isLoading && loadingText ? loadingText : children}
       </button>
     );
@@ -41,7 +55,7 @@ jest.mock('@chakra-ui/react', () => ({
     return <input {...domProps} style={display === 'none' ? { display: 'none' } : undefined} />;
   },
   Textarea: ({ ...props }: any) => {
-    const { fontFamily, fontSize, bg, rows, isDisabled, ...domProps } = props;
+    const { fontFamily, fontSize, bg, rows, isDisabled, minHeight, whiteSpace, overflowX, resize, ...domProps } = props;
     return <textarea rows={rows} disabled={isDisabled} {...domProps} />;
   },
   Select: ({ children, ...props }: any) => {
@@ -54,13 +68,43 @@ jest.mock('@chakra-ui/react', () => ({
     );
   },
   FormControl: ({ children, ...props }: any) => {
-    const { isInvalid } = props;
-    return <div data-invalid={isInvalid}>{children}</div>;
+    const { isInvalid, isRequired, ...domProps } = props;
+    return <div data-invalid={isInvalid} {...domProps}>{children}</div>;
   },
-  FormLabel: ({ children }: any) => <label>{children}</label>,
-  FormHelperText: ({ children }: any) => <div>{children}</div>,
+  FormLabel: ({ children, ...props }: any) => {
+    const { fontSize, ...domProps } = props;
+    return <label {...domProps}>{children}</label>;
+  },
+  FormHelperText: ({ children, ...props }: any) => {
+    const { color, fontSize, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
   FormErrorMessage: ({ children }: any) => <div role="alert">{children}</div>,
-  Collapse: ({ children }: any) => <div>{children}</div>,
+  Alert: ({ children, ...props }: any) => {
+    const { status, variant, bg, borderColor, ...domProps } = props;
+    return <div role="alert" data-status={status} {...domProps}>{children}</div>;
+  },
+  AlertIcon: () => <span>ℹ️</span>,
+  AlertTitle: ({ children, ...props }: any) => {
+    const { fontSize, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
+  AlertDescription: ({ children, ...props }: any) => {
+    const { fontSize, color, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
+  Spinner: ({ ...props }: any) => {
+    const { size, ...domProps } = props;
+    return <div role="status" {...domProps}>Loading...</div>;
+  },
+  Badge: ({ children, ...props }: any) => {
+    const { colorScheme, ml, fontSize, ...domProps } = props;
+    return <span {...domProps}>{children}</span>;
+  },
+  Collapse: ({ children, ...props }: any) => {
+    const { animateOpacity, in: inProp, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
   Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
   useDisclosure: () => ({
     isOpen: true,  // Always open in tests
@@ -68,13 +112,22 @@ jest.mock('@chakra-ui/react', () => ({
     onClose: jest.fn(),
     onToggle: jest.fn(),
   }),
+  useToast: () => jest.fn(),
 }));
 
 describe('TemplateUpload', () => {
   const mockOnUpload = jest.fn();
+  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as jest.MockedFunction<typeof templateApi.getCurrentTemplate>;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Mock getCurrentTemplate to throw error (404) when no template found
+    mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
   });
 
   describe('Rendering', () => {
@@ -263,15 +316,11 @@ describe('TemplateUpload', () => {
       const toggleButton = screen.getByRole('button', { name: /advanced: field mappings/i });
       await user.click(toggleButton);
       
-      // Enter invalid JSON
-      const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
-      await user.clear(textarea);
-      fireEvent.change(textarea, { target: { value: '{invalid json}' } });
-      
-      // Try to upload
+      // Select template type first
       const select = screen.getByRole('combobox', { name: /template type/i });
       await user.selectOptions(select, 'str_invoice_nl');
       
+      // Upload a valid file
       const file = new File(['<html><body>Test</body></html>'], 'template.html', {
         type: 'text/html',
       });
@@ -279,6 +328,11 @@ describe('TemplateUpload', () => {
       Object.defineProperty(input, 'files', { value: [file], writable: false });
       fireEvent.change(input);
       
+      // Enter invalid JSON in the textarea using fireEvent (userEvent has issues with curly braces)
+      const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
+      fireEvent.change(textarea, { target: { value: '{invalid json}' } });
+      
+      // Try to upload
       const uploadButton = screen.getByRole('button', { name: /upload & preview template/i });
       await user.click(uploadButton);
       

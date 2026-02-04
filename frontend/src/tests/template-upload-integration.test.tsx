@@ -8,6 +8,20 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TemplateUpload } from '../components/TenantAdmin/TemplateManagement/TemplateUpload';
+import * as templateApi from '../services/templateApi';
+
+// Mock the template API
+jest.mock('../services/templateApi', () => ({
+  getCurrentTemplate: jest.fn(),
+  TemplateType: {
+    STR_INVOICE_NL: 'str_invoice_nl',
+    STR_INVOICE_EN: 'str_invoice_en',
+    BTW_AANGIFTE: 'btw_aangifte',
+    AANGIFTE_IB: 'aangifte_ib',
+    TOERISTENBELASTING: 'toeristenbelasting',
+    FINANCIAL_REPORT: 'financial_report',
+  },
+}));
 
 // Mock Chakra UI
 jest.mock('@chakra-ui/react', () => ({
@@ -16,16 +30,16 @@ jest.mock('@chakra-ui/react', () => ({
     return <div {...domProps}>{children}</div>;
   },
   VStack: ({ children, ...props }: any) => {
-    const { spacing, align, ...domProps } = props;
+    const { spacing, align, color, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
   },
   HStack: ({ children, ...props }: any) => {
-    const { spacing, flex, ...domProps } = props;
+    const { spacing, flex, mt, borderRadius, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
   },
   Heading: ({ children }: any) => <h1>{children}</h1>,
   Text: ({ children, ...props }: any) => {
-    const { fontSize, color, fontWeight, ...domProps } = props;
+    const { fontSize, color, fontWeight, mb, ...domProps } = props;
     return <p {...domProps}>{children}</p>;
   },
   Button: ({ children, onClick, ...props }: any) => {
@@ -41,14 +55,17 @@ jest.mock('@chakra-ui/react', () => ({
     return <input {...domProps} style={display === 'none' ? { display: 'none' } : undefined} />;
   },
   Textarea: ({ ...props }: any) => {
-    const { fontFamily, fontSize, bg, isDisabled, ...domProps } = props;
+    const { fontFamily, fontSize, bg, isDisabled, minHeight, whiteSpace, overflowX, resize, ...domProps } = props;
     return <textarea disabled={isDisabled} {...domProps} />;
   },
   Select: ({ children, ...props }: any) => {
-    const { isDisabled, ...domProps } = props;
-    return <select disabled={isDisabled} {...domProps}>{children}</select>;
+    const { isDisabled, placeholder, ...domProps } = props;
+    return <select disabled={isDisabled} {...domProps}>{placeholder && <option value="">{placeholder}</option>}{children}</select>;
   },
-  FormControl: ({ children }: any) => <div>{children}</div>,
+  FormControl: ({ children, ...props }: any) => {
+    const { isInvalid, isRequired, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
   FormLabel: ({ children, ...props }: any) => {
     const { fontSize, ...domProps } = props;
     return <label {...domProps}>{children}</label>;
@@ -58,7 +75,31 @@ jest.mock('@chakra-ui/react', () => ({
     const { color, fontSize, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
   },
-  Collapse: ({ children }: any) => <div>{children}</div>,
+  Alert: ({ children, ...props }: any) => {
+    const { status, variant, bg, borderColor, ...domProps } = props;
+    return <div role="alert" data-status={status} {...domProps}>{children}</div>;
+  },
+  AlertIcon: () => <span>ℹ️</span>,
+  AlertTitle: ({ children, ...props }: any) => {
+    const { fontSize, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
+  AlertDescription: ({ children, ...props }: any) => {
+    const { fontSize, color, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
+  Spinner: ({ ...props }: any) => {
+    const { size, ...domProps } = props;
+    return <div role="status" {...domProps}>Loading...</div>;
+  },
+  Badge: ({ children, ...props }: any) => {
+    const { colorScheme, ml, fontSize, ...domProps } = props;
+    return <span {...domProps}>{children}</span>;
+  },
+  Collapse: ({ children, ...props }: any) => {
+    const { animateOpacity, in: inProp, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
   Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
   useDisclosure: () => ({
     isOpen: true,
@@ -66,13 +107,22 @@ jest.mock('@chakra-ui/react', () => ({
     onClose: jest.fn(),
     onToggle: jest.fn(),
   }),
+  useToast: () => jest.fn(),
 }));
 
 describe('Template Upload Integration Tests', () => {
   const mockOnUpload = jest.fn();
+  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as jest.MockedFunction<typeof templateApi.getCurrentTemplate>;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Mock getCurrentTemplate to throw error (404) when no template found
+    mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
   });
 
   describe('Complete Upload Flow', () => {
@@ -217,7 +267,7 @@ describe('Template Upload Integration Tests', () => {
 
       // Error should be displayed
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(/invalid json format/i);
+        expect(screen.getByText(/invalid json format/i)).toBeInTheDocument();
       });
 
       // Callback should not have been called
