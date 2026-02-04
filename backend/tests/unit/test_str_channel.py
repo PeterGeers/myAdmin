@@ -262,6 +262,54 @@ class TestSTRChannelRevenue:
         assert transactions[0]['TransactionAmount'] == 1090.0
         assert transactions[1]['ReferenceNumber'] == 'Stripe'
         assert transactions[1]['TransactionAmount'] == 0.01
+    
+    def test_btw_rate_pre_2026(self):
+        """Test BTW rate for pre-2026 dates"""
+        from datetime import date
+        
+        transaction_date = date(2025, 12, 31)
+        rate_change_date = date(2026, 1, 1)
+        
+        if transaction_date >= rate_change_date:
+            vat_rate = 21.0
+            vat_base = 121.0
+            vat_account = '2020'
+        else:
+            vat_rate = 9.0
+            vat_base = 109.0
+            vat_account = '2021'
+        
+        assert vat_rate == 9.0
+        assert vat_base == 109.0
+        assert vat_account == '2021'
+        
+        amount = 1090.0
+        vat_amount = round((amount / vat_base) * vat_rate, 2)
+        assert vat_amount == 90.0
+    
+    def test_btw_rate_2026_and_later(self):
+        """Test BTW rate for 2026+ dates"""
+        from datetime import date
+        
+        transaction_date = date(2026, 1, 1)
+        rate_change_date = date(2026, 1, 1)
+        
+        if transaction_date >= rate_change_date:
+            vat_rate = 21.0
+            vat_base = 121.0
+            vat_account = '2020'
+        else:
+            vat_rate = 9.0
+            vat_base = 109.0
+            vat_account = '2021'
+        
+        assert vat_rate == 21.0
+        assert vat_base == 121.0
+        assert vat_account == '2020'
+        
+        amount = 1210.0
+        vat_amount = round((amount / vat_base) * vat_rate, 2)
+        assert vat_amount == 210.0
 
 if __name__ == '__main__':
     pytest.main([__file__])

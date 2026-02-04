@@ -98,15 +98,30 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
             }
             transactions.append(revenue_transaction)
             
-            # VAT transaction (9% of revenue / 109 * 9)
-            vat_amount = round((amount / 109) * 9, 2)
+            # Determine BTW rate and account based on transaction date
+            from datetime import date
+            
+            transaction_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            rate_change_date = date(2026, 1, 1)
+            
+            if transaction_date >= rate_change_date:
+                vat_rate = 21.0
+                vat_base = 121.0
+                vat_account = '2020'
+            else:
+                vat_rate = 9.0
+                vat_base = 109.0
+                vat_account = '2021'
+            
+            # VAT transaction with date-based rate and account
+            vat_amount = round((amount / vat_base) * vat_rate, 2)
             vat_transaction = {
                 'TransactionDate': end_date,
                 'TransactionNumber': f"{row['ReferenceNumber']} {end_date}",
                 'TransactionDescription': f"{row['ReferenceNumber']} Btw {end_date}",
                 'TransactionAmount': vat_amount,
                 'Debet': '8003',
-                'Credit': '2021',
+                'Credit': vat_account,
                 'ReferenceNumber': row['ReferenceNumber'],
                 'Ref1': ref1,
                 'Ref2': '',

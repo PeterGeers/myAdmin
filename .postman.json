@@ -8,8 +8,19 @@
       "id": "48572055-7f362ad3-ac67-4f81-9f20-d14ee17bf356",
       "name": "Kiro Test Collection",
       "description": "Sample test collection created via Kiro"
+    },
+    {
+      "id": "48572055-5503c5e8-0a58-4528-9434-724e05327e2c",
+      "name": "STR Channel Revenue API - BTW Rate Testing (Fixed)",
+      "description": "Tests STR Channel Revenue API with X-Tenant header included"
     }
   ],
-  "environments": [],
-  "notes": "This file stores Postman workspace, collection, and environment IDs for automated testing. Update this file when you create new collections or environments."
+  "environments": [
+    {
+      "id": "48572055-b5badd2a-5904-4fed-8ada-9dd1fd59235d",
+      "name": "myAdmin Local",
+      "description": "Local development environment for myAdmin backend with valid JWT token"
+    }
+  ],
+  "notes": "Updated collection with X-Tenant header. Run in Postman Desktop App with 'myAdmin Local' environment selected."
 }

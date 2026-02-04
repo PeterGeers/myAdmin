@@ -25,6 +25,7 @@
 - React Testing Library 16.3.0
 - MSW 2.11.6 (API mocking)
 - fast-check 4.4.0 (property-based testing)
+= AGENT HOOKS API Postman Testing for endpoints
 
 **Build**: Create React App 5.0.1
 
