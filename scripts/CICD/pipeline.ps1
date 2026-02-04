@@ -121,17 +121,18 @@ if (-not $SkipGit) {
                 . "$PSScriptRoot/../security/Invoke-GitGuardianScan.ps1"
                 $scanResult = Invoke-GitGuardianScan -AllowSkip $false -UseWriteLog $true
                 
-                if ($scanResult -ne 0) {
-                    if (-not $Force) {
-                        $override = Read-Host "Override security check and continue anyway? (type 'OVERRIDE' to continue)"
-                        if ($override -ne "OVERRIDE") {
-                            Exit-WithError "Pipeline stopped due to security scan failure"
-                        }
-                        Write-Log "⚠ Security check overridden by user" "WARN"
+                if ($scanResult -eq 1) {
+                    # GitGuardian detected secrets - ALWAYS stop, even in Force mode
+                    Write-Log "❌ CRITICAL: GitGuardian detected secrets in your code!" "ERROR"
+                    Write-Log "This is a security issue that must be fixed before continuing." "ERROR"
+                    Write-Log "" "ERROR"
+                    
+                    if ($Force) {
+                        Write-Log "⚠️  Force mode does NOT bypass security checks for secrets!" "ERROR"
+                        Write-Log "Secrets must be removed before deployment can proceed." "ERROR"
                     }
-                    else {
-                        Write-Log "⚠ Force mode: Continuing despite security scan failure" "WARN"
-                    }
+                    
+                    Exit-WithError "Pipeline stopped due to security scan failure - secrets detected"
                 }
                 
                 Write-Log "" "INFO"
