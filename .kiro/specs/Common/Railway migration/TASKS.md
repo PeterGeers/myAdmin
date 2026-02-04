@@ -635,58 +635,14 @@ This document breaks down the Railway migration into manageable phases with deta
   - [x] Include authentication requirements
   - [x] Include error codes and messages
 
-- [ ] Create user guide for Tenant Administrators
-  - [ ] How to upload a template
-  - [ ] Understanding validation errors
-  - [ ] Using AI assistance
-  - [ ] Field mapping reference for each template type
-  - [ ] Best practices for template customization
-  - [ ] Troubleshooting common issues
-
-- [ ] Create developer documentation
-  - [ ] Architecture overview
-  - [ ] Adding new template types
-  - [ ] Adding new validation rules
-  - [ ] Extending AI assistance
-  - [ ] Testing guide
-
-- [ ] Update README files
-  - [ ] Update main README with new feature
-  - [ ] Update backend README with new services
-  - [ ] Update frontend README with new components
-
 ##### 2.6.9 Deployment
 
-- [ ] Environment Configuration (stll local not on railway as it does not exists yet)
+- [x] Environment Configuration (stll local not on railway as it does not exists yet)
   - For later Add `OPENROUTER_API_KEY` to Railway environment (phase 5)
-  - [ ] Add `TEMPLATE_MAX_SIZE_MB=5` to environment
-  - [ ] Add `TEMPLATE_PREVIEW_TIMEOUT=30` to environment
-  - [ ] Document all new environment variables
+  - [x] Add `TEMPLATE_MAX_SIZE_MB=5` to environment
+  - [x] Add `TEMPLATE_PREVIEW_TIMEOUT=30` to environment
+  - [x] Document all new environment variables
 
-- [ ] Database Migration
-  - [ ] Create migration script for schema changes
-  - [ ] Test migration on staging database
-  - [ ] Run migration on production database
-  - [ ] Verify data integrity after migration
-
-- [ ] Deploy Backend
-  - [ ] Deploy new services and routes to Railway
-  - [ ] Verify all endpoints are accessible
-  - [ ] Test with staging data
-  - [ ] Monitor logs for errors
-
-- [ ] Deploy Frontend
-  - [ ] Build production bundle
-  - [ ] Deploy to hosting (Railway/Vercel)
-  - [ ] Verify all components load correctly
-  - [ ] Test user flows in production
-
-- [ ] Monitoring and Alerts
-  - [ ] Setup logging for template operations
-  - [ ] Setup alerts for high validation failure rates
-  - [ ] Setup alerts for AI API errors
-  - [ ] Monitor AI usage costs
-  - [ ] Track preview generation times
 
 **Deliverables**:
 
@@ -696,14 +652,6 @@ This document breaks down the Railway migration into manageable phases with deta
 - ✅ Comprehensive testing (unit, integration, E2E)
 - ✅ User and developer documentation
 - ✅ Deployed to production with monitoring
-
-#### 2.7 Testing
-
-- [ ] Test each template type generation inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
-- [ ] Verify field mappings work correctly
-- [ ] Test download to local device inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
-- [ ] Test store to Google Drive inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
-- [ ] Run integration tests inline with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
 
 **Deliverables**:
 
@@ -923,17 +871,17 @@ This document breaks down the Railway migration into manageable phases with deta
   - [x] Pass tenant to `GoogleDriveService(administration=tenant)`
   - [x] Test folder creation in correct tenant's Google Drive
 
-- [ ] Verify all other GoogleDriveService instantiations
-  - [ ] Search codebase for `GoogleDriveService()` calls
-  - [ ] Ensure all pass `administration=tenant` parameter
-  - [ ] Update any remaining instances
+- [x] Verify all other GoogleDriveService instantiations
+  - [x] Search codebase for `GoogleDriveService()` calls
+  - [x] Ensure all pass `administration=tenant` parameter
+  - [x] Update any remaining instances
 
-- [ ] Test complete Google Drive integration
-  - [ ] Test folder loading (dropdown populates correctly)
-  - [ ] Test file upload (files go to Google Drive, not local storage)
-  - [ ] Test folder creation (new folders appear in correct Drive)
-  - [ ] Test with multiple tenants (verify isolation)
-  - [ ] Verify Google Drive URLs are returned in all cases
+- [x] Test complete Google Drive integration
+  - [x] Test folder loading (dropdown populates correctly)
+  - [x] Test file upload (files go to Google Drive, not local storage)
+  - [x] Test folder creation (new folders appear in correct Drive)
+  - [x] Test with multiple tenants (verify isolation)
+  - [x] Verify Google Drive URLs are returned in all cases
 
 **Impact**: These fixes ensure that:
 

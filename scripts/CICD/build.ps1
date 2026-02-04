@@ -240,8 +240,7 @@ try {
     if (-not $SkipTests) {
         # Frontend tests with progress
         $exitCode = Start-TimedOperation -Name "Frontend tests (Jest)" -Operation {
-            $env:CI = "true"
-            npm test -- --watchAll=false --coverage 2>&1
+            npm test -- --ci --watchAll=false --coverage 2>&1
         }
         if ($exitCode -ne 0) { Exit-WithError "Frontend tests failed" }
     }
