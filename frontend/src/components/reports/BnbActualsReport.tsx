@@ -39,8 +39,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { buildApiUrl } from '../../config';
-import { authenticatedGet } from '../../services/apiService';
+import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createBnbActualsFilterAdapter, BnbActualsFilters } from '../UnifiedAdminYearFilterAdapters';
 
@@ -325,14 +324,14 @@ const BnbActualsReport: React.FC = () => {
       });
       
       // Fetch listing data
-      const listingResponse = await authenticatedGet(buildApiUrl('/api/bnb/bnb-listing-data', params));
+      const listingResponse = await authenticatedGet(buildEndpoint('/api/bnb/bnb-listing-data', params));
       const listingResult = await listingResponse.json();
       if (listingResult.success) {
         setBnbListingData(listingResult.data);
       }
 
       // Fetch channel data
-      const channelResponse = await authenticatedGet(buildApiUrl('/api/bnb/bnb-channel-data', params));
+      const channelResponse = await authenticatedGet(buildEndpoint('/api/bnb/bnb-channel-data', params));
       const channelResult = await channelResponse.json();
       if (channelResult.success) {
         setBnbChannelData(channelResult.data);
@@ -348,7 +347,7 @@ const BnbActualsReport: React.FC = () => {
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        const response = await authenticatedGet(buildApiUrl('/api/bnb/bnb-filter-options'));
+        const response = await authenticatedGet(buildEndpoint('/api/bnb/bnb-filter-options'));
         const result = await response.json();
         if (result.success) {
           setBnbFilterOptions({

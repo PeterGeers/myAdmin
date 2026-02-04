@@ -34,8 +34,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { buildApiUrl } from '../../config';
-import { authenticatedGet, authenticatedPost } from '../../services/apiService';
+import { authenticatedGet, authenticatedPost, buildEndpoint } from '../../services/apiService';
 import { useTenant } from '../../context/TenantContext';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createActualsFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
@@ -348,7 +347,7 @@ const ActualsReport: React.FC = () => {
       });
       
       // Balance data (VW = N)
-      const balanceResponse = await authenticatedGet(buildApiUrl('/api/reports/actuals-balance', params));
+      const balanceResponse = await authenticatedGet(buildEndpoint('/api/reports/actuals-balance', params));
       const balanceResult = await balanceResponse.json();
       if (balanceResult.success) {
         console.log('[TENANT SECURITY] Balance data fetched successfully for tenant:', currentTenant);
@@ -364,7 +363,7 @@ const ActualsReport: React.FC = () => {
       }
 
       // Profit/Loss data (VW = Y)
-      const profitLossResponse = await authenticatedGet(buildApiUrl('/api/reports/actuals-profitloss', params));
+      const profitLossResponse = await authenticatedGet(buildEndpoint('/api/reports/actuals-profitloss', params));
       const profitLossResult = await profitLossResponse.json();
       if (profitLossResult.success) {
         console.log('[TENANT SECURITY] Profit/Loss data fetched successfully for tenant:', currentTenant);
@@ -402,7 +401,7 @@ const ActualsReport: React.FC = () => {
         administration: currentTenant
       });
       
-      const response = await authenticatedGet(buildApiUrl('/api/reports/available-years', params));
+      const response = await authenticatedGet(buildEndpoint('/api/reports/available-years', params));
       const data = await response.json();
       if (data.success) {
         console.log('[TENANT SECURITY] Available years fetched successfully for tenant:', currentTenant);

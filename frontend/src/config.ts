@@ -7,8 +7,8 @@ declare global {
 
 // Determine the correct API base URL
 const getApiBaseUrl = (): string => {
-  // If window.API_BASE_URL is set, use it
-  if (window.API_BASE_URL) {
+  // If window.API_BASE_URL is explicitly set (even if empty string), use it
+  if (window.API_BASE_URL !== undefined) {
     return window.API_BASE_URL;
   }
   

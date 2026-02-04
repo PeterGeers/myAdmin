@@ -8,6 +8,7 @@ import BnbViolinsReport from './BnbViolinsReport';
 import BnbReturningGuestsReport from './BnbReturningGuestsReport';
 import BnbFutureReport from './BnbFutureReport';
 import ToeristenbelastingReport from './ToeristenbelastingReport';
+import BnbCountryBookingsReport from './BnbCountryBookingsReport';
 
 const BnbReportsGroup: React.FC = () => {
   return (
@@ -19,6 +20,7 @@ const BnbReportsGroup: React.FC = () => {
         <Tab color="white">🔄 Terugkerend</Tab>
         <Tab color="white">📈 Future</Tab>
         <Tab color="white">🏨 Toeristenbelasting</Tab>
+        <Tab color="white">🌍 Country Bookings</Tab>
       </TabList>
 
       <TabPanels>
@@ -44,6 +46,10 @@ const BnbReportsGroup: React.FC = () => {
         
         <TabPanel>
           <ToeristenbelastingReport />
+        </TabPanel>
+        
+        <TabPanel>
+          <BnbCountryBookingsReport />
         </TabPanel>
       </TabPanels>
     </Tabs>

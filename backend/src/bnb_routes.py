@@ -473,3 +473,30 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
     except Exception as e:
         logger.error(f'Error in endpoint: {str(e)}')
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
+
+@bnb_bp.route('/generate-country-report', methods=['GET'])
+@cognito_required(required_permissions=['str_read'])
+@tenant_required()
+def generate_country_report(user_email, user_roles, tenant, user_tenants):
+    """Generate HTML report of bookings by country"""
+    try:
+        from services.country_report_service import get_country_report_data, generate_country_report_html
+        
+        # Get data from service
+        country_data, region_data, total_bookings = get_country_report_data(user_tenants)
+        
+        # Generate HTML report
+        html_content = generate_country_report_html(country_data, region_data, total_bookings)
+        
+        logger.info(f'Country report generated successfully for user {user_email}')
+        
+        # Return HTML file directly for download
+        from flask import make_response
+        response = make_response(html_content)
+        response.headers['Content-Type'] = 'text/html; charset=utf-8'
+        response.headers['Content-Disposition'] = 'attachment; filename=country_bookings_report.html'
+        return response
+        
+    except Exception as e:
+        logger.error(f'Error generating country report: {str(e)}')
+        return jsonify({'success': False, 'error': str(e)}), 500

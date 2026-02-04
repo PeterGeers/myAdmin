@@ -298,7 +298,28 @@ export async function authenticatedFormData(
 }
 
 /**
- * Helper to build API URL with query parameters
+ * Helper to build endpoint with query parameters (without base URL)
+ * Use this with authenticatedGet/Post/etc which will add the base URL
+ * 
+ * @param endpoint - API endpoint
+ * @param params - URLSearchParams or object with query parameters
+ * @returns Endpoint with query string (no base URL)
+ */
+export function buildEndpoint(endpoint: string, params?: URLSearchParams | Record<string, string>): string {
+  if (!params) {
+    return endpoint;
+  }
+
+  const searchParams = params instanceof URLSearchParams 
+    ? params 
+    : new URLSearchParams(params);
+
+  return `${endpoint}?${searchParams.toString()}`;
+}
+
+/**
+ * Helper to build full API URL with query parameters
+ * Only use this if you need the full URL (not for authenticatedGet/Post/etc)
  * 
  * @param endpoint - API endpoint
  * @param params - URLSearchParams or object with query parameters

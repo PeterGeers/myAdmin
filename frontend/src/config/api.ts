@@ -1,7 +1,27 @@
 // API Configuration - DO NOT use hardcoded localhost URLs
 // Always use relative URLs for production compatibility
 
-export const API_BASE_URL = ''; // Empty string for relative URLs
+// Determine the correct API base URL based on environment
+declare global {
+  interface Window {
+    API_BASE_URL?: string;
+  }
+}
+
+// Get API base URL from window.API_BASE_URL (set by public/config.js)
+// On port 3000 (dev): empty string for proxy to handle
+// On port 5000 (prod): 'http://localhost:5000' for direct access
+const getApiBaseUrl = (): string => {
+  // If window.API_BASE_URL is explicitly set (even if empty string), use it
+  if (window.API_BASE_URL !== undefined) {
+    return window.API_BASE_URL;
+  }
+  
+  // Default to empty string for relative URLs
+  return '';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export const API_ENDPOINTS = {
   // Reports
@@ -29,6 +49,7 @@ export const API_ENDPOINTS = {
 } as const;
 
 // Helper function to build API URLs
+// DEPRECATED: Use buildEndpoint from apiService instead when using with authenticatedGet/Post/etc
 export const buildApiUrl = (endpoint: string, params?: URLSearchParams): string => {
   const url = `${API_BASE_URL}${endpoint}`;
   return params ? `${url}?${params.toString()}` : url;
@@ -42,5 +63,6 @@ export {
   authenticatedPut,
   authenticatedDelete,
   authenticatedFormData,
-  buildApiUrl as buildAuthenticatedApiUrl
+  buildEndpoint, // Use this with authenticatedGet/Post/etc
+  buildApiUrl as buildAuthenticatedApiUrl // Full URL builder (rarely needed)
 } from '../services/apiService';

@@ -84,12 +84,12 @@
     "@types/react-plotly.js": "^2.6.4",
     "baseline-browser-mapping": "^2.9.11",
     "fast-check": "^4.4.0",
+    "http-proxy-middleware": "^3.0.5",
     "jest-axe": "^10.0.0",
     "msw": "^2.11.6",
     "playwright": "^1.58.1"
   },
   "homepage": ".",
-  "proxy": "http://localhost:5000",
   "msw": {
     "workerDirectory": [
       "public"

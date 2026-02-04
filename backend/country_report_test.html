@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookings by Country Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        
+        .stat-card .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .label {
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 50px;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            font-size: 1.8em;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 1px;
+        }
+        
+        th.number {
+            text-align: right;
+        }
+        
+        tbody tr {
+            border-bottom: 1px solid #e0e0e0;
+            transition: background-color 0.2s ease;
+        }
+        
+        tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        tbody tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+        
+        tbody tr:nth-child(even):hover {
+            background-color: #f0f0f0;
+        }
+        
+        td {
+            padding: 12px 15px;
+            color: #333;
+        }
+        
+        td.number {
+            text-align: right;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .country-code {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        
+        .region-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 500;
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .region-badge.europe { background: #e8f5e9; color: #388e3c; }
+        .region-badge.asia { background: #fff3e0; color: #f57c00; }
+        .region-badge.africa { background: #fce4ec; color: #c2185b; }
+        .region-badge.americas { background: #e1f5fe; color: #0277bd; }
+        .region-badge.oceania { background: #f3e5f5; color: #7b1fa2; }
+        .region-badge.middle-east { background: #fff9c4; color: #f57f17; }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .chart-bar {
+            height: 20px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            margin: 5px 0;
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 Bookings by Country</h1>
+            <div class="subtitle">Guest Origin Analysis Report</div>
+            <div class="subtitle">Generated: February 04, 2026 at 12:49</div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="number">826</div>
+                <div class="label">Total Bookings</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">67</div>
+                <div class="label">Countries</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">10</div>
+                <div class="label">Regions</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">Netherlands</div>
+                <div class="label">Top Country</div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>📊 Bookings by Region</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Region</th>
+                                <th class="number">Bookings</th>
+                                <th class="number">Percentage</th>
+                                <th>Distribution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            <tr>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">675</td>
+                                <td class="number">81.7%</td>
+                                <td><div class="chart-bar" style="width: 81.71912832929782%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge north-america">North America</span></td>
+                                <td class="number">58</td>
+                                <td class="number">7.0%</td>
+                                <td><div class="chart-bar" style="width: 7.021791767554479%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">34</td>
+                                <td class="number">4.1%</td>
+                                <td><div class="chart-bar" style="width: 4.116222760290557%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge south-america">South America</span></td>
+                                <td class="number">16</td>
+                                <td class="number">1.9%</td>
+                                <td><div class="chart-bar" style="width: 1.937046004842615%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge oceania">Oceania</span></td>
+                                <td class="number">14</td>
+                                <td class="number">1.7%</td>
+                                <td><div class="chart-bar" style="width: 1.694915254237288%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge asia-europe">Asia/Europe</span></td>
+                                <td class="number">12</td>
+                                <td class="number">1.5%</td>
+                                <td><div class="chart-bar" style="width: 1.4527845036319613%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge middle-east">Middle East</span></td>
+                                <td class="number">9</td>
+                                <td class="number">1.1%</td>
+                                <td><div class="chart-bar" style="width: 1.0895883777239708%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge africa">Africa</span></td>
+                                <td class="number">4</td>
+                                <td class="number">0.5%</td>
+                                <td><div class="chart-bar" style="width: 0.48426150121065376%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge europe-asia">Europe/Asia</span></td>
+                                <td class="number">3</td>
+                                <td class="number">0.4%</td>
+                                <td><div class="chart-bar" style="width: 0.36319612590799033%;"></div></td>
+                            </tr>
+
+                            <tr>
+                                <td><span class="region-badge central-america">Central America</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                                <td><div class="chart-bar" style="width: 0.12106537530266344%;"></div></td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>🗺️ Bookings by Country</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Country</th>
+                                <th>Dutch Name</th>
+                                <th>Region</th>
+                                <th class="number">Bookings</th>
+                                <th class="number">Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            <tr>
+                                <td><strong>#1</strong></td>
+                                <td>
+                                    <span class="country-code">NL</span>
+                                    Netherlands
+                                </td>
+                                <td>Nederland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">202</td>
+                                <td class="number">24.5%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#2</strong></td>
+                                <td>
+                                    <span class="country-code">DE</span>
+                                    Germany
+                                </td>
+                                <td>Duitsland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">132</td>
+                                <td class="number">16.0%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#3</strong></td>
+                                <td>
+                                    <span class="country-code">FR</span>
+                                    France
+                                </td>
+                                <td>Frankrijk</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">60</td>
+                                <td class="number">7.3%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#4</strong></td>
+                                <td>
+                                    <span class="country-code">GB</span>
+                                    United Kingdom
+                                </td>
+                                <td>Verenigd Koninkrijk</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">52</td>
+                                <td class="number">6.3%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#5</strong></td>
+                                <td>
+                                    <span class="country-code">BE</span>
+                                    Belgium
+                                </td>
+                                <td>België</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">48</td>
+                                <td class="number">5.8%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#6</strong></td>
+                                <td>
+                                    <span class="country-code">US</span>
+                                    United States
+                                </td>
+                                <td>Verenigde Staten</td>
+                                <td><span class="region-badge north-america">North America</span></td>
+                                <td class="number">36</td>
+                                <td class="number">4.4%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#7</strong></td>
+                                <td>
+                                    <span class="country-code">ES</span>
+                                    Spain
+                                </td>
+                                <td>Spanje</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">27</td>
+                                <td class="number">3.3%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#8</strong></td>
+                                <td>
+                                    <span class="country-code">PL</span>
+                                    Poland
+                                </td>
+                                <td>Polen</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">26</td>
+                                <td class="number">3.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#9</strong></td>
+                                <td>
+                                    <span class="country-code">IT</span>
+                                    Italy
+                                </td>
+                                <td>Italië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">24</td>
+                                <td class="number">2.9%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#10</strong></td>
+                                <td>
+                                    <span class="country-code">CZ</span>
+                                    Czech Republic
+                                </td>
+                                <td>Tsjechië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">19</td>
+                                <td class="number">2.3%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#11</strong></td>
+                                <td>
+                                    <span class="country-code">CA</span>
+                                    Canada
+                                </td>
+                                <td>Canada</td>
+                                <td><span class="region-badge north-america">North America</span></td>
+                                <td class="number">18</td>
+                                <td class="number">2.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#12</strong></td>
+                                <td>
+                                    <span class="country-code">TR</span>
+                                    Turkey
+                                </td>
+                                <td>Turkije</td>
+                                <td><span class="region-badge asia-europe">Asia/Europe</span></td>
+                                <td class="number">12</td>
+                                <td class="number">1.5%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#13</strong></td>
+                                <td>
+                                    <span class="country-code">AU</span>
+                                    Australia
+                                </td>
+                                <td>Australië</td>
+                                <td><span class="region-badge oceania">Oceania</span></td>
+                                <td class="number">11</td>
+                                <td class="number">1.3%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#14</strong></td>
+                                <td>
+                                    <span class="country-code">CN</span>
+                                    China
+                                </td>
+                                <td>China</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">10</td>
+                                <td class="number">1.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#15</strong></td>
+                                <td>
+                                    <span class="country-code">IN</span>
+                                    India
+                                </td>
+                                <td>India</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">10</td>
+                                <td class="number">1.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#16</strong></td>
+                                <td>
+                                    <span class="country-code">NO</span>
+                                    Norway
+                                </td>
+                                <td>Noorwegen</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">9</td>
+                                <td class="number">1.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#17</strong></td>
+                                <td>
+                                    <span class="country-code">BR</span>
+                                    Brazil
+                                </td>
+                                <td>Brazilië</td>
+                                <td><span class="region-badge south-america">South America</span></td>
+                                <td class="number">9</td>
+                                <td class="number">1.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#18</strong></td>
+                                <td>
+                                    <span class="country-code">CH</span>
+                                    Switzerland
+                                </td>
+                                <td>Zwitserland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">9</td>
+                                <td class="number">1.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#19</strong></td>
+                                <td>
+                                    <span class="country-code">PT</span>
+                                    Portugal
+                                </td>
+                                <td>Portugal</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">7</td>
+                                <td class="number">0.8%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#20</strong></td>
+                                <td>
+                                    <span class="country-code">LV</span>
+                                    Latvia
+                                </td>
+                                <td>Letland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">6</td>
+                                <td class="number">0.7%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#21</strong></td>
+                                <td>
+                                    <span class="country-code">RO</span>
+                                    Romania
+                                </td>
+                                <td>Roemenië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">6</td>
+                                <td class="number">0.7%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#22</strong></td>
+                                <td>
+                                    <span class="country-code">UA</span>
+                                    Ukraine
+                                </td>
+                                <td>Oekraïne</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">6</td>
+                                <td class="number">0.7%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#23</strong></td>
+                                <td>
+                                    <span class="country-code">IE</span>
+                                    Ireland
+                                </td>
+                                <td>Ierland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">5</td>
+                                <td class="number">0.6%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#24</strong></td>
+                                <td>
+                                    <span class="country-code">HU</span>
+                                    Hungary
+                                </td>
+                                <td>Hongarije</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">5</td>
+                                <td class="number">0.6%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#25</strong></td>
+                                <td>
+                                    <span class="country-code">GR</span>
+                                    Greece
+                                </td>
+                                <td>Griekenland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">5</td>
+                                <td class="number">0.6%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#26</strong></td>
+                                <td>
+                                    <span class="country-code">SE</span>
+                                    Sweden
+                                </td>
+                                <td>Zweden</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">5</td>
+                                <td class="number">0.6%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#27</strong></td>
+                                <td>
+                                    <span class="country-code">MX</span>
+                                    Mexico
+                                </td>
+                                <td>Mexico</td>
+                                <td><span class="region-badge north-america">North America</span></td>
+                                <td class="number">4</td>
+                                <td class="number">0.5%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#28</strong></td>
+                                <td>
+                                    <span class="country-code">JP</span>
+                                    Japan
+                                </td>
+                                <td>Japan</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">3</td>
+                                <td class="number">0.4%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#29</strong></td>
+                                <td>
+                                    <span class="country-code">AE</span>
+                                    United Arab Emirates
+                                </td>
+                                <td>Verenigde Arabische Emiraten</td>
+                                <td><span class="region-badge middle-east">Middle East</span></td>
+                                <td class="number">3</td>
+                                <td class="number">0.4%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#30</strong></td>
+                                <td>
+                                    <span class="country-code">SG</span>
+                                    Singapore
+                                </td>
+                                <td>Singapore</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">3</td>
+                                <td class="number">0.4%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#31</strong></td>
+                                <td>
+                                    <span class="country-code">SA</span>
+                                    Saudi Arabia
+                                </td>
+                                <td>Saoedi-Arabië</td>
+                                <td><span class="region-badge middle-east">Middle East</span></td>
+                                <td class="number">3</td>
+                                <td class="number">0.4%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#32</strong></td>
+                                <td>
+                                    <span class="country-code">NZ</span>
+                                    New Zealand
+                                </td>
+                                <td>Nieuw-Zeeland</td>
+                                <td><span class="region-badge oceania">Oceania</span></td>
+                                <td class="number">3</td>
+                                <td class="number">0.4%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#33</strong></td>
+                                <td>
+                                    <span class="country-code">HK</span>
+                                    Hong Kong
+                                </td>
+                                <td>Hong Kong</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#34</strong></td>
+                                <td>
+                                    <span class="country-code">AT</span>
+                                    Austria
+                                </td>
+                                <td>Oostenrijk</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#35</strong></td>
+                                <td>
+                                    <span class="country-code">IL</span>
+                                    Israel
+                                </td>
+                                <td>Israël</td>
+                                <td><span class="region-badge middle-east">Middle East</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#36</strong></td>
+                                <td>
+                                    <span class="country-code">SK</span>
+                                    Slovakia
+                                </td>
+                                <td>Slowakije</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#37</strong></td>
+                                <td>
+                                    <span class="country-code">LT</span>
+                                    Lithuania
+                                </td>
+                                <td>Litouwen</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#38</strong></td>
+                                <td>
+                                    <span class="country-code">MA</span>
+                                    Morocco
+                                </td>
+                                <td>Marokko</td>
+                                <td><span class="region-badge africa">Africa</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#39</strong></td>
+                                <td>
+                                    <span class="country-code">HR</span>
+                                    Croatia
+                                </td>
+                                <td>Kroatië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#40</strong></td>
+                                <td>
+                                    <span class="country-code">LU</span>
+                                    Luxembourg
+                                </td>
+                                <td>Luxemburg</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#41</strong></td>
+                                <td>
+                                    <span class="country-code">EE</span>
+                                    Estonia
+                                </td>
+                                <td>Estland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#42</strong></td>
+                                <td>
+                                    <span class="country-code">CO</span>
+                                    Colombia
+                                </td>
+                                <td>Colombia</td>
+                                <td><span class="region-badge south-america">South America</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#43</strong></td>
+                                <td>
+                                    <span class="country-code">GE</span>
+                                    Georgia
+                                </td>
+                                <td>Georgië</td>
+                                <td><span class="region-badge europe-asia">Europe/Asia</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#44</strong></td>
+                                <td>
+                                    <span class="country-code">MT</span>
+                                    Malta
+                                </td>
+                                <td>Malta</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#45</strong></td>
+                                <td>
+                                    <span class="country-code">AR</span>
+                                    Argentina
+                                </td>
+                                <td>Argentinië</td>
+                                <td><span class="region-badge south-america">South America</span></td>
+                                <td class="number">2</td>
+                                <td class="number">0.2%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#46</strong></td>
+                                <td>
+                                    <span class="country-code">PE</span>
+                                    Peru
+                                </td>
+                                <td>Peru</td>
+                                <td><span class="region-badge south-america">South America</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#47</strong></td>
+                                <td>
+                                    <span class="country-code">NG</span>
+                                    Nigeria
+                                </td>
+                                <td>Nigeria</td>
+                                <td><span class="region-badge africa">Africa</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#48</strong></td>
+                                <td>
+                                    <span class="country-code">AL</span>
+                                    Albania
+                                </td>
+                                <td>Albanië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#49</strong></td>
+                                <td>
+                                    <span class="country-code">MD</span>
+                                    Moldova
+                                </td>
+                                <td>Moldavië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#50</strong></td>
+                                <td>
+                                    <span class="country-code">KW</span>
+                                    Kuwait
+                                </td>
+                                <td>Koeweit</td>
+                                <td><span class="region-badge middle-east">Middle East</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#51</strong></td>
+                                <td>
+                                    <span class="country-code">AZ</span>
+                                    Azerbaijan
+                                </td>
+                                <td>Azerbeidzjan</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#52</strong></td>
+                                <td>
+                                    <span class="country-code">PH</span>
+                                    Philippines
+                                </td>
+                                <td>Filipijnen</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#53</strong></td>
+                                <td>
+                                    <span class="country-code">RS</span>
+                                    Serbia
+                                </td>
+                                <td>Servië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#54</strong></td>
+                                <td>
+                                    <span class="country-code">PK</span>
+                                    Pakistan
+                                </td>
+                                <td>Pakistan</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#55</strong></td>
+                                <td>
+                                    <span class="country-code">EC</span>
+                                    Ecuador
+                                </td>
+                                <td>Ecuador</td>
+                                <td><span class="region-badge south-america">South America</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#56</strong></td>
+                                <td>
+                                    <span class="country-code">KZ</span>
+                                    Kazakhstan
+                                </td>
+                                <td>Kazachstan</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#57</strong></td>
+                                <td>
+                                    <span class="country-code">CY</span>
+                                    Cyprus
+                                </td>
+                                <td>Cyprus</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#58</strong></td>
+                                <td>
+                                    <span class="country-code">RU</span>
+                                    Russia
+                                </td>
+                                <td>Rusland</td>
+                                <td><span class="region-badge europe-asia">Europe/Asia</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#59</strong></td>
+                                <td>
+                                    <span class="country-code">EG</span>
+                                    Egypt
+                                </td>
+                                <td>Egypte</td>
+                                <td><span class="region-badge africa">Africa</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#60</strong></td>
+                                <td>
+                                    <span class="country-code">UZ</span>
+                                    Uzbekistan
+                                </td>
+                                <td>Oezbekistan</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#61</strong></td>
+                                <td>
+                                    <span class="country-code">FI</span>
+                                    Finland
+                                </td>
+                                <td>Finland</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#62</strong></td>
+                                <td>
+                                    <span class="country-code">DK</span>
+                                    Denmark
+                                </td>
+                                <td>Denemarken</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#63</strong></td>
+                                <td>
+                                    <span class="country-code">BG</span>
+                                    Bulgaria
+                                </td>
+                                <td>Bulgarije</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#64</strong></td>
+                                <td>
+                                    <span class="country-code">MK</span>
+                                    North Macedonia
+                                </td>
+                                <td>Noord-Macedonië</td>
+                                <td><span class="region-badge europe">Europe</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#65</strong></td>
+                                <td>
+                                    <span class="country-code">UY</span>
+                                    Uruguay
+                                </td>
+                                <td>Uruguay</td>
+                                <td><span class="region-badge south-america">South America</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#66</strong></td>
+                                <td>
+                                    <span class="country-code">PA</span>
+                                    Panama
+                                </td>
+                                <td>Panama</td>
+                                <td><span class="region-badge central-america">Central America</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                            <tr>
+                                <td><strong>#67</strong></td>
+                                <td>
+                                    <span class="country-code">MY</span>
+                                    Malaysia
+                                </td>
+                                <td>Maleisië</td>
+                                <td><span class="region-badge asia">Asia</span></td>
+                                <td class="number">1</td>
+                                <td class="number">0.1%</td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Report generated from booking database • Total bookings with country data: 826</p>
+            <p>Data includes both actual and planned bookings</p>
+        </div>
+    </div>
+</body>
+</html>

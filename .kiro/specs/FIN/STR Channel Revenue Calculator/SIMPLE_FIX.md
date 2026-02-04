@@ -70,6 +70,12 @@ vat_transaction = {
 
 ---
 
+## Implementation Status
+
+✅ **COMPLETE** - Code changes applied to `backend/src/str_channel_routes.py` (lines 101-124)
+
+---
+
 ## Testing
 
 ### 1. Unit Tests
@@ -130,22 +136,25 @@ Run: `pytest backend/tests/unit/test_str_channel.py -v`
 
 ---
 
-### 2. Postman API Testing (Automated)
+### 2. Postman API Testing (Manual - Desktop Only)
 
-**If `.postman.json` exists:**
+**Collection:** STR Channel Revenue API - BTW Rate Testing (Auto-Auth)  
+**Location:** `.postman.json` (Collection ID: 48572055-2e972e2f-6b2a-49e8-945b-38a917e18acf)
 
-```
-Ask Kiro: "Run the Postman collection for STR Channel API and show me the test results"
-```
+**⚠️ Important:** Postman tests target `localhost:5000` and must run on your desktop:
 
-**If no collection exists:**
+1. **Start backend:** `docker-compose up -d` or `.\backend\powershell\start_backend.ps1`
+2. **Open Postman Desktop App** (cloud runner cannot reach localhost)
+3. **Set environment:** "myAdmin Local"
+4. **Get auth token:**
+   - Open http://localhost:3000 (login if needed)
+   - DevTools (F12) → Application → Local Storage → Copy `idToken`
+   - Postman → Environment → Set `auth_token` = `Bearer <token>`
+5. **Run collection:** Find "STR Channel Revenue API - BTW Rate Testing" → Run
 
-```
-Ask Kiro: "Create a Postman collection for STR Channel API with these requests:
-1. POST /api/str-channel/calculate for December 2025 (expect Credit='2021', 9% rate)
-2. POST /api/str-channel/calculate for January 2026 (expect Credit='2020', 21% rate)
-Include test assertions to verify the Credit account and VAT calculation"
-```
+**Expected:** 8/8 tests pass (9% for Dec 2025, 21% for Jan/Feb 2026)
+
+**See:** `POSTMAN_TESTING_GUIDE.md` for detailed instructions
 
 ---
 

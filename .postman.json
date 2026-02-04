@@ -10,17 +10,16 @@
       "description": "Sample test collection created via Kiro"
     },
     {
-      "id": "48572055-5503c5e8-0a58-4528-9434-724e05327e2c",
-      "name": "STR Channel Revenue API - BTW Rate Testing (Fixed)",
-      "description": "Tests STR Channel Revenue API with X-Tenant header included"
-    }
-  ],
-  "environments": [
+      "id": "48572055-2e972e2f-6b2a-49e8-945b-38a917e18acf",
+      "name": "STR Channel Revenue API - BTW Rate Testing (Auto-Auth)",
+      "description": "Tests STR Channel API BTW rate changes (9% pre-2026, 21% from 2026-01-01). Requires backend running on localhost:5000. See .kiro/specs/FIN/STR Channel Revenue Calculator/POSTMAN_TESTING_GUIDE.md"
+    },
     {
-      "id": "48572055-b5badd2a-5904-4fed-8ada-9dd1fd59235d",
-      "name": "myAdmin Local",
-      "description": "Local development environment for myAdmin backend with valid JWT token"
+      "id": "48572055-9d43327b-58ef-4db3-aee3-4bca1290b2ef",
+      "name": "Country Report API",
+      "description": "Tests Country Bookings Report generation endpoint. Returns HTML file for download. Requires backend running on localhost:5000."
     }
   ],
-  "notes": "Updated collection with X-Tenant header. Run in Postman Desktop App with 'myAdmin Local' environment selected."
+  "environments": [],
+  "notes": "This file stores Postman workspace, collection, and environment IDs for automated testing. Note: Collections targeting localhost must be run from Postman Desktop App (cloud runner cannot reach local servers)."
 }

@@ -17,8 +17,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { buildApiUrl } from '../../config';
-import { authenticatedGet } from '../../services/apiService';
+import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { useTenant } from '../../context/TenantContext';
 
 interface MutatiesRecord {
@@ -101,7 +100,7 @@ const MutatiesReport: React.FC = () => {
         profitLoss: mutatiesFilters.profitLoss
       });
       
-      const response = await authenticatedGet(buildApiUrl('/api/reports/mutaties-table', params));
+      const response = await authenticatedGet(buildEndpoint('/api/reports/mutaties-table', params));
       const data = await response.json();
       
       if (data.success) {
