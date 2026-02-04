@@ -26,7 +26,8 @@ import {
   VStack
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { authenticatedGet, buildEndpoint } from '../../services/apiService';
+import { authenticatedGet } from '../../services/apiService';
+import { buildApiUrl } from '../../config';
 import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
 import { createRefAnalysisFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
 import { useTenant } from '../../context/TenantContext';
@@ -103,7 +104,7 @@ const ReferenceAnalysisReport: React.FC = () => {
         accounts: refAnalysisFilters.accounts.join(',')
       });
       
-      const response = await authenticatedGet(buildEndpoint('/api/reports/reference-analysis', params));
+      const response = await authenticatedGet(buildApiUrl('/api/reports/reference-analysis', params));
       const data = await response.json();
       
       if (data.success) {

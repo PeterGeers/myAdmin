@@ -16,6 +16,7 @@ import { AuthProvider } from '../context/AuthContext';
 
 // Import mocked functions
 import { getCurrentUser, signOut, signInWithRedirect, fetchAuthSession } from 'aws-amplify/auth';
+import * as authService from '../services/authService';
 
 // Import components after mocks
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -28,6 +29,21 @@ jest.mock('aws-amplify/auth', () => ({
   signOut: jest.fn(),
   signInWithRedirect: jest.fn(),
   fetchAuthSession: jest.fn(),
+}));
+
+// Mock authService to prevent infinite loops in AuthContext
+jest.mock('../services/authService', () => ({
+  getCurrentAuthTokens: jest.fn(),
+  getCurrentUserRoles: jest.fn(),
+  getCurrentUserEmail: jest.fn(),
+  getCurrentUserName: jest.fn(),
+  getCurrentUserTenants: jest.fn(),
+  isAuthenticated: jest.fn(),
+  hasRole: jest.fn(),
+  hasAnyRole: jest.fn(),
+  hasAllRoles: jest.fn(),
+  decodeJWTPayload: jest.fn(),
+  validateRoleCombinations: jest.fn(),
 }));
 
 // Mock Chakra UI components to avoid dependency issues
@@ -121,15 +137,44 @@ const createMockSession = (token: string) => ({
   }
 });
 
+// Helper to setup authenticated state mocks
+const setupAuthenticatedMocks = (user: any, token: string, roles: string[]) => {
+  (getCurrentUser as jest.Mock).mockResolvedValue(user);
+  (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(token));
+  (authService.isAuthenticated as jest.Mock).mockResolvedValue(true);
+  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(user.signInDetails.loginId);
+  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(user.username);
+  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue(roles);
+  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue(['tenant1']);
+};
+
+// Helper to setup unauthenticated state mocks
+const setupUnauthenticatedMocks = () => {
+  (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+  (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
+  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
+  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
+  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
+  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
+  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+};
+
 describe('Authentication Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Setup default mocks for authService to prevent hanging
+    (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
+    (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
+    (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
+    (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
+    (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
+    (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
   });
 
   describe('Login Flow', () => {
     it('should show login page when not authenticated', async () => {
-      // Mock unauthenticated state
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      setupUnauthenticatedMocks();
 
       renderWithProviders(<Login />);
 
@@ -140,7 +185,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should initiate Cognito Hosted UI login when button clicked', async () => {
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      setupUnauthenticatedMocks();
       (signInWithRedirect as jest.Mock).mockResolvedValue(undefined);
 
       renderWithProviders(<Login />);
@@ -154,8 +199,11 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should show loading state during login', async () => {
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
-      (signInWithRedirect as jest.Mock).mockImplementation(() => new Promise(() => {})); // Never resolves
+      setupUnauthenticatedMocks();
+      // Use a delayed promise instead of never-resolving to avoid hanging tests
+      (signInWithRedirect as jest.Mock).mockImplementation(() => 
+        new Promise((resolve) => setTimeout(resolve, 100))
+      );
 
       renderWithProviders(<Login />);
 
@@ -171,7 +219,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should handle login errors gracefully', async () => {
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      setupUnauthenticatedMocks();
       (signInWithRedirect as jest.Mock).mockRejectedValue(new Error('Login failed'));
 
       renderWithProviders(<Login />);
@@ -188,7 +236,7 @@ describe('Authentication Integration Tests', () => {
 
   describe('Protected Routes', () => {
     it('should show login page for unauthenticated users', async () => {
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      setupUnauthenticatedMocks();
 
       const TestComponent = () => <div>Protected Content</div>;
 
@@ -205,8 +253,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should show protected content for authenticated users', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAdminUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockAdminToken));
+      setupAuthenticatedMocks(mockAdminUser, mockAdminToken, ['Administrators']);
 
       const TestComponent = () => <div>Protected Content</div>;
 

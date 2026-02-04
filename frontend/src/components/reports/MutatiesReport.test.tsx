@@ -14,9 +14,9 @@ import { authenticatedGet } from '../../services/apiService';
 
 // Mock dependencies
 jest.mock('../../context/TenantContext');
-jest.mock('../../services/apiService');
-jest.mock('../../config', () => ({
-  buildApiUrl: (endpoint: string, params: URLSearchParams) => `${endpoint}?${params.toString()}`
+jest.mock('../../services/apiService', () => ({
+  authenticatedGet: jest.fn(),
+  buildEndpoint: (endpoint: string, params: URLSearchParams) => `${endpoint}?${params.toString()}`
 }));
 
 // Mock Chakra UI components
