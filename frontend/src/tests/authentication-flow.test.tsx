@@ -128,13 +128,15 @@ const createMockToken = (email: string, groups: string[]) => {
 const createMockSession = (token: string) => ({
   tokens: {
     idToken: {
-      toString: () => token
+      toString: () => token,
+      payload: {}
     },
     accessToken: {
-      toString: () => token
+      toString: () => token,
+      payload: {}
     }
   }
-});
+} as any);
 
 // Helper function to setup authenticated mocks
 const setupAuthenticatedMocks = (user: any, token: string, roles: string[]) => {
