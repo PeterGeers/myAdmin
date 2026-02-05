@@ -447,6 +447,8 @@ describe('Authentication Integration Tests', () => {
 
       (getCurrentUser as jest.Mock).mockResolvedValue(mockAdminUser);
       (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(expiredToken));
+      // For expired tokens, isAuthenticated should return false
+      (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
 
       const TestComponent = () => <div>Protected Content</div>;
 
