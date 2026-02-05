@@ -54,3 +54,12 @@ if (typeof global.fetch === 'undefined') {
     } as Response)
   );
 }
+
+// Global mock for AWS Amplify auth functions
+// This prevents tests from trying to make real AWS calls which causes hangs
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn(() => Promise.resolve({ tokens: null })),
+  getCurrentUser: jest.fn(() => Promise.reject(new Error('Not authenticated'))),
+  signOut: jest.fn(() => Promise.resolve()),
+  signInWithRedirect: jest.fn(() => Promise.resolve()),
+}));

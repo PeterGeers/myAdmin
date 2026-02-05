@@ -15,7 +15,7 @@ import { AdministrationOption } from './UnifiedAdminYearFilter';
 
 export interface ActualsFilters {
   years: string[];
-  administration: string;
+  administration?: string; // Optional - some components use currentTenant directly
   displayFormat: string;
 }
 
@@ -70,7 +70,7 @@ export interface FilterAdapter {
   showYears: boolean;
 }
 
-export type ActualsFilterSetter = (filters: ActualsFilters | ((prev: ActualsFilters) => ActualsFilters)) => void;
+export type ActualsFilterSetter = (filters: any | ((prev: any) => any)) => void;
 export type BtwFilterSetter = (filters: BtwFilters | ((prev: BtwFilters) => BtwFilters)) => void;
 export type RefAnalysisFilterSetter = (filters: RefAnalysisFilters | ((prev: RefAnalysisFilters) => RefAnalysisFilters)) => void;
 export type AangifteIbFilterSetter = (filters: AangifteIbFilters | ((prev: AangifteIbFilters) => AangifteIbFilters)) => void;
@@ -97,8 +97,10 @@ const BTW_ADMINISTRATION_OPTIONS: AdministrationOption[] = [
 // ============================================================================
 
 /**
- * Creates an adapter for actualsFilters integration with multi-select years
- * and full administration options including "all".
+ * Creates an adapter for actualsFilters integration with multi-select years.
+ * Supports both patterns:
+ * - Components that use filters.administration (myAdminReports.tsx)
+ * - Components that use currentTenant directly (ActualsReport.tsx)
  * 
  * @param filters Current actuals filter state
  * @param setFilters Function to update actuals filter state
@@ -111,18 +113,21 @@ const createActualsFilterAdapter = (
   availableYears: string[]
 ): FilterAdapter => {
   return {
-    administrationValue: filters.administration,
+    administrationValue: filters.administration || '', // Support both patterns
     onAdministrationChange: (value: string) => {
-      setFilters((prev) => ({ ...prev, administration: value }));
+      // Only update if administration field exists in filters
+      if ('administration' in filters) {
+        setFilters((prev: any) => ({ ...prev, administration: value }));
+      }
     },
     administrationOptions: STANDARD_ADMINISTRATION_OPTIONS,
     yearValues: filters.years,
     onYearChange: (values: string[]) => {
-      setFilters((prev) => ({ ...prev, years: values }));
+      setFilters((prev: any) => ({ ...prev, years: values }));
     },
     availableYears,
     multiSelectYears: true,
-    showAdministration: true,
+    showAdministration: true, // Can be overridden by component
     showYears: true,
   };
 };

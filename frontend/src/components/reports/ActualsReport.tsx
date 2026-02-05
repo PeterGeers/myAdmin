@@ -51,7 +51,6 @@ interface BalanceRecord {
 
 interface ActualsFilters {
   years: string[];
-  administration: string;
   displayFormat: string;
 }
 
@@ -68,7 +67,6 @@ const ActualsReport: React.FC = () => {
   
   const [actualsFilters, setActualsFilters] = useState<ActualsFilters>({
     years: [new Date().getFullYear().toString()],
-    administration: currentTenant || 'all',
     displayFormat: '2dec'
   });
 
@@ -416,73 +414,67 @@ const ActualsReport: React.FC = () => {
     }
   }, [currentTenant]);
 
-  // Initial data fetch
+  // Initial data fetch and tenant change handler
   useEffect(() => {
-    if (currentTenant) {
-      // Warmup cache on component mount
-      authenticatedPost('/api/cache/warmup', {})
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            console.log('[CACHE] Cache warmed up:', data.message);
-          }
-        })
-        .catch(err => {
-          console.warn('[CACHE] Cache warmup failed (non-critical):', err);
-        });
-      
-      fetchAvailableYears();
+    // Exit early if no tenant selected
+    if (!currentTenant) {
+      return;
     }
-  }, [currentTenant, fetchAvailableYears]);
+    
+    console.log('[TENANT CHANGE] Tenant changed to:', currentTenant);
+    console.log('[TENANT CHANGE] Clearing previous tenant data for security');
+    
+    setTenantSwitching(true);
+    setError(null); // Clear any previous errors
+    
+    // NOTE: We do NOT update actualsFilters.administration here
+    // The component uses currentTenant directly in API calls, not actualsFilters.administration
+    // Updating actualsFilters here was causing infinite re-renders
+    
+    // Clear previous tenant data to prevent data leakage
+    setBalanceData([]);
+    setProfitLossData([]);
+    
+    // Reset expanded state
+    setExpandedParents(new Set());
+    
+    // Warmup cache on component mount
+    authenticatedPost('/api/cache/warmup', {})
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          console.log('[CACHE] Cache warmed up:', data.message);
+        }
+      })
+      .catch(err => {
+        console.warn('[CACHE] Cache warmup failed (non-critical):', err);
+      });
+    
+    // Fetch new data for current tenant
+    const fetchData = async () => {
+      try {
+        await fetchAvailableYears();
+        // Always fetch data on tenant change - years filter is initialized with current year
+        await fetchActualsData();
+      } catch (err) {
+        console.error('[TENANT CHANGE] Error during tenant switch:', err);
+      } finally {
+        setTenantSwitching(false);
+        console.log('[TENANT CHANGE] Tenant switch completed for:', currentTenant);
+      }
+    };
+    
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant]);
 
   // Refetch when drill-down level changes
   useEffect(() => {
-    if (actualsFilters.years.length > 0) {
+    if (currentTenant && actualsFilters.years.length > 0) {
       fetchActualsData();
     }
-  }, [drillDownLevel, actualsFilters.years.length, fetchActualsData]);
-
-  // Refetch when filters change
-  useEffect(() => {
-    if (actualsFilters.years.length > 0) {
-      fetchActualsData();
-    }
-  }, [actualsFilters.years, actualsFilters.years.length, actualsFilters.administration, fetchActualsData, fetchAvailableYears]);
-
-  // Auto-refresh on tenant change
-  useEffect(() => {
-    if (currentTenant) {
-      console.log('[TENANT CHANGE] Tenant changed to:', currentTenant);
-      console.log('[TENANT CHANGE] Clearing previous tenant data for security');
-      
-      setTenantSwitching(true);
-      setError(null); // Clear any previous errors
-      
-      // Update filters with current tenant
-      setActualsFilters(prev => ({
-        ...prev,
-        administration: currentTenant
-      }));
-      
-      // Clear previous tenant data to prevent data leakage
-      setBalanceData([]);
-      setProfitLossData([]);
-      
-      // Reset expanded state
-      setExpandedParents(new Set());
-      
-      // Fetch new data for current tenant
-      Promise.all([
-        fetchAvailableYears(),
-        actualsFilters.years.length > 0 ? fetchActualsData() : Promise.resolve()
-      ]).catch((err) => {
-        console.error('[TENANT CHANGE] Error during tenant switch:', err);
-      }).finally(() => {
-        setTenantSwitching(false);
-        console.log('[TENANT CHANGE] Tenant switch completed for:', currentTenant);
-      });
-    }
-  }, [currentTenant, actualsFilters.years.length, fetchActualsData, fetchAvailableYears]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drillDownLevel]);
 
 
   return (

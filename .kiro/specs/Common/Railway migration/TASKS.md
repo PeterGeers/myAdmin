@@ -1,3 +1,7 @@
+npm test -- --watchAll=false --coverage
+
+
+
 # Railway Migration - Implementation Tasks
 
 **Last Updated**: January 2026
@@ -279,12 +283,16 @@ This document breaks down the Railway migration into manageable phases with deta
 
 **Note**: HTML Reports are customizable per tenant and stored in their Google Drive. Official XBRL/XML tax forms have been moved to a separate specification at `.kiro/specs/FIN/AANGIFTE_XBRL/` and will be implemented post-Railway migration.
 
+Note PG: There is still work todo to make it usable. But we can postpone this to after the migration. The basics work
+
 #### 2.4 Migrate Templates to Google Drive
 
 - [x] Create template folders in each tenant's Google Drive
 - [x] Upload templates to tenant Google Drives
 - [x] Store template metadata in `tenant_template_config` table
 - [x] Verify templates are accessible in line with .kiro\specs\Common\CICD\TEST_ORGANIZATION.md
+
+Note PG: Google drive has now templates with the same name and the same content but with different file ID's As in Google drive the id's are the UIDs you do not know which is the realm used and why they are created and not overwritten
 
 #### 2.5 Update Report Generation Routes
 
@@ -672,18 +680,21 @@ This document breaks down the Railway migration into manageable phases with deta
 **Prerequisites**:
 
 - Phase 1 completed
-- Phase 2 completed
+- Phase 2 completed  for comments See Note PG:
 
 ### Tasks
 
 #### 3.1 Create myAdmin Tenant
 
-- [ ] Add myAdmin tenant to database
-- [ ] Create myAdmin Google Drive account (or use existing)
-- [ ] Store myAdmin Google Drive credentials in database
-- [ ] Configure myAdmin tenant in Cognito
+- [x] Add myAdmin tenant to database
+- [x] Create myAdmin Google Drive account (or use existing)
+- [x] Store myAdmin Google Drive credentials in database
+- [x] Configure myAdmin tenant in Cognito
 
+Note PG: Check
 #### 3.2 Setup myAdmin Storage Structure
+
+Note PG: This task must be placed in phase 5 
 
 - [ ] Create folder structure in myAdmin Google Drive:
   - Generic Templates/
@@ -695,21 +706,24 @@ This document breaks down the Railway migration into manageable phases with deta
 
 #### 3.3 Migrate Generic Templates
 
+Note PG: This task must be placed in phase 5 
 - [ ] Identify generic templates (used by all tenants)
 - [ ] Move to myAdmin Google Drive
 - [ ] Update template references in code
 - [ ] Test template access from myAdmin tenant
 
 #### 3.4 Configure SysAdmin Access
+Note PG: The SysAdmin has already a role in Cognito but we still need a tennat myAdmin. The SysAdmin can noot access other tennats but the user with different roles of tennnants and SysAdmin should be able.
 
 - [ ] Ensure SysAdmin role has access to myAdmin tenant
 - [ ] Verify SysAdmin cannot access other tenant data
 - [ ] Test myAdmin tenant isolation
 
 #### 3.5 Testing
+Note PG: Test generic template access  (This is possible in phase 5)
 
 - [ ] Test SysAdmin access to myAdmin tenant
-- [ ] Test generic template access
+- [ ] Test generic template access  (This is possible in phase 5)
 - [ ] Verify tenant isolation
 - [ ] Run security tests
 
@@ -734,7 +748,7 @@ This document breaks down the Railway migration into manageable phases with deta
 ### Tasks
 
 #### 4.1 Backend API Endpoints
-
+Note PG: Please check what we already have specific template related a lot has been done
 - [ ] Create `backend/src/tenant_admin_routes.py`
 - [ ] Implement credential management endpoints:
   - POST `/api/tenant-admin/credentials` (upload Google Drive credentials)
@@ -757,9 +771,9 @@ This document breaks down the Railway migration into manageable phases with deta
 - [ ] Write API tests
 
 #### 4.2 Frontend Components
-
-- [ ] Create `frontend/src/components/TenantAdmin/` folder
-- [ ] Create TenantAdminDashboard component
+Note PG: check what we already have
+- [x] Create `frontend/src/components/TenantAdmin/` folder
+- [x] Create TenantAdminDashboard component
 - [ ] Create CredentialsManagement component
   - Upload credentials.json
   - OAuth flow for Google Drive
@@ -790,7 +804,7 @@ This document breaks down the Railway migration into manageable phases with deta
 #### 4.4 Access Control
 
 - [ ] Verify Tenant Administrator can only access their tenant
-- [ ] Verify SysAdmin cannot access tenant data
+- [ ] Verify SysAdmin cannot access tenant data *(Note PG: A user with combined roles can??)
 - [ ] Test role-based permissions
 - [ ] Add audit logging for admin actions
 
@@ -852,7 +866,7 @@ This document breaks down the Railway migration into manageable phases with deta
 #### 5.3 Google Drive Tenant Integration Fixes
 
 **Context**: GoogleDriveService was updated to require tenant-specific credentials, but several endpoints were not passing the tenant parameter, causing files to be stored locally instead of in Google Drive.
-
+Note PG: Check what we really have 
 - [x] Fix `/api/folders` endpoint (Line 325 in app.py)
   - [x] Add tenant extraction from `X-Tenant` header
   - [x] Pass tenant to `GoogleDriveService(administration=tenant)`
@@ -996,6 +1010,7 @@ This document breaks down the Railway migration into manageable phases with deta
 ---
 
 ## 📊 Progress Tracking
+Note PG: Update this table reflects the 5 phase before
 
 | Phase                        | Status         | Start Date | End Date | Notes |
 | ---------------------------- | -------------- | ---------- | -------- | ----- |
@@ -1051,3 +1066,6 @@ This document breaks down the Railway migration into manageable phases with deta
 - Test thoroughly in local environment before Railway deployment
 - Document any deviations from the plan
 - Update this file as tasks are completed
+
+Note PG: Add a task git-upload.ps1 after each group of tasks from 4.2 -5.x
+Note PG: Do we need a requirements and  design of the Tenant and the SysAdmin functions. If we need it add a task before we start working on it to make a requirements.md design.md and update the tasks in a .kiro\specs\subject. So we can keep this task focussed on execution of the migration and have specialized ityems on tyhe subjects 
