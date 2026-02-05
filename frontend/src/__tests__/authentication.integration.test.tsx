@@ -491,8 +491,13 @@ describe('Authentication Integration Tests', () => {
 
   describe('User Experience', () => {
     it('should show loading state while checking authentication', async () => {
-      (getCurrentUser as jest.Mock).mockImplementation(() => new Promise(() => {})); // Never resolves
-      (fetchAuthSession as jest.Mock).mockImplementation(() => new Promise(() => {}));
+      (getCurrentUser as jest.Mock).mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 100))
+      );
+      (fetchAuthSession as jest.Mock).mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 100))
+      );
+      setupUnauthenticatedMocks();
 
       const TestComponent = () => <div>Protected Content</div>;
 
