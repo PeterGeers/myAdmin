@@ -473,8 +473,7 @@ describe('Authentication Integration Tests', () => {
       const encodedPayload = btoa(JSON.stringify(validPayload));
       const validToken = `header.${encodedPayload}.signature`;
 
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAdminUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(validToken));
+      setupAuthenticatedMocks(mockAdminUser, validToken, ['Administrators']);
 
       const TestComponent = () => <div>Protected Content</div>;
 
