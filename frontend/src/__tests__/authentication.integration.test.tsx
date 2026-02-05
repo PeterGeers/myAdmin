@@ -513,8 +513,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should display user email in unauthorized page', async () => {
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockViewerUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(mockViewerToken));
+      setupAuthenticatedMocks(mockViewerUser, mockViewerToken, ['Viewers']);
 
       renderWithProviders(<Unauthorized requiredRoles={['Administrators']} />);
 
