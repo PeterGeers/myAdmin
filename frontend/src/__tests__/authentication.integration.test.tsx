@@ -523,7 +523,7 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should show forgot password link on login page', async () => {
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      setupUnauthenticatedMocks();
 
       renderWithProviders(<Login />);
 
