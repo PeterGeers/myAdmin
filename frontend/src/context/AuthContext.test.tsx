@@ -5,19 +5,75 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
-import { getCurrentUser, signOut } from 'aws-amplify/auth';
+import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import * as authService from '../services/authService';
 
 // Mock AWS Amplify
 jest.mock('aws-amplify/auth');
 
+// Mock authService to prevent infinite loops in AuthContext
+jest.mock('../services/authService', () => ({
+  isAuthenticated: jest.fn(),
+  getCurrentAuthTokens: jest.fn(),
+  getCurrentUserRoles: jest.fn(),
+  getCurrentUserEmail: jest.fn(),
+  getCurrentUserName: jest.fn(),
+  getCurrentUserTenants: jest.fn(),
+  hasRole: jest.fn(),
+  hasAnyRole: jest.fn(),
+  hasAllRoles: jest.fn(),
+}));
+
 const mockGetCurrentUser = getCurrentUser as jest.MockedFunction<typeof getCurrentUser>;
 const mockSignOut = signOut as jest.MockedFunction<typeof signOut>;
+const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
 
-// Spy on authService functions but use real implementations
-const getCurrentUserRolesSpy = jest.spyOn(authService, 'getCurrentUserRoles');
-const getCurrentUserEmailSpy = jest.spyOn(authService, 'getCurrentUserEmail');
-const isAuthenticatedSpy = jest.spyOn(authService, 'isAuthenticated');
+// Mock JWT token creation
+const createMockToken = (email: string, groups: string[]) => {
+  const payload = {
+    email: email,
+    'cognito:groups': groups,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    iat: Math.floor(Date.now() / 1000),
+  };
+  const encodedPayload = btoa(JSON.stringify(payload));
+  return `header.${encodedPayload}.signature`;
+};
+
+const createMockSession = (token: string) => ({
+  tokens: {
+    idToken: { toString: () => token },
+    accessToken: { toString: () => token }
+  }
+});
+
+// Helper functions for setting up mocks
+const setupAuthenticatedMocks = (user: any, token: string, roles: string[]) => {
+  mockGetCurrentUser.mockResolvedValue(user);
+  mockFetchAuthSession.mockResolvedValue(createMockSession(token));
+  (authService.isAuthenticated as jest.Mock).mockResolvedValue(true);
+  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(user.signInDetails?.loginId || user.username);
+  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(user.username);
+  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue(roles);
+  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue(['tenant1']);
+  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue({
+    idToken: token,
+    accessToken: token
+  });
+  (authService.hasRole as jest.Mock).mockImplementation((userRoles: string[], requiredRole: string) => 
+    roles.includes(requiredRole)
+  );
+};
+
+const setupUnauthenticatedMocks = () => {
+  mockFetchAuthSession.mockRejectedValue(new Error('Not authenticated'));
+  (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
+  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
+  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
+  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
+  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
+  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+};
 
 // Test component that uses the auth context
 function TestComponent() {
@@ -45,6 +101,14 @@ function TestComponent() {
 describe('AuthContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Setup default mocks for authService to prevent hanging
+    (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
+    (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
+    (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
+    (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
+    (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
+    (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
   });
 
   it('should throw error when useAuth is used outside AuthProvider', () => {
@@ -59,7 +123,7 @@ describe('AuthContext', () => {
   });
 
   it('should show loading state initially', () => {
-    isAuthenticatedSpy.mockResolvedValue(false);
+    setupUnauthenticatedMocks();
 
     render(
       <AuthProvider>
@@ -71,7 +135,7 @@ describe('AuthContext', () => {
   });
 
   it('should show not authenticated when user is not logged in', async () => {
-    isAuthenticatedSpy.mockResolvedValue(false);
+    setupUnauthenticatedMocks();
 
     render(
       <AuthProvider>
@@ -85,13 +149,16 @@ describe('AuthContext', () => {
   });
 
   it('should load user data when authenticated', async () => {
-    isAuthenticatedSpy.mockResolvedValue(true);
-    mockGetCurrentUser.mockResolvedValue({
+    const mockUser = {
       username: 'testuser',
-      userId: 'test-user-id'
-    } as any);
-    getCurrentUserEmailSpy.mockResolvedValue('test@example.com');
-    getCurrentUserRolesSpy.mockResolvedValue(['Administrators', 'Finance_CRUD']);
+      userId: 'test-user-id',
+      signInDetails: {
+        loginId: 'test@example.com'
+      }
+    };
+    const mockToken = createMockToken('test@example.com', ['Administrators', 'Finance_CRUD']);
+    
+    setupAuthenticatedMocks(mockUser, mockToken, ['Administrators', 'Finance_CRUD']);
 
     render(
       <AuthProvider>
@@ -108,7 +175,8 @@ describe('AuthContext', () => {
   });
 
   it('should handle authentication errors gracefully', async () => {
-    isAuthenticatedSpy.mockRejectedValue(new Error('Auth error'));
+    mockFetchAuthSession.mockRejectedValue(new Error('Auth error'));
+    (authService.isAuthenticated as jest.Mock).mockRejectedValue(new Error('Auth error'));
 
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
 
@@ -126,13 +194,16 @@ describe('AuthContext', () => {
   });
 
   it('should handle logout', async () => {
-    isAuthenticatedSpy.mockResolvedValue(true);
-    mockGetCurrentUser.mockResolvedValue({
+    const mockUser = {
       username: 'testuser',
-      userId: 'test-user-id'
-    } as any);
-    getCurrentUserEmailSpy.mockResolvedValue('test@example.com');
-    getCurrentUserRolesSpy.mockResolvedValue(['Administrators']);
+      userId: 'test-user-id',
+      signInDetails: {
+        loginId: 'test@example.com'
+      }
+    };
+    const mockToken = createMockToken('test@example.com', ['Administrators']);
+    
+    setupAuthenticatedMocks(mockUser, mockToken, ['Administrators']);
     mockSignOut.mockResolvedValue();
 
     render(
@@ -155,13 +226,16 @@ describe('AuthContext', () => {
   });
 
   it('should check roles correctly', async () => {
-    isAuthenticatedSpy.mockResolvedValue(true);
-    mockGetCurrentUser.mockResolvedValue({
+    const mockUser = {
       username: 'testuser',
-      userId: 'test-user-id'
-    } as any);
-    getCurrentUserEmailSpy.mockResolvedValue('test@example.com');
-    getCurrentUserRolesSpy.mockResolvedValue(['Finance_Read', 'Tenant_All']);
+      userId: 'test-user-id',
+      signInDetails: {
+        loginId: 'test@example.com'
+      }
+    };
+    const mockToken = createMockToken('test@example.com', ['Finance_Read', 'Tenant_All']);
+    
+    setupAuthenticatedMocks(mockUser, mockToken, ['Finance_Read', 'Tenant_All']);
 
     render(
       <AuthProvider>
