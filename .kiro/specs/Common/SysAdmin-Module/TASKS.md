@@ -10,7 +10,14 @@
 
 This document contains detailed implementation tasks for the SysAdmin Module. Tasks are organized by component and should be completed in order.
 
-**Estimated Time**: 5-7 days
+**Estimated Time**: 5.5 days
+
+**Scope Changes**:
+
+- Removed: generic_templates table and endpoints
+- Removed: tenant_role_allocation table
+- Removed: platform config endpoints
+- Future: Audit logging, AI usage monitoring
 
 ---
 
@@ -23,35 +30,54 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 
 ---
 
-## Phase 1: myAdmin Tenant Setup (1 day)
+## Phase 1: myAdmin Tenant Setup (0.5 day)
 
 ### 1.1 Database Setup
 
-- [x Create myAdmin tenant in database
+- [x] Create myAdmin tenant in database ✅ Done
   ```sql
-  INSERT INTO tenants (administration, status, created_at)
-  VALUES ('myAdmin', 'active', NOW());
+  INSERT INTO tenants (administration, display_name, status, contact_email, created_at)
+  VALUES ('myAdmin', 'myAdmin Platform', 'active', 'admin@myadmin.com', NOW());
   ```
-- [ ] Create tenant_modules table (see design.md)
-- [ ] Create generic_templates table (see design.md)
-- [ ] Create tenant_role_allocation table (see design.md)
-- [ ] Test table creation locally
-- [ ] Document schema changes
+- [x] Verify tenant_modules table exists ✅ Already exists
+- [ ] Insert myAdmin modules (ADMIN)
+  ```sql
+  -- myAdmin has ADMIN module for platform management (not FIN/STR)
+  INSERT INTO tenant_modules (administration, module_name, is_enabled, created_at)
+  VALUES ('myAdmin', 'ADMIN', TRUE, NOW());
+  ```
+- [ ] Test table access locally
+- [ ] Document schema
 
 ### 1.2 Cognito Setup
 
-- [ ] Verify SysAdmin group exists in Cognito
-- [ ] Create myAdmin tenant in Cognito (if needed)
-- [ ] Assign SysAdmin users to myAdmin tenant
+**Note**: Most Cognito infrastructure is already configured. See `.kiro/specs/Common/Cognito/` for details.
+
+- [ ] Verify SysAdmin group exists in Cognito (check if created)
+- [ ] Verify Tenant_Admin group exists in Cognito (check if created)
+- [ ] Verify custom:tenants attribute is configured (max 2048 chars)
+- [ ] Check existing test users (peter@pgeers.nl, accountant@test.com, viewer@test.com)
+- [ ] Create SysAdmin group if not exists
+- [ ] Create Tenant_Admin group if not exists
+- [ ] Assign SysAdmin group to admin user
+- [ ] Assign myAdmin tenant to admin user (custom:tenants = ["myAdmin"])
 - [ ] Test SysAdmin authentication
-- [ ] Document Cognito configuration
+- [ ] Update Cognito documentation with SysAdmin-specific configuration (if needed)
 
-### 1.3 Filesystem Setup
+**Verification Commands**:
 
-- [ ] Create `backend/templates/generic/` directory
-- [ ] Create `backend/static/platform/` directory
-- [ ] Add .gitkeep files to preserve directories
-- [ ] Document directory structure
+```powershell
+# List all groups
+aws cognito-idp list-groups --user-pool-id <USER_POOL_ID> --region eu-west-1
+
+# Check user pool schema for custom:tenants attribute
+aws cognito-idp describe-user-pool --user-pool-id <USER_POOL_ID> --region eu-west-1
+
+# List users
+aws cognito-idp list-users --user-pool-id <USER_POOL_ID> --region eu-west-1
+```
+
+**Reference**: See `.kiro/specs/Common/Cognito/` for complete Cognito setup documentation
 
 ---
 
@@ -59,7 +85,7 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 
 ### 2.1 Create SysAdmin Routes Blueprint
 
-- [ ] Create `backend/src/sysadmin_routes.py`
+- [ ] Create `backend/src/routes/sysadmin_routes.py`
 - [ ] Setup blueprint with prefix `/api/sysadmin`
 - [ ] Import required services and decorators
 - [ ] Register blueprint in `app.py`
@@ -67,36 +93,40 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 ### 2.2 Implement Tenant Endpoints
 
 - [ ] Implement POST `/api/sysadmin/tenants` (create tenant)
-  - [ ] Validate request data
-  - [ ] Create tenant in database
-  - [ ] Create tenant in Cognito
-  - [ ] Send invitation email to initial admin
+  - [ ] Validate request data (administration, display_name, contact_email, etc.)
+  - [ ] Create tenant in `tenants` table
+  - [ ] Insert enabled modules into `tenant_modules` table
+  - [ ] Create initial Tenant_Admin user in Cognito (optional)
+  - [ ] Send invitation email to initial admin (optional)
   - [ ] Return success response
 - [ ] Implement GET `/api/sysadmin/tenants` (list tenants)
-  - [ ] Query all tenants from database
-  - [ ] Add pagination support
+  - [ ] Query all tenants from `tenants` table
+  - [ ] Join with `tenant_modules` to get enabled_modules
+  - [ ] Query Cognito for user_count per tenant
+  - [ ] Add pagination support (page, per_page)
   - [ ] Add filtering (status, search)
-  - [ ] Add sorting
+  - [ ] Add sorting (administration, display_name, created_at, status)
   - [ ] Return tenant list
-- [ ] Implement GET `/api/sysadmin/tenants/:id` (get tenant details)
-  - [ ] Query tenant by ID
-  - [ ] Return tenant details
-  - [ ] Do not include sensitive data
-- [ ] Implement PUT `/api/sysadmin/tenants/:id` (update tenant)
+- [ ] Implement GET `/api/sysadmin/tenants/{administration}` (get tenant details)
+  - [ ] Query tenant by administration
+  - [ ] Get enabled modules from `tenant_modules`
+  - [ ] Get users from Cognito (filter by custom:tenants)
+  - [ ] Return tenant details with users and groups
+- [ ] Implement PUT `/api/sysadmin/tenants/{administration}` (update tenant)
   - [ ] Validate request data
-  - [ ] Update tenant in database
-  - [ ] Log action in audit trail
+  - [ ] Update tenant in `tenants` table (display_name, status, contact info, address)
+  - [ ] Cannot update `administration` field (immutable)
+  - [ ] Set `updated_by` to current SysAdmin user email
   - [ ] Return success response
-- [ ] Implement PUT `/api/sysadmin/tenants/:id/status` (activate/deactivate)
-  - [ ] Update tenant status
-  - [ ] Log action in audit trail
+- [ ] Implement DELETE `/api/sysadmin/tenants/{administration}` (soft delete tenant)
+  - [ ] Set status='deleted' (soft delete)
+  - [ ] Check for active users (return 409 if users exist)
   - [ ] Return success response
 
 ### 2.3 Authorization & Security
 
-- [ ] Create `@require_sysadmin` decorator
-- [ ] Apply decorator to all sysadmin endpoints
-- [ ] Verify user has SysAdmin role
+- [ ] Use existing `@cognito_required` decorator from `auth/cognito_utils.py`
+- [ ] Add SysAdmin group check in endpoints
 - [ ] Log authorization failures
 - [ ] Test authorization checks
 
@@ -104,8 +134,8 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 
 - [ ] Write unit tests for tenant endpoints
 - [ ] Write integration tests for tenant workflows
-- [ ] Test authorization checks
-- [ ] Test error handling
+- [ ] Test authorization checks (SysAdmin only)
+- [ ] Test error handling (400, 401, 403, 404, 409, 500)
 - [ ] Achieve 80%+ code coverage
 
 ---
@@ -114,158 +144,113 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 
 ### 3.1 Implement Role Endpoints
 
-- [ ] Implement POST `/api/sysadmin/roles` (create role)
-  - [ ] Create Cognito group
-  - [ ] Store role metadata in database
-  - [ ] Return success response
-- [ ] Implement GET `/api/sysadmin/roles` (list roles)
+- [ ] Implement GET `/api/sysadmin/roles` (list Cognito groups)
   - [ ] Query all Cognito groups
+  - [ ] Get user count per group from Cognito
+  - [ ] Categorize groups (platform, tenant, module)
   - [ ] Return role list with metadata
-- [ ] Implement PUT `/api/sysadmin/roles/:id` (update role)
-  - [ ] Update Cognito group
-  - [ ] Update role metadata
+- [ ] Implement POST `/api/sysadmin/roles` (create Cognito group)
+  - [ ] Validate group name (no duplicates)
+  - [ ] Create Cognito group with description
   - [ ] Return success response
-- [ ] Implement DELETE `/api/sysadmin/roles/:id` (delete role)
-  - [ ] Verify role not assigned to users
+- [ ] Implement DELETE `/api/sysadmin/roles/{role_name}` (delete Cognito group)
+  - [ ] Check group has zero users (return 409 if users exist)
   - [ ] Delete Cognito group
-  - [ ] Delete role metadata
   - [ ] Return success response
 
-### 3.2 Tenant-Role Allocation
+### 3.2 Module Management Endpoints
 
-- [ ] Implement POST `/api/sysadmin/tenants/:id/roles` (assign role to tenant)
-  - [ ] Insert into tenant_role_allocation table
+- [ ] Implement GET `/api/sysadmin/tenants/{administration}/modules` (get enabled modules)
+  - [ ] Query `tenant_modules` table
+  - [ ] Return module list with enabled status
+- [ ] Implement PUT `/api/sysadmin/tenants/{administration}/modules` (update modules)
+  - [ ] Update `tenant_modules` table
+  - [ ] Note: Does NOT remove users from module groups
   - [ ] Return success response
-- [ ] Implement DELETE `/api/sysadmin/tenants/:id/roles/:role_id` (remove role from tenant)
-  - [ ] Delete from tenant_role_allocation table
-  - [ ] Return success response
-- [ ] Implement GET `/api/sysadmin/tenants/:id/roles` (list tenant roles)
-  - [ ] Query tenant_role_allocation table
-  - [ ] Return role list
 
 ### 3.3 Testing
 
 - [ ] Write unit tests for role endpoints
 - [ ] Write integration tests for role workflows
 - [ ] Test Cognito integration
-- [ ] Test error handling
+- [ ] Test module management
+- [ ] Test error handling (400, 401, 403, 404, 409)
 
 ---
 
-## Phase 4: Backend API - Generic Templates (1 day)
+## Phase 4: Frontend UI - SysAdmin Dashboard (2 days)
 
-### 4.1 Create GenericTemplateService
-
-- [ ] Create `backend/src/services/generic_template_service.py`
-- [ ] Implement `upload_template(file, template_type, template_name)` method
-- [ ] Implement `get_template(template_name, version)` method
-- [ ] Implement `list_templates()` method
-- [ ] Implement `get_template_versions(template_name)` method
-- [ ] Write unit tests
-
-### 4.2 Implement Template Endpoints
-
-- [ ] Implement POST `/api/sysadmin/templates` (upload template)
-  - [ ] Validate file type (HTML, XLSX)
-  - [ ] Save file to Railway filesystem
-  - [ ] Store metadata in database
-  - [ ] Return success response
-- [ ] Implement GET `/api/sysadmin/templates` (list templates)
-  - [ ] Query generic_templates table
-  - [ ] Return template list
-- [ ] Implement GET `/api/sysadmin/templates/:id` (get template)
-  - [ ] Read file from filesystem
-  - [ ] Return file content
-- [ ] Implement GET `/api/sysadmin/templates/:id/versions` (list versions)
-  - [ ] Query template versions
-  - [ ] Return version list
-
-### 4.3 Testing
-
-- [ ] Write unit tests for template service
-- [ ] Write integration tests for template endpoints
-- [ ] Test file upload and retrieval
-- [ ] Test version management
-
----
-
-## Phase 5: Frontend UI - SysAdmin Dashboard (2 days)
-
-### 5.1 Create Component Structure
+### 4.1 Create Component Structure
 
 - [ ] Create `frontend/src/components/SysAdmin/` directory
 - [ ] Create `SysAdminDashboard.tsx` (main container)
 - [ ] Create `TenantManagement.tsx` component
 - [ ] Create `RoleManagement.tsx` component
-- [ ] Create `GenericTemplateManagement.tsx` component
-- [ ] Create `PlatformConfig.tsx` component
-- [ ] Create `AuditLogs.tsx` component
+- [ ] Create `ModuleManagement.tsx` component
 
-### 5.2 Implement Tenant Management UI
+### 4.2 Implement Tenant Management UI
 
 - [ ] Create tenant list view
-  - [ ] Display tenant table (name, status, users, created date)
+  - [ ] Display tenant table (administration, display_name, status, enabled_modules, user_count, created_at)
   - [ ] Add pagination
   - [ ] Add filtering (status, search)
-  - [ ] Add sorting
+  - [ ] Add sorting (administration, display_name, created_at, status)
 - [ ] Create tenant creation form
-  - [ ] Input: tenant name
-  - [ ] Input: contact email
-  - [ ] Input: initial admin email
-  - [ ] Module selection checkboxes
+  - [ ] Input: administration (unique identifier)
+  - [ ] Input: display_name
+  - [ ] Input: contact_email, phone_number
+  - [ ] Input: address fields (street, city, zipcode, country)
+  - [ ] Module selection checkboxes (FIN, STR)
+  - [ ] Input: initial_admin_email (optional)
   - [ ] Submit button
 - [ ] Create tenant edit form
-  - [ ] Update tenant name
-  - [ ] Update contact email
-  - [ ] Enable/disable modules
+  - [ ] Update display_name, contact info, address
+  - [ ] Update status (active, suspended, inactive)
+  - [ ] Cannot update administration (immutable)
   - [ ] Save button
-- [ ] Create tenant status toggle
-  - [ ] Activate/deactivate button
-  - [ ] Confirmation dialog
+- [ ] Create tenant details view
+  - [ ] Show all tenant fields
+  - [ ] Show enabled modules
+  - [ ] Show users with their groups
+  - [ ] Edit and delete buttons
 - [ ] Add error handling and loading states
 
-### 5.3 Implement Role Management UI
+### 4.3 Implement Role Management UI
 
 - [ ] Create role list view
-  - [ ] Display role table (name, description, users, tenants)
+  - [ ] Display role table (name, description, user_count, category)
   - [ ] Add search/filter
+  - [ ] Group by category (platform, tenant, module)
 - [ ] Create role creation form
-  - [ ] Input: role name
+  - [ ] Input: name (group name)
   - [ ] Input: description
-  - [ ] Permission checkboxes
+  - [ ] Select: category (platform, tenant, module)
+  - [ ] Select: module (if category=module)
   - [ ] Submit button
-- [ ] Create role edit form
-  - [ ] Update description
-  - [ ] Update permissions
-  - [ ] Save button
 - [ ] Create role deletion
   - [ ] Delete button
   - [ ] Confirmation dialog
+  - [ ] Show error if group has users
 - [ ] Add error handling and loading states
 
-### 5.4 Implement Generic Template Management UI
+### 4.4 Implement Module Management UI
 
-- [ ] Create template list view
-  - [ ] Display template table (name, type, version, updated)
-  - [ ] Add search/filter
-- [ ] Create template upload form
-  - [ ] File input
-  - [ ] Template type selector
-  - [ ] Template name input
-  - [ ] Upload button
-- [ ] Create template preview
-  - [ ] Display template content
-  - [ ] Version selector
+- [ ] Create module management view (per tenant)
+  - [ ] Display enabled modules (FIN, STR)
+  - [ ] Toggle switches to enable/disable
+  - [ ] Save button
+  - [ ] Warning: Disabling module doesn't remove users from groups
 - [ ] Add error handling and loading states
 
-### 5.5 Navigation & Routing
+### 4.5 Navigation & Routing
 
-- [ ] Add SysAdmin menu item (visible to SysAdmin role only)
+- [ ] Add SysAdmin menu item (visible to SysAdmin group only)
 - [ ] Add route `/sysadmin` in React Router
+- [ ] Add sub-routes: `/sysadmin/tenants`, `/sysadmin/roles`
 - [ ] Add breadcrumbs
 - [ ] Add back navigation
 
-### 5.6 Styling
+### 4.6 Styling
 
 - [ ] Use existing Chakra UI theme
 - [ ] Ensure responsive design
@@ -274,24 +259,24 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 
 ---
 
-## Phase 6: Testing & Documentation (1 day)
+## Phase 5: Testing & Documentation (1 day)
 
-### 6.1 End-to-End Testing
+### 5.1 End-to-End Testing
 
 - [ ] Test complete tenant creation workflow
 - [ ] Test complete role management workflow
-- [ ] Test complete template upload workflow
-- [ ] Test authorization (SysAdmin only)
-- [ ] Test data isolation (cannot access tenant data)
+- [ ] Test module management workflow
+- [ ] Test authorization (SysAdmin group only)
+- [ ] Test data isolation (SysAdmin cannot access tenant business data)
 
-### 6.2 Documentation
+### 5.2 Documentation
 
 - [ ] Update API documentation (OpenAPI/Swagger)
 - [ ] Create user guide for SysAdmin
-- [ ] Document all environment variables
-- [ ] Update Railway migration README
+- [ ] Document Cognito group management
+- [ ] Update README with SysAdmin module info
 
-### 6.3 Code Review
+### 5.3 Code Review
 
 - [ ] Review all code for quality
 - [ ] Review all tests for coverage
@@ -302,14 +287,13 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 
 ## Progress Tracking
 
-| Phase                                | Status         | Start Date | End Date | Notes |
-| ------------------------------------ | -------------- | ---------- | -------- | ----- |
-| Phase 1: myAdmin Tenant Setup        | ⏸️ Not Started | -          | -        | -     |
-| Phase 2: Backend - Tenant Management | ⏸️ Not Started | -          | -        | -     |
-| Phase 3: Backend - Role Management   | ⏸️ Not Started | -          | -        | -     |
-| Phase 4: Backend - Generic Templates | ⏸️ Not Started | -          | -        | -     |
-| Phase 5: Frontend UI                 | ⏸️ Not Started | -          | -        | -     |
-| Phase 6: Testing & Documentation     | ⏸️ Not Started | -          | -        | -     |
+| Phase                                | Status         | Start Date | End Date | Notes             |
+| ------------------------------------ | -------------- | ---------- | -------- | ----------------- |
+| Phase 1: myAdmin Tenant Setup        | 🔄 In Progress | 2026-02-05 | -        | Tenant created ✅ |
+| Phase 2: Backend - Tenant Management | ⏸️ Not Started | -          | -        | -                 |
+| Phase 3: Backend - Role Management   | ⏸️ Not Started | -          | -        | -                 |
+| Phase 4: Frontend UI                 | ⏸️ Not Started | -          | -        | -                 |
+| Phase 5: Testing & Documentation     | ⏸️ Not Started | -          | -        | -                 |
 
 **Legend:**
 
@@ -322,7 +306,11 @@ This document contains detailed implementation tasks for the SysAdmin Module. Ta
 
 ## Notes
 
-- This spec focuses on core SysAdmin functionality
-- Additional features (audit logs, monitoring) can be added later
+- **Removed from scope**: generic_templates table, tenant_role_allocation table, platform config endpoints
+- **Design decisions**:
+  - Use `tenant_template_config` with `administration='myAdmin'` for myAdmin templates
+  - Derive available roles from `tenant_modules` + Cognito groups
+  - Roles stored in Cognito, not database
+  - Audit logging and AI usage monitoring marked as future enhancements
 - Coordinate with Railway migration Phase 3 and Phase 5
 - Test thoroughly before deploying to production
