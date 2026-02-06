@@ -356,11 +356,14 @@ class TestDuplicateDetectionLoad:
         assert avg_hit_time < 0.1, f"Cache hit time {avg_hit_time:.4f}s is too slow"
         assert cache_hit_rate > 30, f"Cache hit rate {cache_hit_rate:.1f}% is too low"
     
+    @pytest.mark.slow
     def test_sustained_load(self, query_optimizer):
         """
         Test performance under sustained load over time.
         
         Requirement: 5.5 - System should maintain performance over time
+        
+        Note: This test takes ~30 seconds. Run with: pytest -m slow
         """
         duration_seconds = 30
         requests_per_second = 5

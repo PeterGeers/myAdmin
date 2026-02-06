@@ -416,7 +416,8 @@ class TemplatePreviewService:
                 
                 # Format value if it's a number or date
                 if isinstance(value, (int, float)):
-                    value = f"{value:.2f}"
+                    # Format numbers with thousands separator and 2 decimals
+                    value = f"{value:,.2f}"
                 elif isinstance(value, datetime):
                     value = value.strftime('%d-%m-%Y')
                 

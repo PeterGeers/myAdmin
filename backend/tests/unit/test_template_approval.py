@@ -265,9 +265,34 @@ class TestTemplateApproval:
         </html>
         """
         field_mappings = {
-            'invoice_number': 'custom_invoice_field',
-            'guest_name': 'booking_guest_name',
-            'amount_gross': 'total_amount'
+            'fields': {
+                'invoice_number': {
+                    'path': 'custom_invoice_field',
+                    'source': 'database',
+                    'format': 'text',
+                    'default': ''
+                },
+                'guest_name': {
+                    'path': 'booking_guest_name',
+                    'source': 'database',
+                    'format': 'text',
+                    'default': ''
+                },
+                'amount_gross': {
+                    'path': 'total_amount',
+                    'source': 'database',
+                    'format': 'currency',
+                    'default': 0,
+                    'transform': 'round'
+                }
+            },
+            'formatting': {
+                'currency': 'EUR',
+                'date_format': 'DD-MM-YYYY',
+                'locale': 'en_US',
+                'number_decimals': 2
+            },
+            'conditionals': []
         }
         user_email = 'admin@example.com'
         notes = 'Custom field mappings applied'
