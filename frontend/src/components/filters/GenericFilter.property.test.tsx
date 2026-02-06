@@ -11,66 +11,142 @@ import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as fc from 'fast-check';
 
-// Mock Chakra UI components before importing the component
-const mockOnOpen = jest.fn();
-const mockOnClose = jest.fn();
-
-jest.mock('@chakra-ui/react', () => ({
-  Button: ({ children, onClick, disabled, rightIcon, textAlign, ...props }: any) => (
-    <button onClick={onClick} disabled={disabled} {...props}>
-      {children}
-      {rightIcon}
-    </button>
-  ),
-  Checkbox: ({ isChecked, ...props }: any) => (
-    <input type="checkbox" checked={isChecked} readOnly {...props} />
-  ),
-  FormControl: ({ children, isDisabled, size }: any) => (
-    <div data-disabled={isDisabled} data-size={size}>{children}</div>
-  ),
-  FormLabel: ({ children, htmlFor }: any) => (
-    <label htmlFor={htmlFor}>{children}</label>
-  ),
-  Menu: ({ children, isOpen, onClose, closeOnSelect }: any) => (
-    <div data-menu-open={isOpen}>{children}</div>
-  ),
-  MenuButton: ({ children, as: Component = 'button', rightIcon, ...props }: any) => (
-    <Component {...props}>
-      {children}
-      {rightIcon}
-    </Component>
-  ),
-  MenuList: ({ children, maxH, overflowY, minW }: any) => (
-    <div role="menu">{children}</div>
-  ),
-  MenuItem: ({ children, onClick, closeOnSelect, isDisabled, ...props }: any) => (
-    <div role="menuitemcheckbox" onClick={onClick} aria-checked="false" {...props}>
-      {children}
-    </div>
-  ),
-  Select: ({ children, value, onChange, placeholder, disabled, size, icon, ...props }: any) => (
-    <select value={value} onChange={onChange} disabled={disabled} {...props}>
-      {placeholder && <option value="">{placeholder}</option>}
-      {children}
-    </select>
-  ),
-  Text: ({ children, isTruncated, color, fontSize, fontWeight, ...props }: any) => (
-    <span {...props}>{children}</span>
-  ),
-  HStack: ({ children, spacing, width }: any) => (
-    <div style={{ display: 'flex' }}>{children}</div>
-  ),
-  Spinner: ({ size }: any) => <span data-testid="spinner" className="chakra-spinner">Loading...</span>,
-  Alert: ({ children, status, mb, size }: any) => (
-    <div role="alert" data-status={status}>{children}</div>
-  ),
-  AlertIcon: () => <span data-testid="alert-icon">!</span>,
-  useDisclosure: () => ({
-    isOpen: false,
-    onOpen: mockOnOpen,
-    onClose: mockOnClose,
-  }),
-}));
+// Mock Chakra UI components with improved state management
+jest.mock('@chakra-ui/react', () => {
+  const React = require('react');
+  
+  return {
+    Button: ({ 
+      children, 
+      onClick, 
+      disabled, 
+      isDisabled,
+      isLoading,
+      rightIcon, 
+      ...props 
+    }: any) => {
+      const isActuallyDisabled = disabled || isDisabled || isLoading;
+      return (
+        <button 
+          onClick={isActuallyDisabled ? undefined : onClick} 
+          disabled={isActuallyDisabled}
+          data-loading={isLoading}
+          {...props}
+        >
+          {children}
+          {rightIcon}
+        </button>
+      );
+    },
+    Checkbox: ({ isChecked, onChange, ...props }: any) => (
+      <input 
+        type="checkbox" 
+        checked={isChecked} 
+        onChange={onChange}
+        {...props} 
+      />
+    ),
+    FormControl: ({ children, isDisabled, size }: any) => (
+      <div data-disabled={isDisabled} data-size={size}>{children}</div>
+    ),
+    FormLabel: ({ children, htmlFor }: any) => (
+      <label htmlFor={htmlFor}>{children}</label>
+    ),
+    Menu: ({ children, isOpen, onClose, closeOnSelect }: any) => (
+      <div data-menu-open={isOpen} data-close-on-select={closeOnSelect}>
+        {children}
+      </div>
+    ),
+    MenuButton: ({ 
+      children, 
+      as: Component = 'button', 
+      rightIcon,
+      onClick,
+      disabled,
+      isDisabled,
+      ...props 
+    }: any) => {
+      const isActuallyDisabled = disabled || isDisabled;
+      return (
+        <Component 
+          onClick={isActuallyDisabled ? undefined : onClick}
+          disabled={isActuallyDisabled}
+          {...props}
+        >
+          {children}
+          {rightIcon}
+        </Component>
+      );
+    },
+    MenuList: ({ children, maxH, overflowY, minW }: any) => (
+      <div role="menu" data-max-height={maxH}>{children}</div>
+    ),
+    MenuItem: ({ 
+      children, 
+      onClick, 
+      closeOnSelect, 
+      isDisabled,
+      ...props 
+    }: any) => (
+      <div 
+        role="menuitemcheckbox" 
+        onClick={isDisabled ? undefined : onClick}
+        aria-disabled={isDisabled}
+        {...props}
+      >
+        {children}
+      </div>
+    ),
+    Select: ({ 
+      children, 
+      value, 
+      onChange, 
+      placeholder, 
+      disabled,
+      isDisabled,
+      size, 
+      icon,
+      ...props 
+    }: any) => {
+      const isActuallyDisabled = disabled || isDisabled;
+      return (
+        <select 
+          value={value} 
+          onChange={onChange} 
+          disabled={isActuallyDisabled}
+          data-size={size}
+          {...props}
+        >
+          {placeholder && <option value="">{placeholder}</option>}
+          {children}
+        </select>
+      );
+    },
+    Text: ({ children, isTruncated, ...props }: any) => (
+      <span data-truncated={isTruncated} {...props}>{children}</span>
+    ),
+    HStack: ({ children, spacing, width }: any) => (
+      <div style={{ display: 'flex', gap: spacing }} data-width={width}>{children}</div>
+    ),
+    Spinner: ({ size }: any) => (
+      <span data-testid="spinner" className="chakra-spinner" data-size={size}>Loading...</span>
+    ),
+    Alert: ({ children, status, mb, size }: any) => (
+      <div role="alert" data-status={status} data-margin-bottom={mb} data-size={size}>{children}</div>
+    ),
+    AlertIcon: () => <span data-testid="alert-icon">!</span>,
+    // Enhanced useDisclosure that actually manages state
+    useDisclosure: () => {
+      const [isOpen, setIsOpen] = React.useState(false);
+      return {
+        isOpen,
+        onOpen: () => setIsOpen(true),
+        onClose: () => setIsOpen(false),
+        onToggle: () => setIsOpen(prev => !prev),
+      };
+    },
+  };
+});
 
 jest.mock('@chakra-ui/icons', () => ({
   ChevronDownIcon: () => <span data-testid="chevron-icon">▼</span>,

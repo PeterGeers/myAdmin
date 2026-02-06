@@ -1,559 +1,823 @@
 
 > frontend@0.1.0 test
-> react-scripts test TemplateUpload.test.tsx --no-coverage --watchAll=false
+> react-scripts test GenericFilter.test.tsx --watchAll=false --no-coverage
 
-FAIL src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx (6.437 s)
-  TemplateUpload
-    Rendering
-      ÔêÜ renders template type selector (66 ms)
-      ÔêÜ renders file upload button (74 ms)
-      ÔêÜ renders upload button (disabled initially) (18 ms)
-      ÔêÜ renders help instructions (11 ms)
-    Template Type Selection
-      ÔêÜ displays all template type options (78 ms)
-      ÔêÜ shows description when template type is selected (102 ms)
-      ÔêÜ clears errors when template type changes (156 ms)
-    File Upload
-      ÔêÜ accepts HTML file selection (74 ms)
-      ÔêÜ displays file size (62 ms)
-      ├ù rejects non-HTML files (1090 ms)
-      ÔêÜ rejects files larger than 5MB (323 ms)
-      ÔêÜ changes button text after file selection (71 ms)
-    Field Mappings
-      ├ù validates JSON format (165 ms)
-      ├ù accepts valid JSON (134 ms)
-      ÔêÜ accepts empty field mappings (52 ms)
-      Ôùï skipped hides field mappings by default
-      Ôùï skipped shows field mappings when toggled
-    Form Validation
-      ├ù shows error when uploading without file (1148 ms)
-      ├ù shows error when uploading without template type (1107 ms)
-      ÔêÜ enables upload button when all required fields are filled (155 ms)
-    Upload Submission
-      ÔêÜ calls onUpload with correct parameters (234 ms)
-      ├ù calls onUpload with field mappings when provided (244 ms)
-    Loading and Disabled States
-      ÔêÜ disables all inputs when loading (22 ms)
-      ÔêÜ disables all inputs when disabled prop is true (31 ms)
-      ÔêÜ shows loading text on upload button when loading (7 ms)
+FAIL src/components/filters/GenericFilter.test.tsx (7.228 s)
+  GenericFilter
+    Single-Select Mode
+      ÔêÜ renders single-select dropdown with label (112 ms)
+      ÔêÜ displays placeholder when no value selected (16 ms)
+      ÔêÜ displays selected value (12 ms)
+      ÔêÜ calls onChange with selected option when value changes (98 ms)
+      ÔêÜ calls onChange with empty array when cleared (89 ms)
+      ÔêÜ renders all available options (55 ms)
+    Multi-Select Mode
+      ÔêÜ renders multi-select menu button with label (26 ms)
+      ÔêÜ displays placeholder when no values selected (7 ms)
+      ├ù displays single selected value label (22 ms)
+      ÔêÜ displays count when multiple values selected (11 ms)
+      ÔêÜ opens menu when button clicked (88 ms)
+      ÔêÜ toggles selection when option clicked (204 ms)
+      ├ù removes selection when already selected option clicked (1085 ms)
+      ├ù shows checkboxes for all options (1088 ms)
+      ├ù checks selected options (1082 ms)
+      ÔêÜ shows "No options available" when options array is empty (60 ms)
+    Disabled State
+      ├ù disables single-select when disabled prop is true (12 ms)
+      ÔêÜ disables multi-select button when disabled prop is true (15 ms)
+    Loading State
+      ├ù disables single-select when loading (10 ms)
+      ÔêÜ disables multi-select button when loading (16 ms)
+      ├ù shows spinner in single-select when loading (7 ms)
+      ÔêÜ shows spinner in multi-select button when loading (10 ms)
+    Error State
+      ÔêÜ displays error message in single-select mode (25 ms)
+      ÔêÜ displays error message in multi-select mode (18 ms)
+      ÔêÜ does not display error when error is null (10 ms)
+    Custom Rendering
+      ÔêÜ uses custom renderOption in multi-select (73 ms)
+      ÔêÜ uses custom getOptionLabel (10 ms)
+      ÔêÜ uses custom getOptionValue (82 ms)
+    Accessibility
+      ÔêÜ has proper ARIA label for single-select (7 ms)
+      ÔêÜ has proper ARIA label for multi-select button (13 ms)
+      ├ù has proper ARIA attributes for menu (1080 ms)
+      ÔêÜ has proper role for menu items (88 ms)
+      ÔêÜ associates label with form control (14 ms)
+    Different Data Types
+      ÔêÜ works with string primitives (79 ms)
+      ÔêÜ works with number primitives (78 ms)
+      ÔêÜ works with complex objects (77 ms)
+      ÔêÜ handles objects with label property (9 ms)
+      ├ù handles objects with id property (7 ms)
+    Size Variants
+      ÔêÜ applies small size variant (6 ms)
+      ÔêÜ applies medium size variant (default) (7 ms)
+      ÔêÜ applies large size variant (3 ms)
+    Edge Cases
+      ÔêÜ handles empty availableOptions array (6 ms)
+      ÔêÜ handles empty values array (7 ms)
+      ÔêÜ handles multiple values in single-select mode (uses first) (5 ms)
+      ÔêÜ handles value not in availableOptions (8 ms)
+      ÔêÜ does not crash with undefined onChange (3 ms)
 
-  ÔùÅ TemplateUpload ÔÇ║ File Upload ÔÇ║ rejects non-HTML files
+  ÔùÅ GenericFilter ÔÇ║ Multi-Select Mode ÔÇ║ displays single selected value label
 
-    Unable to find an element with the text: /only html files/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+    TestingLibraryElementError: Found multiple elements with the text: 2024
+
+    Here are the matching elements:
+
+    Ignored nodes: comments, script, style
+    <span>
+      2024
+    </span>
+
+    Ignored nodes: comments, script, style
+    <span>
+      2024
+    </span>
+
+    (If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
 
     Ignored nodes: comments, script, style
     <body>
       <div>
-        <div>
-          <div
-            data-invalid="false"
+        <div
+          data-disabled="false"
+          data-size="md"
+        >
+          <label
+            for="filter-Years"
           >
-            <label>
-              Template Type
-            </label>
-            <select
-              aria-label="Template Type"
+            Years
+          </label>
+          <div
+            data-menu-open="false"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="true"
+              aria-label="Years"
+              font-weight="normal"
+              width="100%"
             >
-              <option
-                value=""
+              <span>
+                2024
+              </span>
+              <span
+                data-testid="chevron-icon"
               >
-                Select template type
-              </option>
-              <option
-                value="str_invoice_nl"
-              >
-                STR Invoice (Dutch)
-              </option>
-              <option
-                value="str_invoice_en"
-              >
-                STR Invoice (English)
-              </option>
-              <option
-                value="btw_aangifte"
-              >
-                BTW Aangifte
-              </option>
-              <option
-                value="aangifte_ib"
-              >
-                Aangifte IB
-              </option>
-              <option
-                value="toeristenbelasting"
-              >
-                Toeristenbelasting
-              </option>
-              <option
-                value="financial_report"
-              >
-                Financial Report
-              </option>
-            </select>
-          </div>
-          <div
-            data-invalid="false"
-          >
-            <label>
-              Template File
-            </label>
-            <input
-              accept=".html,.htm"
-              aria-label="Upload HTML template file"
-              style="display: none;"
-              type="file"
-            />
-            <div>
-              <button>
-                Browse Files
-              </button>
-            </div>
-            <div>
-              HTML files only, max 5MB
-            </div>
-          </div>
-          <div>
-            <button>
-              Ôû╝
-               Advanced: Field Mappings (Optional)
+                Ôû╝
+              </span>
             </button>
-            <div>
+            <div
+              role="menu"
+            >
               <div
-                data-invalid="false"
+                aria-checked="false"
+                role="menuitemcheckbox"
               >
-                <label>
-                  Field Mappings (JSON)
-                </label>
-                <textarea
-                  aria-label="Field Mappings (JSON)"
-                  placeholder="{\"field_name\": \"custom_value\"}"
-                  rows="6"
+                <div
+                  style="display: flex;"
                 >
-                  {}
-                </textarea>
-                <div>
-                  Optional: Customize field mappings in JSON format. Leave empty to use defaults.
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2023
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
-          <button
-            disabled=""
-          >
-            Upload & Preview Template
-          </button>
-          <div>
-            <p
-              font-weight="bold"
-              mb="2"
-            >
-              ­ƒôØ Upload Instructions
-            </p>
-            <div
-              color="gray.300"
-              font-size="xs"
-            >
-              <p>
-                1. Select the template type from the dropdown
-              </p>
-              <p>
-                2. Choose your HTML template file (max 5MB)
-              </p>
-              <p>
-                3. Optionally configure field mappings
-              </p>
-              <p>
-                4. Click "Upload & Preview Template" to validate
-              </p>
+              <div
+                aria-checked="true"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    checked=""
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2024
+                  </span>
+                </div>
+              </div>
+              <div
+                aria-checked="false"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2025
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </body>
 
-      195 |       await user.upload(input, file);
-      196 |       
-    > 197 |       await waitFor(() => {
-          |                    ^
-      198 |         expect(screen.getByText(/only html files/i)).toBeInTheDocument();
-      199 |       });
-      200 |     });
+      246 |       );
+      247 |
+    > 248 |       expect(screen.getByText('2024')).toBeInTheDocument();
+          |                     ^
+      249 |     });
+      250 |
+      251 |     it('displays count when multiple values selected', () => {
 
-      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
-      at Object.<anonymous> (src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx:197:20)
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at getElementError (node_modules/@testing-library/dom/dist/query-helpers.js:20:35)
+      at getMultipleElementsFoundError (node_modules/@testing-library/dom/dist/query-helpers.js:23:10)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:55:13
+      at getByText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:248:21)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
 
-  ÔùÅ TemplateUpload ÔÇ║ Field Mappings ÔÇ║ validates JSON format
+  ÔùÅ GenericFilter ÔÇ║ Multi-Select Mode ÔÇ║ removes selection when already selected option clicked
 
-    Expected repeat modifier or release modifier or "}" but found " " in "{invalid json}"
-        See https://testing-library.com/docs/user-event/keyboard
-        for more information about how userEvent parses your input.
+    Found multiple elements with the text: 2024
 
-      262 |       const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
-      263 |       await user.clear(textarea);
-    > 264 |       await user.type(textarea, '{invalid json}');
-          |       ^
-      265 |       
-      266 |       // Try to upload
-      267 |       const select = screen.getByRole('combobox', { name: /template type/i });
+    Here are the matching elements:
 
-      at readTag (node_modules/@testing-library/user-event/dist/cjs/utils/keyDef/readNextDescriptor.js:58:15)
-      at Object.readNextDescriptor (node_modules/@testing-library/user-event/dist/cjs/utils/keyDef/readNextDescriptor.js:26:66)
-      at Object.parseKeyDef (node_modules/@testing-library/user-event/dist/cjs/keyboard/parseKeyDef.js:18:118)
-      at Object.keyboard (node_modules/@testing-library/user-event/dist/cjs/keyboard/index.js:8:33)
-      at Object.type (node_modules/@testing-library/user-event/dist/cjs/utility/type.js:17:16)
-      at Object.asyncWrapper (node_modules/@testing-library/react/dist/pure.js:88:22)
-      at Object.<anonymous> (src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx:264:7)
+    Ignored nodes: comments, script, style
+    <span>
+      2024
+    </span>
 
-  ÔùÅ TemplateUpload ÔÇ║ Field Mappings ÔÇ║ accepts valid JSON
+    Ignored nodes: comments, script, style
+    <span>
+      2024
+    </span>
 
-    Expected repeat modifier or release modifier or "}" but found "f" in "{"field": "value"}"
-        See https://testing-library.com/docs/user-event/keyboard
-        for more information about how userEvent parses your input.
-
-      293 |       const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
-      294 |       await user.clear(textarea);
-    > 295 |       await user.type(textarea, '{"field": "value"}');
-          |       ^
-      296 |       
-      297 |       // Should not show error
-      298 |       expect(screen.queryByText(/invalid json format/i)).not.toBeInTheDocument();
-
-      at readTag (node_modules/@testing-library/user-event/dist/cjs/utils/keyDef/readNextDescriptor.js:58:15)
-      at Object.readNextDescriptor (node_modules/@testing-library/user-event/dist/cjs/utils/keyDef/readNextDescriptor.js:26:66)
-      at Object.parseKeyDef (node_modules/@testing-library/user-event/dist/cjs/keyboard/parseKeyDef.js:18:118)
-      at Object.keyboard (node_modules/@testing-library/user-event/dist/cjs/keyboard/index.js:8:33)
-      at Object.type (node_modules/@testing-library/user-event/dist/cjs/utility/type.js:17:16)
-      at Object.asyncWrapper (node_modules/@testing-library/react/dist/pure.js:88:22)
-      at Object.<anonymous> (src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx:295:7)
-
-  ÔùÅ TemplateUpload ÔÇ║ Form Validation ÔÇ║ shows error when uploading without file
-
-    Unable to find an element with the text: /please select a file/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+    (If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
 
     Ignored nodes: comments, script, style
     <body>
       <div>
-        <div>
-          <div
-            data-invalid="false"
+        <div
+          data-disabled="false"
+          data-size="md"
+        >
+          <label
+            for="filter-Years"
           >
-            <label>
-              Template Type
-            </label>
-            <select
-              aria-label="Template Type"
+            Years
+          </label>
+          <div
+            data-menu-open="false"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="true"
+              aria-label="Years"
+              font-weight="normal"
+              width="100%"
             >
-              <option
-                value=""
+              <span>
+                2024
+              </span>
+              <span
+                data-testid="chevron-icon"
               >
-                Select template type
-              </option>
-              <option
-                value="str_invoice_nl"
-              >
-                STR Invoice (Dutch)
-              </option>
-              <option
-                value="str_invoice_en"
-              >
-                STR Invoice (English)
-              </option>
-              <option
-                value="btw_aangifte"
-              >
-                BTW Aangifte
-              </option>
-              <option
-                value="aangifte_ib"
-              >
-                Aangifte IB
-              </option>
-              <option
-                value="toeristenbelasting"
-              >
-                Toeristenbelasting
-              </option>
-              <option
-                value="financial_report"
-              >
-                Financial Report
-              </option>
-            </select>
-            <div>
-              Short-term rental invoice in Dutch
-            </div>
-          </div>
-          <div
-            data-invalid="false"
-          >
-            <label>
-              Template File
-            </label>
-            <input
-              accept=".html,.htm"
-              aria-label="Upload HTML template file"
-              style="display: none;"
-              type="file"
-            />
-            <div>
-              <button>
-                Browse Files
-              </button>
-            </div>
-            <div>
-              HTML files only, max 5MB
-            </div>
-          </div>
-          <div>
-            <button>
-              Ôû╝
-               Advanced: Field Mappings (Optional)
+                Ôû╝
+              </span>
             </button>
-            <div>
+            <div
+              role="menu"
+            >
               <div
-                data-invalid="false"
+                aria-checked="false"
+                role="menuitemcheckbox"
               >
-                <label>
-                  Field Mappings (JSON)
-                </label>
-                <textarea
-                  aria-label="Field Mappings (JSON)"
-                  placeholder="{\"field_name\": \"custom_value\"}"
-                  rows="6"
+                <div
+                  style="display: flex;"
                 >
-                  {}
-                </textarea>
-                <div>
-                  Optional: Customize field mappings in JSON format. Leave empty to use defaults.
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2023
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
-          <button
-            disabled=""
-          >
-            Upload & Preview Template
-          </button>
-          <div>
-            <p
-              font-weight="bold"
-              mb="2"
-            >
-              ­ƒôØ Upload Instructions
-            </p>
-            <div
-              color="gray.300"
-              font-size="xs"
-            >
-              <p>
-                1. Select the template type from the dropdown
-              </p>
-              <p>
-                2. Choose your HTML template file (max 5MB)
-              </p>
-              <p>
-                3. Optionally configure field mappings
-              </p>
-              <p>
-                4. Click "Upload & Preview Template" to validate
-              </p>
+              <div
+                aria-checked="true"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    checked=""
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2024
+                  </span>
+                </div>
+              </div>
+              <div
+                aria-checked="false"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2025
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </body>
 
-      329 |       await user.click(uploadButton);
-      330 |       
+      329 |       await user.click(button);
+      330 |
     > 331 |       await waitFor(() => {
           |                    ^
-      332 |         expect(screen.getByText(/please select a file/i)).toBeInTheDocument();
+      332 |         expect(screen.getByText('2024')).toBeInTheDocument();
       333 |       });
-      334 |     });
+      334 |
 
       at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
-      at Object.<anonymous> (src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx:331:20)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:331:20)
 
-  ÔùÅ TemplateUpload ÔÇ║ Form Validation ÔÇ║ shows error when uploading without template type
+  ÔùÅ GenericFilter ÔÇ║ Multi-Select Mode ÔÇ║ shows checkboxes for all options
 
-    Unable to find an element with the text: /please select a template type/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+    Unable to find role="checkbox"
 
     Ignored nodes: comments, script, style
     <body>
       <div>
-        <div>
-          <div
-            data-invalid="false"
+        <div
+          data-disabled="false"
+          data-size="md"
+        >
+          <label
+            for="filter-Years"
           >
-            <label>
-              Template Type
-            </label>
-            <select
-              aria-label="Template Type"
+            Years
+          </label>
+          <div
+            data-menu-open="false"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="true"
+              aria-label="Years"
+              font-weight="normal"
+              width="100%"
             >
-              <option
-                value=""
+              <span>
+                2024
+              </span>
+              <span
+                data-testid="chevron-icon"
               >
-                Select template type
-              </option>
-              <option
-                value="str_invoice_nl"
-              >
-                STR Invoice (Dutch)
-              </option>
-              <option
-                value="str_invoice_en"
-              >
-                STR Invoice (English)
-              </option>
-              <option
-                value="btw_aangifte"
-              >
-                BTW Aangifte
-              </option>
-              <option
-                value="aangifte_ib"
-              >
-                Aangifte IB
-              </option>
-              <option
-                value="toeristenbelasting"
-              >
-                Toeristenbelasting
-              </option>
-              <option
-                value="financial_report"
-              >
-                Financial Report
-              </option>
-            </select>
-          </div>
-          <div
-            data-invalid="false"
-          >
-            <label>
-              Template File
-            </label>
-            <input
-              accept=".html,.htm"
-              aria-label="Upload HTML template file"
-              style="display: none;"
-              type="file"
-            />
-            <div>
-              <button>
-                Change File
-              </button>
-              <div
-                flex="2"
-              >
-                <p>
-                  template.html
-                </p>
-                <p>
-                  0.03
-                   KB
-                </p>
-              </div>
-            </div>
-            <div>
-              HTML files only, max 5MB
-            </div>
-          </div>
-          <div>
-            <button>
-              Ôû╝
-               Advanced: Field Mappings (Optional)
+                Ôû╝
+              </span>
             </button>
-            <div>
+            <div
+              role="menu"
+            >
               <div
-                data-invalid="false"
+                aria-checked="false"
+                role="menuitemcheckbox"
               >
-                <label>
-                  Field Mappings (JSON)
-                </label>
-                <textarea
-                  aria-label="Field Mappings (JSON)"
-                  placeholder="{\"field_name\": \"custom_value\"}"
-                  rows="6"
+                <div
+                  style="display: flex;"
                 >
-                  {}
-                </textarea>
-                <div>
-                  Optional: Customize field mappings in JSON format. Leave empty to use defaults.
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2023
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
-          <button
-            disabled=""
-          >
-            Upload & Preview Template
-          </button>
-          <div>
-            <p
-              font-weight="bold"
-              mb="2"
-            >
-              ­ƒôØ Upload Instructions
-            </p>
-            <div
-              color="gray.300"
-              font-size="xs"
-            >
-              <p>
-                1. Select the template type from the dropdown
-              </p>
-              <p>
-                2. Choose your HTML template file (max 5MB)
-              </p>
-              <p>
-                3. Optionally configure field mappings
-              </p>
-              <p>
-                4. Click "Upload & Preview Template" to validate
-              </p>
+              <div
+                aria-checked="true"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    checked=""
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2024
+                  </span>
+                </div>
+              </div>
+              <div
+                aria-checked="false"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2025
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </body>
 
-      349 |       await user.click(uploadButton);
-      350 |       
-    > 351 |       await waitFor(() => {
+      355 |       await user.click(button);
+      356 |
+    > 357 |       await waitFor(() => {
           |                    ^
-      352 |         expect(screen.getByText(/please select a template type/i)).toBeInTheDocument();
-      353 |       });
-      354 |     });
+      358 |         const checkboxes = screen.getAllByRole('checkbox');
+      359 |         expect(checkboxes).toHaveLength(stringOptions.length);
+      360 |       });
 
       at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
-      at Object.<anonymous> (src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx:351:20)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:357:20)
 
-  ÔùÅ TemplateUpload ÔÇ║ Upload Submission ÔÇ║ calls onUpload with field mappings when provided
+  ÔùÅ GenericFilter ÔÇ║ Multi-Select Mode ÔÇ║ checks selected options
 
-    Expected repeat modifier or release modifier or "}" but found "c" in "{"custom_field": "value"}"
-        See https://testing-library.com/docs/user-event/keyboard
-        for more information about how userEvent parses your input.
+    Unable to find role="checkbox"
 
-      429 |       const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
-      430 |       await user.clear(textarea);
-    > 431 |       await user.type(textarea, '{"custom_field": "value"}');
-          |       ^
-      432 |       
-      433 |       // Click upload
-      434 |       const uploadButton = screen.getByRole('button', { name: /upload & preview template/i });
+    Ignored nodes: comments, script, style
+    <body>
+      <div>
+        <div
+          data-disabled="false"
+          data-size="md"
+        >
+          <label
+            for="filter-Years"
+          >
+            Years
+          </label>
+          <div
+            data-menu-open="false"
+          >
+            <button
+              aria-expanded="false"
+              aria-haspopup="true"
+              aria-label="Years"
+              font-weight="normal"
+              width="100%"
+            >
+              <span>
+                2024
+              </span>
+              <span
+                data-testid="chevron-icon"
+              >
+                Ôû╝
+              </span>
+            </button>
+            <div
+              role="menu"
+            >
+              <div
+                aria-checked="false"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2023
+                  </span>
+                </div>
+              </div>
+              <div
+                aria-checked="true"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    checked=""
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2024
+                  </span>
+                </div>
+              </div>
+              <div
+                aria-checked="false"
+                role="menuitemcheckbox"
+              >
+                <div
+                  style="display: flex;"
+                >
+                  <input
+                    aria-hidden="true"
+                    pointer-events="none"
+                    readonly=""
+                    type="checkbox"
+                  />
+                  <span>
+                    2025
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </body>
 
-      at readTag (node_modules/@testing-library/user-event/dist/cjs/utils/keyDef/readNextDescriptor.js:58:15)
-      at Object.readNextDescriptor (node_modules/@testing-library/user-event/dist/cjs/utils/keyDef/readNextDescriptor.js:26:66)
-      at Object.parseKeyDef (node_modules/@testing-library/user-event/dist/cjs/keyboard/parseKeyDef.js:18:118)
-      at Object.keyboard (node_modules/@testing-library/user-event/dist/cjs/keyboard/index.js:8:33)
-      at Object.type (node_modules/@testing-library/user-event/dist/cjs/utility/type.js:17:16)
-      at Object.asyncWrapper (node_modules/@testing-library/react/dist/pure.js:88:22)
-      at Object.<anonymous> (src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx:431:7)
+      377 |       await user.click(button);
+      378 |
+    > 379 |       await waitFor(() => {
+          |                    ^
+      380 |         const checkboxes = screen.getAllByRole('checkbox');
+      381 |         const checkedCheckboxes = checkboxes.filter((cb) => (cb as HTMLInputElement).checked);
+      382 |         expect(checkedCheckboxes).toHaveLength(1);
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:379:20)
+
+  ÔùÅ GenericFilter ÔÇ║ Disabled State ÔÇ║ disables single-select when disabled prop is true
+
+    expect(element).toBeDisabled()
+
+    Received element is not disabled:
+      <select aria-label="Year" id="filter-Year" />
+
+      420 |
+      421 |       const select = screen.getByRole('combobox');
+    > 422 |       expect(select).toBeDisabled();
+          |                      ^
+      423 |     });
+      424 |
+      425 |     it('disables multi-select button when disabled prop is true', () => {
+
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:422:22)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ÔùÅ GenericFilter ÔÇ║ Loading State ÔÇ║ disables single-select when loading
+
+    expect(element).toBeDisabled()
+
+    Received element is not disabled:
+      <select aria-label="Year" id="filter-Year" />
+
+      455 |
+      456 |       const select = screen.getByRole('combobox');
+    > 457 |       expect(select).toBeDisabled();
+          |                      ^
+      458 |     });
+      459 |
+      460 |     it('disables multi-select button when loading', () => {
+
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:457:22)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ÔùÅ GenericFilter ÔÇ║ Loading State ÔÇ║ shows spinner in single-select when loading
+
+    TestingLibraryElementError: Unable to find an element by: [data-testid="spinner"]
+
+    Ignored nodes: comments, script, style
+    <body>
+      <div>
+        <div
+          data-disabled="true"
+          data-size="md"
+        >
+          <label
+            for="filter-Year"
+          >
+            Year
+          </label>
+          <select
+            aria-label="Year"
+            id="filter-Year"
+          >
+            <option
+              value=""
+            >
+              Select...
+            </option>
+            <option
+              value="2023"
+            >
+              2023
+            </option>
+            <option
+              value="2024"
+            >
+              2024
+            </option>
+            <option
+              value="2025"
+            >
+              2025
+            </option>
+          </select>
+        </div>
+      </div>
+    </body>
+
+      488 |
+      489 |       // Check for spinner by test ID
+    > 490 |       expect(screen.getByTestId('spinner')).toBeInTheDocument();
+          |                     ^
+      491 |     });
+      492 |
+      493 |     it('shows spinner in multi-select button when loading', () => {
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByTestId (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:490:21)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
+
+  ÔùÅ GenericFilter ÔÇ║ Accessibility ÔÇ║ has proper ARIA attributes for menu
+
+    expect(element).toHaveAttribute("aria-expanded", "true") // element.getAttribute("aria-expanded") === "true"
+
+    Expected the element to have attribute:
+      aria-expanded="true"
+    Received:
+      aria-expanded="false"
+
+    Ignored nodes: comments, script, style
+    <html>
+      <head />
+      <body>
+        <div>
+          <div
+            data-disabled="false"
+            data-size="md"
+          >
+            <label
+              for="filter-Years"
+            >
+              Years
+            </label>
+            <div
+              data-menu-open="false"
+            >
+              <button
+                aria-expanded="false"
+                aria-haspopup="true"
+                aria-label="Years"
+                font-weight="normal"
+                width="100%"
+              >
+                <span>
+                  Select...
+                </span>
+                <span
+                  data-testid="chevron-icon"
+                >
+                  Ôû╝
+                </span>
+              </button>
+              <div
+                role="menu"
+              >
+                <div
+                  aria-checked="false"
+                  role="menuitemcheckbox"
+                >
+                  <div
+                    style="display: flex;"
+                  >
+                    <input
+                      aria-hidden="true"
+                      pointer-events="none"
+                      readonly=""
+                      type="checkbox"
+                    />
+                    <span>
+                      2023
+                    </span>
+                  </div>
+                </div>
+                <div
+                  aria-checked="false"
+                  role="menuitemcheckbox"
+                >
+                  <div
+                    style="display: flex;"
+                  >
+                    <input
+                      aria-hidden="true"
+                      pointer-events="none"
+                      readonly=""
+                      type="checkbox"
+                    />
+                    <span>
+                      2024
+                    </span>
+                  </div>
+                </div>
+                <div
+                  aria-checked="false"
+                  role="menuitemcheckbox"
+                >
+                  <div
+                    style="display: flex;"
+                  >
+                    <input
+                      aria-hidden="true"
+                      pointer-events="none"
+                      readonly=""
+                      type="checkbox"
+                    />
+                    <span>
+                      2025
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+
+      682 |
+      683 |       await waitFor(() => {
+    > 684 |         expect(button).toHaveAttribute('aria-expanded', 'true');
+          |                        ^
+      685 |       });
+      686 |     });
+      687 |
+
+      at src/components/filters/GenericFilter.test.tsx:684:24
+      at runWithExpensiveErrorDiagnosticsDisabled (node_modules/@testing-library/dom/dist/config.js:47:12)
+      at checkCallback (node_modules/@testing-library/dom/dist/wait-for.js:124:77)
+      at checkRealTimersCallback (node_modules/@testing-library/dom/dist/wait-for.js:118:16)
+      at Timeout.task [as _onTimeout] (node_modules/jsdom/lib/jsdom/browser/Window.js:516:19)
+
+  ÔùÅ GenericFilter ÔÇ║ Different Data Types ÔÇ║ handles objects with id property
+
+    TestingLibraryElementError: Value "1" not found in options
+
+    Ignored nodes: comments, script, style
+    <select
+      aria-label="Objects"
+      id="filter-Objects"
+    >
+      <option
+        value=""
+      >
+        Select...
+      </option>
+      <option
+        value="100"
+      >
+        Option One
+      </option>
+      <option
+        value="200"
+      >
+        Option Two
+      </option>
+      <option
+        value="300"
+      >
+        Option Three
+      </option>
+    </select>
+
+      826 |
+      827 |       const select = screen.getByRole('combobox');
+    > 828 |       await user.selectOptions(select, '1');
+          |                  ^
+      829 |
+      830 |       expect(onChange).toHaveBeenCalledWith([objectOptions[0]]);
+      831 |     });
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/user-event/dist/cjs/utility/selectOptions.js:39:39
+          at Array.map (<anonymous>)
+      at Object.selectOptionsBase (node_modules/@testing-library/user-event/dist/cjs/utility/selectOptions.js:31:38)
+      at Object.selectOptions (node_modules/@testing-library/user-event/dist/cjs/utility/selectOptions.js:18:30)
+      at node_modules/@testing-library/user-event/dist/cjs/setup/setup.js:85:45
+      at Object.asyncWrapper (node_modules/@testing-library/react/dist/pure.js:88:28)
+      at Object.wrapAsync (node_modules/@testing-library/user-event/dist/cjs/setup/wrapAsync.js:8:28)
+      at Object.selectOptions (node_modules/@testing-library/user-event/dist/cjs/setup/setup.js:85:26)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:828:18)
+      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
+      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
+      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
+      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
 
 Test Suites: 1 failed, 1 total
-Tests:       6 failed, 2 skipped, 17 passed, 25 total
+Tests:       9 failed, 37 passed, 46 total
 Snapshots:   0 total
-Time:        8.746 s
-Ran all test suites matching /TemplateUpload.test.tsx/i.
+Time:        8.62 s
+Ran all test suites matching /GenericFilter.test.tsx/i.

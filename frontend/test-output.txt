@@ -1,1867 +1,65 @@
 
 > frontend@0.1.0 test
-> react-scripts test --testPathPattern=GenericFilter.test.tsx --watchAll=false --verbose
+> react-scripts test GenericFilter.test.tsx --watchAll=false --no-coverage
 
-  console.error
-    React does not recognize the `isTruncated` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `istruncated` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
-
-    [0m [90m 191 |[39m     it([32m'renders multi-select menu button with label'[39m[33m,[39m () [33m=>[39m {
-     [90m 192 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 193 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 194 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 195 |[39m           values[33m=[39m{[]}
-     [90m 196 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at validateProperty (node_modules/react-dom/cjs/react-dom-client.development.js:3001:19)
-      at warnUnknownProperties (node_modules/react-dom/cjs/react-dom-client.development.js:3146:9)
-      at validatePropertiesInDevelopment (node_modules/react-dom/cjs/react-dom-client.development.js:19868:9)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20491:7)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:193:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    React does not recognize the `rightIcon` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `righticon` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
-
-    [0m [90m 191 |[39m     it([32m'renders multi-select menu button with label'[39m[33m,[39m () [33m=>[39m {
-     [90m 192 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 193 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 194 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 195 |[39m           values[33m=[39m{[]}
-     [90m 196 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at validateProperty (node_modules/react-dom/cjs/react-dom-client.development.js:3001:19)
-      at warnUnknownProperties (node_modules/react-dom/cjs/react-dom-client.development.js:3146:9)
-      at validatePropertiesInDevelopment (node_modules/react-dom/cjs/react-dom-client.development.js:19868:9)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20491:7)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:193:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    React does not recognize the `textAlign` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `textalign` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
-
-    [0m [90m 191 |[39m     it([32m'renders multi-select menu button with label'[39m[33m,[39m () [33m=>[39m {
-     [90m 192 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 193 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 194 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 195 |[39m           values[33m=[39m{[]}
-     [90m 196 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at validateProperty (node_modules/react-dom/cjs/react-dom-client.development.js:3001:19)
-      at warnUnknownProperties (node_modules/react-dom/cjs/react-dom-client.development.js:3146:9)
-      at validatePropertiesInDevelopment (node_modules/react-dom/cjs/react-dom-client.development.js:19868:9)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20491:7)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:193:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 191 |[39m     it([32m'renders multi-select menu button with label'[39m[33m,[39m () [33m=>[39m {
-     [90m 192 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 193 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 194 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 195 |[39m           values[33m=[39m{[]}
-     [90m 196 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:193:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    React does not recognize the `closeOnSelect` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `closeonselect` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
-
-    [0m [90m 191 |[39m     it([32m'renders multi-select menu button with label'[39m[33m,[39m () [33m=>[39m {
-     [90m 192 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 193 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 194 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 195 |[39m           values[33m=[39m{[]}
-     [90m 196 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at validateProperty (node_modules/react-dom/cjs/react-dom-client.development.js:3001:19)
-      at warnUnknownProperties (node_modules/react-dom/cjs/react-dom-client.development.js:3146:9)
-      at validatePropertiesInDevelopment (node_modules/react-dom/cjs/react-dom-client.development.js:19868:9)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20491:7)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:193:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 191 |[39m     it([32m'renders multi-select menu button with label'[39m[33m,[39m () [33m=>[39m {
-     [90m 192 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 193 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 194 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 195 |[39m           values[33m=[39m{[]}
-     [90m 196 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:193:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 191 |[39m     it([32m'renders multi-select menu button with label'[39m[33m,[39m () [33m=>[39m {
-     [90m 192 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 193 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 194 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 195 |[39m           values[33m=[39m{[]}
-     [90m 196 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:193:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 208 |[39m     it([32m'displays placeholder when no values selected'[39m[33m,[39m () [33m=>[39m {
-     [90m 209 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 210 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 211 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 212 |[39m           values[33m=[39m{[]}
-     [90m 213 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:210:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 208 |[39m     it([32m'displays placeholder when no values selected'[39m[33m,[39m () [33m=>[39m {
-     [90m 209 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 210 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 211 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 212 |[39m           values[33m=[39m{[]}
-     [90m 213 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:210:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 208 |[39m     it([32m'displays placeholder when no values selected'[39m[33m,[39m () [33m=>[39m {
-     [90m 209 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 210 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 211 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 212 |[39m           values[33m=[39m{[]}
-     [90m 213 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:210:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 224 |[39m     it([32m'displays single selected value label'[39m[33m,[39m () [33m=>[39m {
-     [90m 225 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 226 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 227 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 228 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 229 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:226:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 224 |[39m     it([32m'displays single selected value label'[39m[33m,[39m () [33m=>[39m {
-     [90m 225 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 226 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 227 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 228 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 229 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:226:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 224 |[39m     it([32m'displays single selected value label'[39m[33m,[39m () [33m=>[39m {
-     [90m 225 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 226 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 227 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 228 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 229 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:226:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 239 |[39m     it([32m'displays count when multiple values selected'[39m[33m,[39m () [33m=>[39m {
-     [90m 240 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 241 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 242 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 243 |[39m           values[33m=[39m{[[32m'2023'[39m[33m,[39m [32m'2024'[39m]}
-     [90m 244 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:241:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 239 |[39m     it([32m'displays count when multiple values selected'[39m[33m,[39m () [33m=>[39m {
-     [90m 240 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 241 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 242 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 243 |[39m           values[33m=[39m{[[32m'2023'[39m[33m,[39m [32m'2024'[39m]}
-     [90m 244 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:241:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 239 |[39m     it([32m'displays count when multiple values selected'[39m[33m,[39m () [33m=>[39m {
-     [90m 240 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 241 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 242 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 243 |[39m           values[33m=[39m{[[32m'2023'[39m[33m,[39m [32m'2024'[39m]}
-     [90m 244 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:241:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 255 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 256 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 257 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 258 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 259 |[39m           values[33m=[39m{[]}
-     [90m 260 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:257:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 255 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 256 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 257 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 258 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 259 |[39m           values[33m=[39m{[]}
-     [90m 260 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:257:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 255 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 256 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 257 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 258 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 259 |[39m           values[33m=[39m{[]}
-     [90m 260 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:257:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 278 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 279 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 280 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 281 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 282 |[39m           values[33m=[39m{[]}
-     [90m 283 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:280:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 278 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 279 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 280 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 281 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 282 |[39m           values[33m=[39m{[]}
-     [90m 283 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:280:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 278 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 279 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 280 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 281 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 282 |[39m           values[33m=[39m{[]}
-     [90m 283 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:280:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 304 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 305 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 306 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 307 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 308 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 309 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:306:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 304 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 305 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 306 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 307 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 308 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 309 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:306:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 304 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 305 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 306 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 307 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 308 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 309 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:306:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 330 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 331 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 332 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 333 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 334 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 335 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:332:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 330 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 331 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 332 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 333 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 334 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 335 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:332:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 330 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 331 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 332 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 333 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 334 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 335 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:332:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 352 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 353 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 354 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 355 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 356 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 357 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:354:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 352 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 353 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 354 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 355 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 356 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 357 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:354:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 352 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 353 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 354 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 355 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 356 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 357 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:354:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    React does not recognize the `isDisabled` prop on a DOM element. If you intentionally want it to appear in the DOM as a custom attribute, spell it as lowercase `isdisabled` instead. If you accidentally passed it from a parent component, remove it from the DOM element.
-
-    [0m [90m 375 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 376 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 377 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 378 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 379 |[39m           values[33m=[39m{[]}
-     [90m 380 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at validateProperty (node_modules/react-dom/cjs/react-dom-client.development.js:3001:19)
-      at warnUnknownProperties (node_modules/react-dom/cjs/react-dom-client.development.js:3146:9)
-      at validatePropertiesInDevelopment (node_modules/react-dom/cjs/react-dom-client.development.js:19868:9)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20491:7)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:377:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 413 |[39m     it([32m'disables multi-select button when disabled prop is true'[39m[33m,[39m () [33m=>[39m {
-     [90m 414 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 415 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 416 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 417 |[39m           values[33m=[39m{[]}
-     [90m 418 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:415:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 413 |[39m     it([32m'disables multi-select button when disabled prop is true'[39m[33m,[39m () [33m=>[39m {
-     [90m 414 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 415 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 416 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 417 |[39m           values[33m=[39m{[]}
-     [90m 418 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:415:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 413 |[39m     it([32m'disables multi-select button when disabled prop is true'[39m[33m,[39m () [33m=>[39m {
-     [90m 414 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 415 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 416 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 417 |[39m           values[33m=[39m{[]}
-     [90m 418 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:415:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 448 |[39m     it([32m'disables multi-select button when loading'[39m[33m,[39m () [33m=>[39m {
-     [90m 449 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 450 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 451 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 452 |[39m           values[33m=[39m{[]}
-     [90m 453 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:450:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 448 |[39m     it([32m'disables multi-select button when loading'[39m[33m,[39m () [33m=>[39m {
-     [90m 449 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 450 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 451 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 452 |[39m           values[33m=[39m{[]}
-     [90m 453 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:450:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 448 |[39m     it([32m'disables multi-select button when loading'[39m[33m,[39m () [33m=>[39m {
-     [90m 449 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 450 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 451 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 452 |[39m           values[33m=[39m{[]}
-     [90m 453 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:450:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 481 |[39m     it([32m'shows spinner in multi-select button when loading'[39m[33m,[39m () [33m=>[39m {
-     [90m 482 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 483 |[39m       [36mconst[39m { container } [33m=[39m render(
-     [90m     |[39m                                   [31m[1m^[22m[39m
-     [90m 484 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 485 |[39m           values[33m=[39m{[]}
-     [90m 486 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:483:35)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 481 |[39m     it([32m'shows spinner in multi-select button when loading'[39m[33m,[39m () [33m=>[39m {
-     [90m 482 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 483 |[39m       [36mconst[39m { container } [33m=[39m render(
-     [90m     |[39m                                   [31m[1m^[22m[39m
-     [90m 484 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 485 |[39m           values[33m=[39m{[]}
-     [90m 486 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:483:35)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 481 |[39m     it([32m'shows spinner in multi-select button when loading'[39m[33m,[39m () [33m=>[39m {
-     [90m 482 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 483 |[39m       [36mconst[39m { container } [33m=[39m render(
-     [90m     |[39m                                   [31m[1m^[22m[39m
-     [90m 484 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 485 |[39m           values[33m=[39m{[]}
-     [90m 486 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:483:35)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 516 |[39m     it([32m'displays error message in multi-select mode'[39m[33m,[39m () [33m=>[39m {
-     [90m 517 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 518 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 519 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 520 |[39m           values[33m=[39m{[]}
-     [90m 521 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:518:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 516 |[39m     it([32m'displays error message in multi-select mode'[39m[33m,[39m () [33m=>[39m {
-     [90m 517 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 518 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 519 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 520 |[39m           values[33m=[39m{[]}
-     [90m 521 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:518:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 516 |[39m     it([32m'displays error message in multi-select mode'[39m[33m,[39m () [33m=>[39m {
-     [90m 517 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 518 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 519 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 520 |[39m           values[33m=[39m{[]}
-     [90m 521 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:518:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 557 |[39m       )[33m;[39m
-     [90m 558 |[39m
-    [31m[1m>[22m[39m[90m 559 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 560 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 561 |[39m           values[33m=[39m{[]}
-     [90m 562 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:559:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 557 |[39m       )[33m;[39m
-     [90m 558 |[39m
-    [31m[1m>[22m[39m[90m 559 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 560 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 561 |[39m           values[33m=[39m{[]}
-     [90m 562 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:559:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 557 |[39m       )[33m;[39m
-     [90m 558 |[39m
-    [31m[1m>[22m[39m[90m 559 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 560 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 561 |[39m           values[33m=[39m{[]}
-     [90m 562 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:559:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 637 |[39m     it([32m'has proper ARIA label for multi-select button'[39m[33m,[39m () [33m=>[39m {
-     [90m 638 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 639 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 640 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 641 |[39m           values[33m=[39m{[]}
-     [90m 642 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:639:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 637 |[39m     it([32m'has proper ARIA label for multi-select button'[39m[33m,[39m () [33m=>[39m {
-     [90m 638 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 639 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 640 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 641 |[39m           values[33m=[39m{[]}
-     [90m 642 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:639:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 637 |[39m     it([32m'has proper ARIA label for multi-select button'[39m[33m,[39m () [33m=>[39m {
-     [90m 638 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 639 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 640 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 641 |[39m           values[33m=[39m{[]}
-     [90m 642 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:639:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 654 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 655 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 656 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 657 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 658 |[39m           values[33m=[39m{[]}
-     [90m 659 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:656:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 654 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 655 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 656 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 657 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 658 |[39m           values[33m=[39m{[]}
-     [90m 659 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:656:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 654 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 655 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 656 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 657 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 658 |[39m           values[33m=[39m{[]}
-     [90m 659 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:656:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 678 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 679 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 680 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 681 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 682 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 683 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:680:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 678 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 679 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 680 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 681 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 682 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 683 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:680:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  console.error
-    You provided a `checked` prop to a form field without an `onChange` handler. This will render a read-only field. If the field should be mutable use `defaultChecked`. Otherwise, set either `onChange` or `readOnly`.
-
-    [0m [90m 678 |[39m       [36mconst[39m user [33m=[39m userEvent[33m.[39msetup()[33m;[39m
-     [90m 679 |[39m       [36mconst[39m onChange [33m=[39m jest[33m.[39mfn()[33m;[39m
-    [31m[1m>[22m[39m[90m 680 |[39m       render(
-     [90m     |[39m             [31m[1m^[22m[39m
-     [90m 681 |[39m         [33m<[39m[33mGenericFilter[39m
-     [90m 682 |[39m           values[33m=[39m{[[32m'2024'[39m]}
-     [90m 683 |[39m           onChange[33m=[39m{onChange}[0m
-
-      at checkControlledValueProps (node_modules/react-dom/cjs/react-dom-client.development.js:1432:17)
-      at setInitialProperties (node_modules/react-dom/cjs/react-dom-client.development.js:20534:11)
-      at completeWork (node_modules/react-dom/cjs/react-dom-client.development.js:12662:18)
-      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
-      at completeUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17777:19)
-      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17658:11)
-      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
-      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
-      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16504:11)
-      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
-      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
-      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
-      at node_modules/@testing-library/react/dist/act-compat.js:47:25
-      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
-      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:680:13)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
+FAIL src/components/filters/GenericFilter.test.tsx (7.047 s)
   GenericFilter
     Single-Select Mode
-      ÔêÜ renders single-select dropdown with label (91 ms)
-      ÔêÜ displays placeholder when no value selected (20 ms)
-      ÔêÜ displays selected value (15 ms)
-      ÔêÜ calls onChange with selected option when value changes (75 ms)
-      ÔêÜ calls onChange with empty array when cleared (92 ms)
-      ÔêÜ renders all available options (73 ms)
+      ÔêÜ renders single-select dropdown with label (115 ms)
+      ÔêÜ displays placeholder when no value selected (21 ms)
+      ÔêÜ displays selected value (12 ms)
+      ÔêÜ calls onChange with selected option when value changes (126 ms)
+      ÔêÜ calls onChange with empty array when cleared (87 ms)
+      ÔêÜ renders all available options (57 ms)
     Multi-Select Mode
-      ÔêÜ renders multi-select menu button with label (174 ms)
-      ÔêÜ displays placeholder when no values selected (32 ms)
-      ├ù displays single selected value label (47 ms)
-      ÔêÜ displays count when multiple values selected (29 ms)
-      ÔêÜ opens menu when button clicked (98 ms)
-      ÔêÜ toggles selection when option clicked (167 ms)
-      ├ù removes selection when already selected option clicked (1123 ms)
-      ├ù shows checkboxes for all options (1104 ms)
-      ├ù checks selected options (1136 ms)
-      ÔêÜ shows "No options available" when options array is empty (88 ms)
+      ÔêÜ renders multi-select menu button with label (18 ms)
+      ÔêÜ displays placeholder when no values selected (11 ms)
+      ├ù displays single selected value label (16 ms)
+      ÔêÜ displays count when multiple values selected (10 ms)
+      ÔêÜ opens menu when button clicked (84 ms)
+      ÔêÜ toggles selection when option clicked (152 ms)
+      ├ù removes selection when already selected option clicked (1081 ms)
+      ├ù shows checkboxes for all options (1084 ms)
+      ├ù checks selected options (1078 ms)
+      ÔêÜ shows "No options available" when options array is empty (81 ms)
     Disabled State
-      ├ù disables single-select when disabled prop is true (11 ms)
-      ÔêÜ disables multi-select button when disabled prop is true (34 ms)
+      ├ù disables single-select when disabled prop is true (19 ms)
+      ÔêÜ disables multi-select button when disabled prop is true (21 ms)
     Loading State
       ├ù disables single-select when loading (11 ms)
-      ÔêÜ disables multi-select button when loading (34 ms)
-      ├ù shows spinner in single-select when loading (11 ms)
-      ├ù shows spinner in multi-select button when loading (31 ms)
+      ÔêÜ disables multi-select button when loading (12 ms)
+      ├ù shows spinner in single-select when loading (3 ms)
+      ÔêÜ shows spinner in multi-select button when loading (7 ms)
     Error State
-      ÔêÜ displays error message in single-select mode (9 ms)
-      ÔêÜ displays error message in multi-select mode (35 ms)
-      ÔêÜ does not display error when error is null (2 ms)
+      ÔêÜ displays error message in single-select mode (5 ms)
+      ÔêÜ displays error message in multi-select mode (7 ms)
+      ÔêÜ does not display error when error is null (4 ms)
     Custom Rendering
-      ÔêÜ uses custom renderOption in multi-select (102 ms)
-      ÔêÜ uses custom getOptionLabel (8 ms)
-      ÔêÜ uses custom getOptionValue (88 ms)
+      ÔêÜ uses custom renderOption in multi-select (76 ms)
+      ÔêÜ uses custom getOptionLabel (10 ms)
+      ÔêÜ uses custom getOptionValue (84 ms)
     Accessibility
-      ÔêÜ has proper ARIA label for single-select (24 ms)
-      ÔêÜ has proper ARIA label for multi-select button (66 ms)
-      ├ù has proper ARIA attributes for menu (1105 ms)
-      ÔêÜ has proper role for menu items (88 ms)
-      ÔêÜ associates label with form control (13 ms)
+      ÔêÜ has proper ARIA label for single-select (8 ms)
+      ÔêÜ has proper ARIA label for multi-select button (16 ms)
+      ├ù has proper ARIA attributes for menu (1073 ms)
+      ÔêÜ has proper role for menu items (75 ms)
+      ÔêÜ associates label with form control (9 ms)
     Different Data Types
-      ÔêÜ works with string primitives (79 ms)
-      ÔêÜ works with number primitives (75 ms)
-      ÔêÜ works with complex objects (75 ms)
-      ÔêÜ handles objects with label property (20 ms)
-      ├ù handles objects with id property (23 ms)
+      ÔêÜ works with string primitives (70 ms)
+      ÔêÜ works with number primitives (77 ms)
+      ÔêÜ works with complex objects (81 ms)
+      ÔêÜ handles objects with label property (11 ms)
+      ├ù handles objects with id property (12 ms)
     Size Variants
-      ├ù applies small size variant (11 ms)
-      ├ù applies medium size variant (default) (6 ms)
-      ├ù applies large size variant (5 ms)
+      ÔêÜ applies small size variant (5 ms)
+      ÔêÜ applies medium size variant (default) (8 ms)
+      ÔêÜ applies large size variant (8 ms)
     Edge Cases
-      ├ù handles empty availableOptions array (13 ms)
-      ÔêÜ handles empty values array (5 ms)
-      ÔêÜ handles multiple values in single-select mode (uses first) (9 ms)
-      ├ù handles value not in availableOptions (10 ms)
-      ÔêÜ does not crash with undefined onChange (5 ms)
+      ÔêÜ handles empty availableOptions array (5 ms)
+      ÔêÜ handles empty values array (6 ms)
+      ÔêÜ handles multiple values in single-select mode (uses first) (10 ms)
+      ÔêÜ handles value not in availableOptions (9 ms)
+      ÔêÜ does not crash with undefined onChange (4 ms)
 
   ÔùÅ GenericFilter ÔÇ║ Multi-Select Mode ÔÇ║ displays single selected value label
 
@@ -1886,6 +84,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       <div>
         <div
           data-disabled="false"
+          data-size="md"
         >
           <label
             for="filter-Years"
@@ -1900,12 +99,15 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
               aria-haspopup="true"
               aria-label="Years"
               font-weight="normal"
-              righticon="[object Object]"
-              textalign="left"
               width="100%"
             >
               <span>
                 2024
+              </span>
+              <span
+                data-testid="chevron-icon"
+              >
+                Ôû╝
               </span>
             </button>
             <div
@@ -1921,6 +123,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -1939,6 +142,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                     aria-hidden="true"
                     checked=""
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -1956,6 +160,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -1969,20 +174,20 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       </div>
     </body>
 
-      234 |       );
-      235 |
-    > 236 |       expect(screen.getByText('2024')).toBeInTheDocument();
+      246 |       );
+      247 |
+    > 248 |       expect(screen.getByText('2024')).toBeInTheDocument();
           |                     ^
-      237 |     });
-      238 |
-      239 |     it('displays count when multiple values selected', () => {
+      249 |     });
+      250 |
+      251 |     it('displays count when multiple values selected', () => {
 
       at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
       at getElementError (node_modules/@testing-library/dom/dist/query-helpers.js:20:35)
       at getMultipleElementsFoundError (node_modules/@testing-library/dom/dist/query-helpers.js:23:10)
       at node_modules/@testing-library/dom/dist/query-helpers.js:55:13
       at getByText (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:236:21)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:248:21)
       at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
       at runJest (node_modules/@jest/core/build/runJest.js:404:19)
       at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
@@ -2011,6 +216,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       <div>
         <div
           data-disabled="false"
+          data-size="md"
         >
           <label
             for="filter-Years"
@@ -2025,12 +231,15 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
               aria-haspopup="true"
               aria-label="Years"
               font-weight="normal"
-              righticon="[object Object]"
-              textalign="left"
               width="100%"
             >
               <span>
                 2024
+              </span>
+              <span
+                data-testid="chevron-icon"
+              >
+                Ôû╝
               </span>
             </button>
             <div
@@ -2046,6 +255,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2064,6 +274,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                     aria-hidden="true"
                     checked=""
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2081,6 +292,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2094,16 +306,16 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       </div>
     </body>
 
-      317 |       await user.click(button);
-      318 |
-    > 319 |       await waitFor(() => {
+      329 |       await user.click(button);
+      330 |
+    > 331 |       await waitFor(() => {
           |                    ^
-      320 |         expect(screen.getByText('2024')).toBeInTheDocument();
-      321 |       });
-      322 |
+      332 |         expect(screen.getByText('2024')).toBeInTheDocument();
+      333 |       });
+      334 |
 
       at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:319:20)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:331:20)
 
   ÔùÅ GenericFilter ÔÇ║ Multi-Select Mode ÔÇ║ shows checkboxes for all options
 
@@ -2114,6 +326,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       <div>
         <div
           data-disabled="false"
+          data-size="md"
         >
           <label
             for="filter-Years"
@@ -2128,12 +341,15 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
               aria-haspopup="true"
               aria-label="Years"
               font-weight="normal"
-              righticon="[object Object]"
-              textalign="left"
               width="100%"
             >
               <span>
                 2024
+              </span>
+              <span
+                data-testid="chevron-icon"
+              >
+                Ôû╝
               </span>
             </button>
             <div
@@ -2149,6 +365,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2167,6 +384,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                     aria-hidden="true"
                     checked=""
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2184,6 +402,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2197,16 +416,16 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       </div>
     </body>
 
-      343 |       await user.click(button);
-      344 |
-    > 345 |       await waitFor(() => {
+      355 |       await user.click(button);
+      356 |
+    > 357 |       await waitFor(() => {
           |                    ^
-      346 |         const checkboxes = screen.getAllByRole('checkbox');
-      347 |         expect(checkboxes).toHaveLength(stringOptions.length);
-      348 |       });
+      358 |         const checkboxes = screen.getAllByRole('checkbox');
+      359 |         expect(checkboxes).toHaveLength(stringOptions.length);
+      360 |       });
 
       at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:345:20)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:357:20)
 
   ÔùÅ GenericFilter ÔÇ║ Multi-Select Mode ÔÇ║ checks selected options
 
@@ -2217,6 +436,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       <div>
         <div
           data-disabled="false"
+          data-size="md"
         >
           <label
             for="filter-Years"
@@ -2231,12 +451,15 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
               aria-haspopup="true"
               aria-label="Years"
               font-weight="normal"
-              righticon="[object Object]"
-              textalign="left"
               width="100%"
             >
               <span>
                 2024
+              </span>
+              <span
+                data-testid="chevron-icon"
+              >
+                Ôû╝
               </span>
             </button>
             <div
@@ -2252,6 +475,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2270,6 +494,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                     aria-hidden="true"
                     checked=""
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2287,6 +512,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                   <input
                     aria-hidden="true"
                     pointer-events="none"
+                    readonly=""
                     type="checkbox"
                   />
                   <span>
@@ -2300,33 +526,33 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       </div>
     </body>
 
-      365 |       await user.click(button);
-      366 |
-    > 367 |       await waitFor(() => {
+      377 |       await user.click(button);
+      378 |
+    > 379 |       await waitFor(() => {
           |                    ^
-      368 |         const checkboxes = screen.getAllByRole('checkbox');
-      369 |         const checkedCheckboxes = checkboxes.filter((cb) => (cb as HTMLInputElement).checked);
-      370 |         expect(checkedCheckboxes).toHaveLength(1);
+      380 |         const checkboxes = screen.getAllByRole('checkbox');
+      381 |         const checkedCheckboxes = checkboxes.filter((cb) => (cb as HTMLInputElement).checked);
+      382 |         expect(checkedCheckboxes).toHaveLength(1);
 
       at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:367:20)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:379:20)
 
   ÔùÅ GenericFilter ÔÇ║ Disabled State ÔÇ║ disables single-select when disabled prop is true
 
     expect(element).toBeDisabled()
 
     Received element is not disabled:
-      <select aria-label="Year" icon="[object Object]" id="filter-Year" />
+      <select aria-label="Year" id="filter-Year" />
 
-      408 |
-      409 |       const select = screen.getByRole('combobox');
-    > 410 |       expect(select).toBeDisabled();
+      420 |
+      421 |       const select = screen.getByRole('combobox');
+    > 422 |       expect(select).toBeDisabled();
           |                      ^
-      411 |     });
-      412 |
-      413 |     it('disables multi-select button when disabled prop is true', () => {
+      423 |     });
+      424 |
+      425 |     it('disables multi-select button when disabled prop is true', () => {
 
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:410:22)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:422:22)
       at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
       at runJest (node_modules/@jest/core/build/runJest.js:404:19)
       at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
@@ -2337,17 +563,17 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
     expect(element).toBeDisabled()
 
     Received element is not disabled:
-      <select aria-label="Year" icon="[object Object]" id="filter-Year" />
+      <select aria-label="Year" id="filter-Year" />
 
-      443 |
-      444 |       const select = screen.getByRole('combobox');
-    > 445 |       expect(select).toBeDisabled();
+      455 |
+      456 |       const select = screen.getByRole('combobox');
+    > 457 |       expect(select).toBeDisabled();
           |                      ^
-      446 |     });
-      447 |
-      448 |     it('disables multi-select button when loading', () => {
+      458 |     });
+      459 |
+      460 |     it('disables multi-select button when loading', () => {
 
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:445:22)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:457:22)
       at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
       at runJest (node_modules/@jest/core/build/runJest.js:404:19)
       at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
@@ -2355,45 +581,62 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
 
   ÔùÅ GenericFilter ÔÇ║ Loading State ÔÇ║ shows spinner in single-select when loading
 
-    expect(received).toBeInTheDocument()
+    TestingLibraryElementError: Unable to find an element by: [data-testid="spinner"]
 
-    received value must be an HTMLElement or an SVGElement.
-    Received has value: null
+    Ignored nodes: comments, script, style
+    <body>
+      <div>
+        <div
+          data-disabled="true"
+          data-size="md"
+        >
+          <label
+            for="filter-Year"
+          >
+            Year
+          </label>
+          <select
+            aria-label="Year"
+            id="filter-Year"
+          >
+            <option
+              value=""
+            >
+              Select...
+            </option>
+            <option
+              value="2023"
+            >
+              2023
+            </option>
+            <option
+              value="2024"
+            >
+              2024
+            </option>
+            <option
+              value="2025"
+            >
+              2025
+            </option>
+          </select>
+        </div>
+      </div>
+    </body>
 
-      476 |
-      477 |       const spinner = container.querySelector('.chakra-spinner');
-    > 478 |       expect(spinner).toBeInTheDocument();
-          |                       ^
-      479 |     });
-      480 |
-      481 |     it('shows spinner in multi-select button when loading', () => {
+      488 |
+      489 |       // Check for spinner by test ID
+    > 490 |       expect(screen.getByTestId('spinner')).toBeInTheDocument();
+          |                     ^
+      491 |     });
+      492 |
+      493 |     it('shows spinner in multi-select button when loading', () => {
 
-      at __EXTERNAL_MATCHER_TRAP__ (node_modules/expect/build/index.js:386:30)
-      at Object.toBeInTheDocument (node_modules/expect/build/index.js:387:15)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:478:23)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  ÔùÅ GenericFilter ÔÇ║ Loading State ÔÇ║ shows spinner in multi-select button when loading
-
-    expect(received).toBeInTheDocument()
-
-    received value must be an HTMLElement or an SVGElement.
-    Received has value: null
-
-      493 |
-      494 |       const spinner = container.querySelector('.chakra-spinner');
-    > 495 |       expect(spinner).toBeInTheDocument();
-          |                       ^
-      496 |     });
-      497 |   });
-      498 |
-
-      at __EXTERNAL_MATCHER_TRAP__ (node_modules/expect/build/index.js:386:30)
-      at Object.toBeInTheDocument (node_modules/expect/build/index.js:387:15)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:495:23)
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByTestId (node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:490:21)
       at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
       at runJest (node_modules/@jest/core/build/runJest.js:404:19)
       at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
@@ -2415,6 +658,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
         <div>
           <div
             data-disabled="false"
+            data-size="md"
           >
             <label
               for="filter-Years"
@@ -2429,12 +673,15 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                 aria-haspopup="true"
                 aria-label="Years"
                 font-weight="normal"
-                righticon="[object Object]"
-                textalign="left"
                 width="100%"
               >
                 <span>
                   Select...
+                </span>
+                <span
+                  data-testid="chevron-icon"
+                >
+                  Ôû╝
                 </span>
               </button>
               <div
@@ -2450,6 +697,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                     <input
                       aria-hidden="true"
                       pointer-events="none"
+                      readonly=""
                       type="checkbox"
                     />
                     <span>
@@ -2467,6 +715,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                     <input
                       aria-hidden="true"
                       pointer-events="none"
+                      readonly=""
                       type="checkbox"
                     />
                     <span>
@@ -2484,6 +733,7 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
                     <input
                       aria-hidden="true"
                       pointer-events="none"
+                      readonly=""
                       type="checkbox"
                     />
                     <span>
@@ -2498,15 +748,15 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       </body>
     </html>
 
-      671 |
-      672 |       await waitFor(() => {
-    > 673 |         expect(button).toHaveAttribute('aria-expanded', 'true');
+      682 |
+      683 |       await waitFor(() => {
+    > 684 |         expect(button).toHaveAttribute('aria-expanded', 'true');
           |                        ^
-      674 |       });
-      675 |     });
-      676 |
+      685 |       });
+      686 |     });
+      687 |
 
-      at src/components/filters/GenericFilter.test.tsx:673:24
+      at src/components/filters/GenericFilter.test.tsx:684:24
       at runWithExpensiveErrorDiagnosticsDisabled (node_modules/@testing-library/dom/dist/config.js:47:12)
       at checkCallback (node_modules/@testing-library/dom/dist/wait-for.js:124:77)
       at checkRealTimersCallback (node_modules/@testing-library/dom/dist/wait-for.js:118:16)
@@ -2519,7 +769,6 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
     Ignored nodes: comments, script, style
     <select
       aria-label="Objects"
-      icon="[object Object]"
       id="filter-Objects"
     >
       <option
@@ -2544,13 +793,13 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       </option>
     </select>
 
-      815 |
-      816 |       const select = screen.getByRole('combobox');
-    > 817 |       await user.selectOptions(select, '1');
+      826 |
+      827 |       const select = screen.getByRole('combobox');
+    > 828 |       await user.selectOptions(select, '1');
           |                  ^
-      818 |
-      819 |       expect(onChange).toHaveBeenCalledWith([objectOptions[0]]);
-      820 |     });
+      829 |
+      830 |       expect(onChange).toHaveBeenCalledWith([objectOptions[0]]);
+      831 |     });
 
       at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
       at node_modules/@testing-library/user-event/dist/cjs/utility/selectOptions.js:39:39
@@ -2561,122 +810,14 @@ FAIL src/components/filters/GenericFilter.test.tsx (7.721 s)
       at Object.asyncWrapper (node_modules/@testing-library/react/dist/pure.js:88:28)
       at Object.wrapAsync (node_modules/@testing-library/user-event/dist/cjs/setup/wrapAsync.js:8:28)
       at Object.selectOptions (node_modules/@testing-library/user-event/dist/cjs/setup/setup.js:85:26)
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:817:18)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  ÔùÅ GenericFilter ÔÇ║ Size Variants ÔÇ║ applies small size variant
-
-    expect(element).toHaveClass("chakra-select")
-
-    Expected the element to have class:
-      chakra-select
-    Received:
-
-      835 |
-      836 |       const select = container.querySelector('select');
-    > 837 |       expect(select).toHaveClass('chakra-select');
-          |                      ^
-      838 |     });
-      839 |
-      840 |     it('applies medium size variant (default)', () => {
-
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:837:22)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  ÔùÅ GenericFilter ÔÇ║ Size Variants ÔÇ║ applies medium size variant (default)
-
-    expect(element).toHaveClass("chakra-select")
-
-    Expected the element to have class:
-      chakra-select
-    Received:
-
-      851 |
-      852 |       const select = container.querySelector('select');
-    > 853 |       expect(select).toHaveClass('chakra-select');
-          |                      ^
-      854 |     });
-      855 |
-      856 |     it('applies large size variant', () => {
-
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:853:22)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  ÔùÅ GenericFilter ÔÇ║ Size Variants ÔÇ║ applies large size variant
-
-    expect(element).toHaveClass("chakra-select")
-
-    Expected the element to have class:
-      chakra-select
-    Received:
-
-      867 |
-      868 |       const select = container.querySelector('select');
-    > 869 |       expect(select).toHaveClass('chakra-select');
-          |                      ^
-      870 |     });
-      871 |   });
-      872 |
-
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:869:22)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  ÔùÅ GenericFilter ÔÇ║ Edge Cases ÔÇ║ handles empty availableOptions array
-
-    expect(received).toBe(expected) // Object.is equality
-
-    Expected: 0
-    Received: 1
-
-      885 |       const select = screen.getByRole('combobox');
-      886 |       expect(select).toBeInTheDocument();
-    > 887 |       expect(select.children.length).toBe(0);
-          |                                      ^
-      888 |     });
-      889 |
-      890 |     it('handles empty values array', () => {
-
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:887:38)
-      at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
-      at runJest (node_modules/@jest/core/build/runJest.js:404:19)
-      at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
-      at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
-
-  ÔùÅ GenericFilter ÔÇ║ Edge Cases ÔÇ║ handles value not in availableOptions
-
-    expect(received).toBe(expected) // Object.is equality
-
-    Expected: "2022"
-    Received: ""
-
-      931 |
-      932 |       const select = screen.getByRole('combobox') as HTMLSelectElement;
-    > 933 |       expect(select.value).toBe('2022');
-          |                            ^
-      934 |     });
-      935 |
-      936 |     it('does not crash with undefined onChange', () => {
-
-      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:933:28)
+      at Object.<anonymous> (src/components/filters/GenericFilter.test.tsx:828:18)
       at TestScheduler.scheduleTests (node_modules/@jest/core/build/TestScheduler.js:333:13)
       at runJest (node_modules/@jest/core/build/runJest.js:404:19)
       at _run10000 (node_modules/@jest/core/build/cli/index.js:320:7)
       at runCLI (node_modules/@jest/core/build/cli/index.js:173:3)
 
 Test Suites: 1 failed, 1 total
-Tests:       15 failed, 31 passed, 46 total
+Tests:       9 failed, 37 passed, 46 total
 Snapshots:   0 total
-Time:        9.028 s
+Time:        8.357 s
 Ran all test suites matching /GenericFilter.test.tsx/i.
