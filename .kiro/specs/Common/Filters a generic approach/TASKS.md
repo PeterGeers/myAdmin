@@ -169,14 +169,14 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 2.1 Create YearFilter Component
 
-- [ ] Create `frontend/src/components/filters/YearFilter.tsx`
-- [ ] Define `YearFilterProps` interface
-- [ ] Implement as wrapper around `GenericFilter<string>`
-- [ ] Add default label "Year"
-- [ ] Add default placeholder "Select year(s)"
-- [ ] Support both single and multi-select modes
-- [ ] Add JSDoc documentation
-- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [x] Create `frontend/src/components/filters/YearFilter.tsx`
+- [x] Define `YearFilterProps` interface
+- [x] Implement as wrapper around `GenericFilter<string>`
+- [x] Add default label "Year"
+- [x] Add default placeholder "Select year(s)"
+- [x] Support both single and multi-select modes
+- [x] Add JSDoc documentation
+- [x] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
