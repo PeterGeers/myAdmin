@@ -94,5 +94,10 @@
     "workerDirectory": [
       "public"
     ]
+  },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!(fast-check)/)"
+    ]
   }
 }
