@@ -105,7 +105,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Test accessibility (keyboard navigation, ARIA)
 - [x] Test with different data types (strings, objects)
 - [x] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] add to github using scripts\git\git-upload.ps1
       **Target**: 80%+ code coverage
 
 ### 1.5 Write GenericFilter Property-Based Tests
