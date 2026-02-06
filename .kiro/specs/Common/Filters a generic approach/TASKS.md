@@ -64,8 +64,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Define `MultiSelectFilterConfig<T>` interface
 - [x] Define `FilterType` enum: `'single' | 'multi' | 'range' | 'search'`
 - [x] Export all types
-- [ ] Check if tsc and lint pass correctly
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Check if tsc and lint pass correctly
+- [x] add to github using scripts\git\git-upload.ps1
 
       **Acceptance Criteria:**
 
@@ -75,14 +75,14 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 1.3 Create Year Option Generator Utility
 
-- [ ] Create `frontend/src/components/filters/utils/yearGenerator.ts`
-- [ ] Implement `generateYearOptions()` function with modes:
+- [x] Create `frontend/src/components/filters/utils/yearGenerator.ts`
+- [x] Implement `generateYearOptions()` function with modes:
   - `historical`: From database only
   - `future`: Current + N future years
   - `combined`: Historical + current + future
   - `rolling`: Last N + current + next M years
-- [ ] Add TypeScript types for configuration
-- [ ] Add JSDoc documentation with examples
+- [x] Add TypeScript types for configuration
+- [x] Add JSDoc documentation with examples
 - [ ] Check if tsc and lint pass correctly
 - [ ] add to github using scripts\git\git-upload.ps1
 
@@ -104,8 +104,9 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Test custom renderOption
 - [ ] Test accessibility (keyboard navigation, ARIA)
 - [ ] Test with different data types (strings, objects)
-
-**Target**: 80%+ code coverage
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
+      **Target**: 80%+ code coverage
 
 ### 1.5 Write GenericFilter Property-Based Tests
 
@@ -135,7 +136,9 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Verify visual feedback provided
   - Verify loading states work
 
-**Target**: 100 iterations per property, all passing
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
+      **Target**: 100 iterations per property, all passing
 
 ---
 
