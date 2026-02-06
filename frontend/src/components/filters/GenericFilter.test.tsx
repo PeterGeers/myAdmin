@@ -432,11 +432,17 @@ describe('GenericFilter', () => {
       await user.click(button);
 
       await waitFor(() => {
-        expect(screen.getByText('2024')).toBeInTheDocument();
+        // Use getAllByText since "2024" appears in both button and menu
+        const elements = screen.getAllByText('2024');
+        expect(elements.length).toBeGreaterThan(0);
       });
 
-      const option = screen.getByText('2024');
-      await user.click(option);
+      // Click the menu item (not the button text)
+      const menuItems = screen.getAllByRole('menuitemcheckbox');
+      const option2024 = menuItems.find(item => item.textContent?.includes('2024'));
+      if (option2024) {
+        await user.click(option2024);
+      }
 
       expect(onChange).toHaveBeenCalledWith([]);
     });
