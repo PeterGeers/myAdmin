@@ -46,7 +46,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Add accessibility attributes (ARIA labels, keyboard navigation)
 - [x] Add loading state support
 - [x] Add error state support
-- [x] add to github using scripts\git\git-upload.ps1
+- [-] add to github using scripts\git\git-upload.ps1
 - [x] Check if tsc and lint pass correctly
 
 **Acceptance Criteria:**
@@ -94,17 +94,17 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 1.4 Write GenericFilter Unit Tests
 
-- [ ] Create `frontend/src/components/filters/GenericFilter.test.tsx`
-- [ ] Test single-select mode rendering
-- [ ] Test multi-select mode rendering
-- [ ] Test onChange callbacks
-- [ ] Test disabled state
-- [ ] Test loading state
-- [ ] Test error state
-- [ ] Test custom renderOption
-- [ ] Test accessibility (keyboard navigation, ARIA)
-- [ ] Test with different data types (strings, objects)
-- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [x] Create `frontend/src/components/filters/GenericFilter.test.tsx`
+- [x] Test single-select mode rendering
+- [x] Test multi-select mode rendering
+- [x] Test onChange callbacks
+- [x] Test disabled state
+- [x] Test loading state
+- [x] Test error state
+- [x] Test custom renderOption
+- [x] Test accessibility (keyboard navigation, ARIA)
+- [x] Test with different data types (strings, objects)
+- [x] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
       **Target**: 80%+ code coverage
 
