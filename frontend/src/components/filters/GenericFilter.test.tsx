@@ -46,6 +46,7 @@ jest.mock('@chakra-ui/react', () => {
         type="checkbox" 
         checked={isChecked} 
         onChange={onChange}
+        readOnly={!onChange}
         {...props} 
       />
     ),
@@ -55,11 +56,22 @@ jest.mock('@chakra-ui/react', () => {
     FormLabel: ({ children, htmlFor }: any) => (
       <label htmlFor={htmlFor}>{children}</label>
     ),
-    Menu: ({ children, isOpen, onClose, closeOnSelect }: any) => (
-      <div data-menu-open={isOpen} data-close-on-select={closeOnSelect}>
-        {children}
-      </div>
-    ),
+    Menu: ({ children, isOpen, onClose, closeOnSelect }: any) => {
+      // Filter children to only show MenuList when open
+      const filteredChildren = React.Children.toArray(children).filter((child: any) => {
+        // Check if this is a MenuList by checking the type's displayName
+        if (child?.type?.displayName === 'MenuList') {
+          return isOpen;
+        }
+        return true; // Render all other children (like MenuButton)
+      });
+      
+      return (
+        <div data-menu-open={isOpen} data-close-on-select={closeOnSelect}>
+          {filteredChildren}
+        </div>
+      );
+    },
     MenuButton: ({ 
       children, 
       as: Component = 'button', 
@@ -67,6 +79,10 @@ jest.mock('@chakra-ui/react', () => {
       onClick,
       disabled,
       isDisabled,
+      textAlign,  // Remove from DOM
+      fontWeight, // Remove from DOM
+      width,      // Remove from DOM
+      size,       // Remove from DOM
       ...props 
     }: any) => {
       const isActuallyDisabled = disabled || isDisabled;
@@ -74,6 +90,12 @@ jest.mock('@chakra-ui/react', () => {
         <Component 
           onClick={isActuallyDisabled ? undefined : onClick}
           disabled={isActuallyDisabled}
+          style={{ 
+            textAlign, 
+            fontWeight, 
+            width: width === '100%' ? '100%' : width 
+          }}
+          data-size={size}
           {...props}
         >
           {children}
@@ -81,8 +103,13 @@ jest.mock('@chakra-ui/react', () => {
         </Component>
       );
     },
-    MenuList: ({ children, maxH, overflowY, minW }: any) => (
-      <div role="menu" data-max-height={maxH}>{children}</div>
+    MenuList: Object.assign(
+      ({ children, maxH, overflowY, minW }: any) => (
+        <div role="menu" data-max-height={maxH}>
+          {children}
+        </div>
+      ),
+      { displayName: 'MenuList' }
     ),
     MenuItem: ({ 
       children, 
