@@ -155,6 +155,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Add default placeholder "Select year(s)"
 - [ ] Support both single and multi-select modes
 - [ ] Add JSDoc documentation
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -171,6 +173,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Add default placeholder "Select administration"
 - [ ] Support tenant context integration
 - [ ] Add JSDoc documentation
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -187,6 +191,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Add responsive design (mobile-friendly)
 - [ ] Add consistent spacing and alignment
 - [ ] Add JSDoc documentation with examples
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -212,6 +218,8 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Test grid layout
   - Test responsive behavior
   - Test with mixed filter types
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Target**: 80%+ code coverage for each component
 
@@ -228,6 +236,8 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Dynamic year loading strategies
 - [ ] Add migration guide from UnifiedAdminYearFilter
 - [ ] Add troubleshooting section
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 ---
 
@@ -244,6 +254,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Update adapter to use new filter API
 - [ ] Test functionality (manual + automated)
 - [ ] Verify no regressions
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -261,6 +273,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Update adapter to use new filter API
 - [ ] Test functionality (manual + automated)
 - [ ] Verify no regressions
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -279,6 +293,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Update adapter to use new filter API
 - [ ] Test functionality (manual + automated)
 - [ ] Verify no regressions
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -301,6 +317,8 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Replace UnifiedAdminYearFilter mocks with FilterPanel mocks
   - Test multi-filter interactions
   - Verify coverage maintained
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Target**: Maintain or improve test coverage
 
@@ -311,6 +329,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Identify any issues or concerns
 - [ ] Make adjustments based on feedback
 - [ ] Document lessons learned
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 ---
 
@@ -330,6 +350,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Migrate `BnbViolinsReport.tsx`
   - Multi-select years
   - Remove administration filter
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -343,6 +365,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Replace each with appropriate FilterPanel configuration
 - [ ] Test each report section
 - [ ] Consider refactoring this 3600+ line file (separate task)
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Note**: This file should be refactored into separate components (future work)
 
@@ -353,6 +377,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Add FilterPanel mocks
 - [ ] Verify all tests pass
 - [ ] Check coverage reports
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Target**: Maintain 80%+ coverage across all reports
 
@@ -365,6 +391,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Add new integration tests for FilterPanel
 - [ ] Test filter state persistence
 - [ ] Test filter interactions across reports
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 ### 4.5 Performance Testing
 
@@ -372,6 +400,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Compare with old UnifiedAdminYearFilter
 - [ ] Verify no performance regressions
 - [ ] Optimize if needed (memoization, lazy loading)
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Target**: Equal or better performance than current implementation
 
@@ -387,6 +417,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Add deprecation notice in component file
 - [ ] Update component to log deprecation warning in console
 - [ ] Add migration guide link in deprecation notice
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 ### 5.2 Remove Old Code (After Verification)
 
@@ -395,6 +427,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Delete `frontend/src/components/UnifiedAdminYearFilterAdapters.ts`
 - [ ] Remove related imports from all files
 - [ ] Verify no broken references
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Code Reduction**: ~2600 lines removed
 
@@ -405,6 +439,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Add migration guide for future developers
 - [ ] Document filter patterns and best practices
 - [ ] Add examples for common use cases
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 ### 5.4 Create Storybook Stories (Optional)
 
@@ -422,6 +458,8 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Historical years
   - Future years
   - Combined years
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 ### 5.5 Final Testing and Validation
 
@@ -431,6 +469,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Accessibility audit (WCAG 2.1 AA compliance)
 - [ ] Performance benchmarks
 - [ ] Browser compatibility testing (Chrome, Firefox, Safari, Edge)
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -447,6 +487,8 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [ ] Deploy to production
 - [ ] Monitor production metrics
 - [ ] Document any issues and resolutions
+- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [ ] add to github using scripts\git\git-upload.ps1
 
 ---
 
