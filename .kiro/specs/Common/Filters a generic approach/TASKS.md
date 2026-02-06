@@ -177,7 +177,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Support both single and multi-select modes
 - [x] Add JSDoc documentation
 - [x] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -185,25 +185,9 @@ This document outlines the implementation tasks for creating a generic filter sy
 - Works for multi-select (Actuals, BNB)
 - Maintains backward compatibility with existing usage
 
-### 2.2 Create AdministrationFilter Component
+**Note:** AdministrationFilter component is NOT needed due to tenant-based architecture. Users work within a selected tenant, and 75% of reports already hide the administration field. All migration tasks explicitly remove administration filtering in favor of tenant context.
 
-- [ ] Create `frontend/src/components/filters/AdministrationFilter.tsx`
-- [ ] Define `AdministrationFilterProps` interface
-- [ ] Implement as wrapper around `GenericFilter<string>`
-- [ ] Add default label "Administration"
-- [ ] Add default placeholder "Select administration"
-- [ ] Support tenant context integration
-- [ ] Add JSDoc documentation
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-**Acceptance Criteria:**
-
-- Integrates with tenant context
-- Shows only accessible administrations
-- Handles "All" option correctly
-
-### 2.3 Create FilterPanel Container
+### 2.2 Create FilterPanel Container
 
 - [ ] Create `frontend/src/components/filters/FilterPanel.tsx`
 - [ ] Define `FilterPanelProps` interface
@@ -221,7 +205,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - Layouts work on mobile and desktop
 - Matches existing myAdmin design system
 
-### 2.4 Write Specialized Filter Tests
+### 2.3 Write Specialized Filter Tests
 
 - [ ] Create `frontend/src/components/filters/YearFilter.test.tsx`
   - Test single-select mode
@@ -229,10 +213,6 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Test year option generation integration
   - Test with historical years
   - Test with future years
-- [ ] Create `frontend/src/components/filters/AdministrationFilter.test.tsx`
-  - Test tenant context integration
-  - Test "All" option
-  - Test disabled state
 - [ ] Create `frontend/src/components/filters/FilterPanel.test.tsx`
   - Test horizontal layout
   - Test vertical layout
@@ -244,16 +224,16 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 **Target**: 80%+ code coverage for each component
 
-### 2.5 Create Filter Documentation
+### 2.4 Create Filter Documentation
 
 - [ ] Create `frontend/src/components/filters/README.md`
 - [ ] Document GenericFilter API
-- [ ] Document specialized filters (Year, Administration)
+- [ ] Document specialized filters (Year only - no Administration filter needed)
 - [ ] Document FilterPanel usage
 - [ ] Add usage examples for common scenarios:
   - Single year selection (BTW)
   - Multi-year selection (Actuals)
-  - Combined filters (Year + Administration)
+  - Combined filters (Year + other filters)
   - Dynamic year loading strategies
 - [ ] Add migration guide from UnifiedAdminYearFilter
 - [ ] Add troubleshooting section
