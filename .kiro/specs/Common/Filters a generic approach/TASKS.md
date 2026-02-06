@@ -47,6 +47,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Add loading state support
 - [x] Add error state support
 - [-] add to github using scripts\git\git-upload.ps1
+- [x] Check if tsc and lint pass correctly
 
 **Acceptance Criteria:**
 
@@ -57,14 +58,16 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 1.2 Create Filter Type Definitions
 
-- [ ] Create `frontend/src/components/filters/types.ts`
-- [ ] Define `FilterConfig<T>` interface
-- [ ] Define `SingleSelectFilterConfig<T>` interface
-- [ ] Define `MultiSelectFilterConfig<T>` interface
-- [ ] Define `FilterType` enum: `'single' | 'multi' | 'range' | 'search'`
-- [ ] Export all types
+- [x] Create `frontend/src/components/filters/types.ts`
+- [x] Define `FilterConfig<T>` interface
+- [x] Define `SingleSelectFilterConfig<T>` interface
+- [x] Define `MultiSelectFilterConfig<T>` interface
+- [x] Define `FilterType` enum: `'single' | 'multi' | 'range' | 'search'`
+- [x] Export all types
+- [ ] Check if tsc and lint pass correctly
+- [ ] add to github using scripts\git\git-upload.ps1
 
-**Acceptance Criteria:**
+      **Acceptance Criteria:**
 
 - All types are properly exported
 - TypeScript compilation succeeds
@@ -80,6 +83,8 @@ This document outlines the implementation tasks for creating a generic filter sy
   - `rolling`: Last N + current + next M years
 - [ ] Add TypeScript types for configuration
 - [ ] Add JSDoc documentation with examples
+- [ ] Check if tsc and lint pass correctly
+- [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 

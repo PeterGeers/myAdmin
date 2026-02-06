@@ -1,6 +1,5 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
-  Box,
   Button,
   Checkbox,
   FormControl,
@@ -11,7 +10,6 @@ import {
   MenuItem,
   Select,
   Text,
-  VStack,
   HStack,
   Spinner,
   Alert,
@@ -117,7 +115,7 @@ export function GenericFilter<T>({
   getOptionValue,
   isLoading = false,
   error = null,
-}: GenericFilterProps<T>): JSX.Element {
+}: GenericFilterProps<T>): React.ReactElement {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
