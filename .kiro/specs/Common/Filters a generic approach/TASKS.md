@@ -46,7 +46,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Add accessibility attributes (ARIA labels, keyboard navigation)
 - [x] Add loading state support
 - [x] Add error state support
-- [-] add to github using scripts\git\git-upload.ps1
+- [x] add to github using scripts\git\git-upload.ps1
 - [x] Check if tsc and lint pass correctly
 
 **Acceptance Criteria:**
@@ -83,8 +83,8 @@ This document outlines the implementation tasks for creating a generic filter sy
   - `rolling`: Last N + current + next M years
 - [x] Add TypeScript types for configuration
 - [x] Add JSDoc documentation with examples
-- [ ] Check if tsc and lint pass correctly
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Check if tsc and lint pass correctly
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
