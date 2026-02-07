@@ -33,11 +33,11 @@ switch ($Mode.ToLower()) {
         Write-Host "Backend and Database: Docker containers (auto-start)" -ForegroundColor Cyan
         Write-Host "Starting frontend development server..." -ForegroundColor Yellow
         
-        # Sync backend/.env to root and frontend
+        # Sync backend/.env to root only (NOT to frontend)
         if (Test-Path "backend\.env") {
             Copy-Item "backend\.env" ".env" -Force
-            Copy-Item "backend\.env" "frontend\.env" -Force
-            Write-Host "Synced backend/.env to root and frontend" -ForegroundColor Green
+            Write-Host "Synced backend/.env to root" -ForegroundColor Green
+            Write-Host "Note: frontend/.env must be configured separately with REACT_APP_ variables" -ForegroundColor Yellow
         }
         else {
             Write-Host "backend/.env not found!" -ForegroundColor Red
@@ -82,11 +82,11 @@ switch ($Mode.ToLower()) {
     "prod" {
         Write-Host "Building for Production..." -ForegroundColor Green
         
-        # Sync backend/.env to root and frontend
+        # Sync backend/.env to root only (NOT to frontend)
         if (Test-Path "backend\.env") {
             Copy-Item "backend\.env" ".env" -Force
-            Copy-Item "backend\.env" "frontend\.env" -Force
-            Write-Host "Synced backend/.env to root and frontend" -ForegroundColor Green
+            Write-Host "Synced backend/.env to root" -ForegroundColor Green
+            Write-Host "Note: frontend/.env must be configured separately with REACT_APP_ variables" -ForegroundColor Yellow
         }
         else {
             Write-Host "backend/.env not found!" -ForegroundColor Red
