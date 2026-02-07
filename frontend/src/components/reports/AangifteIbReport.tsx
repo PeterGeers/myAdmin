@@ -22,8 +22,7 @@ import {
 } from '@chakra-ui/react';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
-import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
-import { createAangifteIbFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
+import { FilterPanel } from '../filters/FilterPanel';
 
 interface AangifteIbRecord {
   Parent: string;
@@ -52,11 +51,11 @@ const AangifteIbReport: React.FC = () => {
   const { currentTenant } = useTenant();
   const [aangifteIbData, setAangifteIbData] = useState<AangifteIbRecord[]>([]);
   const [aangifteIbDetails, setAangifteIbDetails] = useState<AangifteIbDetail[]>([]);
-  const [aangifteIbFilters, setAangifteIbFilters] = useState({
-    year: new Date().getFullYear().toString(),
-    administration: currentTenant || 'all'
-  });
+  
+  // Simplified state - no administration filter (uses tenant context)
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [aangifteIbAvailableYears, setAangifteIbAvailableYears] = useState<string[]>([]);
+  
   const [aangifteIbLoading, setAangifteIbLoading] = useState(false);
   const [selectedAangifteRow, setSelectedAangifteRow] = useState<{parent: string, aangifte: string} | null>(null);
   const [expandedAangifteRows, setExpandedAangifteRows] = useState<Set<string>>(new Set());
@@ -68,7 +67,7 @@ const AangifteIbReport: React.FC = () => {
     setAangifteIbLoading(true);
     try {
       const params = {
-        year: aangifteIbFilters.year
+        year: selectedYear
       };
       
       const response = await tenantAwareGet('/api/reports/aangifte-ib', params);
@@ -88,7 +87,7 @@ const AangifteIbReport: React.FC = () => {
   const fetchAangifteIbDetails = async (parent: string, aangifte: string) => {
     try {
       const params = {
-        year: aangifteIbFilters.year,
+        year: selectedYear,
         parent: parent,
         aangifte: aangifte
       };
@@ -111,7 +110,7 @@ const AangifteIbReport: React.FC = () => {
       const tenant = requireTenant();
       
       const exportData = {
-        year: aangifteIbFilters.year,
+        year: selectedYear,
         administration: tenant,
         data: aangifteIbData
       };
@@ -150,7 +149,7 @@ const AangifteIbReport: React.FC = () => {
         '/api/reports/aangifte-ib-xlsx-export-stream',
         {
           administrations: [tenant],
-          years: [aangifteIbFilters.year]
+          years: [selectedYear]
         }
       );
 
@@ -225,22 +224,16 @@ const AangifteIbReport: React.FC = () => {
   };
 
   useEffect(() => {
-    if (aangifteIbFilters.year) {
+    if (selectedYear) {
       fetchAangifteIbData();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aangifteIbFilters.year, aangifteIbFilters.administration]);
+  }, [selectedYear]);
 
   // Auto-refresh on tenant change
   useEffect(() => {
     if (currentTenant) {
       setTenantSwitching(true);
-      
-      // Update filters with current tenant
-      setAangifteIbFilters(prev => ({
-        ...prev,
-        administration: currentTenant
-      }));
       
       // Clear previous tenant data
       setAangifteIbData([]);
@@ -438,14 +431,21 @@ const AangifteIbReport: React.FC = () => {
       <Card bg="gray.700">
         <CardBody>
           <HStack spacing={4} flexWrap="nowrap">
-            <UnifiedAdminYearFilter
-              {...createAangifteIbFilterAdapter(
-                aangifteIbFilters,
-                setAangifteIbFilters,
-                aangifteIbAvailableYears
-              )}
+            <FilterPanel
+              layout="horizontal"
               size="sm"
-              isLoading={aangifteIbLoading || tenantSwitching}
+              spacing={4}
+              filters={[
+                {
+                  type: 'single',
+                  label: 'Year',
+                  options: aangifteIbAvailableYears,
+                  value: selectedYear,
+                  onChange: (value) => setSelectedYear(value as string),
+                  placeholder: 'Select year',
+                  isLoading: aangifteIbLoading || tenantSwitching,
+                },
+              ]}
             />
             <Button 
               colorScheme="orange"
@@ -460,7 +460,7 @@ const AangifteIbReport: React.FC = () => {
               onClick={handleGenerateXlsx}
               isLoading={xlsxExportLoading}
               size="sm"
-              isDisabled={!currentTenant || !aangifteIbFilters.year || tenantSwitching}
+              isDisabled={!currentTenant || !selectedYear || tenantSwitching}
             >
               Generate XLSX
             </Button>

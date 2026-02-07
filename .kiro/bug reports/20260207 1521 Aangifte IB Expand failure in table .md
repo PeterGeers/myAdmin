@@ -1,0 +1,2 @@
+In the table shown under Aangifte IB Summary The Parent clicking onn the plus sign exopands to Column Aangifte
+When clicking on the + sign before Column Aangifte nothing happens Cionsole log mentions: apiService.ts:87  GET http://localhost:3000/api/reports/aangifte-ib-details?administration=GoodwinSolutions&year=2025&parent=2000&aangifte=BTW 500 (INTERNAL SERVER ERROR)

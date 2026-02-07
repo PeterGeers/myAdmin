@@ -51,20 +51,14 @@ jest.mock('@chakra-ui/react', () => {
   };
 });
 
-jest.mock('../UnifiedAdminYearFilter', () => {
+jest.mock('../filters/FilterPanel', () => {
   const React = require('react');
-  return function MockUnifiedAdminYearFilter() {
-    return React.createElement('div', { 'data-testid': 'unified-admin-year-filter' }, 'Year Filter');
+  return {
+    FilterPanel: function MockFilterPanel() {
+      return React.createElement('div', { 'data-testid': 'filter-panel' }, 'Filter Panel');
+    }
   };
 });
-
-jest.mock('../UnifiedAdminYearFilterAdapters', () => ({
-  createAangifteIbFilterAdapter: () => ({
-    year: '2024',
-    availableYears: ['2024', '2023'],
-    onYearChange: jest.fn()
-  })
-}));
 
 const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
 const mockTenantAwareGet = tenantAwareGet as jest.MockedFunction<typeof tenantAwareGet>;
@@ -117,7 +111,7 @@ describe('AangifteIbReport', () => {
     it('renders all required UI elements', () => {
       render(<AangifteIbReport />);
       
-      expect(screen.getByTestId('unified-admin-year-filter')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-panel')).toBeInTheDocument();
       expect(screen.getByText('Export HTML')).toBeInTheDocument();
       expect(screen.getByText('Generate XLSX')).toBeInTheDocument();
       expect(screen.getByText('Aangifte IB Summary')).toBeInTheDocument();

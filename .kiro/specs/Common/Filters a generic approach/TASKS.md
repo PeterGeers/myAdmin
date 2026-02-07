@@ -341,7 +341,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 4.1 Migrate Remaining Reports
 
-- [ ] Migrate `AangifteIbReport.tsx`
+- [x] Migrate `AangifteIbReport.tsx`
   - Single-select year
   - Remove administration filter
 - [ ] Migrate `ReferenceAnalysisReport.tsx`
