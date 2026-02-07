@@ -8,12 +8,14 @@
 
 ### 1. FilterPanel Default Colors
 
-**Problem**: 
+**Problem**:
+
 - Filter titles were dark grey on dark grey (unreadable)
 - Selected values were black on light grey (poor contrast)
 - No default color scheme defined
 
 **Solution Implemented**:
+
 - Added default colors to FilterPanel component:
   - `labelColor='white'` - White text for labels on dark backgrounds
   - `bg='gray.600'` - Dark gray background for filter controls
@@ -24,6 +26,7 @@
   - Hover states: Darker orange on hover
 
 **Files Modified**:
+
 - `frontend/src/components/filters/FilterPanel.tsx`
 - `frontend/src/components/filters/GenericFilter.tsx`
 - `frontend/src/components/filters/README.md` (documentation updated)
@@ -32,36 +35,50 @@
 
 **Problem**:
 Three dropdowns were outside the FilterPanel:
+
 - View Type (Listing/Channel)
 - Display Format (2 decimals, 0 decimals, K, M)
 - Show Amounts (multi-select checkboxes)
 
+**Additional Issue**:
+Listings and Channels filters showed gray background when displaying "All Listings" or "All Channels" (empty selection = all items), but this is actually a valid default choice that should show orange like the Years filter.
+
 **Solution Implemented**:
+
 - Consolidated all 6 filters into a single FilterPanel with grid layout
 - Changed layout from `horizontal` to `grid` with 3 columns
 - Moved "Update Data" button below the FilterPanel
 - All filters now use consistent styling
+- Added `treatEmptyAsSelected` prop to GenericFilter to show orange background for "All" selections
+- Applied `treatEmptyAsSelected: true` to Listings and Channels filters
 
 **Filters in BnbActualsReport FilterPanel**:
-1. Years (multi-select)
-2. Listings (multi-select)
-3. Channels (multi-select)
-4. View Type (single-select)
-5. Display Format (single-select)
-6. Show Amounts (multi-select)
+
+1. Years (multi-select) - Orange when selected
+2. Listings (multi-select) - Orange when showing "All" or specific selections
+3. Channels (multi-select) - Orange when showing "All" or specific selections
+4. View Type (single-select) - Orange when selected
+5. Display Format (single-select) - Orange when selected
+6. Show Amounts (multi-select) - Orange when selected
 
 **Files Modified**:
+
 - `frontend/src/components/reports/BnbActualsReport.tsx`
+- `frontend/src/components/filters/GenericFilter.tsx` (added `treatEmptyAsSelected` prop)
+- `frontend/src/components/filters/FilterPanel.tsx` (pass through new prop)
+- `frontend/src/components/filters/types.ts` (added prop to FilterConfig interface)
 - Removed unused imports: Checkbox, Menu, MenuButton, MenuItem, MenuList, Select
 
 ### 3. Consistent Colors Across All Reports
 
 **Reports Updated**:
+
 - ✅ BnbActualsReport - Uses FilterPanel with default colors
 - ✅ BtwReport - Uses FilterPanel with default colors
 - ✅ ActualsReport - Uses YearFilter (which uses default colors)
 
 **Color Scheme Applied**:
+
 - Label text: White on dark gray background
 - Filter controls: Gray.600 background with white text
 - Selected values: Orange.500 background with white text
@@ -74,21 +91,22 @@ Three dropdowns were outside the FilterPanel:
 ```typescript
 export function FilterPanel({
   filters,
-  layout = 'horizontal',
-  size = 'md',
+  layout = "horizontal",
+  size = "md",
   spacing = 4,
   disabled = false,
   gridColumns = 2,
-  gridMinWidth = '200px',
-  labelColor = 'white',      // NEW: Default white labels
-  bg = 'gray.600',           // NEW: Default dark gray background
-  color = 'white',           // NEW: Default white text
-}: FilterPanelProps)
+  gridMinWidth = "200px",
+  labelColor = "white", // NEW: Default white labels
+  bg = "gray.600", // NEW: Default dark gray background
+  color = "white", // NEW: Default white text
+}: FilterPanelProps);
 ```
 
 ### GenericFilter Selected Value Styling
 
 **Single-select mode**:
+
 ```typescript
 <Select
   sx={{
@@ -105,6 +123,7 @@ export function FilterPanel({
 ```
 
 **Multi-select mode**:
+
 ```typescript
 <MenuButton
   bg={values.length > 0 ? 'orange.500' : bg}
@@ -117,12 +136,14 @@ export function FilterPanel({
 ## Testing
 
 ### Build Verification
+
 - ✅ TypeScript compilation passes (`npx tsc --noEmit`)
 - ✅ ESLint passes with no new warnings
 - ✅ Production build succeeds
 - ✅ No console errors
 
 ### Visual Verification Needed
+
 - [ ] Manual testing: Verify white labels on dark backgrounds
 - [ ] Manual testing: Verify orange background for selected values
 - [ ] Manual testing: Verify all 6 filters work in BnbActualsReport
@@ -138,8 +159,15 @@ export function FilterPanel({
 
 ## Commit
 
-**Commit Hash**: 23a6630
-**Commit Message**: "UX improvements: Add default colors to FilterPanel and consolidate BnbActualsReport filters"
+**Commit Hashes**:
+
+- 23a6630 - UX improvements: Add default colors to FilterPanel and consolidate BnbActualsReport filters
+- 53289cf - UX fix: Show orange background for Listings and Channels filters when showing 'All'
+
+**Commit Messages**:
+
+1. "UX improvements: Add default colors to FilterPanel and consolidate BnbActualsReport filters"
+2. "UX fix: Show orange background for Listings and Channels filters when showing 'All'"
 
 ## Next Steps
 
