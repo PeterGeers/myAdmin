@@ -266,9 +266,9 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 3.2 Migrate BtwReport
 
-- [ ] Update `frontend/src/components/reports/BtwReport.tsx`
-- [ ] Replace `UnifiedAdminYearFilter` with `FilterPanel`
-- [ ] Configure single-select year filter
+- [x] Update `frontend/src/components/reports/BtwReport.tsx`
+- [x] Replace `UnifiedAdminYearFilter` with `FilterPanel`
+- [x] Configure single-select year filter
 - [ ] Add quarter filter (single-select)
 - [ ] Remove administration filter (uses tenant context)
 - [ ] Update adapter to use new filter API

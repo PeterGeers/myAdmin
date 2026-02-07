@@ -11,23 +11,19 @@ import {
   GridItem,
   Heading,
   HStack,
-  Select,
   Text,
   VStack
 } from '@chakra-ui/react';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
-import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
-import { createBtwFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
+import { FilterPanel } from '../filters/FilterPanel';
 
 const BtwReport: React.FC = () => {
   const { currentTenant } = useTenant();
   
-  const [btwFilters, setBtwFilters] = useState({
-    administration: currentTenant || 'GoodwinSolutions',
-    year: new Date().getFullYear().toString(),
-    quarter: '1'
-  });
+  // Simplified state - no administration filter (uses tenant context)
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [selectedQuarter, setSelectedQuarter] = useState<string>('1');
   const [btwAvailableYears, setBtwAvailableYears] = useState<string[]>([]);
   const [btwReport, setBtwReport] = useState<string>('');
   const [btwTransaction, setBtwTransaction] = useState<any>(null);
@@ -59,7 +55,11 @@ const BtwReport: React.FC = () => {
     try {
       const response = await tenantAwarePost(
         '/api/btw/generate-report',
-        btwFilters
+        {
+          administration: currentTenant,
+          year: selectedYear,
+          quarter: selectedQuarter
+        }
       );
       
       const data = await response.json();
@@ -101,7 +101,7 @@ const BtwReport: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        const filename = `BTW_${btwFilters.administration}_${btwFilters.year}_Q${btwFilters.quarter}.html`;
+        const filename = `BTW_${currentTenant}_${selectedYear}_Q${selectedQuarter}.html`;
         
         const uploadResponse = await tenantAwarePost(
           '/api/btw/upload-report',
@@ -136,12 +136,6 @@ const BtwReport: React.FC = () => {
   // Auto-refresh on tenant change
   useEffect(() => {
     if (currentTenant) {
-      // Update filters with new tenant
-      setBtwFilters(prev => ({
-        ...prev,
-        administration: currentTenant
-      }));
-      
       // Clear previous tenant data
       setBtwReport('');
       setBtwTransaction(null);
@@ -160,42 +154,43 @@ const BtwReport: React.FC = () => {
         </Alert>
       )}
 
-      <UnifiedAdminYearFilter
-        {...createBtwFilterAdapter(btwFilters, setBtwFilters, btwAvailableYears)}
-        size="sm"
-        isLoading={btwLoading}
-      />
-
       <Card bg="gray.700">
         <CardBody>
-          <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            <GridItem>
-              <Text color="white" mb={2}>Quarter</Text>
-              <Select
-                value={btwFilters.quarter}
-                onChange={(e) => setBtwFilters(prev => ({...prev, quarter: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-              >
-                <option value="1">Q1</option>
-                <option value="2">Q2</option>
-                <option value="3">Q3</option>
-                <option value="4">Q4</option>
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Button 
-                colorScheme="orange" 
-                onClick={generateBtwReport} 
-                isLoading={btwLoading}
-                isDisabled={!currentTenant}
-                size="sm"
-              >
-                Generate BTW Report
-              </Button>
-            </GridItem>
-          </Grid>
+          <FilterPanel
+            layout="horizontal"
+            size="sm"
+            spacing={4}
+            filters={[
+              {
+                type: 'single',
+                label: 'Year',
+                options: btwAvailableYears,
+                value: selectedYear,
+                onChange: (value) => setSelectedYear(value as string),
+                placeholder: 'Select year',
+                isLoading: btwLoading,
+              },
+              {
+                type: 'single',
+                label: 'Quarter',
+                options: ['1', '2', '3', '4'],
+                value: selectedQuarter,
+                onChange: (value) => setSelectedQuarter(value as string),
+                placeholder: 'Select quarter',
+                getOptionLabel: (q) => `Q${q}`,
+              },
+            ]}
+          />
+          <Button 
+            colorScheme="orange" 
+            onClick={generateBtwReport} 
+            isLoading={btwLoading}
+            isDisabled={!currentTenant}
+            size="sm"
+            mt={4}
+          >
+            Generate BTW Report
+          </Button>
         </CardBody>
       </Card>
 
