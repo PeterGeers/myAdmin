@@ -64,21 +64,11 @@ jest.mock('recharts', () => ({
   Legend: () => <div data-testid="legend" />
 }));
 
-// Mock UnifiedAdminYearFilter
-jest.mock('../UnifiedAdminYearFilter', () => {
-  return function MockUnifiedAdminYearFilter(props: any) {
-    return <div data-testid="unified-admin-year-filter" {...props} />;
-  };
-});
-
-// Mock UnifiedAdminYearFilterAdapters
-jest.mock('../UnifiedAdminYearFilterAdapters', () => ({
-  createActualsFilterAdapter: jest.fn(() => ({
-    administration: 'TestTenant',
-    years: ['2024'],
-    onAdministrationChange: jest.fn(),
-    onYearsChange: jest.fn()
-  }))
+// Mock YearFilter
+jest.mock('../filters/YearFilter', () => ({
+  YearFilter: function MockYearFilter(props: any) {
+    return <div data-testid="year-filter" {...props} />;
+  }
 }));
 
 const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
@@ -469,12 +459,12 @@ describe.skip('ActualsReport', () => {
       expect(element.type).toBe(ActualsReport);
     });
 
-    it('includes unified admin year filter', async () => {
+    it('includes year filter', async () => {
       // Use stable mockTenantContext (already set in beforeEach)
       render(<ActualsReport />);
       
       await waitFor(() => {
-        expect(screen.getByTestId('unified-admin-year-filter')).toBeInTheDocument();
+        expect(screen.getByTestId('year-filter')).toBeInTheDocument();
       }, { timeout: 3000 });
     });
   });

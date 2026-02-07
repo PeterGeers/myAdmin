@@ -238,7 +238,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Add migration guide from UnifiedAdminYearFilter
 - [x] Add troubleshooting section
 - [x] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] add to github using scripts\git\git-upload.ps1
 
 ---
 
@@ -248,14 +248,14 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 3.1 Migrate ActualsReport
 
-- [ ] Update `frontend/src/components/reports/ActualsReport.tsx`
-- [ ] Replace `UnifiedAdminYearFilter` with `FilterPanel`
-- [ ] Configure multi-select year filter
-- [ ] Remove administration filter (uses tenant context)
-- [ ] Update adapter to use new filter API
-- [ ] Test functionality (manual + automated)
-- [ ] Verify no regressions
-- [ ] Check if tsc and lint pass correctly and minimize warnings
+- [x] Update `frontend/src/components/reports/ActualsReport.tsx`
+- [x] Replace `UnifiedAdminYearFilter` with `YearFilter`
+- [x] Configure multi-select year filter
+- [x] Remove administration filter (uses tenant context)
+- [x] Update adapter to use new filter API
+- [x] Test functionality (manual + automated)
+- [x] Verify no regressions
+- [x] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**

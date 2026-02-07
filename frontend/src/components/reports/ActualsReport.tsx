@@ -36,8 +36,7 @@ import {
 } from 'recharts';
 import { authenticatedGet, authenticatedPost, buildEndpoint } from '../../services/apiService';
 import { useTenant } from '../../context/TenantContext';
-import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
-import { createActualsFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
+import { YearFilter } from '../filters/YearFilter';
 
 interface BalanceRecord {
   Parent: string;
@@ -47,11 +46,6 @@ interface BalanceRecord {
   kwartaal?: number;
   maand?: number;
   [key: string]: any;
-}
-
-interface ActualsFilters {
-  years: string[];
-  displayFormat: string;
 }
 
 const ActualsReport: React.FC = () => {
@@ -65,10 +59,9 @@ const ActualsReport: React.FC = () => {
   const [drillDownLevel, setDrillDownLevel] = useState<'year' | 'quarter' | 'month'>('year');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   
-  const [actualsFilters, setActualsFilters] = useState<ActualsFilters>({
-    years: [new Date().getFullYear().toString()],
-    displayFormat: '2dec'
-  });
+  // Simplified state - no administration filter (uses tenant context)
+  const [selectedYears, setSelectedYears] = useState<string[]>([new Date().getFullYear().toString()]);
+  const [displayFormat, setDisplayFormat] = useState<string>('2dec');
 
   // Format amount based on display format
   const formatAmount = (amount: number, format: string): string => {
@@ -339,7 +332,7 @@ const ActualsReport: React.FC = () => {
       console.log('[TENANT SECURITY] Fetching actuals data for tenant:', currentTenant);
 
       const params = new URLSearchParams({
-        years: actualsFilters.years.join(','),
+        years: selectedYears.join(','),
         administration: currentTenant, // Use current tenant instead of filter
         groupBy: drillDownLevel
       });
@@ -383,7 +376,7 @@ const ActualsReport: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentTenant, actualsFilters.years, drillDownLevel]);
+  }, [currentTenant, selectedYears, drillDownLevel]);
 
   const fetchAvailableYears = useCallback(async () => {
     try {
@@ -427,10 +420,6 @@ const ActualsReport: React.FC = () => {
     setTenantSwitching(true);
     setError(null); // Clear any previous errors
     
-    // NOTE: We do NOT update actualsFilters.administration here
-    // The component uses currentTenant directly in API calls, not actualsFilters.administration
-    // Updating actualsFilters here was causing infinite re-renders
-    
     // Clear previous tenant data to prevent data leakage
     setBalanceData([]);
     setProfitLossData([]);
@@ -470,7 +459,7 @@ const ActualsReport: React.FC = () => {
 
   // Refetch when drill-down level changes
   useEffect(() => {
-    if (currentTenant && actualsFilters.years.length > 0) {
+    if (currentTenant && selectedYears.length > 0) {
       fetchActualsData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -506,15 +495,13 @@ const ActualsReport: React.FC = () => {
       <Card bg="gray.700">
         <CardBody>
           <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            {/* Unified Year Filter (Administration hidden - using tenant context) */}
+            {/* Year Filter - Multi-select using new filter system */}
             <GridItem colSpan={{ base: 1, md: 2 }}>
-              <UnifiedAdminYearFilter
-                {...createActualsFilterAdapter(
-                  actualsFilters,
-                  setActualsFilters,
-                  availableYears
-                )}
-                showAdministration={false}
+              <YearFilter
+                values={selectedYears}
+                onChange={setSelectedYears}
+                availableOptions={availableYears}
+                multiSelect
                 size="sm"
                 isLoading={loading || tenantSwitching}
               />
@@ -522,8 +509,8 @@ const ActualsReport: React.FC = () => {
             <GridItem>
               <Text color="white" mb={2}>Display Format</Text>
               <Select
-                value={actualsFilters.displayFormat}
-                onChange={(e) => setActualsFilters(prev => ({...prev, displayFormat: e.target.value}))}
+                value={displayFormat}
+                onChange={(e) => setDisplayFormat(e.target.value)}
                 bg="gray.600"
                 color="white"
                 size="sm"
@@ -609,7 +596,7 @@ const ActualsReport: React.FC = () => {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {renderBalanceData(balanceData, actualsFilters.displayFormat)}
+                    {renderBalanceData(balanceData, displayFormat)}
                   </Tbody>
                 </Table>
               </TableContainer>
@@ -694,7 +681,7 @@ const ActualsReport: React.FC = () => {
                       ));
                     })()}
                   </Pie>
-                  <Tooltip formatter={(value) => formatAmount(Number(value), actualsFilters.displayFormat)} />
+                  <Tooltip formatter={(value) => formatAmount(Number(value), displayFormat)} />
                 </PieChart>
               </ResponsiveContainer>
             </CardBody>
@@ -716,17 +703,17 @@ const ActualsReport: React.FC = () => {
                   <Thead>
                     <Tr>
                       <Th color="white" width="120px" border="none">Account</Th>
-                      {drillDownLevel === 'year' && [...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => (
+                      {drillDownLevel === 'year' && [...selectedYears].sort((a, b) => parseInt(a) - parseInt(b)).map(year => (
                         <Th key={year} color="white" width="60px" textAlign="right" border="none">{year}</Th>
                       ))}
-                      {drillDownLevel === 'quarter' && [...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => 
+                      {drillDownLevel === 'quarter' && [...selectedYears].sort((a, b) => parseInt(a) - parseInt(b)).map(year => 
                         ['Q1', 'Q2', 'Q3', 'Q4'].map(quarter => (
                           <Th key={`${year}-${quarter}`} color="white" width="60px" textAlign="right" border="none">
                             {year} {quarter}
                           </Th>
                         ))
                       ).flat()}
-                      {drillDownLevel === 'month' && [...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map(year => 
+                      {drillDownLevel === 'month' && [...selectedYears].sort((a, b) => parseInt(a) - parseInt(b)).map(year => 
                         ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(month => (
                           <Th key={`${year}-${month}`} color="white" width="60px" textAlign="right" border="none">
                             {year} {month}
@@ -736,7 +723,7 @@ const ActualsReport: React.FC = () => {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {renderHierarchicalData(profitLossData, actualsFilters.years, actualsFilters.displayFormat)}
+                    {renderHierarchicalData(profitLossData, selectedYears, displayFormat)}
                   </Tbody>
                 </Table>
               </TableContainer>
@@ -766,7 +753,7 @@ const ActualsReport: React.FC = () => {
                             existing[row.jaar] = (existing[row.jaar] || 0) + value;
                           } else {
                             const newItem: any = { name: row.ledger };
-                            actualsFilters.years.forEach(year => {
+                            selectedYears.forEach(year => {
                               newItem[year] = 0;
                             });
                             newItem[row.jaar] = value;
@@ -774,7 +761,7 @@ const ActualsReport: React.FC = () => {
                           }
                           return acc;
                         }, [] as any[])
-                        .filter(item => actualsFilters.years.some(year => Math.abs(item[year] || 0) > 0));
+                        .filter(item => selectedYears.some(year => Math.abs(item[year] || 0) > 0));
                     } else {
                       return filteredData
                         .reduce((acc, row) => {
@@ -784,7 +771,7 @@ const ActualsReport: React.FC = () => {
                             existing[row.jaar] = (existing[row.jaar] || 0) + value;
                           } else {
                             const newItem: any = { name: row.Parent };
-                            actualsFilters.years.forEach(year => {
+                            selectedYears.forEach(year => {
                               newItem[year] = 0;
                             });
                             newItem[row.jaar] = value;
@@ -792,7 +779,7 @@ const ActualsReport: React.FC = () => {
                           }
                           return acc;
                         }, [] as any[])
-                        .filter(item => actualsFilters.years.some(year => Math.abs(item[year] || 0) > 0));
+                        .filter(item => selectedYears.some(year => Math.abs(item[year] || 0) > 0));
                     }
                   })()}
                   margin={{ top: 0, right: 15, left: 15, bottom: 10 }}
@@ -800,9 +787,9 @@ const ActualsReport: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={10} tick={{fill: 'white'}} />
                   <YAxis tick={{fill: 'white'}} />
-                  <Tooltip formatter={(value) => formatAmount(Number(value), actualsFilters.displayFormat)} />
+                  <Tooltip formatter={(value) => formatAmount(Number(value), displayFormat)} />
                   <Legend wrapperStyle={{color: 'white', paddingTop: '5px'}} />
-                  {[...actualsFilters.years].sort((a, b) => parseInt(a) - parseInt(b)).map((year, index) => (
+                  {[...selectedYears].sort((a, b) => parseInt(a) - parseInt(b)).map((year, index) => (
                     <Bar key={year} dataKey={year} fill={`hsl(${index * 60}, 70%, 60%)`} />
                   ))}
                 </BarChart>
