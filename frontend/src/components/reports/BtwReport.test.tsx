@@ -44,40 +44,32 @@ jest.mock('@chakra-ui/react', () => ({
   Box: ({ children, ...props }: any) => <div data-testid="box" {...props}>{children}</div>,
 }));
 
-jest.mock('../UnifiedAdminYearFilter', () => {
-  return function MockUnifiedAdminYearFilter(props: any) {
-    return (
-      <div data-testid="unified-admin-year-filter">
-        <select
-          data-testid="administration-select"
-          value={props.administration}
-          onChange={(e) => props.onAdministrationChange?.(e.target.value)}
-        >
-          <option value="GoodwinSolutions">GoodwinSolutions</option>
-          <option value="TestTenant">TestTenant</option>
-        </select>
-        <select
-          data-testid="year-select"
-          value={props.year}
-          onChange={(e) => props.onYearChange?.(e.target.value)}
-        >
-          <option value="2024">2024</option>
-          <option value="2023">2023</option>
-        </select>
-      </div>
-    );
+jest.mock('../filters/FilterPanel', () => {
+  return {
+    FilterPanel: function MockFilterPanel(props: any) {
+      return (
+        <div data-testid="filter-panel">
+          {props.filters.map((filter: any, index: number) => (
+            <div key={index} data-testid={`filter-${filter.label.toLowerCase()}`}>
+              <label>{filter.label}</label>
+              <select
+                data-testid={`${filter.label.toLowerCase()}-select`}
+                value={filter.value}
+                onChange={(e) => filter.onChange(e.target.value)}
+              >
+                {filter.options.map((opt: string) => (
+                  <option key={opt} value={opt}>
+                    {filter.getOptionLabel ? filter.getOptionLabel(opt) : opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      );
+    }
   };
 });
-
-jest.mock('../UnifiedAdminYearFilterAdapters', () => ({
-  createBtwFilterAdapter: (filters: any, setFilters: any, availableYears: any) => ({
-    administration: filters.administration,
-    year: filters.year,
-    availableYears,
-    onAdministrationChange: (value: string) => setFilters((prev: any) => ({ ...prev, administration: value })),
-    onYearChange: (value: string) => setFilters((prev: any) => ({ ...prev, year: value }))
-  })
-}));
 
 const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
 const mockTenantAwareGet = tenantAwareGet as jest.MockedFunction<typeof tenantAwareGet>;
@@ -111,7 +103,7 @@ describe('BtwReport', () => {
 
     it('initializes filters with current tenant', () => {
       render(<BtwReport />);
-      expect(screen.getByTestId('unified-admin-year-filter')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-panel')).toBeInTheDocument();
     });
 
     it('shows warning when no tenant is selected', () => {
@@ -209,12 +201,9 @@ describe('BtwReport', () => {
     it('shows quarter selection dropdown', () => {
       render(<BtwReport />);
       
-      const quarterSelects = screen.getAllByTestId('select');
-      const quarterSelect = quarterSelects.find(select => 
-        select.querySelector('option[value="1"]')?.textContent === 'Q1'
-      );
-      
-      expect(quarterSelect).toBeInTheDocument();
+      const quarterFilter = screen.getByTestId('filter-quarter');
+      expect(quarterFilter).toBeInTheDocument();
+      expect(screen.getByTestId('quarter-select')).toBeInTheDocument();
     });
   });
 
@@ -267,7 +256,7 @@ describe('BtwReport', () => {
     it('renders all required UI elements', () => {
       render(<BtwReport />);
       
-      expect(screen.getByTestId('unified-admin-year-filter')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-panel')).toBeInTheDocument();
       expect(screen.getByText('Generate BTW Report')).toBeInTheDocument();
       expect(screen.getByText('Quarter')).toBeInTheDocument();
       expect(screen.getByText('BTW Declaration Instructions')).toBeInTheDocument();
