@@ -1,0 +1,154 @@
+# UX Issues and Concerns - RESOLVED
+
+**Date**: February 7, 2026
+**Status**: ✅ RESOLVED
+**Related Spec**: `.kiro/specs/Common/Filters a generic approach/TASKS.md` - Section 3.5
+
+## Issues Reported
+
+### 1. FilterPanel Default Colors
+
+**Problem**: 
+- Filter titles were dark grey on dark grey (unreadable)
+- Selected values were black on light grey (poor contrast)
+- No default color scheme defined
+
+**Solution Implemented**:
+- Added default colors to FilterPanel component:
+  - `labelColor='white'` - White text for labels on dark backgrounds
+  - `bg='gray.600'` - Dark gray background for filter controls
+  - `color='white'` - White text for filter controls
+- Updated GenericFilter to show selected values with orange background:
+  - Single-select: Orange background when value selected
+  - Multi-select: Orange background when items selected
+  - Hover states: Darker orange on hover
+
+**Files Modified**:
+- `frontend/src/components/filters/FilterPanel.tsx`
+- `frontend/src/components/filters/GenericFilter.tsx`
+- `frontend/src/components/filters/README.md` (documentation updated)
+
+### 2. BnbActualsReport - Standalone Dropdowns
+
+**Problem**:
+Three dropdowns were outside the FilterPanel:
+- View Type (Listing/Channel)
+- Display Format (2 decimals, 0 decimals, K, M)
+- Show Amounts (multi-select checkboxes)
+
+**Solution Implemented**:
+- Consolidated all 6 filters into a single FilterPanel with grid layout
+- Changed layout from `horizontal` to `grid` with 3 columns
+- Moved "Update Data" button below the FilterPanel
+- All filters now use consistent styling
+
+**Filters in BnbActualsReport FilterPanel**:
+1. Years (multi-select)
+2. Listings (multi-select)
+3. Channels (multi-select)
+4. View Type (single-select)
+5. Display Format (single-select)
+6. Show Amounts (multi-select)
+
+**Files Modified**:
+- `frontend/src/components/reports/BnbActualsReport.tsx`
+- Removed unused imports: Checkbox, Menu, MenuButton, MenuItem, MenuList, Select
+
+### 3. Consistent Colors Across All Reports
+
+**Reports Updated**:
+- ✅ BnbActualsReport - Uses FilterPanel with default colors
+- ✅ BtwReport - Uses FilterPanel with default colors
+- ✅ ActualsReport - Uses YearFilter (which uses default colors)
+
+**Color Scheme Applied**:
+- Label text: White on dark gray background
+- Filter controls: Gray.600 background with white text
+- Selected values: Orange.500 background with white text
+- Hover states: Orange.600 for selected items
+
+## Technical Implementation
+
+### FilterPanel Default Colors
+
+```typescript
+export function FilterPanel({
+  filters,
+  layout = 'horizontal',
+  size = 'md',
+  spacing = 4,
+  disabled = false,
+  gridColumns = 2,
+  gridMinWidth = '200px',
+  labelColor = 'white',      // NEW: Default white labels
+  bg = 'gray.600',           // NEW: Default dark gray background
+  color = 'white',           // NEW: Default white text
+}: FilterPanelProps)
+```
+
+### GenericFilter Selected Value Styling
+
+**Single-select mode**:
+```typescript
+<Select
+  sx={{
+    '& option': {
+      bg: 'white',
+      color: 'black',
+    },
+    '&:not(:placeholder-shown)': {
+      bg: 'orange.500',
+      color: 'white',
+    }
+  }}
+/>
+```
+
+**Multi-select mode**:
+```typescript
+<MenuButton
+  bg={values.length > 0 ? 'orange.500' : bg}
+  color={color}
+  _hover={{ bg: values.length > 0 ? 'orange.600' : bg }}
+  _active={{ bg: values.length > 0 ? 'orange.600' : bg }}
+/>
+```
+
+## Testing
+
+### Build Verification
+- ✅ TypeScript compilation passes (`npx tsc --noEmit`)
+- ✅ ESLint passes with no new warnings
+- ✅ Production build succeeds
+- ✅ No console errors
+
+### Visual Verification Needed
+- [ ] Manual testing: Verify white labels on dark backgrounds
+- [ ] Manual testing: Verify orange background for selected values
+- [ ] Manual testing: Verify all 6 filters work in BnbActualsReport
+- [ ] Manual testing: Verify consistent colors across all reports
+
+## Benefits
+
+1. **Improved Readability**: White text on dark backgrounds is clearly visible
+2. **Visual Feedback**: Orange background clearly indicates selected values
+3. **Consistency**: All reports now use the same color scheme
+4. **Maintainability**: Default colors defined in one place (FilterPanel)
+5. **Simplified Code**: BnbActualsReport reduced by ~100 lines (removed duplicate dropdown code)
+
+## Commit
+
+**Commit Hash**: 23a6630
+**Commit Message**: "UX improvements: Add default colors to FilterPanel and consolidate BnbActualsReport filters"
+
+## Next Steps
+
+1. User acceptance testing to verify visual improvements
+2. Document lessons learned in spec
+3. Consider applying same pattern to other reports if needed
+
+## Related Documentation
+
+- FilterPanel API: `frontend/src/components/filters/README.md`
+- GenericFilter API: `frontend/src/components/filters/GenericFilter.tsx`
+- Migration Spec: `.kiro/specs/Common/Filters a generic approach/TASKS.md`

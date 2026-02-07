@@ -22,3 +22,24 @@ Lt @ react-dom-client.production.js:1498
 td @ react-dom-client.production.js:12455
 Sh @ react-dom-client.production.js:15306
 xh @ react-dom-client.production.js:15274
+
+
+Docker logs 
+
+INFO:werkzeug:127.0.0.1 - - [07/Feb/2026 12:23:37] "GET /api/health HTTP/1.1" 200 -
+INFO:report_generators.aangifte_ib_generator:Generated 41 table rows for GoodwinSolutions year 2026
+INFO:services.template_service:TemplateService initialized successfully
+INFO:services.template_service:Retrieved template metadata for administration 'GoodwinSolutions', type 'aangifte_ib_html'
+INFO:services.credential_service:CredentialService initialized successfully
+INFO:google_drive_service:Retrieving Google Drive credentials for administration: GoodwinSolutions
+INFO:services.credential_service:Retrieved credential for administration 'GoodwinSolutions', type 'google_drive_oauth'
+INFO:services.credential_service:Retrieved credential for administration 'GoodwinSolutions', type 'google_drive_token'
+INFO:google_drive_service:Loaded existing token for administration: GoodwinSolutions
+INFO:google_drive_service:Refreshing expired token for administration: GoodwinSolutions
+ERROR:google_drive_service:❌ Token refresh failed for GoodwinSolutions: ('invalid_grant: Bad Request', {'error': 'invalid_grant', 'error_description': 'Bad Request'})
+ERROR:google_drive_service:⚠️  The refresh token may have expired or been revoked.
+ERROR:google_drive_service:📝 Action required: Run 'python backend/refresh_google_token.py' to re-authenticate
+ERROR:google_drive_service:📝 Then run: python scripts/credentials/migrate_credentials_to_db.py --tenant GoodwinSolutions
+ERROR:google_drive_service:Failed to authenticate Google Drive for administration 'GoodwinSolutions': Google Drive token refresh failed for 'GoodwinSolutions'. The refresh token may have expired or been revoked. Please run: python backend/refresh_google_token.py && python scripts/credentials/migrate_credentials_to_db.py --tenant GoodwinSolutions
+ERROR:services.template_service:Failed to fetch template from Google Drive: Google Drive token refresh failed for 'GoodwinSolutions'. The refresh token may have expired or been revoked. Please run: python backend/refresh_google_token.py && python scripts/credentials/migrate_credentials_to_db.py --tenant GoodwinSolutions
+ERROR:app:Failed to fetch template from Google Drive: Failed to fetch template: Google Drive token refresh failed for 'GoodwinSolutions'. The refresh token may have expired or been revoked. Please run: python backend/refresh_google_token.py && python scripts/credentials/migrate_credentials_to_db.py --tenant GoodwinSolutions
