@@ -91,7 +91,9 @@ const BnbActualsReport: React.FC = () => {
     selectedAmounts: string[] = ['amountGross']
   ) => {
     const groupField = viewType === 'listing' ? 'listing' : 'channel';
-    const headers = viewType === 'listing' ? (bnbFilterOptions.listings || []) : (bnbFilterOptions.channels || []);
+    
+    // Extract unique headers from actual data instead of using filter options
+    const headers = Array.from(new Set(data.map(row => row[groupField]))).sort();
     
     // Group data by period first, then by listing/channel
     const periodData = data.reduce((acc, row) => {
@@ -683,22 +685,29 @@ const BnbActualsReport: React.FC = () => {
               <Thead>
                 <Tr>
                   <Th color="white" w="120px">Period</Th>
-                  {(viewType === 'listing' ? (bnbFilterOptions.listings || []) : (bnbFilterOptions.channels || [])).flatMap(header => 
-                    selectedAmounts.map(amount => {
-                      const amountLabel = {
-                        'amountGross': 'Gross',
-                        'amountNett': 'Net', 
-                        'amountChannelFee': 'Fee',
-                        'amountTouristTax': 'Tax',
-                        'amountVat': 'VAT'
-                      }[amount] || amount;
-                      return (
-                        <Th key={`${header}-${amount}`} color="white" w="60px" textAlign="right">
-                          {header} {amountLabel}
-                        </Th>
-                      );
-                    })
-                  )}
+                  {(() => {
+                    // Extract unique headers from actual data
+                    const data = viewType === 'listing' ? bnbListingData : bnbChannelData;
+                    const groupField = viewType === 'listing' ? 'listing' : 'channel';
+                    const headers = Array.from(new Set(data.map(row => row[groupField]))).sort();
+                    
+                    return headers.flatMap(header => 
+                      selectedAmounts.map(amount => {
+                        const amountLabel = {
+                          'amountGross': 'Gross',
+                          'amountNett': 'Net', 
+                          'amountChannelFee': 'Fee',
+                          'amountTouristTax': 'Tax',
+                          'amountVat': 'VAT'
+                        }[amount] || amount;
+                        return (
+                          <Th key={`${header}-${amount}`} color="white" w="60px" textAlign="right">
+                            {header} {amountLabel}
+                          </Th>
+                        );
+                      })
+                    );
+                  })()}
                   {selectedAmounts.map(amount => {
                     const amountLabel = {
                       'amountGross': 'Total Gross',
