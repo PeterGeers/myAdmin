@@ -151,7 +151,7 @@ class TestGoogleDriveService:
         assert result[0]['name'] == 'Folder A'
         assert result[1]['name'] == 'Folder B'
         mock_list.assert_called_with(
-            q="'prod_folder_id' in parents and mimeType='application/vnd.google-apps.folder'",
+            q="'prod_folder_id' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
             fields="nextPageToken, files(id, name, webViewLink)",
             pageSize=1000,
             pageToken=None
@@ -178,7 +178,7 @@ class TestGoogleDriveService:
         
         assert result == []
         mock_list.assert_called_with(
-            q="'test_folder_id' in parents and mimeType='application/vnd.google-apps.folder'",
+            q="'test_folder_id' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
             fields="nextPageToken, files(id, name, webViewLink)",
             pageSize=1000,
             pageToken=None
