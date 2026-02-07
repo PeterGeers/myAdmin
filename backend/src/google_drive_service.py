@@ -14,6 +14,29 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 
 logger = logging.getLogger(__name__)
 
+
+class GoogleDriveAuthenticationError(Exception):
+    """Custom exception for Google Drive authentication errors"""
+    def __init__(self, administration, error_type, message, admin_action=None):
+        self.administration = administration
+        self.error_type = error_type
+        self.message = message
+        self.admin_action = admin_action
+        super().__init__(self.message)
+    
+    def to_dict(self):
+        """Convert to dictionary for JSON response"""
+        return {
+            'error': 'google_drive_auth_error',
+            'error_type': self.error_type,
+            'administration': self.administration,
+            'message': self.message,
+            'user_action': 'Please reconnect your Google Drive account.',
+            'admin_action': self.admin_action,
+            'can_reconnect': True  # Flag to show reconnect button in UI
+        }
+
+
 class GoogleDriveService:
     def __init__(self, administration: str):
         """
@@ -108,25 +131,24 @@ class GoogleDriveService:
                         # Token refresh failed - likely the refresh token is invalid/expired
                         logger.error(f"❌ Token refresh failed for {self.administration}: {refresh_error}")
                         logger.error(f"⚠️  The refresh token may have expired or been revoked.")
-                        logger.error(f"📝 Action required: Run 'python backend/refresh_google_token.py' to re-authenticate")
-                        logger.error(f"📝 Then run: python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}")
                         
-                        raise Exception(
-                            f"Google Drive token refresh failed for '{self.administration}'. "
-                            f"The refresh token may have expired or been revoked. "
-                            f"Please run: python backend/refresh_google_token.py && "
-                            f"python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}"
+                        # Provide user-friendly error message
+                        raise GoogleDriveAuthenticationError(
+                            administration=self.administration,
+                            error_type='refresh_token_expired',
+                            message="Google Drive access has expired. Please contact your system administrator to renew access.",
+                            admin_action="Run: python backend/refresh_google_token.py && python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}"
                         )
                 else:
                     # Need to do OAuth flow
                     logger.warning(f"⚠️  No valid token found for administration: {self.administration}")
-                    logger.error(f"📝 Action required: Run 'python backend/refresh_google_token.py' to authenticate")
-                    logger.error(f"📝 Then run: python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}")
                     
-                    raise Exception(
-                        f"OAuth token not found or invalid for administration '{self.administration}'. "
-                        f"Please run: python backend/refresh_google_token.py && "
-                        f"python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}"
+                    # Provide user-friendly error message
+                    raise GoogleDriveAuthenticationError(
+                        administration=self.administration,
+                        error_type='no_token',
+                        message="Google Drive is not configured. Please contact your system administrator to set up Google Drive access.",
+                        admin_action=f"Run: python backend/refresh_google_token.py && python scripts/credentials/migrate_credentials_to_db.py --tenant {self.administration}"
                     )
             
             # Build and return the service
@@ -149,7 +171,7 @@ class GoogleDriveService:
             
             while True:
                 results = self.service.files().list(
-                    q=f"'{facturen_folder_id}' in parents and mimeType='application/vnd.google-apps.folder'",
+                    q=f"'{facturen_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
                     fields="nextPageToken, files(id, name, webViewLink)",
                     pageSize=1000,
                     pageToken=page_token
@@ -167,6 +189,14 @@ class GoogleDriveService:
                 page_token = results.get('nextPageToken')
                 if not page_token:
                     break
+            
+            # Log if we found duplicate folder names (shouldn't happen but good to know)
+            folder_names = [f['name'] for f in all_subfolders]
+            if len(folder_names) != len(set(folder_names)):
+                from collections import Counter
+                duplicates = [name for name, count in Counter(folder_names).items() if count > 1]
+                print(f"WARNING: Found duplicate folder names in Facturen folder: {duplicates}")
+                print(f"Folder details: {[f for f in all_subfolders if f['name'] in duplicates]}")
             
             return sorted(all_subfolders, key=lambda x: x['name'].lower())
         except Exception as e:

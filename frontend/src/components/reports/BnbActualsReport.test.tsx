@@ -84,27 +84,48 @@ jest.mock('../filters/FilterPanel', () => ({
   FilterPanel: function MockFilterPanel(props: any) {
     return (
       <div data-testid="filter-panel">
-        {props.filters.map((filter: any, index: number) => (
-          <div key={index} data-testid={`filter-${filter.label.toLowerCase()}`}>
-            <label>{filter.label}</label>
-            <select
-              data-testid={`filter-select-${filter.label.toLowerCase()}`}
-              multiple={filter.type === 'multi'}
-              value={filter.value}
-              onChange={(e) => {
-                const options = Array.from(e.target.options);
-                const values = options
-                  .filter((opt: any) => opt.selected)
-                  .map((opt: any) => opt.value);
-                filter.onChange(filter.type === 'multi' ? values : values[0]);
-              }}
-            >
-              {filter.options?.map((opt: string) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-        ))}
+        {props.filters.map((filter: any, index: number) => {
+          // Handle options that might be objects or strings
+          const getOptionValue = (opt: any) => {
+            if (typeof opt === 'object' && opt !== null) {
+              return filter.getOptionValue ? filter.getOptionValue(opt) : opt.key || opt.value || String(opt);
+            }
+            return opt;
+          };
+          
+          const getOptionLabel = (opt: any) => {
+            if (typeof opt === 'object' && opt !== null) {
+              return filter.getOptionLabel ? filter.getOptionLabel(opt) : opt.label || opt.name || String(opt);
+            }
+            return filter.getOptionLabel ? filter.getOptionLabel(opt) : opt;
+          };
+          
+          return (
+            <div key={index} data-testid={`filter-${filter.label.toLowerCase()}`}>
+              <label>{filter.label}</label>
+              <select
+                data-testid={`filter-select-${filter.label.toLowerCase()}`}
+                multiple={filter.type === 'multi'}
+                value={filter.value}
+                onChange={(e) => {
+                  const options = Array.from(e.target.options);
+                  const values = options
+                    .filter((opt: any) => opt.selected)
+                    .map((opt: any) => opt.value);
+                  filter.onChange(filter.type === 'multi' ? values : values[0]);
+                }}
+              >
+                {filter.options?.map((opt: any) => {
+                  const value = getOptionValue(opt);
+                  const label = getOptionLabel(opt);
+                  return (
+                    <option key={value} value={value}>{label}</option>
+                  );
+                })}
+              </select>
+            </div>
+          );
+        })}
       </div>
     );
   }

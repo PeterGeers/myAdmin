@@ -346,8 +346,20 @@ def get_folders(user_email, user_roles):
                 drive_service = GoogleDriveService(administration=tenant)
                 drive_folders = drive_service.list_subfolders()
                 print(f"Raw drive_folders result: {type(drive_folders)}, length: {len(drive_folders) if drive_folders else 0}", flush=True)
-                folders = [folder['name'] for folder in drive_folders]
-                print(f"Google Drive: found {len(folders)} folders for tenant={tenant}", flush=True)
+                
+                # Extract folder names and deduplicate (Google Drive allows duplicate folder names)
+                folder_names = [folder['name'] for folder in drive_folders]
+                # Use dict.fromkeys() to preserve order while removing duplicates
+                folders = list(dict.fromkeys(folder_names))
+                
+                if len(folder_names) != len(folders):
+                    print(f"Warning: Deduplicated {len(folder_names)} folders to {len(folders)} unique names", flush=True)
+                    # Log which folders were duplicated
+                    from collections import Counter
+                    duplicates = [name for name, count in Counter(folder_names).items() if count > 1]
+                    print(f"Duplicate folder names found: {duplicates}", flush=True)
+                
+                print(f"Google Drive: found {len(folders)} unique folders for tenant={tenant}", flush=True)
             except Exception as e:
                 print(f"Google Drive error for tenant={tenant}: {type(e).__name__}: {e}", flush=True)
                 import traceback
@@ -2377,7 +2389,19 @@ def btw_generate_report(user_email, user_roles):
             })
         
     except Exception as e:
+        # Check if it's a Google Drive authentication error
+        from google_drive_service import GoogleDriveAuthenticationError
+        
+        if isinstance(e, GoogleDriveAuthenticationError):
+            logger.error(f"Google Drive authentication error: {e.to_dict()}")
+            return jsonify({
+                'success': False,
+                **e.to_dict()
+            }), 401  # 401 Unauthorized for auth errors
+        
         logger.error(f"Failed to generate BTW report: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/btw/save-transaction', methods=['POST'])
@@ -2583,7 +2607,8 @@ def aangifte_ib_details(user_email, user_roles, tenant, user_tenants):
         df = cache.get_data(db)
         
         # SECURITY: Filter by user's accessible tenants
-        df = df[df['Administration'].isin(user_tenants)]
+        # Note: Column name is 'administration' (lowercase) from vw_mutaties view
+        df = df[df['administration'].isin(user_tenants)]
         
         # Query from cache (much faster than SQL) with tenant filtering
         details_data = cache.query_aangifte_ib_details(year, administration, parent, aangifte, user_tenants)
@@ -2596,7 +2621,10 @@ def aangifte_ib_details(user_email, user_roles, tenant, user_tenants):
         })
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in aangifte_ib_details: {error_details}", flush=True)
+        return jsonify({'success': False, 'error': str(e), 'details': error_details if flag else None}), 500
 
 @app.route('/api/reports/aangifte-ib-export', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])

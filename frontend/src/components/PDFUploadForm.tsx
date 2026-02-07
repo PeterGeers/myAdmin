@@ -74,8 +74,10 @@ const PDFUploadForm: React.FC = () => {
       try {
         const response = await authenticatedGet('/api/folders', { tenant: currentTenant || undefined });
         const data = await response.json();
-        setAllFolders(data);
-        setFilteredFolders(data);
+        // Deduplicate folders to prevent React key conflicts
+        const uniqueFolders = Array.from(new Set(data)) as string[];
+        setAllFolders(uniqueFolders);
+        setFilteredFolders(uniqueFolders);
         setMessage(''); // Clear any previous error messages
       } catch (error) {
         console.error('Error fetching folders:', error);
@@ -379,8 +381,10 @@ const PDFUploadForm: React.FC = () => {
       // Refresh the folders list after creating
       const response = await authenticatedGet('/api/folders', { tenant: currentTenant || undefined });
       const data = await response.json();
-      setAllFolders(data);
-      setFilteredFolders(data);
+      // Deduplicate folders to prevent React key conflicts
+      const uniqueFolders = Array.from(new Set(data)) as string[];
+      setAllFolders(uniqueFolders);
+      setFilteredFolders(uniqueFolders);
       
       setNewFolderName('');
       setShowCreateFolder(false);
@@ -569,8 +573,8 @@ const PDFUploadForm: React.FC = () => {
                       borderColor="orange.600"
                     />
                     <datalist id="folder-options">
-                      {filteredFolders.map((folder) => (
-                        <option key={folder} value={folder} />
+                      {filteredFolders.map((folder, index) => (
+                        <option key={`${folder}-${index}`} value={folder} />
                       ))}
                     </datalist>
                     <Button 

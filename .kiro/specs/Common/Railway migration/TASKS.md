@@ -776,7 +776,7 @@ Note PG: check what we already have
 - [x] Create TenantAdminDashboard component
 - [ ] Create CredentialsManagement component
   - Upload credentials.json
-  - OAuth flow for Google Drive
+  - OAuth flow for Google Drive // diagnose_google_token.py
   - Display credential status
 - [ ] Create UserManagement component
   - Create user form (email, name)

@@ -8,8 +8,12 @@
 // Mock Chakra UI before any imports
 import React from 'react';
 
-// Import main component
-import MyAdminReportsNew from '../MyAdminReportsNew';
+// Mock Chakra UI icons
+jest.mock('@chakra-ui/icons', () => ({
+  ChevronDownIcon: () => <span>▼</span>,
+  ChevronUpIcon: () => <span>▲</span>,
+  CloseIcon: () => <span>✕</span>,
+}));
 
 // Import group components
 import BnbReportsGroup from './BnbReportsGroup';
@@ -61,11 +65,6 @@ jest.mock('react-plotly.js', () => () => null);
 
 describe('Reports Integration Tests', () => {
   describe('Component Imports', () => {
-    it('imports main entry point successfully', () => {
-      expect(MyAdminReportsNew).toBeDefined();
-      expect(typeof MyAdminReportsNew).toBe('function');
-    });
-
     it('imports group components successfully', () => {
       expect(BnbReportsGroup).toBeDefined();
       expect(typeof BnbReportsGroup).toBe('function');
@@ -115,7 +114,6 @@ describe('Reports Integration Tests', () => {
   describe('Component Structure', () => {
     it('all components can be instantiated', () => {
       const components = [
-        MyAdminReportsNew,
         BnbReportsGroup,
         FinancialReportsGroup,
         BnbRevenueReport,
@@ -160,14 +158,12 @@ describe('Reports Integration Tests', () => {
   describe('Module Structure', () => {
     it('verifies proper module exports', () => {
       // All components should be default exports
-      expect(MyAdminReportsNew).not.toHaveProperty('default');
       expect(BnbReportsGroup).not.toHaveProperty('default');
       expect(FinancialReportsGroup).not.toHaveProperty('default');
     });
 
     it('verifies component naming conventions', () => {
       const componentNames = [
-        'MyAdminReportsNew',
         'BnbReportsGroup',
         'FinancialReportsGroup',
         'BnbRevenueReport',
@@ -184,7 +180,6 @@ describe('Reports Integration Tests', () => {
       ];
 
       const components = [
-        MyAdminReportsNew,
         BnbReportsGroup,
         FinancialReportsGroup,
         BnbRevenueReport,

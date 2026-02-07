@@ -2,18 +2,13 @@ import {
     Alert, AlertIcon,
     Box, Button,
     Card, CardBody,
-    Checkbox,
     FormControl,
     FormErrorMessage,
     FormLabel,
-    Grid, GridItem,
+    Grid,
     HStack,
     Heading,
     Input,
-    Menu,
-    MenuButton,
-    MenuItem,
-    MenuList,
     Modal,
     ModalBody, ModalCloseButton,
     ModalContent,
@@ -42,6 +37,7 @@ import { Form, Formik } from 'formik';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
+import FilterPanel from './filters/FilterPanel';
 
 interface Transaction {
   ID?: number;
@@ -1351,71 +1347,33 @@ const BankingProcessor: React.FC = () => {
 
           <TabPanel>
             <VStack align="stretch" spacing={4}>
-              {/* Filters */}
-              <Card bg="gray.700">
-                <CardBody>
-                  <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-                    <GridItem>
-                      <Text color="white" mb={2}>Select Years</Text>
-                      <Menu closeOnSelect={false}>
-                        <MenuButton
-                          as={Button}
-                          bg="orange.500"
-                          color="white"
-                          size="sm"
-                          width="100%"
-                          textAlign="left"
-                          rightIcon={<span>▼</span>}
-                          _hover={{ bg: "orange.600" }}
-                          _active={{ bg: "orange.600" }}
-                        >
-                          {mutatiesFilters.years.length > 0 ? mutatiesFilters.years.join(', ') : 'Select years...'}
-                        </MenuButton>
-                        <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                          {filterOptions.years.map(year => (
-                            <MenuItem key={year} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                              <Checkbox
-                                isChecked={mutatiesFilters.years.includes(year)}
-                                onChange={(e) => {
-                                  const isChecked = e.target.checked;
-                                  setMutatiesFilters(prev => ({
-                                    ...prev,
-                                    years: isChecked
-                                      ? [...prev.years, year]
-                                      : prev.years.filter(y => y !== year)
-                                  }));
-                                }}
-                                colorScheme="orange"
-                              >
-                                <Text color="white" ml={2}>{year}</Text>
-                              </Checkbox>
-                            </MenuItem>
-                          ))}
-                        </MenuList>
-                      </Menu>
-                    </GridItem>
-                    <GridItem>
-                      <Button onClick={fetchMutaties} size="sm" colorScheme="blue">
-                        Refresh
-                      </Button>
-                    </GridItem>
-                  </Grid>
-                </CardBody>
-              </Card>
+              {/* Filters using generic FilterPanel */}
+              <FilterPanel
+                layout="horizontal"
+                filters={[
+                  {
+                    type: 'multi',
+                    label: 'Year',
+                    options: filterOptions.years,
+                    value: mutatiesFilters.years,
+                    onChange: (years) => setMutatiesFilters(prev => ({ ...prev, years }))
+                  },
+                  {
+                    type: 'single',
+                    label: 'Records to show',
+                    options: [50, 100, 250, 500, 1000],
+                    value: displayLimit,
+                    onChange: (value) => setDisplayLimit(value),
+                    getOptionLabel: (val) => String(val),
+                    getOptionValue: (val) => val
+                  }
+                ]}
+                labelColor="white"
+                bg="gray.600"
+                color="white"
+              />
 
-              <HStack justify="space-between">
-                <Heading size="md">Mutaties ({filteredMutaties.length} of {mutaties.length})</Heading>
-                <HStack>
-                  <Text color="white" fontSize="sm">Show:</Text>
-                  <Select size="sm" value={displayLimit} onChange={(e) => setDisplayLimit(Number(e.target.value))} bg="gray.600" color="white" w="100px">
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                    <option value={250}>250</option>
-                    <option value={500}>500</option>
-                    <option value={1000}>1000</option>
-                  </Select>
-                </HStack>
-              </HStack>
+              <Heading size="md">Mutaties ({filteredMutaties.length} of {mutaties.length})</Heading>
 
               <TableContainer maxH="600px" overflowY="auto" overflowX="auto">
                 <Table size="sm" variant="simple">
