@@ -17,11 +17,8 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Grid,
-  GridItem,
   Heading,
   Progress,
-  Select,
   Table,
   TableContainer,
   Tbody,
@@ -33,18 +30,11 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
-import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
-import { createBnbViolinFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
+import { FilterPanel } from '../filters/FilterPanel';
+import { useTenant } from '../../context/TenantContext';
 
 // Lazy load Plotly only when needed (reduces initial bundle size by ~3MB)
 const Plot = React.lazy(() => import('react-plotly.js'));
-
-interface BnbViolinFilters {
-  years: string[];
-  listings: string;
-  channels: string;
-  metric: string;
-}
 
 interface BnbViolinFilterOptions {
   years: string[];
@@ -267,12 +257,13 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
  * Main BNB Violins Report Component
  */
 const BnbViolinsReport: React.FC = () => {
-  const [bnbViolinFilters, setBnbViolinFilters] = useState<BnbViolinFilters>({
-    years: [new Date().getFullYear().toString()],
-    listings: 'all',
-    channels: 'all',
-    metric: 'pricePerNight' // 'pricePerNight' or 'nightsPerStay'
-  });
+  const { currentTenant } = useTenant();
+  
+  // Separate state for each filter
+  const [selectedYears, setSelectedYears] = useState<string[]>([new Date().getFullYear().toString()]);
+  const [selectedMetric, setSelectedMetric] = useState<string>('pricePerNight'); // 'pricePerNight' or 'nightsPerStay'
+  const [selectedListings, setSelectedListings] = useState<string[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   
   const [bnbViolinFilterOptions, setBnbViolinFilterOptions] = useState<BnbViolinFilterOptions>({
     years: [],
@@ -287,13 +278,19 @@ const BnbViolinsReport: React.FC = () => {
    * Fetch BNB violin data from API
    */
   const fetchBnbViolinData = async () => {
+    if (!currentTenant) {
+      console.error('No tenant selected for BNB violin data');
+      return;
+    }
+
     setBnbViolinLoading(true);
     try {
       const params = new URLSearchParams({
-        years: bnbViolinFilters.years.join(','),
-        listings: bnbViolinFilters.listings,
-        channels: bnbViolinFilters.channels,
-        metric: bnbViolinFilters.metric
+        years: selectedYears.join(','),
+        listings: selectedListings.length > 0 ? selectedListings.join(',') : 'all',
+        channels: selectedChannels.length > 0 ? selectedChannels.join(',') : 'all',
+        metric: selectedMetric,
+        administration: currentTenant
       });
       
       const response = await authenticatedGet(buildEndpoint('/api/bnb/bnb-violin-data', params));
@@ -335,14 +332,15 @@ const BnbViolinsReport: React.FC = () => {
 
   // Refetch data when filters change
   const bnbViolinFilterDeps = useMemo(() => [
-    bnbViolinFilters.years.join(','),
-    bnbViolinFilters.listings,
-    bnbViolinFilters.channels,
-    bnbViolinFilters.metric
-  ], [bnbViolinFilters.years, bnbViolinFilters.listings, bnbViolinFilters.channels, bnbViolinFilters.metric]);
+    selectedYears.join(','),
+    selectedListings.join(','),
+    selectedChannels.join(','),
+    selectedMetric,
+    currentTenant
+  ], [selectedYears, selectedListings, selectedChannels, selectedMetric, currentTenant]);
   
   useEffect(() => {
-    if (bnbViolinFilters.years.length > 0) {
+    if (selectedYears.length > 0 && currentTenant) {
       fetchBnbViolinData();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -350,73 +348,76 @@ const BnbViolinsReport: React.FC = () => {
 
   return (
     <VStack spacing={4} align="stretch">
-      {/* Unified Year Filter for BNB Violins */}
-      <UnifiedAdminYearFilter
-        {...createBnbViolinFilterAdapter(
-          bnbViolinFilters,
-          setBnbViolinFilters,
-          bnbViolinFilterOptions.years
-        )}
-        size="sm"
-      />
-      
+      {/* Tenant validation alert */}
+      {!currentTenant && (
+        <Card bg="orange.500">
+          <CardBody>
+            <Text color="white" fontWeight="bold">
+              No tenant selected. Please select a tenant first to view BNB violin data.
+            </Text>
+          </CardBody>
+        </Card>
+      )}
+
+      {/* Filter Panel */}
       <Card bg="gray.700">
         <CardBody>
-          <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            <GridItem>
-              <Text color="white" mb={2}>Report Type</Text>
-              <Select
-                value={bnbViolinFilters.metric}
-                onChange={(e) => setBnbViolinFilters(prev => ({...prev, metric: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-              >
-                <option value="pricePerNight">Price per Night</option>
-                <option value="nightsPerStay">Days per Stay</option>
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Text color="white" mb={2}>Listings</Text>
-              <Select
-                value={bnbViolinFilters.listings}
-                onChange={(e) => setBnbViolinFilters(prev => ({...prev, listings: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-              >
-                <option value="all">All Listings</option>
-                {(bnbViolinFilterOptions.listings || []).map((listing, index) => (
-                  <option key={`violin-listing-${listing}-${index}`} value={listing}>{listing}</option>
-                ))}
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Text color="white" mb={2}>Channels</Text>
-              <Select
-                value={bnbViolinFilters.channels}
-                onChange={(e) => setBnbViolinFilters(prev => ({...prev, channels: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-              >
-                <option value="all">All Channels</option>
-                {(bnbViolinFilterOptions.channels || []).map((channel, index) => (
-                  <option key={`violin-channel-${channel}-${index}`} value={channel}>{channel}</option>
-                ))}
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Button 
-                colorScheme="orange" 
-                onClick={fetchBnbViolinData} 
-                isLoading={bnbViolinLoading}
-                size="sm"
-              >
-                Generate Violin Charts
-              </Button>
-            </GridItem>
-          </Grid>
+          <FilterPanel
+            layout="grid"
+            gridColumns={4}
+            size="sm"
+            spacing={4}
+            filters={[
+              {
+                type: 'multi',
+                label: 'Years',
+                options: bnbViolinFilterOptions.years,
+                value: selectedYears,
+                onChange: setSelectedYears,
+                placeholder: 'Select year(s)'
+              },
+              {
+                type: 'single',
+                label: 'Report Type',
+                options: [
+                  { value: 'pricePerNight', label: 'Price per Night' },
+                  { value: 'nightsPerStay', label: 'Days per Stay' }
+                ],
+                value: selectedMetric,
+                onChange: setSelectedMetric,
+                getOptionLabel: (opt) => opt.label,
+                getOptionValue: (opt) => opt.value
+              },
+              {
+                type: 'multi',
+                label: 'Listings',
+                options: bnbViolinFilterOptions.listings,
+                value: selectedListings,
+                onChange: setSelectedListings,
+                placeholder: 'All Listings',
+                treatEmptyAsSelected: true
+              },
+              {
+                type: 'multi',
+                label: 'Channels',
+                options: bnbViolinFilterOptions.channels,
+                value: selectedChannels,
+                onChange: setSelectedChannels,
+                placeholder: 'All Channels',
+                treatEmptyAsSelected: true
+              }
+            ]}
+          />
+          <Button 
+            colorScheme="orange" 
+            onClick={fetchBnbViolinData} 
+            isLoading={bnbViolinLoading}
+            isDisabled={!currentTenant}
+            size="sm"
+            mt={4}
+          >
+            Generate Violin Charts
+          </Button>
         </CardBody>
       </Card>
 
@@ -427,13 +428,13 @@ const BnbViolinsReport: React.FC = () => {
           <Card bg="gray.700">
             <CardHeader>
               <Heading size="md" color="white">
-                {bnbViolinFilters.metric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Listing
+                {selectedMetric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Listing
               </Heading>
             </CardHeader>
             <CardBody>
               <ViolinChart 
                 data={bnbViolinData} 
-                metric={bnbViolinFilters.metric} 
+                metric={selectedMetric} 
                 groupBy="listing" 
               />
             </CardBody>
@@ -443,13 +444,13 @@ const BnbViolinsReport: React.FC = () => {
           <Card bg="gray.700">
             <CardHeader>
               <Heading size="md" color="white">
-                {bnbViolinFilters.metric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Channel
+                {selectedMetric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Channel
               </Heading>
             </CardHeader>
             <CardBody>
               <ViolinChart 
                 data={bnbViolinData} 
-                metric={bnbViolinFilters.metric} 
+                metric={selectedMetric} 
                 groupBy="channel" 
               />
             </CardBody>

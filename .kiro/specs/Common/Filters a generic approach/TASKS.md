@@ -348,8 +348,9 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Multi-select years
   - Add search filter for reference number
   - Add multi-select accounts
-- [ ] Migrate `BnbViolinsReport.tsx`
-  - Multi-select years
+- [x] Migrate `BnbViolinsReport.tsx`
+  - Multi-select years in paneklfilter
+  - Add filters Report Type, Listings, Channels
   - Remove administration filter
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
@@ -363,8 +364,9 @@ This document outlines the implementation tasks for creating a generic filter sy
 ### Refactor myAdminReports.tsx (Legacy)
 
 - [ ] Make an impact analysis of refactoring myAdminReports.tsx (Legacy)
+- [ ] Decide what todo (now or later and how)
 - [ ] Make a task list of the preferred approach
-- [ ] Consider refactoring this 3600+ line file (separate task)
+- [ ] refactoring myAdminReports.tsx 3600+ line file (separate task)
 
 ### 4.2.1 Migrate myAdminReports.tsx (Legacy) or from the refactored 5 files
 
