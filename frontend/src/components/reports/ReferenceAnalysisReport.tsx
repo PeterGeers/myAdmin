@@ -79,6 +79,15 @@ const ReferenceAnalysisReport: React.FC = () => {
       return;
     }
 
+    // Validate reference number is provided
+    if (!referenceNumber || referenceNumber.trim() === '') {
+      console.warn('No reference number provided');
+      // Clear previous results
+      setRefAnalysisData([]);
+      setRefTrendData([]);
+      return;
+    }
+
     setRefAnalysisLoading(true);
     try {
       const params = new URLSearchParams({
@@ -88,13 +97,25 @@ const ReferenceAnalysisReport: React.FC = () => {
         accounts: selectedAccounts.join(',')
       });
       
+      console.log('Reference Analysis Request:', {
+        years: selectedYears,
+        administration: currentTenant,
+        reference_number: referenceNumber,
+        accounts: selectedAccounts,
+        url: buildEndpoint('/api/reports/reference-analysis', params)
+      });
+      
       const response = await authenticatedGet(buildEndpoint('/api/reports/reference-analysis', params));
       const data = await response.json();
+      
+      console.log('Reference Analysis Response:', data);
       
       if (data.success) {
         setRefAnalysisData(data.transactions);
         setRefTrendData(data.trend_data);
         setAvailableRefAccounts(data.available_accounts);
+      } else {
+        console.error('Reference Analysis failed:', data);
       }
     } catch (err) {
       console.error('Error fetching reference analysis:', err);
@@ -278,22 +299,49 @@ const ReferenceAnalysisReport: React.FC = () => {
         <Card bg="gray.700">
           <CardBody>
             <VStack spacing={3} align="start">
-              <Heading size="md" color="white">Reference Number Analysis Instructions</Heading>
-              <Text color="white" fontSize="sm">
-                1. Choose one or more years to include in the analysis
-              </Text>
-              <Text color="white" fontSize="sm">
-                2. Enter a reference number or regex pattern (e.g., "AMZN" or ".*Amazon.*")
-              </Text>
-              <Text color="white" fontSize="sm">
-                3. Optionally filter by specific accounts
-              </Text>
-              <Text color="white" fontSize="sm">
-                4. Click "Analyze" to view trends and transactions
-              </Text>
-              <Text color="gray.400" fontSize="xs">
-                The trend chart shows quarterly spending patterns with amounts displayed above each data point.
-              </Text>
+              <Heading size="md" color="white">
+                {referenceNumber ? 'No Results Found' : 'Reference Number Analysis Instructions'}
+              </Heading>
+              {referenceNumber ? (
+                <>
+                  <Text color="white" fontSize="sm">
+                    No transactions found matching the reference pattern: <strong>{referenceNumber}</strong>
+                  </Text>
+                  <Text color="gray.400" fontSize="xs">
+                    Tips:
+                  </Text>
+                  <Text color="gray.400" fontSize="xs">
+                    • Check your regex pattern syntax
+                  </Text>
+                  <Text color="gray.400" fontSize="xs">
+                    • Try a simpler pattern (e.g., just "AMZN" instead of ".*AMZN.*")
+                  </Text>
+                  <Text color="gray.400" fontSize="xs">
+                    • Verify the reference number exists in the selected years
+                  </Text>
+                  <Text color="gray.400" fontSize="xs">
+                    • Check if account filters are too restrictive
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text color="white" fontSize="sm">
+                    1. Choose one or more years to include in the analysis
+                  </Text>
+                  <Text color="white" fontSize="sm">
+                    2. Enter a reference number or regex pattern (e.g., "AMZN" or ".*Amazon.*")
+                  </Text>
+                  <Text color="white" fontSize="sm">
+                    3. Optionally filter by specific accounts
+                  </Text>
+                  <Text color="white" fontSize="sm">
+                    4. Click "Analyze" to view trends and transactions
+                  </Text>
+                  <Text color="gray.400" fontSize="xs">
+                    The trend chart shows quarterly spending patterns with amounts displayed above each data point.
+                  </Text>
+                </>
+              )}
             </VStack>
           </CardBody>
         </Card>
