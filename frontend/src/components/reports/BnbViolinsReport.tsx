@@ -259,6 +259,12 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
 const BnbViolinsReport: React.FC = () => {
   const { currentTenant } = useTenant();
   
+  // Metric options constant
+  const metricOptions = [
+    { value: 'pricePerNight', label: 'Price per Night' },
+    { value: 'nightsPerStay', label: 'Days per Stay' }
+  ];
+  
   // Separate state for each filter
   const [selectedYears, setSelectedYears] = useState<string[]>([new Date().getFullYear().toString()]);
   const [selectedMetric, setSelectedMetric] = useState<string>('pricePerNight'); // 'pricePerNight' or 'nightsPerStay'
@@ -379,12 +385,9 @@ const BnbViolinsReport: React.FC = () => {
               {
                 type: 'single',
                 label: 'Report Type',
-                options: [
-                  { value: 'pricePerNight', label: 'Price per Night' },
-                  { value: 'nightsPerStay', label: 'Days per Stay' }
-                ],
-                value: selectedMetric,
-                onChange: setSelectedMetric,
+                options: metricOptions,
+                value: metricOptions.find(opt => opt.value === selectedMetric) || metricOptions[0],
+                onChange: (opt: { value: string; label: string }) => setSelectedMetric(opt.value),
                 getOptionLabel: (opt) => opt.label,
                 getOptionValue: (opt) => opt.value
               },
