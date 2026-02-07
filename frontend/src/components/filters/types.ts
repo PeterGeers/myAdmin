@@ -85,6 +85,9 @@ export interface FilterConfig<T> {
   
   /** Optional error message */
   error?: string | null;
+  
+  /** Treat empty selection as a valid choice (show orange background) */
+  treatEmptyAsSelected?: boolean;
 }
 
 /**

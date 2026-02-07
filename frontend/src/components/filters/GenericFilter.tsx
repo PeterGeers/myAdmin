@@ -36,6 +36,8 @@ export interface GenericFilterProps<T> {
   multiSelect?: boolean;
   /** Disable the filter */
   disabled?: boolean;
+  /** Treat empty selection as a valid choice (show orange background) */
+  treatEmptyAsSelected?: boolean;
 
   // Display
   /** Label for the filter */
@@ -115,6 +117,7 @@ export function GenericFilter<T>({
   availableOptions,
   multiSelect = false,
   disabled = false,
+  treatEmptyAsSelected = false,
   label,
   placeholder = 'Select...',
   size = 'md',
@@ -281,13 +284,25 @@ export function GenericFilter<T>({
           width="100%"
           textAlign="left"
           fontWeight="normal"
-          bg={values.length > 0 ? 'orange.500' : bg}
+          bg={(values.length > 0 || treatEmptyAsSelected) ? 'orange.500' : bg}
           color={color}
-          _hover={{ bg: values.length > 0 ? 'orange.600' : bg }}
-          _active={{ bg: values.length > 0 ? 'orange.600' : bg }}
+          _hover={{ bg: (values.length > 0 || treatEmptyAsSelected) ? 'orange.600' : bg }}
+          _active={{ bg: (values.length > 0 || treatEmptyAsSelected) ? 'orange.600' : bg }}
           aria-label={label}
           aria-haspopup="true"
           aria-expanded={isOpen}
+          sx={{
+            // Force orange background when items are selected or empty is treated as selected
+            ...((values.length > 0 || treatEmptyAsSelected) && {
+              backgroundColor: 'orange.500 !important',
+              '&:hover': {
+                backgroundColor: 'orange.600 !important',
+              },
+              '&:active': {
+                backgroundColor: 'orange.600 !important',
+              }
+            })
+          }}
         >
           <Text isTruncated>{getDisplayText}</Text>
         </MenuButton>

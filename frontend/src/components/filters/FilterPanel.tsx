@@ -186,6 +186,7 @@ export function FilterPanel({
       getOptionValue: filter.getOptionValue,
       isLoading: filter.isLoading || false,
       error: filter.error || null,
+      treatEmptyAsSelected: filter.treatEmptyAsSelected || false,
       labelColor: labelColor,
       bg: bg,
       color: color,

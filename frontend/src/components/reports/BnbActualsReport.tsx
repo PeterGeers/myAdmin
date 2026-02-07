@@ -400,6 +400,7 @@ const BnbActualsReport: React.FC = () => {
                 value: selectedListings,
                 onChange: (values) => setSelectedListings(values as string[]),
                 placeholder: 'All Listings',
+                treatEmptyAsSelected: true,
               },
               {
                 type: 'multi',
@@ -408,6 +409,7 @@ const BnbActualsReport: React.FC = () => {
                 value: selectedChannels,
                 onChange: (values) => setSelectedChannels(values as string[]),
                 placeholder: 'All Channels',
+                treatEmptyAsSelected: true,
               },
               {
                 type: 'single',
