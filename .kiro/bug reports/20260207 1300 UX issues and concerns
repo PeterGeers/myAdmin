@@ -1,0 +1,23 @@
+The Panelfilter provides default colour schemes for the filters (I expect)
+1. The title of the dropdown filters in the FilterPanel are dark grey on dark grey. Please white on dark gray
+2. The selected values in the drop down fields in the FilterPanel are black on very light greay.  Please white on orange
+3. Please create default colours in the FilterPanel
+
+
+In the STR Report actuals
+1. The title of the dropdown filters in the FilterPanel are dark grey on dark grey. Please use the(new) default colours defined above
+2. The selected values in the drop down fields in the FilterPanel are black on very light grey. Please use the(new) default colours defined above
+3. The dropdown arrays look fine in the FilterPanel
+
+There are 3 dropdowns not in the filter panel: 
+A) View Type
+B) Display format
+C) Show amounts
+Can you add these to the Filter Panel
+
+In Fin Reports >> Aangifte BTW 
+1. The title of the dropdown filters in the FilterPanel are dark grey on dark grey. Please use the(new) default colours defined above
+2. The selected values in the drop down fields in the FilterPanel are white on orange. Please use the(new) default colours defined above
+
+In Fin Reports >> Actuals
+1. Year filter  Please use the(new) default colours defined above

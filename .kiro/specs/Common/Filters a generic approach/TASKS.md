@@ -318,17 +318,17 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Replace UnifiedAdminYearFilter mocks with FilterPanel mocks
   - Test multi-filter interactions
   - Verify coverage maintained
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Check if tsc and lint pass correctly and minimize warnings
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Target**: Maintain or improve test coverage
 
 ### 3.5 Gather Feedback and Iterate
 
-- [ ] Demo migrated reports to stakeholders
-- [ ] Collect feedback on UX changes
-- [ ] Identify any issues or concerns
-- [ ] Make adjustments based on feedback
+- [x] Demo migrated reports to stakeholders
+- [x] Collect feedback on UX changes
+- [x] Identify any issues or concerns
+- [ ] Make adjustments based on feedback  See .kiro\bug reports\UX issues and concerns
 - [ ] Document lessons learned
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
@@ -359,13 +359,16 @@ This document outlines the implementation tasks for creating a generic filter sy
 - All reports migrated
 - All functionality preserved
 - No regressions
+### Refactor myAdminReports.tsx (Legacy)
+- [ ] Make an impact analysis of refactoring myAdminReports.tsx (Legacy)
+- [ ] Consider refactoring this 3600+ line file (separate task)
 
-### 4.2 Migrate myAdminReports.tsx (Legacy)
 
+### 4.2.1 Migrate myAdminReports.tsx (Legacy) or from the refactored 5 files
 - [ ] Identify 5 instances of UnifiedAdminYearFilter in `myAdminReports.tsx`
 - [ ] Replace each with appropriate FilterPanel configuration
 - [ ] Test each report section
-- [ ] Consider refactoring this 3600+ line file (separate task)
+
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 

@@ -233,6 +233,18 @@ export function GenericFilter<T>({
           color={color}
           aria-label={label}
           icon={isLoading ? <Spinner size="sm" /> : <ChevronDownIcon />}
+          sx={{
+            // Style for selected option text
+            '& option': {
+              bg: 'white',
+              color: 'black',
+            },
+            // Style for selected value in the select button
+            '&:not(:placeholder-shown)': {
+              bg: 'orange.500',
+              color: 'white',
+            }
+          }}
         >
           {availableOptions.map((option) => {
             const value = getValueFn(option);
@@ -269,10 +281,10 @@ export function GenericFilter<T>({
           width="100%"
           textAlign="left"
           fontWeight="normal"
-          bg={bg}
+          bg={values.length > 0 ? 'orange.500' : bg}
           color={color}
-          _hover={{ bg: bg }}
-          _active={{ bg: bg }}
+          _hover={{ bg: values.length > 0 ? 'orange.600' : bg }}
+          _active={{ bg: values.length > 0 ? 'orange.600' : bg }}
           aria-label={label}
           aria-haspopup="true"
           aria-expanded={isOpen}

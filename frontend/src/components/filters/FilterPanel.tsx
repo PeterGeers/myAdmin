@@ -41,6 +41,15 @@ export interface FilterPanelProps {
   
   /** Minimum width for each filter in grid layout */
   gridMinWidth?: string;
+  
+  /** Label text color (default: 'white' for dark backgrounds) */
+  labelColor?: string;
+  
+  /** Select/Button background color (default: 'gray.600' for dark backgrounds) */
+  bg?: string;
+  
+  /** Select/Button text color (default: 'white') */
+  color?: string;
 }
 
 /**
@@ -145,6 +154,9 @@ export function FilterPanel({
   disabled = false,
   gridColumns = 2,
   gridMinWidth = '200px',
+  labelColor = 'white',
+  bg = 'gray.600',
+  color = 'white',
 }: FilterPanelProps): React.ReactElement {
   // Render individual filter based on its configuration
   const renderFilter = (filter: FilterConfig<any>, index: number) => {
@@ -174,6 +186,9 @@ export function FilterPanel({
       getOptionValue: filter.getOptionValue,
       isLoading: filter.isLoading || false,
       error: filter.error || null,
+      labelColor: labelColor,
+      bg: bg,
+      color: color,
     };
     
     return (

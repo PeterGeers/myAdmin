@@ -4,16 +4,10 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Checkbox,
   Grid,
   GridItem,
   HStack,
   Heading,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
-  Select,
   Table,
   TableContainer,
   Tbody,
@@ -381,11 +375,12 @@ const BnbActualsReport: React.FC = () => {
 
   return (
     <VStack spacing={4} align="stretch">
-      {/* FilterPanel for BNB Actuals */}
+      {/* FilterPanel for BNB Actuals - All filters consolidated */}
       <Card bg="gray.700">
         <CardBody>
           <FilterPanel
-            layout="horizontal"
+            layout="grid"
+            gridColumns={3}
             size="sm"
             spacing={4}
             filters={[
@@ -414,92 +409,57 @@ const BnbActualsReport: React.FC = () => {
                 onChange: (values) => setSelectedChannels(values as string[]),
                 placeholder: 'All Channels',
               },
+              {
+                type: 'single',
+                label: 'View Type',
+                options: ['listing', 'channel'],
+                value: viewType,
+                onChange: (value) => setViewType(value as 'listing' | 'channel'),
+                getOptionLabel: (option) => option === 'listing' ? 'Listing' : 'Channel',
+              },
+              {
+                type: 'single',
+                label: 'Display Format',
+                options: ['2dec', '0dec', 'k', 'm'],
+                value: displayFormat,
+                onChange: (value) => setDisplayFormat(value as string),
+                getOptionLabel: (option) => {
+                  switch (option) {
+                    case '2dec': return '€1,234.56 (2 decimals)';
+                    case '0dec': return '€1,235 (whole numbers)';
+                    case 'k': return '€1.2K (thousands)';
+                    case 'm': return '€1.2M (millions)';
+                    default: return option;
+                  }
+                },
+              },
+              {
+                type: 'multi',
+                label: 'Show Amounts',
+                options: [
+                  { key: 'amountGross', label: 'Gross Amount' },
+                  { key: 'amountNett', label: 'Net Amount' },
+                  { key: 'amountChannelFee', label: 'Channel Fee' },
+                  { key: 'amountTouristTax', label: 'Tourist Tax' },
+                  { key: 'amountVat', label: 'VAT Amount' }
+                ],
+                value: selectedAmounts,
+                onChange: (values) => setSelectedAmounts(values as string[]),
+                getOptionLabel: (option) => option.label,
+                getOptionValue: (option) => option.key,
+                placeholder: 'Select amounts...',
+              },
             ]}
           />
-        </CardBody>
-      </Card>
-      
-      <Card bg="gray.700">
-        <CardBody>
-          <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            <GridItem>
-              <Text color="white" mb={2}>View Type</Text>
-              <Select 
-                value={viewType}
-                onChange={(e) => setViewType(e.target.value as 'listing' | 'channel')}
-                bg="gray.600" 
-                color="white" 
-                size="sm"
-              >
-                <option value="listing">Listing</option>
-                <option value="channel">Channel</option>
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Text color="white" mb={2}>Display Format</Text>
-              <Select 
-                value={displayFormat}
-                onChange={(e) => setDisplayFormat(e.target.value)}
-                bg="gray.600" 
-                color="white" 
-                size="sm"
-              >
-                <option value="2dec">€1,234.56 (2 decimals)</option>
-                <option value="0dec">€1,235 (whole numbers)</option>
-                <option value="k">€1.2K (thousands)</option>
-                <option value="m">€1.2M (millions)</option>
-              </Select>
-            </GridItem>
-            <GridItem>
-              <Text color="white" mb={2}>Show Amounts</Text>
-              <Menu closeOnSelect={false}>
-                <MenuButton
-                  as={Button}
-                  bg="orange.500"
-                  color="white"
-                  size="sm"
-                  width="100%"
-                  textAlign="left"
-                  rightIcon={<span>▼</span>}
-                  _hover={{ bg: "orange.600" }}
-                  _active={{ bg: "orange.600" }}
-                >
-                  {selectedAmounts.length > 0 ? `${selectedAmounts.length} selected` : 'Select amounts...'}
-                </MenuButton>
-                <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
-                  {[
-                    { key: 'amountGross', label: 'Gross Amount' },
-                    { key: 'amountNett', label: 'Net Amount' },
-                    { key: 'amountChannelFee', label: 'Channel Fee' },
-                    { key: 'amountTouristTax', label: 'Tourist Tax' },
-                    { key: 'amountVat', label: 'VAT Amount' }
-                  ].map((amount, index) => (
-                    <MenuItem key={`bnb-actuals-amount-${amount.key}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                      <Checkbox
-                        isChecked={selectedAmounts.includes(amount.key)}
-                        onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setSelectedAmounts(prev =>
-                            isChecked 
-                              ? [...prev, amount.key]
-                              : prev.filter(a => a !== amount.key)
-                          );
-                        }}
-                        colorScheme="orange"
-                      >
-                        <Text color="white" ml={2}>{amount.label}</Text>
-                      </Checkbox>
-                    </MenuItem>
-                  ))}
-                </MenuList>
-              </Menu>
-            </GridItem>
-            <GridItem>
-              <Button colorScheme="orange" onClick={fetchBnbActualsData} isLoading={loading} size="sm">
-                Update Data
-              </Button>
-            </GridItem>
-          </Grid>
+          <Button 
+            colorScheme="orange" 
+            onClick={fetchBnbActualsData} 
+            isLoading={loading} 
+            size="sm"
+            mt={4}
+          >
+            Update Data
+          </Button>
         </CardBody>
       </Card>
 

@@ -5,6 +5,7 @@
 The myAdmin filter system provides a flexible, type-safe, and reusable approach to filtering data across reports. It replaces the legacy `UnifiedAdminYearFilter` component with a modular architecture that reduces code by ~73% while improving maintainability.
 
 **Key Benefits:**
+
 - Type-safe with TypeScript generics
 - Supports single and multi-select modes
 - Responsive design (mobile-friendly)
@@ -31,6 +32,7 @@ Filter System
 The foundation of the filter system. A reusable component that works with any data type through TypeScript generics.
 
 **Features:**
+
 - Single-select mode (dropdown)
 - Multi-select mode (checkbox menu)
 - Loading and error states
@@ -38,34 +40,36 @@ The foundation of the filter system. A reusable component that works with any da
 - Accessible (ARIA labels, keyboard navigation)
 
 **Props:**
+
 ```typescript
 interface GenericFilterProps<T> {
   // Core filtering
-  values: T[];                              // Current selected values
-  onChange: (values: T[]) => void;          // Callback when selection changes
-  availableOptions: T[];                    // Available options to select from
+  values: T[]; // Current selected values
+  onChange: (values: T[]) => void; // Callback when selection changes
+  availableOptions: T[]; // Available options to select from
 
   // Behavior
-  multiSelect?: boolean;                    // Enable multi-select mode (default: false)
-  disabled?: boolean;                       // Disable the filter
+  multiSelect?: boolean; // Enable multi-select mode (default: false)
+  disabled?: boolean; // Disable the filter
 
   // Display
-  label: string;                            // Label for the filter
-  placeholder?: string;                     // Placeholder text when no selection
-  size?: 'sm' | 'md' | 'lg';               // Size variant
+  label: string; // Label for the filter
+  placeholder?: string; // Placeholder text when no selection
+  size?: "sm" | "md" | "lg"; // Size variant
 
   // Rendering
-  renderOption?: (option: T) => React.ReactNode;  // Custom option renderer
-  getOptionLabel?: (option: T) => string;         // Get display label from option
-  getOptionValue?: (option: T) => string;         // Get unique value from option
+  renderOption?: (option: T) => React.ReactNode; // Custom option renderer
+  getOptionLabel?: (option: T) => string; // Get display label from option
+  getOptionValue?: (option: T) => string; // Get unique value from option
 
   // State
-  isLoading?: boolean;                      // Show loading state
-  error?: string | null;                    // Error message to display
+  isLoading?: boolean; // Show loading state
+  error?: string | null; // Error message to display
 }
 ```
 
 **Example - String Filter:**
+
 ```typescript
 <GenericFilter<string>
   values={[selectedYear]}
@@ -77,6 +81,7 @@ interface GenericFilterProps<T> {
 ```
 
 **Example - Object Filter:**
+
 ```typescript
 interface Listing {
   id: string;
@@ -108,21 +113,27 @@ interface Listing {
 A specialized wrapper around `GenericFilter<string>` for year selection. Provides year-specific defaults and optional dynamic year generation.
 
 **Features:**
+
 - Default label "Year"
 - Default placeholders based on mode
 - Optional year generation (historical, future, combined, rolling)
 - Works in both single and multi-select modes
 
 **Props:**
+
 ```typescript
-interface YearFilterProps extends Omit<GenericFilterProps<string>, 'label' | 'placeholder' | 'getOptionLabel' | 'getOptionValue'> {
-  label?: string;                           // Custom label (default: "Year")
-  placeholder?: string;                     // Custom placeholder
-  yearConfig?: YearGenerationConfig;        // Optional year generation config
+interface YearFilterProps extends Omit<
+  GenericFilterProps<string>,
+  "label" | "placeholder" | "getOptionLabel" | "getOptionValue"
+> {
+  label?: string; // Custom label (default: "Year")
+  placeholder?: string; // Custom placeholder
+  yearConfig?: YearGenerationConfig; // Optional year generation config
 }
 ```
 
 **Example - Single-Select (BTW Report):**
+
 ```typescript
 <YearFilter
   values={selectedYear ? [selectedYear] : []}
@@ -132,6 +143,7 @@ interface YearFilterProps extends Omit<GenericFilterProps<string>, 'label' | 'pl
 ```
 
 **Example - Multi-Select (Actuals Report):**
+
 ```typescript
 <YearFilter
   values={selectedYears}
@@ -142,6 +154,7 @@ interface YearFilterProps extends Omit<GenericFilterProps<string>, 'label' | 'pl
 ```
 
 **Example - Dynamic Year Generation:**
+
 ```typescript
 <YearFilter
   values={selectedYears}
@@ -163,25 +176,39 @@ interface YearFilterProps extends Omit<GenericFilterProps<string>, 'label' | 'pl
 A container component for organizing multiple filters with flexible layout options.
 
 **Features:**
+
 - Three layout modes: horizontal, vertical, grid
 - Responsive design (mobile breakpoints)
 - Supports mixing filter types
 - Consistent spacing and alignment
+- Default color scheme optimized for dark backgrounds
+
+**Default Colors:**
+
+- Label text: `white` (for dark gray backgrounds)
+- Filter background: `gray.600` (dark gray)
+- Filter text: `white`
+- Selected values: `orange.500` background with `white` text
 
 **Props:**
+
 ```typescript
 interface FilterPanelProps {
-  filters: FilterConfig<any>[];            // Array of filter configurations
-  layout?: 'horizontal' | 'vertical' | 'grid';  // Layout mode (default: 'horizontal')
-  size?: 'sm' | 'md' | 'lg';              // Size variant for all filters (default: 'md')
-  spacing?: number;                        // Spacing between filters (default: 4)
-  disabled?: boolean;                      // Disable all filters
-  gridColumns?: number;                    // Number of columns for grid layout (default: 2)
-  gridMinWidth?: string;                   // Minimum width for grid items (default: '200px')
+  filters: FilterConfig<any>[]; // Array of filter configurations
+  layout?: "horizontal" | "vertical" | "grid"; // Layout mode (default: 'horizontal')
+  size?: "sm" | "md" | "lg"; // Size variant for all filters (default: 'md')
+  spacing?: number; // Spacing between filters (default: 4)
+  disabled?: boolean; // Disable all filters
+  gridColumns?: number; // Number of columns for grid layout (default: 2)
+  gridMinWidth?: string; // Minimum width for grid items (default: '200px')
+  labelColor?: string; // Label text color (default: 'white')
+  bg?: string; // Filter background color (default: 'gray.600')
+  color?: string; // Filter text color (default: 'white')
 }
 ```
 
 **Example - Horizontal Layout:**
+
 ```typescript
 <FilterPanel
   layout="horizontal"
@@ -205,6 +232,7 @@ interface FilterPanelProps {
 ```
 
 **Example - Grid Layout:**
+
 ```typescript
 <FilterPanel
   layout="grid"
@@ -273,7 +301,7 @@ function BtwReport() {
             }
           ]}
         />
-        
+
         <Button onClick={() => generateReport(selectedYear, selectedQuarter)}>
           Generate BTW Report
         </Button>
@@ -315,7 +343,7 @@ function ActualsReport() {
           multiSelect
           isLoading={isLoading}
         />
-        
+
         <Button onClick={() => generateReport(selectedYears)}>
           Generate Actuals Report
         </Button>
@@ -338,7 +366,7 @@ function BnbActualsReport() {
   const [selectedYears, setSelectedYears] = useState<string[]>(['2024']);
   const [selectedListings, setSelectedListings] = useState<string[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['airbnb', 'booking']);
-  
+
   const listings = [
     { id: '1', name: 'Beach House', address: '123 Ocean Dr' },
     { id: '2', name: 'Mountain Cabin', address: '456 Peak Rd' }
@@ -382,7 +410,7 @@ function BnbActualsReport() {
             }
           ]}
         />
-        
+
         <Button onClick={() => generateReport(selectedYears, selectedListings, selectedChannels)}>
           Generate BNB Report
         </Button>
@@ -399,6 +427,7 @@ function BnbActualsReport() {
 The filter system supports four year generation modes:
 
 #### 1. Historical Years Only
+
 Load years from database (existing data only).
 
 ```typescript
@@ -415,6 +444,7 @@ Load years from database (existing data only).
 ```
 
 #### 2. Future Years Only
+
 Generate current year + N future years (for planning).
 
 ```typescript
@@ -432,6 +462,7 @@ Generate current year + N future years (for planning).
 ```
 
 #### 3. Combined (Historical + Future)
+
 Mix historical data with future planning years.
 
 ```typescript
@@ -450,6 +481,7 @@ Mix historical data with future planning years.
 ```
 
 #### 4. Rolling Window
+
 Last N years + current + next M years.
 
 ```typescript
@@ -685,15 +717,15 @@ const availableYears = useMemo(() => ['2023', '2024', '2025'], []);
 **Solution:** Use the specific filter config types:
 
 ```typescript
-import { SingleSelectFilterConfig, MultiSelectFilterConfig } from './types';
+import { SingleSelectFilterConfig, MultiSelectFilterConfig } from "./types";
 
 // ✅ Good: Type-safe filter configs
 const yearFilter: MultiSelectFilterConfig<string> = {
-  type: 'multi',
-  label: 'Years',
-  options: ['2023', '2024', '2025'],
+  type: "multi",
+  label: "Years",
+  options: ["2023", "2024", "2025"],
   value: selectedYears,
-  onChange: setSelectedYears
+  onChange: setSelectedYears,
 };
 ```
 
@@ -707,7 +739,7 @@ Base filter configuration interface.
 
 ```typescript
 interface FilterConfig<T> {
-  type: FilterType;                        // 'single' | 'multi' | 'range' | 'search'
+  type: FilterType; // 'single' | 'multi' | 'range' | 'search'
   label: string;
   options: T[];
   value: T | T[];
@@ -716,7 +748,7 @@ interface FilterConfig<T> {
   getOptionLabel?: (option: T) => string;
   getOptionValue?: (option: T) => string;
   placeholder?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   disabled?: boolean;
   isLoading?: boolean;
   error?: string | null;
@@ -728,8 +760,11 @@ interface FilterConfig<T> {
 Type-safe single-select filter configuration.
 
 ```typescript
-interface SingleSelectFilterConfig<T> extends Omit<FilterConfig<T>, 'type' | 'value' | 'onChange'> {
-  type: 'single';
+interface SingleSelectFilterConfig<T> extends Omit<
+  FilterConfig<T>,
+  "type" | "value" | "onChange"
+> {
+  type: "single";
   value: T;
   onChange: (value: T) => void;
 }
@@ -740,8 +775,11 @@ interface SingleSelectFilterConfig<T> extends Omit<FilterConfig<T>, 'type' | 'va
 Type-safe multi-select filter configuration.
 
 ```typescript
-interface MultiSelectFilterConfig<T> extends Omit<FilterConfig<T>, 'type' | 'value' | 'onChange'> {
-  type: 'multi';
+interface MultiSelectFilterConfig<T> extends Omit<
+  FilterConfig<T>,
+  "type" | "value" | "onChange"
+> {
+  type: "multi";
   value: T[];
   onChange: (values: T[]) => void;
 }
@@ -753,10 +791,10 @@ Configuration for dynamic year generation.
 
 ```typescript
 interface YearGenerationConfig {
-  mode: 'historical' | 'future' | 'combined' | 'rolling';
-  historicalYears?: string[];              // For 'historical' and 'combined' modes
-  futureCount?: number;                    // For 'future', 'combined', and 'rolling' modes
-  pastCount?: number;                      // For 'rolling' mode
+  mode: "historical" | "future" | "combined" | "rolling";
+  historicalYears?: string[]; // For 'historical' and 'combined' modes
+  futureCount?: number; // For 'future', 'combined', and 'rolling' modes
+  pastCount?: number; // For 'rolling' mode
 }
 ```
 
@@ -865,7 +903,7 @@ Use `useMemo` for expensive computations:
 
 ```typescript
 const filteredData = useMemo(() => {
-  return data.filter(item => selectedYears.includes(item.year));
+  return data.filter((item) => selectedYears.includes(item.year));
 }, [data, selectedYears]);
 ```
 
@@ -876,7 +914,7 @@ For search filters, debounce onChange callbacks:
 ```typescript
 const debouncedSearch = useMemo(
   () => debounce((value: string) => setSearchTerm(value), 300),
-  []
+  [],
 );
 ```
 
@@ -928,6 +966,7 @@ All filter components follow WCAG 2.1 AA guidelines:
 ## Support
 
 For issues or questions:
+
 1. Check the [Troubleshooting](#troubleshooting) section
 2. Review the [Usage Examples](#usage-examples)
 3. Consult the inline JSDoc documentation in component files
