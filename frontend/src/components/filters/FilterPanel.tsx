@@ -8,9 +8,9 @@
  */
 
 import React from 'react';
-import { Box, SimpleGrid, HStack, VStack } from '@chakra-ui/react';
+import { Box, SimpleGrid, HStack, VStack, FormControl, FormLabel, Input } from '@chakra-ui/react';
 import { GenericFilter } from './GenericFilter';
-import { FilterConfig } from './types';
+import { FilterConfig, SearchFilterConfig } from './types';
 
 /**
  * Filter panel layout modes
@@ -22,7 +22,7 @@ export type FilterPanelLayout = 'horizontal' | 'vertical' | 'grid';
  */
 export interface FilterPanelProps {
   /** Array of filter configurations */
-  filters: FilterConfig<any>[];
+  filters: (FilterConfig<any> | SearchFilterConfig)[];
   
   /** Layout mode for organizing filters (default: 'horizontal') */
   layout?: FilterPanelLayout;
@@ -159,8 +159,35 @@ export function FilterPanel({
   color = 'white',
 }: FilterPanelProps): React.ReactElement {
   // Render individual filter based on its configuration
-  const renderFilter = (filter: FilterConfig<any>, index: number) => {
+  const renderFilter = (filter: FilterConfig<any> | SearchFilterConfig, index: number) => {
     const key = `filter-${index}-${filter.label}`;
+    
+    // Handle search filter type
+    if (filter.type === 'search') {
+      const searchFilter = filter as SearchFilterConfig;
+      return (
+        <Box key={key} minW={layout === 'horizontal' ? '200px' : undefined}>
+          <FormControl isDisabled={disabled || searchFilter.disabled || false} size={searchFilter.size || size}>
+            <FormLabel htmlFor={`search-${key}`} color={labelColor} fontSize="sm">
+              {searchFilter.label}
+            </FormLabel>
+            <Input
+              id={`search-${key}`}
+              value={searchFilter.value}
+              onChange={(e) => searchFilter.onChange(e.target.value)}
+              placeholder={searchFilter.placeholder || 'Search...'}
+              size={searchFilter.size || size}
+              bg={bg}
+              color={color}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+          </FormControl>
+        </Box>
+      );
+    }
     
     // Determine if multi-select based on filter type
     const isMultiSelect = filter.type === 'multi';

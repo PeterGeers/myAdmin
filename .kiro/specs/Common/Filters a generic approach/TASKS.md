@@ -344,7 +344,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Migrate `AangifteIbReport.tsx`
   - Single-select year
   - Remove administration filter
-- [ ] Migrate `ReferenceAnalysisReport.tsx`
+- [x] Migrate `ReferenceAnalysisReport.tsx`
   - Multi-select years
   - Add search filter for reference number
   - Add multi-select accounts
@@ -363,6 +363,7 @@ This document outlines the implementation tasks for creating a generic filter sy
 ### Refactor myAdminReports.tsx (Legacy)
 
 - [ ] Make an impact analysis of refactoring myAdminReports.tsx (Legacy)
+- [ ] Make a task list of the preferred approach
 - [ ] Consider refactoring this 3600+ line file (separate task)
 
 ### 4.2.1 Migrate myAdminReports.tsx (Legacy) or from the refactored 5 files

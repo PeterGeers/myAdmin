@@ -7,14 +7,8 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Checkbox,
   Heading,
   HStack,
-  Input,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
   Table,
   TableContainer,
   Tbody,
@@ -27,8 +21,7 @@ import {
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
-import UnifiedAdminYearFilter from '../UnifiedAdminYearFilter';
-import { createRefAnalysisFilterAdapter } from '../UnifiedAdminYearFilterAdapters';
+import { FilterPanel } from '../filters/FilterPanel';
 import { useTenant } from '../../context/TenantContext';
 
 interface ReferenceAnalysisTransaction {
@@ -55,12 +48,10 @@ interface AccountOption {
 const ReferenceAnalysisReport: React.FC = () => {
   const { currentTenant } = useTenant();
   
-  const [refAnalysisFilters, setRefAnalysisFilters] = useState({
-    years: [new Date().getFullYear().toString()],
-    administration: currentTenant || 'all',
-    referenceNumber: '',
-    accounts: [] as string[]
-  });
+  // Separate state for each filter
+  const [selectedYears, setSelectedYears] = useState<string[]>([new Date().getFullYear().toString()]);
+  const [referenceNumber, setReferenceNumber] = useState<string>('');
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   
   const [refAnalysisData, setRefAnalysisData] = useState<ReferenceAnalysisTransaction[]>([]);
   const [refTrendData, setRefTrendData] = useState<TrendDataPoint[]>([]);
@@ -74,12 +65,6 @@ const ReferenceAnalysisReport: React.FC = () => {
   // Auto-refresh on tenant change
   useEffect(() => {
     if (currentTenant) {
-      // Update filters with new tenant
-      setRefAnalysisFilters(prev => ({
-        ...prev,
-        administration: currentTenant
-      }));
-      
       // Clear previous tenant data
       setRefAnalysisData([]);
       setRefTrendData([]);
@@ -97,10 +82,10 @@ const ReferenceAnalysisReport: React.FC = () => {
     setRefAnalysisLoading(true);
     try {
       const params = new URLSearchParams({
-        years: refAnalysisFilters.years.join(','),
+        years: selectedYears.join(','),
         administration: currentTenant, // Use current tenant instead of filter value
-        reference_number: refAnalysisFilters.referenceNumber,
-        accounts: refAnalysisFilters.accounts.join(',')
+        reference_number: referenceNumber,
+        accounts: selectedAccounts.join(',')
       });
       
       const response = await authenticatedGet(buildEndpoint('/api/reports/reference-analysis', params));
@@ -133,77 +118,46 @@ const ReferenceAnalysisReport: React.FC = () => {
           <VStack spacing={4} align="stretch">
             {/* All filters on one line */}
             <HStack spacing={3} wrap="wrap" align="end">
-              <Box minW="150px">
-                <UnifiedAdminYearFilter
-                  {...createRefAnalysisFilterAdapter(refAnalysisFilters, setRefAnalysisFilters, availableYears)}
-                  showAdministration={false}
-                  size="sm"
-                />
-              </Box>
-              <Box minW="200px">
-                <Text color="white" mb={2} fontSize="sm">Reference Number (Regex)</Text>
-                <Input
-                  value={refAnalysisFilters.referenceNumber}
-                  onChange={(e) => setRefAnalysisFilters(prev => ({...prev, referenceNumber: e.target.value}))}
-                  placeholder="Enter regex pattern (e.g. AMZN or .*Amazon.*)"
-                  bg="gray.600"
-                  color="white"
-                  size="xs"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  name="reference-regex-input"
-                  id="reference-regex-input"
-                />
-              </Box>
-              <Box minW="150px">
-                <Text color="white" mb={2} fontSize="sm">Accounts</Text>
-                <Menu closeOnSelect={false}>
-                  <MenuButton
-                    as={Button}
-                    bg="orange.500"
-                    color="white"
-                    size="xs"
-                    width="100%"
-                    textAlign="left"
-                    rightIcon={<span>▼</span>}
-                    _hover={{ bg: "orange.600" }}
-                    _active={{ bg: "orange.600" }}
-                  >
-                    {refAnalysisFilters.accounts.length > 0 ? `${refAnalysisFilters.accounts.length} selected` : 'Select accounts...'}
-                  </MenuButton>
-                  <MenuList bg="gray.600" border="1px solid" borderColor="gray.500" maxH="400px" overflowY="auto">
-                    {availableRefAccounts.map((account, index) => (
-                      <MenuItem key={`ref-account-${account.Reknum}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
-                        <Checkbox
-                          isChecked={refAnalysisFilters.accounts.includes(account.Reknum)}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked;
-                            setRefAnalysisFilters(prev => ({
-                              ...prev,
-                              accounts: isChecked
-                                ? [...prev.accounts, account.Reknum]
-                                : prev.accounts.filter(a => a !== account.Reknum)
-                            }));
-                          }}
-                          colorScheme="orange"
-                          size="xs"
-                        >
-                          <Text color="white" ml={2} fontSize="xs">{account.Reknum} - {account.AccountName}</Text>
-                        </Checkbox>
-                      </MenuItem>
-                    ))}
-                  </MenuList>
-                </Menu>
-              </Box>
+              <FilterPanel
+                layout="horizontal"
+                size="sm"
+                spacing={3}
+                filters={[
+                  {
+                    type: 'multi',
+                    label: 'Years',
+                    options: availableYears,
+                    value: selectedYears,
+                    onChange: setSelectedYears,
+                    placeholder: 'Select year(s)'
+                  },
+                  {
+                    type: 'search',
+                    label: 'Reference Number (Regex)',
+                    value: referenceNumber,
+                    onChange: setReferenceNumber,
+                    placeholder: 'Enter regex pattern (e.g. AMZN or .*Amazon.*)'
+                  },
+                  {
+                    type: 'multi',
+                    label: 'Accounts',
+                    options: availableRefAccounts,
+                    value: selectedAccounts,
+                    onChange: setSelectedAccounts,
+                    placeholder: 'Select accounts...',
+                    getOptionLabel: (account) => `${account.Reknum} - ${account.AccountName}`,
+                    getOptionValue: (account) => account.Reknum,
+                    treatEmptyAsSelected: false
+                  }
+                ]}
+              />
               <Box>
                 <Button 
                   colorScheme="orange" 
                   onClick={fetchReferenceAnalysis} 
                   isLoading={refAnalysisLoading}
                   isDisabled={!currentTenant}
-                  size="xs"
+                  size="sm"
                   mt={6}
                 >
                   Analyze

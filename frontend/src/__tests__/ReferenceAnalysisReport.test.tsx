@@ -51,11 +51,13 @@ jest.mock('@chakra-ui/react', () => ({
       {...props}
     />
   ),
-  Menu: ({ children }: any) => <div data-testid="menu">{children}</div>,
-  MenuButton: ({ children, as: Component = 'button', ...props }: any) => (
-    <Component {...props}>{children}</Component>
+  Menu: ({ children, isOpen }: any) => isOpen ? <div data-testid="menu">{children}</div> : null,
+  MenuButton: ({ children, as: Component = 'button', onClick, ...props }: any) => (
+    <Component onClick={onClick} {...props}>{children}</Component>
   ),
-  MenuItem: ({ children }: any) => <div data-testid="menu-item">{children}</div>,
+  MenuItem: ({ children, onClick }: any) => (
+    <div data-testid="menu-item" onClick={onClick}>{children}</div>
+  ),
   MenuList: ({ children }: any) => <div data-testid="menu-list">{children}</div>,
   Table: ({ children }: any) => <table>{children}</table>,
   TableContainer: ({ children }: any) => <div>{children}</div>,
@@ -66,6 +68,21 @@ jest.mock('@chakra-ui/react', () => ({
   Thead: ({ children }: any) => <thead>{children}</thead>,
   Tr: ({ children }: any) => <tr>{children}</tr>,
   VStack: ({ children }: any) => <div style={{ display: 'flex', flexDirection: 'column' }}>{children}</div>,
+  FormControl: ({ children }: any) => <div data-testid="form-control">{children}</div>,
+  FormLabel: ({ children, htmlFor }: any) => <label htmlFor={htmlFor}>{children}</label>,
+  Select: ({ children, value, onChange, placeholder, ...props }: any) => (
+    <select value={value} onChange={onChange} {...props}>
+      {placeholder && <option value="">{placeholder}</option>}
+      {children}
+    </select>
+  ),
+  SimpleGrid: ({ children }: any) => <div data-testid="simple-grid">{children}</div>,
+  useDisclosure: () => ({
+    isOpen: false,
+    onOpen: jest.fn(),
+    onClose: jest.fn(),
+  }),
+  ChevronDownIcon: () => <span>▼</span>,
 }));
 
 // Mock the API service
@@ -95,21 +112,46 @@ jest.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
 }));
 
-// Mock UnifiedAdminYearFilter
-jest.mock('../components/UnifiedAdminYearFilter', () => {
-  return function MockUnifiedAdminYearFilter() {
-    return <div data-testid="unified-admin-year-filter">Filter Component</div>;
-  };
-});
-
-// Mock the filter adapter
-jest.mock('../components/UnifiedAdminYearFilterAdapters', () => ({
-  createRefAnalysisFilterAdapter: jest.fn(() => ({
-    administration: 'tenant1',
-    onAdministrationChange: jest.fn(),
-    years: ['2024'],
-    onYearsChange: jest.fn(),
-  })),
+// Mock FilterPanel
+jest.mock('../components/filters/FilterPanel', () => ({
+  FilterPanel: ({ filters }: any) => (
+    <div data-testid="filter-panel">
+      {filters.map((filter: any, index: number) => {
+        if (filter.type === 'search') {
+          return (
+            <div key={index} data-testid={`filter-${filter.label}`}>
+              <label>{filter.label}</label>
+              <input
+                type="text"
+                value={filter.value}
+                onChange={(e) => filter.onChange(e.target.value)}
+                placeholder={filter.placeholder}
+              />
+            </div>
+          );
+        }
+        return (
+          <div key={index} data-testid={`filter-${filter.label}`}>
+            <label>{filter.label}</label>
+            <select
+              multiple={filter.type === 'multi'}
+              value={filter.value}
+              onChange={(e) => {
+                const options = Array.from(e.target.selectedOptions, (option: any) => option.value);
+                filter.onChange(filter.type === 'multi' ? options : options[0]);
+              }}
+            >
+              {(filter.options || []).map((option: any, optIndex: number) => (
+                <option key={optIndex} value={filter.getOptionValue ? filter.getOptionValue(option) : option}>
+                  {filter.getOptionLabel ? filter.getOptionLabel(option) : option}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
+    </div>
+  ),
 }));
 
 // Mock TenantContext
