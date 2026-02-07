@@ -58,6 +58,14 @@ export interface GenericFilterProps<T> {
   isLoading?: boolean;
   /** Error message to display */
   error?: string | null;
+
+  // Styling (for dark backgrounds)
+  /** Label text color (default: inherit) */
+  labelColor?: string;
+  /** Select/Button background color (default: inherit) */
+  bg?: string;
+  /** Select/Button text color (default: inherit) */
+  color?: string;
 }
 
 /**
@@ -115,6 +123,9 @@ export function GenericFilter<T>({
   getOptionValue,
   isLoading = false,
   error = null,
+  labelColor,
+  bg,
+  color,
 }: GenericFilterProps<T>): React.ReactElement {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -205,7 +216,7 @@ export function GenericFilter<T>({
   if (!multiSelect) {
     return (
       <FormControl isDisabled={disabled || isLoading} size={size}>
-        <FormLabel htmlFor={`filter-${label}`}>{label}</FormLabel>
+        <FormLabel htmlFor={`filter-${label}`} color={labelColor}>{label}</FormLabel>
         {error && (
           <Alert status="error" mb={2} size="sm">
             <AlertIcon />
@@ -218,6 +229,8 @@ export function GenericFilter<T>({
           onChange={handleSingleSelectChange}
           placeholder={placeholder}
           size={size}
+          bg={bg}
+          color={color}
           aria-label={label}
           icon={isLoading ? <Spinner size="sm" /> : <ChevronDownIcon />}
         >
@@ -238,7 +251,7 @@ export function GenericFilter<T>({
   // Render multi-select mode
   return (
     <FormControl isDisabled={disabled || isLoading} size={size}>
-      <FormLabel htmlFor={`filter-${label}`}>{label}</FormLabel>
+      <FormLabel htmlFor={`filter-${label}`} color={labelColor}>{label}</FormLabel>
       {error && (
         <Alert status="error" mb={2} size="sm">
           <AlertIcon />
@@ -256,6 +269,10 @@ export function GenericFilter<T>({
           width="100%"
           textAlign="left"
           fontWeight="normal"
+          bg={bg}
+          color={color}
+          _hover={{ bg: bg }}
+          _active={{ bg: bg }}
           aria-label={label}
           aria-haspopup="true"
           aria-expanded={isOpen}

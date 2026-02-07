@@ -504,6 +504,9 @@ const ActualsReport: React.FC = () => {
                 multiSelect
                 size="sm"
                 isLoading={loading || tenantSwitching}
+                labelColor="white"
+                bg="gray.600"
+                color="white"
               />
             </GridItem>
             <GridItem>

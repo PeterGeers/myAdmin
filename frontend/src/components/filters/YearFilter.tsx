@@ -25,6 +25,15 @@ export interface YearFilterProps extends Omit<GenericFilterProps<string>, 'label
   
   /** Optional year generation configuration for dynamic year options */
   yearConfig?: YearGenerationConfig;
+  
+  /** Label text color for dark backgrounds (default: inherit) */
+  labelColor?: string;
+  
+  /** Background color for dark backgrounds (default: inherit) */
+  bg?: string;
+  
+  /** Text color for dark backgrounds (default: inherit) */
+  color?: string;
 }
 
 /**
@@ -90,6 +99,9 @@ export function YearFilter({
   multiSelect = false,
   availableOptions,
   yearConfig,
+  labelColor,
+  bg,
+  color,
   ...rest
 }: YearFilterProps): React.ReactElement {
   // Generate default label
@@ -113,6 +125,9 @@ export function YearFilter({
       placeholder={defaultPlaceholder}
       multiSelect={multiSelect}
       availableOptions={yearOptions}
+      labelColor={labelColor}
+      bg={bg}
+      color={color}
       // Year options are already strings, so we can use default label/value extractors
       getOptionLabel={(year) => year}
       getOptionValue={(year) => year}
