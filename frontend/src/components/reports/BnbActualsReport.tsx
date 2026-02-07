@@ -55,7 +55,7 @@ const BnbActualsReport: React.FC = () => {
   const [selectedYears, setSelectedYears] = useState<string[]>([new Date().getFullYear().toString()]);
   const [selectedListings, setSelectedListings] = useState<string[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
-  const [period, setPeriod] = useState<string>('year');
+  const period = 'year'; // Fixed period value for API calls
   const [displayFormat, setDisplayFormat] = useState<string>('2dec');
   const [viewType, setViewType] = useState<'listing' | 'channel'>('listing');
   const [selectedAmounts, setSelectedAmounts] = useState<string[]>(['amountGross', 'amountNett']);

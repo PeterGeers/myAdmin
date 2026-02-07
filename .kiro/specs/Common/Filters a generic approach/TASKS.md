@@ -287,15 +287,15 @@ This document outlines the implementation tasks for creating a generic filter sy
 ### 3.3 Migrate BnbActualsReport
 
 - [x] Update `frontend/src/components/reports/BnbActualsReport.tsx`
-- [ ] Replace `UnifiedAdminYearFilter` with `FilterPanel`
-- [ ] Configure multi-select year filter
+- [x] Replace `UnifiedAdminYearFilter` with `FilterPanel`
+- [x] Configure multi-select year filter
 - [x] Add listing filter (multi-select)
 - [x] Add channel filter (multi-select)
-- [ ] Update adapter to use new filter API
-- [ ] Test functionality (manual + automated)
-- [ ] Verify no regressions
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Update adapter to use new filter API
+- [x] Test functionality (manual + automated)
+- [x] Verify no regressions
+- [x] Check if tsc and lint pass correctly and minimize warnings
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -306,15 +306,15 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 3.4 Update Tests for Migrated Reports
 
-- [ ] Update `ActualsReport.test.tsx`
+- [x] Update `ActualsReport.test.tsx`
   - Replace UnifiedAdminYearFilter mocks with FilterPanel mocks
   - Test new filter interactions
   - Verify coverage maintained
-- [ ] Update `BtwReport.test.tsx`
+- [x] Update `BtwReport.test.tsx`
   - Replace UnifiedAdminYearFilter mocks with FilterPanel mocks
   - Test single-select behavior
   - Verify coverage maintained
-- [ ] Update `BnbActualsReport.test.tsx`
+- [x] Update `BnbActualsReport.test.tsx`
   - Replace UnifiedAdminYearFilter mocks with FilterPanel mocks
   - Test multi-filter interactions
   - Verify coverage maintained
