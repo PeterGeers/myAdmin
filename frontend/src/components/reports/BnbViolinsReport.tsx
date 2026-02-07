@@ -411,16 +411,12 @@ const BnbViolinsReport: React.FC = () => {
               }
             ]}
           />
-          <Button 
-            colorScheme="orange" 
-            onClick={fetchBnbViolinData} 
-            isLoading={bnbViolinLoading}
-            isDisabled={!currentTenant}
-            size="sm"
-            mt={4}
-          >
-            Generate Violin Charts
-          </Button>
+          {bnbViolinLoading && (
+            <Box mt={4}>
+              <Progress size="xs" isIndeterminate colorScheme="orange" />
+              <Text color="white" fontSize="sm" mt={2}>Loading violin chart data...</Text>
+            </Box>
+          )}
         </CardBody>
       </Card>
 
@@ -477,7 +473,7 @@ const BnbViolinsReport: React.FC = () => {
                 3. Optionally filter by specific listings or channels
               </Text>
               <Text color="white" fontSize="sm">
-                4. Click "Generate Violin Charts" to view the distribution analysis
+                4. Charts will automatically update when you change any filter
               </Text>
               <Text color="gray.400" fontSize="xs">
                 Violin charts show the full distribution of values with kernel density estimation.

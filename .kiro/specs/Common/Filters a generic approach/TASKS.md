@@ -352,8 +352,8 @@ This document outlines the implementation tasks for creating a generic filter sy
   - Multi-select years in paneklfilter
   - Add filters Report Type, Listings, Channels
   - Remove administration filter
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Check if tsc and lint pass correctly and minimize warnings
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
