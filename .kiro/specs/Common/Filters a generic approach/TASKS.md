@@ -269,13 +269,13 @@ This document outlines the implementation tasks for creating a generic filter sy
 - [x] Update `frontend/src/components/reports/BtwReport.tsx`
 - [x] Replace `UnifiedAdminYearFilter` with `FilterPanel`
 - [x] Configure single-select year filter
-- [ ] Add quarter filter (single-select)
-- [ ] Remove administration filter (uses tenant context)
-- [ ] Update adapter to use new filter API
-- [ ] Test functionality (manual + automated)
-- [ ] Verify no regressions
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Add quarter filter (single-select)
+- [x] Remove administration filter (uses tenant context)
+- [x] Update adapter to use new filter API
+- [x] Test functionality (manual + automated)
+- [x] Verify no regressions
+- [x] Check if tsc and lint pass correctly and minimize warnings
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Acceptance Criteria:**
 
@@ -286,11 +286,11 @@ This document outlines the implementation tasks for creating a generic filter sy
 
 ### 3.3 Migrate BnbActualsReport
 
-- [ ] Update `frontend/src/components/reports/BnbActualsReport.tsx`
+- [x] Update `frontend/src/components/reports/BnbActualsReport.tsx`
 - [ ] Replace `UnifiedAdminYearFilter` with `FilterPanel`
 - [ ] Configure multi-select year filter
-- [ ] Add listing filter (multi-select)
-- [ ] Add channel filter (multi-select)
+- [x] Add listing filter (multi-select)
+- [x] Add channel filter (multi-select)
 - [ ] Update adapter to use new filter API
 - [ ] Test functionality (manual + automated)
 - [ ] Verify no regressions

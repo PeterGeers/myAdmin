@@ -1,0 +1,24 @@
+Failed to generate BTW report: Template not found
+
+apiService.ts:87  POST http://localhost:5000/api/btw/generate-report 500 (INTERNAL SERVER ERROR)
+I_ @ apiService.ts:87
+await in I_
+R_ @ apiService.ts:163
+pne @ tenantApiService.ts:51
+onClick @ BtwReport.tsx:56
+$u @ react-dom-client.production.js:12317
+(anonymous) @ react-dom-client.production.js:12867
+Lt @ react-dom-client.production.js:1498
+td @ react-dom-client.production.js:12455
+Sh @ react-dom-client.production.js:15306
+xh @ react-dom-client.production.js:15274
+installHook.js:1 BTW report generation failed: Template not found
+overrideMethod @ installHook.js:1
+onClick @ BtwReport.tsx:71
+await in onClick
+$u @ react-dom-client.production.js:12317
+(anonymous) @ react-dom-client.production.js:12867
+Lt @ react-dom-client.production.js:1498
+td @ react-dom-client.production.js:12455
+Sh @ react-dom-client.production.js:15306
+xh @ react-dom-client.production.js:15274
