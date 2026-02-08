@@ -269,6 +269,11 @@ Reference: `backend/docs/guides/TEMPLATE_GUIDE.md`
 - Specify API contracts (request/response schemas)
 - Document security and performance considerations
 - Explain key technical decisions
+- **Reference reusable patterns and frameworks**:
+  - Generic filter framework (`.kiro/specs/Common/Filters a generic approach/`) for list/report filtering
+  - Template management patterns (Phase 2.6) for template-based features
+  - Authentication patterns (`backend/src/auth/`) for security
+  - Multi-tenant patterns (`tenant_context.py`) for data isolation
 
 ### Writing Tasks
 
