@@ -800,8 +800,7 @@ This document breaks down the Railway migration into manageable phases with deta
 - ✅ Both modules have comprehensive specifications
 - ✅ All aligned with Phase 1, 2.6, and 3 findings
 
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Deliverables**:
 

@@ -1,14 +1,18 @@
 # SysAdmin Module - Requirements
 
-**Status**: Draft
+**Status**: Updated
 **Created**: February 5, 2026
-**Last Updated**: February 5, 2026
+**Last Updated**: February 8, 2026
 
 ---
 
 ## 1. Overview
 
 The SysAdmin Module provides platform-level administration capabilities for managing the myAdmin system. This specification defines the requirements for implementing SysAdmin functionality, including tenant management, role management, and platform configuration.
+
+**Scope**: This module focuses on platform-level administration. Generic template management has been removed from scope - templates are managed per-tenant by Tenant Admins using the `tenant_template_config` table.
+
+**User Stories**: 15 user stories covering tenant management (9), platform configuration (3), and monitoring & audit (3).
 
 ---
 
@@ -146,81 +150,9 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 - All tenants have access to basic roles (User, Viewer)
 - Changes are logged in audit trail
 
-### 2.3 Generic Template Management
+### 2.3 Platform Configuration
 
-**US-SA-10: Upload Generic Template**
-
-- **As a** SysAdmin
-- **I want to** upload generic templates to Railway filesystem
-- **So that** all tenants can use default templates
-
-**Acceptance Criteria:**
-
-- SysAdmin can upload HTML/XLSX templates
-- Templates are stored in Railway filesystem (`backend/templates/generic/`)
-- Templates are versioned (v1, v2, etc.)
-- Template metadata stored in database (`generic_templates` table)
-- Field mappings stored in database (JSON column in `generic_templates` table)
-- All tenanonfirmation displayed
-
-**US-SA-11: Update Generic Template**
-
-- **As a** SysAdmin
-- **I want to** update existing generic templates
-- **So that** I can improve default templates
-
-**Acceptance Criteria:**
-
-- SysAdmin can upload new version of template
-- Version number increments automatically (v1 → v2 → v3)
-- Previous versions are archived (is_active=false)
-- Field mappings can be updated
-- Timestamp recorded for each version (created_at)
-- Old versions automatically cleaned up based on retention policy
-- Retention policy configurable (keep last N versions OR keep last X days)
-- Default retention: Keep last 5 versions
-- File and database record deleted for old versions
-- Active version always preserved (never deleted)
-- Tenants using generic template see new version
-- Tenants with custom templates are not affected
-- Changes are logged in audit trail
-
-**US-SA-12: View Generic Templates**
-
-- **As a** SysAdmin
-- **I want to** view all generic templates
-- **So that** I can manage platform defaults
-
-**Acceptance Criteria:**
-
-- SysAdmin can see list of generic templates
-- List shows: template name, type, version, last updated
-- SysAdmin can preview templates
-- SysAdmin can see version history
-- SysAdmin can download templates
-
-**US-SA-13: Configure Template Retention Policy**
-
-- **As a** SysAdmin
-- **I want to** configure how many template versions to keep
-- **So that** I can manage storage and maintain history
-
-**Acceptance Criteria:**
-
-- SysAdmin can set retention policy:
-  - Option 1: Keep last N versions (default: 5)
-  - Option 2: Keep versions from last X days (e.g., 90 days)
-  - Option 3: Keep all versions (no cleanup)
-- Retention policy applies to all generic templates
-- Active version always preserved (never deleted)
-- Cleanup runs automatically when new version uploaded
-- SysAdmin can manually trigger cleanup
-- Cleanup logs which versions were deleted
-- Changes are logged in audit trail
-
-### 2.4 Platform Configuration
-
-**US-SA-14: Manage Email Templates**
+**US-SA-10: Manage Email Templates**
 
 - **As a** SysAdmin
 - **I want to** manage email templates
@@ -234,7 +166,7 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 - Changes apply to all tenants
 - Templates are versioned
 
-**US-SA-15: Configure Platform Branding**
+**US-SA-11: Configure Platform Branding**
 
 - **As a** SysAdmin
 - **I want to** configure platform branding
@@ -248,7 +180,7 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 - Changes apply to login page and system emails
 - Tenant-specific branding overrides platform branding
 
-**US-SA-16: Manage System Settings**
+**US-SA-12: Manage System Settings**
 
 - **As a** SysAdmin
 - **I want to** manage system-wide settings
@@ -262,9 +194,9 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 - SysAdmin can configure storage quotas
 - Changes are logged in audit trail
 
-### 2.5 Monitoring & Audit
+### 2.4 Monitoring & Audit
 
-**US-SA-17: View System Audit Logs**
+**US-SA-13: View System Audit Logs**
 
 - **As a** SysAdmin
 - **I want to** view system-wide audit logs
@@ -278,7 +210,7 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 - Logs are exportable (CSV)
 - Cannot see tenant-specific data in logs
 
-**US-SA-18: Monitor Platform Health**
+**US-SA-14: Monitor Platform Health**
 
 - **As a** SysAdmin
 - **I want to** monitor platform health
@@ -292,7 +224,7 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 - Dashboard shows database connection status
 - Alerts for critical issues
 
-**US-SA-19: View Usage Statistics**
+**US-SA-15: View Usage Statistics**
 
 - **As a** SysAdmin
 - **I want to** view usage statistics
@@ -356,14 +288,7 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 
 ### 3.3 Storage
 
-**FR-SA-06: Generic Template Storage**
-
-- Generic templates must be stored on Railway filesystem
-- Templates must be in `backend/templates/generic/` directory
-- Templates must be version controlled (Git)
-- Templates must be deployed with application
-
-**FR-SA-07: Platform Assets Storage**
+**FR-SA-06: Platform Assets Storage**
 
 - Platform assets (logos, branding) must be stored on Railway filesystem
 - Assets must be in `backend/static/platform/` directory
@@ -379,7 +304,6 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 
 - Tenant list must load in < 2 seconds
 - Role list must load in < 1 second
-- Template upload must complete in < 5 seconds
 
 **NFR-SA-02: Scalability**
 
@@ -443,7 +367,6 @@ The SysAdmin Module provides platform-level administration capabilities for mana
 
 - ✅ SysAdmin can create and manage tenants
 - ✅ SysAdmin can create and manage roles
-- ✅ SysAdmin can upload and manage generic templates
 - ✅ SysAdmin can configure platform settings
 - ✅ SysAdmin can view audit logs and statistics
 - ✅ SysAdmin cannot access tenant-specific data
@@ -484,7 +407,6 @@ The following are explicitly out of scope for this specification:
 
 - AWS Cognito (user authentication and role management)
 - MySQL database (tenant and role metadata)
-- Railway filesystem (generic template storage)
 - Flask backend (API endpoints)
 - React frontend (SysAdmin UI)
 
@@ -511,19 +433,7 @@ The following are explicitly out of scope for this specification:
 **And** NewCorp appears in tenant list with status "Inactive"
 **And** John receives invitation email
 
-### Scenario 2: Upload Generic Template
-
-**Given** I am logged in as SysAdmin
-**When** I navigate to Generic Templates
-**And** I click "Upload Template"
-**And** I select template type "STR Invoice"
-**And** I upload file "str_invoice_generic.html"
-**And** I click "Upload"
-**Then** I see success message "Template uploaded successfully"
-**And** Template appears in list with version "v1"
-**And** All tenants can access the template
-
-### Scenario 3: View Audit Logs
+### Scenario 2: View Audit Logs
 
 **Given** I am logged in as SysAdmin
 **When** I navigate to Audit Logs
@@ -533,7 +443,7 @@ The following are explicitly out of scope for this specification:
 **And** Each event shows timestamp, user, tenant name
 **And** I cannot see tenant-specific data
 
-### Scenario 4: Cannot Access Tenant Data
+### Scenario 3: Cannot Access Tenant Data
 
 **Given** I am logged in as SysAdmin
 **When** I try to access tenant "GoodwinSolutions"
@@ -546,9 +456,10 @@ The following are explicitly out of scope for this specification:
 
 ## 9. Revision History
 
-| Version | Date       | Author       | Changes       |
-| ------- | ---------- | ------------ | ------------- |
-| 0.1     | 2026-02-05 | AI Assistant | Initial draft |
+| Version | Date       | Author       | Changes                                                                                     |
+| ------- | ---------- | ------------ | ------------------------------------------------------------------------------------------- |
+| 0.1     | 2026-02-05 | AI Assistant | Initial draft                                                                               |
+| 0.2     | 2026-02-08 | AI Assistant | Removed generic template management (US-SA-10 to US-SA-13) - aligned with simplified design |
 
 ---
 
