@@ -694,18 +694,22 @@ This document breaks down the Railway migration into manageable phases with deta
 
 #### 3.2 Configure SysAdmin Access
 
-**Important**: SysAdmin role already exists in Cognito. A user can have multiple roles across different tenants (e.g., TenantAdmin for GoodwinSolutions + SysAdmin for myAdmin).
+**Important**: SysAdmin role is for platform management functions only (user management, system configuration, monitoring). It does NOT grant access to any tenant data, including myAdmin tenant. A user can have multiple roles: TenantAdmin for their tenant(s) + SysAdmin for platform functions.
 
-- [ ] Ensure SysAdmin role has access to myAdmin tenant
-- [ ] Verify SysAdmin cannot access other tenant data (GoodwinSolutions, PeterPrive)
-- [ ] Test that users with combined roles (TenantAdmin + SysAdmin) can access both their tenant and myAdmin
-- [ ] Document role combination behavior
+- [ ] Verify SysAdmin role exists in Cognito
+- [ ] Verify SysAdmin cannot access tenant data (GoodwinSolutions, PeterPrive, myAdmin)
+- [ ] Test that users with combined roles (TenantAdmin + SysAdmin) can:
+  - Access their tenant data via TenantAdmin role
+  - Access platform management functions via SysAdmin role
+  - Cannot access other tenants' data
+- [ ] Document role separation and combination behavior
 
 #### 3.3 Testing (Database & Cognito Only)
 
-- [ ] Test SysAdmin access to myAdmin tenant (database queries)
-- [ ] Verify tenant isolation (SysAdmin cannot query GoodwinSolutions/PeterPrive data)
-- [ ] Test user with combined roles can switch between tenants
+- [ ] Test SysAdmin role has NO direct tenant data access
+- [ ] Verify tenant isolation (SysAdmin cannot query any tenant data)
+- [ ] Test user with TenantAdmin role can access their tenant data
+- [ ] Test user with combined roles (TenantAdmin + SysAdmin) can access both functions
 - [ ] Run security tests for role-based access control
 
 #### 3.4 Create Tenant Admin & SysAdmin Specifications
@@ -1073,9 +1077,12 @@ Note PG: Check what we really have
 
 **Prerequisites**: 5.12, 5.13 completed
 
-- [ ] Test SysAdmin can access myAdmin Google Drive
-- [ ] Test SysAdmin cannot access tenant Google Drives (GoodwinSolutions, PeterPrive)
-- [ ] Test users with combined roles can access both
+**Note**: myAdmin storage is for generic templates shared across all tenants. Access is controlled by TenantAdmin role for myAdmin tenant, NOT by SysAdmin role.
+
+- [ ] Test users with TenantAdmin role for myAdmin can access myAdmin Google Drive
+- [ ] Test SysAdmin role alone CANNOT access myAdmin Google Drive
+- [ ] Test SysAdmin role cannot access tenant Google Drives (GoodwinSolutions, PeterPrive)
+- [ ] Test users with combined roles (TenantAdmin for myAdmin + SysAdmin) can access myAdmin storage
 - [ ] Verify folder permissions are correct
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
