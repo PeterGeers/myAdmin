@@ -79,6 +79,11 @@ if (-not $status) {
 
 # Commit changes
 Write-Host "Committing changes..." -ForegroundColor Yellow
+
+# Note: Git pre-commit hook (.git/hooks/pre-commit) will also run automatically
+# to check for OpenRouter API keys before the commit is finalized.
+# This provides a second layer of security after the GitGuardian scan above.
+
 if ($Initial) {
     $currentDate = Get-Date -Format "yyyyMMdd"
     git commit -m "$currentDate commit: myAdmin Dashboard with mobile responsive improvements

@@ -814,118 +814,16 @@ This document breaks down the Railway migration into manageable phases with deta
 
 ---
 
-## Phase 4: Tenant Admin Module (4-5 days)
+## Phase 4a: Tenant Admin Module (4-5 days)
 
-**Goal**: Build UI for tenant administrators to manage their tenant
+**Goal**: Build UI for tenant administrators to manage their tenant. This will be handled in finish the tasks in .kiro\specs\Common\TenantAdmin-Module\TASKS.md
 
 **Prerequisites**:
 
 - Phase 1, 2, 3 completed (including 3.4 - specifications)
 - Frontend development environment ready
 
-### Tasks
-
-#### 4.1 Backend API Endpoints
-
-**Note**: Many template-related endpoints already exist from Phase 2.6 (Template Preview and Validation). Review `backend/src/tenant_admin_routes.py` to avoid duplication. Focus on credential management and user management endpoints.
-
-- [ ] Review existing `backend/src/tenant_admin_routes.py` from Phase 2.6
-- [ ] Implement credential management endpoints:
-  - POST `/api/tenant-admin/credentials` (upload Google Drive credentials)
-  - GET `/api/tenant-admin/credentials` (list credential types)
-  - DELETE `/api/tenant-admin/credentials/:type` (remove credentials)
-- [ ] Implement user management endpoints:
-  - POST `/api/tenant-admin/users` (create user with invitation)
-  - GET `/api/tenant-admin/users` (list tenant users)
-  - PUT `/api/tenant-admin/users/:id/roles` (assign roles)
-  - DELETE `/api/tenant-admin/users/:id` (remove user from tenant)
-- [ ] Review existing template management endpoints from Phase 2.6:
-  - POST `/api/tenant-admin/templates/preview` (already exists)
-  - POST `/api/tenant-admin/templates/validate` (already exists)
-  - POST `/api/tenant-admin/templates/approve` (already exists)
-  - POST `/api/tenant-admin/templates/reject` (already exists)
-- [ ] Add any missing template endpoints:
-  - GET `/api/tenant-admin/templates` (list templates)
-  - PUT `/api/tenant-admin/templates/:id/mappings` (configure field mappings)
-  - PUT `/api/tenant-admin/templates/:id/activate` (activate/deactivate)
-- [ ] Implement storage configuration endpoints:
-  - GET `/api/tenant-admin/storage` (get storage config)
-  - PUT `/api/tenant-admin/storage` (update folder IDs, storage type)
-- [ ] Add authentication and authorization checks
-- [ ] Write API tests
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 4.2 Frontend Components
-
-**Note**: Template Management components already exist from Phase 2.6. Review `frontend/src/components/TenantAdmin/TemplateManagement/` before creating new components. Focus on credentials and user management UI.
-
-- [x] Create `frontend/src/components/TenantAdmin/` folder
-- [x] Create TenantAdminDashboard component
-- [x] Review existing TemplateManagement components from Phase 2.6:
-  - TemplateManagement.tsx (main container)
-  - TemplateUpload.tsx
-  - TemplatePreview.tsx
-  - ValidationResults.tsx
-  - TemplateApproval.tsx
-  - AIHelpButton.tsx
-- [ ] Create CredentialsManagement component
-  - Upload credentials.json
-  - OAuth flow for Google Drive (reference: diagnose_google_token.py)
-  - Display credential status
-  - Test connection button
-- [ ] Create UserManagement component
-  - Create user form (email, name)
-  - Role assignment dropdown
-  - Send invitation button
-  - User list with roles
-  - Edit/delete user actions
-- [ ] Enhance existing TemplateManagement component (if needed):
-  - Add template list view
-  - Add activate/deactivate toggle
-  - Add field mappings editor
-- [ ] Create StorageConfiguration component
-  - Folder ID inputs
-  - Storage type selector (Google Drive/S3)
-  - Test connection button
-  - Display current configuration
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 4.3 User Invitation System
-
-- [ ] Create email template for user invitation
-- [ ] Implement invitation email sending (via AWS SNS)
-- [ ] Generate temporary password or magic link
-- [ ] Create invitation acceptance flow (frontend)
-- [ ] Test invitation flow end-to-end
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 4.4 Access Control
-
-- [ ] Verify Tenant Administrator can only access their tenant
-- [ ] Verify SysAdmin cannot access tenant data (except myAdmin tenant)
-- [ ] Test users with combined roles (TenantAdmin + SysAdmin) can access both their tenant and myAdmin
-- [ ] Document role combination behavior and access patterns
-- [ ] Test role-based permissions for all endpoints
-- [ ] Add audit logging for admin actions
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 4.5 Testing
-
-- [ ] Test all CRUD operations
-- [ ] Test user invitation flow
-- [ ] Test template upload and configuration
-- [ ] Test credential management
-- [ ] Run E2E tests
-- [ ] Test on multiple browsers
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-- [ ] Test on multiple browsers
-
-**Deliverables**:
+*Deliverables**:
 
 - ✅ Tenant Admin Module UI
 - ✅ All backend APIs working
@@ -933,6 +831,34 @@ This document breaks down the Railway migration into manageable phases with deta
 - ✅ Template management working
 - ✅ All tests passing
 
+## Phase 4b: SysAdmin Module
+
+**Goal**: Build UI for SysAdmin to manage the platform. This will be handled in finish the tasks in .kiro\specs\Common\SysAdmin-Module\TASKS.md
+
+## . Success Criteria
+
+### Functional Success
+
+- ✅ SysAdmin can create and manage tenants
+- ✅ SysAdmin can create and manage roles
+- ✅ SysAdmin can configure platform settings
+- ✅ SysAdmin can view audit logs and statistics
+- ✅ SysAdmin cannot access tenant-specific data
+
+### Technical Success
+
+- ✅ All unit tests passing (80%+ coverage)
+- ✅ All integration tests passing
+- ✅ All API endpoints documented
+- ✅ All security requirements met
+- ✅ Performance requirements met
+
+### User Acceptance
+
+- ✅ SysAdmin can complete all tasks without assistance
+- ✅ SysAdmin UI is intuitive and easy to use
+- ✅ SysAdmin can troubleshoot issues using audit logs
+- ✅ No security vulnerabilities identified
 ---
 
 ## Phase 5: Railway Deployment (2-3 days)
