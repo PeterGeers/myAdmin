@@ -670,16 +670,14 @@ This document breaks down the Railway migration into manageable phases with deta
 
 ---
 
-## Phase 3: myAdmin System Tenant (1 day)
+## Phase 3: myAdmin System Tenant (1-2 days)
 
-**Goal**: Create myAdmin tenant for platform management (database and Cognito only)
+**Goal**: Create myAdmin tenant for platform management
 
 **Prerequisites**:
 
 - Phase 1 completed
-- Phase 2 completed
-
-**Note**: Storage setup (Google Drive folders, template migration) will be done in Phase 5 after Railway deployment.
+- Phase 2 completed for comments See Note PG:
 
 ### Tasks
 
@@ -690,61 +688,52 @@ This document breaks down the Railway migration into manageable phases with deta
 - [x] Store myAdmin Google Drive credentials in database
 - [x] Configure myAdmin tenant in Cognito
 
-**Verification**: myAdmin tenant exists in database and Cognito, credentials stored.
+Note PG: Check
 
-#### 3.2 Configure SysAdmin Access
+#### 3.2 Setup myAdmin Storage Structure
 
-**Important**: SysAdmin role already exists in Cognito. A user can have multiple roles across different tenants (e.g., TenantAdmin for GoodwinSolutions + SysAdmin for myAdmin).
+Note PG: This task must be placed in phase 5
+
+- [ ] Create folder structure in myAdmin Google Drive:
+  - Generic Templates/
+  - Email Templates/
+  - Platform Assets/Logos/
+  - Platform Assets/Branding/
+- [ ] Upload generic templates to myAdmin Drive
+- [ ] Store folder IDs in configuration
+
+#### 3.3 Migrate Generic Templates
+
+Note PG: This task must be placed in phase 5
+
+- [ ] Identify generic templates (used by all tenants)
+- [ ] Move to myAdmin Google Drive
+- [ ] Update template references in code
+- [ ] Test template access from myAdmin tenant
+
+#### 3.4 Configure SysAdmin Access
+
+Note PG: The SysAdmin has already a role in Cognito but we still need a tenant myAdmin. The SysAdmin can noot access other tennats but the user with different roles of tennnants and SysAdmin should be able.
 
 - [ ] Ensure SysAdmin role has access to myAdmin tenant
-- [ ] Verify SysAdmin cannot access other tenant data (GoodwinSolutions, PeterPrive)
-- [ ] Test that users with combined roles (TenantAdmin + SysAdmin) can access both their tenant and myAdmin
-- [ ] Document role combination behavior
+- [ ] Verify SysAdmin cannot access other tenant data
+- [ ] Test myAdmin tenant isolation
 
-#### 3.3 Testing (Database & Cognito Only)
+#### 3.5 Testing
 
-- [ ] Test SysAdmin access to myAdmin tenant (database queries)
-- [ ] Verify tenant isolation (SysAdmin cannot query GoodwinSolutions/PeterPrive data)
-- [ ] Test user with combined roles can switch between tenants
-- [ ] Run security tests for role-based access control
+Note PG: Test generic template access (This is possible in phase 5)
 
-#### 3.4 Create Tenant Admin & SysAdmin Specifications
-
-**Prerequisites**: Phase 3.1-3.3 completed
-
-**Purpose**: Document requirements and design before implementing Phase 4
-
-- [ ] Create `.kiro/specs/Common/TenantAdmin-Module/` folder
-- [ ] Create `requirements.md` (user stories, acceptance criteria)
-  - Credential management requirements
-  - User management requirements
-  - Template management requirements (reference Phase 2.6)
-  - Storage configuration requirements
-- [ ] Create `design.md` (technical design)
-  - API endpoint specifications
-  - Database schema (if new tables needed)
-  - Frontend component architecture
-  - Authentication and authorization design
-- [ ] Create `TASKS.md` (detailed implementation tasks)
-  - Break down Phase 4 into granular tasks
-  - Add time estimates
-  - Add dependencies
-- [ ] Review and approve specifications
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [ ] Test SysAdmin access to myAdmin tenant
+- [ ] Test generic template access (This is possible in phase 5)
+- [ ] Verify tenant isolation
+- [ ] Run security tests
 
 **Deliverables**:
 
-- ✅ myAdmin tenant created in database
-- ✅ myAdmin tenant configured in Cognito
-- ✅ SysAdmin role access configured
-- ✅ Tenant isolation verified
-- ✅ Complete requirements documentation
-- ✅ Complete technical design
-- ✅ Detailed implementation tasks
+- ✅ myAdmin tenant created
+- ✅ Generic templates in myAdmin Drive
+- ✅ SysAdmin access configured
 - ✅ All tests passing
-
-**Note**: Google Drive storage setup, template migration, and template access testing will be done in Phase 5 (tasks 5.12-5.16). This keeps the Railway migration TASKS.md focused on execution while detailed module specifications live in their own folder.
 
 ---
 
@@ -754,16 +743,16 @@ This document breaks down the Railway migration into manageable phases with deta
 
 **Prerequisites**:
 
-- Phase 1, 2, 3 completed (including 3.4 - specifications)
+- Phase 1, 2, 3 completed
 - Frontend development environment ready
 
 ### Tasks
 
 #### 4.1 Backend API Endpoints
 
-**Note**: Many template-related endpoints already exist from Phase 2.6 (Template Preview and Validation). Review `backend/src/tenant_admin_routes.py` to avoid duplication. Focus on credential management and user management endpoints.
+Note PG: Please check what we already have specific template related a lot has been done
 
-- [ ] Review existing `backend/src/tenant_admin_routes.py` from Phase 2.6
+- [ ] Create `backend/src/tenant_admin_routes.py`
 - [ ] Implement credential management endpoints:
   - POST `/api/tenant-admin/credentials` (upload Google Drive credentials)
   - GET `/api/tenant-admin/credentials` (list credential types)
@@ -773,12 +762,8 @@ This document breaks down the Railway migration into manageable phases with deta
   - GET `/api/tenant-admin/users` (list tenant users)
   - PUT `/api/tenant-admin/users/:id/roles` (assign roles)
   - DELETE `/api/tenant-admin/users/:id` (remove user from tenant)
-- [ ] Review existing template management endpoints from Phase 2.6:
-  - POST `/api/tenant-admin/templates/preview` (already exists)
-  - POST `/api/tenant-admin/templates/validate` (already exists)
-  - POST `/api/tenant-admin/templates/approve` (already exists)
-  - POST `/api/tenant-admin/templates/reject` (already exists)
-- [ ] Add any missing template endpoints:
+- [ ] Implement template management endpoints:
+  - POST `/api/tenant-admin/templates` (upload template)
   - GET `/api/tenant-admin/templates` (list templates)
   - PUT `/api/tenant-admin/templates/:id/mappings` (configure field mappings)
   - PUT `/api/tenant-admin/templates/:id/activate` (activate/deactivate)
@@ -787,65 +772,46 @@ This document breaks down the Railway migration into manageable phases with deta
   - PUT `/api/tenant-admin/storage` (update folder IDs, storage type)
 - [ ] Add authentication and authorization checks
 - [ ] Write API tests
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
 
 #### 4.2 Frontend Components
 
-**Note**: Template Management components already exist from Phase 2.6. Review `frontend/src/components/TenantAdmin/TemplateManagement/` before creating new components. Focus on credentials and user management UI.
+Note PG: check what we already have
 
 - [x] Create `frontend/src/components/TenantAdmin/` folder
 - [x] Create TenantAdminDashboard component
-- [x] Review existing TemplateManagement components from Phase 2.6:
-  - TemplateManagement.tsx (main container)
-  - TemplateUpload.tsx
-  - TemplatePreview.tsx
-  - ValidationResults.tsx
-  - TemplateApproval.tsx
-  - AIHelpButton.tsx
 - [ ] Create CredentialsManagement component
   - Upload credentials.json
-  - OAuth flow for Google Drive (reference: diagnose_google_token.py)
+  - OAuth flow for Google Drive // diagnose_google_token.py
   - Display credential status
-  - Test connection button
 - [ ] Create UserManagement component
   - Create user form (email, name)
   - Role assignment dropdown
   - Send invitation button
   - User list with roles
-  - Edit/delete user actions
-- [ ] Enhance existing TemplateManagement component (if needed):
-  - Add template list view
-  - Add activate/deactivate toggle
-  - Add field mappings editor
+- [ ] Create TemplateManagement component
+  - Upload template file
+  - Configure field mappings UI
+  - Logo upload/selection
+  - Template preview
+  - Activate/deactivate toggle
 - [ ] Create StorageConfiguration component
   - Folder ID inputs
   - Storage type selector (Google Drive/S3)
   - Test connection button
-  - Display current configuration
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
 
 #### 4.3 User Invitation System
 
 - [ ] Create email template for user invitation
 - [ ] Implement invitation email sending (via AWS SNS)
 - [ ] Generate temporary password or magic link
-- [ ] Create invitation acceptance flow (frontend)
 - [ ] Test invitation flow end-to-end
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
 
 #### 4.4 Access Control
 
 - [ ] Verify Tenant Administrator can only access their tenant
-- [ ] Verify SysAdmin cannot access tenant data (except myAdmin tenant)
-- [ ] Test users with combined roles (TenantAdmin + SysAdmin) can access both their tenant and myAdmin
-- [ ] Document role combination behavior and access patterns
-- [ ] Test role-based permissions for all endpoints
+- [ ] Verify SysAdmin cannot access tenant data \*(Note PG: A user with combined roles can??)
+- [ ] Test role-based permissions
 - [ ] Add audit logging for admin actions
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
 
 #### 4.5 Testing
 
@@ -854,9 +820,6 @@ This document breaks down the Railway migration into manageable phases with deta
 - [ ] Test template upload and configuration
 - [ ] Test credential management
 - [ ] Run E2E tests
-- [ ] Test on multiple browsers
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
 - [ ] Test on multiple browsers
 
 **Deliverables**:
@@ -1042,72 +1005,6 @@ Note PG: Check what we really have
 - [ ] Update documentation with production details
 - [ ] Celebrate! 🎉
 
-#### 5.12 Setup myAdmin Storage Structure
-
-**Prerequisites**: Railway deployed, myAdmin tenant created
-
-- [ ] Create folder structure in myAdmin Google Drive:
-  - Generic Templates/
-  - Email Templates/
-  - Platform Assets/Logos/
-  - Platform Assets/Branding/
-- [ ] Upload generic templates to myAdmin Drive
-- [ ] Store folder IDs in configuration
-- [ ] Verify folder access from Railway application
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 5.13 Migrate Generic Templates
-
-**Prerequisites**: 5.12 completed
-
-- [ ] Identify generic templates (used by all tenants)
-- [ ] Move to myAdmin Google Drive
-- [ ] Update template references in code
-- [ ] Test template access from myAdmin tenant
-- [ ] Verify tenant-specific templates still work
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 5.14 Test myAdmin Storage Access
-
-**Prerequisites**: 5.12, 5.13 completed
-
-- [ ] Test SysAdmin can access myAdmin Google Drive
-- [ ] Test SysAdmin cannot access tenant Google Drives (GoodwinSolutions, PeterPrive)
-- [ ] Test users with combined roles can access both
-- [ ] Verify folder permissions are correct
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 5.15 Test Generic Template Access
-
-**Prerequisites**: 5.13 completed
-
-- [ ] Test generic template loading from myAdmin Drive
-- [ ] Test tenant-specific template loading from tenant Drives
-- [ ] Verify template fallback logic (tenant → generic)
-- [ ] Test template rendering with both generic and tenant templates
-- [ ] Run E2E tests for all report types
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
-#### 5.16 Template Deduplication Cleanup
-
-**Prerequisites**: 5.15 completed
-
-**Purpose**: Address duplicate templates in Google Drive (same name, different file IDs)
-
-- [ ] Audit all templates in Google Drive (list all file IDs and names)
-- [ ] Identify duplicates (same name, different IDs)
-- [ ] Determine which file ID to keep (most recent or explicitly chosen)
-- [ ] Update `tenant_template_config` table with correct file IDs
-- [ ] Delete duplicate template files from Google Drive
-- [ ] Verify all reports still work with deduplicated templates
-- [ ] Document template file ID management process
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
-
 **Deliverables**:
 
 - ✅ Application running on Railway
@@ -1115,22 +1012,20 @@ Note PG: Check what we really have
 - ✅ All features tested and working
 - ✅ Monitoring in place
 - ✅ Documentation updated
-- ✅ myAdmin storage structure created
-- ✅ Generic templates migrated
-- ✅ Template access verified
-- ✅ Duplicate templates cleaned up
 
 ---
 
 ## 📊 Progress Tracking
 
-| Phase                        | Status         | Duration | Start Date | End Date | Notes                                                    |
-| ---------------------------- | -------------- | -------- | ---------- | -------- | -------------------------------------------------------- |
-| Phase 1: Credentials         | ✅ Completed   | 4 days   | -          | -        | All tasks complete                                       |
-| Phase 2: Templates           | ✅ Completed   | 3 days   | -          | -        | Basic functionality complete, post-migration work needed |
-| Phase 3: myAdmin Tenant      | 🔄 In Progress | 1 day    | -          | -        | Database & Cognito only                                  |
-| Phase 4: Tenant Admin Module | ⏸️ Not Started | 4-5 days | -          | -        | Requires Phase 3.4 (specs) first                         |
-| Phase 5: Railway Deployment  | ⏸️ Not Started | 2-3 days | -          | -        | Includes storage setup (5.12-5.16)                       |
+Note PG: Update this table reflects the 5 phase before
+
+| Phase                        | Status         | Start Date | End Date | Notes |
+| ---------------------------- | -------------- | ---------- | -------- | ----- |
+| Phase 1: Credentials         | ⏸️ Not Started | -          | -        | -     |
+| Phase 2: Templates           | ⏸️ Not Started | -          | -        | -     |
+| Phase 3: myAdmin Tenant      | ⏸️ Not Started | -          | -        | -     |
+| Phase 4: Tenant Admin Module | ⏸️ Not Started | -          | -        | -     |
+| Phase 5: Railway Deployment  | ⏸️ Not Started | -          | -        | -     |
 
 **Legend**:
 
@@ -1138,7 +1033,6 @@ Note PG: Check what we really have
 - 🔄 In Progress
 - ✅ Completed
 - ⚠️ Blocked
-- 🔍 Under Review
 
 ---
 
@@ -1179,5 +1073,6 @@ Note PG: Check what we really have
 - Test thoroughly in local environment before Railway deployment
 - Document any deviations from the plan
 - Update this file as tasks are completed
-- **Git uploads**: Each major task group includes `git-upload.ps1` step for version control
-- **Specifications**: Detailed module specs (TenantAdmin, SysAdmin) are in separate folders under `.kiro/specs/` to keep this TASKS.md focused on execution
+
+Note PG: Add a task git-upload.ps1 after each group of tasks from 4.2 -5.x
+Note PG: Do we need a requirements and design of the Tenant and the SysAdmin functions. If we need it add a task before we start working on it to make a requirements.md design.md and update the tasks in a .kiro\specs\subject. So we can keep this task focussed on execution of the migration and have specialized ityems on tyhe subjects
