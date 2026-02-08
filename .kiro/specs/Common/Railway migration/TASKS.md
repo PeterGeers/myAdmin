@@ -733,39 +733,52 @@ This document breaks down the Railway migration into manageable phases with deta
 
 **Prerequisites**: Phase 3.1-3.3 completed
 
-**Purpose**: Document requirements and design before implementing Phase 4
+**Purpose**: Review and validate existing specifications against Phase 3 findings before implementing Phase 4
 
-- [ ] Review `.kiro/specs/Common/TenantAdmin-Module/` folder
-- [ ] Review `requirements.md` (user stories, acceptance criteria)
-  - Credential management requirements
-  - User management requirements
-  - Template management requirements (reference Phase 2.6)
-  - Storage configuration requirements
-- [ ] Review `design.md` (technical design)
-  - API endpoint specifications
-  - Database schema (if new tables needed)
-  - Frontend component architecture
-  - Authentication and authorization design
-- [ ] Review `TASKS.md` (detailed implementation tasks)
-  - Break down Phase 4 into granular tasks
-  - Add time estimates
-  - Add dependencies
-- [ ] Review and approve specifications
+**Existing Documentation**:
+
+- `.kiro/specs/Common/TenantAdmin-Module/` (requirements.md, design.md, README.md)
+- `.kiro/specs/Common/SysAdmin-Module/` (requirements.md, design.md, TASKS.md, README.md, MULTI_ROLE_USERS.md, CHANGELOG.md)
+
+**Review Tasks**:
+
+- [ ] Review TenantAdmin-Module specifications
+  - [ ] Review `requirements.md` - verify credential, template, user management requirements
+  - [ ] Review `design.md` - verify API endpoints, database schema, frontend architecture
+  - [ ] Create `TASKS.md` if missing - break down Phase 4 implementation tasks
+  - [ ] Update based on Phase 2.6 (template management) and Phase 3 findings
+
+- [ ] Review SysAdmin-Module specifications
+  - [ ] Review `requirements.md` - verify platform management requirements, NO tenant data access
+  - [ ] Review `design.md` - verify admin routes, monitoring endpoints, authentication
+  - [ ] Review `TASKS.md` - check if up-to-date, mark completed tasks
+  - [ ] Review `MULTI_ROLE_USERS.md` - verify aligns with Phase 3.2/3.3 findings
+  - [ ] Update based on ROLE_SEPARATION_AND_COMBINATION.md
+
+- [ ] Cross-Reference and Validate
+  - [ ] Ensure TenantAdmin and SysAdmin specs don't conflict
+  - [ ] Verify role separation is consistent across all docs
+  - [ ] Check that Phase 2.6 template work is properly referenced
+  - [ ] Ensure Phase 3 findings are incorporated
+
+- [ ] Create Review Summary
+  - [ ] Document what was reviewed
+  - [ ] List any gaps or inconsistencies found
+  - [ ] Document updates made
+  - [ ] Confirm specifications are ready for Phase 4
+
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 
 **Deliverables**:
 
-- ✅ myAdmin tenant created in database
-- ✅ myAdmin tenant configured in Cognito
-- ✅ SysAdmin role access configured
-- ✅ Tenant isolation verified
-- ✅ Complete requirements documentation
-- ✅ Complete technical design
-- ✅ Detailed implementation tasks
-- ✅ All tests passing
+- ✅ TenantAdmin-Module specifications reviewed and updated
+- ✅ SysAdmin-Module specifications reviewed and updated
+- ✅ All specifications aligned with Phase 3 findings
+- ✅ Review summary document created
+- ✅ Specifications ready for Phase 4 implementation
 
-**Note**: Google Drive storage setup, template migration, and template access testing will be done in Phase 5 (tasks 5.12-5.16). This keeps the Railway migration TASKS.md focused on execution while detailed module specifications live in their own folder.
+**Note**: This is a review and validation task, not creation from scratch. Both modules already have substantial documentation that needs to be validated against actual implementation and Phase 3 findings.
 
 ---
 
