@@ -127,6 +127,8 @@ Response:
 - Filter by role, status
 - Paginated results
 
+**Frontend Implementation**: Consider using the generic filter framework (`.kiro/specs/Common/Filters a generic approach/`) for consistent filtering UI across the platform.
+
 Response:
 
 ```json
@@ -1092,9 +1094,43 @@ ALTER TABLE tenants ADD COLUMN settings JSON;
 
 ---
 
-## 14. Revision History
+## 14. Additional Reusable Patterns & Frameworks
+
+Beyond Phase 2.6 patterns, this design can leverage:
+
+### 14.1 Authentication & Authorization
+
+- **Pattern**: `backend/src/auth/cognito_utils.py` - JWT token validation
+- **Pattern**: `backend/src/auth/tenant_context.py` - Tenant context and authorization
+- **Decorators**: `@cognito_required`, `@tenant_required`
+- **Usage**: All TenantAdmin endpoints use these decorators
+
+### 14.2 Multi-Tenant Data Isolation
+
+- **Pattern**: `tenant_context.py` - Tenant-based query filtering
+- **Implementation**: SQL queries filtered by `administration` column
+- **Verification**: Phase 3.3 tests confirm isolation works correctly
+
+### 14.3 Frontend Filtering (Recommended)
+
+- **Framework**: `.kiro/specs/Common/Filters a generic approach/`
+- **Usage**: User list filtering (role, status, pagination)
+- **Benefits**: Consistent UI/UX, reduced code duplication, reusable components
+- **Status**: Optional for Phase 4, recommended for consistency
+
+### 14.4 References
+
+- Phase 2.6: Template management patterns
+- Phase 3.2: Role separation and combination
+- Phase 3.3: Database and Cognito integration tests
+- Generic filter framework: `.kiro/specs/Common/Filters a generic approach/`
+
+---
+
+## 15. Revision History
 
 | Version | Date       | Author       | Changes                                 |
 | ------- | ---------- | ------------ | --------------------------------------- |
 | 0.1     | 2026-02-05 | AI Assistant | Initial draft (incomplete)              |
 | 1.0     | 2026-02-08 | AI Assistant | Complete design with Phase 2.6 patterns |
+| 1.1     | 2026-02-08 | AI Assistant | Added reusable patterns section         |

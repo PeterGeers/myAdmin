@@ -294,6 +294,8 @@ When Tenant_Admin manages users, the UI shows only Cognito groups for enabled mo
 - sort_order: string (asc|desc, default desc)
 - search: string (search in administration, display_name, contact_email)
 
+**Frontend Implementation**: Consider using the generic filter framework (`.kiro/specs/Common/Filters a generic approach/`) for consistent filtering UI across the platform.
+
 **Response:**
 
 ```json
@@ -727,6 +729,40 @@ See TASKS.md for detailed implementation tasks.
 - Bulk tenant operations (create/update multiple tenants)
 - AI usage monitoring UI (section 4.5)
 
-```
+---
 
-```
+## 8. Reusable Patterns & Frameworks
+
+This design leverages existing patterns and frameworks for consistency and code reuse:
+
+### 8.1 Authentication & Authorization
+
+- **Pattern**: `backend/src/auth/cognito_utils.py` - JWT token validation
+- **Pattern**: `backend/src/auth/tenant_context.py` - Tenant context and authorization
+- **Decorators**: `@cognito_required`, `@tenant_required`
+- **Usage**: All SysAdmin endpoints use these decorators for authentication
+
+### 8.2 Multi-Tenant Data Isolation
+
+- **Pattern**: `tenant_context.py` - Tenant-based query filtering
+- **Implementation**: SQL queries filtered by `administration` column
+- **Verification**: Phase 3.3 tests confirm isolation works correctly
+
+### 8.3 Frontend Filtering (Recommended)
+
+- **Framework**: `.kiro/specs/Common/Filters a generic approach/`
+- **Usage**: Tenant list filtering (status, search, pagination, sorting)
+- **Benefits**: Consistent UI/UX, reduced code duplication, reusable components
+- **Status**: Optional for Phase 4, recommended for consistency
+
+### 8.4 Template Management (Not Used)
+
+- **Note**: SysAdmin does NOT manage templates
+- **Reason**: Templates are managed per-tenant by Tenant_Admin
+- **Implementation**: Use `tenant_template_config` with `administration='myAdmin'` for myAdmin templates
+
+### 8.5 References
+
+- Phase 3.2: Role separation and combination (`.kiro/specs/Common/Role based access/ROLE_SEPARATION_AND_COMBINATION.md`)
+- Phase 3.3: Database and Cognito integration tests
+- Generic filter framework: `.kiro/specs/Common/Filters a generic approach/`
