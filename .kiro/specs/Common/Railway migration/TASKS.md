@@ -698,10 +698,10 @@ This document breaks down the Railway migration into manageable phases with deta
 
 - [ ] Verify SysAdmin role exists in Cognito
 - [ ] Verify SysAdmin cannot access tenant data (GoodwinSolutions, PeterPrive, myAdmin)
-- [ ] Test that users with combined roles (TenantAdmin + SysAdmin) can:
-  - Access their tenant data via TenantAdmin role
-  - Access platform management functions via SysAdmin role
-  - Cannot access other tenants' data
+- [ ] Test that users with combined roles (TenantAdmin + SysAdmin):
+  - [ ] Can access their tenant data via TenantAdmin role
+  - [ ] Can access platform management functions via SysAdmin role
+  - [ ] Cannot access other tenants' data
 - [ ] Document role separation and combination behavior
 
 #### 3.3 Testing (Database & Cognito Only)
