@@ -1,0 +1,760 @@
+# Tenant Administration endpoints (Tenant_Admin role only)
+
+# Tenant Configuration
+tenant-config:
+  get:
+    tags:
+      - Tenant Administration
+    summary: Get tenant configuration
+    description: Get configuration settings for current tenant (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    responses:
+      '200':
+        description: Tenant configuration retrieved
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                tenant:
+                  type: string
+                configs:
+                  type: array
+                  items:
+                    type: object
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    tags:
+      - Tenant Administration
+    summary: Set tenant configuration
+    description: Update configuration settings for current tenant (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - config_key
+              - config_value
+            properties:
+              config_key:
+                type: string
+              config_value:
+                type: string
+              is_secret:
+                type: boolean
+    responses:
+      '200':
+        description: Configuration updated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+# Tenant Users (legacy endpoint)
+tenant-users:
+  get:
+    tags:
+      - Tenant Administration
+    summary: Get tenant users (legacy)
+    description: Get users for current tenant (Tenant_Admin only). Use /tenant-admin/users instead.
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    responses:
+      '200':
+        description: Tenant users retrieved
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                users:
+                  type: array
+                  items:
+                    type: object
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+# Tenant User Roles (legacy endpoint)
+tenant-user-roles:
+  post:
+    tags:
+      - Tenant Administration
+    summary: Assign role to user (legacy)
+    description: Assign role to user (Tenant_Admin only). Use /tenant-admin/users/{username}/groups instead.
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - role
+            properties:
+              role:
+                type: string
+                enum: [Finance_CRUD, Finance_Read, Finance_Export, STR_CRUD, STR_Read, STR_Export]
+    responses:
+      '200':
+        description: Role assigned successfully
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+# Tenant Modules
+tenant-modules:
+  get:
+    tags:
+      - Tenant Module Management
+    summary: Get tenant module access
+    description: Get enabled modules for current tenant
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    responses:
+      '200':
+        description: Module access retrieved
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                modules:
+                  type: object
+                  properties:
+                    Finance:
+                      type: boolean
+                    STR:
+                      type: boolean
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    tags:
+      - Tenant Module Management
+    summary: Update tenant module access
+    description: Update enabled modules for current tenant (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - module
+              - enabled
+            properties:
+              module:
+                type: string
+                enum: [Finance, STR]
+              enabled:
+                type: boolean
+    responses:
+      '200':
+        description: Module access updated
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+# Template Management
+templates-get:
+  get:
+    tags:
+      - Template Management
+    summary: Get current active template
+    description: Retrieve the currently active template content and metadata (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: template_type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [str_invoice_nl, str_invoice_en, btw_aangifte, aangifte_ib, toeristenbelasting, financial_report]
+    responses:
+      '200':
+        description: Template retrieved successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                template_type:
+                  type: string
+                template_content:
+                  type: string
+                field_mappings:
+                  type: object
+                metadata:
+                  type: object
+      '404':
+        description: No active template found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+templates-preview:
+  post:
+    tags:
+      - Template Management
+    summary: Generate template preview with sample data
+    description: Generate a preview of the template with sample data (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - template_type
+              - template_content
+            properties:
+              template_type:
+                type: string
+                enum: [str_invoice_nl, str_invoice_en, btw_aangifte, aangifte_ib, toeristenbelasting]
+              template_content:
+                type: string
+              field_mappings:
+                type: object
+    responses:
+      '200':
+        description: Preview generated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                preview_html:
+                  type: string
+                validation:
+                  type: object
+      '400':
+        description: Validation failed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+templates-validate:
+  post:
+    tags:
+      - Template Management
+    summary: Validate template (faster than preview)
+    description: Validate template syntax and structure without generating preview (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - template_type
+              - template_content
+            properties:
+              template_type:
+                type: string
+              template_content:
+                type: string
+    responses:
+      '200':
+        description: Validation completed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                validation:
+                  type: object
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+templates-approve:
+  post:
+    tags:
+      - Template Management
+    summary: Approve and activate template
+    description: Approve template and set it as active for the tenant (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - template_type
+              - template_content
+            properties:
+              template_type:
+                type: string
+              template_content:
+                type: string
+              field_mappings:
+                type: object
+              notes:
+                type: string
+    responses:
+      '200':
+        description: Template approved and activated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+templates-ai-help:
+  post:
+    tags:
+      - Template Management
+    summary: Get AI-powered fix suggestions
+    description: Get AI-powered suggestions to fix template validation errors (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - template_type
+              - template_content
+              - validation_errors
+            properties:
+              template_type:
+                type: string
+              template_content:
+                type: string
+              validation_errors:
+                type: array
+                items:
+                  type: object
+    responses:
+      '200':
+        description: AI suggestions generated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                suggestions:
+                  type: array
+                  items:
+                    type: object
+      '403':
+        description: Tenant admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+# Tenant User Management (new endpoints)
+users-list-create:
+  get:
+    tags:
+      - Tenant User Management
+    summary: List tenant users
+    description: List all users who have access to the current tenant (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    responses:
+      '200':
+        description: Users retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/tenant_admin.yaml#/UserListResponse'
+      '403':
+        description: Tenant_Admin role required or access denied to tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    tags:
+      - Tenant User Management
+    summary: Create user
+    description: Create a new user and assign to current tenant. If user exists, adds tenant to their list. (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/tenant_admin.yaml#/UserCreateRequest'
+    responses:
+      '200':
+        description: User created or added to tenant
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "User user@example.com created successfully"
+                username:
+                  type: string
+                  example: "user@example.com"
+                tenant:
+                  type: string
+                  example: "GoodwinSolutions"
+                existing_user:
+                  type: boolean
+                  example: false
+      '400':
+        description: Invalid request or invalid groups for tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: User already has access to this tenant
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: false
+                error:
+                  type: string
+                  example: "User user@example.com already has access to tenant GoodwinSolutions"
+                message:
+                  type: string
+                  example: "This user already exists in this tenant. Use the Edit button to modify their roles."
+      '403':
+        description: Tenant_Admin role required or access denied to tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+users-update-delete:
+  put:
+    tags:
+      - Tenant User Management
+    summary: Update user
+    description: Update user attributes (name, enabled status) (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/tenant_admin.yaml#/UserUpdateRequest'
+    responses:
+      '200':
+        description: User updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "User john@example.com updated successfully"
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Tenant_Admin role required or user not in tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    tags:
+      - Tenant User Management
+    summary: Delete user
+    description: Delete user or remove from tenant. If user belongs to multiple tenants, only removes from current tenant. (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: User deleted or removed from tenant
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "User john@example.com deleted"
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Tenant_Admin role required or user not in tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+users-assign-group:
+  post:
+    tags:
+      - Tenant User Management
+    summary: Assign role to user
+    description: Assign a role (group) to user. Role must be valid for tenant's enabled modules. (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/tenant_admin.yaml#/AssignGroupRequest'
+    responses:
+      '200':
+        description: Role assigned successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Role Finance_Read assigned to john@example.com"
+      '400':
+        description: Invalid group name
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: Tenant_Admin role required or role not available for tenant
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: false
+                error:
+                  type: string
+                  example: "Cannot assign role Finance_Read in this tenant"
+                available_roles:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Tenant_Admin", "STR_Read", "STR_CRUD"]
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+users-remove-group:
+  delete:
+    tags:
+      - Tenant User Management
+    summary: Remove role from user
+    description: Remove a role (group) from user (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: group_name
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Role removed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Role Finance_Read removed from john@example.com"
+      '403':
+        description: Tenant_Admin role required or role not available for tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+roles-available:
+  get:
+    tags:
+      - Tenant User Management
+    summary: Get available roles
+    description: Get list of roles available for current tenant based on enabled modules (Tenant_Admin only)
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    responses:
+      '200':
+        description: Available roles retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/tenant_admin.yaml#/RolesResponse'
+      '403':
+        description: Tenant_Admin role required or access denied to tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

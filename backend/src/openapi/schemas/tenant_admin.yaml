@@ -1,0 +1,120 @@
+# Tenant Administration schemas (Tenant_Admin role only)
+
+UserListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    tenant:
+      type: string
+      example: "GoodwinSolutions"
+    users:
+      type: array
+      items:
+        type: object
+        properties:
+          username:
+            type: string
+            example: "john@example.com"
+          email:
+            type: string
+            example: "john@example.com"
+          name:
+            type: string
+            example: "John Doe"
+          status:
+            type: string
+            example: "CONFIRMED"
+          enabled:
+            type: boolean
+            example: true
+          groups:
+            type: array
+            items:
+              type: string
+            example: ["Finance_Read", "Tenant_Admin"]
+          tenants:
+            type: array
+            items:
+              type: string
+            example: ["GoodwinSolutions", "PeterPrive"]
+          created:
+            type: string
+            format: date-time
+          modified:
+            type: string
+            format: date-time
+    count:
+      type: integer
+      example: 5
+
+UserCreateRequest:
+  type: object
+  required:
+    - email
+  properties:
+    email:
+      type: string
+      format: email
+      example: "user@example.com"
+    name:
+      type: string
+      example: "User Name"
+    password:
+      type: string
+      example: "TempPassword123!"
+      description: Required for new users (min 8 characters)
+    groups:
+      type: array
+      items:
+        type: string
+      example: ["Finance_Read"]
+      description: Roles to assign to user
+
+UserUpdateRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      example: "Updated Name"
+    enabled:
+      type: boolean
+      example: true
+
+AssignGroupRequest:
+  type: object
+  required:
+    - groupName
+  properties:
+    groupName:
+      type: string
+      example: "Finance_Read"
+      description: Role name to assign
+
+RolesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    tenant:
+      type: string
+      example: "GoodwinSolutions"
+    roles:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            example: "Finance_Read"
+          description:
+            type: string
+            example: "Read-only access to Finance module"
+          precedence:
+            type: integer
+            example: 10
+    count:
+      type: integer
+      example: 4

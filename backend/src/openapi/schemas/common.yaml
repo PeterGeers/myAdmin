@@ -1,0 +1,77 @@
+# Common schemas used across multiple endpoints
+
+StandardResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      description: Request success status
+    data:
+      type: object
+      description: Response data
+    error:
+      type: string
+      description: Error message (if any)
+    status:
+      type: string
+      enum: [success, error]
+      description: Request status
+
+ErrorResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: false
+    error:
+      type: string
+      example: "Invalid request parameters"
+    status:
+      type: string
+      example: "error"
+
+TenantAccessDeniedResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: false
+    error:
+      type: string
+      example: "Access denied to administration: UnauthorizedTenant"
+    status:
+      type: string
+      example: "error"
+
+HealthResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "healthy"
+    endpoints:
+      type: array
+      items:
+        type: string
+      example: ["/api/str/upload", "/api/str/scan-files"]
+
+TestResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      example: "Server is working"
+
+StatusResponse:
+  type: object
+  properties:
+    mode:
+      type: string
+      enum: [Test, Production]
+      example: "Test"
+    database:
+      type: string
+      example: "testfinance"
+    folder:
+      type: string
+      example: "testFacturen"

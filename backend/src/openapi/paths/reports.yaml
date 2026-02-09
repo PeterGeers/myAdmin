@@ -1,0 +1,60 @@
+# Financial reporting endpoints
+
+btw-generate-report:
+  post:
+    tags:
+      - BTW
+    summary: Generate BTW report
+    description: Generate VAT/BTW declaration report
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/reports.yaml#/BTWGenerateRequest'
+    responses:
+      '200':
+        description: BTW report generated
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/reports.yaml#/BTWGenerateResponse'
+      '500':
+        description: Report generation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+aangifte-ib:
+  get:
+    tags:
+      - Reports
+    summary: Get Aangifte IB data
+    description: Get financial data grouped by Parent and Aangifte
+    parameters:
+      - name: year
+        in: query
+        description: Financial year
+        required: true
+        schema:
+          type: string
+      - name: administration
+        in: query
+        description: Administration filter
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Aangifte IB data
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/reports.yaml#/AangifteIBResponse'
+      '400':
+        description: Missing parameters
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

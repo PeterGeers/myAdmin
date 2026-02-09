@@ -1,0 +1,60 @@
+# File upload and processing endpoints
+
+upload:
+  post:
+    tags:
+      - Files
+    summary: Upload and process PDF file
+    description: Upload a PDF file for processing and data extraction
+    requestBody:
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+                description: PDF file to upload
+              folderName:
+                type: string
+                description: Target folder for the file
+    responses:
+      '200':
+        description: File processed successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/files.yaml#/UploadResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+approve-transactions:
+  post:
+    tags:
+      - Transactions
+    summary: Approve and save transactions
+    description: Save approved transactions to the database
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/files.yaml#/ApproveTransactionsRequest'
+    responses:
+      '200':
+        description: Transactions saved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/files.yaml#/ApproveTransactionsResponse'
+      '400':
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

@@ -9,20 +9,23 @@ import {
   AlertDialogContent, AlertDialogOverlay
 } from '@chakra-ui/react';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
-import { getRoles, createRole, deleteRole, Role } from '../../services/sysadminService';
+import { getRoles, createRole, updateRole, deleteRole, Role } from '../../services/sysadminService';
 
 export function RoleManagement() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   
-  const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleDescription, setNewRoleDescription] = useState('');
-  const [newRolePrecedence, setNewRolePrecedence] = useState(100);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    precedence: 100
+  });
   
   const toast = useToast();
-  const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
+  const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = React.useRef<HTMLButtonElement>(null);
 
@@ -61,8 +64,34 @@ export function RoleManagement() {
     }
   };
 
+  const openCreateModal = () => {
+    setFormData({ name: '', description: '', precedence: 100 });
+    setModalMode('create');
+    setSelectedRole(null);
+    onModalOpen();
+  };
+
+  const openEditModal = (role: Role) => {
+    setFormData({
+      name: role.name,
+      description: role.description || '',
+      precedence: role.precedence || 100
+    });
+    setModalMode('edit');
+    setSelectedRole(role);
+    onModalOpen();
+  };
+
+  const handleSubmit = async () => {
+    if (modalMode === 'create') {
+      await handleCreateRole();
+    } else {
+      await handleUpdateRole();
+    }
+  };
+
   const handleCreateRole = async () => {
-    if (!newRoleName.trim()) {
+    if (!formData.name.trim()) {
       toast({
         title: 'Validation Error',
         description: 'Role name is required',
@@ -75,27 +104,55 @@ export function RoleManagement() {
     setActionLoading(true);
     try {
       await createRole({
-        name: newRoleName.trim(),
-        description: newRoleDescription.trim(),
-        precedence: newRolePrecedence
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        precedence: formData.precedence
       });
 
       toast({
         title: 'Role created',
-        description: `Role "${newRoleName}" created successfully`,
+        description: `Role "${formData.name}" created successfully`,
         status: 'success',
         duration: 3000,
       });
 
-      setNewRoleName('');
-      setNewRoleDescription('');
-      setNewRolePrecedence(100);
-      
-      onCreateClose();
+      onModalClose();
       loadRoles();
     } catch (error) {
       toast({
         title: 'Error creating role',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!selectedRole) return;
+
+    setActionLoading(true);
+    try {
+      await updateRole(selectedRole.name, {
+        description: formData.description.trim(),
+        precedence: formData.precedence
+      });
+
+      toast({
+        title: 'Role updated',
+        description: `Role "${selectedRole.name}" updated successfully`,
+        status: 'success',
+        duration: 3000,
+      });
+
+      onModalClose();
+      setSelectedRole(null);
+      loadRoles();
+    } catch (error) {
+      toast({
+        title: 'Error updating role',
         description: error instanceof Error ? error.message : 'Unknown error',
         status: 'error',
         duration: 5000,
@@ -177,7 +234,7 @@ export function RoleManagement() {
           <Text color="gray.300" fontSize="lg">
             Total Roles: <Text as="span" color="orange.400" fontWeight="bold">{roles.length}</Text>
           </Text>
-          <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={onCreateOpen}>
+          <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={openCreateModal}>
             Create Role
           </Button>
         </HStack>
@@ -192,10 +249,23 @@ export function RoleManagement() {
                 <HStack key={role.name} justify="space-between" p={4} bg="gray.800" borderRadius="md" borderWidth="1px" borderColor="gray.700">
                   <VStack align="start" spacing={1} flex={1}>
                     <HStack>
-                      <Text color="orange.400" fontWeight="bold">{role.name}</Text>
+                      <Text 
+                        color="orange.400" 
+                        fontWeight="bold"
+                        cursor="pointer"
+                        _hover={{ textDecoration: 'underline', color: 'orange.300' }}
+                        onClick={() => openEditModal(role)}
+                      >
+                        {role.name}
+                      </Text>
                       <Badge colorScheme={getCategoryColor(role.category)} fontSize="xs">
                         {getCategoryLabel(role.category)}
                       </Badge>
+                      {role.user_count !== undefined && (
+                        <Badge colorScheme="green" fontSize="xs">
+                          {role.user_count} {role.user_count === 1 ? 'user' : 'users'}
+                        </Badge>
+                      )}
                     </HStack>
                     <Text color="gray.400" fontSize="sm">{role.description}</Text>
                   </VStack>
@@ -228,10 +298,23 @@ export function RoleManagement() {
                 <HStack key={role.name} justify="space-between" p={4} bg="gray.800" borderRadius="md" borderWidth="1px" borderColor="gray.700">
                   <VStack align="start" spacing={1} flex={1}>
                     <HStack>
-                      <Text color="orange.400" fontWeight="bold">{role.name}</Text>
+                      <Text 
+                        color="orange.400" 
+                        fontWeight="bold"
+                        cursor="pointer"
+                        _hover={{ textDecoration: 'underline', color: 'orange.300' }}
+                        onClick={() => openEditModal(role)}
+                      >
+                        {role.name}
+                      </Text>
                       <Badge colorScheme={getCategoryColor(role.category)} fontSize="xs">
                         {getCategoryLabel(role.category)}
                       </Badge>
+                      {role.user_count !== undefined && (
+                        <Badge colorScheme="green" fontSize="xs">
+                          {role.user_count} {role.user_count === 1 ? 'user' : 'users'}
+                        </Badge>
+                      )}
                     </HStack>
                     <Text color="gray.400" fontSize="sm">{role.description}</Text>
                   </VStack>
@@ -256,7 +339,22 @@ export function RoleManagement() {
               {otherRoles.map((role) => (
                 <HStack key={role.name} justify="space-between" p={4} bg="gray.800" borderRadius="md" borderWidth="1px" borderColor="gray.700">
                   <VStack align="start" spacing={1} flex={1}>
-                    <Text color="orange.400" fontWeight="bold">{role.name}</Text>
+                    <HStack>
+                      <Text 
+                        color="orange.400" 
+                        fontWeight="bold"
+                        cursor="pointer"
+                        _hover={{ textDecoration: 'underline', color: 'orange.300' }}
+                        onClick={() => openEditModal(role)}
+                      >
+                        {role.name}
+                      </Text>
+                      {role.user_count !== undefined && (
+                        <Badge colorScheme="green" fontSize="xs">
+                          {role.user_count} {role.user_count === 1 ? 'user' : 'users'}
+                        </Badge>
+                      )}
+                    </HStack>
                     <Text color="gray.400" fontSize="sm">{role.description}</Text>
                   </VStack>
                   <HStack spacing={3}>
@@ -272,64 +370,78 @@ export function RoleManagement() {
         )}
       </VStack>
 
-      <Modal isOpen={isCreateOpen} onClose={onCreateClose} size="lg">
+      <Modal isOpen={isModalOpen} onClose={onModalClose} size="lg">
         <ModalOverlay />
         <ModalContent bg="gray.800" color="white">
-          <ModalHeader color="orange.400">Create New Role</ModalHeader>
+          <ModalHeader color="orange.400">
+            {modalMode === 'create' ? 'Create New Role' : `Edit Role: ${selectedRole?.name}`}
+          </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4} align="stretch">
-              <FormControl isRequired>
-                <FormLabel color="gray.300">Role Name</FormLabel>
+              <FormControl isRequired isDisabled={modalMode === 'edit'}>
+                <FormLabel color="white">Role Name</FormLabel>
                 <Input
                   placeholder="e.g., Finance_Manager"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  bg="gray.700"
-                  borderColor="gray.600"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  bg="gray.600"
+                  color="white"
+                  borderColor="gray.500"
+                  _placeholder={{ color: 'gray.400' }}
+                  isReadOnly={modalMode === 'edit'}
                 />
-                <Text fontSize="xs" color="gray.500" mt={1}>
-                  Use underscore for module roles
-                </Text>
+                {modalMode === 'create' && (
+                  <Text fontSize="xs" color="gray.400" mt={1}>
+                    Use underscore for module roles. Cannot be changed later.
+                  </Text>
+                )}
+                {modalMode === 'edit' && (
+                  <Text fontSize="xs" color="gray.400" mt={1}>
+                    Role name cannot be changed
+                  </Text>
+                )}
               </FormControl>
 
               <FormControl>
-                <FormLabel color="gray.300">Description</FormLabel>
+                <FormLabel color="white">Description</FormLabel>
                 <Textarea
                   placeholder="Describe the role"
-                  value={newRoleDescription}
-                  onChange={(e) => setNewRoleDescription(e.target.value)}
-                  bg="gray.700"
-                  borderColor="gray.600"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  bg="gray.600"
+                  color="white"
+                  borderColor="gray.500"
+                  _placeholder={{ color: 'gray.400' }}
                   rows={3}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel color="gray.300">Precedence</FormLabel>
+                <FormLabel color="white">Precedence</FormLabel>
                 <NumberInput
-                  value={newRolePrecedence}
-                  onChange={(_, value) => setNewRolePrecedence(value)}
+                  value={formData.precedence}
+                  onChange={(_, value) => setFormData({ ...formData, precedence: value })}
                   min={1}
                   max={999}
-                  bg="gray.700"
+                  bg="gray.600"
                 >
-                  <NumberInputField borderColor="gray.600" />
+                  <NumberInputField borderColor="gray.500" color="white" />
                   <NumberInputStepper>
-                    <NumberIncrementStepper borderColor="gray.600" />
-                    <NumberDecrementStepper borderColor="gray.600" />
+                    <NumberIncrementStepper borderColor="gray.500" />
+                    <NumberDecrementStepper borderColor="gray.500" />
                   </NumberInputStepper>
                 </NumberInput>
-                <Text fontSize="xs" color="gray.500" mt={1}>
+                <Text fontSize="xs" color="gray.400" mt={1}>
                   Lower = higher priority
                 </Text>
               </FormControl>
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onCreateClose}>Cancel</Button>
-            <Button colorScheme="orange" onClick={handleCreateRole} isLoading={actionLoading}>
-              Create Role
+            <Button variant="ghost" mr={3} onClick={onModalClose}>Cancel</Button>
+            <Button colorScheme="orange" onClick={handleSubmit} isLoading={actionLoading}>
+              {modalMode === 'create' ? 'Create Role' : 'Update Role'}
             </Button>
           </ModalFooter>
         </ModalContent>

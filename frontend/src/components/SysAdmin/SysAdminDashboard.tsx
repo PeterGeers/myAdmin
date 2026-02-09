@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, useToast, Spinner, Text, Alert, AlertIcon
+  Box, VStack, Tabs, TabList, TabPanels, Tab, TabPanel,
+  useToast, Spinner, Text, Alert, AlertIcon
 } from '@chakra-ui/react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import RoleManagement from './RoleManagement';
+import TenantManagement from './TenantManagement';
+import HealthCheck from './HealthCheck';
 
 export function SysAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -79,8 +82,32 @@ export function SysAdminDashboard() {
   return (
     <Box minH="100vh" bg="gray.900" p={6}>
       <VStack spacing={6} align="stretch">
-        {/* Role Management - Tenant Management will be added in Phase 4.3 */}
-        <RoleManagement />
+        {/* Tabs for Tenant Management, Role Management, and Health Check */}
+        <Tabs colorScheme="orange" variant="enclosed">
+          <TabList>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              Tenant Management
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              Role Management
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              Health Check
+            </Tab>
+          </TabList>
+
+          <TabPanels>
+            <TabPanel>
+              <TenantManagement />
+            </TabPanel>
+            <TabPanel>
+              <RoleManagement />
+            </TabPanel>
+            <TabPanel>
+              <HealthCheck />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </VStack>
     </Box>
   );

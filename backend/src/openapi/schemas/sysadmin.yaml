@@ -1,0 +1,341 @@
+# System Administration schemas (SysAdmin role only)
+
+TenantResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    tenant:
+      type: object
+      properties:
+        administration:
+          type: string
+          example: "GoodwinSolutions"
+        display_name:
+          type: string
+          example: "Goodwin Solutions Ltd"
+        status:
+          type: string
+          enum: [active, suspended, inactive, deleted]
+          example: "active"
+        contact_email:
+          type: string
+          example: "admin@goodwin.com"
+        phone_number:
+          type: string
+          example: "+31123456789"
+        street_address:
+          type: string
+          example: "Main Street 123"
+        city:
+          type: string
+          example: "Amsterdam"
+        zipcode:
+          type: string
+          example: "1012AB"
+        country:
+          type: string
+          example: "Netherlands"
+        enabled_modules:
+          type: array
+          items:
+            type: string
+          example: ["FIN", "STR", "TENADMIN"]
+        user_count:
+          type: integer
+          example: 5
+        users:
+          type: array
+          items:
+            type: object
+            properties:
+              username:
+                type: string
+              email:
+                type: string
+              groups:
+                type: array
+                items:
+                  type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+TenantListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    tenants:
+      type: array
+      items:
+        type: object
+        properties:
+          administration:
+            type: string
+            example: "GoodwinSolutions"
+          display_name:
+            type: string
+            example: "Goodwin Solutions Ltd"
+          status:
+            type: string
+            example: "active"
+          contact_email:
+            type: string
+            example: "admin@goodwin.com"
+          phone_number:
+            type: string
+            example: "+31123456789"
+          street_address:
+            type: string
+            example: "Main Street 123"
+          city:
+            type: string
+            example: "Amsterdam"
+          zipcode:
+            type: string
+            example: "1012AB"
+          country:
+            type: string
+            example: "Netherlands"
+          enabled_modules:
+            type: array
+            items:
+              type: string
+            example: ["FIN", "STR"]
+          user_count:
+            type: integer
+            example: 5
+          created_at:
+            type: string
+            format: date-time
+          updated_at:
+            type: string
+            format: date-time
+    total:
+      type: integer
+      example: 25
+    page:
+      type: integer
+      example: 1
+    per_page:
+      type: integer
+      example: 50
+
+TenantCreateRequest:
+  type: object
+  required:
+    - administration
+    - display_name
+    - contact_email
+  properties:
+    administration:
+      type: string
+      example: "NewCorp"
+      description: Unique tenant identifier (alphanumeric, no spaces)
+    display_name:
+      type: string
+      example: "New Corporation"
+    contact_email:
+      type: string
+      format: email
+      example: "admin@newcorp.com"
+    phone_number:
+      type: string
+      example: "+31123456789"
+    street_address:
+      type: string
+      example: "Main Street 123"
+    city:
+      type: string
+      example: "Amsterdam"
+    zipcode:
+      type: string
+      example: "1012AB"
+    country:
+      type: string
+      example: "Netherlands"
+    enabled_modules:
+      type: array
+      items:
+        type: string
+        enum: [FIN, STR, ADMIN, TENADMIN]
+      example: ["FIN", "STR"]
+    initial_admin_email:
+      type: string
+      format: email
+      example: "john@newcorp.com"
+      description: Optional - email of initial admin user
+
+TenantUpdateRequest:
+  type: object
+  properties:
+    display_name:
+      type: string
+      example: "Updated Corporation Name"
+    status:
+      type: string
+      enum: [active, suspended, inactive, deleted]
+      example: "active"
+    contact_email:
+      type: string
+      format: email
+      example: "new@email.com"
+    phone_number:
+      type: string
+      example: "+31987654321"
+    street_address:
+      type: string
+      example: "New Street 456"
+    city:
+      type: string
+      example: "Rotterdam"
+    zipcode:
+      type: string
+      example: "3000AB"
+    country:
+      type: string
+      example: "Netherlands"
+
+RoleListResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    roles:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            example: "Finance_Read"
+          description:
+            type: string
+            example: "Read-only access to Finance module"
+          user_count:
+            type: integer
+            example: 12
+          category:
+            type: string
+            enum: [platform, module, other]
+            example: "module"
+          created_date:
+            type: string
+            format: date-time
+    total:
+      type: integer
+      example: 8
+
+RoleCreateRequest:
+  type: object
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      example: "NewRole"
+      description: Role name (Cognito group name)
+    description:
+      type: string
+      example: "Description of the role"
+
+RoleUpdateRequest:
+  type: object
+  properties:
+    description:
+      type: string
+      example: "Updated description"
+    precedence:
+      type: integer
+      example: 50
+      description: Role precedence (lower = higher priority)
+
+HealthResponse:
+  type: object
+  properties:
+    overall:
+      type: string
+      enum: [healthy, degraded, unhealthy]
+      example: "healthy"
+    services:
+      type: array
+      items:
+        type: object
+        properties:
+          service:
+            type: string
+            example: "database"
+          status:
+            type: string
+            enum: [healthy, degraded, unhealthy]
+            example: "healthy"
+          responseTime:
+            type: integer
+            example: 65
+            description: Response time in milliseconds
+          message:
+            type: string
+            example: "Connected to MySQL 8.0.44"
+          lastChecked:
+            type: string
+            format: date-time
+          details:
+            type: object
+            description: Service-specific details
+    timestamp:
+      type: string
+      format: date-time
+
+ModulesResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    administration:
+      type: string
+      example: "GoodwinSolutions"
+    modules:
+      type: array
+      items:
+        type: object
+        properties:
+          module_name:
+            type: string
+            example: "FIN"
+          is_active:
+            type: boolean
+            example: true
+          created_at:
+            type: string
+            format: date-time
+          updated_at:
+            type: string
+            format: date-time
+
+ModulesUpdateRequest:
+  type: object
+  required:
+    - modules
+  properties:
+    modules:
+      type: array
+      items:
+        type: object
+        required:
+          - name
+        properties:
+          name:
+            type: string
+            enum: [FIN, STR, ADMIN, TENADMIN]
+            example: "FIN"
+          is_active:
+            type: boolean
+            example: true

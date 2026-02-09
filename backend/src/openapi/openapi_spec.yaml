@@ -1,0 +1,298 @@
+openapi: 3.0.0
+info:
+  title: myAdmin Backend API
+  description: Financial Management and Short-Term Rental Backend System
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@myadmin.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000/api
+    description: Local development server
+  - url: http://localhost:5001/api
+    description: Local development server (alternate port)
+  - url: https://api.myadmin.com/api
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: Authentication endpoints
+  - name: Files
+    description: File upload and processing
+  - name: Transactions
+    description: Financial transaction management
+  - name: Banking
+    description: Banking data processing
+  - name: STR
+    description: Short-Term Rental management
+  - name: BNB
+    description: Bed & Breakfast reporting and analytics
+  - name: STR-Channel
+    description: STR channel transaction management
+  - name: STR-Invoice
+    description: STR invoice generation and management
+  - name: Pricing
+    description: Pricing optimization
+  - name: BTW
+    description: VAT/BTW reporting
+  - name: Reports
+    description: Financial reporting
+  - name: Health
+    description: Service health monitoring
+  - name: System Administration
+    description: System-wide administration (SysAdmin role only) - tenant management, role management, health monitoring
+  - name: Tenant User Management
+    description: Tenant user management (Tenant_Admin role only) - manage users within assigned tenants
+  - name: Tenant Administration
+    description: Tenant configuration and user management (Tenant_Admin only)
+  - name: Template Management
+    description: Template preview, validation, and AI-assisted editing (Tenant_Admin only)
+  - name: Tenant Module Management
+    description: Tenant module access control
+
+paths:
+  # Health endpoints
+  /health:
+    $ref: './paths/health.yaml#/health'
+  /test:
+    $ref: './paths/health.yaml#/test'
+  /status:
+    $ref: './paths/health.yaml#/status'
+
+  # File upload endpoints
+  /upload:
+    $ref: './paths/files.yaml#/upload'
+  /approve-transactions:
+    $ref: './paths/files.yaml#/approve-transactions'
+
+  # Banking endpoints
+  /banking/scan-files:
+    $ref: './paths/banking.yaml#/scan-files'
+  /banking/process-files:
+    $ref: './paths/banking.yaml#/process-files'
+
+  # STR endpoints
+  /str/upload:
+    $ref: './paths/str.yaml#/upload'
+  /str/save:
+    $ref: './paths/str.yaml#/save'
+
+  # Pricing endpoints
+  /pricing/generate:
+    $ref: './paths/str.yaml#/pricing-generate'
+
+  # BTW endpoints
+  /btw/generate-report:
+    $ref: './paths/reports.yaml#/btw-generate-report'
+
+  # Reports endpoints
+  /reports/aangifte-ib:
+    $ref: './paths/reports.yaml#/aangifte-ib'
+
+  # BNB endpoints
+  /bnb/bnb-listing-data:
+    $ref: './paths/bnb.yaml#/bnb-listing-data'
+  /bnb/bnb-channel-data:
+    $ref: './paths/bnb.yaml#/bnb-channel-data'
+  /bnb/bnb-table:
+    $ref: './paths/bnb.yaml#/bnb-table'
+  /bnb/bnb-guest-bookings:
+    $ref: './paths/bnb.yaml#/bnb-guest-bookings'
+  /bnb/bnb-actuals:
+    $ref: './paths/bnb.yaml#/bnb-actuals'
+  /bnb/bnb-filter-options:
+    $ref: './paths/bnb.yaml#/bnb-filter-options'
+  /bnb/bnb-violin-data:
+    $ref: './paths/bnb.yaml#/bnb-violin-data'
+  /bnb/bnb-returning-guests:
+    $ref: './paths/bnb.yaml#/bnb-returning-guests'
+
+  # STR Channel endpoints
+  /str-channel/save:
+    $ref: './paths/str.yaml#/str-channel-save'
+
+  # STR Invoice endpoints
+  /str-invoice/generate-invoice:
+    $ref: './paths/str.yaml#/str-invoice-generate'
+  /str-invoice/upload-template:
+    $ref: './paths/str.yaml#/str-invoice-upload-template'
+
+  # Tenant Administration endpoints
+  /tenant/config:
+    $ref: './paths/tenant_admin.yaml#/tenant-config'
+  /tenant/users:
+    $ref: './paths/tenant_admin.yaml#/tenant-users'
+  /tenant/users/{username}/roles:
+    $ref: './paths/tenant_admin.yaml#/tenant-user-roles'
+  /tenant/modules:
+    $ref: './paths/tenant_admin.yaml#/tenant-modules'
+
+  # Template Management endpoints
+  /tenant-admin/templates/{template_type}:
+    $ref: './paths/tenant_admin.yaml#/templates-get'
+  /tenant-admin/templates/preview:
+    $ref: './paths/tenant_admin.yaml#/templates-preview'
+  /tenant-admin/templates/validate:
+    $ref: './paths/tenant_admin.yaml#/templates-validate'
+  /tenant-admin/templates/approve:
+    $ref: './paths/tenant_admin.yaml#/templates-approve'
+  /tenant-admin/templates/ai-help:
+    $ref: './paths/tenant_admin.yaml#/templates-ai-help'
+
+  # Tenant User Management endpoints
+  /tenant-admin/users:
+    $ref: './paths/tenant_admin.yaml#/users-list-create'
+  /tenant-admin/users/{username}:
+    $ref: './paths/tenant_admin.yaml#/users-update-delete'
+  /tenant-admin/users/{username}/groups:
+    $ref: './paths/tenant_admin.yaml#/users-assign-group'
+  /tenant-admin/users/{username}/groups/{group_name}:
+    $ref: './paths/tenant_admin.yaml#/users-remove-group'
+  /tenant-admin/roles:
+    $ref: './paths/tenant_admin.yaml#/roles-available'
+
+  # System Administration endpoints
+  /sysadmin/tenants:
+    $ref: './paths/sysadmin.yaml#/tenants-list-create'
+  /sysadmin/tenants/{administration}:
+    $ref: './paths/sysadmin.yaml#/tenants-get-update-delete'
+  /sysadmin/tenants/{administration}/modules:
+    $ref: './paths/sysadmin.yaml#/tenants-modules'
+  /sysadmin/roles:
+    $ref: './paths/sysadmin.yaml#/roles-list-create'
+  /sysadmin/roles/{role_name}:
+    $ref: './paths/sysadmin.yaml#/roles-update-delete'
+  /sysadmin/health:
+    $ref: './paths/sysadmin.yaml#/health'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from AWS Cognito authentication
+    TenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant
+      description: Tenant identifier for multi-tenant operations
+
+  schemas:
+    # Common schemas
+    StandardResponse:
+      $ref: './schemas/common.yaml#/StandardResponse'
+    ErrorResponse:
+      $ref: './schemas/common.yaml#/ErrorResponse'
+    TenantAccessDeniedResponse:
+      $ref: './schemas/common.yaml#/TenantAccessDeniedResponse'
+
+    # Health schemas
+    HealthResponse:
+      $ref: './schemas/common.yaml#/HealthResponse'
+    TestResponse:
+      $ref: './schemas/common.yaml#/TestResponse'
+    StatusResponse:
+      $ref: './schemas/common.yaml#/StatusResponse'
+
+    # File schemas
+    UploadResponse:
+      $ref: './schemas/files.yaml#/UploadResponse'
+    ApproveTransactionsRequest:
+      $ref: './schemas/files.yaml#/ApproveTransactionsRequest'
+    ApproveTransactionsResponse:
+      $ref: './schemas/files.yaml#/ApproveTransactionsResponse'
+
+    # Banking schemas
+    BankingScanResponse:
+      $ref: './schemas/banking.yaml#/BankingScanResponse'
+    BankingProcessRequest:
+      $ref: './schemas/banking.yaml#/BankingProcessRequest'
+    BankingProcessResponse:
+      $ref: './schemas/banking.yaml#/BankingProcessResponse'
+
+    # STR schemas
+    STRUploadResponse:
+      $ref: './schemas/str.yaml#/STRUploadResponse'
+    STRSaveRequest:
+      $ref: './schemas/str.yaml#/STRSaveRequest'
+    STRSaveResponse:
+      $ref: './schemas/str.yaml#/STRSaveResponse'
+    STRChannelSaveRequest:
+      $ref: './schemas/str.yaml#/STRChannelSaveRequest'
+    STRChannelSaveResponse:
+      $ref: './schemas/str.yaml#/STRChannelSaveResponse'
+    STRInvoiceGenerateRequest:
+      $ref: './schemas/str.yaml#/STRInvoiceGenerateRequest'
+    STRInvoiceGenerateResponse:
+      $ref: './schemas/str.yaml#/STRInvoiceGenerateResponse'
+    STRTemplateUploadResponse:
+      $ref: './schemas/str.yaml#/STRTemplateUploadResponse'
+    PricingGenerateRequest:
+      $ref: './schemas/str.yaml#/PricingGenerateRequest'
+    PricingGenerateResponse:
+      $ref: './schemas/str.yaml#/PricingGenerateResponse'
+
+    # BNB schemas
+    BNBListingDataResponse:
+      $ref: './schemas/bnb.yaml#/BNBListingDataResponse'
+    BNBChannelDataResponse:
+      $ref: './schemas/bnb.yaml#/BNBChannelDataResponse'
+    BNBTableDataResponse:
+      $ref: './schemas/bnb.yaml#/BNBTableDataResponse'
+    BNBGuestBookingsResponse:
+      $ref: './schemas/bnb.yaml#/BNBGuestBookingsResponse'
+    BNBActualsResponse:
+      $ref: './schemas/bnb.yaml#/BNBActualsResponse'
+    BNBFilterOptionsResponse:
+      $ref: './schemas/bnb.yaml#/BNBFilterOptionsResponse'
+    BNBViolinDataResponse:
+      $ref: './schemas/bnb.yaml#/BNBViolinDataResponse'
+    BNBReturningGuestsResponse:
+      $ref: './schemas/bnb.yaml#/BNBReturningGuestsResponse'
+
+    # Reports schemas
+    BTWGenerateRequest:
+      $ref: './schemas/reports.yaml#/BTWGenerateRequest'
+    BTWGenerateResponse:
+      $ref: './schemas/reports.yaml#/BTWGenerateResponse'
+    AangifteIBResponse:
+      $ref: './schemas/reports.yaml#/AangifteIBResponse'
+
+    # SysAdmin schemas
+    SysAdminTenantResponse:
+      $ref: './schemas/sysadmin.yaml#/TenantResponse'
+    SysAdminTenantListResponse:
+      $ref: './schemas/sysadmin.yaml#/TenantListResponse'
+    SysAdminTenantCreateRequest:
+      $ref: './schemas/sysadmin.yaml#/TenantCreateRequest'
+    SysAdminTenantUpdateRequest:
+      $ref: './schemas/sysadmin.yaml#/TenantUpdateRequest'
+    SysAdminRoleListResponse:
+      $ref: './schemas/sysadmin.yaml#/RoleListResponse'
+    SysAdminRoleCreateRequest:
+      $ref: './schemas/sysadmin.yaml#/RoleCreateRequest'
+    SysAdminRoleUpdateRequest:
+      $ref: './schemas/sysadmin.yaml#/RoleUpdateRequest'
+    SysAdminHealthResponse:
+      $ref: './schemas/sysadmin.yaml#/HealthResponse'
+    SysAdminModulesResponse:
+      $ref: './schemas/sysadmin.yaml#/ModulesResponse'
+    SysAdminModulesUpdateRequest:
+      $ref: './schemas/sysadmin.yaml#/ModulesUpdateRequest'
+
+    # TenantAdmin schemas
+    TenantAdminUserListResponse:
+      $ref: './schemas/tenant_admin.yaml#/UserListResponse'
+    TenantAdminUserCreateRequest:
+      $ref: './schemas/tenant_admin.yaml#/UserCreateRequest'
+    TenantAdminUserUpdateRequest:
+      $ref: './schemas/tenant_admin.yaml#/UserUpdateRequest'
+    TenantAdminAssignGroupRequest:
+      $ref: './schemas/tenant_admin.yaml#/AssignGroupRequest'
+    TenantAdminRolesResponse:
+      $ref: './schemas/tenant_admin.yaml#/RolesResponse'

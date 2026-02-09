@@ -1,0 +1,181 @@
+# STR (Short-Term Rental) schemas
+
+STRUploadResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    realised:
+      type: array
+      items:
+        type: object
+        description: Realised bookings
+    planned:
+      type: array
+      items:
+        type: object
+        description: Planned bookings
+    summary:
+      type: object
+      description: Booking summary statistics
+    platform:
+      type: string
+      example: "airbnb"
+
+STRSaveRequest:
+  type: object
+  properties:
+    realised:
+      type: array
+      items:
+        type: object
+        description: Realised booking data
+    planned:
+      type: array
+      items:
+        type: object
+        description: Planned booking data
+
+STRSaveResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    results:
+      type: object
+      description: Save operation results
+    message:
+      type: string
+      example: "Processed 15 realised, 8 planned bookings"
+
+STRChannelSaveRequest:
+  type: object
+  properties:
+    transactions:
+      type: array
+      items:
+        type: object
+        properties:
+          Administration:
+            type: string
+            example: "PeterPrive"
+          TransactionDate:
+            type: string
+            format: date
+            example: "2024-06-15"
+          Amount:
+            type: number
+            example: 750.00
+          Description:
+            type: string
+            example: "Airbnb booking payment"
+          ReferenceNumber:
+            type: string
+            example: "REF123456"
+
+STRChannelSaveResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    savedTransactions:
+      type: integer
+      example: 15
+    message:
+      type: string
+      example: "Successfully saved 15 transactions"
+
+STRInvoiceGenerateRequest:
+  type: object
+  properties:
+    bookingId:
+      type: string
+      example: "booking_123"
+    administration:
+      type: string
+      example: "PeterPrive"
+    templateType:
+      type: string
+      enum: ["nl", "en"]
+      example: "nl"
+
+STRInvoiceGenerateResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    invoiceUrl:
+      type: string
+      example: "https://drive.google.com/file/d/abc123/view"
+    invoiceId:
+      type: string
+      example: "INV-2024-001"
+    bookingId:
+      type: string
+      example: "booking_123"
+    administration:
+      type: string
+      example: "PeterPrive"
+
+STRTemplateUploadResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    message:
+      type: string
+      example: "Template upload completed for tenant: PeterPrive"
+    results:
+      type: array
+      items:
+        type: object
+        properties:
+          template:
+            type: string
+            example: "PeterPrive_str_invoice_nl.html"
+          status:
+            type: string
+            example: "uploaded"
+          url:
+            type: string
+            example: "https://drive.google.com/file/d/abc123/view"
+          tenant:
+            type: string
+            example: "PeterPrive"
+    tenant:
+      type: string
+      example: "PeterPrive"
+    tenant_folder_url:
+      type: string
+      example: "https://drive.google.com/drive/folders/xyz789"
+
+PricingGenerateRequest:
+  type: object
+  properties:
+    months:
+      type: integer
+      example: 14
+    listing:
+      type: string
+      example: "Child Friendly"
+
+PricingGenerateResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    result:
+      type: object
+      description: Pricing strategy data
+    listing:
+      type: string
+      example: "Child Friendly"
+    generated_at:
+      type: string
+      format: date-time

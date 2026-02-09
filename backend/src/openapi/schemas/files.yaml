@@ -1,0 +1,62 @@
+# File upload and transaction schemas
+
+UploadResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    filename:
+      type: string
+      example: "invoice.pdf"
+    folder:
+      type: string
+      example: "storage/Amazon"
+    extractedText:
+      type: string
+      example: "Invoice content extracted..."
+    vendorData:
+      type: object
+      description: Vendor-specific parsed data
+    transactions:
+      type: array
+      items:
+        type: object
+        description: Extracted transaction data
+
+ApproveTransactionsRequest:
+  type: object
+  properties:
+    transactions:
+      type: array
+      items:
+        type: object
+        properties:
+          description:
+            type: string
+            example: "Amazon purchase"
+          amount:
+            type: number
+            example: 125.50
+          date:
+            type: string
+            format: date
+            example: "2025-12-15"
+          category:
+            type: string
+            example: "Office Supplies"
+
+ApproveTransactionsResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    savedTransactions:
+      type: array
+      items:
+        type: object
+        description: Saved transaction records
+    message:
+      type: string
+      example: "Successfully saved 5 transactions"

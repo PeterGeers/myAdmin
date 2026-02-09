@@ -1,0 +1,46 @@
+# Banking processor schemas
+
+BankingScanResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    files:
+      type: array
+      items:
+        type: string
+      example: ["transactions_2025.csv"]
+    folder:
+      type: string
+      example: "/downloads"
+
+BankingProcessRequest:
+  type: object
+  properties:
+    files:
+      type: array
+      items:
+        type: string
+      example: ["/downloads/transactions_2025.csv"]
+    test_mode:
+      type: boolean
+      example: true
+
+BankingProcessResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    transactions:
+      type: array
+      items:
+        type: object
+        description: Extracted banking transactions
+    count:
+      type: integer
+      example: 42
+    test_mode:
+      type: boolean
+      example: true

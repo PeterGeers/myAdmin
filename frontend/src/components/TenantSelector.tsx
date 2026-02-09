@@ -15,16 +15,23 @@ import { useTenant } from '../context/TenantContext';
 interface TenantSelectorProps {
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
+  hide?: boolean; // Allow parent to force hide (e.g., on SysAdmin pages)
 }
 
 /**
  * Tenant Selector Component
  * 
  * Only renders if user has multiple tenants.
+ * Can be hidden via prop for platform-level pages (e.g., System Administration).
  * Persists selection to localStorage for convenience.
  */
-export default function TenantSelector({ size = 'sm', showLabel = true }: TenantSelectorProps) {
+export default function TenantSelector({ size = 'sm', showLabel = true, hide = false }: TenantSelectorProps) {
   const { currentTenant, availableTenants, setCurrentTenant, hasMultipleTenants } = useTenant();
+
+  // Don't render if explicitly hidden (e.g., on SysAdmin pages)
+  if (hide) {
+    return null;
+  }
 
   // Don't render if user has no tenants at all or only has single tenant
   if (!availableTenants || availableTenants.length === 0 || !hasMultipleTenants) {

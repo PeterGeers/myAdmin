@@ -1,0 +1,43 @@
+# Health check endpoints
+
+health:
+  get:
+    tags:
+      - Health
+    summary: Health check endpoint
+    description: Check if the API service is healthy
+    responses:
+      '200':
+        description: Service is healthy
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/HealthResponse'
+
+test:
+  get:
+    tags:
+      - Health
+    summary: Test endpoint
+    description: Simple test endpoint to verify API connectivity
+    responses:
+      '200':
+        description: Test successful
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TestResponse'
+
+status:
+  get:
+    tags:
+      - Health
+    summary: Get environment status
+    description: Get current environment configuration
+    responses:
+      '200':
+        description: Environment status
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/StatusResponse'

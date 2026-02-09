@@ -1,0 +1,54 @@
+# Banking processor endpoints
+
+scan-files:
+  get:
+    tags:
+      - Banking
+    summary: Scan for CSV files
+    description: Scan download folder for banking CSV files
+    parameters:
+      - name: folder
+        in: query
+        description: Folder path to scan
+        required: false
+        schema:
+          type: string
+    responses:
+      '200':
+        description: List of CSV files found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/banking.yaml#/BankingScanResponse'
+      '500':
+        description: Server error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+process-files:
+  post:
+    tags:
+      - Banking
+    summary: Process banking CSV files
+    description: Process selected CSV files and extract transactions
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/banking.yaml#/BankingProcessRequest'
+    responses:
+      '200':
+        description: Transactions extracted
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/banking.yaml#/BankingProcessResponse'
+      '500':
+        description: Processing error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

@@ -43,6 +43,10 @@ tags:
     description: Financial reporting
   - name: Health
     description: Service health monitoring
+  - name: System Administration
+    description: System-wide administration (SysAdmin role only) - tenant management, role management, health monitoring
+  - name: Tenant User Management
+    description: Tenant user management (Tenant_Admin role only) - manage users within assigned tenants
   - name: Tenant Administration
     description: Tenant configuration and user management (Tenant_Admin only)
   - name: Template Management
@@ -348,6 +352,535 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  # System Administration Endpoints (SysAdmin role only)
+  /sysadmin/tenants:
+    get:
+      tags:
+        - System Administration
+      summary: List all tenants
+      description: List all tenants with filtering, pagination, and sorting
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          description: Items per page (max 100)
+          schema:
+            type: integer
+            default: 50
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [active, suspended, inactive, deleted, all]
+            default: all
+        - name: sort_by
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [administration, display_name, created_at, status]
+            default: created_at
+        - name: sort_order
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: search
+          in: query
+          description: Search in administration, display_name, contact_email
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenants retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminTenantsListResponse'
+        '403':
+          description: SysAdmin role required
+    post:
+      tags:
+        - System Administration
+      summary: Create new tenant
+      description: Create a new tenant with initial configuration
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SysAdminCreateTenantRequest'
+      responses:
+        '201':
+          description: Tenant created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminTenantResponse'
+        '400':
+          description: Invalid request or tenant already exists
+        '403':
+          description: SysAdmin role required
+
+  /sysadmin/tenants/{administration}:
+    get:
+      tags:
+        - System Administration
+      summary: Get tenant details
+      description: Get detailed information about a specific tenant
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: administration
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminTenantDetailsResponse'
+        '404':
+          description: Tenant not found
+        '403':
+          description: SysAdmin role required
+    put:
+      tags:
+        - System Administration
+      summary: Update tenant
+      description: Update tenant details (administration field is immutable)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: administration
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SysAdminUpdateTenantRequest'
+      responses:
+        '200':
+          description: Tenant updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminTenantResponse'
+        '404':
+          description: Tenant not found
+        '403':
+          description: SysAdmin role required
+    delete:
+      tags:
+        - System Administration
+      summary: Delete tenant (soft delete)
+      description: Soft delete tenant by setting status to 'deleted'. Prevents deletion if tenant has active users.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: administration
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminTenantResponse'
+        '404':
+          description: Tenant not found
+        '409':
+          description: Cannot delete tenant with active users
+        '403':
+          description: SysAdmin role required
+
+  /sysadmin/tenants/{administration}/modules:
+    get:
+      tags:
+        - System Administration
+      summary: Get tenant modules
+      description: Get enabled modules for a tenant
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: administration
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant modules retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminTenantModulesResponse'
+        '404':
+          description: Tenant not found
+        '403':
+          description: SysAdmin role required
+    put:
+      tags:
+        - System Administration
+      summary: Update tenant modules
+      description: Update enabled modules for a tenant
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: administration
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SysAdminUpdateModulesRequest'
+      responses:
+        '200':
+          description: Modules updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminTenantResponse'
+        '404':
+          description: Tenant not found
+        '403':
+          description: SysAdmin role required
+
+  /sysadmin/roles:
+    get:
+      tags:
+        - System Administration
+      summary: List all roles
+      description: List all Cognito groups (roles) with user counts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminRolesListResponse'
+        '403':
+          description: SysAdmin role required
+    post:
+      tags:
+        - System Administration
+      summary: Create new role
+      description: Create a new Cognito group (role)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SysAdminCreateRoleRequest'
+      responses:
+        '201':
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminRoleResponse'
+        '400':
+          description: Role already exists
+        '403':
+          description: SysAdmin role required
+
+  /sysadmin/roles/{role_name}:
+    put:
+      tags:
+        - System Administration
+      summary: Update role
+      description: Update role description and precedence (name cannot be changed)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: role_name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SysAdminUpdateRoleRequest'
+      responses:
+        '200':
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminRoleResponse'
+        '404':
+          description: Role not found
+        '403':
+          description: SysAdmin role required
+    delete:
+      tags:
+        - System Administration
+      summary: Delete role
+      description: Delete Cognito group (role). Must have zero users.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: role_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminRoleResponse'
+        '404':
+          description: Role not found
+        '409':
+          description: Cannot delete role with active users
+        '403':
+          description: SysAdmin role required
+
+  /sysadmin/health:
+    get:
+      tags:
+        - System Administration
+      summary: Get system health status
+      description: Get health status for all services (Database, Cognito, SNS, Google Drive, OpenRouter)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SysAdminHealthResponse'
+        '403':
+          description: SysAdmin role required
+
+  # Tenant User Management Endpoints (Tenant_Admin role only)
+  /tenant-admin/users:
+    get:
+      tags:
+        - Tenant User Management
+      summary: List tenant users
+      description: List all users who have access to the current tenant
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAdminUsersListResponse'
+        '403':
+          description: Tenant_Admin role required or access denied to tenant
+    post:
+      tags:
+        - Tenant User Management
+      summary: Create user
+      description: Create a new user and assign to current tenant. If user exists, adds tenant to their list.
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantAdminCreateUserRequest'
+      responses:
+        '200':
+          description: User created or added to tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAdminUserResponse'
+        '400':
+          description: Invalid request or invalid groups for tenant
+        '409':
+          description: User already has access to this tenant
+        '403':
+          description: Tenant_Admin role required or access denied to tenant
+
+  /tenant-admin/users/{username}:
+    put:
+      tags:
+        - Tenant User Management
+      summary: Update user
+      description: Update user attributes (name, enabled status)
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantAdminUpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAdminUserResponse'
+        '404':
+          description: User not found
+        '403':
+          description: Tenant_Admin role required or user not in tenant
+    delete:
+      tags:
+        - Tenant User Management
+      summary: Delete user
+      description: Delete user or remove from tenant. If user belongs to multiple tenants, only removes from current tenant.
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted or removed from tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAdminUserResponse'
+        '404':
+          description: User not found
+        '403':
+          description: Tenant_Admin role required or user not in tenant
+
+  /tenant-admin/users/{username}/groups:
+    post:
+      tags:
+        - Tenant User Management
+      summary: Assign role to user
+      description: Assign a role (group) to user. Role must be valid for tenant's enabled modules.
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantAdminAssignRoleRequest'
+      responses:
+        '200':
+          description: Role assigned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAdminUserResponse'
+        '400':
+          description: Invalid group name
+        '403':
+          description: Tenant_Admin role required or role not available for tenant
+        '404':
+          description: User not found
+
+  /tenant-admin/users/{username}/groups/{group_name}:
+    delete:
+      tags:
+        - Tenant User Management
+      summary: Remove role from user
+      description: Remove a role (group) from user
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: group_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAdminUserResponse'
+        '403':
+          description: Tenant_Admin role required or role not available for tenant
+        '404':
+          description: User not found
+
+  /tenant-admin/roles:
+    get:
+      tags:
+        - Tenant User Management
+      summary: Get available roles
+      description: Get list of roles available for current tenant based on enabled modules
+      security:
+        - BearerAuth: []
+        - TenantHeader: []
+      responses:
+        '200':
+          description: Available roles retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAdminRolesListResponse'
+        '403':
+          description: Tenant_Admin role required or access denied to tenant
 
   # Tenant Administration Endpoints
   /tenant/config:
@@ -1797,3 +2330,490 @@ components:
             application/json:
               schema:
                 $ref: '#/components/schemas/TenantAccessDeniedResponse'
+
+    # System Administration Schemas
+    SysAdminTenantsListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/SysAdminTenant'
+        total:
+          type: integer
+          example: 25
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 50
+
+    SysAdminTenant:
+      type: object
+      properties:
+        administration:
+          type: string
+          example: "GoodwinSolutions"
+        display_name:
+          type: string
+          example: "Goodwin Solutions Ltd"
+        status:
+          type: string
+          enum: [active, suspended, inactive, deleted]
+          example: "active"
+        contact_email:
+          type: string
+          example: "admin@goodwin.com"
+        phone_number:
+          type: string
+          example: "+31123456789"
+        street_address:
+          type: string
+          example: "Main Street 123"
+        city:
+          type: string
+          example: "Amsterdam"
+        zipcode:
+          type: string
+          example: "1012AB"
+        country:
+          type: string
+          example: "Netherlands"
+        enabled_modules:
+          type: array
+          items:
+            type: string
+          example: ["FIN", "STR", "TENADMIN"]
+        user_count:
+          type: integer
+          example: 5
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SysAdminCreateTenantRequest:
+      type: object
+      required:
+        - administration
+        - display_name
+        - contact_email
+      properties:
+        administration:
+          type: string
+          example: "NewCorp"
+          description: Unique tenant identifier (alphanumeric, no spaces)
+        display_name:
+          type: string
+          example: "New Corporation"
+        contact_email:
+          type: string
+          example: "admin@newcorp.com"
+        phone_number:
+          type: string
+          example: "+31123456789"
+        street_address:
+          type: string
+          example: "Main Street 123"
+        city:
+          type: string
+          example: "Amsterdam"
+        zipcode:
+          type: string
+          example: "1012AB"
+        country:
+          type: string
+          example: "Netherlands"
+        enabled_modules:
+          type: array
+          items:
+            type: string
+            enum: [FIN, STR, ADMIN, TENADMIN]
+          example: ["FIN", "STR"]
+        initial_admin_email:
+          type: string
+          example: "john@newcorp.com"
+          description: Optional initial admin user email
+
+    SysAdminUpdateTenantRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+          example: "Updated Corporation Name"
+        status:
+          type: string
+          enum: [active, suspended, inactive, deleted]
+          example: "active"
+        contact_email:
+          type: string
+          example: "new@email.com"
+        phone_number:
+          type: string
+          example: "+31987654321"
+        street_address:
+          type: string
+          example: "New Street 456"
+        city:
+          type: string
+          example: "Rotterdam"
+        zipcode:
+          type: string
+          example: "3000AB"
+        country:
+          type: string
+          example: "Netherlands"
+
+    SysAdminTenantResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        administration:
+          type: string
+          example: "GoodwinSolutions"
+        display_name:
+          type: string
+          example: "Goodwin Solutions Ltd"
+        status:
+          type: string
+          example: "active"
+        message:
+          type: string
+          example: "Tenant GoodwinSolutions created successfully"
+
+    SysAdminTenantDetailsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        tenant:
+          allOf:
+            - $ref: '#/components/schemas/SysAdminTenant'
+            - type: object
+              properties:
+                users:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                      email:
+                        type: string
+                      name:
+                        type: string
+                      groups:
+                        type: array
+                        items:
+                          type: string
+                updated_by:
+                  type: string
+                  example: "admin@system.com"
+
+    SysAdminTenantModulesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        administration:
+          type: string
+          example: "GoodwinSolutions"
+        modules:
+          type: array
+          items:
+            type: object
+            properties:
+              module_name:
+                type: string
+                example: "FIN"
+              is_active:
+                type: boolean
+                example: true
+              created_at:
+                type: string
+                format: date-time
+              updated_at:
+                type: string
+                format: date-time
+
+    SysAdminUpdateModulesRequest:
+      type: object
+      required:
+        - modules
+      properties:
+        modules:
+          type: array
+          items:
+            type: object
+            required:
+              - name
+            properties:
+              name:
+                type: string
+                enum: [FIN, STR, ADMIN, TENADMIN]
+                example: "FIN"
+              is_active:
+                type: boolean
+                example: true
+
+    SysAdminRolesListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/SysAdminRole'
+        total:
+          type: integer
+          example: 10
+
+    SysAdminRole:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Finance_CRUD"
+        description:
+          type: string
+          example: "Full access to Finance module"
+        user_count:
+          type: integer
+          example: 12
+        category:
+          type: string
+          enum: [platform, module, other]
+          example: "module"
+        created_date:
+          type: string
+          format: date-time
+
+    SysAdminCreateRoleRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: "NewRole"
+        description:
+          type: string
+          example: "Description of the role"
+
+    SysAdminUpdateRoleRequest:
+      type: object
+      properties:
+        description:
+          type: string
+          example: "Updated description"
+        precedence:
+          type: integer
+          example: 50
+
+    SysAdminRoleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        name:
+          type: string
+          example: "Finance_CRUD"
+        description:
+          type: string
+          example: "Full access to Finance module"
+        message:
+          type: string
+          example: "Role Finance_CRUD created successfully"
+
+    SysAdminHealthResponse:
+      type: object
+      properties:
+        overall:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/SysAdminHealthService'
+        timestamp:
+          type: string
+          format: date-time
+
+    SysAdminHealthService:
+      type: object
+      properties:
+        service:
+          type: string
+          enum: [database, cognito, sns, google_drive, openrouter]
+          example: "database"
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        responseTime:
+          type: integer
+          example: 65
+          description: Response time in milliseconds
+        message:
+          type: string
+          example: "Connected to MySQL 8.0.44"
+        lastChecked:
+          type: string
+          format: date-time
+        details:
+          type: object
+          description: Service-specific details
+
+    # Tenant User Management Schemas
+    TenantAdminUsersListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        tenant:
+          type: string
+          example: "GoodwinSolutions"
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantAdminUser'
+        count:
+          type: integer
+          example: 5
+
+    TenantAdminUser:
+      type: object
+      properties:
+        username:
+          type: string
+          example: "john@goodwin.com"
+        email:
+          type: string
+          example: "john@goodwin.com"
+        name:
+          type: string
+          example: "John Doe"
+        status:
+          type: string
+          example: "CONFIRMED"
+        enabled:
+          type: boolean
+          example: true
+        groups:
+          type: array
+          items:
+            type: string
+          example: ["Finance_Read", "Tenant_Admin"]
+        tenants:
+          type: array
+          items:
+            type: string
+          example: ["GoodwinSolutions", "PeterPrive"]
+        created:
+          type: string
+          format: date-time
+        modified:
+          type: string
+          format: date-time
+
+    TenantAdminCreateUserRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          example: "newuser@goodwin.com"
+        name:
+          type: string
+          example: "New User"
+        password:
+          type: string
+          example: "TempPassword123!"
+          description: Required for new users (min 8 characters)
+        groups:
+          type: array
+          items:
+            type: string
+          example: ["Finance_Read"]
+          description: Roles to assign (must be valid for tenant's enabled modules)
+
+    TenantAdminUpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Updated Name"
+        enabled:
+          type: boolean
+          example: true
+
+    TenantAdminAssignRoleRequest:
+      type: object
+      required:
+        - groupName
+      properties:
+        groupName:
+          type: string
+          example: "Finance_CRUD"
+
+    TenantAdminUserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "User john@goodwin.com created successfully"
+        username:
+          type: string
+          example: "john@goodwin.com"
+        tenant:
+          type: string
+          example: "GoodwinSolutions"
+        existing_user:
+          type: boolean
+          example: false
+
+    TenantAdminRolesListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        tenant:
+          type: string
+          example: "GoodwinSolutions"
+        roles:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "Finance_CRUD"
+              description:
+                type: string
+                example: "Full access to Finance module"
+              precedence:
+                type: integer
+                example: 10
+        count:
+          type: integer
+          example: 4

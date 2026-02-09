@@ -79,7 +79,7 @@ def create_tenant(user_email, user_roles):
         insert_query = """
             INSERT INTO tenants (
                 administration, display_name, status, contact_email, phone_number,
-                address_street, address_city, address_zipcode, address_country,
+                street, city, zipcode, country,
                 created_at, updated_at, updated_by
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
         """
@@ -92,7 +92,7 @@ def create_tenant(user_email, user_roles):
                 'active',
                 data['contact_email'],
                 data.get('phone_number'),
-                data.get('street'),
+                data.get('street_address'),
                 data.get('city'),
                 data.get('zipcode'),
                 data.get('country', 'Netherlands'),
@@ -212,10 +212,10 @@ def list_tenants(user_email, user_roles):
                 t.status,
                 t.contact_email,
                 t.phone_number,
-                t.address_street as street,
-                t.address_city as city,
-                t.address_zipcode as zipcode,
-                t.address_country as country,
+                t.street as street_address,
+                t.city,
+                t.zipcode,
+                t.country,
                 t.created_at,
                 t.updated_at
             FROM tenants t
@@ -286,10 +286,10 @@ def get_tenant(user_email, user_roles, administration):
                 status,
                 contact_email,
                 phone_number,
-                address_street as street,
-                address_city as city,
-                address_zipcode as zipcode,
-                address_country as country,
+                street as street_address,
+                city,
+                zipcode,
+                country,
                 created_at,
                 updated_at,
                 updated_by
@@ -383,10 +383,10 @@ def update_tenant(user_email, user_roles, administration):
             'status': 'status',
             'contact_email': 'contact_email',
             'phone_number': 'phone_number',
-            'street': 'address_street',
-            'city': 'address_city',
-            'zipcode': 'address_zipcode',
-            'country': 'address_country'
+            'street_address': 'street',
+            'city': 'city',
+            'zipcode': 'zipcode',
+            'country': 'country'
         }
         
         for field, db_field in allowed_fields.items():

@@ -1,0 +1,524 @@
+# System Administration endpoints (SysAdmin role only)
+
+tenants-list-create:
+  get:
+    tags:
+      - System Administration
+    summary: List all tenants
+    description: List all tenants with filtering, pagination, and sorting (SysAdmin only)
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          default: 1
+      - name: per_page
+        in: query
+        description: Items per page (max 100)
+        schema:
+          type: integer
+          default: 50
+      - name: status
+        in: query
+        description: Filter by status
+        schema:
+          type: string
+          enum: [active, suspended, inactive, deleted, all]
+          default: all
+      - name: sort_by
+        in: query
+        description: Sort field
+        schema:
+          type: string
+          enum: [administration, display_name, created_at, status]
+          default: created_at
+      - name: sort_order
+        in: query
+        description: Sort order
+        schema:
+          type: string
+          enum: [asc, desc]
+          default: desc
+      - name: search
+        in: query
+        description: Search in administration, display_name, contact_email
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Tenant list retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/sysadmin.yaml#/TenantListResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    tags:
+      - System Administration
+    summary: Create new tenant
+    description: Create a new tenant with initial configuration (SysAdmin only)
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/sysadmin.yaml#/TenantCreateRequest'
+    responses:
+      '201':
+        description: Tenant created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                administration:
+                  type: string
+                  example: "NewCorp"
+                display_name:
+                  type: string
+                  example: "New Corporation"
+                status:
+                  type: string
+                  example: "active"
+                message:
+                  type: string
+                  example: "Tenant NewCorp created successfully"
+      '400':
+        description: Invalid request or tenant already exists
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+tenants-get-update-delete:
+  get:
+    tags:
+      - System Administration
+    summary: Get tenant details
+    description: Get detailed information about a specific tenant (SysAdmin only)
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: administration
+        in: path
+        required: true
+        description: Tenant administration identifier
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Tenant details retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/sysadmin.yaml#/TenantResponse'
+      '404':
+        description: Tenant not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  put:
+    tags:
+      - System Administration
+    summary: Update tenant
+    description: Update tenant details (SysAdmin only). Note - administration field is immutable.
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: administration
+        in: path
+        required: true
+        description: Tenant administration identifier
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/sysadmin.yaml#/TenantUpdateRequest'
+    responses:
+      '200':
+        description: Tenant updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                administration:
+                  type: string
+                  example: "GoodwinSolutions"
+                message:
+                  type: string
+                  example: "Tenant GoodwinSolutions updated successfully"
+      '404':
+        description: Tenant not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    tags:
+      - System Administration
+    summary: Delete tenant (soft delete)
+    description: Soft delete tenant by setting status to 'deleted' (SysAdmin only). Tenant must have no active users.
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: administration
+        in: path
+        required: true
+        description: Tenant administration identifier
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Tenant deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                administration:
+                  type: string
+                  example: "GoodwinSolutions"
+                message:
+                  type: string
+                  example: "Tenant GoodwinSolutions deleted successfully"
+      '404':
+        description: Tenant not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: Tenant has active users
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Cannot delete tenant with active users. Found 5 user(s). Please remove users first."
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+tenants-modules:
+  get:
+    tags:
+      - System Administration
+    summary: Get tenant modules
+    description: Get enabled modules for a tenant (SysAdmin only)
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: administration
+        in: path
+        required: true
+        description: Tenant administration identifier
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Tenant modules retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/sysadmin.yaml#/ModulesResponse'
+      '404':
+        description: Tenant not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  put:
+    tags:
+      - System Administration
+    summary: Update tenant modules
+    description: Update enabled modules for a tenant (SysAdmin only). Note - does not remove users from module groups.
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: administration
+        in: path
+        required: true
+        description: Tenant administration identifier
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/sysadmin.yaml#/ModulesUpdateRequest'
+    responses:
+      '200':
+        description: Modules updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                administration:
+                  type: string
+                  example: "GoodwinSolutions"
+                message:
+                  type: string
+                  example: "Modules updated for tenant GoodwinSolutions"
+      '404':
+        description: Tenant not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+roles-list-create:
+  get:
+    tags:
+      - System Administration
+    summary: List all roles
+    description: List all Cognito groups (roles) with user counts (SysAdmin only)
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: Role list retrieved
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/sysadmin.yaml#/RoleListResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  post:
+    tags:
+      - System Administration
+    summary: Create new role
+    description: Create a new Cognito group (role) (SysAdmin only)
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/sysadmin.yaml#/RoleCreateRequest'
+    responses:
+      '201':
+        description: Role created successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                name:
+                  type: string
+                  example: "NewRole"
+                description:
+                  type: string
+                  example: "Description of the role"
+                message:
+                  type: string
+                  example: "Role NewRole created successfully"
+      '400':
+        description: Invalid request or role already exists
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+roles-update-delete:
+  put:
+    tags:
+      - System Administration
+    summary: Update role
+    description: Update role description and precedence (SysAdmin only). Note - role name cannot be changed.
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: role_name
+        in: path
+        required: true
+        description: Role name (Cognito group name)
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/sysadmin.yaml#/RoleUpdateRequest'
+    responses:
+      '200':
+        description: Role updated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                name:
+                  type: string
+                  example: "Finance_Read"
+                message:
+                  type: string
+                  example: "Role Finance_Read updated successfully"
+      '404':
+        description: Role not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+  delete:
+    tags:
+      - System Administration
+    summary: Delete role
+    description: Delete Cognito group (role) (SysAdmin only). Role must have zero users.
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: role_name
+        in: path
+        required: true
+        description: Role name (Cognito group name)
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Role deleted successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                name:
+                  type: string
+                  example: "OldRole"
+                message:
+                  type: string
+                  example: "Role OldRole deleted successfully"
+      '404':
+        description: Role not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+      '409':
+        description: Role has active users
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Cannot delete role with active users. Please remove all users from OldRole first."
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+health:
+  get:
+    tags:
+      - System Administration
+    summary: Get system health status
+    description: Get overall system health and service status (SysAdmin only)
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: System health status
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/sysadmin.yaml#/HealthResponse'
+      '403':
+        description: SysAdmin role required
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'

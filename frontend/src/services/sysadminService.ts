@@ -35,6 +35,8 @@ export interface Role {
   description: string;
   precedence: number;
   category?: 'platform' | 'module' | 'other';
+  user_count?: number;
+  created_date?: string;
 }
 
 export interface TenantModule {
@@ -58,7 +60,7 @@ export interface CreateTenantRequest {
 
 export interface UpdateTenantRequest {
   display_name?: string;
-  status?: 'active' | 'suspended' | 'inactive';
+  status?: 'active' | 'suspended' | 'inactive' | 'deleted';
   contact_email?: string;
   phone_number?: string;
   street_address?: string;
@@ -194,6 +196,23 @@ export async function createRole(data: {
   return handleResponse(response);
 }
 
+export async function updateRole(
+  roleName: string,
+  data: {
+    description?: string;
+    precedence?: number;
+  }
+): Promise<{ success: boolean; message: string }> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl(`/api/sysadmin/roles/${roleName}`);
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(data)
+  });
+  return handleResponse(response);
+}
+
 export async function deleteRole(roleName: string): Promise<{ success: boolean; message: string }> {
   const headers = await getAuthHeaders();
   const url = buildApiUrl(`/api/sysadmin/roles/${roleName}`);
@@ -217,7 +236,7 @@ export async function getTenantModules(administration: string): Promise<{ module
 
 export async function updateTenantModules(
   administration: string,
-  modules: string[]
+  modules: Array<{ name: string; is_active: boolean }>
 ): Promise<{ success: boolean; message: string }> {
   const headers = await getAuthHeaders();
   const url = buildApiUrl(`/api/sysadmin/tenants/${administration}/modules`);
@@ -226,5 +245,31 @@ export async function updateTenantModules(
     headers,
     body: JSON.stringify({ modules })
   });
+  return handleResponse(response);
+}
+
+// ============================================================================
+// Health Check
+// ============================================================================
+
+export interface HealthStatus {
+  service: string;
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  responseTime: number;
+  message?: string;
+  lastChecked: string;
+  details?: Record<string, any>;
+}
+
+export interface SystemHealth {
+  overall: 'healthy' | 'degraded' | 'unhealthy';
+  services: HealthStatus[];
+  timestamp: string;
+}
+
+export async function getSystemHealth(): Promise<SystemHealth> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl('/api/sysadmin/health');
+  const response = await fetch(url, { headers });
   return handleResponse(response);
 }

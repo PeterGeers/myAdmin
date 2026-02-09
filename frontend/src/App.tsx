@@ -224,7 +224,7 @@ function AppContent() {
                     <Heading color="orange.400" size="lg">⚙️ System Administration</Heading>
                   </HStack>
                   <HStack spacing={3}>
-                    <TenantSelector size="sm" />
+                    <TenantSelector size="sm" hide={true} />
                     <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
                 </HStack>

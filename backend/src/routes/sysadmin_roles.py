@@ -169,6 +169,64 @@ def create_role(user_email, user_roles):
         return jsonify({'error': str(e)}), 500
 
 
+@sysadmin_roles_bp.route('/<role_name>', methods=['PUT'])
+@cognito_required(required_roles=['SysAdmin'])
+def update_role(user_email, user_roles, role_name):
+    """
+    Update Cognito group (role) description and precedence
+    
+    Authorization: SysAdmin role required
+    
+    Request body:
+    {
+        "description": "Updated description",
+        "precedence": 50
+    }
+    
+    Note: Group name cannot be changed
+    """
+    try:
+        data = request.get_json()
+        
+        # Check if group exists
+        try:
+            cognito_client.get_group(
+                UserPoolId=USER_POOL_ID,
+                GroupName=role_name
+            )
+        except cognito_client.exceptions.ResourceNotFoundException:
+            return jsonify({'error': f'Role {role_name} not found'}), 404
+        
+        # Prepare update parameters
+        update_params = {
+            'UserPoolId': USER_POOL_ID,
+            'GroupName': role_name
+        }
+        
+        if 'description' in data:
+            update_params['Description'] = data['description']
+        
+        if 'precedence' in data:
+            update_params['Precedence'] = int(data['precedence'])
+        
+        # Update group
+        cognito_client.update_group(**update_params)
+        
+        logger.info(f"Role {role_name} updated by {user_email}")
+        
+        return jsonify({
+            'success': True,
+            'name': role_name,
+            'message': f'Role {role_name} updated successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating role: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @sysadmin_roles_bp.route('/<role_name>', methods=['DELETE'])
 @cognito_required(required_roles=['SysAdmin'])
 def delete_role(user_email, user_roles, role_name):

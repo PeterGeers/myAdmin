@@ -1,0 +1,179 @@
+# STR (Short-Term Rental) endpoints
+
+upload:
+  post:
+    tags:
+      - STR
+    summary: Upload STR file
+    description: Upload and process short-term rental booking file
+    requestBody:
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+                description: STR booking file
+              platform:
+                type: string
+                description: Booking platform (airbnb, booking.com, etc.)
+    responses:
+      '200':
+        description: Booking data processed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/str.yaml#/STRUploadResponse'
+      '400':
+        description: Invalid file
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+save:
+  post:
+    tags:
+      - STR
+    summary: Save STR bookings
+    description: Save processed STR bookings to database
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/str.yaml#/STRSaveRequest'
+    responses:
+      '200':
+        description: Bookings saved
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/str.yaml#/STRSaveResponse'
+      '500':
+        description: Database error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+pricing-generate:
+  post:
+    tags:
+      - Pricing
+    summary: Generate pricing recommendations
+    description: Generate pricing strategy using AI optimizer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/str.yaml#/PricingGenerateRequest'
+    responses:
+      '200':
+        description: Pricing recommendations
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/str.yaml#/PricingGenerateResponse'
+      '500':
+        description: Generation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/ErrorResponse'
+
+str-channel-save:
+  post:
+    tags:
+      - STR-Channel
+    summary: Save STR channel transactions
+    description: Save STR channel transactions with tenant validation
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/str.yaml#/STRChannelSaveRequest'
+    responses:
+      '200':
+        description: Transactions saved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/str.yaml#/STRChannelSaveResponse'
+      '403':
+        description: Access denied - transactions contain unauthorized tenant data
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+str-invoice-generate:
+  post:
+    tags:
+      - STR-Invoice
+    summary: Generate STR invoice
+    description: Generate invoice for STR booking with tenant validation
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/str.yaml#/STRInvoiceGenerateRequest'
+    responses:
+      '200':
+        description: Invoice generated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/str.yaml#/STRInvoiceGenerateResponse'
+      '403':
+        description: Access denied - booking belongs to unauthorized tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+str-invoice-upload-template:
+  post:
+    tags:
+      - STR-Invoice
+    summary: Upload STR invoice template
+    description: Upload tenant-specific STR invoice templates to Google Drive
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    requestBody:
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              templates:
+                type: array
+                items:
+                  type: string
+                  format: binary
+                description: Template files to upload
+    responses:
+      '200':
+        description: Templates uploaded successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/str.yaml#/STRTemplateUploadResponse'
+      '403':
+        description: Access denied - insufficient tenant permissions
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'

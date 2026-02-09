@@ -1,0 +1,55 @@
+# Financial reporting schemas
+
+BTWGenerateRequest:
+  type: object
+  properties:
+    administration:
+      type: string
+      example: "Main"
+    year:
+      type: string
+      example: "2025"
+    quarter:
+      type: string
+      example: "Q1"
+
+BTWGenerateResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    report:
+      type: object
+      description: Generated BTW report data
+
+AangifteIBResponse:
+  type: object
+  properties:
+    success:
+      type: boolean
+      example: true
+    data:
+      type: array
+      items:
+        type: object
+        properties:
+          Parent:
+            type: string
+            example: "4000"
+          Aangifte:
+            type: string
+            example: "Omzet"
+          Amount:
+            type: number
+            example: 12500.50
+    available_years:
+      type: array
+      items:
+        type: string
+      example: ["2024", "2025"]
+    available_administrations:
+      type: array
+      items:
+        type: string
+      example: ["Main", "Secondary"]

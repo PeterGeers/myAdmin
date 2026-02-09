@@ -1,0 +1,285 @@
+# BNB (Bed & Breakfast) reporting endpoints
+
+bnb-listing-data:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB listing data
+    description: Retrieve BNB listing performance data filtered by user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: year
+        in: query
+        description: Year filter
+        required: false
+        schema:
+          type: string
+          example: "2024"
+      - name: listing
+        in: query
+        description: Listing filter
+        required: false
+        schema:
+          type: string
+          example: "Child Friendly"
+      - name: channel
+        in: query
+        description: Channel filter
+        required: false
+        schema:
+          type: string
+          example: "Airbnb"
+    responses:
+      '200':
+        description: BNB listing data filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBListingDataResponse'
+      '403':
+        description: Access denied - insufficient tenant permissions
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+bnb-channel-data:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB channel data
+    description: Retrieve BNB channel performance data filtered by user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: year
+        in: query
+        schema:
+          type: string
+      - name: listing
+        in: query
+        schema:
+          type: string
+      - name: channel
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: BNB channel data filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBChannelDataResponse'
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+bnb-table:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB table data
+    description: Retrieve BNB table view data filtered by user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: year
+        in: query
+        schema:
+          type: string
+      - name: listing
+        in: query
+        schema:
+          type: string
+      - name: channel
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: BNB table data filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBTableDataResponse'
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+bnb-guest-bookings:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB guest bookings
+    description: Retrieve BNB guest booking data filtered by user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: year
+        in: query
+        schema:
+          type: string
+      - name: listing
+        in: query
+        schema:
+          type: string
+      - name: channel
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: BNB guest bookings filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBGuestBookingsResponse'
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+bnb-actuals:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB actuals data
+    description: Retrieve BNB actual performance data filtered by user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: year
+        in: query
+        schema:
+          type: string
+      - name: listing
+        in: query
+        schema:
+          type: string
+      - name: channel
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: BNB actuals data filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBActualsResponse'
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+bnb-filter-options:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB filter options
+    description: Retrieve available filter options (years, listings, channels) for user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    responses:
+      '200':
+        description: BNB filter options filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBFilterOptionsResponse'
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+bnb-violin-data:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB violin plot data
+    description: Retrieve BNB violin plot data filtered by user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: year
+        in: query
+        schema:
+          type: string
+      - name: listing
+        in: query
+        schema:
+          type: string
+      - name: channel
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: BNB violin plot data filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBViolinDataResponse'
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
+
+bnb-returning-guests:
+  get:
+    tags:
+      - BNB
+    summary: Get BNB returning guests data
+    description: Retrieve BNB returning guests analysis filtered by user's accessible tenants
+    security:
+      - BearerAuth: []
+      - TenantHeader: []
+    parameters:
+      - name: year
+        in: query
+        schema:
+          type: string
+      - name: listing
+        in: query
+        schema:
+          type: string
+      - name: channel
+        in: query
+        schema:
+          type: string
+    responses:
+      '200':
+        description: BNB returning guests data filtered by tenant
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/bnb.yaml#/BNBReturningGuestsResponse'
+      '403':
+        description: Access denied
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/common.yaml#/TenantAccessDeniedResponse'
