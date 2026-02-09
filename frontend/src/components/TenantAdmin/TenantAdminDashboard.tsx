@@ -7,6 +7,7 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTenant } from '../../context/TenantContext';
 import UserManagement from './UserManagement';
 import TemplateManagement from './TemplateManagement/TemplateManagement';
+import CredentialsManagement from './CredentialsManagement';
 
 interface TenantInfo {
   name: string;
@@ -136,11 +137,11 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               Template Management
             </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }} isDisabled>
-              Tenant Settings
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              Credentials
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }} isDisabled>
-              Credentials
+              Tenant Settings
             </Tab>
           </TabList>
 
@@ -152,10 +153,10 @@ export function TenantAdminDashboard() {
               <TemplateManagement />
             </TabPanel>
             <TabPanel>
-              <Text color="gray.400">Tenant Settings - Coming Soon</Text>
+              <CredentialsManagement tenant={currentTenant} />
             </TabPanel>
             <TabPanel>
-              <Text color="gray.400">Credentials Management - Coming Soon</Text>
+              <Text color="gray.400">Tenant Settings - Coming Soon</Text>
             </TabPanel>
           </TabPanels>
         </Tabs>

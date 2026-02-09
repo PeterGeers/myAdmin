@@ -78,33 +78,38 @@ This document breaks down the implementation of missing Tenant Admin features in
 
 ### 4.1.3 Credentials Management Endpoints
 
-- [ ] Add POST `/api/tenant-admin/credentials` endpoint
-  - [ ] Handle multipart/form-data upload
-  - [ ] Validate file types (JSON)
-  - [ ] Use CredentialService to encrypt and store
-  - [ ] Test connectivity
-  - [ ] Return credential status
-- [ ] Add GET `/api/tenant-admin/credentials` endpoint
-  - [ ] Use CredentialService to get credentials
-  - [ ] Return status (without decrypted values)
-- [ ] Add POST `/api/tenant-admin/credentials/test` endpoint
-  - [ ] Use CredentialService to get credentials
-  - [ ] Test Google Drive connectivity
-  - [ ] Return test results
-- [ ] Add POST `/api/tenant-admin/credentials/oauth/start` endpoint
-  - [ ] Generate OAuth URL
-  - [ ] Store state token
-  - [ ] Return auth URL
-- [ ] Add POST `/api/tenant-admin/credentials/oauth/callback` endpoint
-  - [ ] Validate state token
-  - [ ] Exchange code for tokens
-  - [ ] Use CredentialService to store tokens
-  - [ ] Return success
+- [x] Add POST `/api/tenant-admin/credentials` endpoint ✅ Complete
+  - [x] Handle multipart/form-data upload ✅ Complete
+  - [x] Validate file types (JSON) ✅ Complete
+  - [x] Use CredentialService to encrypt and store ✅ Complete
+  - [x] Test connectivity ✅ Complete (Google Drive)
+  - [x] Return credential status ✅ Complete
+- [x] Add GET `/api/tenant-admin/credentials` endpoint ✅ Complete
+  - [x] Use CredentialService to get credentials ✅ Complete
+  - [x] Return status (without decrypted values) ✅ Complete
+- [x] Add POST `/api/tenant-admin/credentials/test` endpoint ✅ Complete
+  - [x] Use CredentialService to get credentials ✅ Complete
+  - [x] Test Google Drive connectivity ✅ Complete
+  - [x] Return test results ✅ Complete
+- [x] Add POST `/api/tenant-admin/credentials/oauth/start` endpoint ✅ Complete
+  - [x] Generate OAuth URL ✅ Complete
+  - [x] Store state token ✅ Complete (returned to client)
+  - [x] Return auth URL ✅ Complete
+- [x] Add POST `/api/tenant-admin/credentials/oauth/callback` endpoint ✅ Complete
+  - [x] Validate state token ✅ Complete
+  - [x] Exchange code for tokens ✅ Complete
+  - [x] Use CredentialService to store tokens ✅ Complete
+  - [x] Return success ✅ Complete
 - [ ] Write API tests for credentials endpoints (target: 6+ tests)
+- [ ] Create Postman collection for credentials API testing
+- [x] Register blueprint in app.py ✅ Complete
+- [x] Create frontend CredentialsManagement component ✅ Complete
+- [x] Integrate with TenantAdminDashboard ✅ Complete
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 
 **Time Estimate**: 0.5 days
+**Status**: ✅ Implementation Complete - Testing & Linting Pending
 
 **Reference**: Phase 1 CredentialService
 
@@ -213,34 +218,24 @@ This document breaks down the implementation of missing Tenant Admin features in
 
 ### 4.2.3 CredentialsManagement Component
 
-- [ ] Create `frontend/src/components/TenantAdmin/CredentialsManagement/` directory
-- [ ] Create `CredentialsManagement.tsx` (main container)
-  - [ ] Setup state management
-  - [ ] Implement `handleUploadCredentials()` function
-  - [ ] Implement `handleTestConnection()` function
-  - [ ] Implement `handleOAuthStart()` function
-- [ ] Create `CredentialUpload.tsx` component
-  - [ ] File input for credentials.json
-  - [ ] File input for token.json
-  - [ ] Upload button with progress
-  - [ ] File validation
-- [ ] Create `CredentialStatus.tsx` component
-  - [ ] Display credential status
-  - [ ] Display last tested timestamp
-  - [ ] Display test results
-- [ ] Create `CredentialTest.tsx` component
-  - [ ] Test button
-  - [ ] Test results display
-  - [ ] Error messages
-- [ ] Create `OAuthFlow.tsx` component
-  - [ ] "Connect Google Drive" button
-  - [ ] OAuth redirect handling
-  - [ ] Success/error display
-- [ ] Add routing to TenantAdminDashboard
+- [x] Create `frontend/src/components/TenantAdmin/CredentialsManagement.tsx` ✅ Complete
+- [x] Setup state management ✅ Complete
+- [x] Implement `handleUploadCredentials()` function ✅ Complete
+- [x] Implement `handleTestConnection()` function ✅ Complete
+- [x] Implement `handleOAuthStart()` function ✅ Complete
+- [x] File upload with validation (JSON only) ✅ Complete
+- [x] Credential type selector ✅ Complete
+- [x] Credentials table display ✅ Complete
+- [x] Test connection button per credential ✅ Complete
+- [x] OAuth flow UI ✅ Complete
+- [x] Add routing to TenantAdminDashboard ✅ Complete
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 
 **Time Estimate**: 0.5 days
+**Status**: ✅ Implementation Complete - Testing & Linting Pending
+
+**Note**: Implemented as single-file component (500 lines) instead of multi-file structure for simplicity.
 
 ### 4.2.4 StorageConfiguration Component
 
@@ -467,13 +462,13 @@ This document breaks down the implementation of missing Tenant Admin features in
 
 ## Progress Tracking
 
-| Phase                        | Status         | Duration | Start Date | End Date | Notes |
-| ---------------------------- | -------------- | -------- | ---------- | -------- | ----- |
-| Phase 4.1: Backend API       | ⏸️ Not Started | 2 days   | -          | -        | -     |
-| Phase 4.2: Frontend          | ⏸️ Not Started | 2 days   | -          | -        | -     |
-| Phase 4.3: Invitation System | ⏸️ Not Started | 1 day    | -          | -        | -     |
-| Phase 4.4: Access Control    | ⏸️ Not Started | 0.5 days | -          | -        | -     |
-| Phase 4.5: Testing           | ⏸️ Not Started | 1 day    | -          | -        | -     |
+| Phase                        | Status         | Duration | Start Date  | End Date | Notes                                        |
+| ---------------------------- | -------------- | -------- | ----------- | -------- | -------------------------------------------- |
+| Phase 4.1: Backend API       | 🔄 In Progress | 2 days   | Feb 9, 2026 | -        | 4.1.1 ✅ 4.1.2 ✅ 4.1.3 ✅ (testing pending) |
+| Phase 4.2: Frontend          | ⏸️ Not Started | 2 days   | -           | -        | -                                            |
+| Phase 4.3: Invitation System | ⏸️ Not Started | 1 day    | -           | -        | -                                            |
+| Phase 4.4: Access Control    | ⏸️ Not Started | 0.5 days | -           | -        | -                                            |
+| Phase 4.5: Testing           | ⏸️ Not Started | 1 day    | -           | -        | -                                            |
 
 **Legend**:
 

@@ -30,6 +30,7 @@ from tenant_module_routes import tenant_module_bp
 from routes.sysadmin_routes import sysadmin_bp
 from routes.tenant_admin_users import tenant_admin_users_bp
 from routes.sysadmin_health import sysadmin_health_bp
+from routes.tenant_admin_credentials import tenant_admin_credentials_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -115,6 +116,7 @@ app.register_blueprint(tenant_admin_bp)
 app.register_blueprint(tenant_module_bp)
 app.register_blueprint(sysadmin_bp)
 app.register_blueprint(tenant_admin_users_bp)
+app.register_blueprint(tenant_admin_credentials_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')
 
 
