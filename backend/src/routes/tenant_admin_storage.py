@@ -79,26 +79,24 @@ def get_storage_config(user_email, user_roles):
         # Get current tenant
         tenant = get_current_tenant(request)
         
-        # Get configuration from database
+        # Get configuration from tenant_config table
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
         
         query = """
-            SELECT settings
-            FROM tenants
+            SELECT config_key, config_value, is_secret
+            FROM tenant_config
             WHERE administration = %s
+            AND config_key LIKE 'storage_%'
         """
         
         results = db.execute_query(query, (tenant,))
         
-        if not results or len(results) == 0:
-            return jsonify({
-                'success': False,
-                'error': f'Tenant {tenant} not found'
-            }), 404
-        
-        settings = results[0].get('settings', {})
-        storage_config = settings.get('storage', {}) if isinstance(settings, dict) else {}
+        # Build config dict from key-value pairs
+        storage_config = {}
+        for row in results:
+            key = row['config_key'].replace('storage_', '')  # Remove 'storage_' prefix
+            storage_config[key] = row['config_value']
         
         return jsonify({
             'success': True,
@@ -140,14 +138,7 @@ def update_storage_config(user_email, user_roles):
             return jsonify({'error': 'No configuration data provided'}), 400
         
         # Validate folder IDs (optional - test accessibility)
-        folder_ids = [
-            data.get('facturen_folder_id'),
-            data.get('invoices_folder_id'),
-            data.get('reports_folder_id')
-        ]
-        
-        # Remove None values
-        folder_ids = [fid for fid in folder_ids if fid]
+        folder_ids = [v for k, v in data.items() if k.endswith('_folder_id') and v]
         
         # Test folder accessibility if requested
         if data.get('validate', False) and folder_ids:
@@ -165,60 +156,53 @@ def update_storage_config(user_email, user_roles):
                     'error': f'Folder validation failed: {str(e)}'
                 }), 400
         
-        # Update configuration in database
+        # Update configuration in tenant_config table
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
         
-        # Get current settings
+        # Insert or update each config key
+        for key, value in data.items():
+            if key == 'validate':
+                continue  # Skip the validate flag
+            
+            config_key = f'storage_{key}'
+            
+            query = """
+                INSERT INTO tenant_config (administration, config_key, config_value, is_secret, created_by)
+                VALUES (%s, %s, %s, FALSE, %s)
+                ON DUPLICATE KEY UPDATE
+                    config_value = VALUES(config_value),
+                    updated_at = CURRENT_TIMESTAMP
+            """
+            
+            db.execute_query(
+                query,
+                (tenant, config_key, value, user_email),
+                fetch=False,
+                commit=True
+            )
+        
+        logger.info(f"Updated storage config for tenant {tenant} by {user_email}")
+        
+        # Get updated config
         query = """
-            SELECT settings
-            FROM tenants
+            SELECT config_key, config_value
+            FROM tenant_config
             WHERE administration = %s
+            AND config_key LIKE 'storage_%'
         """
         
         results = db.execute_query(query, (tenant,))
-        
-        if not results or len(results) == 0:
-            return jsonify({
-                'success': False,
-                'error': f'Tenant {tenant} not found'
-            }), 404
-        
-        # Update settings
-        import json
-        settings = results[0].get('settings', {})
-        if isinstance(settings, str):
-            settings = json.loads(settings) if settings else {}
-        elif not isinstance(settings, dict):
-            settings = {}
-        
-        # Update storage configuration
-        if 'storage' not in settings:
-            settings['storage'] = {}
-        
-        settings['storage'].update(data)
-        
-        # Save back to database
-        update_query = """
-            UPDATE tenants
-            SET settings = %s
-            WHERE administration = %s
-        """
-        
-        db.execute_query(
-            update_query,
-            (json.dumps(settings), tenant),
-            fetch=False,
-            commit=True
-        )
-        
-        logger.info(f"Updated storage config for tenant {tenant} by {user_email}")
+        updated_config = {
+            row['config_key'].replace('storage_', ''): row['config_value']
+            for row in results
+        }
         
         return jsonify({
             'success': True,
             'message': 'Storage configuration updated successfully',
             'tenant': tenant,
-            'config': settings['storage']
+            'config': updated_config
         })
         
     except Exception as e:

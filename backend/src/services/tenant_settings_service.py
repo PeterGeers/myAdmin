@@ -44,23 +44,37 @@ class TenantSettingsService:
         """
         try:
             query = """
-                SELECT settings
-                FROM tenants
+                SELECT config_key, config_value, is_secret
+                FROM tenant_config
                 WHERE administration = %s
             """
             
             results = self.db.execute_query(query, (administration,))
             
-            if not results or len(results) == 0:
-                raise Exception(f"Tenant '{administration}' not found")
-            
-            settings = results[0].get('settings', {})
-            
-            # Parse JSON if it's a string
-            if isinstance(settings, str):
-                settings = json.loads(settings) if settings else {}
-            elif not isinstance(settings, dict):
-                settings = {}
+            # Build nested settings dict from key-value pairs
+            settings = {}
+            for row in results:
+                key = row['config_key']
+                value = row['config_value']
+                
+                # Parse JSON values if they look like JSON
+                if value and (value.startswith('{') or value.startswith('[')):
+                    try:
+                        value = json.loads(value)
+                    except:
+                        pass  # Keep as string if not valid JSON
+                
+                # Build nested structure from dot notation (e.g., "storage.facturen_folder_id")
+                if '.' in key:
+                    parts = key.split('.')
+                    current = settings
+                    for part in parts[:-1]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    current[parts[-1]] = value
+                else:
+                    settings[key] = value
             
             logger.info(f"Retrieved settings for tenant {administration}")
             
@@ -74,7 +88,7 @@ class TenantSettingsService:
         """
         Update settings for a tenant.
         
-        Merges new settings with existing settings (does not replace entirely).
+        Stores settings as key-value pairs in tenant_config table.
         
         Args:
             administration: The tenant/administration identifier
@@ -84,28 +98,34 @@ class TenantSettingsService:
             True if successful
             
         Raises:
-            Exception: If tenant not found or update fails
+            Exception: If update fails
         """
         try:
-            # Get current settings
-            current_settings = self.get_settings(administration)
+            # Flatten nested dict to key-value pairs with dot notation
+            flat_settings = self._flatten_dict(settings)
             
-            # Merge with new settings (deep merge for nested dicts)
-            merged_settings = self._deep_merge(current_settings, settings)
-            
-            # Update in database
-            query = """
-                UPDATE tenants
-                SET settings = %s
-                WHERE administration = %s
-            """
-            
-            self.db.execute_query(
-                query,
-                (json.dumps(merged_settings), administration),
-                fetch=False,
-                commit=True
-            )
+            # Insert or update each setting
+            for key, value in flat_settings.items():
+                # Convert value to string (JSON for complex types)
+                if isinstance(value, (dict, list)):
+                    value_str = json.dumps(value)
+                else:
+                    value_str = str(value) if value is not None else None
+                
+                query = """
+                    INSERT INTO tenant_config (administration, config_key, config_value, is_secret)
+                    VALUES (%s, %s, %s, FALSE)
+                    ON DUPLICATE KEY UPDATE
+                        config_value = VALUES(config_value),
+                        updated_at = CURRENT_TIMESTAMP
+                """
+                
+                self.db.execute_query(
+                    query,
+                    (administration, key, value_str),
+                    fetch=False,
+                    commit=True
+                )
             
             logger.info(f"Updated settings for tenant {administration}")
             
@@ -114,6 +134,27 @@ class TenantSettingsService:
         except Exception as e:
             logger.error(f"Failed to update settings for {administration}: {e}")
             raise
+    
+    def _flatten_dict(self, d: Dict, parent_key: str = '', sep: str = '.') -> Dict:
+        """
+        Flatten a nested dictionary using dot notation.
+        
+        Args:
+            d: Dictionary to flatten
+            parent_key: Parent key prefix
+            sep: Separator for nested keys
+            
+        Returns:
+            Flattened dictionary
+        """
+        items = []
+        for k, v in d.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+        return dict(items)
     
     def get_activity(self, administration: str, date_range: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
