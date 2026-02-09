@@ -9,6 +9,7 @@ import UserManagement from './UserManagement';
 import TemplateManagement from './TemplateManagement/TemplateManagement';
 import CredentialsManagement from './CredentialsManagement';
 import StorageConfiguration from './StorageConfiguration';
+import TenantConfigManagement from './TenantConfigManagement';
 
 interface TenantInfo {
   name: string;
@@ -144,6 +145,9 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               Storage
             </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              Configuration
+            </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }} isDisabled>
               Tenant Settings
             </Tab>
@@ -161,6 +165,9 @@ export function TenantAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <StorageConfiguration tenant={currentTenant} />
+            </TabPanel>
+            <TabPanel>
+              <TenantConfigManagement tenant={currentTenant} />
             </TabPanel>
             <TabPanel>
               <Text color="gray.400">Tenant Settings - Coming Soon</Text>
