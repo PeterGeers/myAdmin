@@ -156,8 +156,8 @@ except Exception as e:
 CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:5000", "null"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Tenant"]
     }
 })
 
