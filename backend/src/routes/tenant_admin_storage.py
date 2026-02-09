@@ -87,7 +87,7 @@ def get_storage_config(user_email, user_roles):
             SELECT config_key, config_value, is_secret
             FROM tenant_config
             WHERE administration = %s
-            AND config_key LIKE 'storage_%'
+            AND (config_key LIKE 'storage_%' OR config_key LIKE 'google_drive_%')
         """
         
         results = db.execute_query(query, (tenant,))
@@ -95,7 +95,12 @@ def get_storage_config(user_email, user_roles):
         # Build config dict from key-value pairs
         storage_config = {}
         for row in results:
-            key = row['config_key'].replace('storage_', '')  # Remove 'storage_' prefix
+            # Remove prefix (storage_ or google_drive_)
+            key = row['config_key']
+            if key.startswith('storage_'):
+                key = key.replace('storage_', '')
+            elif key.startswith('google_drive_'):
+                key = key.replace('google_drive_', '')
             storage_config[key] = row['config_value']
         
         return jsonify({
@@ -339,14 +344,19 @@ def get_storage_usage(user_email, user_roles):
             SELECT config_key, config_value
             FROM tenant_config
             WHERE administration = %s
-            AND config_key LIKE 'storage_%_folder_id'
+            AND (config_key LIKE 'storage_%_folder_id' OR config_key LIKE 'google_drive_%_folder_id')
         """
         
         results = db.execute_query(query, (tenant,))
         
         storage_config = {}
         for row in results:
-            key = row['config_key'].replace('storage_', '').replace('_folder_id', '')
+            # Remove prefix (storage_ or google_drive_) and _folder_id suffix
+            key = row['config_key']
+            if key.startswith('storage_'):
+                key = key.replace('storage_', '').replace('_folder_id', '')
+            elif key.startswith('google_drive_'):
+                key = key.replace('google_drive_', '').replace('_folder_id', '')
             storage_config[key] = row['config_value']
         
         if not storage_config:
