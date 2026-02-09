@@ -331,30 +331,31 @@ def get_storage_usage(user_email, user_roles):
         # Get current tenant
         tenant = get_current_tenant(request)
         
-        # Get storage configuration
+        # Get storage configuration from tenant_config
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
         
         query = """
-            SELECT settings
-            FROM tenants
+            SELECT config_key, config_value
+            FROM tenant_config
             WHERE administration = %s
+            AND config_key LIKE 'storage_%_folder_id'
         """
         
         results = db.execute_query(query, (tenant,))
         
-        if not results or len(results) == 0:
+        storage_config = {}
+        for row in results:
+            key = row['config_key'].replace('storage_', '').replace('_folder_id', '')
+            storage_config[key] = row['config_value']
+        
+        if not storage_config:
             return jsonify({
-                'success': False,
-                'error': f'Tenant {tenant} not found'
-            }), 404
-        
-        import json
-        settings = results[0].get('settings', {})
-        if isinstance(settings, str):
-            settings = json.loads(settings) if settings else {}
-        
-        storage_config = settings.get('storage', {}) if isinstance(settings, dict) else {}
+                'success': True,
+                'tenant': tenant,
+                'usage': {},
+                'message': 'No storage folders configured'
+            })
         
         # Initialize Google Drive service
         drive_service = GoogleDriveService(tenant)
@@ -362,48 +363,49 @@ def get_storage_usage(user_email, user_roles):
         # Calculate usage for each configured folder
         usage_stats = {}
         
-        for folder_type, folder_id in storage_config.items():
-            if folder_id and folder_type.endswith('_folder_id'):
-                folder_name = folder_type.replace('_folder_id', '')
+        for folder_name, folder_id in storage_config.items():
+            if not folder_id:
+                continue
                 
-                try:
-                    # List all files in folder
-                    all_files = []
-                    page_token = None
+            try:
+                # List all files in folder
+                all_files = []
+                page_token = None
+                
+                while True:
+                    results = drive_service.service.files().list(
+                        q=f"'{folder_id}' in parents and trashed=false",
+                        pageSize=1000,
+                        fields="nextPageToken, files(id, name, size, mimeType)",
+                        pageToken=page_token
+                    ).execute()
                     
-                    while True:
-                        results = drive_service.service.files().list(
-                            q=f"'{folder_id}' in parents and trashed=false",
-                            pageSize=1000,
-                            fields="nextPageToken, files(id, name, size, mimeType)",
-                            pageToken=page_token
-                        ).execute()
-                        
-                        files = results.get('files', [])
-                        all_files.extend(files)
-                        
-                        page_token = results.get('nextPageToken')
-                        if not page_token:
-                            break
+                    files = results.get('files', [])
+                    all_files.extend(files)
                     
-                    # Calculate statistics
-                    total_size = sum(int(f.get('size', 0)) for f in all_files if f.get('size'))
-                    file_count = len(all_files)
-                    
-                    usage_stats[folder_name] = {
-                        'folder_id': folder_id,
-                        'file_count': file_count,
-                        'total_size_bytes': total_size,
-                        'total_size_mb': round(total_size / (1024 * 1024), 2),
-                        'accessible': True
-                    }
-                    
-                except Exception as e:
-                    usage_stats[folder_name] = {
-                        'folder_id': folder_id,
-                        'accessible': False,
-                        'error': str(e)
-                    }
+                    page_token = results.get('nextPageToken')
+                    if not page_token:
+                        break
+                
+                # Calculate statistics
+                total_size = sum(int(f.get('size', 0)) for f in all_files if f.get('size'))
+                file_count = len(all_files)
+                
+                usage_stats[folder_name] = {
+                    'folder_id': folder_id,
+                    'file_count': file_count,
+                    'total_size_bytes': total_size,
+                    'total_size_mb': round(total_size / (1024 * 1024), 2),
+                    'accessible': True
+                }
+                
+            except Exception as e:
+                logger.error(f"Error getting usage for folder {folder_name}: {e}")
+                usage_stats[folder_name] = {
+                    'folder_id': folder_id,
+                    'accessible': False,
+                    'error': str(e)
+                }
         
         logger.info(f"Retrieved storage usage for tenant {tenant} by {user_email}")
         
