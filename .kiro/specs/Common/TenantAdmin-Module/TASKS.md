@@ -93,11 +93,16 @@ This document breaks down the implementation of missing Tenant Admin features in
   - [x] Return test results ✅ Complete
 - [x] Add POST `/api/tenant-admin/credentials/oauth/start` endpoint ✅ Complete
   - [x] Generate OAuth URL ✅ Complete
+  - [x] Retrieve client_id from database (multi-tenant) ✅ Complete
   - [x] Store state token ✅ Complete (returned to client)
   - [x] Return auth URL ✅ Complete
-- [x] Add POST `/api/tenant-admin/credentials/oauth/callback` endpoint ✅ Complete
+- [x] Add GET `/api/tenant-admin/credentials/oauth/callback` endpoint ✅ Complete
+  - [x] Handle OAuth redirect (public endpoint) ✅ Complete
+  - [x] Return HTML page with postMessage ✅ Complete
+- [x] Add POST `/api/tenant-admin/credentials/oauth/complete` endpoint ✅ Complete
   - [x] Validate state token ✅ Complete
-  - [x] Exchange code for tokens ✅ Complete
+  - [x] Retrieve client credentials from database ✅ Complete
+  - [x] Exchange code for tokens with complete structure ✅ Complete
   - [x] Use CredentialService to store tokens ✅ Complete
   - [x] Return success ✅ Complete
 - [ ] Write API tests for credentials endpoints (target: 6+ tests)
@@ -105,11 +110,15 @@ This document breaks down the implementation of missing Tenant Admin features in
 - [x] Register blueprint in app.py ✅ Complete
 - [x] Create frontend CredentialsManagement component ✅ Complete
 - [x] Integrate with TenantAdminDashboard ✅ Complete
+- [x] OAuth flow working end-to-end ✅ Complete
+- [x] Token refresh working automatically ✅ Complete
+- [x] Import invoices working with OAuth tokens ✅ Complete
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 
 **Time Estimate**: 0.5 days
-**Status**: ✅ Implementation Complete - Testing & Linting Pending
+**Status**: ✅ COMPLETE - Testing & Linting Pending
+**Commit**: fd054f3 - Fix OAuth token structure
 
 **Reference**: Phase 1 CredentialService
 
@@ -216,7 +225,7 @@ This document breaks down the implementation of missing Tenant Admin features in
 
 **Reference**: Phase 2.6 TemplateManagement component structure
 
-### 4.2.3 CredentialsManagement Component
+### 4.2.3 CredentialsManagement Component ✅ COMPLETE
 
 - [x] Create `frontend/src/components/TenantAdmin/CredentialsManagement.tsx` ✅ Complete
 - [x] Setup state management ✅ Complete
@@ -228,6 +237,10 @@ This document breaks down the implementation of missing Tenant Admin features in
 - [x] Credentials table display ✅ Complete
 - [x] Test connection button per credential ✅ Complete
 - [x] OAuth flow UI ✅ Complete
+- [x] OAuth token structure fixed (complete token with all required fields) ✅ Complete
+- [x] Multi-tenant credential retrieval from database ✅ Complete
+- [x] Automatic token refresh working ✅ Complete
+- [x] Import invoices working with OAuth tokens ✅ Complete
 - [x] Add routing to TenantAdminDashboard ✅ Complete
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
