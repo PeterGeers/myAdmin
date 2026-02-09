@@ -27,6 +27,8 @@ from pattern_storage_routes import pattern_storage_bp
 from scalability_routes import scalability_bp
 from tenant_admin_routes import tenant_admin_bp
 from tenant_module_routes import tenant_module_bp
+from routes.sysadmin_routes import sysadmin_bp
+from routes.tenant_admin_users import tenant_admin_users_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -110,6 +112,8 @@ app.register_blueprint(pattern_storage_bp)
 app.register_blueprint(scalability_bp)
 app.register_blueprint(tenant_admin_bp)
 app.register_blueprint(tenant_module_bp)
+app.register_blueprint(sysadmin_bp)
+app.register_blueprint(tenant_admin_users_bp)
 
 
 # Configure Swagger UI

@@ -1,272 +1,167 @@
-/**
- * Tenant Admin Dashboard
- * 
- * Main dashboard for Tenant Administrators to manage their tenant.
- * Provides access to various tenant management features.
- */
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Container,
-  Heading,
-  Text,
-  VStack,
-  HStack,
-  Button,
-  SimpleGrid,
-  Badge,
+  Box, VStack, HStack, Tabs, TabList, TabPanels, Tab, TabPanel,
+  useToast, Spinner, Text, Alert, AlertIcon
 } from '@chakra-ui/react';
-import { TemplateManagement } from './TemplateManagement';
+import { fetchAuthSession } from 'aws-amplify/auth';
+import { useTenant } from '../../context/TenantContext';
+import UserManagement from './UserManagement';
+import TemplateManagement from './TemplateManagement/TemplateManagement';
 
-/**
- * Tenant Admin sections
- */
-type TenantAdminSection = 'dashboard' | 'templates' | 'users' | 'credentials' | 'settings';
+interface TenantInfo {
+  name: string;
+  displayName: string;
+}
 
-/**
- * TenantAdminDashboard Component
- */
-export const TenantAdminDashboard: React.FC = () => {
-  const [currentSection, setCurrentSection] = useState<TenantAdminSection>('dashboard');
+export function TenantAdminDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [userTenants, setUserTenants] = useState<TenantInfo[]>([]);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+  const toast = useToast();
+  const { currentTenant } = useTenant(); // Just read from context, don't manage it here
 
-  /**
-   * Render current section
-   */
-  const renderSection = () => {
-    switch (currentSection) {
-      case 'templates':
-        return <TemplateManagement />;
+  useEffect(() => {
+    loadUserInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadUserInfo = async () => {
+    setLoading(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
       
-      case 'users':
-        return (
-          <Container maxW="container.xl" py={8}>
-            <VStack spacing={4} align="start">
-              <Heading size="xl">User Management</Heading>
-              <Text color="gray.400">Manage users and roles for your tenant</Text>
-              <Box bg="yellow.900" p={4} borderRadius="md" w="100%">
-                <Text fontSize="sm">
-                  🚧 User Management feature coming soon
-                </Text>
-              </Box>
-            </VStack>
-          </Container>
-        );
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+
+      // Decode JWT to get user's tenants and roles
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const tenants = payload['custom:tenants'] ? JSON.parse(payload['custom:tenants']) : [];
+      const roles = payload['cognito:groups'] || [];
+
+      // Check if user has Tenant_Admin role
+      if (!roles.includes('Tenant_Admin')) {
+        toast({
+          title: 'Access Denied',
+          description: 'You do not have Tenant Admin permissions',
+          status: 'error',
+          duration: 5000,
+        });
+        return;
+      }
+
+      setUserRoles(roles);
       
-      case 'credentials':
-        return (
-          <Container maxW="container.xl" py={8}>
-            <VStack spacing={4} align="start">
-              <Heading size="xl">Credentials Management</Heading>
-              <Text color="gray.400">Manage API keys and integrations</Text>
-              <Box bg="yellow.900" p={4} borderRadius="md" w="100%">
-                <Text fontSize="sm">
-                  🚧 Credentials Management feature coming soon
-                </Text>
-              </Box>
-            </VStack>
-          </Container>
-        );
+      // Convert tenant names to TenantInfo objects
+      const tenantInfos: TenantInfo[] = tenants.map((t: string) => ({
+        name: t,
+        displayName: t
+      }));
       
-      case 'settings':
-        return (
-          <Container maxW="container.xl" py={8}>
-            <VStack spacing={4} align="start">
-              <Heading size="xl">Tenant Settings</Heading>
-              <Text color="gray.400">Configure your tenant settings</Text>
-              <Box bg="yellow.900" p={4} borderRadius="md" w="100%">
-                <Text fontSize="sm">
-                  🚧 Tenant Settings feature coming soon
-                </Text>
-              </Box>
-            </VStack>
-          </Container>
-        );
+      setUserTenants(tenantInfos);
       
-      default:
-        return (
-          <Container maxW="container.xl" py={8}>
-            <VStack spacing={8} align="stretch">
-              <VStack spacing={2} align="start">
-                <Heading size="xl">Tenant Administration</Heading>
-                <Text color="gray.400">
-                  Manage your tenant configuration, users, and templates
-                </Text>
-              </VStack>
-
-              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
-                {/* Template Management */}
-                <Box
-                  bg="brand.gray"
-                  p={6}
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.700"
-                  _hover={{ borderColor: 'brand.orange', cursor: 'pointer' }}
-                  onClick={() => setCurrentSection('templates')}
-                >
-                  <VStack align="start" spacing={3}>
-                    <HStack>
-                      <Text fontSize="3xl">📝</Text>
-                      <Badge colorScheme="green">Available</Badge>
-                    </HStack>
-                    <Heading size="md">Template Management</Heading>
-                    <Text fontSize="sm" color="gray.400">
-                      Upload and customize report templates for your organization
-                    </Text>
-                    <Button size="sm" colorScheme="orange" w="100%">
-                      Manage Templates →
-                    </Button>
-                  </VStack>
-                </Box>
-
-                {/* User Management */}
-                <Box
-                  bg="brand.gray"
-                  p={6}
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.700"
-                  opacity={0.6}
-                >
-                  <VStack align="start" spacing={3}>
-                    <HStack>
-                      <Text fontSize="3xl">👥</Text>
-                      <Badge colorScheme="yellow">Coming Soon</Badge>
-                    </HStack>
-                    <Heading size="md">User Management</Heading>
-                    <Text fontSize="sm" color="gray.400">
-                      Manage users and assign roles for your tenant
-                    </Text>
-                    <Button size="sm" variant="outline" w="100%" isDisabled>
-                      Coming Soon
-                    </Button>
-                  </VStack>
-                </Box>
-
-                {/* Credentials Management */}
-                <Box
-                  bg="brand.gray"
-                  p={6}
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.700"
-                  opacity={0.6}
-                >
-                  <VStack align="start" spacing={3}>
-                    <HStack>
-                      <Text fontSize="3xl">🔑</Text>
-                      <Badge colorScheme="yellow">Coming Soon</Badge>
-                    </HStack>
-                    <Heading size="md">Credentials</Heading>
-                    <Text fontSize="sm" color="gray.400">
-                      Manage API keys and integration credentials
-                    </Text>
-                    <Button size="sm" variant="outline" w="100%" isDisabled>
-                      Coming Soon
-                    </Button>
-                  </VStack>
-                </Box>
-
-                {/* Tenant Settings */}
-                <Box
-                  bg="brand.gray"
-                  p={6}
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.700"
-                  opacity={0.6}
-                >
-                  <VStack align="start" spacing={3}>
-                    <HStack>
-                      <Text fontSize="3xl">⚙️</Text>
-                      <Badge colorScheme="yellow">Coming Soon</Badge>
-                    </HStack>
-                    <Heading size="md">Tenant Settings</Heading>
-                    <Text fontSize="sm" color="gray.400">
-                      Configure general tenant settings and preferences
-                    </Text>
-                    <Button size="sm" variant="outline" w="100%" isDisabled>
-                      Coming Soon
-                    </Button>
-                  </VStack>
-                </Box>
-
-                {/* Storage Configuration */}
-                <Box
-                  bg="brand.gray"
-                  p={6}
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.700"
-                  opacity={0.6}
-                >
-                  <VStack align="start" spacing={3}>
-                    <HStack>
-                      <Text fontSize="3xl">💾</Text>
-                      <Badge colorScheme="yellow">Coming Soon</Badge>
-                    </HStack>
-                    <Heading size="md">Storage Config</Heading>
-                    <Text fontSize="sm" color="gray.400">
-                      Configure Google Drive folders and storage options
-                    </Text>
-                    <Button size="sm" variant="outline" w="100%" isDisabled>
-                      Coming Soon
-                    </Button>
-                  </VStack>
-                </Box>
-
-                {/* Audit Logs */}
-                <Box
-                  bg="brand.gray"
-                  p={6}
-                  borderRadius="lg"
-                  border="1px solid"
-                  borderColor="gray.700"
-                  opacity={0.6}
-                >
-                  <VStack align="start" spacing={3}>
-                    <HStack>
-                      <Text fontSize="3xl">📋</Text>
-                      <Badge colorScheme="yellow">Coming Soon</Badge>
-                    </HStack>
-                    <Heading size="md">Audit Logs</Heading>
-                    <Text fontSize="sm" color="gray.400">
-                      View audit logs and activity history
-                    </Text>
-                    <Button size="sm" variant="outline" w="100%" isDisabled>
-                      Coming Soon
-                    </Button>
-                  </VStack>
-                </Box>
-              </SimpleGrid>
-            </VStack>
-          </Container>
-        );
+    } catch (error) {
+      toast({
+        title: 'Error loading user information',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <Box>
-      {/* Breadcrumb / Back Button */}
-      {currentSection !== 'dashboard' && (
-        <Box bg="gray.800" p={4} borderBottom="1px solid" borderColor="gray.700">
-          <Container maxW="container.xl">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setCurrentSection('dashboard')}
-            >
-              ← Back to Tenant Admin
-            </Button>
-          </Container>
-        </Box>
-      )}
+  if (loading) {
+    return (
+      <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
+        <VStack spacing={4}>
+          <Spinner size="xl" color="orange.400" />
+          <Text color="gray.400">Loading Tenant Administration...</Text>
+        </VStack>
+      </Box>
+    );
+  }
 
-      {/* Content */}
-      {renderSection()}
+  if (!userRoles.includes('Tenant_Admin')) {
+    return (
+      <Box minH="100vh" bg="gray.900" p={8}>
+        <Alert status="error">
+          <AlertIcon />
+          Access Denied: You do not have Tenant Admin permissions
+        </Alert>
+      </Box>
+    );
+  }
+
+  if (userTenants.length === 0) {
+    return (
+      <Box minH="100vh" bg="gray.900" p={8}>
+        <Alert status="warning">
+          <AlertIcon />
+          No tenants assigned to your account
+        </Alert>
+      </Box>
+    );
+  }
+
+  if (!currentTenant) {
+    return (
+      <Box minH="100vh" bg="gray.900" p={8}>
+        <Alert status="info">
+          <AlertIcon />
+          Please select a tenant from the header to continue
+        </Alert>
+      </Box>
+    );
+  }
+
+  return (
+    <Box minH="100vh" bg="gray.900" p={6}>
+      <VStack spacing={6} align="stretch">
+        {/* Current Tenant Indicator */}
+        <HStack justify="flex-end">
+          <Text color="gray.400" fontSize="sm">
+            Managing: <Text as="span" color="orange.400" fontWeight="bold">{currentTenant}</Text>
+          </Text>
+        </HStack>
+
+        {/* Tabs */}
+        <Tabs colorScheme="orange" variant="enclosed">
+          <TabList>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              User Management
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              Template Management
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }} isDisabled>
+              Tenant Settings
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }} isDisabled>
+              Credentials
+            </Tab>
+          </TabList>
+
+          <TabPanels>
+            <TabPanel>
+              <UserManagement tenant={currentTenant} />
+            </TabPanel>
+            <TabPanel>
+              <TemplateManagement />
+            </TabPanel>
+            <TabPanel>
+              <Text color="gray.400">Tenant Settings - Coming Soon</Text>
+            </TabPanel>
+            <TabPanel>
+              <Text color="gray.400">Credentials Management - Coming Soon</Text>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </VStack>
     </Box>
   );
-};
+}
 
 export default TenantAdminDashboard;

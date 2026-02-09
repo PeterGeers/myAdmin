@@ -49,6 +49,11 @@ OPTIONAL_VARS = {
 
 def validate_environment():
     """Validate that all required environment variables are set"""
+    # Skip validation in Docker - docker-compose handles env_file loading
+    if os.getenv('DOCKER_ENV') == 'true':
+        print("🐳 Running in Docker - skipping validation (docker-compose handles env_file)")
+        return True
+    
     missing_vars = []
     
     print("🔍 Validating environment variables...")
