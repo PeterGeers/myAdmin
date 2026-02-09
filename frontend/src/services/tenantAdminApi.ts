@@ -45,6 +45,8 @@ export interface StorageConfig {
 export interface StorageUsage {
   [folderName: string]: {
     folder_id: string;
+    folder_name?: string;
+    folder_url?: string;
     file_count: number;
     total_size_bytes: number;
     total_size_mb: number;

@@ -41,16 +41,32 @@ export default function StorageConfiguration({ tenant }: StorageConfigurationPro
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Load folders, config, and usage in parallel
-      const [foldersRes, configRes, usageRes] = await Promise.all([
+      // Load folders and config in parallel
+      const [foldersRes, configRes] = await Promise.all([
         browseFolders(),
-        getStorageConfig(),
-        getStorageUsage().catch(() => ({ usage: {} })) // Optional
+        getStorageConfig()
       ]);
 
       setFolders(foldersRes.folders || []);
-      setConfig(configRes.config || {});
-      setUsage(usageRes.usage || {});
+      
+      // Config comes from tenant_config table with keys like "facturen_folder_id"
+      const rawConfig = configRes.config || {};
+      const transformedConfig: StorageConfig = {};
+      
+      // Transform keys: "facturen_folder_id" -> "facturen_folder_id"
+      Object.keys(rawConfig).forEach(key => {
+        if (key.endsWith('_folder_id')) {
+          (transformedConfig as any)[key] = (rawConfig as any)[key];
+        }
+      });
+      
+      setConfig(transformedConfig);
+      
+      // Load usage if we have config
+      if (Object.keys(transformedConfig).length > 0) {
+        const usageRes = await getStorageUsage().catch(() => ({ usage: {} }));
+        setUsage(usageRes.usage || {});
+      }
     } catch (error: any) {
       toast({
         title: 'Failed to load storage data',
@@ -172,6 +188,12 @@ export default function StorageConfiguration({ tenant }: StorageConfigurationPro
         <Text color="gray.600">
           Configure Google Drive folder mappings for {tenant}
         </Text>
+        {Object.keys(config).length > 0 && (
+          <Alert status="info" mt={2}>
+            <AlertIcon />
+            {Object.keys(config).length} folder(s) configured
+          </Alert>
+        )}
       </Box>
 
       {/* Folder Configuration */}
@@ -261,7 +283,22 @@ export default function StorageConfiguration({ tenant }: StorageConfigurationPro
             <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
               {Object.entries(usage).map(([folderName, stats]) => (
                 <Stat key={folderName} p={4} borderWidth={1} borderRadius="md">
-                  <StatLabel textTransform="capitalize">{folderName}</StatLabel>
+                  <StatLabel textTransform="capitalize">
+                    {stats.folder_name || folderName}
+                    {stats.folder_url && (
+                      <Button
+                        as="a"
+                        href={stats.folder_url}
+                        target="_blank"
+                        size="xs"
+                        ml={2}
+                        variant="link"
+                        colorScheme="blue"
+                      >
+                        Open
+                      </Button>
+                    )}
+                  </StatLabel>
                   {stats.accessible ? (
                     <>
                       <StatNumber>{stats.total_size_mb} MB</StatNumber>
@@ -270,7 +307,9 @@ export default function StorageConfiguration({ tenant }: StorageConfigurationPro
                   ) : (
                     <>
                       <StatNumber>—</StatNumber>
-                      <StatHelpText color="red.500">Not accessible</StatHelpText>
+                      <StatHelpText color="red.500">
+                        {stats.error || 'Not accessible'}
+                      </StatHelpText>
                     </>
                   )}
                 </Stat>

@@ -368,6 +368,12 @@ def get_storage_usage(user_email, user_roles):
                 continue
                 
             try:
+                # Get folder metadata (name, URL)
+                folder_metadata = drive_service.service.files().get(
+                    fileId=folder_id,
+                    fields='id, name, webViewLink'
+                ).execute()
+                
                 # List all files in folder
                 all_files = []
                 page_token = None
@@ -393,6 +399,8 @@ def get_storage_usage(user_email, user_roles):
                 
                 usage_stats[folder_name] = {
                     'folder_id': folder_id,
+                    'folder_name': folder_metadata.get('name', folder_name),
+                    'folder_url': folder_metadata.get('webViewLink', ''),
                     'file_count': file_count,
                     'total_size_bytes': total_size,
                     'total_size_mb': round(total_size / (1024 * 1024), 2),
@@ -403,6 +411,7 @@ def get_storage_usage(user_email, user_roles):
                 logger.error(f"Error getting usage for folder {folder_name}: {e}")
                 usage_stats[folder_name] = {
                     'folder_id': folder_id,
+                    'folder_name': folder_name,
                     'accessible': False,
                     'error': str(e)
                 }
