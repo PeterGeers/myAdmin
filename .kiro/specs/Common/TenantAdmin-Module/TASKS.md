@@ -113,8 +113,8 @@ This document breaks down the implementation of missing Tenant Admin features in
 - [x] OAuth flow working end-to-end ✅ Complete
 - [x] Token refresh working automatically ✅ Complete
 - [x] Import invoices working with OAuth tokens ✅ Complete
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Check if tsc and lint pass correctly and minimize warnings
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Time Estimate**: 0.5 days
 **Status**: ✅ COMPLETE - Testing & Linting Pending
@@ -122,27 +122,30 @@ This document breaks down the implementation of missing Tenant Admin features in
 
 **Reference**: Phase 1 CredentialService
 
-### 4.1.4 Storage Configuration Endpoints
+### 4.1.4 Storage Configuration Endpoints ✅ COMPLETE
 
-- [ ] Add GET `/api/tenant-admin/storage/folders` endpoint
-  - [ ] Use GoogleDriveService to list folders
-  - [ ] Return folder tree
-- [ ] Add PUT `/api/tenant-admin/storage/config` endpoint
-  - [ ] Validate folder IDs
-  - [ ] Store in database (tenants table settings column)
-  - [ ] Return success
-- [ ] Add POST `/api/tenant-admin/storage/test` endpoint
-  - [ ] Test folder accessibility
-  - [ ] Test write permissions
-  - [ ] Return test results
-- [ ] Add GET `/api/tenant-admin/storage/usage` endpoint
-  - [ ] Calculate storage usage by type
-  - [ ] Return usage statistics
+- [x] Add GET `/api/tenant-admin/storage/folders` endpoint ✅
+  - [x] Use GoogleDriveService to list folders ✅
+  - [x] Return folder tree ✅
+- [x] Add GET `/api/tenant-admin/storage/config` endpoint ✅
+- [x] Add PUT `/api/tenant-admin/storage/config` endpoint ✅
+  - [x] Validate folder IDs ✅
+  - [x] Store in database (tenants table settings column) ✅
+  - [x] Return success ✅
+- [x] Add POST `/api/tenant-admin/storage/test` endpoint ✅
+  - [x] Test folder accessibility ✅
+  - [x] Test write permissions ✅
+  - [x] Return test results ✅
+- [x] Add GET `/api/tenant-admin/storage/usage` endpoint ✅
+  - [x] Calculate storage usage by type ✅
+  - [x] Return usage statistics ✅
 - [ ] Write API tests for storage endpoints (target: 5+ tests)
 - [ ] Check if tsc and lint pass correctly and minimize warnings
 - [ ] add to github using scripts\git\git-upload.ps1
 
 **Time Estimate**: 0.25 days
+**Status**: ✅ Backend Complete - Testing Pending
+**Commit**: cdcdd68
 
 ### 4.1.5 Tenant Settings Endpoints
 
