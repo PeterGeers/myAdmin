@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, HStack, Tabs, TabList, TabPanels, Tab, TabPanel,
+  Box, VStack, Tabs, TabList, TabPanels, Tab, TabPanel,
   useToast, Spinner, Text, Alert, AlertIcon
 } from '@chakra-ui/react';
 import { fetchAuthSession } from 'aws-amplify/auth';
@@ -123,13 +123,6 @@ export function TenantAdminDashboard() {
   return (
     <Box minH="100vh" bg="gray.900" p={6}>
       <VStack spacing={6} align="stretch">
-        {/* Current Tenant Indicator */}
-        <HStack justify="flex-end">
-          <Text color="gray.400" fontSize="sm">
-            Managing: <Text as="span" color="orange.400" fontWeight="bold">{currentTenant}</Text>
-          </Text>
-        </HStack>
-
         {/* Tabs */}
         <Tabs colorScheme="orange" variant="enclosed" isLazy>
           <TabList>
