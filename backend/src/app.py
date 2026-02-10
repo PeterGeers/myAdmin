@@ -38,6 +38,7 @@ from routes.tenant_admin_details import tenant_admin_details_bp
 from routes.tenant_admin_email import tenant_admin_email_bp
 from routes.static_routes import static_bp
 from routes.system_health_routes import system_health_bp
+from routes.cache_routes import cache_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -131,11 +132,16 @@ app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')
 app.register_blueprint(system_health_bp)  # System health and status endpoints
+app.register_blueprint(cache_bp)  # Cache management endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
 # Set scalability manager reference for system_health_bp
 from routes.system_health_routes import set_scalability_manager
 set_scalability_manager(scalability_manager)
+
+# Set test mode flag for cache_bp
+from routes.cache_routes import set_test_mode
+set_test_mode(flag)
 
 
 # Configure Swagger UI
@@ -432,172 +438,14 @@ def scalability_performance(user_email, user_roles):
             'error': str(e)
         }), 500
 
-# Cache Management Endpoints
-@app.route('/api/cache/warmup', methods=['POST'])
-@cognito_required(required_permissions=['actuals_read'])
-def cache_warmup(user_email, user_roles):
-    """Warmup the cache (load it if not already loaded)"""
-    try:
-        cache = get_cache()
-        
-        # Check if cache is already loaded
-        if cache.data is not None:
-            return jsonify({
-                'success': True,
-                'message': 'Cache already loaded',
-                'record_count': len(cache.data),
-                'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None
-            })
-        
-        # Load the cache
-        db = DatabaseManager(test_mode=flag)
-        cache.get_data(db)
-        
-        return jsonify({
-            'success': True,
-            'message': 'Cache loaded successfully',
-            'record_count': len(cache.data),
-            'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None
-        })
-    except Exception as e:
-        print(f"Error in cache_warmup: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/cache/status', methods=['GET'])
-@cognito_required(required_roles=['SysAdmin'])
-def cache_status(user_email, user_roles):
-    """Get cache status and statistics"""
-    try:
-        cache = get_cache()
-        
-        return jsonify({
-            'success': True,
-            'cache_active': cache.data is not None,
-            'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None,
-            'record_count': len(cache.data) if cache.data is not None else 0,
-            'auto_refresh_enabled': True,
-            'refresh_threshold_minutes': 30
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/cache/refresh', methods=['POST'])
-@cognito_required(required_roles=['SysAdmin'])
-@tenant_required(allow_sysadmin=True)
-def cache_refresh(user_email, user_roles, tenant, user_tenants):
-    """Force refresh the cache"""
-    try:
-        cache = get_cache()
-        db = DatabaseManager(test_mode=flag)
-        
-        # Force refresh by invalidating and then getting data
-        cache.invalidate()
-        cache.get_data(db)  # This will trigger a refresh
-        
-        return jsonify({
-            'success': True,
-            'message': 'Cache refreshed successfully',
-            'record_count': len(cache.data),
-            'last_refresh': cache.last_loaded.isoformat() if cache.last_loaded else None
-        })
-    except Exception as e:
-        print(f"Error in cache_refresh: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/cache/invalidate', methods=['POST'])
-@cognito_required(required_roles=['SysAdmin'])
-@tenant_required(allow_sysadmin=True)
-def cache_invalidate_endpoint(user_email, user_roles, tenant, user_tenants):
-    """Invalidate the cache (will auto-refresh on next query)"""
-    try:
-        invalidate_cache()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Cache invalidated successfully'
-        })
-    except Exception as e:
-        print(f"Error in cache_invalidate: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# BNB Cache Management Endpoints
-@app.route('/api/bnb-cache/status', methods=['GET'])
-@cognito_required(required_roles=['SysAdmin'])
-def bnb_cache_status(user_email, user_roles):
-    """Get BNB cache status and statistics"""
-    try:
-        bnb_cache = get_bnb_cache()
-        status = bnb_cache.get_status()
-        
-        return jsonify({
-            'success': True,
-            **status
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/bnb-cache/refresh', methods=['POST'])
-@cognito_required(required_roles=['SysAdmin'])
-def bnb_cache_refresh(user_email, user_roles):
-    """Force refresh the BNB cache"""
-    try:
-        bnb_cache = get_bnb_cache()
-        db = DatabaseManager(test_mode=flag)
-        
-        # Force refresh
-        bnb_cache.refresh(db)
-        status = bnb_cache.get_status()
-        
-        return jsonify({
-            'success': True,
-            'message': 'BNB cache refreshed successfully',
-            **status
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/bnb-cache/invalidate', methods=['POST'])
-@cognito_required(required_roles=['SysAdmin'])
-def bnb_cache_invalidate(user_email, user_roles):
-    """Invalidate the BNB cache (will auto-refresh on next query)"""
-    try:
-        bnb_cache = get_bnb_cache()
-        bnb_cache.invalidate()
-        
-        return jsonify({
-            'success': True,
-            'message': 'BNB cache invalidated successfully'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
+# Cache management routes moved to: routes/cache_routes.py (Phase 1.3)
+# - /api/cache/warmup
+# - /api/cache/status
+# - /api/cache/refresh
+# - /api/cache/invalidate
+# - /api/bnb-cache/status
+# - /api/bnb-cache/refresh
+# - /api/bnb-cache/invalidate
 
 
 @app.route('/api/create-folder', methods=['POST'])

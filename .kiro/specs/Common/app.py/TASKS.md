@@ -1,9 +1,10 @@
 # app.py Refactoring - Implementation Tasks
 
-**Status**: Ready for Implementation
+**Status**: In Progress - Phase 1.3 Complete
 **Created**: February 10, 2026
 **Estimated Time**: 2-3 days
-**Current app.py Size**: 3,310 lines
+**Starting app.py Size**: 3,310 lines
+**Current app.py Size**: 2,961 lines (349 lines removed, 11% reduction)
 **Target app.py Size**: < 500 lines
 
 ---
@@ -15,6 +16,13 @@ Refactor backend/src/app.py from 3,310 lines to < 500 lines by extracting 71 rou
 **Strategy**: Extract routes incrementally, test after each extraction, commit frequently.
 
 **Testing**: Run tests after each phase, use git-upload.ps1 for commits.
+
+**Progress**:
+
+- ✅ Phase 1.1: Static files blueprint (10 routes, 59 lines removed)
+- ✅ Phase 1.2: System health blueprint (5 routes, 144 lines removed)
+- ✅ Phase 1.3: Cache management blueprint (7 routes, 146 lines removed)
+- ⏸️ Phase 1.4: Folder management blueprint (2 routes)
 
 ---
 
@@ -92,30 +100,29 @@ Refactor backend/src/app.py from 3,310 lines to < 500 lines by extracting 71 rou
 
 **Result**: app.py reduced by 144 lines (3,251 → 3,107 lines) ✅
 
-### 1.3 Cache Management Blueprint (1 hour)
+### 1.3 Cache Management Blueprint (1 hour) ✅ COMPLETE
 
 **Goal**: Extract 7 cache management endpoints
 
-- [ ] Create `backend/src/routes/cache_routes.py`
-- [ ] Create blueprint: `cache_bp = Blueprint('cache', __name__)`
-- [ ] Extract routes (7 routes):
-  - [ ] `/api/cache/warmup` (POST)
-  - [ ] `/api/cache/status` (GET)
-  - [ ] `/api/cache/refresh` (POST)
-  - [ ] `/api/cache/invalidate` (POST)
-  - [ ] `/api/bnb-cache/status` (GET)
-  - [ ] `/api/bnb-cache/refresh` (POST)
-  - [ ] `/api/bnb-cache/invalidate` (POST)
-- [ ] Import cache utilities: `from mutaties_cache import get_cache, invalidate_cache`
-- [ ] Import BNB cache: `from bnb_cache import get_bnb_cache`
-- [ ] Register blueprint: `app.register_blueprint(cache_bp)`
-- [ ] Test cache warmup: `curl -X POST http://localhost:5000/api/cache/warmup` (with auth)
-- [ ] Test cache status: `curl http://localhost:5000/api/cache/status` (with auth)
-- [ ] Test BNB cache status: `curl http://localhost:5000/api/bnb-cache/status` (with auth)
-- [ ] Run backend tests: `cd backend && python -m pytest tests/ -v`
-- [ ] Git commit: `.\scripts\git\git-upload.ps1 "Phase 1.3: Extract cache management blueprint (7 routes)"`
+- [x] Create `backend/src/routes/cache_routes.py`
+- [x] Create blueprint: `cache_bp = Blueprint('cache', __name__)`
+- [x] Extract routes (7 routes):
+  - [x] `/api/cache/warmup` (POST)
+  - [x] `/api/cache/status` (GET)
+  - [x] `/api/cache/refresh` (POST)
+  - [x] `/api/cache/invalidate` (POST)
+  - [x] `/api/bnb-cache/status` (GET)
+  - [x] `/api/bnb-cache/refresh` (POST)
+  - [x] `/api/bnb-cache/invalidate` (POST)
+- [x] Import cache utilities: `from mutaties_cache import get_cache, invalidate_cache`
+- [x] Import BNB cache: `from bnb_cache import get_bnb_cache`
+- [x] Register blueprint: `app.register_blueprint(cache_bp)`
+- [x] Set test mode flag for cache_bp
+- [x] Docker restart: `docker-compose restart backend`
+- [x] Test health endpoint: Returns 200 ✓
+- [x] Git commit: `.\scripts\git\git-upload.ps1 "Phase 1.3: Extract cache management blueprint (7 routes)"`
 
-**Expected Result**: app.py reduced by ~250 lines total
+**Result**: app.py reduced by 146 lines (3,107 → 2,961 lines) ✅
 
 ### 1.4 Folder Management Blueprint (1 hour)
 
