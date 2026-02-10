@@ -38,7 +38,7 @@ class TestAangifteIBXlsxExportTenantFiltering:
     
     def test_aangifte_ib_xlsx_export_has_tenant_decorator(self):
         """Test that aangifte-ib-xlsx-export has @tenant_required decorator"""
-        from app import aangifte_ib_xlsx_export
+        from reporting_routes import aangifte_ib_xlsx_export
         
         # Get the function signature
         sig = inspect.signature(aangifte_ib_xlsx_export)
@@ -51,7 +51,7 @@ class TestAangifteIBXlsxExportTenantFiltering:
     def test_aangifte_ib_xlsx_export_validates_administrations(self):
         """Test that aangifte-ib-xlsx-export validates administrations against user_tenants"""
         # This is a code inspection test - verify the implementation
-        from app import aangifte_ib_xlsx_export
+        from reporting_routes import aangifte_ib_xlsx_export
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_xlsx_export)
@@ -62,7 +62,7 @@ class TestAangifteIBXlsxExportTenantFiltering:
     
     def test_aangifte_ib_xlsx_export_filters_available_administrations(self):
         """Test that aangifte-ib-xlsx-export filters available administrations by user_tenants"""
-        from app import aangifte_ib_xlsx_export
+        from reporting_routes import aangifte_ib_xlsx_export
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_xlsx_export)
@@ -74,7 +74,7 @@ class TestAangifteIBXlsxExportTenantFiltering:
     
     def test_aangifte_ib_xlsx_export_returns_403_for_unauthorized_admin(self):
         """Test that aangifte-ib-xlsx-export returns 403 for unauthorized administrations"""
-        from app import aangifte_ib_xlsx_export
+        from reporting_routes import aangifte_ib_xlsx_export
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_xlsx_export)

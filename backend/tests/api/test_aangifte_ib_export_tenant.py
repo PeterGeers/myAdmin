@@ -38,7 +38,7 @@ class TestAangifteIBExportTenantFiltering:
     
     def test_aangifte_ib_export_has_tenant_decorator(self):
         """Test that aangifte-ib-export has @tenant_required decorator"""
-        from app import aangifte_ib_export
+        from reporting_routes import aangifte_ib_export
         
         # Get the function signature
         sig = inspect.signature(aangifte_ib_export)
@@ -51,7 +51,7 @@ class TestAangifteIBExportTenantFiltering:
     def test_aangifte_ib_export_validates_administration(self):
         """Test that aangifte-ib-export validates administration against user_tenants"""
         # This is a code inspection test - verify the implementation
-        from app import aangifte_ib_export
+        from reporting_routes import aangifte_ib_export
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_export)
@@ -62,7 +62,7 @@ class TestAangifteIBExportTenantFiltering:
     
     def test_aangifte_ib_export_defaults_to_tenant(self):
         """Test that aangifte-ib-export defaults administration to current tenant"""
-        from app import aangifte_ib_export
+        from reporting_routes import aangifte_ib_export
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_export)
@@ -73,7 +73,7 @@ class TestAangifteIBExportTenantFiltering:
     
     def test_aangifte_ib_export_passes_user_tenants_to_cache(self):
         """Test that aangifte-ib-export passes user_tenants to generate_table_rows"""
-        from app import aangifte_ib_export
+        from reporting_routes import aangifte_ib_export
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_export)

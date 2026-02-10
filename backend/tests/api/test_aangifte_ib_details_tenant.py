@@ -38,7 +38,7 @@ class TestAangifteIBDetailsTenantFiltering:
     
     def test_aangifte_ib_details_has_tenant_decorator(self):
         """Test that aangifte-ib-details has @tenant_required decorator"""
-        from app import aangifte_ib_details
+        from reporting_routes import aangifte_ib_details
         import inspect
         
         # Get the function signature
@@ -52,7 +52,7 @@ class TestAangifteIBDetailsTenantFiltering:
     def test_aangifte_ib_details_validates_administration(self):
         """Test that aangifte-ib-details validates administration against user_tenants"""
         # This is a code inspection test - verify the implementation
-        from app import aangifte_ib_details
+        from reporting_routes import aangifte_ib_details
         import inspect
         
         # Get the source code

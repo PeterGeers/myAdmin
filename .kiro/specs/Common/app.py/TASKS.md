@@ -468,19 +468,32 @@ Refactor backend/src/app.py from 3,310 lines to < 500 lines by extracting 71 rou
 
 **Result**: app.py reduced by 74 lines (1,155 → 1,081 lines) ✅
 
-### 5.3 Verify All Routes Extracted (1 hour)
+### 5.3 Verify All Routes Extracted (1 hour) 🔄 IN PROGRESS
 
 **Goal**: Ensure no routes remain in app.py
 
-- [ ] Search for remaining `@app.route` decorators: `Select-String -Path backend/src/app.py -Pattern "@app\.route"`
-- [ ] Count remaining routes: Should be 0
-- [ ] If routes remain, identify and extract to appropriate blueprint
+- [x] Search for remaining `@app.route` decorators: `Select-String -Path backend/src/app.py -Pattern "@app\.route"`
+  - **Found**: 8 routes remaining in app.py
+- [ ] Identify remaining routes:
+  - [ ] 5 Aangifte IB routes (should go to reporting_bp):
+    - `/api/reports/aangifte-ib` (GET)
+    - `/api/reports/aangifte-ib-details` (GET)
+    - `/api/reports/aangifte-ib-export` (POST)
+    - `/api/reports/aangifte-ib-xlsx-export` (POST)
+    - `/api/reports/aangifte-ib-xlsx-export-stream` (POST)
+  - [ ] 3 Duplicate detection routes (need new blueprint):
+    - `/api/check-duplicate` (POST)
+    - `/api/log-duplicate-decision` (POST)
+    - `/api/handle-duplicate-decision` (POST)
+- [ ] Extract Aangifte IB routes to reporting_routes.py
+- [ ] Create duplicate_detection_routes.py for duplicate routes
+- [ ] Register duplicate_detection_bp in app.py
 - [ ] Verify all blueprints registered in app.py
-- [ ] Count blueprints: Should be 30+ (20 existing + 11 new)
-- [ ] Run full test suite: `cd backend && python -m pytest tests/ -v`
-- [ ] Git commit: `.\scripts\git\git-upload.ps1 "Phase 5.3: All routes extracted from app.py"`
+- [ ] Count blueprints: Should be 30+ (20 existing + 10 new)
+- [ ] Run full test suite: `python -m pytest tests/ -v --tb=short -x`
+- [ ] Git commit: `.\scripts\git\git-upload.ps1 "Phase 5.3: Extract remaining routes (8 routes)"`
 
-**Expected Result**: 0 routes in app.py
+**Expected Result**: 0 routes in app.py, estimated ~400-500 lines removed
 
 ### 5.4 Clean Up app.py (1 hour)
 
