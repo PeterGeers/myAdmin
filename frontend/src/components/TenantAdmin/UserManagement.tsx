@@ -450,6 +450,52 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     }
   };
 
+  const handleResendInvitation = async () => {
+    if (!selectedUser) return;
+
+    setSendingEmail(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
+      const response = await fetch(buildApiUrl('/api/tenant-admin/resend-invitation'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Tenant': tenant
+        },
+        body: JSON.stringify({
+          email: selectedUser.email,
+          username: selectedUser.username
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Invitation resent',
+          description: `New invitation sent to ${selectedUser.email}. Expires in ${data.expiry_days} days.`,
+          status: 'success',
+          duration: 5000,
+        });
+        loadData(); // Refresh user list
+      } else {
+        throw new Error(data.error || 'Failed to resend invitation');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error resending invitation',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" p={8}>
@@ -667,6 +713,16 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                 <Box bg="gray.700" p={4} borderRadius="md" borderWidth="1px" borderColor="orange.500">
                   <Text color="orange.400" fontWeight="bold" mb={3}>Send Email</Text>
                   <VStack spacing={3}>
+                    {selectedUser.status === 'FORCE_CHANGE_PASSWORD' && (
+                      <Button
+                        colorScheme="orange"
+                        width="full"
+                        onClick={handleResendInvitation}
+                        isLoading={sendingEmail}
+                      >
+                        Resend Invitation (New Password)
+                      </Button>
+                    )}
                     <FormControl>
                       <FormLabel color="gray.300" fontSize="sm">Email Template</FormLabel>
                       <Select
@@ -685,6 +741,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                     </FormControl>
                     <Button
                       colorScheme="orange"
+                      variant="outline"
                       width="full"
                       onClick={handleSendEmail}
                       isLoading={sendingEmail}

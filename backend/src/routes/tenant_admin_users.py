@@ -23,6 +23,8 @@ from botocore.exceptions import ClientError
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
+from services.invitation_service import InvitationService
+from services.email_template_service import EmailTemplateService
 
 # Create blueprint
 tenant_admin_users_bp = Blueprint('tenant_admin_users', __name__, url_prefix='/api/tenant-admin')
@@ -295,11 +297,29 @@ def create_tenant_user(user_email, user_roles):
         
         else:
             # User doesn't exist - create new user
-            if not password:
+            
+            # Initialize invitation service
+            test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+            invitation_service = InvitationService(test_mode=test_mode)
+            email_service = EmailTemplateService(administration=tenant)
+            
+            # Create invitation record and generate temporary password
+            invitation_result = invitation_service.create_invitation(
+                administration=tenant,
+                email=email,
+                created_by=user_email,
+                template_type='user_invitation'
+            )
+            
+            if not invitation_result.get('success'):
                 return jsonify({
                     'success': False,
-                    'error': 'Password is required for new users'
-                }), 400
+                    'error': 'Failed to create invitation',
+                    'details': invitation_result.get('error')
+                }), 500
+            
+            # Use generated temporary password
+            temp_password = invitation_result['temporary_password']
             
             # Build user attributes
             user_attributes = [
@@ -312,15 +332,34 @@ def create_tenant_user(user_email, user_roles):
                 user_attributes.append({'Name': 'name', 'Value': name})
             
             # Create user
-            response = cognito_client.admin_create_user(
-                UserPoolId=USER_POOL_ID,
-                Username=email,
-                UserAttributes=user_attributes,
-                TemporaryPassword=password,
-                MessageAction='SUPPRESS'
-            )
-            
-            username = response['User']['Username']
+            try:
+                response = cognito_client.admin_create_user(
+                    UserPoolId=USER_POOL_ID,
+                    Username=email,
+                    UserAttributes=user_attributes,
+                    TemporaryPassword=temp_password,
+                    MessageAction='SUPPRESS'
+                )
+                
+                username = response['User']['Username']
+                
+                # Update invitation with username
+                invitation_service.create_invitation(
+                    administration=tenant,
+                    email=email,
+                    username=username,
+                    created_by=user_email,
+                    template_type='user_invitation'
+                )
+                
+            except ClientError as e:
+                # Mark invitation as failed
+                invitation_service.mark_invitation_failed(
+                    administration=tenant,
+                    email=email,
+                    error_message=str(e)
+                )
+                raise
             
             # Add user to groups
             for group_name in groups:
@@ -333,14 +372,74 @@ def create_tenant_user(user_email, user_roles):
                 except ClientError as e:
                     print(f"Warning: Failed to add user to group {group_name}: {e}", flush=True)
             
+            # Send invitation email
+            try:
+                # Render email templates
+                html_content = email_service.render_template(
+                    template_name='user_invitation',
+                    variables={
+                        'email': email,
+                        'tenant': tenant,
+                        'name': name or email,
+                        'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                        'temporary_password': temp_password
+                    },
+                    format='html'
+                )
+                
+                text_content = email_service.render_template(
+                    template_name='user_invitation',
+                    variables={
+                        'email': email,
+                        'tenant': tenant,
+                        'name': name or email,
+                        'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                        'temporary_password': temp_password
+                    },
+                    format='txt'
+                )
+                
+                # Send via SNS
+                sns_topic_arn = os.getenv('SNS_TOPIC_ARN')
+                if sns_topic_arn:
+                    import boto3
+                    sns_client = boto3.client('sns', region_name=AWS_REGION)
+                    subject = email_service.get_invitation_subject(tenant)
+                    
+                    sns_client.publish(
+                        TopicArn=sns_topic_arn,
+                        Subject=subject,
+                        Message=text_content or f"Welcome to {tenant}! Your temporary password: {temp_password}"
+                    )
+                    
+                    # Mark invitation as sent
+                    invitation_service.mark_invitation_sent(
+                        administration=tenant,
+                        email=email
+                    )
+                    
+                    print(f"AUDIT: Invitation email sent to {email} by {user_email} for tenant {tenant}", flush=True)
+                else:
+                    print(f"WARNING: SNS not configured, invitation email not sent to {email}", flush=True)
+                    
+            except Exception as e:
+                # Don't fail user creation if email fails, but log it
+                print(f"WARNING: Failed to send invitation email to {email}: {e}", flush=True)
+                invitation_service.mark_invitation_failed(
+                    administration=tenant,
+                    email=email,
+                    error_message=f"Email send failed: {str(e)}"
+                )
+            
             print(f"AUDIT: User {email} created by {user_email} for tenant {tenant}", flush=True)
             
             return jsonify({
                 'success': True,
-                'message': f'User {email} created successfully',
+                'message': f'User {email} created successfully. Invitation email sent.',
                 'username': username,
                 'tenant': tenant,
-                'existing_user': False
+                'existing_user': False,
+                'invitation_sent': True
             })
         
     except ClientError as e:
