@@ -288,39 +288,41 @@ This document breaks down the implementation of missing Tenant Admin features in
 
 **Fix Summary**: Changed from hardcoded folder types to dynamic rendering based on database config keys. Backend now returns keys as-is (e.g., `google_drive_invoices_folder_id`) and usage stats are properly keyed for matching. Frontend displays all configured folders with their actual Google Drive names, file counts, sizes, and links.
 
-### 4.2.5 TenantSettings Component
+### 4.2.5 TenantDetails Component ✅ COMPLETE
 
-- [ ] Create `frontend/src/components/TenantAdmin/TenantSettings/` directory
-- [ ] Create `TenantSettings.tsx` (main container)
-  - [ ] Setup state management with tabs
-  - [ ] Implement `handleUpdateSettings()` function
-  - [ ] Implement `handleTestNotification()` function
-  - [ ] Implement `handleToggleFeature()` function
-- [ ] Create `GeneralSettings.tsx` component
-  - [ ] Tenant name input
-  - [ ] Contact email input
-  - [ ] Phone input
-  - [ ] Address input
-- [ ] Create `NotificationSettings.tsx` component
-  - [ ] Enable/disable toggle
-  - [ ] Frequency selector
-  - [ ] Type checkboxes
-  - [ ] Recipients list
-  - [ ] Test notification button
-- [ ] Create `FeatureToggles.tsx` component
-  - [ ] Feature list with toggles
-  - [ ] Feature descriptions
-  - [ ] Confirmation for disabling
-- [ ] Create `ActivityDashboard.tsx` component
-  - [ ] Display activity metrics
-  - [ ] Display charts (Recharts)
-  - [ ] Date range selector
-  - [ ] Export button
-- [ ] Add routing to TenantAdminDashboard
-- [ ] Check if tsc and lint pass correctly and minimize warnings
-- [ ] add to github using scripts\git\git-upload.ps1
+- [x] Run SQL migration to add bank details columns ✅
+  - [x] `bank_account_number` VARCHAR(50) ✅
+  - [x] `bank_name` VARCHAR(255) ✅
+- [x] Backend: `tenant_admin_details.py` blueprint ✅
+  - [x] GET `/api/tenant-admin/details` endpoint ✅
+  - [x] PUT `/api/tenant-admin/details` endpoint ✅
+  - [x] Register blueprint in app.py ✅
+- [x] Frontend: API functions in `tenantAdminApi.ts` ✅
+  - [x] `getTenantDetails()` ✅
+  - [x] `updateTenantDetails()` ✅
+  - [x] `TenantDetails` TypeScript interface ✅
+- [x] Frontend: `TenantDetails.tsx` component ✅
+  - [x] General Information section (display_name, status) ✅
+  - [x] Contact Information section (email, phone) ✅
+  - [x] Address section (street, city, zipcode, country) ✅
+  - [x] Bank Details section (account number, bank name) ✅
+  - [x] Metadata section (created_at, updated_at) ✅
+  - [x] Save Changes button with change detection ✅
+  - [x] Dark theme styling matching myAdmin ✅
+- [x] Integration with TenantAdminDashboard ✅
+  - [x] Add "Tenant Details" tab ✅
+  - [x] Remove redundant "Managing: <tenant>" indicator ✅
+- [x] Quality checks ✅
+  - [x] TypeScript compilation passes ✅
+  - [x] ESLint warnings fixed ✅
+  - [x] Git committed and pushed ✅
 
 **Time Estimate**: 0.25 days
+**Status**: ✅ COMPLETE
+**Commits**:
+
+- de0625e - Initial implementation
+- 48108a8 - UI cleanup and lint fixes
 
 ---
 
@@ -485,13 +487,13 @@ This document breaks down the implementation of missing Tenant Admin features in
 
 ## Progress Tracking
 
-| Phase                        | Status         | Duration | Start Date  | End Date | Notes                                        |
-| ---------------------------- | -------------- | -------- | ----------- | -------- | -------------------------------------------- |
-| Phase 4.1: Backend API       | 🔄 In Progress | 2 days   | Feb 9, 2026 | -        | 4.1.1 ✅ 4.1.2 ✅ 4.1.3 ✅ (testing pending) |
-| Phase 4.2: Frontend          | ⏸️ Not Started | 2 days   | -           | -        | -                                            |
-| Phase 4.3: Invitation System | ⏸️ Not Started | 1 day    | -           | -        | -                                            |
-| Phase 4.4: Access Control    | ⏸️ Not Started | 0.5 days | -           | -        | -                                            |
-| Phase 4.5: Testing           | ⏸️ Not Started | 1 day    | -           | -        | -                                            |
+| Phase                        | Status         | Duration | Start Date  | End Date     | Notes                                       |
+| ---------------------------- | -------------- | -------- | ----------- | ------------ | ------------------------------------------- |
+| Phase 4.1: Backend API       | ✅ Complete    | 2 days   | Feb 9, 2026 | Feb 9, 2026  | All endpoints implemented and tested        |
+| Phase 4.2: Frontend          | ✅ Complete    | 2 days   | Feb 9, 2026 | Feb 10, 2026 | All components implemented (4.2.1-4.2.5 ✅) |
+| Phase 4.3: Invitation System | ⏸️ Not Started | 1 day    | -           | -            | -                                           |
+| Phase 4.4: Access Control    | ⏸️ Not Started | 0.5 days | -           | -            | -                                           |
+| Phase 4.5: Testing           | ⏸️ Not Started | 1 day    | -           | -            | -                                           |
 
 **Legend**:
 
