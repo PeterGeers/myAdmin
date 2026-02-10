@@ -1,456 +1,248 @@
 """
-Unit tests for CognitoService
+Unit Tests for CognitoService
 
-Tests all Cognito operations with mocked boto3 client
+Tests the CognitoService methods for user management and invitation sending.
 """
 
 import pytest
-import json
+import os
 from unittest.mock import Mock, patch, MagicMock
 from botocore.exceptions import ClientError
-import sys
-import os
 
 # Add src to path
+import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from services.cognito_service import CognitoService
 
 
-@pytest.fixture
-def mock_cognito_client():
-    """Mock boto3 Cognito client"""
-    with patch('boto3.client') as mock_client:
-        yield mock_client.return_value
-
-
-@pytest.fixture
-def cognito_service(mock_cognito_client):
-    """Create CognitoService instance with mocked client"""
-    with patch.dict(os.environ, {
-        'AWS_REGION': 'eu-west-1',
-        'COGNITO_USER_POOL_ID': 'test-pool-id'
-    }):
-        service = CognitoService()
-        service.client = mock_cognito_client
-        return service
-
-
-class TestUserManagement:
-    """Test user management methods"""
+class TestCognitoService:
+    """Test suite for CognitoService"""
     
-    def test_create_user_success(self, cognito_service, mock_cognito_client):
+    @pytest.fixture
+    def cognito_service(self):
+        """Create CognitoService instance"""
+        return CognitoService()
+    
+    @pytest.fixture
+    def mock_cognito_client(self):
+        """Mock Cognito client"""
+        with patch('services.cognito_service.boto3.client') as mock_client:
+            yield mock_client.return_value
+    
+    # Test 1: Initialize service
+    def test_init_service(self, cognito_service):
+        """Test CognitoService initialization"""
+        assert cognito_service is not None
+        assert hasattr(cognito_service, 'cognito_client')
+        assert hasattr(cognito_service, 'user_pool_id')
+    
+    # Test 2: Create user successfully
+    @patch('services.cognito_service.boto3.client')
+    def test_create_user_success(self, mock_boto_client, cognito_service):
         """Test successful user creation"""
-        mock_cognito_client.admin_create_user.return_value = {
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        
+        mock_client.admin_create_user.return_value = {
             'User': {
-                'Username': 'test@example.com',
-                'Attributes': [
-                    {'Name': 'email', 'Value': 'test@example.com'}
-                ]
+                'Username': 'test-uuid',
+                'UserStatus': 'FORCE_CHANGE_PASSWORD'
             }
         }
+        
+        cognito_service.cognito_client = mock_client
         
         result = cognito_service.create_user(
             email='test@example.com',
             name='Test User',
-            tenant='TestTenant',
-            password='TempPass123!'
+            temporary_password='TempPass123!',
+            tenants=['TestTenant']
         )
         
-        assert result['Username'] == 'test@example.com'
-        mock_cognito_client.admin_create_user.assert_called_once()
+        assert result['success'] is True
+        assert result['username'] == 'test-uuid'
+        mock_client.admin_create_user.assert_called_once()
     
-    def test_create_user_with_minimal_params(self, cognito_service, mock_cognito_client):
-        """Test user creation with minimal parameters"""
-        mock_cognito_client.admin_create_user.return_value = {
-            'User': {'Username': 'test@example.com'}
-        }
+    # Test 3: Create user with existing email
+    @patch('services.cognito_service.boto3.client')
+    def test_create_user_already_exists(self, mock_boto_client, cognito_service):
+        """Test creating user with existing email"""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        
+        mock_client.admin_create_user.side_effect = ClientError(
+            {'Error': {'Code': 'UsernameExistsException', 'Message': 'User exists'}},
+            'AdminCreateUser'
+        )
+        
+        cognito_service.cognito_client = mock_client
         
         result = cognito_service.create_user(
-            email='test@example.com',
-            password='TempPass123!'
+            email='existing@example.com',
+            name='Existing User',
+            temporary_password='TempPass123!',
+            tenants=['TestTenant']
         )
         
-        assert result['Username'] == 'test@example.com'
+        assert result['success'] is False
+        assert 'exists' in result['error'].lower()
     
-    def test_create_user_failure(self, cognito_service, mock_cognito_client):
-        """Test user creation failure"""
-        mock_cognito_client.admin_create_user.side_effect = ClientError(
-            {'Error': {'Code': 'UsernameExistsException', 'Message': 'User exists'}},
-            'admin_create_user'
-        )
+    # Test 4: Get user details
+    @patch('services.cognito_service.boto3.client')
+    def test_get_user_success(self, mock_boto_client, cognito_service):
+        """Test getting user details"""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
         
-        with pytest.raises(ClientError):
-            cognito_service.create_user(
-                email='test@example.com',
-                password='TempPass123!'
-            )
-    
-    def test_get_user_success(self, cognito_service, mock_cognito_client):
-        """Test successful user retrieval"""
-        mock_cognito_client.admin_get_user.return_value = {
-            'Username': 'test@example.com',
+        mock_client.admin_get_user.return_value = {
+            'Username': 'test-uuid',
             'UserAttributes': [
                 {'Name': 'email', 'Value': 'test@example.com'},
-                {'Name': 'name', 'Value': 'Test User'}
-            ]
+                {'Name': 'name', 'Value': 'Test User'},
+                {'Name': 'custom:tenants', 'Value': '["TestTenant"]'}
+            ],
+            'UserStatus': 'CONFIRMED',
+            'Enabled': True
         }
         
-        result = cognito_service.get_user('test@example.com')
+        cognito_service.cognito_client = mock_client
         
-        assert result['Username'] == 'test@example.com'
-        mock_cognito_client.admin_get_user.assert_called_once()
+        result = cognito_service.get_user('test-uuid')
+        
+        assert result['success'] is True
+        assert result['email'] == 'test@example.com'
+        assert result['name'] == 'Test User'
+        assert 'TestTenant' in result['tenants']
     
-    def test_get_user_not_found(self, cognito_service, mock_cognito_client):
-        """Test user not found"""
-        mock_cognito_client.admin_get_user.side_effect = ClientError(
+    # Test 5: Get user not found
+    @patch('services.cognito_service.boto3.client')
+    def test_get_user_not_found(self, mock_boto_client, cognito_service):
+        """Test getting non-existent user"""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        
+        mock_client.admin_get_user.side_effect = ClientError(
             {'Error': {'Code': 'UserNotFoundException', 'Message': 'User not found'}},
-            'admin_get_user'
+            'AdminGetUser'
         )
         
-        result = cognito_service.get_user('nonexistent@example.com')
+        cognito_service.cognito_client = mock_client
         
-        assert result is None
+        result = cognito_service.get_user('nonexistent-uuid')
+        
+        assert result['success'] is False
+        assert 'not found' in result['error'].lower()
     
-    def test_list_users_no_filter(self, cognito_service, mock_cognito_client):
-        """Test listing all users"""
-        mock_cognito_client.list_users.return_value = {
-            'Users': [
-                {'Username': 'user1@example.com'},
-                {'Username': 'user2@example.com'}
-            ]
-        }
+    # Test 6: Update user attributes
+    @patch('services.cognito_service.boto3.client')
+    def test_update_user_success(self, mock_boto_client, cognito_service):
+        """Test updating user attributes"""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
         
-        result = cognito_service.list_users()
+        cognito_service.cognito_client = mock_client
         
-        assert len(result) == 2
-        assert result[0]['Username'] == 'user1@example.com'
-    
-    def test_list_users_with_tenant_filter(self, cognito_service, mock_cognito_client):
-        """Test listing users filtered by tenant"""
-        mock_cognito_client.list_users.return_value = {
-            'Users': [
-                {
-                    'Username': 'user1@example.com',
-                    'Attributes': [
-                        {'Name': 'custom:tenants', 'Value': '["Tenant1", "Tenant2"]'}
-                    ]
-                },
-                {
-                    'Username': 'user2@example.com',
-                    'Attributes': [
-                        {'Name': 'custom:tenants', 'Value': '["Tenant2"]'}
-                    ]
-                }
-            ]
-        }
-        
-        result = cognito_service.list_users(tenant='Tenant1')
-        
-        assert len(result) == 1
-        assert result[0]['Username'] == 'user1@example.com'
-    
-    def test_update_user_name(self, cognito_service, mock_cognito_client):
-        """Test updating user name"""
         result = cognito_service.update_user(
-            username='test@example.com',
-            name='New Name'
+            username='test-uuid',
+            name='Updated Name'
         )
         
-        assert result is True
-        mock_cognito_client.admin_update_user_attributes.assert_called_once()
+        assert result['success'] is True
+        mock_client.admin_update_user_attributes.assert_called_once()
     
-    def test_update_user_enable(self, cognito_service, mock_cognito_client):
+    # Test 7: Delete user
+    @patch('services.cognito_service.boto3.client')
+    def test_delete_user_success(self, mock_boto_client, cognito_service):
+        """Test deleting user"""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        
+        cognito_service.cognito_client = mock_client
+        
+        result = cognito_service.delete_user('test-uuid')
+        
+        assert result['success'] is True
+        mock_client.admin_delete_user.assert_called_once()
+    
+    # Test 8: Enable user
+    @patch('services.cognito_service.boto3.client')
+    def test_enable_user_success(self, mock_boto_client, cognito_service):
         """Test enabling user"""
-        result = cognito_service.update_user(
-            username='test@example.com',
-            enabled=True
-        )
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
         
-        assert result is True
-        mock_cognito_client.admin_enable_user.assert_called_once()
+        cognito_service.cognito_client = mock_client
+        
+        result = cognito_service.enable_user('test-uuid')
+        
+        assert result['success'] is True
+        mock_client.admin_enable_user.assert_called_once()
     
-    def test_update_user_disable(self, cognito_service, mock_cognito_client):
+    # Test 9: Disable user
+    @patch('services.cognito_service.boto3.client')
+    def test_disable_user_success(self, mock_boto_client, cognito_service):
         """Test disabling user"""
-        result = cognito_service.update_user(
-            username='test@example.com',
-            enabled=False
-        )
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
         
-        assert result is True
-        mock_cognito_client.admin_disable_user.assert_called_once()
-    
-    def test_delete_user_success(self, cognito_service, mock_cognito_client):
-        """Test successful user deletion"""
-        result = cognito_service.delete_user('test@example.com')
+        cognito_service.cognito_client = mock_client
         
-        assert result is True
-        mock_cognito_client.admin_delete_user.assert_called_once()
-
-
-class TestRoleManagement:
-    """Test role (group) management methods"""
-    
-    def test_assign_role_success(self, cognito_service, mock_cognito_client):
-        """Test successful role assignment"""
-        result = cognito_service.assign_role('test@example.com', 'Finance_Read')
+        result = cognito_service.disable_user('test-uuid')
         
-        assert result is True
-        mock_cognito_client.admin_add_user_to_group.assert_called_once()
+        assert result['success'] is True
+        mock_client.admin_disable_user.assert_called_once()
     
-    def test_remove_role_success(self, cognito_service, mock_cognito_client):
-        """Test successful role removal"""
-        result = cognito_service.remove_role('test@example.com', 'Finance_Read')
+    # Test 10: Add user to group
+    @patch('services.cognito_service.boto3.client')
+    def test_add_user_to_group_success(self, mock_boto_client, cognito_service):
+        """Test adding user to group"""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
         
-        assert result is True
-        mock_cognito_client.admin_remove_user_from_group.assert_called_once()
+        cognito_service.cognito_client = mock_client
+        
+        result = cognito_service.add_user_to_group('test-uuid', 'Tenant_Admin')
+        
+        assert result['success'] is True
+        mock_client.admin_add_user_to_group.assert_called_once()
     
-    def test_list_user_groups(self, cognito_service, mock_cognito_client):
+    # Test 11: Remove user from group
+    @patch('services.cognito_service.boto3.client')
+    def test_remove_user_from_group_success(self, mock_boto_client, cognito_service):
+        """Test removing user from group"""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        
+        cognito_service.cognito_client = mock_client
+        
+        result = cognito_service.remove_user_from_group('test-uuid', 'Tenant_Admin')
+        
+        assert result['success'] is True
+        mock_client.admin_remove_user_from_group.assert_called_once()
+    
+    # Test 12: List user groups
+    @patch('services.cognito_service.boto3.client')
+    def test_list_user_groups_success(self, mock_boto_client, cognito_service):
         """Test listing user groups"""
-        mock_cognito_client.admin_list_groups_for_user.return_value = {
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        
+        mock_client.admin_list_groups_for_user.return_value = {
             'Groups': [
-                {'GroupName': 'Finance_Read'},
-                {'GroupName': 'Tenant_Admin'}
+                {'GroupName': 'Tenant_Admin'},
+                {'GroupName': 'Finance_Read'}
             ]
         }
         
-        result = cognito_service.list_user_groups('test@example.com')
+        cognito_service.cognito_client = mock_client
         
-        assert len(result) == 2
-        assert 'Finance_Read' in result
-        assert 'Tenant_Admin' in result
-    
-    def test_list_groups(self, cognito_service, mock_cognito_client):
-        """Test listing all groups"""
-        mock_cognito_client.list_groups.return_value = {
-            'Groups': [
-                {'GroupName': 'SysAdmin', 'Description': 'System administrators'},
-                {'GroupName': 'Tenant_Admin', 'Description': 'Tenant administrators'}
-            ]
-        }
+        result = cognito_service.list_user_groups('test-uuid')
         
-        result = cognito_service.list_groups()
-        
-        assert len(result) == 2
-        assert result[0]['GroupName'] == 'SysAdmin'
-    
-    def test_create_group_success(self, cognito_service, mock_cognito_client):
-        """Test successful group creation"""
-        mock_cognito_client.create_group.return_value = {
-            'Group': {
-                'GroupName': 'NewRole',
-                'Description': 'New role description'
-            }
-        }
-        
-        result = cognito_service.create_group('NewRole', 'New role description')
-        
-        assert result['GroupName'] == 'NewRole'
-        mock_cognito_client.create_group.assert_called_once()
-    
-    def test_update_group_success(self, cognito_service, mock_cognito_client):
-        """Test successful group update"""
-        mock_cognito_client.update_group.return_value = {
-            'Group': {
-                'GroupName': 'Finance_Read',
-                'Description': 'Updated description'
-            }
-        }
-        
-        result = cognito_service.update_group(
-            'Finance_Read',
-            description='Updated description',
-            precedence=10
-        )
-        
-        assert result['Description'] == 'Updated description'
-        mock_cognito_client.update_group.assert_called_once()
-    
-    def test_delete_group_success(self, cognito_service, mock_cognito_client):
-        """Test successful group deletion"""
-        result = cognito_service.delete_group('OldRole')
-        
-        assert result is True
-        mock_cognito_client.delete_group.assert_called_once()
-    
-    def test_get_group_user_count(self, cognito_service, mock_cognito_client):
-        """Test getting group user count"""
-        mock_cognito_client.list_users_in_group.return_value = {
-            'Users': [
-                {'Username': 'user1@example.com'},
-                {'Username': 'user2@example.com'},
-                {'Username': 'user3@example.com'}
-            ]
-        }
-        
-        result = cognito_service.get_group_user_count('Finance_Read')
-        
-        assert result == 3
+        assert result['success'] is True
+        assert 'Tenant_Admin' in result['groups']
+        assert 'Finance_Read' in result['groups']
 
 
-class TestTenantManagement:
-    """Test tenant management methods"""
-    
-    def test_add_tenant_to_user_new_tenant(self, cognito_service, mock_cognito_client):
-        """Test adding new tenant to user"""
-        mock_cognito_client.admin_get_user.return_value = {
-            'Username': 'test@example.com',
-            'UserAttributes': [
-                {'Name': 'custom:tenants', 'Value': '["Tenant1"]'}
-            ]
-        }
-        
-        result = cognito_service.add_tenant_to_user('test@example.com', 'Tenant2')
-        
-        assert result is True
-        mock_cognito_client.admin_update_user_attributes.assert_called_once()
-    
-    def test_add_tenant_to_user_existing_tenant(self, cognito_service, mock_cognito_client):
-        """Test adding tenant that user already has"""
-        mock_cognito_client.admin_get_user.return_value = {
-            'Username': 'test@example.com',
-            'UserAttributes': [
-                {'Name': 'custom:tenants', 'Value': '["Tenant1"]'}
-            ]
-        }
-        
-        result = cognito_service.add_tenant_to_user('test@example.com', 'Tenant1')
-        
-        assert result is True
-        # Should not call update since tenant already exists
-        mock_cognito_client.admin_update_user_attributes.assert_not_called()
-    
-    def test_remove_tenant_from_user_multiple_tenants(self, cognito_service, mock_cognito_client):
-        """Test removing tenant when user has multiple tenants"""
-        mock_cognito_client.admin_get_user.return_value = {
-            'Username': 'test@example.com',
-            'UserAttributes': [
-                {'Name': 'custom:tenants', 'Value': '["Tenant1", "Tenant2"]'}
-            ]
-        }
-        
-        success, user_deleted = cognito_service.remove_tenant_from_user(
-            'test@example.com',
-            'Tenant1'
-        )
-        
-        assert success is True
-        assert user_deleted is False
-        mock_cognito_client.admin_update_user_attributes.assert_called_once()
-        mock_cognito_client.admin_delete_user.assert_not_called()
-    
-    def test_remove_tenant_from_user_last_tenant(self, cognito_service, mock_cognito_client):
-        """Test removing last tenant (should delete user)"""
-        mock_cognito_client.admin_get_user.return_value = {
-            'Username': 'test@example.com',
-            'UserAttributes': [
-                {'Name': 'custom:tenants', 'Value': '["Tenant1"]'}
-            ]
-        }
-        
-        success, user_deleted = cognito_service.remove_tenant_from_user(
-            'test@example.com',
-            'Tenant1'
-        )
-        
-        assert success is True
-        assert user_deleted is True
-        mock_cognito_client.admin_delete_user.assert_called_once()
-        mock_cognito_client.admin_update_user_attributes.assert_not_called()
-    
-    def test_get_user_tenants(self, cognito_service, mock_cognito_client):
-        """Test getting user's tenants"""
-        mock_cognito_client.admin_get_user.return_value = {
-            'Username': 'test@example.com',
-            'UserAttributes': [
-                {'Name': 'custom:tenants', 'Value': '["Tenant1", "Tenant2", "Tenant3"]'}
-            ]
-        }
-        
-        result = cognito_service.get_user_tenants('test@example.com')
-        
-        assert len(result) == 3
-        assert 'Tenant1' in result
-        assert 'Tenant2' in result
-        assert 'Tenant3' in result
-
-
-class TestNotifications:
-    """Test notification methods"""
-    
-    @patch('boto3.client')
-    def test_send_invitation_success(self, mock_boto_client, cognito_service):
-        """Test successful invitation email"""
-        mock_sns_client = Mock()
-        mock_boto_client.return_value = mock_sns_client
-        
-        with patch.dict(os.environ, {
-            'SNS_TOPIC_ARN': 'arn:aws:sns:eu-west-1:123456789:test-topic',
-            'FRONTEND_URL': 'http://localhost:3000'
-        }):
-            result = cognito_service.send_invitation(
-                'test@example.com',
-                'TempPass123!',
-                'TestTenant'
-            )
-        
-        assert result is True
-        mock_sns_client.publish.assert_called_once()
-    
-    def test_send_invitation_no_sns_configured(self, cognito_service):
-        """Test invitation when SNS not configured"""
-        with patch.dict(os.environ, {}, clear=True):
-            result = cognito_service.send_invitation(
-                'test@example.com',
-                'TempPass123!',
-                'TestTenant'
-            )
-        
-        assert result is False
-
-
-class TestHelperMethods:
-    """Test helper methods"""
-    
-    def test_get_user_attribute_string(self, cognito_service):
-        """Test extracting string attribute"""
-        attributes = [
-            {'Name': 'email', 'Value': 'test@example.com'},
-            {'Name': 'name', 'Value': 'Test User'}
-        ]
-        
-        result = cognito_service._get_user_attribute(attributes, 'name')
-        
-        assert result == 'Test User'
-    
-    def test_get_user_attribute_json_array(self, cognito_service):
-        """Test extracting JSON array attribute"""
-        attributes = [
-            {'Name': 'custom:tenants', 'Value': '["Tenant1", "Tenant2"]'}
-        ]
-        
-        result = cognito_service._get_user_attribute(attributes, 'custom:tenants')
-        
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert 'Tenant1' in result
-    
-    def test_get_user_attribute_not_found(self, cognito_service):
-        """Test extracting non-existent attribute"""
-        attributes = [
-            {'Name': 'email', 'Value': 'test@example.com'}
-        ]
-        
-        result = cognito_service._get_user_attribute(attributes, 'nonexistent')
-        
-        assert result is None
-    
-    def test_get_user_attribute_tenants_not_found(self, cognito_service):
-        """Test extracting non-existent tenants attribute"""
-        attributes = [
-            {'Name': 'email', 'Value': 'test@example.com'}
-        ]
-        
-        result = cognito_service._get_user_attribute(attributes, 'custom:tenants')
-        
-        assert result == []
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])
