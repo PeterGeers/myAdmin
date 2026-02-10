@@ -424,21 +424,28 @@ Refactor backend/src/app.py from 3,310 lines to < 500 lines by extracting 71 rou
 
 ## Phase 5: Remaining Routes & Cleanup (Day 3 Morning - 4 hours)
 
-### 5.1 PDF Validation Routes (1 hour)
+### 5.1 PDF Validation Routes (1 hour) ✅ COMPLETE
 
-**Goal**: Extract ~3 PDF validation routes
+**Goal**: Extract PDF validation routes
 
-- [ ] Create `backend/src/routes/pdf_validation_routes.py`
-- [ ] Create blueprint: `pdf_validation_bp = Blueprint('pdf_validation', __name__)`
-- [ ] Extract routes (~3 routes):
-  - [ ] PDF validation endpoints
-  - [ ] Google Drive validation endpoints
-- [ ] Register blueprint: `app.register_blueprint(pdf_validation_bp)`
-- [ ] Test PDF validation: Validate PDF URLs
-- [ ] Run backend tests: `cd backend && python -m pytest tests/ -v`
-- [ ] Git commit: `.\scripts\git\git-upload.ps1 "Phase 5.1: Extract PDF validation routes (3 routes)"`
+- [x] Create `backend/src/routes/pdf_validation_routes.py`
+- [x] Create blueprint: `pdf_validation_bp = Blueprint('pdf_validation', __name__)`
+- [x] Extract routes (5 routes):
+  - [x] `/api/pdf/validate-urls-stream` (GET)
+  - [x] `/api/pdf/validate-urls` (GET)
+  - [x] `/api/pdf/update-record` (POST)
+  - [x] `/api/pdf/get-administrations` (GET)
+  - [x] `/api/pdf/validate-single-url` (GET)
+- [x] Register blueprint: `app.register_blueprint(pdf_validation_bp)`
+- [x] Set test mode for pdf_validation_bp
+- [x] Fix route conflict: `/api/check-duplicate` vs `/api/reports/aangifte-ib`
+- [x] Docker restart: `docker-compose restart backend`
+- [x] Test health endpoint: Returns 200 ✓
+- [x] Run backend tests: `python -m pytest tests/ -v --tb=short -x`
+  - **Result**: 109 passed, 62 skipped, 1 pre-existing error ✅
+- [x] Git commit: `.\scripts\git\git-upload.ps1 "Phase 5.1: Extract PDF validation routes (5 routes, 183 lines removed) - Fixed route conflict"`
 
-**Expected Result**: app.py reduced by ~150 lines (from ~1,010 to ~860)
+**Result**: app.py reduced by 183 lines (1,338 → 1,155 lines) ✅
 
 ### 5.2 Scalability Routes (1 hour)
 
