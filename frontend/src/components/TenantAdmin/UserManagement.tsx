@@ -547,7 +547,6 @@ export default function UserManagement({ tenant }: UserManagementProps) {
               <Th color="gray.400" cursor="pointer" onClick={() => handleSort('created')}>
                 Created {sortField === 'created' && (sortDirection === 'asc' ? '↑' : '↓')}
               </Th>
-              <Th color="gray.400">Actions</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -588,32 +587,6 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                 </Td>
                 <Td color="gray.400" fontSize="sm">
                   {new Date(user.created).toLocaleDateString()}
-                </Td>
-                <Td>
-                  <HStack spacing={2}>
-                    <Button
-                      size="xs"
-                      colorScheme="blue"
-                      leftIcon={<EditIcon />}
-                      onClick={() => openEditModal(user)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="xs"
-                      colorScheme={user.enabled ? 'yellow' : 'green'}
-                      onClick={() => handleToggleUserStatus(user, !user.enabled)}
-                    >
-                      {user.enabled ? 'Disable' : 'Enable'}
-                    </Button>
-                    <Button
-                      size="xs"
-                      colorScheme="red"
-                      onClick={() => handleDeleteUser(user)}
-                    >
-                      Delete
-                    </Button>
-                  </HStack>
                 </Td>
               </Tr>
             ))}
