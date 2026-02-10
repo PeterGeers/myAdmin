@@ -40,6 +40,7 @@ from routes.static_routes import static_bp
 from routes.system_health_routes import system_health_bp
 from routes.cache_routes import cache_bp
 from routes.folder_routes import folder_bp
+from routes.invoice_routes import invoice_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -135,6 +136,7 @@ app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')
 app.register_blueprint(system_health_bp)  # System health and status endpoints
 app.register_blueprint(cache_bp)  # Cache management endpoints
 app.register_blueprint(folder_bp)  # Folder management endpoints
+app.register_blueprint(invoice_bp)  # Invoice processing endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
 # Set scalability manager reference for system_health_bp
@@ -145,7 +147,12 @@ set_scalability_manager(scalability_manager)
 from routes.cache_routes import set_test_mode
 set_test_mode(flag)
 
-# Note: folder_bp config will be set after config is instantiated (see below)
+# Set config and flag for folder_bp (after config is instantiated)
+# This is done later after config is created
+
+# Set test mode flag for invoice_bp
+from routes.invoice_routes import set_test_mode as set_invoice_test_mode
+set_invoice_test_mode(flag)
 
 
 # Configure Swagger UI
@@ -399,222 +406,14 @@ def scalability_performance(user_email, user_roles):
 # Folder management routes moved to: routes/folder_routes.py (Phase 1.4)
 # - /api/create-folder
 
-
-@app.route('/api/upload', methods=['POST', 'OPTIONS'])
-@cognito_required(required_permissions=['invoices_create'])
-@tenant_required()
-def upload_file(user_email, user_roles, tenant, user_tenants):
-    """Upload and process PDF file"""
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'OK'})
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-        return response
-        
-    print("\n*** UPLOAD ENDPOINT CALLED ***", flush=True)
-    print(f"Tenant: {tenant}", flush=True)
-    try:
-        print("=== UPLOAD REQUEST START ===", flush=True)
-        print(f"Request method: {request.method}", flush=True)
-        print(f"Request files: {list(request.files.keys())}", flush=True)
-        print(f"Request form field count: {len(request.form)}", flush=True)
-        
-        if 'file' not in request.files:
-            print("ERROR: No file in request", flush=True)
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
-        
-        file = request.files['file']
-        folder_name = request.form.get('folderName', 'General')
-        print(f"File: {file.filename}, Folder: {folder_name}", flush=True)
-        
-        if file.filename == '':
-            print("ERROR: No file selected", flush=True)
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            temp_path = os.path.join(UPLOAD_FOLDER, filename)
-            print(f"Saving file to: {temp_path}", flush=True)
-            file.save(temp_path)
-            print("File saved successfully", flush=True)
-            
-            # Upload to Google Drive in production mode
-            if flag:  # Test mode - local storage
-                drive_result = {
-                    'id': filename,
-                    'url': f'http://localhost:5000/uploads/{filename}'
-                }
-            else:  # Production mode - Google Drive upload
-                try:
-                    # Check cache first
-                    cache_key = f"{folder_name}_{filename}"
-                    if cache_key in upload_cache:
-                        print(f"Using cached file info for {filename}", flush=True)
-                        drive_result = upload_cache[cache_key]
-                    else:
-                        print(f"Initializing Google Drive service for tenant: {tenant}", flush=True)
-                        drive_service = GoogleDriveService(administration=tenant)
-                        drive_folders = drive_service.list_subfolders()
-                        
-                        # Find the folder ID for the selected folder
-                        folder_id = None
-                        for folder in drive_folders:
-                            if folder['name'] == folder_name:
-                                folder_id = folder['id']
-                                print(f"Found folder: {folder_name} (ID: {folder_id})", flush=True)
-                                break
-                        
-                        if folder_id:
-                            # Check if file already exists
-                            existing_file = drive_service.check_file_exists(filename, folder_id)
-                            
-                            if existing_file['exists']:
-                                print(f"File {filename} already exists in Google Drive", flush=True)
-                                drive_result = existing_file['file']
-                            else:
-                                print(f"Uploading new file to Google Drive folder: {folder_name} (ID: {folder_id})", flush=True)
-                                drive_result = drive_service.upload_file(temp_path, filename, folder_id)
-                            
-                            # Cache the result
-                            upload_cache[cache_key] = drive_result
-                            print(f"Cached file info for {cache_key}", flush=True)
-                        
-                            print(f"File result: {drive_result['url']}", flush=True)
-                        else:
-                            print(f"Folder '{folder_name}' not found in Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
-                            print("Using local storage as fallback", flush=True)
-                            drive_result = {
-                                'id': filename,
-                                'url': f'http://localhost:5000/uploads/{filename}'
-                            }
-                except Exception as e:
-                    print(f"Google Drive upload failed for tenant {tenant}: {type(e).__name__}: {str(e)}", flush=True)
-                    import traceback
-                    traceback.print_exc()
-                    # Fallback to local storage
-                    drive_result = {
-                        'id': filename,
-                        'url': f'http://localhost:5000/uploads/{filename}'
-                    }
-            
-            # Check if user wants to force upload (bypass duplicate check)
-            force_upload = request.form.get('forceUpload', 'false').lower() == 'true'
-            
-            if not force_upload:
-                # Early duplicate detection - check before processing
-                print("Checking for duplicates before processing...", flush=True)
-                duplicate_check_result = check_for_early_duplicates(filename, folder_name, drive_result)
-                if duplicate_check_result['has_duplicates']:
-                    print(f"Duplicate detected - stopping upload: {duplicate_check_result['message']}", flush=True)
-                    # Clean up temp file
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-                    return jsonify({
-                        'success': False,
-                        'error': 'duplicate_detected',
-                        'message': duplicate_check_result['message'],
-                        'duplicate_info': duplicate_check_result['duplicate_info']
-                    }), 409
-            else:
-                print("Force upload enabled - bypassing duplicate check...", flush=True)
-            
-            print("No duplicates found - proceeding with processing...", flush=True)
-            print("Starting file processing...", flush=True)
-            result = processor.process_file(temp_path, drive_result, folder_name)
-            print("File processed, extracting transactions...", flush=True)
-            transactions = processor.extract_transactions(result)
-            print(f"Extracted {len(transactions)} transactions", flush=True)
-            
-            # Get last transactions for smart defaults
-            last_transactions = transaction_logic.get_last_transactions(folder_name, tenant)
-            if last_transactions:
-                print(f"Found {len(last_transactions)} previous transactions for reference", flush=True)
-                
-                # Get vendor-specific parsed data
-                lines = result['txt'].split('\n')
-                vendor_data = processor._parse_vendor_specific(lines, folder_name.lower())
-                
-                # Create new transaction records
-                new_data = {
-                    'folder_name': folder_name,
-                    'description': f"PDF processed from {filename}",
-                    'amount': 0,  # Will be updated from PDF parsing
-                    'drive_url': drive_result['url'],
-                    'filename': filename,
-                    'vendor_data': vendor_data,  # Pass parsed vendor data
-                    'administration': tenant  # Pass tenant from request context
-                }
-                
-                prepared_transactions = transaction_logic.prepare_new_transactions(last_transactions, new_data)
-                print(f"Prepared {len(prepared_transactions)} new transaction records for approval", flush=True)
-            
-            # Move file to the correct vendor folder
-            import shutil
-            final_folder = result['folder']
-            if not os.path.exists(final_folder):
-                os.makedirs(final_folder, exist_ok=True)
-            final_path = os.path.join(final_folder, filename)
-            try:
-                shutil.move(temp_path, final_path)
-                print(f"File moved to: {final_path}", flush=True)
-            except Exception as move_error:
-                print(f"Error moving file: {move_error}", flush=True)
-                # Clean up temp file if move fails
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-            
-            # vendor_data already extracted above
-            
-            # Determine which parser was used based on extracted text
-            parser_used = "pdfplumber" if "pdfplumber" in result['txt'] else "PyPDF2"
-            
-            return jsonify({
-                'success': True,
-                'filename': filename,
-                'folder': result['folder'],
-                'extractedText': result['txt'],
-                'vendorData': vendor_data,
-                'transactions': transactions,
-                'preparedTransactions': prepared_transactions if 'prepared_transactions' in locals() else [],
-                'templateTransactions': last_transactions,
-                'parserUsed': parser_used
-            })
-        
-        return jsonify({'success': False, 'error': 'Invalid file type'}), 400
-    except Exception as e:
-        print(f"\n=== UPLOAD ERROR ===", flush=True)
-        print(f"Error type: {type(e).__name__}", flush=True)
-        print(f"Error message: {str(e)}", flush=True)
-        import traceback
-        print("Full traceback:", flush=True)
-        traceback.print_exc()
-        print("=== END ERROR ===", flush=True)
-        return jsonify({'success': False, 'error': f"{type(e).__name__}: {str(e)}"}), 500
+# Invoice processing routes moved to: routes/invoice_routes.py (Phase 2.2)
+# - /api/upload
+# - /api/approve-transactions
 
 @app.errorhandler(500)
 def handle_500(e):
     print(f"500 error: {e}")
     return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
-
-@app.route('/api/approve-transactions', methods=['POST'])
-@cognito_required(required_permissions=['transactions_create'])
-def approve_transactions(user_email, user_roles):
-    """Save approved transactions to database"""
-    try:
-        data = request.get_json()
-        transactions = data.get('transactions', [])
-        
-        saved_transactions = transaction_logic.save_approved_transactions(transactions)
-        
-        return jsonify({
-            'success': True,
-            'savedTransactions': saved_transactions,
-            'message': f'Successfully saved {len(saved_transactions)} transactions'
-        })
-    except Exception as e:
-        print(f"Approval error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Banking processor routes
 @app.route('/api/banking/scan-files', methods=['GET'])
