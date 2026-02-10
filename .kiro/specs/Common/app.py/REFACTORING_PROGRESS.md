@@ -102,7 +102,7 @@
 
 ## Blueprints Created
 
-- [ ] `static_routes.py` - Static file serving
+- [x] `static_routes.py` - Static file serving ✅ Complete (10 routes, 59 lines removed)
 - [ ] `system_health_routes.py` - Health/status endpoints
 - [ ] `cache_routes.py` - Cache management
 - [ ] `folder_routes.py` - Folder management
@@ -126,8 +126,8 @@
 
 ## Git Commits
 
-1. ✅ Setup: Feature branch created and backup made
-2. [ ] Phase 1.1: Static files blueprint
+1. ✅ Setup: Feature branch created and backup made (b590b69)
+2. ✅ Phase 1.1: Static files blueprint (9285203)
 3. [ ] Phase 1.2: System health blueprint
 4. [ ] Phase 1.3: Cache management blueprint
 5. [ ] Phase 1.4: Folder management blueprint
