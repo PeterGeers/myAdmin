@@ -722,39 +722,44 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                 </Box>
 
                 {/* Action Buttons */}
-                <VStack spacing={2}>
-                  <Button
-                    colorScheme="blue"
-                    width="full"
-                    leftIcon={<EditIcon />}
-                    onClick={() => {
-                      onClose();
-                      setTimeout(() => openEditModal(selectedUser), 100);
-                    }}
-                  >
-                    Edit User
-                  </Button>
-                  <Button
-                    colorScheme={selectedUser.enabled ? 'yellow' : 'green'}
-                    width="full"
-                    onClick={() => {
-                      handleToggleUserStatus(selectedUser, !selectedUser.enabled);
-                      onClose();
-                    }}
-                  >
-                    {selectedUser.enabled ? 'Disable User' : 'Enable User'}
-                  </Button>
-                  <Button
-                    colorScheme="red"
-                    width="full"
-                    onClick={() => {
-                      onClose();
-                      setTimeout(() => handleDeleteUser(selectedUser), 100);
-                    }}
-                  >
-                    Delete User
-                  </Button>
-                </VStack>
+                <Box borderTop="1px" borderColor="gray.700" pt={4} mt={4}>
+                  <HStack spacing={2} justify="flex-start">
+                    <Button
+                      colorScheme="blue"
+                      variant="ghost"
+                      leftIcon={<EditIcon />}
+                      onClick={() => {
+                        onClose();
+                        setTimeout(() => openEditModal(selectedUser), 100);
+                      }}
+                      color="blue.400"
+                    >
+                      Edit User
+                    </Button>
+                    <Button
+                      colorScheme={selectedUser.enabled ? 'yellow' : 'green'}
+                      variant="ghost"
+                      onClick={() => {
+                        handleToggleUserStatus(selectedUser, !selectedUser.enabled);
+                        onClose();
+                      }}
+                      color={selectedUser.enabled ? 'yellow.400' : 'green.400'}
+                    >
+                      {selectedUser.enabled ? 'Disable' : 'Enable'}
+                    </Button>
+                    <Button
+                      colorScheme="red"
+                      variant="ghost"
+                      onClick={() => {
+                        onClose();
+                        setTimeout(() => handleDeleteUser(selectedUser), 100);
+                      }}
+                      color="red.400"
+                    >
+                      Delete
+                    </Button>
+                  </HStack>
+                </Box>
               </VStack>
             ) : (
               <VStack spacing={4}>
@@ -858,7 +863,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
           )}
           {modalMode === 'details' && (
             <ModalFooter>
-              <Button colorScheme="gray" onClick={onClose}>
+              <Button variant="ghost" onClick={onClose} color="white">
                 Close
               </Button>
             </ModalFooter>
