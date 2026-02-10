@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to myAdmin</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #f97316;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            color: #f97316;
+            margin-bottom: 10px;
+        }
+        h1 {
+            color: #1a1a1a;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .credentials-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #f97316;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 4px;
+        }
+        .credential-item {
+            margin: 10px 0;
+        }
+        .credential-label {
+            font-weight: 600;
+            color: #666;
+            display: inline-block;
+            width: 180px;
+        }
+        .credential-value {
+            color: #1a1a1a;
+            font-family: 'Courier New', monospace;
+            background-color: #fff;
+            padding: 4px 8px;
+            border-radius: 3px;
+            border: 1px solid #e0e0e0;
+        }
+        .button {
+            display: inline-block;
+            background-color: #f97316;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .button:hover {
+            background-color: #ea580c;
+        }
+        .instructions {
+            background-color: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .instructions h2 {
+            color: #c2410c;
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+            color: #7c2d12;
+        }
+        .security-notice {
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 25px 0;
+            font-size: 14px;
+        }
+        .security-notice strong {
+            color: #dc2626;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .footer a {
+            color: #f97316;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">myAdmin</div>
+            <p style="color: #666; margin: 0;">Financial Transaction Processing & Administration</p>
+        </div>
+
+        <h1>Welcome to myAdmin!</h1>
+        
+        <p>You have been invited to join the <strong>{{tenant}}</strong> tenant on myAdmin.</p>
+        
+        <p>myAdmin is a comprehensive financial transaction processing and administrative tooling system for managing invoices, banking transactions, and short-term rental operations.</p>
+
+        <div class="credentials-box">
+            <h3 style="margin-top: 0; color: #1a1a1a;">Your Login Credentials</h3>
+            <div class="credential-item">
+                <span class="credential-label">Email:</span>
+                <span class="credential-value">{{email}}</span>
+            </div>
+            <div class="credential-item">
+                <span class="credential-label">Temporary Password:</span>
+                <span class="credential-value">{{temporary_password}}</span>
+            </div>
+            <div class="credential-item">
+                <span class="credential-label">Tenant:</span>
+                <span class="credential-value">{{tenant}}</span>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{{login_url}}" class="button">Log In to myAdmin</a>
+        </div>
+
+        <div class="instructions">
+            <h2>Getting Started</h2>
+            <ol>
+                <li>Click the "Log In to myAdmin" button above or visit: <a href="{{login_url}}" style="color: #f97316;">{{login_url}}</a></li>
+                <li>Enter your email address and temporary password</li>
+                <li>You will be prompted to change your password on first login</li>
+                <li>Choose a strong password (minimum 8 characters, including uppercase, lowercase, numbers, and special characters)</li>
+                <li>After changing your password, you'll have full access to your tenant's features</li>
+            </ol>
+        </div>
+
+        <div class="security-notice">
+            <strong>⚠️ Security Notice:</strong> This temporary password is valid for 7 days. Please log in and change your password as soon as possible. Never share your password with anyone.
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 6px;">
+            <h3 style="margin-top: 0; color: #1a1a1a;">Need Help?</h3>
+            <p style="margin-bottom: 0;">If you have any questions or need assistance, please contact your tenant administrator or system administrator.</p>
+        </div>
+
+        <div class="footer">
+            <p>This is an automated message from myAdmin. Please do not reply to this email.</p>
+            <p>&copy; 2026 myAdmin. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

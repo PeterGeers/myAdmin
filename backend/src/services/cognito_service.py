@@ -568,7 +568,7 @@ class CognitoService:
         tenant: str
     ) -> bool:
         """
-        Send invitation email via SNS
+        Send invitation email via SNS using HTML and plain text templates
         
         Args:
             email: User's email address
@@ -586,9 +586,32 @@ class CognitoService:
                 logger.warning("SNS_TOPIC_ARN not configured, skipping invitation email")
                 return False
             
-            sns_client = boto3.client('sns', region_name=self.region)
+            # Import email template service
+            from services.email_template_service import EmailTemplateService
             
-            message = f"""
+            email_service = EmailTemplateService()
+            
+            # Render HTML and plain text versions
+            html_content = email_service.render_user_invitation(
+                email=email,
+                temporary_password=temporary_password,
+                tenant=tenant,
+                format='html'
+            )
+            
+            text_content = email_service.render_user_invitation(
+                email=email,
+                temporary_password=temporary_password,
+                tenant=tenant,
+                format='txt'
+            )
+            
+            # Get subject line
+            subject = email_service.get_invitation_subject(tenant)
+            
+            # Fallback to simple text if templates fail
+            if not text_content:
+                text_content = f"""
 Welcome to myAdmin!
 
 You have been invited to join the {tenant} tenant.
@@ -602,17 +625,25 @@ Please log in and change your password at your earliest convenience.
 Login URL: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}
 """
             
+            sns_client = boto3.client('sns', region_name=self.region)
+            
+            # Send email via SNS
+            # Note: SNS supports both plain text and HTML, but email format depends on SNS configuration
+            # For now, we'll send the text version as the primary message
+            # HTML version can be sent via SNS Email protocol if configured
             sns_client.publish(
                 TopicArn=sns_topic_arn,
-                Subject=f'myAdmin Invitation - {tenant}',
-                Message=message
+                Subject=subject,
+                Message=text_content
             )
             
-            logger.info(f"Invitation email sent to {email}")
+            logger.info(f"Invitation email sent to {email} for tenant {tenant}")
             return True
             
         except Exception as e:
             logger.error(f"Failed to send invitation to {email}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     # ========================================================================
