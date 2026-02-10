@@ -35,7 +35,7 @@ class TestAangifteIBXlsxExportStreamTenantFiltering:
     
     def test_aangifte_ib_xlsx_export_stream_has_tenant_decorator(self):
         """Test that aangifte-ib-xlsx-export-stream has @tenant_required decorator"""
-        from app import aangifte_ib_xlsx_export_stream
+        from reporting_routes import aangifte_ib_xlsx_export_stream
         
         # Get the function signature
         sig = inspect.signature(aangifte_ib_xlsx_export_stream)
@@ -48,7 +48,7 @@ class TestAangifteIBXlsxExportStreamTenantFiltering:
     def test_aangifte_ib_xlsx_export_stream_validates_administrations(self):
         """Test that aangifte-ib-xlsx-export-stream validates administrations against user_tenants"""
         # This is a code inspection test - verify the implementation
-        from app import aangifte_ib_xlsx_export_stream
+        from reporting_routes import aangifte_ib_xlsx_export_stream
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_xlsx_export_stream)
@@ -58,7 +58,7 @@ class TestAangifteIBXlsxExportStreamTenantFiltering:
     
     def test_aangifte_ib_xlsx_export_stream_returns_403_for_unauthorized_admin(self):
         """Test that aangifte-ib-xlsx-export-stream returns 403 for unauthorized administrations"""
-        from app import aangifte_ib_xlsx_export_stream
+        from reporting_routes import aangifte_ib_xlsx_export_stream
         
         # Get the source code
         source = inspect.getsource(aangifte_ib_xlsx_export_stream)
@@ -68,7 +68,7 @@ class TestAangifteIBXlsxExportStreamTenantFiltering:
     
     def test_aangifte_ib_xlsx_export_stream_has_tenant_filtering_comment(self):
         """Test that aangifte-ib-xlsx-export-stream has tenant filtering in docstring"""
-        from app import aangifte_ib_xlsx_export_stream
+        from reporting_routes import aangifte_ib_xlsx_export_stream
         
         # Check docstring mentions tenant filtering
         docstring = aangifte_ib_xlsx_export_stream.__doc__ or ""
