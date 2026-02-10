@@ -11,6 +11,7 @@ Extracted from app.py during refactoring (Phase 2.1)
 """
 
 import os
+import shutil
 from werkzeug.utils import secure_filename
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
@@ -269,8 +270,6 @@ class InvoiceService:
         Returns:
             str: Final path of the moved file
         """
-        import shutil
-        
         if not os.path.exists(result_folder):
             os.makedirs(result_folder, exist_ok=True)
         

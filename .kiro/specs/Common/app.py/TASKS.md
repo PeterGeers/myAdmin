@@ -185,13 +185,12 @@ Refactor backend/src/app.py from 3,310 lines to < 500 lines by extracting 71 rou
   - [x] `cleanup_temp_file(temp_path)`
 - [x] Add error handling and logging
 - [x] Add docstrings for all methods
-- [ ] Create unit tests: `backend/tests/unit/test_invoice_service.py` (10+ tests) - SKIPPED for now
-- [ ] Run unit tests: `python -m pytest tests/unit/test_invoice_service.py -v` - SKIPPED for now
+- [x] Run unit tests: `python -m pytest tests/unit/test_invoice_service.py -v`
+  - **Result**: 14 tests passed ✅
+- [x] Fix shutil import issue (moved to module level)
 - [x] Git commit: `.\scripts\git\git-upload.ps1 "Phase 2.1: Create InvoiceService class with business logic"`
 
-**Result**: New service class created with ~280 lines ✅
-
-**Note**: Unit tests skipped to maintain momentum. Can be added later as separate task.
+**Result**: New service class created with ~280 lines, all 14 tests passing ✅
 
 ### 2.2 Invoice Routes Blueprint (2 hours)
 
