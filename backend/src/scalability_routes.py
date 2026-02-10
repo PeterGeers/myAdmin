@@ -590,3 +590,106 @@ def get_scalability_alerts(user_email, user_roles):
             'error': str(e),
             'alerts_available': False
         }), 500
+
+
+
+# Global variables set by app.py
+scalability_manager = None
+flag = False
+
+def set_scalability_manager(manager):
+    """Set scalability manager instance"""
+    global scalability_manager
+    scalability_manager = manager
+
+def set_test_mode(test_mode):
+    """Set test mode flag"""
+    global flag
+    flag = test_mode
+
+
+@scalability_bp.route('/api/scalability/status', methods=['GET'])
+@cognito_required(required_roles=['SysAdmin'])
+def scalability_status(user_email, user_roles):
+    """Get comprehensive scalability status"""
+    if not scalability_manager:
+        return jsonify({
+            'scalability_active': False,
+            'message': 'Scalability manager not initialized',
+            'concurrent_capacity': '1x baseline'
+        }), 503
+    
+    try:
+        stats = scalability_manager.get_comprehensive_statistics()
+        health = scalability_manager.get_health_status()
+        
+        return jsonify({
+            'scalability_active': True,
+            'health': health,
+            'statistics': stats,
+            'concurrent_capacity': '10x baseline',
+            'performance_ready': health['scalability_ready']
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'scalability_active': False,
+            'error': str(e),
+            'concurrent_capacity': 'Unknown'
+        }), 500
+
+
+@scalability_bp.route('/api/scalability/database', methods=['GET'])
+@cognito_required(required_roles=['SysAdmin'])
+def scalability_database_status(user_email, user_roles):
+    """Get database scalability status"""
+    try:
+        db = DatabaseManager(test_mode=flag)
+        
+        scalability_stats = db.get_scalability_statistics()
+        health_status = db.get_scalability_health()
+        pool_status = db.get_connection_pool_status()
+        optimization_info = db.optimize_for_concurrency()
+        
+        return jsonify({
+            'database_scalability': {
+                'statistics': scalability_stats,
+                'health': health_status,
+                'connection_pools': pool_status,
+                'optimization_recommendations': optimization_info
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'database_scalability': 'unavailable'
+        }), 500
+
+
+@scalability_bp.route('/api/scalability/performance', methods=['GET'])
+@cognito_required(required_roles=['SysAdmin'])
+def scalability_performance(user_email, user_roles):
+    """Get real-time performance metrics"""
+    if not scalability_manager:
+        return jsonify({
+            'performance_monitoring': False,
+            'message': 'Scalability manager not initialized'
+        }), 503
+    
+    try:
+        current_metrics = scalability_manager.resource_monitor.get_current_metrics()
+        metrics_summary = scalability_manager.resource_monitor.get_metrics_summary()
+        
+        return jsonify({
+            'performance_monitoring': True,
+            'current_metrics': current_metrics,
+            'metrics_summary': metrics_summary,
+            'monitoring_interval': scalability_manager.config.monitoring_interval_seconds
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'performance_monitoring': False,
+            'error': str(e)
+        }), 500

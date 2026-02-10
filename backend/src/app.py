@@ -151,6 +151,11 @@ app.register_blueprint(static_bp)  # Static file serving (must be registered las
 from routes.system_health_routes import set_scalability_manager
 set_scalability_manager(scalability_manager)
 
+# Set scalability manager and test mode for scalability_bp
+from scalability_routes import set_scalability_manager as set_scalability_bp_manager, set_test_mode as set_scalability_test_mode
+set_scalability_bp_manager(scalability_manager)
+set_scalability_test_mode(flag)
+
 # Set test mode flag for cache_bp
 from routes.cache_routes import set_test_mode
 set_test_mode(flag)
@@ -337,89 +342,10 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
 # - /api/health
 # - /api/google-drive/token-health
 
-@app.route('/api/scalability/status', methods=['GET'])
-@cognito_required(required_roles=['SysAdmin'])
-def scalability_status(user_email, user_roles):
-    """Get comprehensive scalability status"""
-    if not scalability_manager:
-        return jsonify({
-            'scalability_active': False,
-            'message': 'Scalability manager not initialized',
-            'concurrent_capacity': '1x baseline'
-        }), 503
-    
-    try:
-        stats = scalability_manager.get_comprehensive_statistics()
-        health = scalability_manager.get_health_status()
-        
-        return jsonify({
-            'scalability_active': True,
-            'health': health,
-            'statistics': stats,
-            'concurrent_capacity': '10x baseline',
-            'performance_ready': health['scalability_ready']
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'scalability_active': False,
-            'error': str(e),
-            'concurrent_capacity': 'Unknown'
-        }), 500
-
-@app.route('/api/scalability/database', methods=['GET'])
-@cognito_required(required_roles=['SysAdmin'])
-def scalability_database_status(user_email, user_roles):
-    """Get database scalability status"""
-    try:
-        db = DatabaseManager(test_mode=flag)
-        
-        scalability_stats = db.get_scalability_statistics()
-        health_status = db.get_scalability_health()
-        pool_status = db.get_connection_pool_status()
-        optimization_info = db.optimize_for_concurrency()
-        
-        return jsonify({
-            'database_scalability': {
-                'statistics': scalability_stats,
-                'health': health_status,
-                'connection_pools': pool_status,
-                'optimization_recommendations': optimization_info
-            }
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'database_scalability': 'unavailable'
-        }), 500
-
-@app.route('/api/scalability/performance', methods=['GET'])
-@cognito_required(required_roles=['SysAdmin'])
-def scalability_performance(user_email, user_roles):
-    """Get real-time performance metrics"""
-    if not scalability_manager:
-        return jsonify({
-            'performance_monitoring': False,
-            'message': 'Scalability manager not initialized'
-        }), 503
-    
-    try:
-        current_metrics = scalability_manager.resource_monitor.get_current_metrics()
-        metrics_summary = scalability_manager.resource_monitor.get_metrics_summary()
-        
-        return jsonify({
-            'performance_monitoring': True,
-            'current_metrics': current_metrics,
-            'metrics_summary': metrics_summary,
-            'monitoring_interval': scalability_manager.config.monitoring_interval_seconds
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'performance_monitoring': False,
-            'error': str(e)
-        }), 500
+# Scalability routes moved to: scalability_routes.py (Phase 5.2)
+# - /api/scalability/status
+# - /api/scalability/database
+# - /api/scalability/performance
 
 # Cache management routes moved to: routes/cache_routes.py (Phase 1.3)
 # - /api/cache/warmup
