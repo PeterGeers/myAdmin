@@ -1,0 +1,34 @@
+# Railway Environment Variables for Backend Service
+# Copy these to Railway Dashboard → Your Service → Variables
+
+# Database Connection (Railway will provide these from MySQL service)
+DB_HOST=${{MySQL.MYSQL_HOST}}
+DB_PORT=${{MySQL.MYSQL_PORT}}
+DB_USER=${{MySQL.MYSQL_USER}}
+DB_PASSWORD=${{MySQL.MYSQL_PASSWORD}}
+DB_NAME=${{MySQL.MYSQL_DATABASE}}
+
+# Application Mode
+TEST_MODE=false
+
+# Flask Configuration
+FLASK_RUN_HOST=0.0.0.0
+FLASK_RUN_PORT=5000
+FLASK_DEBUG=false
+
+# AWS Cognito (Get from your AWS Console)
+AWS_REGION=eu-west-1
+COGNITO_USER_POOL_ID=<your-cognito-pool-id>
+COGNITO_APP_CLIENT_ID=<your-cognito-client-id>
+
+# AWS SNS (Optional - for notifications)
+SNS_TOPIC_ARN=<your-sns-topic-arn>
+
+# Encryption Key (Generate a secure random key)
+CREDENTIALS_ENCRYPTION_KEY=<generate-secure-key>
+
+# Google Drive (Optional - if using Google Drive integration)
+# GOOGLE_DRIVE_ENABLED=false
+
+# Note: Railway automatically provides PORT variable
+# Your app should listen on $PORT or 5000

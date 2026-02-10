@@ -1,0 +1,24 @@
+# Railway Project Configuration for myAdmin
+# https://docs.railway.app/deploy/config-as-code
+
+# This file configures the entire myAdmin project on Railway
+# It defines both the backend service and MySQL database
+
+# Backend Service Configuration
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+watchPatterns = ["backend/**"]
+
+[deploy]
+startCommand = "cd backend && waitress-serve --host=0.0.0.0 --port=$PORT wsgi:app"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Environment variables (sensitive values set in Railway Dashboard)
+[deploy.env]
+FLASK_RUN_HOST = "0.0.0.0"
+FLASK_DEBUG = "false"
+TEST_MODE = "false"
