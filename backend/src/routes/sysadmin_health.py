@@ -177,65 +177,6 @@ def check_sns_health():
         }
 
 
-def check_google_drive_health():
-    """
-    Check Google Drive API health
-    
-    Returns:
-        dict: Health status with response time and details
-    """
-    start_time = time.time()
-    
-    try:
-        # Import Google Drive service
-        from google_drive_service import get_drive_service
-        
-        # Get Drive service
-        service = get_drive_service()
-        
-        # Test access by listing files (limit 1)
-        results = service.files().list(
-            pageSize=1,
-            fields="files(id, name)"
-        ).execute()
-        
-        response_time = int((time.time() - start_time) * 1000)
-        
-        # Determine status based on response time
-        if response_time < 1000:
-            status = 'healthy'
-        elif response_time < 3000:
-            status = 'degraded'
-        else:
-            status = 'unhealthy'
-        
-        return {
-            'service': 'google_drive',
-            'status': status,
-            'responseTime': response_time,
-            'message': 'Google Drive API accessible' if status == 'healthy' else 'Slow response time',
-            'lastChecked': datetime.utcnow().isoformat() + 'Z'
-        }
-    except ImportError:
-        return {
-            'service': 'google_drive',
-            'status': 'healthy',
-            'responseTime': 0,
-            'message': 'Google Drive not configured (optional)',
-            'lastChecked': datetime.utcnow().isoformat() + 'Z'
-        }
-    except Exception as e:
-        response_time = int((time.time() - start_time) * 1000)
-        logger.error(f"Google Drive health check failed: {e}")
-        return {
-            'service': 'google_drive',
-            'status': 'unhealthy',
-            'responseTime': response_time,
-            'message': f'Google Drive error: {str(e)}',
-            'lastChecked': datetime.utcnow().isoformat() + 'Z'
-        }
-
-
 def check_openrouter_health():
     """
     Check OpenRouter API health
@@ -306,16 +247,16 @@ def get_system_health(user_email, user_roles):
     - Database (MySQL)
     - AWS Cognito
     - AWS SNS
-    - Google Drive (optional)
     - OpenRouter (optional)
+    
+    Note: Google Drive is tenant-specific and tested in Tenant Admin module
     """
     try:
-        # Run all health checks
+        # Run all health checks (excluding Google Drive - tenant-specific)
         services = [
             check_database_health(),
             check_cognito_health(),
             check_sns_health(),
-            check_google_drive_health(),
             check_openrouter_health()
         ]
         

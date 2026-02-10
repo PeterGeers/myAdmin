@@ -37,9 +37,7 @@ export interface StorageFolder {
 }
 
 export interface StorageConfig {
-  facturen_folder_id?: string;
-  invoices_folder_id?: string;
-  reports_folder_id?: string;
+  [key: string]: string; // Dynamic keys like "google_drive_invoices_folder_id"
 }
 
 export interface StorageUsage {

@@ -8,7 +8,6 @@ import { useTenant } from '../../context/TenantContext';
 import UserManagement from './UserManagement';
 import TemplateManagement from './TemplateManagement/TemplateManagement';
 import CredentialsManagement from './CredentialsManagement';
-import StorageConfiguration from './StorageConfiguration';
 import TenantConfigManagement from './TenantConfigManagement';
 
 interface TenantInfo {
@@ -131,7 +130,7 @@ export function TenantAdminDashboard() {
         </HStack>
 
         {/* Tabs */}
-        <Tabs colorScheme="orange" variant="enclosed">
+        <Tabs colorScheme="orange" variant="enclosed" isLazy>
           <TabList>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               User Management
@@ -141,9 +140,6 @@ export function TenantAdminDashboard() {
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               Credentials
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Storage
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               Configuration
@@ -162,9 +158,6 @@ export function TenantAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <CredentialsManagement tenant={currentTenant} />
-            </TabPanel>
-            <TabPanel>
-              <StorageConfiguration tenant={currentTenant} />
             </TabPanel>
             <TabPanel>
               <TenantConfigManagement tenant={currentTenant} />

@@ -7,12 +7,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, VStack, HStack, Button, Text, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, Badge, IconButton,
+  Table, Thead, Tbody, Tr, Th, Td, Badge,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, useDisclosure, FormControl,
   FormLabel, Input, Checkbox, Heading, Card, CardHeader, CardBody
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
+import { AddIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -157,8 +157,62 @@ export default function TenantConfigManagement({ tenant }: TenantConfigManagemen
     }
   };
 
-  const handleDelete = async (config: ConfigEntry) => {
-    if (!window.confirm(`Delete configuration "${config.config_key}"?`)) {
+  const handleShow = async () => {
+    if (!editingConfig) return;
+
+    try {
+      // Check if it's a Google Drive folder ID
+      if (editingConfig.config_key.includes('folder_id') && editingConfig.config_value) {
+        const folderId = editingConfig.config_value;
+        const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
+        
+        toast({
+          title: 'Google Drive Folder',
+          description: (
+            <Box>
+              <Text>Folder ID: {folderId}</Text>
+              <Text 
+                as="a" 
+                href={folderUrl} 
+                target="_blank" 
+                color="blue.300"
+                textDecoration="underline"
+              >
+                Open in Google Drive
+              </Text>
+            </Box>
+          ),
+          status: 'info',
+          duration: 10000,
+          isClosable: true,
+        });
+        
+        // Also open in new tab
+        window.open(folderUrl, '_blank');
+      } else {
+        // For non-folder configs, just show the value
+        toast({
+          title: editingConfig.config_key,
+          description: `Value: ${editingConfig.config_value}`,
+          status: 'info',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editingConfig) return;
+
+    if (!window.confirm(`Delete configuration "${editingConfig.config_key}"?`)) {
       return;
     }
 
@@ -166,7 +220,7 @@ export default function TenantConfigManagement({ tenant }: TenantConfigManagemen
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
 
-      const response = await fetch(`${API_BASE_URL}/api/tenant-admin/config/${config.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/tenant-admin/config/${editingConfig.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -184,6 +238,7 @@ export default function TenantConfigManagement({ tenant }: TenantConfigManagemen
         duration: 3000,
       });
 
+      onClose();
       loadConfigs();
     } catch (error: any) {
       toast({
@@ -213,65 +268,59 @@ export default function TenantConfigManagement({ tenant }: TenantConfigManagemen
         </Text>
       </Box>
 
-      <Card>
+      <Card bg="gray.800">
         <CardHeader>
           <HStack justify="space-between">
-            <Heading size="md">Configuration Entries ({configs.length})</Heading>
-            <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleOpenNew}>
+            <Heading size="md" color="white">Configuration Entries ({configs.length})</Heading>
+            <Button leftIcon={<AddIcon />} colorScheme="orange" onClick={handleOpenNew}>
               Add Configuration
             </Button>
           </HStack>
         </CardHeader>
         <CardBody>
           <Box overflowX="auto">
-            <Table size="sm">
+            <Table variant="simple" size="sm">
               <Thead>
                 <Tr>
-                  <Th>Key</Th>
-                  <Th>Value</Th>
-                  <Th>Secret</Th>
-                  <Th>Created</Th>
-                  <Th>Updated</Th>
-                  <Th>Actions</Th>
+                  <Th color="gray.400">Key</Th>
+                  <Th color="gray.400">Value</Th>
+                  <Th color="gray.400">Secret</Th>
+                  <Th color="gray.400">Created</Th>
+                  <Th color="gray.400">Updated</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {configs.length === 0 ? (
                   <Tr>
-                    <Td colSpan={6} textAlign="center" py={8}>
-                      <Text color="gray.500">No configurations found. Click "Add Configuration" to create one.</Text>
+                    <Td colSpan={5} textAlign="center" py={8}>
+                      <Text color="gray.400">No configurations found. Click "Add Configuration" to create one.</Text>
                     </Td>
                   </Tr>
                 ) : (
                   configs.map(config => (
                     <Tr key={config.id}>
-                      <Td fontFamily="mono" fontSize="sm">{config.config_key}</Td>
-                      <Td maxW="300px" isTruncated>
+                      <Td 
+                        fontFamily="mono" 
+                        fontSize="sm" 
+                        color="orange.400"
+                        cursor="pointer"
+                        _hover={{ textDecoration: 'underline' }}
+                        onClick={() => handleOpenEdit(config)}
+                      >
+                        {config.config_key}
+                      </Td>
+                      <Td maxW="300px" isTruncated color="white">
                         {config.is_secret ? '••••••••' : config.config_value}
                       </Td>
                       <Td>
-                        {config.is_secret && <Badge colorScheme="red">Secret</Badge>}
+                        {config.is_secret ? (
+                          <Badge colorScheme="red">Yes</Badge>
+                        ) : (
+                          <Badge colorScheme="gray">No</Badge>
+                        )}
                       </Td>
-                      <Td fontSize="xs">{new Date(config.created_at).toLocaleDateString()}</Td>
-                      <Td fontSize="xs">{new Date(config.updated_at).toLocaleDateString()}</Td>
-                      <Td>
-                        <HStack spacing={1}>
-                          <IconButton
-                            aria-label="Edit"
-                            icon={<EditIcon />}
-                            size="sm"
-                            onClick={() => handleOpenEdit(config)}
-                          />
-                          <IconButton
-                            aria-label="Delete"
-                            icon={<DeleteIcon />}
-                            size="sm"
-                            colorScheme="red"
-                            variant="ghost"
-                            onClick={() => handleDelete(config)}
-                          />
-                        </HStack>
-                      </Td>
+                      <Td fontSize="xs" color="gray.400">{new Date(config.created_at).toLocaleDateString()}</Td>
+                      <Td fontSize="xs" color="gray.400">{new Date(config.updated_at).toLocaleDateString()}</Td>
                     </Tr>
                   ))
                 )}
@@ -284,30 +333,36 @@ export default function TenantConfigManagement({ tenant }: TenantConfigManagemen
       {/* Edit/Create Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="lg">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
+        <ModalContent bg="gray.800">
+          <ModalHeader color="orange.400">
             {isNewConfig ? 'Add Configuration' : 'Edit Configuration'}
           </ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton color="white" />
           <ModalBody>
             <VStack spacing={4}>
               <FormControl isRequired>
-                <FormLabel>Configuration Key</FormLabel>
+                <FormLabel color="gray.300">Configuration Key</FormLabel>
                 <Input
                   value={formKey}
                   onChange={(e) => setFormKey(e.target.value)}
-                  placeholder="e.g., storage_facturen_folder_id"
+                  placeholder="e.g., google_drive_invoices_folder_id"
                   isDisabled={!isNewConfig}
+                  bg="gray.700"
+                  color="white"
+                  borderColor="gray.600"
                 />
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Configuration Value</FormLabel>
+                <FormLabel color="gray.300">Configuration Value</FormLabel>
                 <Input
                   value={formValue}
                   onChange={(e) => setFormValue(e.target.value)}
                   placeholder="Enter value"
                   type={formIsSecret ? 'password' : 'text'}
+                  bg="gray.700"
+                  color="white"
+                  borderColor="gray.600"
                 />
               </FormControl>
 
@@ -315,6 +370,8 @@ export default function TenantConfigManagement({ tenant }: TenantConfigManagemen
                 <Checkbox
                   isChecked={formIsSecret}
                   onChange={(e) => setFormIsSecret(e.target.checked)}
+                  colorScheme="orange"
+                  color="white"
                 >
                   Mark as secret (hide value in table)
                 </Checkbox>
@@ -322,10 +379,30 @@ export default function TenantConfigManagement({ tenant }: TenantConfigManagemen
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
+            {!isNewConfig && (
+              <HStack spacing={2} mr="auto">
+                <Button 
+                  colorScheme="red" 
+                  variant="ghost" 
+                  onClick={handleDelete}
+                  color="red.400"
+                >
+                  Delete
+                </Button>
+                <Button 
+                  colorScheme="blue" 
+                  variant="ghost" 
+                  onClick={handleShow}
+                  color="blue.400"
+                >
+                  Show
+                </Button>
+              </HStack>
+            )}
+            <Button variant="ghost" onClick={onClose} color="white">
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={handleSave} isLoading={saving}>
+            <Button colorScheme="orange" onClick={handleSave} isLoading={saving} ml={3}>
               {isNewConfig ? 'Create' : 'Update'}
             </Button>
           </ModalFooter>

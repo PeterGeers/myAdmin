@@ -73,7 +73,7 @@ def get_storage_config(user_email, user_roles):
     Authorization: Tenant_Admin role required
     
     Returns:
-        JSON with storage configuration
+        JSON with storage configuration (keys without prefix, values are folder IDs)
     """
     try:
         # Get current tenant
@@ -87,21 +87,18 @@ def get_storage_config(user_email, user_roles):
             SELECT config_key, config_value, is_secret
             FROM tenant_config
             WHERE administration = %s
-            AND (config_key LIKE 'storage_%' OR config_key LIKE 'google_drive_%')
+            AND (config_key LIKE '%_folder_id')
         """
         
         results = db.execute_query(query, (tenant,))
         
         # Build config dict from key-value pairs
+        # Return keys as-is (e.g., "google_drive_invoices_folder_id" -> "google_drive_invoices_folder_id")
         storage_config = {}
         for row in results:
-            # Remove prefix (storage_ or google_drive_)
-            key = row['config_key']
-            if key.startswith('storage_'):
-                key = key.replace('storage_', '')
-            elif key.startswith('google_drive_'):
-                key = key.replace('google_drive_', '')
-            storage_config[key] = row['config_value']
+            storage_config[row['config_key']] = row['config_value']
+        
+        logger.info(f"Retrieved storage config for tenant {tenant}: {list(storage_config.keys())}")
         
         return jsonify({
             'success': True,
@@ -330,7 +327,7 @@ def get_storage_usage(user_email, user_roles):
     Authorization: Tenant_Admin role required
     
     Returns:
-        JSON with storage usage by type
+        JSON with storage usage by folder (keyed by config_key)
     """
     try:
         # Get current tenant
@@ -344,20 +341,15 @@ def get_storage_usage(user_email, user_roles):
             SELECT config_key, config_value
             FROM tenant_config
             WHERE administration = %s
-            AND (config_key LIKE 'storage_%_folder_id' OR config_key LIKE 'google_drive_%_folder_id')
+            AND config_key LIKE '%_folder_id'
         """
         
         results = db.execute_query(query, (tenant,))
         
+        # Build dict: config_key -> folder_id
         storage_config = {}
         for row in results:
-            # Remove prefix (storage_ or google_drive_) and _folder_id suffix
-            key = row['config_key']
-            if key.startswith('storage_'):
-                key = key.replace('storage_', '').replace('_folder_id', '')
-            elif key.startswith('google_drive_'):
-                key = key.replace('google_drive_', '').replace('_folder_id', '')
-            storage_config[key] = row['config_value']
+            storage_config[row['config_key']] = row['config_value']
         
         if not storage_config:
             return jsonify({
@@ -371,9 +363,10 @@ def get_storage_usage(user_email, user_roles):
         drive_service = GoogleDriveService(tenant)
         
         # Calculate usage for each configured folder
+        # Key by config_key (e.g., "google_drive_invoices_folder_id")
         usage_stats = {}
         
-        for folder_name, folder_id in storage_config.items():
+        for config_key, folder_id in storage_config.items():
             if not folder_id:
                 continue
                 
@@ -407,9 +400,9 @@ def get_storage_usage(user_email, user_roles):
                 total_size = sum(int(f.get('size', 0)) for f in all_files if f.get('size'))
                 file_count = len(all_files)
                 
-                usage_stats[folder_name] = {
+                usage_stats[config_key] = {
                     'folder_id': folder_id,
-                    'folder_name': folder_metadata.get('name', folder_name),
+                    'folder_name': folder_metadata.get('name', config_key),
                     'folder_url': folder_metadata.get('webViewLink', ''),
                     'file_count': file_count,
                     'total_size_bytes': total_size,
@@ -418,15 +411,15 @@ def get_storage_usage(user_email, user_roles):
                 }
                 
             except Exception as e:
-                logger.error(f"Error getting usage for folder {folder_name}: {e}")
-                usage_stats[folder_name] = {
+                logger.error(f"Error getting usage for folder {config_key}: {e}")
+                usage_stats[config_key] = {
                     'folder_id': folder_id,
-                    'folder_name': folder_name,
+                    'folder_name': config_key,
                     'accessible': False,
                     'error': str(e)
                 }
         
-        logger.info(f"Retrieved storage usage for tenant {tenant} by {user_email}")
+        logger.info(f"Retrieved storage usage for tenant {tenant} by {user_email}: {len(usage_stats)} folders")
         
         return jsonify({
             'success': True,

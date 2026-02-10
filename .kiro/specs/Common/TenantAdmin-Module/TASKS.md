@@ -257,20 +257,36 @@ This document breaks down the implementation of missing Tenant Admin features in
   - [x] Display folder list ✅
   - [x] Implement folder selection (dropdown) ✅
 - [x] Folder configuration ✅
-  - [x] Folder selectors for each type (facturen, invoices, reports) ✅
+  - [x] Dynamic folder rendering (not hardcoded) ✅
   - [x] Test buttons per folder ✅
   - [x] Save button ✅
 - [x] Storage usage display ✅
-  - [x] Display usage by type ✅
+  - [x] Display usage by config key ✅
+  - [x] Display actual folder names from Google Drive ✅
   - [x] Display file counts ✅
   - [x] Display size in MB ✅
+  - [x] Display "Open in Drive" links ✅
 - [x] Add routing to TenantAdminDashboard ✅
 - [x] ESLint warnings fixed ✅
-- [x] Committed to GitHub ✅
+- [x] Backend storage endpoints fixed ✅
+  - [x] GET /config returns keys as-is from database ✅
+  - [x] GET /usage returns stats keyed by config_key ✅
+  - [x] Support any config key ending with \_folder_id ✅
+- [x] Frontend TypeScript interface updated ✅
+  - [x] StorageConfig uses dynamic index signature ✅
+- [x] Documentation created ✅
+  - [x] STORAGE_CONFIGURATION_FIX.md ✅
+- [x] Check if tsc and lint pass correctly and minimize warnings
+- [x] add to github using scripts\git\git-upload.ps1
 
 **Time Estimate**: 0.5 days
-**Status**: ✅ COMPLETE
-**Commit**: 47864b1
+**Status**: ✅ COMPLETE - Ready for Testing
+**Commits**:
+
+- 47864b1 (initial implementation)
+- [current] (storage display fix)
+
+**Fix Summary**: Changed from hardcoded folder types to dynamic rendering based on database config keys. Backend now returns keys as-is (e.g., `google_drive_invoices_folder_id`) and usage stats are properly keyed for matching. Frontend displays all configured folders with their actual Google Drive names, file counts, sizes, and links.
 
 ### 4.2.5 TenantSettings Component
 
