@@ -1,19 +1,20 @@
-# Railway Configuration for myAdmin Backend
+# Railway Project Configuration for myAdmin
 # https://docs.railway.app/deploy/config-as-code
 
+# Backend Service Configuration
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+watchPatterns = ["**"]
 
 [deploy]
-startCommand = "waitress-serve --host=0.0.0.0 --port=$PORT wsgi:app"
+startCommand = "python validate_env.py && waitress-serve --host=0.0.0.0 --port=$PORT wsgi:app"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
-# Environment variables that Railway should set
-# Note: Sensitive values should be set in Railway Dashboard, not here
+# Environment variables (sensitive values set in Railway Dashboard)
 [deploy.env]
 FLASK_RUN_HOST = "0.0.0.0"
 FLASK_DEBUG = "false"
