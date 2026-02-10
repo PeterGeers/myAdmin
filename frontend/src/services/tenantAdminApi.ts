@@ -275,6 +275,42 @@ export async function getStorageUsage(): Promise<{ usage: StorageUsage }> {
 }
 
 // ============================================================================
+// Tenant Details API
+// ============================================================================
+
+export interface TenantDetails {
+  administration: string;
+  display_name?: string;
+  contact_email?: string;
+  phone_number?: string;
+  street?: string;
+  city?: string;
+  zipcode?: string;
+  country?: string;
+  bank_account_number?: string;
+  bank_name?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function getTenantDetails(): Promise<{ tenant: TenantDetails }> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/api/tenant-admin/details`, { headers });
+  return handleResponse(response);
+}
+
+export async function updateTenantDetails(details: Partial<TenantDetails>): Promise<any> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/api/tenant-admin/details`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(details),
+  });
+  return handleResponse(response);
+}
+
+// ============================================================================
 // Tenant Settings API
 // ============================================================================
 
