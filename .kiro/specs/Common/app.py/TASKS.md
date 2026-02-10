@@ -365,7 +365,6 @@ Refactor backend/src/app.py from 3,310 lines to < 500 lines by extracting 71 rou
 
 **Note**: Combined STR and pricing routes into single blueprint since they're closely related (both deal with short-term rental operations)
 
-**Note**: Combined STR and pricing routes into single blueprint since they're closely related (both deal with short-term rental operations)
 
 ### 4.2 Tax Processing Routes Blueprint (1 hour)
 
