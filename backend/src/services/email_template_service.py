@@ -53,7 +53,7 @@ class EmailTemplateService:
             # Get active template from database
             db = DatabaseManager()
             query = """
-                SELECT file_id, template_content
+                SELECT template_file_id, template_content
                 FROM tenant_template_config
                 WHERE administration = %s 
                   AND template_type = %s 
@@ -74,7 +74,7 @@ class EmailTemplateService:
                     return template_data['template_content']
                 
                 # Otherwise, load from Google Drive
-                file_id = template_data.get('file_id')
+                file_id = template_data.get('template_file_id')
                 if file_id:
                     drive_service = GoogleDriveService(administration=self.administration)
                     content = drive_service.download_file_content(file_id)
