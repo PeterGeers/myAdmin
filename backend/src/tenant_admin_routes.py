@@ -547,7 +547,12 @@ def get_current_template_endpoint(template_type, user_email, user_roles):
             return jsonify({'error': 'Tenant admin access required'}), 403
         
         # Validate template type
-        valid_types = ['str_invoice_nl', 'str_invoice_en', 'btw_aangifte', 'aangifte_ib', 'toeristenbelasting', 'financial_report']
+        valid_types = [
+            'str_invoice_nl', 'str_invoice_en', 
+            'btw_aangifte', 'aangifte_ib', 
+            'toeristenbelasting', 'financial_report',
+            'user_invitation'  # Email template for user invitations
+        ]
         if template_type not in valid_types:
             return jsonify({
                 'error': 'Invalid template type',

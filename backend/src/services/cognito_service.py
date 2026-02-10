@@ -589,7 +589,7 @@ class CognitoService:
             # Import email template service
             from services.email_template_service import EmailTemplateService
             
-            email_service = EmailTemplateService()
+            email_service = EmailTemplateService(administration=tenant)
             
             # Render HTML and plain text versions
             html_content = email_service.render_user_invitation(
