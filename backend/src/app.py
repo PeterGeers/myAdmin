@@ -35,6 +35,7 @@ from routes.tenant_admin_storage import tenant_admin_storage_bp
 from routes.tenant_admin_settings import tenant_admin_settings_bp
 from routes.tenant_admin_config import tenant_admin_config_bp
 from routes.tenant_admin_details import tenant_admin_details_bp
+from routes.tenant_admin_email import tenant_admin_email_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -125,6 +126,7 @@ app.register_blueprint(tenant_admin_storage_bp)
 app.register_blueprint(tenant_admin_settings_bp)
 app.register_blueprint(tenant_admin_config_bp)
 app.register_blueprint(tenant_admin_details_bp)
+app.register_blueprint(tenant_admin_email_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')
 
 
