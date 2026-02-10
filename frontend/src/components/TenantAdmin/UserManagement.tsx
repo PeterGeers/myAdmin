@@ -26,6 +26,11 @@ interface Role {
   precedence: number | null;
 }
 
+interface EmailTemplate {
+  template_type: string;
+  display_name: string;
+}
+
 interface UserManagementProps {
   tenant: string;
 }
@@ -36,12 +41,14 @@ export default function UserManagement({ tenant }: UserManagementProps) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [modalMode, setModalMode] = useState<'edit' | 'create'>('edit');
+  const [modalMode, setModalMode] = useState<'edit' | 'create' | 'details'>('edit');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [editUserName, setEditUserName] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedEmailTemplate, setSelectedEmailTemplate] = useState<string>('user_invitation');
+  const [sendingEmail, setSendingEmail] = useState(false);
   
   // Filter and sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,6 +60,13 @@ export default function UserManagement({ tenant }: UserManagementProps) {
   
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+
+  // Available email templates
+  const emailTemplates: EmailTemplate[] = [
+    { template_type: 'user_invitation', display_name: 'User Invitation' },
+    { template_type: 'password_reset', display_name: 'Password Reset' },
+    { template_type: 'account_update', display_name: 'Account Update Notification' },
+  ];
 
   const loadData = async () => {
     setLoading(true);
@@ -170,6 +184,13 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     setSelectedUser(user);
     setEditUserName(user.name || '');
     setSelectedRoles(user.groups);
+    onOpen();
+  };
+
+  const openDetailsModal = (user: User) => {
+    setModalMode('details');
+    setSelectedUser(user);
+    setSelectedEmailTemplate('user_invitation');
     onOpen();
   };
 
@@ -379,6 +400,56 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     }
   };
 
+  const handleSendEmail = async () => {
+    if (!selectedUser) return;
+
+    setSendingEmail(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
+      const response = await fetch(buildApiUrl('/api/tenant-admin/send-email'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Tenant': tenant
+        },
+        body: JSON.stringify({
+          email: selectedUser.email,
+          template_type: selectedEmailTemplate,
+          user_data: {
+            name: selectedUser.name,
+            username: selectedUser.username,
+            status: selectedUser.status
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Email sent',
+          description: `Email sent successfully to ${selectedUser.email}`,
+          status: 'success',
+          duration: 3000,
+        });
+      } else {
+        throw new Error(data.error || 'Failed to send email');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error sending email',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" p={8}>
@@ -482,7 +553,15 @@ export default function UserManagement({ tenant }: UserManagementProps) {
           <Tbody>
             {filteredAndSortedUsers.map(user => (
               <Tr key={user.username}>
-                <Td color="white">{user.email}</Td>
+                <Td 
+                  color="orange.400" 
+                  cursor="pointer" 
+                  textDecoration="underline"
+                  _hover={{ color: 'orange.300' }}
+                  onClick={() => openDetailsModal(user)}
+                >
+                  {user.email}
+                </Td>
                 <Td color="white">{user.name || '-'}</Td>
                 <Td>
                   <Badge colorScheme={user.enabled ? 'green' : 'red'}>
@@ -548,16 +627,137 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         )}
       </Box>
 
-      {/* Create/Edit User Modal */}
+      {/* Create/Edit/Details User Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent bg="gray.800">
           <ModalHeader color="orange.400">
-            {modalMode === 'create' ? 'Create New User' : 'Edit User'}
+            {modalMode === 'create' && 'Create New User'}
+            {modalMode === 'edit' && 'Edit User'}
+            {modalMode === 'details' && 'User Details'}
           </ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody>
-            <VStack spacing={4}>
+            {modalMode === 'details' && selectedUser ? (
+              <VStack spacing={4} align="stretch">
+                {/* User Information */}
+                <Box bg="gray.700" p={4} borderRadius="md">
+                  <VStack spacing={3} align="stretch">
+                    <HStack justify="space-between">
+                      <Text color="gray.400" fontSize="sm">Email:</Text>
+                      <Text color="white" fontWeight="bold">{selectedUser.email}</Text>
+                    </HStack>
+                    <HStack justify="space-between">
+                      <Text color="gray.400" fontSize="sm">Name:</Text>
+                      <Text color="white">{selectedUser.name || '-'}</Text>
+                    </HStack>
+                    <HStack justify="space-between">
+                      <Text color="gray.400" fontSize="sm">Status:</Text>
+                      <Badge colorScheme={selectedUser.enabled ? 'green' : 'red'}>
+                        {selectedUser.status}
+                      </Badge>
+                    </HStack>
+                    <HStack justify="space-between">
+                      <Text color="gray.400" fontSize="sm">Created:</Text>
+                      <Text color="white" fontSize="sm">
+                        {new Date(selectedUser.created).toLocaleString()}
+                      </Text>
+                    </HStack>
+                  </VStack>
+                </Box>
+
+                {/* Roles */}
+                <Box>
+                  <Text color="gray.300" fontWeight="bold" mb={2}>Roles:</Text>
+                  <HStack spacing={2} wrap="wrap">
+                    {selectedUser.groups.map(group => (
+                      <Badge key={group} colorScheme="blue">
+                        {group}
+                      </Badge>
+                    ))}
+                  </HStack>
+                </Box>
+
+                {/* Tenants */}
+                <Box>
+                  <Text color="gray.300" fontWeight="bold" mb={2}>Tenants:</Text>
+                  <HStack spacing={2} wrap="wrap">
+                    {selectedUser.tenants.map(t => (
+                      <Badge key={t} colorScheme="purple">
+                        {t}
+                      </Badge>
+                    ))}
+                  </HStack>
+                </Box>
+
+                {/* Send Email Section */}
+                <Box bg="gray.700" p={4} borderRadius="md" borderWidth="1px" borderColor="orange.500">
+                  <Text color="orange.400" fontWeight="bold" mb={3}>Send Email</Text>
+                  <VStack spacing={3}>
+                    <FormControl>
+                      <FormLabel color="gray.300" fontSize="sm">Email Template</FormLabel>
+                      <Select
+                        value={selectedEmailTemplate}
+                        onChange={(e) => setSelectedEmailTemplate(e.target.value)}
+                        bg="gray.600"
+                        color="white"
+                        borderColor="gray.500"
+                      >
+                        {emailTemplates.map(template => (
+                          <option key={template.template_type} value={template.template_type}>
+                            {template.display_name}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Button
+                      colorScheme="orange"
+                      width="full"
+                      onClick={handleSendEmail}
+                      isLoading={sendingEmail}
+                    >
+                      Send Email
+                    </Button>
+                  </VStack>
+                </Box>
+
+                {/* Action Buttons */}
+                <VStack spacing={2}>
+                  <Button
+                    colorScheme="blue"
+                    width="full"
+                    leftIcon={<EditIcon />}
+                    onClick={() => {
+                      onClose();
+                      setTimeout(() => openEditModal(selectedUser), 100);
+                    }}
+                  >
+                    Edit User
+                  </Button>
+                  <Button
+                    colorScheme={selectedUser.enabled ? 'yellow' : 'green'}
+                    width="full"
+                    onClick={() => {
+                      handleToggleUserStatus(selectedUser, !selectedUser.enabled);
+                      onClose();
+                    }}
+                  >
+                    {selectedUser.enabled ? 'Disable User' : 'Enable User'}
+                  </Button>
+                  <Button
+                    colorScheme="red"
+                    width="full"
+                    onClick={() => {
+                      onClose();
+                      setTimeout(() => handleDeleteUser(selectedUser), 100);
+                    }}
+                  >
+                    Delete User
+                  </Button>
+                </VStack>
+              </VStack>
+            ) : (
+              <VStack spacing={4}>
               {modalMode === 'create' && (
                 <>
                   <FormControl isRequired>
@@ -639,20 +839,30 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                 </Stack>
               </FormControl>
             </VStack>
+            )}
           </ModalBody>
 
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose} color="white">
-              Cancel
-            </Button>
-            <Button
-              colorScheme="orange"
-              onClick={modalMode === 'create' ? handleCreateUser : handleUpdateUser}
-              isLoading={actionLoading}
-            >
-              {modalMode === 'create' ? 'Create' : 'Update'}
-            </Button>
-          </ModalFooter>
+          {modalMode !== 'details' && (
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose} color="white">
+                Cancel
+              </Button>
+              <Button
+                colorScheme="orange"
+                onClick={modalMode === 'create' ? handleCreateUser : handleUpdateUser}
+                isLoading={actionLoading}
+              >
+                {modalMode === 'create' ? 'Create User' : 'Update User'}
+              </Button>
+            </ModalFooter>
+          )}
+          {modalMode === 'details' && (
+            <ModalFooter>
+              <Button colorScheme="gray" onClick={onClose}>
+                Close
+              </Button>
+            </ModalFooter>
+          )}
         </ModalContent>
       </Modal>
     </VStack>
