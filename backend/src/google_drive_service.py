@@ -168,8 +168,12 @@ class GoogleDriveService:
         try:
             all_subfolders = []
             page_token = None
+            page_count = 0
             
             while True:
+                page_count += 1
+                print(f"📄 Fetching page {page_count} from Google Drive (pageToken: {page_token})", flush=True)
+                
                 results = self.service.files().list(
                     q=f"'{facturen_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
                     fields="nextPageToken, files(id, name, webViewLink)",
@@ -178,6 +182,7 @@ class GoogleDriveService:
                 ).execute()
                 
                 subfolders = results.get('files', [])
+                print(f"📦 Page {page_count} returned {len(subfolders)} folders", flush=True)
                 
                 for folder in subfolders:
                     all_subfolders.append({
@@ -188,6 +193,7 @@ class GoogleDriveService:
                 
                 page_token = results.get('nextPageToken')
                 if not page_token:
+                    print(f"✅ Pagination complete. Total folders: {len(all_subfolders)}", flush=True)
                     break
             
             # Log if we found duplicate folder names (shouldn't happen but good to know)
