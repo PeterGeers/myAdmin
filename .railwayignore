@@ -1,0 +1,6 @@
+# Ignore Node.js files so Railway doesn't detect this as a Node project
+package.json
+package-lock.json
+node_modules/
+mcp-server.js
+frontend/

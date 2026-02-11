@@ -23,8 +23,6 @@ REQUIRED_VARS = {
     'COGNITO_CLIENT_ID': 'AWS Cognito Client ID',
     'COGNITO_CLIENT_SECRET': 'AWS Cognito Client Secret',
     'AWS_REGION': 'AWS Region',
-    'AWS_ACCESS_KEY_ID': 'AWS Access Key ID (for boto3)',
-    'AWS_SECRET_ACCESS_KEY': 'AWS Secret Access Key (for boto3)',
     
     # Database
     'DB_HOST': 'Database host',
@@ -41,6 +39,8 @@ REQUIRED_VARS = {
 
 # Optional but recommended variables
 OPTIONAL_VARS = {
+    'AWS_ACCESS_KEY_ID': 'AWS Access Key ID (required for SNS notifications)',
+    'AWS_SECRET_ACCESS_KEY': 'AWS Secret Access Key (required for SNS notifications)',
     'SNS_TOPIC_ARN': 'AWS SNS Topic ARN for notifications',
     'TEST_MODE': 'Test mode flag',
     'TEST_DB_NAME': 'Test database name',
