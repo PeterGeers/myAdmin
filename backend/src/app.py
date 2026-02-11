@@ -60,9 +60,13 @@ from report_generators import generate_table_rows
 from services.template_service import TemplateService
 
 # Load environment variables from .env file
-load_dotenv()
-from duplicate_checker import DuplicateChecker
+# Look in parent directory if .env not found in current directory (for when running from src/)
 import os
+from pathlib import Path
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+from duplicate_checker import DuplicateChecker
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
