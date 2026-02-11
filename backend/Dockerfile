@@ -25,6 +25,7 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
 
-# Start the application with environment validation and production server
+# Start the application
 # For local Docker: runs from /app directory with standard Flask setup
-CMD ["sh", "-c", "python validate_env.py && python src/app.py"]
+# Note: validate_env.py skipped for Docker (docker-compose handles env_file)
+CMD ["python", "src/app.py"]

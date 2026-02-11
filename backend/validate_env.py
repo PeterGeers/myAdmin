@@ -15,16 +15,6 @@ Exit codes:
 
 import os
 import sys
-from pathlib import Path
-
-# Load .env file if it exists
-try:
-    from dotenv import load_dotenv
-    env_path = Path(__file__).parent / '.env'
-    if env_path.exists():
-        load_dotenv(dotenv_path=env_path)
-except ImportError:
-    pass  # dotenv not installed, rely on environment variables
 
 # Required environment variables
 REQUIRED_VARS = {
