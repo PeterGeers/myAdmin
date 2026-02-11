@@ -26,5 +26,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
 
 # Start the application with environment validation and production server
-# Updated: 2026-02-11 - Using --call flag for Waitress
-CMD python validate_env.py && echo "Starting Waitress on port ${PORT:-5000}..." && PYTHONPATH=/app waitress-serve --host=0.0.0.0 --port=${PORT:-5000} src.wsgi:app
+CMD ["sh", "-c", "python validate_env.py && PYTHONPATH=/app python -m waitress --host=0.0.0.0 --port=${PORT:-5000} --call src.wsgi:app"]
