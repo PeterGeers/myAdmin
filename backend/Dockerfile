@@ -26,5 +26,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
 
 # Start the application with environment validation and production server
-# Change to src directory for relative imports, keep /app in PYTHONPATH for .env loading
-CMD ["sh", "-c", "python validate_env.py && cd src && PYTHONPATH=/app:/app/src python -m waitress --host=0.0.0.0 --port=${PORT:-5000} --call wsgi:app"]
+# For local Docker: runs from /app directory with standard Flask setup
+CMD ["sh", "-c", "python validate_env.py && python src/app.py"]
