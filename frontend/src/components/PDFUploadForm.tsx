@@ -175,7 +175,59 @@ const PDFUploadForm: React.FC = () => {
       const response = await responseObj.json();
 
       console.log('Upload response:', response);
-      // Backend returns different structure
+      
+      // Check if backend returned an error (duplicate or other)
+      if (!response.success && response.error === 'duplicate_detected') {
+        // Handle duplicate detection
+        const dupData = response.duplicate_info;
+        
+        if (dupData && dupData.existing_transactions && dupData.existing_transactions.length > 0) {
+          const existingTxn = dupData.existing_transactions[0];
+          
+          // Format duplicate info for the dialog
+          setDuplicateInfo({
+            existingTransaction: {
+              id: existingTxn.id?.toString() || '',
+              transactionDate: existingTxn.date || '',
+              transactionDescription: existingTxn.description || '',
+              transactionAmount: parseFloat(existingTxn.amount) || 0,
+              debet: '',
+              credit: '',
+              referenceNumber: values.folderId || '',
+              ref1: '',
+              ref2: '',
+              ref3: existingTxn.file_url || '',
+              ref4: existingTxn.filename || ''
+            },
+            newTransaction: {
+              id: 'new',
+              transactionDate: existingTxn.date || '',
+              transactionDescription: `New upload: ${values.file.name}`,
+              transactionAmount: parseFloat(existingTxn.amount) || 0,
+              debet: '',
+              credit: '',
+              referenceNumber: values.folderId || '',
+              ref1: '',
+              ref2: '',
+              ref3: '',
+              ref4: values.file.name || ''
+            },
+            matchCount: dupData.duplicate_count || 1
+          });
+          
+          // Show the duplicate warning dialog
+          setShowDuplicateDialog(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Fallback if duplicate info is not properly formatted
+        setMessage(response.message || 'This file has already been uploaded.');
+        setLoading(false);
+        return;
+      }
+      
+      // Backend returns different structure for successful uploads
       const fileData = {
         name: response.filename,
         url: `/uploads/${response.filename}`,
