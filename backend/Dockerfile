@@ -21,13 +21,11 @@ COPY . .
 # Add /app/src to PYTHONPATH so imports work correctly
 ENV PYTHONPATH=/app/src
 
-# Expose port
+# Expose port (Railway will override with PORT env var)
 EXPOSE 5000
 
-# Health check (Railway uses PORT env var)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
+# Note: Railway handles health checks via railway.json, no need for HEALTHCHECK here
 
 # Start the application
 # Run from src directory where imports work correctly
-CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && cd src && FLASK_RUN_PORT=${PORT:-5000} FLASK_DEBUG=false python app.py; else python src/app.py; fi"]
+CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && cd src && FLASK_RUN_PORT=${PORT:-5000} FLASK_RUN_HOST=0.0.0.0 FLASK_DEBUG=false python app.py; else python src/app.py; fi"]
