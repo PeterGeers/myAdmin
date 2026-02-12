@@ -670,12 +670,9 @@ class SecurityAudit:
             if header not in request.headers:
                 return False
 
-        # Check for suspicious headers (only for non-API routes)
-        suspicious_headers = ['X-Forwarded-For', 'X-Forwarded-Host', 'X-Forwarded-Proto']
-        for header in suspicious_headers:
-            if header in request.headers:
-                # These headers should be handled by proxy, not client
-                return False
+        # Note: X-Forwarded-* headers are legitimate when behind a proxy (Railway, nginx, etc.)
+        # We trust these headers in production since Railway adds them
+        # In a production environment, these should be validated by the proxy layer
 
         # Check content type for POST requests
         if request.method == 'POST' and 'Content-Type' not in request.headers:
