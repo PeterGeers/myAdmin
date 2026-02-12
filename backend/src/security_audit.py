@@ -579,6 +579,10 @@ class SecurityAudit:
             # Skip all security checks in test mode
             if os.getenv('TEST_MODE', 'false').lower() == 'true':
                 return None
+            
+            # Whitelist health check endpoint (needed for Railway/Docker health checks)
+            if request.path == '/api/health':
+                return None
                 
             # Check for suspicious request patterns
             if self.is_suspicious_request(request):
