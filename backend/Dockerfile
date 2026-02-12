@@ -27,5 +27,5 @@ EXPOSE 5000
 # Note: Railway handles health checks via railway.json, no need for HEALTHCHECK here
 
 # Start the application  
-# Stay in /app, set PYTHONPATH to /app/src, run app from src package
-CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && FLASK_RUN_PORT=${PORT:-5000} FLASK_RUN_HOST=0.0.0.0 FLASK_DEBUG=false python -m src.app; else python src/app.py; fi"]
+# Use wrapper script that properly configures Python path
+CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && python start_railway.py; else python src/app.py; fi"]
