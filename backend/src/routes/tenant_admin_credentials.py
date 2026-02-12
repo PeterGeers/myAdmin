@@ -325,7 +325,7 @@ def start_oauth_flow(user_email, user_roles):
             f"client_id={client_id}&"
             f"redirect_uri={redirect_uri}&"
             f"response_type=code&"
-            f"scope=https://www.googleapis.com/auth/drive.file&"
+            f"scope=https://www.googleapis.com/auth/drive&"
             f"access_type=offline&"
             f"state={state_token}&"
             f"prompt=consent"
