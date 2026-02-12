@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Add /app/src to PYTHONPATH so imports work correctly
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+
 # Expose port
 EXPOSE 5000
 
@@ -26,6 +29,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
 
 # Start the application
-# For local Docker: runs from /app directory with standard Flask setup
-# Note: validate_env.py skipped for Docker (docker-compose handles env_file)
-CMD ["python", "src/app.py"]
+# For Railway: Use waitress with proper PYTHONPATH
+# For local Docker: Use Flask dev server
+CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && cd /app/src && waitress-serve --host=0.0.0.0 --port=${PORT:-5000} --call app:app; else python src/app.py; fi"]
