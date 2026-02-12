@@ -29,6 +29,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
 
 # Start the application
-# For Railway: Use waitress with proper PYTHONPATH, stay in /app directory
-# For local Docker: Use Flask dev server
-CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && waitress-serve --host=0.0.0.0 --port=${PORT:-5000} src.app:app; else python src/app.py; fi"]
+# Run from src directory where imports work correctly
+CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && cd src && FLASK_RUN_PORT=${PORT:-5000} FLASK_DEBUG=false python app.py; else python src/app.py; fi"]
