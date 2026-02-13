@@ -31,7 +31,8 @@ class DatabaseManager:
             'host': os.getenv('DB_HOST', 'localhost'),
             'user': os.getenv('DB_USER', 'root'),
             'password': os.getenv('DB_PASSWORD', ''),
-            'database': db_name
+            'database': db_name,
+            'port': int(os.getenv('DB_PORT', '3306'))
         }
         
         # Try to initialize scalability manager
