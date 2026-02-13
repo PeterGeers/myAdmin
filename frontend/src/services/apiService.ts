@@ -87,6 +87,7 @@ export async function authenticatedRequest(
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
+      credentials: 'include', // Include credentials for cross-origin requests
     });
 
     // Handle 401 Unauthorized - token might be expired
@@ -115,6 +116,7 @@ export async function authenticatedRequest(
           return await fetch(url, {
             ...fetchOptions,
             headers,
+            credentials: 'include', // Include credentials for cross-origin requests
           });
         }
       } catch (refreshError) {
@@ -294,6 +296,7 @@ export async function authenticatedFormData(
     method: fetchOptions.method || 'POST',
     headers,
     body: formData,
+    credentials: 'include', // Include credentials for cross-origin requests
   });
 }
 
