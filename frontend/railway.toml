@@ -1,0 +1,12 @@
+# Railway Configuration for myAdmin Frontend
+# https://docs.railway.com/reference/config-as-code
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "npx serve -s build -l $PORT"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
