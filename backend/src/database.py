@@ -25,14 +25,14 @@ class DatabaseManager:
         
         # Use test database if test_mode is True or TEST_MODE env var is set
         use_test = test_mode or os.getenv('TEST_MODE', 'false').lower() == 'true'
-        db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', 'finance')
+        db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', os.getenv('MYSQL_DATABASE', 'finance'))
         
         self.config = {
-            'host': os.getenv('DB_HOST', 'localhost'),
-            'user': os.getenv('DB_USER', 'root'),
-            'password': os.getenv('DB_PASSWORD', ''),
+            'host': os.getenv('DB_HOST', os.getenv('RAILWAY_PRIVATE_DOMAIN', 'localhost')),
+            'user': os.getenv('DB_USER', os.getenv('MYSQL_USER', 'root')),
+            'password': os.getenv('DB_PASSWORD', os.getenv('MYSQL_PASSWORD', '')),
             'database': db_name,
-            'port': int(os.getenv('DB_PORT', '3306'))
+            'port': int(os.getenv('DB_PORT', os.getenv('RAILWAY_TCP_PROXY_PORT', '3306')))
         }
         
         # Try to initialize scalability manager
