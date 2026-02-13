@@ -32,7 +32,7 @@ class DatabaseManager:
             'user': os.getenv('DB_USER', os.getenv('MYSQL_USER', 'root')),
             'password': os.getenv('DB_PASSWORD', os.getenv('MYSQL_PASSWORD', '')),
             'database': db_name,
-            'port': int(os.getenv('DB_PORT', os.getenv('RAILWAY_TCP_PROXY_PORT', '3306')))
+            'port': int(os.getenv('DB_PORT', '3306'))  # Always use 3306 for internal Railway connections
         }
         
         # Try to initialize scalability manager
