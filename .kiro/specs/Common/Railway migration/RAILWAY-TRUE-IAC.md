@@ -114,7 +114,7 @@ CMD ["mysqld", "--default-authentication-plugin=mysql_native_password"]
 ```toml
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "backend/Dockerfile"
+dockerfilePath = "railway/mysql/Dockerfile"
 
 [deploy]
 startCommand = "python start_railway.py"
