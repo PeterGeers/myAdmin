@@ -1,5 +1,6 @@
 # Railway Configuration for myAdmin Backend
 # https://docs.railway.com/reference/config-as-code
+# Updated: 2026-02-13 - Added CORS credentials support
 
 [build]
 builder = "DOCKERFILE"
