@@ -580,11 +580,20 @@ class SecurityAudit:
             if os.getenv('TEST_MODE', 'false').lower() == 'true':
                 return None
             
-            # Whitelist health check endpoint (needed for Railway/Docker health checks)
-            if request.path == '/api/health':
+            # Whitelist health check and status endpoints (needed for Railway/Docker health checks)
+            if request.path in ['/api/health', '/api/status']:
+                return None
+            
+            # Skip suspicious request checks for authenticated API endpoints
+            # These are protected by Cognito authentication
+            if request.path.startswith('/api/'):
+                # Only validate headers for API endpoints
+                if not self.validate_request_headers(request):
+                    self.logger.warning(f"Invalid request headers: {request.path}")
+                    return jsonify({'error': 'Invalid request headers'}), 400
                 return None
                 
-            # Check for suspicious request patterns
+            # Check for suspicious request patterns (only for non-API routes)
             if self.is_suspicious_request(request):
                 self.logger.warning(f"Suspicious request detected: {request.path}")
                 return jsonify({'error': 'Suspicious request detected'}), 403
