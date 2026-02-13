@@ -28,25 +28,76 @@
 
 ## ⏳ PENDING TASKS
 
+### Phase 5.5: Railway Infrastructure as Code (PRIORITY: HIGH)
+
+**Goal**: Deploy services using Railway config file for consistent, reproducible infrastructure
+
+**New Files Created**:
+
+- ✅ `railway.toml` - Full multi-service configuration
+- ✅ `railway.json` - Simple backend-only configuration
+- ✅ `.kiro/specs/Common/Railway migration/RAILWAY-CONFIG-GUIDE.md` - Complete guide
+
+#### 5.5.1 Deploy with Railway Config (30 minutes)
+
+- [ ] Review `railway.toml` configuration
+- [ ] Commit configuration to git
+
+  ```bash
+  git add railway.toml railway.json
+  git commit -m "Add Railway IaC configuration with MySQL 8.0 crash prevention"
+  git push origin main
+  ```
+
+- [ ] Enable Config as Code in Railway Dashboard:
+  - [ ] Go to Project Settings
+  - [ ] Enable "Railway Config File"
+  - [ ] Set file path: `railway.toml`
+  - [ ] Save and wait for deployment
+
+- [ ] Add required secrets (see RAILWAY-CONFIG-GUIDE.md):
+  - [ ] MySQL passwords
+  - [ ] AWS credentials
+  - [ ] Cognito configuration
+  - [ ] Google Drive credentials
+  - [ ] Encryption keys
+
+- [ ] Verify services deployed:
+  - [ ] MySQL service running (check logs for no crashes)
+  - [ ] Backend service running
+  - [ ] Frontend service running
+
+**Deliverable**: All services deployed via IaC configuration
+
+**Why This Approach**:
+
+- MySQL 8.0 with crash prevention settings built-in
+- Reproducible infrastructure
+- Version-controlled configuration
+- Automatic service dependencies
+- Easier troubleshooting
+
+---
+
 ### Phase 6: Database Migration (PRIORITY: HIGH)
 
 **Goal**: Migrate local MySQL database to Railway MySQL
 
 **Prerequisites**:
 
-- [x] Railway MySQL service running
+- [x] Railway MySQL service running (via IaC config)
 - [x] Connection details available
-- [ ] Local database backup created
+- [x] Local database backup created
 
 #### 6.1 Export Local Database (30 minutes)
 
-- [ ] Connect to local MySQL
+- [x] Connect to local MySQL
 
   ```bash
   mysql -u peter -p
   ```
 
-- [ ] Verify database size
+- [x] Verify database size
 
   ```sql
   SELECT
@@ -57,41 +108,30 @@
   GROUP BY table_schema;
   ```
 
-- [ ] Export full database
+- [x] Export full database
 
-  ```bash
-  mysqldump -u peter -p finance > railway_migration_backup.sql
-  ```
+- [x] Verify export file created
 
-- [ ] Verify export file created
+- [x] Create compressed backup (optional, if file is large)
 
-  ```bash
-  ls -lh railway_migration_backup.sql
-  ```
-
-- [ ] Create compressed backup (optional, if file is large)
-  ```bash
-  gzip railway_migration_backup.sql
-  ```
-
-**Deliverable**: `railway_migration_backup.sql` file
+**Deliverable**: `.kiro\specs\Common\Railway migration\myDatabaseForRailway.zip` file
 
 ---
 
 #### 6.2 Get Railway MySQL Connection Details (5 minutes)
 
-- [ ] Go to Railway Dashboard → MySQL service
-- [ ] Click **Connect** tab
-- [ ] Copy connection details:
-  - [ ] Host: `_____________________`
-  - [ ] Port: `_____________________`
-  - [ ] Username: `_____________________`
-  - [ ] Password: `_____________________`
-  - [ ] Database: `_____________________`
+- [x] Go to Railway Dashboard → MySQL service
+- [x] Click **Connect** tab
+- [x] Copy connection details:
+  - [x] Host: `_____________________`
+  - [x] Port: `_____________________`
+  - [x] Username: `_____________________`
+  - [x] Password: `_____________________`
+  - [x] Database: `_____________________`
 
-- [ ] Test connection from local machine
+- [x] Test connection from local machine
   ```bash
-  mysql -h <host> -P <port> -u <username> -p<password> -e "SELECT 1;"
+  Cooented Hseisql and mysql workbench
   ```
 
 **Deliverable**: Working connection to Railway MySQL
@@ -100,22 +140,20 @@
 
 #### 6.3 Import Database to Railway (30-60 minutes)
 
-- [ ] Import database
+**⚠️ Version Compatibility Note**: Local MySQL 8.0 → Railway MySQL 9.6
 
-  ```bash
-  mysql -h <host> -P <port> -u <username> -p<password> <database> < railway_migration_backup.sql
-  ```
+- [x] Import database
 
-- [ ] Monitor import progress (if large database)
+Import by Heidsql reading local file
 
-  ```bash
-  # In another terminal, watch file size being processed
-  watch -n 5 'mysql -h <host> -P <port> -u <username> -p<password> <database> -e "SHOW TABLES;"'
-  ```
+- [x] Monitor import progress (if large database)
 
 - [ ] Handle errors if any:
   - [ ] Check for character encoding issues
-  - [ ] Verify MySQL version compatibility
+  - [ ] **Verify MySQL version compatibility** (8.0 → 9.6 upgrade)
+    - [ ] Check for authentication method warnings
+    - [ ] Review deprecated syntax warnings (non-critical)
+    - [ ] Test complex views work correctly
   - [ ] Check for storage space on Railway
 
 **Deliverable**: Database imported to Railway

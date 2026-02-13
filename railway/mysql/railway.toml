@@ -1,0 +1,129 @@
+# Railway Configuration for myAdmin
+# Documentation: https://docs.railway.app/deploy/config-as-code
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[deploy]
+startCommand = "python start_railway.py"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# MySQL Database Service
+[[services]]
+name = "mysql"
+source = "image"
+
+[services.image]
+image = "mysql:8.0"
+
+[services.volumes]
+mountPath = "/var/lib/mysql"
+size = 3  # 3GB storage
+
+[services.environment]
+# Core MySQL Configuration
+MYSQL_DATABASE = "finance"
+MYSQL_USER = "peter"
+MYSQL_ROOT_PASSWORD = { type = "secret" }
+MYSQL_PASSWORD = { type = "secret" }
+
+# MySQL 8.0 Optimization for Railway
+# These settings prevent crashes and optimize for cloud environment
+MYSQL_INNODB_USE_NATIVE_AIO = "0"
+MYSQL_INNODB_FLUSH_METHOD = "fsync"
+MYSQL_INNODB_BUFFER_POOL_SIZE = "268435456"  # 256MB
+MYSQL_INNODB_LOG_FILE_SIZE = "67108864"      # 64MB
+MYSQL_MAX_CONNECTIONS = "100"
+MYSQL_TABLE_OPEN_CACHE = "2000"
+
+[services.command]
+# Important: --lower-case-table-names=2 for Windows compatibility
+command = ["--lower-case-table-names=2", "--default-authentication-plugin=mysql_native_password"]
+
+[services.deploy]
+restartPolicyType = "ALWAYS"
+
+# Backend Service
+[[services]]
+name = "backend"
+source = "repo"
+
+[services.build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[services.deploy]
+startCommand = "python start_railway.py"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[services.environment]
+# Database Connection (references MySQL service)
+DB_HOST = { serviceRef = "mysql" }
+DB_PORT = "3306"
+DB_USER = "peter"
+DB_PASSWORD = { type = "secret" }
+DB_NAME = "finance"
+
+# Flask Configuration
+FLASK_DEBUG = "false"
+DOCKER_ENV = "true"
+PORT = "5000"
+
+# AWS Configuration (secrets)
+AWS_ACCESS_KEY_ID = { type = "secret" }
+AWS_SECRET_ACCESS_KEY = { type = "secret" }
+AWS_REGION = { type = "secret" }
+SNS_TOPIC_ARN = { type = "secret" }
+
+# AWS Cognito (secrets)
+COGNITO_USER_POOL_ID = { type = "secret" }
+COGNITO_APP_CLIENT_ID = { type = "secret" }
+COGNITO_REGION = { type = "secret" }
+
+# Google Drive (secrets)
+GOOGLE_DRIVE_FOLDER_ID = { type = "secret" }
+
+# OpenRouter API (optional)
+OPENROUTER_API_KEY = { type = "secret" }
+
+# Encryption
+CREDENTIALS_ENCRYPTION_KEY = { type = "secret" }
+
+# Test Mode
+TEST_MODE = "false"
+
+[services.dependencies]
+services = ["mysql"]
+
+# Frontend Service (React)
+[[services]]
+name = "frontend"
+source = "repo"
+
+[services.build]
+builder = "NIXPACKS"
+buildCommand = "cd frontend && npm install && npm run build"
+
+[services.deploy]
+startCommand = "cd frontend && npx serve -s build -l $PORT"
+restartPolicyType = "ON_FAILURE"
+
+[services.environment]
+# Backend API URL (references backend service)
+REACT_APP_API_URL = { serviceRef = "backend", property = "url" }
+
+# AWS Cognito (must match backend)
+REACT_APP_COGNITO_USER_POOL_ID = { type = "secret" }
+REACT_APP_COGNITO_APP_CLIENT_ID = { type = "secret" }
+REACT_APP_COGNITO_REGION = { type = "secret" }
+REACT_APP_COGNITO_DOMAIN = { type = "secret" }
+
+[services.dependencies]
+services = ["backend"]
