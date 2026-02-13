@@ -216,7 +216,13 @@ except Exception as e:
 
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:5000", "null"],
+        "origins": [
+            "http://localhost:3000", 
+            "http://localhost:3001", 
+            "http://127.0.0.1:5000", 
+            "https://petergeers.github.io",  # GitHub Pages
+            "null"
+        ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Tenant"]
     }
