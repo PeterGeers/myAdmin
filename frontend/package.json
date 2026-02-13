@@ -44,6 +44,8 @@
     "start": "set NODE_OPTIONS=--no-deprecation && react-scripts start",
     "build": "set NODE_OPTIONS=--no-deprecation && set DISABLE_ESLINT_PLUGIN=false && react-scripts build",
     "build:ci": "set NODE_OPTIONS=--no-deprecation && set DISABLE_ESLINT_PLUGIN=true && react-scripts build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "test": "react-scripts test",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -85,12 +87,13 @@
     "@types/react-plotly.js": "^2.6.4",
     "baseline-browser-mapping": "^2.9.11",
     "fast-check": "^4.4.0",
+    "gh-pages": "^6.3.0",
     "http-proxy-middleware": "^3.0.5",
     "jest-axe": "^10.0.0",
     "msw": "^2.11.6",
     "playwright": "^1.58.1"
   },
-  "homepage": ".",
+  "homepage": "https://petergeers.github.io/myAdmin",
   "msw": {
     "workerDirectory": [
       "public"
