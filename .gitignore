@@ -37,6 +37,9 @@ pip-delete-this-directory.txt
 # But allow credential service code files
 !**/credential_service.py
 !**/credential_service_example.py
+# But allow React credential management components
+!**/CredentialsManagement.tsx
+!**/CredentialsManagement.*.tsx
 
 #### cache
 cache/
@@ -14098,6 +14101,12 @@ __marimo__/
 **/myDatabaseForRailway*
 .kiro/specs/**/Railway migration/myDatabaseForRailway*
 .kiro/specs/**/Railway migration/extracted/
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
 
 # Added by ggshield
 .cache_ggshield
