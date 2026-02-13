@@ -1,0 +1,54 @@
+name: Deploy Frontend to GitHub Pages
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "frontend/**"
+            - ".github/workflows/deploy-frontend.yml"
+    workflow_dispatch: # Allow manual trigger
+
+permissions:
+    contents: write
+    pages: write
+    id-token: write
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "18"
+                  cache: "npm"
+                  cache-dependency-path: frontend/package-lock.json
+
+            - name: Install dependencies
+              working-directory: frontend
+              run: npm ci
+
+            - name: Build frontend
+              working-directory: frontend
+              run: npm run build
+              env:
+                  CI: false # Treat warnings as warnings, not errors
+                  REACT_APP_API_URL: https://invigorating-celebration-production.up.railway.app
+                  REACT_APP_COGNITO_USER_POOL_ID: eu-west-1_Hdp40eWmu
+                  REACT_APP_COGNITO_CLIENT_ID: 66tp0087h9tfbstggonnu5aghp
+                  REACT_APP_COGNITO_DOMAIN: myadmin-6x2848jl.auth.eu-west-1.amazoncognito.com
+                  REACT_APP_AWS_REGION: eu-west-1
+                  REACT_APP_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
+                  REACT_APP_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
+
+            - name: Deploy to GitHub Pages
+              uses: peaceiris/actions-gh-pages@v4
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  publish_dir: ./frontend/build
+                  cname: false # No custom domain
