@@ -20,10 +20,7 @@ RUN echo "[mysqld]" > /etc/mysql/conf.d/railway.cnf && \
     echo "max_connections=100" >> /etc/mysql/conf.d/railway.cnf && \
     echo "" >> /etc/mysql/conf.d/railway.cnf && \
     echo "# Optimize table cache" >> /etc/mysql/conf.d/railway.cnf && \
-    echo "table_open_cache=2000" >> /etc/mysql/conf.d/railway.cnf && \
-    echo "" >> /etc/mysql/conf.d/railway.cnf && \
-    echo "# Windows compatibility (case-insensitive table names)" >> /etc/mysql/conf.d/railway.cnf && \
-    echo "lower_case_table_names=2" >> /etc/mysql/conf.d/railway.cnf
+    echo "table_open_cache=2000" >> /etc/mysql/conf.d/railway.cnf
 
 # Use mysql_native_password for Python connector compatibility
 CMD ["mysqld", "--default-authentication-plugin=mysql_native_password"]
