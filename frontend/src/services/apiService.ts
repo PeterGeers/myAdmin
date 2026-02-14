@@ -269,6 +269,10 @@ export async function authenticatedFormData(
       const axiosResponse = await axios.post(url, formData, {
         headers: headers as Record<string, string>,
         onUploadProgress,
+        timeout: 300000, // 5 minutes timeout for large file uploads
+        withCredentials: true, // Include credentials for CORS
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
       });
       
       // Convert axios response to fetch Response format
@@ -278,6 +282,10 @@ export async function authenticatedFormData(
         headers: new Headers(axiosResponse.headers as Record<string, string>),
       });
     } catch (error: any) {
+      console.error('Axios upload error:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
       // Convert axios error to fetch error
       if (error.response) {
         return new Response(JSON.stringify(error.response.data), {

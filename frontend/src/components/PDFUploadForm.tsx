@@ -172,8 +172,10 @@ const PDFUploadForm: React.FC = () => {
         }
       });
       
+      console.log('Response status:', responseObj.status);
+      console.log('Response ok:', responseObj.ok);
+      
       const response = await responseObj.json();
-
       console.log('Upload response:', response);
       
       // Check if backend returned an error (duplicate or other)
@@ -300,6 +302,12 @@ const PDFUploadForm: React.FC = () => {
       console.log('Transactions set:', response.transactions);
     } catch (error: any) {
       console.error('Upload error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       
       // Check if it's a duplicate detection error (409 status)
       if (error.response?.status === 409 && error.response?.data?.error === 'duplicate_detected') {
