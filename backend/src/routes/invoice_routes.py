@@ -27,17 +27,20 @@ def set_test_mode(test_mode):
 
 
 @invoice_bp.route('/api/upload', methods=['POST', 'OPTIONS'])
+def upload_file_wrapper():
+    """Upload and process PDF file - wrapper to handle OPTIONS without auth"""
+    if request.method == 'OPTIONS':
+        # Handle CORS preflight without authentication
+        response = jsonify({'status': 'OK'})
+        return response
+    
+    # For POST requests, apply authentication
+    return upload_file_authenticated()
+
 @cognito_required(required_permissions=['invoices_create'])
 @tenant_required()
-def upload_file(user_email, user_roles, tenant, user_tenants):
+def upload_file_authenticated(user_email, user_roles, tenant, user_tenants):
     """Upload and process PDF file"""
-    if request.method == 'OPTIONS':
-        response = jsonify({'status': 'OK'})
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-        return response
-        
     print("\n*** UPLOAD ENDPOINT CALLED ***", flush=True)
     print(f"Tenant: {tenant}", flush=True)
     
