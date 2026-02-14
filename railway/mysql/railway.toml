@@ -4,3 +4,7 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 restartPolicyType = "ALWAYS"
+# Mount persistent volume for MySQL data
+volumes = [
+  { mountPath = "/var/lib/mysql", name = "mysql_data" }
+]
