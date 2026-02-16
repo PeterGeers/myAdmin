@@ -51,9 +51,9 @@ const STRInvoice: React.FC = () => {
   const [customBilling, setCustomBilling] = useState({ name: '', address: '', city: '' });
   const [showBillingForm, setShowBillingForm] = useState(false);
   const [startDate, setStartDate] = useState(() => {
-    // Default to 90 days ago
+    // Default to 365 days ago (1 year) to match backend
     const date = new Date();
-    date.setDate(date.getDate() - 90);
+    date.setDate(date.getDate() - 365);
     return date.toISOString().split('T')[0];
   });
   const toast = useToast();
