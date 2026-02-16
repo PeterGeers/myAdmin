@@ -56,14 +56,20 @@ const STRInvoice: React.FC = () => {
     date.setDate(date.getDate() - 365);
     return date.toISOString().split('T')[0];
   });
+  const [endDate, setEndDate] = useState(() => {
+    // Default to 14 days in the future
+    const date = new Date();
+    date.setDate(date.getDate() + 14);
+    return date.toISOString().split('T')[0];
+  });
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const loadAllBookings = useCallback(async () => {
     setLoading(true);
     try {
-      // Load ALL bookings without pattern filter
-      const response = await authenticatedGet(`/api/str-invoice/search-booking?query=&limit=all&startDate=${startDate}`);
+      // Load ALL bookings without pattern filter, with date range
+      const response = await authenticatedGet(`/api/str-invoice/search-booking?query=&limit=all&startDate=${startDate}&endDate=${endDate}`);
       const data = await response.json();
 
       if (data.success) {
@@ -100,7 +106,7 @@ const STRInvoice: React.FC = () => {
     }
   }, [toast, startDate]);
 
-  // Load all bookings on component mount and when startDate changes
+  // Load all bookings on component mount and when startDate or endDate changes
   useEffect(() => {
     loadAllBookings();
   }, [loadAllBookings]);
@@ -207,6 +213,15 @@ const STRInvoice: React.FC = () => {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  size="md"
+                />
+              </FormControl>
+              <FormControl maxW="180px">
+                <FormLabel fontSize="sm">End Date</FormLabel>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                   size="md"
                 />
               </FormControl>
