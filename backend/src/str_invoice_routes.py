@@ -25,15 +25,15 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         limit_param = request.args.get('limit', '20')
         limit = 0 if limit_param in ['0', 'all'] else int(limit_param)
         
-        # Get startDate parameter (default to 90 days ago if not provided)
+        # Get startDate parameter (default to 365 days ago if not provided)
         start_date_param = request.args.get('startDate', '')
         if start_date_param:
             start_date = start_date_param
         else:
-            start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
         
-        # Get includeFuture parameter (default False for invoice generation)
-        include_future = request.args.get('includeFuture', 'false').lower() == 'true'
+        # Get includeFuture parameter (default True to show all bookings including future)
+        include_future = request.args.get('includeFuture', 'true').lower() == 'true'
         
         # End date: current date or future date based on includeFuture parameter
         if include_future:
