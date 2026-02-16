@@ -62,8 +62,8 @@ const STRInvoice: React.FC = () => {
   const loadAllBookings = useCallback(async () => {
     setLoading(true);
     try {
-      // Use "2" to match most bookings with limit=all and startDate filter
-      const response = await authenticatedGet(`/api/str-invoice/search-booking?query=2&limit=all&startDate=${startDate}`);
+      // Load ALL bookings without pattern filter
+      const response = await authenticatedGet(`/api/str-invoice/search-booking?query=&limit=all&startDate=${startDate}`);
       const data = await response.json();
 
       if (data.success) {
