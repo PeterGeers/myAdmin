@@ -35,12 +35,19 @@ def set_config(upload_folder, flag):
 
 
 @str_bp.route('/api/str/upload', methods=['POST', 'OPTIONS'])
+def str_upload_wrapper():
+    """Upload and process single STR file - wrapper to handle OPTIONS without auth"""
+    if request.method == 'OPTIONS':
+        # Handle CORS preflight without authentication
+        return jsonify({'status': 'OK'})
+    
+    # For POST requests, apply authentication
+    return str_upload_authenticated()
+
 @cognito_required(required_permissions=['str_create'])
 @tenant_required()
-def str_upload(user_email, user_roles, tenant, user_tenants):
+def str_upload_authenticated(user_email, user_roles, tenant, user_tenants):
     """Upload and process single STR file"""
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'OK'})
         
     try:
         if 'file' not in request.files:
@@ -403,16 +410,23 @@ def str_write_future(user_email, user_roles):
 
 
 @str_bp.route('/api/str/import-payout', methods=['POST', 'OPTIONS'])
+def str_import_payout_wrapper():
+    """Import Booking.com Payout CSV - wrapper to handle OPTIONS without auth"""
+    if request.method == 'OPTIONS':
+        # Handle CORS preflight without authentication
+        return jsonify({'status': 'OK'})
+    
+    # For POST requests, apply authentication
+    return str_import_payout_authenticated()
+
 @cognito_required(required_permissions=['str_create'])
-def str_import_payout(user_email, user_roles):
+def str_import_payout_authenticated(user_email, user_roles):
     """
     Import Booking.com Payout CSV to update financial figures
     
     This endpoint processes monthly Payout CSV files from Booking.com
     and updates existing bookings with actual settlement data.
     """
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'OK'})
     
     try:
         print("=== PAYOUT CSV IMPORT START ===", flush=True)
