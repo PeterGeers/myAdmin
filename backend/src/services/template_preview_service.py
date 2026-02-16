@@ -672,7 +672,7 @@ class TemplatePreviewService:
         """
         Fetch most recent STR booking for invoice preview.
         
-        Queries the vw_bnb_total view for the most recent realised booking
+        Queries the vw_bnb_total view for the most recent booking (including future)
         for the current administration. Falls back to placeholder data if
         no bookings are found.
         
@@ -698,7 +698,6 @@ class TemplatePreviewService:
                     status
                 FROM vw_bnb_total
                 WHERE administration = %s
-                AND status = 'realised'
                 ORDER BY checkinDate DESC
                 LIMIT 1
             """
@@ -718,13 +717,17 @@ class TemplatePreviewService:
             # Generate invoice number (simplified - should use proper invoice numbering)
             invoice_data['invoice_number'] = f"INV-{booking.get('reservationCode', 'UNKNOWN')}"
             
+            # Add status to metadata for transparency
+            booking_status = booking.get('status', 'unknown')
+            
             return {
                 'data': invoice_data,
                 'metadata': {
                     'source': 'database',
                     'record_date': str(booking.get('checkinDate', '')),
                     'record_id': booking.get('reservationCode', ''),
-                    'message': 'Using most recent realised booking'
+                    'booking_status': booking_status,
+                    'message': f'Using most recent booking (status: {booking_status})'
                 }
             }
             
