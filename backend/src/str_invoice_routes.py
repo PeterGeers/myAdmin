@@ -18,8 +18,6 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
     """Search for booking by guest name or reservation code - filtered by tenant and date range"""
     try:
         query = request.args.get('query', '').strip()
-        if not query:
-            return jsonify({'success': False, 'error': 'Search query required'}), 400
         
         # Get limit parameter (default 20, use 0 or 'all' for no limit)
         limit_param = request.args.get('limit', '20')
@@ -32,16 +30,13 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         else:
             start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
         
-        # Get includeFuture parameter (default True to show all bookings including future)
-        include_future = request.args.get('includeFuture', 'true').lower() == 'true'
-        
-        # End date: current date or future date based on includeFuture parameter
-        if include_future:
-            # Include bookings up to 1 year in the future
-            end_date = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d')
+        # Get endDate parameter (default to 14 days in future if not provided)
+        end_date_param = request.args.get('endDate', '')
+        if end_date_param:
+            end_date = end_date_param
         else:
-            # Only include past and current bookings (for invoice generation)
-            end_date = datetime.now().strftime('%Y-%m-%d')
+            # Default to 14 days in the future
+            end_date = (datetime.now() + timedelta(days=14)).strftime('%Y-%m-%d')
         
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
@@ -50,32 +45,57 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         # Search by guest name or reservation code with tenant and date filtering
         logger.info(f"STR Invoice Search - Query: '{query}', Tenant: '{tenant}', Date range: {start_date} to {end_date}")
         
-        if limit > 0:
-            search_query = """
-            SELECT * FROM vw_bnb_total 
-            WHERE (guestName LIKE %s OR reservationCode LIKE %s)
-            AND administration = %s
-            AND checkinDate >= %s
-            AND checkinDate <= %s
-            ORDER BY checkinDate DESC
-            LIMIT %s
-            """
-            search_pattern = f"%{query}%"
-            logger.info(f"Executing search with pattern: '{search_pattern}', limit: {limit}")
-            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date, limit])
+        # If query is empty, return all bookings in date range
+        if not query:
+            if limit > 0:
+                search_query = """
+                SELECT * FROM vw_bnb_total 
+                WHERE administration = %s
+                AND checkinDate >= %s
+                AND checkinDate <= %s
+                ORDER BY checkinDate DESC
+                LIMIT %s
+                """
+                logger.info(f"Executing query for all bookings with limit: {limit}")
+                cursor.execute(search_query, [tenant, start_date, end_date, limit])
+            else:
+                search_query = """
+                SELECT * FROM vw_bnb_total 
+                WHERE administration = %s
+                AND checkinDate >= %s
+                AND checkinDate <= %s
+                ORDER BY checkinDate DESC
+                """
+                logger.info(f"Executing query for all bookings, no limit")
+                cursor.execute(search_query, [tenant, start_date, end_date])
         else:
-            # No limit - return all results (but still filtered by tenant and date)
-            search_query = """
-            SELECT * FROM vw_bnb_total 
-            WHERE (guestName LIKE %s OR reservationCode LIKE %s)
-            AND administration = %s
-            AND checkinDate >= %s
-            AND checkinDate <= %s
-            ORDER BY checkinDate DESC
-            """
-            search_pattern = f"%{query}%"
-            logger.info(f"Executing search with pattern: '{search_pattern}', no limit")
-            cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date])
+            # Search with pattern
+            if limit > 0:
+                search_query = """
+                SELECT * FROM vw_bnb_total 
+                WHERE (guestName LIKE %s OR CAST(reservationCode AS CHAR) LIKE %s)
+                AND administration = %s
+                AND checkinDate >= %s
+                AND checkinDate <= %s
+                ORDER BY checkinDate DESC
+                LIMIT %s
+                """
+                search_pattern = f"%{query}%"
+                logger.info(f"Executing search with pattern: '{search_pattern}', limit: {limit}")
+                cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date, limit])
+            else:
+                # No limit - return all results (but still filtered by tenant and date)
+                search_query = """
+                SELECT * FROM vw_bnb_total 
+                WHERE (guestName LIKE %s OR CAST(reservationCode AS CHAR) LIKE %s)
+                AND administration = %s
+                AND checkinDate >= %s
+                AND checkinDate <= %s
+                ORDER BY checkinDate DESC
+                """
+                search_pattern = f"%{query}%"
+                logger.info(f"Executing search with pattern: '{search_pattern}', no limit")
+                cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date])
         
         results = cursor.fetchall()
         logger.info(f"Search returned {len(results)} results")
