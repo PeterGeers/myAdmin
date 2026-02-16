@@ -95,7 +95,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         <VStack spacing={8} bg="gray.800" p={8} borderRadius="lg" boxShadow="2xl">
           {/* Logo */}
           <Image
-            src="/jabaki-logo.png"
+            src={`${process.env.PUBLIC_URL}/jabaki-logo.png`}
             alt="myAdmin Logo"
             maxW="200px"
             mb={4}
