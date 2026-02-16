@@ -48,6 +48,8 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         cursor = connection.cursor(dictionary=True)
         
         # Search by guest name or reservation code with tenant and date filtering
+        logger.info(f"STR Invoice Search - Query: '{query}', Tenant: '{tenant}', Date range: {start_date} to {end_date}")
+        
         if limit > 0:
             search_query = """
             SELECT * FROM vw_bnb_total 
@@ -59,6 +61,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             LIMIT %s
             """
             search_pattern = f"%{query}%"
+            logger.info(f"Executing search with pattern: '{search_pattern}', limit: {limit}")
             cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date, limit])
         else:
             # No limit - return all results (but still filtered by tenant and date)
@@ -71,9 +74,11 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
             ORDER BY checkinDate DESC
             """
             search_pattern = f"%{query}%"
+            logger.info(f"Executing search with pattern: '{search_pattern}', no limit")
             cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date])
         
         results = cursor.fetchall()
+        logger.info(f"Search returned {len(results)} results")
         
         cursor.close()
         connection.close()
