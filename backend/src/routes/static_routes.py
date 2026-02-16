@@ -56,9 +56,9 @@ def serve_logo512():
 
 @static_bp.route('/jabaki-logo.png')
 def serve_jabaki_logo():
-    """Serve Jabaki logo"""
-    build_folder = '/app/frontend/build'
-    return send_from_directory(build_folder, 'jabaki-logo.png')
+    """Serve Jabaki logo from backend static folder"""
+    static_folder = '/app/static'
+    return send_from_directory(static_folder, 'jabaki-logo.png')
 
 
 @static_bp.route('/config.js')
