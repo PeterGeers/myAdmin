@@ -74,6 +74,14 @@ from werkzeug.utils import secure_filename
 # Create Flask app without static folder to prevent route conflicts
 app = Flask(__name__, static_folder=None)
 
+# Configure Flask-Babel for internationalization
+app.config['BABEL_DEFAULT_LOCALE'] = 'nl'
+app.config['BABEL_TRANSLATION_DIRECTORIES'] = 'translations'
+
+# Initialize Flask-Babel
+from i18n import init_babel
+babel = init_babel(app)
+
 # Configure timeouts for long-running operations and scalability
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes
@@ -226,7 +234,7 @@ CORS(app, resources={
             "null"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "X-Tenant"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Tenant", "X-Language"],
         "supports_credentials": True,
         "expose_headers": ["Content-Type", "Authorization"]
     }
