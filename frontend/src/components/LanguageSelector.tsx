@@ -81,7 +81,7 @@ export const LanguageSelector: React.FC = () => {
     }
   };
 
-  const currentLanguage = languages.find(l => l.code === currentLang) || languages[0];
+  const currentLanguage = languages.find(l => l.code === currentLang || currentLang.startsWith(l.code)) || languages[0];
 
   return (
     <Menu>
@@ -91,8 +91,9 @@ export const LanguageSelector: React.FC = () => {
         size="sm"
         variant="ghost"
         fontWeight="normal"
-        _hover={{ bg: 'gray.100' }}
-        _active={{ bg: 'gray.200' }}
+        color="white"
+        _hover={{ bg: 'gray.700' }}
+        _active={{ bg: 'gray.600' }}
       >
         <span style={{ marginRight: '8px' }}>{currentLanguage.flag}</span>
         {currentLanguage.code.toUpperCase()}
@@ -102,7 +103,7 @@ export const LanguageSelector: React.FC = () => {
           <MenuItem
             key={lang.code}
             onClick={() => changeLanguage(lang.code)}
-            bg={lang.code === currentLang ? 'blue.50' : 'transparent'}
+            bg={lang.code === currentLang || currentLang.startsWith(lang.code) ? 'blue.50' : 'transparent'}
             _hover={{ bg: 'gray.100' }}
           >
             <span style={{ marginRight: '12px', fontSize: '20px' }}>{lang.flag}</span>
