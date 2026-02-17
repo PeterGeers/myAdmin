@@ -102,20 +102,30 @@ else {
 
 # Push to GitHub
 Write-Host "Pushing to GitHub..." -ForegroundColor Yellow
-git push -u origin main 2>&1 | Out-Null
+
+# Get current branch name
+$currentBranch = git rev-parse --abbrev-ref HEAD 2>$null
+if (-not $currentBranch) {
+    Write-Host "Error: Could not determine current branch" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "📍 Current branch: $currentBranch" -ForegroundColor Cyan
+
+git push -u origin $currentBranch 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Push failed. Attempting to resolve..." -ForegroundColor Red
     
     # Pull remote changes and try again
     Write-Host "Repository is behind remote. Pulling changes..." -ForegroundColor Yellow
-    git pull origin main --no-edit 2>&1 | Out-Null
+    git pull origin $currentBranch --no-edit 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Merge conflicts detected. Please resolve manually." -ForegroundColor Red
         Write-Host "Run: git status" -ForegroundColor White
         exit 1
     }
     
-    git push -u origin main 2>&1 | Out-Null
+    git push -u origin $currentBranch 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Push failed after pull. Check network and permissions." -ForegroundColor Red
         exit 1

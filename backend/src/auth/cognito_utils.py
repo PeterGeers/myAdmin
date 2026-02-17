@@ -22,6 +22,12 @@ ROLE_PERMISSIONS = {
     'Administrators': ['*'],  # Legacy admin role with full access
     'System_CRUD': ['*'],     # System-level CRUD with full access
     
+    # Tenant Administration - tenant-level admin access
+    'Tenant_Admin': [
+        'tenant_admin', 'tenant_config', 'tenant_users', 'tenant_modules',
+        'tenant_settings', 'tenant_credentials', 'tenant_storage'
+    ],
+    
     # System Administration - system config ONLY, NO user data access
     'SysAdmin': [
         'system_config', 'system_logs', 'system_audit', 'system_read',

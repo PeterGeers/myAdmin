@@ -385,8 +385,7 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
                 <HStack spacing={2} mt={2}>
                   <Button
                     size="xs"
-                    variant="outline"
-                    colorScheme="blue"
+                    colorScheme="orange"
                     onClick={handleDownloadCurrent}
                     isDisabled={disabled || loading}
                   >
@@ -394,8 +393,7 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
                   </Button>
                   <Button
                     size="xs"
-                    variant="outline"
-                    colorScheme="blue"
+                    colorScheme="orange"
                     onClick={handleLoadCurrent}
                     isDisabled={disabled || loading}
                   >

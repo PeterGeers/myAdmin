@@ -142,10 +142,10 @@ The OpenRouter API powers AI features including invoice extraction and template 
 
 ```bash
 # Commit with timestamp:
-.\gitUpdate.ps1
+.\scripts\setup\gitUpdate.ps1
 
 # Commit with custom message:
-.\gitUpdate.ps1 "Your message here"
+.\scripts\setup\gitUpdate.ps1 "Your message here"
 ```
 
 ## Tech Stack

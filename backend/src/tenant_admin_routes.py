@@ -94,6 +94,151 @@ def add_security_headers(response):
 # ============================================================================
 
 
+def has_fin_module(tenant: str) -> bool:
+    """
+    Check if a tenant has the FIN module enabled.
+    
+    Args:
+        tenant (str): The tenant administration name (e.g., 'GoodwinSolutions')
+    
+    Returns:
+        bool: True if tenant has FIN module and it's active, False otherwise
+    
+    Example:
+        >>> if has_fin_module('GoodwinSolutions'):
+        >>>     # Tenant has access to financial features
+        >>>     return process_chart_of_accounts()
+        >>> else:
+        >>>     return jsonify({'error': 'FIN module not enabled'}), 403
+    """
+    try:
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        query = """
+            SELECT is_active 
+            FROM tenant_modules 
+            WHERE administration = %s AND module_name = 'FIN'
+        """
+        result = db.execute_query(query, (tenant,))
+        
+        # Return True only if module exists and is_active is True
+        return bool(result and result[0].get('is_active'))
+        
+    except Exception as e:
+        logger.error(f"Error checking FIN module for tenant {tenant}: {e}")
+        return False
+
+
+def validate_account_number(account: str) -> str:
+    """
+    Validate and clean an account number.
+    
+    Args:
+        account (str): The account number to validate
+    
+    Returns:
+        str: The cleaned account number (trimmed of whitespace)
+    
+    Raises:
+        ValueError: If account is None, empty, or only whitespace
+    
+    Example:
+        >>> account = validate_account_number("  1000  ")
+        >>> # Returns: "1000"
+        >>> 
+        >>> account = validate_account_number("")
+        >>> # Raises: ValueError("Account number is required")
+    """
+    if account is None:
+        raise ValueError("Account number is required")
+    
+    cleaned = account.strip()
+    
+    if not cleaned:
+        raise ValueError("Account number is required")
+    
+    return cleaned
+
+
+def validate_account_name(name: str) -> str:
+    """
+    Validate and clean an account name.
+    
+    Args:
+        name (str): The account name to validate
+    
+    Returns:
+        str: The cleaned account name (trimmed of whitespace)
+    
+    Raises:
+        ValueError: If name is None, empty, or only whitespace
+    
+    Example:
+        >>> name = validate_account_name("  Bank Account  ")
+        >>> # Returns: "Bank Account"
+        >>> 
+        >>> name = validate_account_name("")
+        >>> # Raises: ValueError("Account name is required")
+    """
+    if name is None:
+        raise ValueError("Account name is required")
+    
+    cleaned = name.strip()
+    
+    if not cleaned:
+        raise ValueError("Account name is required")
+    
+    return cleaned
+
+
+def is_account_used_in_transactions(tenant: str, account: str) -> int:
+    """
+    Check if an account is used in any transactions.
+    
+    This function queries the mutaties table to count how many transactions
+    reference the given account in either the Debet or Credit columns.
+    Used to prevent deletion of accounts that are actively used.
+    
+    Args:
+        tenant (str): The tenant administration name (e.g., 'GoodwinSolutions')
+        account (str): The account number to check (e.g., '1000')
+    
+    Returns:
+        int: Count of transactions using this account (0 if not used)
+    
+    Example:
+        >>> usage_count = is_account_used_in_transactions('GoodwinSolutions', '1000')
+        >>> if usage_count > 0:
+        >>>     return jsonify({
+        >>>         'error': 'Cannot delete account that is used in transactions',
+        >>>         'usage_count': usage_count
+        >>>     }), 409
+        >>> else:
+        >>>     # Safe to delete
+        >>>     delete_account(account)
+    """
+    try:
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        
+        query = """
+            SELECT COUNT(*) as count
+            FROM mutaties
+            WHERE administration = %s
+            AND (Debet = %s OR Credit = %s)
+        """
+        result = db.execute_query(query, (tenant, account, account))
+        
+        # Return count (0 if no results)
+        return result[0].get('count', 0) if result else 0
+        
+    except Exception as e:
+        logger.error(f"Error checking account usage for {account} in tenant {tenant}: {e}")
+        # Return 0 on error to avoid blocking operations, but log the error
+        return 0
+
+
 def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
     """Extract attribute value from Cognito user object"""
     for attr in user.get('Attributes', []):
