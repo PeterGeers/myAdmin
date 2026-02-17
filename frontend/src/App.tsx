@@ -12,6 +12,7 @@ import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import TenantSelector from './components/TenantSelector';
 import UserMenu from './components/UserMenu';
+import { LanguageSelector } from './components/LanguageSelector';
 import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TenantProvider } from './context/TenantContext';
@@ -340,6 +341,7 @@ function AppContent() {
                 <HStack justify="space-between">
                   <Heading color="orange.400" size="lg">myAdmin Dashboard</Heading>
                   <HStack spacing={3}>
+                    <LanguageSelector />
                     <TenantSelector size="sm" />
                     <UserMenu onLogout={logout} mode={status.mode} />
                   </HStack>
