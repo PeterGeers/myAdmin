@@ -5,4 +5,6 @@
  */
 
 export { TenantAdminDashboard, default as TenantAdmin } from './TenantAdminDashboard';
+export { default as ChartOfAccounts } from './ChartOfAccounts';
+export { default as AccountModal } from './AccountModal';
 export * from './TemplateManagement';

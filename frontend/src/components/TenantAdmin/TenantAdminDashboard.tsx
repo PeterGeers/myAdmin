@@ -5,21 +5,31 @@ import {
 } from '@chakra-ui/react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTenant } from '../../context/TenantContext';
+import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import UserManagement from './UserManagement';
 import TemplateManagement from './TemplateManagement/TemplateManagement';
 import CredentialsManagement from './CredentialsManagement';
 import TenantConfigManagement from './TenantConfigManagement';
 import TenantDetails from './TenantDetails';
+import ChartOfAccounts from './ChartOfAccounts';
 
 interface TenantInfo {
   name: string;
   displayName: string;
 }
 
+interface TenantModulesResponse {
+  tenant: string;
+  available_modules: string[];
+  user_module_permissions: string[];
+  tenant_enabled_modules: string[];
+}
+
 export function TenantAdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [userTenants, setUserTenants] = useState<TenantInfo[]>([]);
   const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [tenantModules, setTenantModules] = useState<string[]>([]);
   const toast = useToast();
   const { currentTenant } = useTenant(); // Just read from context, don't manage it here
 
@@ -27,6 +37,25 @@ export function TenantAdminDashboard() {
     loadUserInfo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (currentTenant) {
+      loadTenantModules();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant]);
+
+  const loadTenantModules = async () => {
+    try {
+      const response = await authenticatedGet(buildEndpoint('/api/tenant/modules'));
+      const data: TenantModulesResponse = await response.json();
+      setTenantModules(data.available_modules || []);
+    } catch (error) {
+      console.error('Error loading tenant modules:', error);
+      // If error, default to empty array (no modules)
+      setTenantModules([]);
+    }
+  };
 
   const loadUserInfo = async () => {
     setLoading(true);
@@ -120,15 +149,22 @@ export function TenantAdminDashboard() {
     );
   }
 
+  const hasFIN = tenantModules.includes('FIN');
+
   return (
     <Box minH="100vh" bg="gray.900" p={6}>
       <VStack spacing={6} align="stretch">
-        {/* Tabs */}
-        <Tabs colorScheme="orange" variant="enclosed" isLazy>
+        {/* Tabs - key forces re-render when tenant changes */}
+        <Tabs key={currentTenant} colorScheme="orange" variant="enclosed" isLazy>
           <TabList>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               User Management
             </Tab>
+            {hasFIN && (
+              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+                Chart of Accounts
+              </Tab>
+            )}
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               Template Management
             </Tab>
@@ -147,6 +183,11 @@ export function TenantAdminDashboard() {
             <TabPanel>
               <UserManagement tenant={currentTenant} />
             </TabPanel>
+            {hasFIN && (
+              <TabPanel>
+                <ChartOfAccounts tenant={currentTenant} />
+              </TabPanel>
+            )}
             <TabPanel>
               <TemplateManagement />
             </TabPanel>

@@ -572,6 +572,10 @@ class SecurityAudit:
         """Create security middleware for Flask app"""
         @app.before_request
         def security_checks():
+            # Whitelist health check and status endpoints FIRST (needed for Railway/Docker health checks)
+            if request.path in ['/api/health', '/api/status']:
+                return None
+            
             # Skip all security checks in development mode
             if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
                 return None
@@ -580,17 +584,18 @@ class SecurityAudit:
             if os.getenv('TEST_MODE', 'false').lower() == 'true':
                 return None
             
-            # Whitelist health check and status endpoints (needed for Railway/Docker health checks)
-            if request.path in ['/api/health', '/api/status']:
+            # Auto-detect local development (localhost or 127.0.0.1 or Docker internal IPs)
+            host = request.host.split(':')[0]  # Remove port if present
+            remote_addr = request.remote_addr or ''
+            
+            # Skip security checks for local development
+            local_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '172.17.0.1', '192.168.65.1']
+            if host in local_hosts or remote_addr in local_hosts or remote_addr.startswith('172.') or remote_addr.startswith('192.168.'):
                 return None
             
             # Skip suspicious request checks for authenticated API endpoints
             # These are protected by Cognito authentication
             if request.path.startswith('/api/'):
-                # Only validate headers for API endpoints
-                if not self.validate_request_headers(request):
-                    self.logger.warning(f"Invalid request headers: {request.path}")
-                    return jsonify({'error': 'Invalid request headers'}), 400
                 return None
                 
             # Check for suspicious request patterns (only for non-API routes)
