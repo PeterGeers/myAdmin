@@ -5,6 +5,7 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { Amplify } from 'aws-amplify';
 import awsconfig from './aws-exports';
+import './i18n'; // Initialize i18n
 
 // Configure AWS Amplify
 Amplify.configure(awsconfig);
