@@ -39,4 +39,5 @@ def init_babel(app):
         Babel: Configured Babel instance
     """
     babel = Babel(app, locale_selector=get_locale)
+    print("✅ Flask-Babel initialized with locale selector", flush=True)
     return babel
