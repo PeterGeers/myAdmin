@@ -1,0 +1,716 @@
+# Internationalization (i18n) - Implementation Tasks
+
+**Status**: Ready to Start
+**Created**: February 17, 2026
+**Estimated Total**: 11-13 days
+**Branch**: `feature/internationalization`
+**Target**: `main` (after successful testing)
+
+---
+
+## Git Workflow
+
+### Initial Setup
+
+```bash
+# Create feature branch from main
+git checkout main
+git pull origin main
+git checkout -b feature/internationalization
+git push -u origin feature/internationalization
+```
+
+### During Development
+
+- All work done in `feature/internationalization` branch
+- **Commit frequently** with descriptive messages (after each subtask or logical unit)
+- **Push to GitHub regularly** (at least daily, preferably after each phase)
+- Test locally before each commit
+- Never commit directly to `main` during development
+
+### Regular GitHub Updates
+
+**IMPORTANT**: Push to GitHub frequently to:
+
+- Backup your work (prevent data loss)
+- Enable collaboration and code review
+- Track progress and history
+- Allow rollback to previous states if needed
+
+**Recommended push frequency**:
+
+- After completing each subtask
+- After completing each phase
+- At end of each work session
+- Before switching to other work
+- Minimum: Once per day
+
+```bash
+# Regular push workflow
+git add .
+git commit -m "Phase X.Y: Descriptive message of what was done"
+git push origin feature/internationalization
+```
+
+### Before Merging to Main
+
+- [ ] All phases complete
+- [ ] All tests passing (unit, integration, E2E)
+- [ ] Manual testing complete in both languages
+- [ ] Code review complete
+- [ ] Documentation updated
+- [ ] No merge conflicts with main
+- [ ] **Feature branch pushed to GitHub (up to date)**
+
+### Merge to Main
+
+```bash
+# Update feature branch with latest main
+git checkout main
+git pull origin main
+git checkout feature/internationalization
+git merge main
+# Resolve any conflicts
+
+# Run final tests
+npm test
+pytest
+
+# Push feature branch
+git push origin feature/internationalization
+
+# Create Pull Request or merge directly
+git checkout main
+git merge feature/internationalization
+git push origin main
+```
+
+### Post-Merge
+
+- Railway auto-deploys from main
+- GitHub Pages auto-deploys from main
+- Monitor production for issues
+- Delete feature branch after successful deployment
+
+---
+
+## Phase 1: Infrastructure Setup (2 days)
+
+### 1.1 Frontend Dependencies
+
+- [x] Install `react-i18next` package (v16.5.4)
+- [x] Install `i18next` package (v25.8.10)
+- [x] Install `i18next-browser-languagedetector` package (v8.2.1)
+- [x] Install `date-fns` package (v4.1.0 - already installed)
+- [x] Verify package versions in package.json
+- [x] Committed and pushed to GitHub (commit 7093f18)
+
+### 1.2 Backend Dependencies
+
+- [x] Install `Flask-Babel` package (v4.0.0)
+- [x] Add to requirements.txt
+- [x] Update virtual environment
+- [x] Committed and pushed to GitHub (commit 68840c2)
+
+### 1.3 Frontend File Structure
+
+- [x] Create `frontend/src/locales/` directory
+- [x] Create `frontend/src/locales/nl/` directory
+- [x] Create `frontend/src/locales/en/` directory
+- [x] Create empty JSON files for each namespace:
+  - [x] `common.json` (nl & en)
+  - [x] `auth.json` (nl & en)
+  - [x] `reports.json` (nl & en)
+  - [x] `str.json` (nl & en)
+  - [x] `banking.json` (nl & en)
+  - [x] `admin.json` (nl & en)
+  - [x] `errors.json` (nl & en)
+  - [x] `validation.json` (nl & en)
+- [x] Committed and pushed to GitHub (commit 0697732)
+
+### 1.4 Backend File Structure
+
+- [x] Create `backend/translations/` directory
+- [x] Create `backend/translations/nl/LC_MESSAGES/` directory
+- [x] Create `backend/translations/en/LC_MESSAGES/` directory
+- [x] Create `backend/babel.cfg` configuration file
+- [x] Committed and pushed to GitHub (commit 5633270)
+
+### 1.5 Frontend Configuration
+
+- [x] Create `frontend/src/i18n.ts` configuration file
+- [x] Configure i18next with namespaces (8 namespaces: common, auth, reports, str, banking, admin, errors, validation)
+- [x] Set fallback language to 'en'
+- [x] Configure localStorage detection
+- [x] Import i18n in `index.tsx`
+- [x] Committed and pushed to GitHub (commit 984a9df)
+
+### 1.6 Backend Configuration
+
+- [x] Create `backend/src/i18n.py` utility file
+- [x] Implement `get_locale()` function (detects from X-Language header)
+- [x] Implement `init_babel()` function
+- [x] Update `app.py` to initialize Babel
+- [x] Configure default locale to 'nl'
+- [x] Add X-Language to CORS allowed headers
+- [x] Committed and pushed to GitHub (commit de0e7f6)
+
+### 1.7 Formatting Utilities
+
+- [x] Create `frontend/src/utils/formatting.ts`
+- [x] Implement `formatDate()` function (supports nl/en locales)
+- [x] Implement `formatNumber()` function (1.234,56 vs 1,234.56)
+- [x] Implement `formatCurrency()` function (EUR € for both locales)
+- [x] Add unit tests for formatting functions (created, needs Jest ESM config to run)
+- [x] Committed and pushed to GitHub (commit 325b61f)
+
+**Note**: Unit tests created but require Jest ESM configuration for date-fns imports. Tests will be fixed in Phase 14 (Testing).
+
+### 1.8 Language Selector Component
+
+- [x] Create `frontend/src/components/LanguageSelector.tsx`
+- [x] Implement language dropdown with flags (🇳🇱 Nederlands, 🇬🇧 English)
+- [x] Add language change handler (updates i18next and localStorage)
+- [x] Add API call to save preference (placeholder for Phase 3)
+- [x] Style with Chakra UI (Menu, MenuButton, MenuItem)
+- [x] Add to main navigation/header (myAdmin Dashboard)
+- [x] Committed and pushed to GitHub (commit 4dc9bb5)
+
+**Note**: LanguageSelector added to main dashboard. Can be added to other page headers in Phase 4 during frontend translation.
+
+---
+
+## Phase 2: Database Schema (1 day)
+
+### 2.1 User Language Preference
+
+- [ ] Create migration script for users table
+- [ ] Add `preferred_language` column (VARCHAR(5), DEFAULT 'nl')
+- [ ] Add index on `preferred_language`
+- [ ] Test migration on test database
+- [ ] Run migration on production database
+
+### 2.2 Tenant Default Language
+
+- [ ] Create migration script for tenants table
+- [ ] Add `default_language` column (VARCHAR(5), DEFAULT 'nl')
+- [ ] Add index on `default_language`
+- [ ] Test migration on test database
+- [ ] Run migration on production database
+
+### 2.3 Chart of Accounts Translations
+
+- [ ] Create `account_translations` table
+- [ ] Add columns: id, account_number, language, account_name, description
+- [ ] Add foreign key to chart_of_accounts
+- [ ] Add unique constraint on (account_number, language)
+- [ ] Add indexes
+- [ ] Test migration on test database
+- [ ] Run migration on production database
+
+### 2.4 VAT Rule Translations
+
+- [ ] Create `vat_rule_translations` table
+- [ ] Add columns: id, vat_rule_id, language, description, applies_to
+- [ ] Add foreign key to vat_rules
+- [ ] Add unique constraint on (vat_rule_id, language)
+- [ ] Add indexes
+- [ ] Test migration on test database
+- [ ] Run migration on production database
+
+---
+
+## Phase 3: Backend API (2 days)
+
+### 3.1 User Language Endpoints
+
+- [ ] Create `GET /api/user/language` endpoint
+- [ ] Create `PUT /api/user/language` endpoint
+- [ ] Add validation for language code
+- [ ] Update user record in database
+- [ ] Add authentication check
+- [ ] Write unit tests for endpoints
+
+### 3.2 Tenant Language Endpoints
+
+- [ ] Create `GET /api/tenant/language` endpoint
+- [ ] Create `PUT /api/tenant/language` endpoint (Tenant Admin only)
+- [ ] Add authorization check (Tenant Admin role)
+- [ ] Update tenant record in database
+- [ ] Write unit tests for endpoints
+
+### 3.3 Backend Translation Extraction
+
+- [ ] Run `pybabel extract` to create messages.pot
+- [ ] Run `pybabel init` for nl locale
+- [ ] Run `pybabel init` for en locale
+- [ ] Review extracted strings
+
+### 3.4 Backend Translation - API Routes
+
+- [ ] Identify all hardcoded strings in routes
+- [ ] Replace with `_()` function calls
+- [ ] Extract common error messages
+- [ ] Extract success messages
+- [ ] Extract validation messages
+
+### 3.5 Backend Translation - Services
+
+- [ ] Identify hardcoded strings in services
+- [ ] Replace with `_()` function calls
+- [ ] Extract business logic messages
+
+### 3.6 Backend Translation Files
+
+- [ ] Translate all strings to Dutch in nl/messages.po
+- [ ] Translate all strings to English in en/messages.po
+- [ ] Run `pybabel compile` to generate .mo files
+- [ ] Test translations with X-Language header
+
+### 3.7 Database Query Updates
+
+- [ ] Update chart_of_accounts queries to use translations
+- [ ] Update VAT rules queries to use translations
+- [ ] Add language parameter to query functions
+- [ ] Test queries return correct translations
+
+---
+
+## Phase 4: Frontend Translation - Common (2 days)
+
+### 4.1 Common Translations
+
+- [ ] Extract all common UI strings (buttons, labels)
+- [ ] Create translation keys in `common.json`
+- [ ] Translate to Dutch
+- [ ] Translate to English
+- [ ] Update all components to use `t('common:key')`
+
+### 4.2 Navigation & Layout
+
+- [ ] Translate main navigation menu items
+- [ ] Translate sidebar menu items
+- [ ] Translate footer text
+- [ ] Translate breadcrumbs
+- [ ] Test navigation in both languages
+
+### 4.3 Common Components
+
+- [ ] Translate modal dialogs (confirm, alert)
+- [ ] Translate loading indicators
+- [ ] Translate empty states
+- [ ] Translate error boundaries
+- [ ] Translate tooltips
+
+### 4.4 Form Components
+
+- [ ] Translate form labels
+- [ ] Translate placeholders
+- [ ] Translate help text
+- [ ] Translate required field indicators
+- [ ] Test forms in both languages
+
+---
+
+## Phase 5: Frontend Translation - Auth Module (1 day)
+
+### 5.1 Auth Translations
+
+- [ ] Extract auth strings to `auth.json`
+- [ ] Translate login page
+- [ ] Translate registration page
+- [ ] Translate password reset page
+- [ ] Translate MFA pages
+
+### 5.2 Auth Components
+
+- [ ] Update LoginForm component
+- [ ] Update RegistrationForm component
+- [ ] Update PasswordResetForm component
+- [ ] Update MFA components
+- [ ] Test auth flow in both languages
+
+---
+
+## Phase 6: Frontend Translation - Reports Module (2 days)
+
+### 6.1 Reports Translations
+
+- [ ] Extract report strings to `reports.json`
+- [ ] Translate report titles
+- [ ] Translate filter labels
+- [ ] Translate chart labels
+- [ ] Translate export options
+
+### 6.2 Report Components
+
+- [ ] Update ReportDashboard component
+- [ ] Update ProfitLoss component
+- [ ] Update BalanceSheet component
+- [ ] Update BTW Aangifte component
+- [ ] Update Aangifte IB component
+
+### 6.3 Report Filters
+
+- [ ] Translate date range picker
+- [ ] Translate year/quarter selectors
+- [ ] Translate account filters
+- [ ] Translate category filters
+- [ ] Test filters in both languages
+
+### 6.4 Report Charts
+
+- [ ] Translate chart titles
+- [ ] Translate axis labels
+- [ ] Translate legend items
+- [ ] Translate tooltips
+- [ ] Test charts in both languages
+
+---
+
+## Phase 7: Frontend Translation - STR Module (1 day)
+
+### 7.1 STR Translations
+
+- [ ] Extract STR strings to `str.json`
+- [ ] Translate STR dashboard
+- [ ] Translate pricing optimizer
+- [ ] Translate channel management
+- [ ] Translate invoice management
+
+### 7.2 STR Components
+
+- [ ] Update STR Dashboard component
+- [ ] Update Pricing Optimizer component
+- [ ] Update Channel Management component
+- [ ] Update Invoice Management component
+- [ ] Test STR module in both languages
+
+---
+
+## Phase 8: Frontend Translation - Banking Module (1 day)
+
+### 8.1 Banking Translations
+
+- [ ] Extract banking strings to `banking.json`
+- [ ] Translate banking dashboard
+- [ ] Translate transaction list
+- [ ] Translate import wizard
+- [ ] Translate pattern management
+
+### 8.2 Banking Components
+
+- [ ] Update Banking Dashboard component
+- [ ] Update Transaction List component
+- [ ] Update Import Wizard component
+- [ ] Update Pattern Management component
+- [ ] Test banking module in both languages
+
+---
+
+## Phase 9: Frontend Translation - Admin Modules (1 day)
+
+### 9.1 Admin Translations
+
+- [ ] Extract admin strings to `admin.json`
+- [ ] Translate SysAdmin module
+- [ ] Translate Tenant Admin module
+- [ ] Translate User Management
+- [ ] Translate Settings pages
+
+### 9.2 Admin Components
+
+- [ ] Update SysAdmin components
+- [ ] Update Tenant Admin components
+- [ ] Update User Management components
+- [ ] Update Settings components
+- [ ] Test admin modules in both languages
+
+### 9.3 Chart of Accounts Management
+
+- [ ] Update Chart of Accounts page
+- [ ] Update account dropdown to show translations
+- [ ] Update filters to work with translations
+- [ ] Update export to include translations
+- [ ] Test in both languages
+
+---
+
+## Phase 10: Error & Validation Messages (1 day)
+
+### 10.1 Error Translations
+
+- [ ] Extract error messages to `errors.json`
+- [ ] Translate API error messages
+- [ ] Translate network error messages
+- [ ] Translate 404/403/500 pages
+- [ ] Test error scenarios in both languages
+
+### 10.2 Validation Translations
+
+- [ ] Extract validation messages to `validation.json`
+- [ ] Translate required field messages
+- [ ] Translate format validation messages
+- [ ] Translate business rule validation messages
+- [ ] Test form validation in both languages
+
+---
+
+## Phase 11: Email Templates (1 day)
+
+### 11.1 Email Template Creation
+
+- [ ] Create invitation_nl.html template
+- [ ] Create invitation_en.html template
+- [ ] Create password_reset_nl.html template
+- [ ] Create password_reset_en.html template
+- [ ] Create notification_nl.html template
+- [ ] Create notification_en.html template
+
+### 11.2 Email Service Updates
+
+- [ ] Update email service to detect user language
+- [ ] Update email service to select template by language
+- [ ] Add language parameter to email functions
+- [ ] Test email sending in both languages
+
+---
+
+## Phase 12: Report Templates (1 day)
+
+### 12.1 HTML Report Templates
+
+- [ ] Create profit_loss_nl.html template
+- [ ] Create profit_loss_en.html template
+- [ ] Create balance_sheet_nl.html template
+- [ ] Create balance_sheet_en.html template
+- [ ] Create btw_aangifte_nl.html template
+- [ ] Create btw_aangifte_en.html template
+
+### 12.2 Excel Report Templates
+
+- [ ] Update Excel export to use translated headers
+- [ ] Update Excel export to format numbers by language
+- [ ] Update Excel export to format dates by language
+- [ ] Test Excel exports in both languages
+
+### 12.3 Report Service Updates
+
+- [ ] Update report service to accept language parameter
+- [ ] Update report service to select template by language
+- [ ] Update report service to use translated labels
+- [ ] Test report generation in both languages
+
+---
+
+## Phase 13: Database Content Translation (1 day)
+
+### 13.1 Chart of Accounts Translation
+
+- [ ] Export current chart of accounts
+- [ ] Create Dutch translations for all accounts
+- [ ] Create English translations for all accounts
+- [ ] Create import script for translations
+- [ ] Import translations to account_translations table
+- [ ] Verify translations in UI
+
+### 13.2 VAT Rules Translation
+
+- [ ] Export current VAT rules
+- [ ] Create Dutch translations for all rules
+- [ ] Create English translations for all rules
+- [ ] Create import script for translations
+- [ ] Import translations to vat_rule_translations table
+- [ ] Verify translations in UI
+
+---
+
+## Phase 14: Testing (2 days)
+
+### 14.1 Unit Tests
+
+- [ ] Write tests for formatting utilities
+- [ ] Write tests for i18n configuration
+- [ ] Write tests for language selector component
+- [ ] Write tests for translated components
+- [ ] Write tests for backend translation functions
+- [ ] Run all unit tests
+
+### 14.2 Integration Tests
+
+- [ ] Test language switching across modules
+- [ ] Test language persistence (localStorage + database)
+- [ ] Test API with X-Language header
+- [ ] Test report generation in both languages
+- [ ] Test email sending in both languages
+
+### 14.3 E2E Tests
+
+- [ ] Write Playwright test for language switching
+- [ ] Write Playwright test for complete user flow in Dutch
+- [ ] Write Playwright test for complete user flow in English
+- [ ] Run all E2E tests
+
+### 14.4 Translation Completeness
+
+- [ ] Write script to check all keys exist in both languages
+- [ ] Run completeness check on frontend translations
+- [ ] Run completeness check on backend translations
+- [ ] Fix any missing translations
+
+### 14.5 Manual Testing
+
+- [ ] Test all pages in Dutch
+- [ ] Test all pages in English
+- [ ] Test language switching on each page
+- [ ] Test reports in both languages
+- [ ] Test emails in both languages
+- [ ] Test with different browsers
+
+---
+
+## Phase 15: Documentation (1 day)
+
+### 15.1 Developer Documentation
+
+- [ ] Document translation workflow
+- [ ] Document how to add new translations
+- [ ] Document how to add new language
+- [ ] Document formatting utilities
+- [ ] Update README with i18n information
+
+### 15.2 User Documentation
+
+- [ ] Create user guide for language selection
+- [ ] Update screenshots with language selector
+- [ ] Document language-specific features
+- [ ] Update FAQ with i18n questions
+
+### 15.3 Code Documentation
+
+- [ ] Add JSDoc comments to i18n utilities
+- [ ] Add docstrings to backend i18n functions
+- [ ] Document translation key naming conventions
+- [ ] Document component usage patterns
+
+---
+
+## Phase 16: Deployment (1 day)
+
+**IMPORTANT**: Deployment to production happens ONLY after merging to `main` branch.
+
+### 16.1 Pre-Deployment (on feature branch)
+
+- [ ] Run all tests on feature branch
+- [ ] Check translation completeness
+- [ ] Review code changes
+- [ ] Create deployment checklist
+- [ ] Test locally with production-like data
+- [ ] Get code review approval
+
+### 16.2 Merge to Main
+
+- [ ] Update feature branch with latest main
+- [ ] Resolve any merge conflicts
+- [ ] Run all tests after merge
+- [ ] Push feature branch to remote
+- [ ] Create Pull Request (or merge directly if approved)
+- [ ] Merge to main branch
+- [ ] Push main to remote
+
+### 16.3 Database Migration (production)
+
+- [ ] Backup production database
+- [ ] Run database migrations on production
+- [ ] Verify new tables created
+- [ ] Verify new columns added
+- [ ] Import translation data
+
+### 16.4 Backend Deployment (auto-deploy from main)
+
+- [ ] Railway auto-deploys backend from main
+- [ ] Verify backend deployment successful
+- [ ] Install Flask-Babel on production (if needed)
+- [ ] Compile translations on production
+- [ ] Verify backend API works
+- [ ] Test with X-Language header
+
+### 16.5 Frontend Deployment (auto-deploy from main)
+
+- [ ] GitHub Actions builds frontend from main
+- [ ] Deploy to GitHub Pages (auto)
+- [ ] Railway deploys frontend (auto)
+- [ ] Verify language selector appears
+- [ ] Test language switching
+
+### 16.6 Post-Deployment
+
+- [ ] Smoke test all major features
+- [ ] Test in both languages (Dutch & English)
+- [ ] Monitor error logs
+- [ ] Verify performance metrics
+- [ ] Update status to "Complete"
+- [ ] Delete feature branch (optional)
+
+### 16.7 Rollback Plan (if issues found)
+
+- [ ] Revert main branch to previous commit
+- [ ] Push reverted main to remote
+- [ ] Railway/GitHub Pages auto-deploy reverted version
+- [ ] Restore database backup if needed
+- [ ] Fix issues in feature branch
+- [ ] Repeat deployment process
+
+---
+
+## Progress Tracking
+
+### Summary
+
+- **Total Tasks**: ~200
+- **Completed**: 0
+- **In Progress**: 0
+- **Blocked**: 0
+- **Remaining**: ~200
+
+### Phase Status
+
+- [x] Phase 1: Infrastructure Setup (2 days) - COMPLETE
+- [ ] Phase 2: Database Schema (1 day)
+- [ ] Phase 3: Backend API (2 days)
+- [ ] Phase 4: Frontend Translation - Common (2 days)
+- [ ] Phase 5: Frontend Translation - Auth (1 day)
+- [ ] Phase 6: Frontend Translation - Reports (2 days)
+- [ ] Phase 7: Frontend Translation - STR (1 day)
+- [ ] Phase 8: Frontend Translation - Banking (1 day)
+- [ ] Phase 9: Frontend Translation - Admin (1 day)
+- [ ] Phase 10: Error & Validation (1 day)
+- [ ] Phase 11: Email Templates (1 day)
+- [ ] Phase 12: Report Templates (1 day)
+- [ ] Phase 13: Database Content (1 day)
+- [ ] Phase 14: Testing (2 days)
+- [ ] Phase 15: Documentation (1 day)
+- [ ] Phase 16: Deployment (1 day)
+
+---
+
+## Notes
+
+- **Git Workflow**: All work done in `feature/internationalization` branch, merged to `main` only after complete testing
+- **Auto-Deployment**: Railway and GitHub Pages auto-deploy from `main` branch
+- Each phase can be worked on independently after Phase 1 & 2 complete
+- Frontend translation phases (4-9) can be done in parallel by module
+- Testing should be done continuously, not just in Phase 14
+- Translation quality review by native speaker (Peter) recommended
+- Consider using translation management tool for larger scale
+- Commit frequently to feature branch for backup and progress tracking
+
+---
+
+## Related Documents
+
+- **README.md** - Overview and architecture
+- **requirements.md** - User stories and acceptance criteria
+- **design.md** - Technical design and implementation details
+
+---
