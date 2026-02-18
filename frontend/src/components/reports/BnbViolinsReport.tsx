@@ -28,7 +28,7 @@ import {
   Tr,
   VStack,
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { useTenant } from '../../context/TenantContext';
@@ -71,6 +71,7 @@ interface StatsData {
  * Displays distribution data with kernel density estimation
  */
 const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
+  const { t } = useTypedTranslation('reports');
   const { plotData, statsData } = useMemo(() => {
     if (!data.length) return { plotData: [], statsData: [] };
     
@@ -149,12 +150,12 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
   if (!plotData.length) {
     return (
       <Box p={4} textAlign="center">
-        <Text color="white">No data available for violin chart</Text>
+        <Text color="white">{t('charts.noData')}</Text>
       </Box>
     );
   }
   
-  const metricLabel = metric === 'pricePerNight' ? 'Price per Night (€)' : 'Nights per Stay';
+  const metricLabel = metric === 'pricePerNight' ? t('bnb.pricePerNightEuro') : t('bnb.nightsPerStay');
   const isPriceMetric = metric === 'pricePerNight';
   
   return (
@@ -164,20 +165,20 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
         <Suspense fallback={
           <Box p={8} textAlign="center">
             <Progress size="xs" isIndeterminate colorScheme="orange" mb={2} />
-            <Text color="gray.600" fontSize="sm">Loading violin chart...</Text>
+            <Text color="gray.600" fontSize="sm">{t('bnb.loadingViolinChart')}</Text>
           </Box>
         }>
           <Plot
             data={plotData as any}
             layout={{
-              title: metricLabel + ' Distribution',
+              title: metricLabel + ' ' + t('charts.distribution'),
               yaxis: {
                 title: { text: metricLabel },
                 zeroline: false,
                 gridcolor: '#e2e8f0'
               },
               xaxis: {
-                title: { text: groupBy === 'listing' ? 'Listing' : 'Channel' },
+                title: { text: groupBy === 'listing' ? t('filters.listing') : t('filters.channel') },
                 gridcolor: '#e2e8f0'
               },
               paper_bgcolor: 'white',
@@ -205,15 +206,15 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
             <Table size="sm" variant="simple">
               <Thead>
                 <Tr>
-                  <Th color="white">{groupBy === 'listing' ? 'Listing' : 'Channel'}</Th>
-                  <Th color="white" isNumeric>Count</Th>
-                  <Th color="white" isNumeric>Min</Th>
-                  <Th color="white" isNumeric>Q1</Th>
-                  <Th color="white" isNumeric>Median</Th>
-                  <Th color="white" isNumeric>Mean</Th>
-                  <Th color="white" isNumeric>Q3</Th>
-                  <Th color="white" isNumeric>Max</Th>
-                  <Th color="white" isNumeric>Range</Th>
+                  <Th color="white">{groupBy === 'listing' ? t('filters.listing') : t('filters.channel')}</Th>
+                  <Th color="white" isNumeric>{t('charts.count')}</Th>
+                  <Th color="white" isNumeric>{t('bnb.min')}</Th>
+                  <Th color="white" isNumeric>{t('bnb.q1')}</Th>
+                  <Th color="white" isNumeric>{t('charts.median')}</Th>
+                  <Th color="white" isNumeric>{t('charts.average')}</Th>
+                  <Th color="white" isNumeric>{t('bnb.q3')}</Th>
+                  <Th color="white" isNumeric>{t('bnb.max')}</Th>
+                  <Th color="white" isNumeric>{t('bnb.range')}</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -257,13 +258,13 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
  * Main BNB Violins Report Component
  */
 const BnbViolinsReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
   
   // Metric options constant
   const metricOptions = [
-    { value: 'pricePerNight', label: 'Price per Night' },
-    { value: 'nightsPerStay', label: 'Days per Stay' }
+    { value: 'pricePerNight', label: t('bnb.pricePerNight') },
+    { value: 'nightsPerStay', label: t('bnb.daysPerStay') }
   ];
   
   // Separate state for each filter
@@ -360,7 +361,7 @@ const BnbViolinsReport: React.FC = () => {
         <Card bg="orange.500">
           <CardBody>
             <Text color="white" fontWeight="bold">
-              No tenant selected. Please select a tenant first to view BNB violin data.
+              {t('messages.noTenantSelected')}
             </Text>
           </CardBody>
         </Card>
@@ -377,15 +378,15 @@ const BnbViolinsReport: React.FC = () => {
             filters={[
               {
                 type: 'multi',
-                label: 'Years',
+                label: t('filters.year'),
                 options: bnbViolinFilterOptions.years,
                 value: selectedYears,
                 onChange: setSelectedYears,
-                placeholder: 'Select year(s)'
+                placeholder: t('filters.selectYear')
               },
               {
                 type: 'single',
-                label: 'Report Type',
+                label: t('filters.reportType'),
                 options: metricOptions,
                 value: metricOptions.find(opt => opt.value === selectedMetric) || metricOptions[0],
                 onChange: (opt: { value: string; label: string }) => setSelectedMetric(opt.value),
@@ -394,20 +395,20 @@ const BnbViolinsReport: React.FC = () => {
               },
               {
                 type: 'multi',
-                label: 'Listings',
+                label: t('filters.listings'),
                 options: bnbViolinFilterOptions.listings,
                 value: selectedListings,
                 onChange: setSelectedListings,
-                placeholder: 'All Listings',
+                placeholder: t('filters.allListings'),
                 treatEmptyAsSelected: true
               },
               {
                 type: 'multi',
-                label: 'Channels',
+                label: t('filters.channels'),
                 options: bnbViolinFilterOptions.channels,
                 value: selectedChannels,
                 onChange: setSelectedChannels,
-                placeholder: 'All Channels',
+                placeholder: t('filters.allChannels'),
                 treatEmptyAsSelected: true
               }
             ]}
@@ -415,7 +416,7 @@ const BnbViolinsReport: React.FC = () => {
           {bnbViolinLoading && (
             <Box mt={4}>
               <Progress size="xs" isIndeterminate colorScheme="orange" />
-              <Text color="white" fontSize="sm" mt={2}>Loading violin chart data...</Text>
+              <Text color="white" fontSize="sm" mt={2}>{t('bnb.loadingViolinChartData')}</Text>
             </Box>
           )}
         </CardBody>
@@ -428,7 +429,7 @@ const BnbViolinsReport: React.FC = () => {
           <Card bg="gray.700">
             <CardHeader>
               <Heading size="md" color="white">
-                {selectedMetric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Listing
+                {selectedMetric === 'pricePerNight' ? t('bnb.pricePerNight') : t('bnb.daysPerStay')} {t('bnb.distributionByListing')}
               </Heading>
             </CardHeader>
             <CardBody>
@@ -444,7 +445,7 @@ const BnbViolinsReport: React.FC = () => {
           <Card bg="gray.700">
             <CardHeader>
               <Heading size="md" color="white">
-                {selectedMetric === 'pricePerNight' ? 'Price per Night' : 'Days per Stay'} Distribution by Channel
+                {selectedMetric === 'pricePerNight' ? t('bnb.pricePerNight') : t('bnb.daysPerStay')} {t('bnb.distributionByChannel')}
               </Heading>
             </CardHeader>
             <CardBody>
@@ -463,27 +464,27 @@ const BnbViolinsReport: React.FC = () => {
         <Card bg="gray.700">
           <CardBody>
             <VStack spacing={3} align="start">
-              <Heading size="md" color="white">BNB Violin Charts Instructions</Heading>
+              <Heading size="md" color="white">{t('titles.bnbViolins')} {t('common:labels.instructions')}</Heading>
               <Text color="white" fontSize="sm">
-                1. Select the report type: "Price per Night" or "Days per Stay"
+                1. {t('bnb.selectReportType')}
               </Text>
               <Text color="white" fontSize="sm">
-                2. Choose one or more years to include in the analysis
+                2. {t('bnb.chooseYearsForAnalysis')}
               </Text>
               <Text color="white" fontSize="sm">
-                3. Optionally filter by specific listings or channels
+                3. {t('bnb.optionallyFilterByListingsOrChannels')}
               </Text>
               <Text color="white" fontSize="sm">
-                4. Charts will automatically update when you change any filter
+                4. {t('bnb.chartsAutoUpdate')}
               </Text>
               <Text color="gray.400" fontSize="xs">
-                Violin charts show the full distribution of values with kernel density estimation.
+                {t('bnb.violinChartsShowDistribution')}
               </Text>
               <Text color="gray.400" fontSize="xs">
-                The width of each violin represents the density of data at that value. Box plots inside show quartiles (Q1, median, Q3), and the orange line shows the mean.
+                {t('bnb.violinWidthExplanation')}
               </Text>
               <Text color="gray.400" fontSize="xs">
-                Interactive features: hover for details, zoom, pan, and download as image.
+                {t('bnb.interactiveFeatures')}
               </Text>
             </VStack>
           </CardBody>

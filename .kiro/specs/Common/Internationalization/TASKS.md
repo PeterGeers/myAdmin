@@ -623,7 +623,7 @@ resource "aws_cognito_user_pool" "main" {
 - [x] Update STRPricing component (pricing optimizer)
 - [x] Update STRInvoice component (invoice generator)
 - [x] Update STRReports component (reports wrapper) - Already complete
-- [ ] Test STR module in both languages
+- [x] Test STR module in both languages (manually done)
 
 ---
 

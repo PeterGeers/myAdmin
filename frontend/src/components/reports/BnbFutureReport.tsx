@@ -17,7 +17,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import {
   Area,
   AreaChart,
@@ -39,7 +39,7 @@ interface BnbFutureRecord {
 }
 
 const BnbFutureReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const [bnbFutureData, setBnbFutureData] = useState<BnbFutureRecord[]>([]);
   const [bnbFutureLoading, setBnbFutureLoading] = useState(false);
   const [bnbFutureFilters, setBnbFutureFilters] = useState({
@@ -106,7 +106,7 @@ const BnbFutureReport: React.FC = () => {
         <CardBody>
           <HStack spacing={4} wrap="wrap">
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Year From</Text>
+              <Text color="white" fontSize="sm">{t('bnb.yearFrom')}</Text>
               <Select
                 value={bnbFutureFilters.yearFrom}
                 onChange={(e) => setBnbFutureFilters(prev => ({...prev, yearFrom: e.target.value}))}
@@ -115,14 +115,14 @@ const BnbFutureReport: React.FC = () => {
                 size="sm"
                 w="150px"
               >
-                <option value="all">All Years</option>
+                <option value="all">{t('bnb.allYears')}</option>
                 {uniqueYears.map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </Select>
             </VStack>
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Year To</Text>
+              <Text color="white" fontSize="sm">{t('bnb.yearTo')}</Text>
               <Select
                 value={bnbFutureFilters.yearTo}
                 onChange={(e) => setBnbFutureFilters(prev => ({...prev, yearTo: e.target.value}))}
@@ -131,14 +131,14 @@ const BnbFutureReport: React.FC = () => {
                 size="sm"
                 w="150px"
               >
-                <option value="all">All Years</option>
+                <option value="all">{t('bnb.allYears')}</option>
                 {uniqueYears.map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </Select>
             </VStack>
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Channel</Text>
+              <Text color="white" fontSize="sm">{t('filters.channel')}</Text>
               <Select
                 value={bnbFutureFilters.channel}
                 onChange={(e) => setBnbFutureFilters(prev => ({...prev, channel: e.target.value}))}
@@ -147,14 +147,14 @@ const BnbFutureReport: React.FC = () => {
                 size="sm"
                 w="150px"
               >
-                <option value="all">All Channels</option>
+                <option value="all">{t('filters.allChannels')}</option>
                 {Array.from(new Set(bnbFutureData.map(row => row.channel))).sort().map(channel => (
                   <option key={channel} value={channel}>{channel}</option>
                 ))}
               </Select>
             </VStack>
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Listing</Text>
+              <Text color="white" fontSize="sm">{t('filters.listing')}</Text>
               <Select
                 value={bnbFutureFilters.listing}
                 onChange={(e) => setBnbFutureFilters(prev => ({...prev, listing: e.target.value}))}
@@ -163,7 +163,7 @@ const BnbFutureReport: React.FC = () => {
                 size="sm"
                 w="200px"
               >
-                <option value="all">All Listings</option>
+                <option value="all">{t('filters.allListings')}</option>
                 {Array.from(new Set(bnbFutureData.map(row => row.listing))).sort().map(listing => (
                   <option key={listing} value={listing}>{listing}</option>
                 ))}
@@ -175,7 +175,7 @@ const BnbFutureReport: React.FC = () => {
               isLoading={bnbFutureLoading}
               size="sm"
             >
-              Refresh Data
+              {t('actions.refreshData')}
             </Button>
           </HStack>
         </CardBody>
@@ -183,7 +183,7 @@ const BnbFutureReport: React.FC = () => {
 
       <Card bg="gray.700">
         <CardHeader>
-          <Heading size="md" color="white">BNB Future Revenue Projections by Listing</Heading>
+          <Heading size="md" color="white">{t('bnb.futureRevenueProjections')}</Heading>
         </CardHeader>
         <CardBody>
           {bnbFutureData.length > 0 ? (
@@ -219,7 +219,7 @@ const BnbFutureReport: React.FC = () => {
             </ResponsiveContainer>
           ) : (
             <Text color="white" textAlign="center" py={8}>
-              No future revenue data available. Click "Refresh Data" to load projections.
+              {t('bnb.noFutureData')}
             </Text>
           )}
         </CardBody>
@@ -228,18 +228,18 @@ const BnbFutureReport: React.FC = () => {
       {bnbFutureData.length > 0 && (
         <Card bg="gray.700">
           <CardHeader>
-            <Heading size="md" color="white">Detailed Projections</Heading>
+            <Heading size="md" color="white">{t('bnb.detailedProjections')}</Heading>
           </CardHeader>
           <CardBody>
             <TableContainer>
               <Table size="sm" variant="simple">
                 <Thead>
                   <Tr>
-                    <Th color="white">Date</Th>
-                    <Th color="white">Channel</Th>
-                    <Th color="white">Listing</Th>
-                    <Th color="white" isNumeric>Amount</Th>
-                    <Th color="white" isNumeric>Items</Th>
+                    <Th color="white">{t('tables.date')}</Th>
+                    <Th color="white">{t('filters.channel')}</Th>
+                    <Th color="white">{t('filters.listing')}</Th>
+                    <Th color="white" isNumeric>{t('tables.amount')}</Th>
+                    <Th color="white" isNumeric>{t('bnb.items')}</Th>
                   </Tr>
                 </Thead>
                 <Tbody>

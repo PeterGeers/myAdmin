@@ -20,7 +20,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
 import { FilterPanel } from '../filters/FilterPanel';
@@ -49,7 +49,7 @@ interface XlsxExportProgress {
 }
 
 const AangifteIbReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
   const [aangifteIbData, setAangifteIbData] = useState<AangifteIbRecord[]>([]);
   const [aangifteIbDetails, setAangifteIbDetails] = useState<AangifteIbDetail[]>([]);

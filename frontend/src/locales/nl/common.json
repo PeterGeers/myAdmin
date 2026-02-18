@@ -77,7 +77,8 @@
     "checkingAuth": "Authenticatiestatus controleren",
     "filterError": "Filter Fout",
     "filterErrorDescription": "Het filtercomponent heeft een fout aangetroffen en kan niet correct worden weergegeven.",
-    "unknownError": "Onbekende fout"
+    "unknownError": "Onbekende fout",
+    "clickRefreshToLoad": "Klik op \"Gegevens Vernieuwen\" om de laatste gegevens te laden"
   },
   "labels": {
     "date": "Datum",
@@ -114,7 +115,8 @@
     "country": "Land",
     "zipCode": "Postcode",
     "optional": "Optioneel",
-    "requiredField": "Verplicht veld"
+    "requiredField": "Verplicht veld",
+    "instructions": "Instructies"
   },
   "placeholders": {
     "search": "Zoeken...",

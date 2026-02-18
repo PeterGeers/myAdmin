@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 // Import individual report components
 import BnbRevenueReport from './BnbRevenueReport';
@@ -12,7 +13,7 @@ import ToeristenbelastingReport from './ToeristenbelastingReport';
 import BnbCountryBookingsReport from './BnbCountryBookingsReport';
 
 const BnbReportsGroup: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
 
   return (
     <Tabs variant="soft-rounded" colorScheme="orange" mt={4}>

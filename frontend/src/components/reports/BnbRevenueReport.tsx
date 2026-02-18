@@ -20,7 +20,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 
 interface BnbRecord {
@@ -40,7 +40,7 @@ interface BnbRecord {
 }
 
 const BnbRevenueReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [bnbSortField, setBnbSortField] = useState<string>('');
@@ -158,7 +158,7 @@ const BnbRevenueReport: React.FC = () => {
         <CardBody>
           <HStack spacing={4} wrap="wrap">
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Date From</Text>
+              <Text color="white" fontSize="sm">{t('filters.startDate')}</Text>
               <Input
                 type="date"
                 value={bnbFilters.dateFrom}
@@ -170,7 +170,7 @@ const BnbRevenueReport: React.FC = () => {
               />
             </VStack>
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Date To</Text>
+              <Text color="white" fontSize="sm">{t('filters.endDate')}</Text>
               <Input
                 type="date"
                 value={bnbFilters.dateTo}
@@ -182,15 +182,15 @@ const BnbRevenueReport: React.FC = () => {
               />
             </VStack>
             <Button colorScheme="orange" onClick={fetchBnbData} isLoading={loading} size="sm">
-              Update BNB Data
+              {t('bnb.updateBnbData')}
             </Button>
             <Button variant="outline" onClick={exportBnbCsv} size="sm">
-              Export CSV
+              {t('export.exportToCsv')}
             </Button>
           </HStack>
           
           <HStack spacing={4} wrap="wrap" mt={4}>
-            <Text color="white" fontSize="sm">Show Amounts:</Text>
+            <Text color="white" fontSize="sm">{t('filters.showAmounts')}:</Text>
             <Menu closeOnSelect={false}>
               <MenuButton
                 as={Button}
@@ -201,15 +201,15 @@ const BnbRevenueReport: React.FC = () => {
                 _hover={{ bg: "orange.600" }}
                 _active={{ bg: "orange.600" }}
               >
-                {bnbFilters.selectedAmounts.length > 0 ? `${bnbFilters.selectedAmounts.length} selected` : 'Select amounts...'}
+                {bnbFilters.selectedAmounts.length > 0 ? t('bnb.amountsSelected', { count: bnbFilters.selectedAmounts.length }) : t('bnb.selectAmounts')}
               </MenuButton>
               <MenuList bg="gray.600" border="1px solid" borderColor="gray.500">
                 {[
-                  { key: 'amountGross', label: 'Gross Amount' },
-                  { key: 'amountNett', label: 'Net Amount' },
-                  { key: 'amountChannelFee', label: 'Channel Fee' },
-                  { key: 'amountTouristTax', label: 'Tourist Tax' },
-                  { key: 'amountVat', label: 'VAT Amount' }
+                  { key: 'amountGross', label: t('bnb.grossAmount') },
+                  { key: 'amountNett', label: t('bnb.netAmount') },
+                  { key: 'amountChannelFee', label: t('tables.channelFee') },
+                  { key: 'amountTouristTax', label: t('tables.touristTax') },
+                  { key: 'amountVat', label: t('tables.vat') }
                 ].map((amount, index) => (
                   <MenuItem key={`bnb-amount-${amount.key}-${index}`} bg="gray.600" _hover={{ bg: "gray.500" }} closeOnSelect={false}>
                     <Checkbox
@@ -239,7 +239,7 @@ const BnbRevenueReport: React.FC = () => {
         <CardBody>
           <HStack spacing={2} mb={4} wrap="wrap">
             <Input
-              placeholder="Search Channel"
+              placeholder={t('bnb.searchChannel')}
               value={bnbSearchFilters.channel}
               onChange={(e) => setBnbSearchFilters(prev => ({...prev, channel: e.target.value}))}
               bg="gray.600"
@@ -248,7 +248,7 @@ const BnbRevenueReport: React.FC = () => {
               w="150px"
             />
             <Input
-              placeholder="Search Listing"
+              placeholder={t('bnb.searchListing')}
               value={bnbSearchFilters.listing}
               onChange={(e) => setBnbSearchFilters(prev => ({...prev, listing: e.target.value}))}
               bg="gray.600"
@@ -257,7 +257,7 @@ const BnbRevenueReport: React.FC = () => {
               w="150px"
             />
             <Input
-              placeholder="Search Guest"
+              placeholder={t('bnb.searchGuest')}
               value={bnbSearchFilters.guestName}
               onChange={(e) => setBnbSearchFilters(prev => ({...prev, guestName: e.target.value}))}
               bg="gray.600"
@@ -271,47 +271,47 @@ const BnbRevenueReport: React.FC = () => {
               <Thead>
                 <Tr>
                   <Th color="white" cursor="pointer" onClick={() => handleBnbSort('checkinDate')}>
-                    Check-in {bnbSortField === 'checkinDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.checkIn')} {bnbSortField === 'checkinDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleBnbSort('checkoutDate')}>
-                    Check-out {bnbSortField === 'checkoutDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.checkOut')} {bnbSortField === 'checkoutDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleBnbSort('channel')}>
-                    Channel {bnbSortField === 'channel' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                    {t('filters.channel')} {bnbSortField === 'channel' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleBnbSort('listing')}>
-                    Listing {bnbSortField === 'listing' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                    {t('filters.listing')} {bnbSortField === 'listing' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleBnbSort('nights')}>
-                    Nights {bnbSortField === 'nights' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.nights')} {bnbSortField === 'nights' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   {bnbFilters.selectedAmounts.includes('amountGross') && (
                     <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountGross')}>
-                      Gross {bnbSortField === 'amountGross' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                      {t('tables.gross')} {bnbSortField === 'amountGross' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                     </Th>
                   )}
                   {bnbFilters.selectedAmounts.includes('amountNett') && (
                     <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountNett')}>
-                      Net {bnbSortField === 'amountNett' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                      {t('tables.net')} {bnbSortField === 'amountNett' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                     </Th>
                   )}
                   {bnbFilters.selectedAmounts.includes('amountChannelFee') && (
                     <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountChannelFee')}>
-                      Channel Fee {bnbSortField === 'amountChannelFee' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                      {t('tables.channelFee')} {bnbSortField === 'amountChannelFee' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                     </Th>
                   )}
                   {bnbFilters.selectedAmounts.includes('amountTouristTax') && (
                     <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountTouristTax')}>
-                      Tourist Tax {bnbSortField === 'amountTouristTax' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                      {t('tables.touristTax')} {bnbSortField === 'amountTouristTax' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                     </Th>
                   )}
                   {bnbFilters.selectedAmounts.includes('amountVat') && (
                     <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountVat')}>
-                      VAT {bnbSortField === 'amountVat' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                      {t('tables.vat')} {bnbSortField === 'amountVat' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                     </Th>
                   )}
                   <Th color="white" cursor="pointer" onClick={() => handleBnbSort('guestName')}>
-                    Guest {bnbSortField === 'guestName' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.guest')} {bnbSortField === 'guestName' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                 </Tr>
               </Thead>

@@ -12,11 +12,11 @@ import {
   Text,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 
 const ToeristenbelastingReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation();
   const [toeristenbelastingData, setToeristenbelastingData] = useState<any>(null);
   const [toeristenbelastingFilters, setToeristenbelastingFilters] = useState({
     year: new Date().getFullYear().toString()
