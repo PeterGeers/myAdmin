@@ -631,11 +631,11 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 8.1 Banking Translations
 
-- [ ] Extract banking strings to `banking.json`
-- [ ] Translate banking dashboard
-- [ ] Translate transaction list
-- [ ] Translate import wizard
-- [ ] Translate pattern management
+- [x] Extract banking strings to `banking.json`
+- [x] Translate banking dashboard
+- [x] Translate transaction list
+- [x] Translate import wizard
+- [x] Translate pattern management
 
 ### 8.2 Banking Components
 
