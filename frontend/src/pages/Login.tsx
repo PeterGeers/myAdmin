@@ -23,6 +23,7 @@ import {
   AlertDescription
 } from '@chakra-ui/react';
 import { signInWithRedirect } from 'aws-amplify/auth';
+import { useTranslation } from 'react-i18next';
 
 interface LoginProps {
   onLoginSuccess?: () => void;
@@ -39,6 +40,7 @@ interface LoginProps {
  * - Error handling and user feedback
  */
 export default function Login({ onLoginSuccess }: LoginProps) {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const toast = useToast();
 
@@ -60,8 +62,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       setIsLoading(false);
       
       toast({
-        title: 'Login Failed',
-        description: error instanceof Error ? error.message : 'Failed to initiate login. Please try again.',
+        title: t('auth:login.loginFailed'),
+        description: error instanceof Error ? error.message : t('auth:login.loginFailedDescription'),
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -104,10 +106,10 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           {/* Title */}
           <VStack spacing={2}>
             <Heading color="orange.400" size="xl">
-              Welcome to myAdmin
+              {t('auth:login.title')}
             </Heading>
             <Text color="gray.300" fontSize="md" textAlign="center">
-              Sign in to access your dashboard
+              {t('auth:login.subtitle')}
             </Text>
           </VStack>
 
@@ -119,9 +121,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               colorScheme="orange"
               onClick={handleCognitoLogin}
               isLoading={isLoading}
-              loadingText="Redirecting..."
+              loadingText={t('auth:login.redirecting')}
             >
-              Sign in with Cognito
+              {t('auth:login.signInButton')}
             </Button>
 
             <Divider borderColor="gray.600" />
@@ -129,7 +131,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             {/* Forgot Password Link */}
             <HStack spacing={2}>
               <Text color="gray.400" fontSize="sm">
-                Forgot your password?
+                {t('auth:login.forgotPassword')}
               </Text>
               <Link
                 color="orange.400"
@@ -138,7 +140,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 cursor="pointer"
                 _hover={{ textDecoration: 'underline' }}
               >
-                Reset it here
+                {t('auth:login.resetPassword')}
               </Link>
             </HStack>
           </VStack>
@@ -147,13 +149,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <Alert status="info" borderRadius="md" bg="blue.900" borderColor="blue.500" borderWidth="1px">
             <AlertIcon color="blue.400" />
             <AlertDescription color="gray.200" fontSize="sm">
-              You will be redirected to a secure login page. After authentication, you'll return to myAdmin.
+              {t('auth:login.secureLoginInfo')}
             </AlertDescription>
           </Alert>
 
           {/* Footer */}
           <Text color="gray.500" fontSize="xs" textAlign="center">
-            Protected by AWS Cognito
+            {t('auth:login.protectedBy')}
           </Text>
         </VStack>
       </Container>
