@@ -374,28 +374,20 @@ def create_tenant_user(user_email, user_roles):
             
             # Send invitation email
             try:
-                # Render email templates
-                html_content = email_service.render_template(
-                    template_name='user_invitation',
-                    variables={
-                        'email': email,
-                        'tenant': tenant,
-                        'name': name or email,
-                        'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
-                        'temporary_password': temp_password
-                    },
+                # Render email templates using render_user_invitation which detects language
+                html_content = email_service.render_user_invitation(
+                    email=email,
+                    temporary_password=temp_password,
+                    tenant=tenant,
+                    login_url=os.getenv('FRONTEND_URL', 'http://localhost:3000'),
                     format='html'
                 )
                 
-                text_content = email_service.render_template(
-                    template_name='user_invitation',
-                    variables={
-                        'email': email,
-                        'tenant': tenant,
-                        'name': name or email,
-                        'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
-                        'temporary_password': temp_password
-                    },
+                text_content = email_service.render_user_invitation(
+                    email=email,
+                    temporary_password=temp_password,
+                    tenant=tenant,
+                    login_url=os.getenv('FRONTEND_URL', 'http://localhost:3000'),
                     format='txt'
                 )
                 
@@ -404,7 +396,11 @@ def create_tenant_user(user_email, user_roles):
                 if sns_topic_arn:
                     import boto3
                     sns_client = boto3.client('sns', region_name=AWS_REGION)
-                    subject = email_service.get_invitation_subject(tenant)
+                    # Get subject with detected language
+                    subject = email_service.get_invitation_subject(
+                        tenant,
+                        language=email_service._detect_user_language(email, tenant)
+                    )
                     
                     sns_client.publish(
                         TopicArn=sns_topic_arn,
