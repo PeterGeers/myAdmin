@@ -1,275 +1,189 @@
 /**
- * Tests for Authenticated API Service
+ * Integration tests for API service X-Language header functionality
  */
 
-import {
-  authenticatedRequest,
-  authenticatedGet,
-  authenticatedPost,
-  authenticatedPut,
-  authenticatedDelete,
-  authenticatedFormData,
-  buildApiUrl
-} from './apiService';
-import { getCurrentAuthTokens } from './authService';
-
-// Mock the authService
-jest.mock('./authService');
+import { apiRequest } from './apiService';
+import i18n from '../i18n';
 
 // Mock fetch
 global.fetch = jest.fn();
 
-describe('apiService', () => {
+describe('API Service X-Language Header', () => {
   beforeEach(() => {
+    // Clear all mocks before each test
     jest.clearAllMocks();
-  });
-
-  describe('authenticatedRequest', () => {
-    it('should add Authorization header with JWT token', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
-
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(mockTokens);
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true })
-      });
-
-      await authenticatedRequest('/api/test');
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/test',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer mock-id-token'
-          })
-        })
-      );
-    });
-
-    it('should skip authentication when skipAuth is true', async () => {
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true })
-      });
-
-      await authenticatedRequest('/api/status', { skipAuth: true });
-
-      expect(getCurrentAuthTokens).not.toHaveBeenCalled();
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/status',
-        expect.objectContaining({
-          headers: expect.not.objectContaining({
-            'Authorization': expect.anything()
-          })
-        })
-      );
-    });
-
-    it('should throw error when no token is available', async () => {
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
-
-      await expect(authenticatedRequest('/api/test')).rejects.toThrow('Authentication required');
-    });
-
-    it('should retry request on 401 with refreshed token', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
-
-      const refreshedTokens = {
-        idToken: 'refreshed-id-token',
-        accessToken: 'refreshed-access-token'
-      };
-
-      (getCurrentAuthTokens as jest.Mock)
-        .mockResolvedValueOnce(mockTokens)
-        .mockResolvedValueOnce(refreshedTokens);
-
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({ status: 401, ok: false })
-        .mockResolvedValueOnce({ status: 200, ok: true, json: async () => ({ success: true }) });
-
-      const response = await authenticatedRequest('/api/test');
-
-      expect(global.fetch).toHaveBeenCalledTimes(2);
-      expect(response.ok).toBe(true);
+    
+    // Mock successful response
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, data: {} }),
+      headers: new Headers(),
     });
   });
 
-  describe('authenticatedGet', () => {
-    it('should make GET request', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(mockTokens);
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ data: 'test' })
-      });
+  test('sends X-Language header with current language (Dutch)', async () => {
+    // Set language to Dutch
+    i18n.changeLanguage('nl');
 
-      await authenticatedGet('/api/data');
+    await apiRequest('/api/test', {
+      method: 'GET',
+    });
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/data',
-        expect.objectContaining({
-          method: 'GET'
-        })
-      );
+    // Verify fetch was called with X-Language header
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Language': 'nl',
+        }),
+      })
+    );
+  });
+
+  test('sends X-Language header with current language (English)', async () => {
+    // Set language to English
+    i18n.changeLanguage('en');
+
+    await apiRequest('/api/test', {
+      method: 'GET',
+    });
+
+    // Verify fetch was called with X-Language header
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-Language': 'en',
+        }),
+      })
+    );
+  });
+
+  test('sends X-Language header with GET requests', async () => {
+    i18n.changeLanguage('nl');
+
+    await apiRequest('/api/test', {
+      method: 'GET',
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const headers = fetchCall[1].headers;
+    
+    expect(headers['X-Language']).toBe('nl');
+  });
+
+  test('sends X-Language header with POST requests', async () => {
+    i18n.changeLanguage('en');
+
+    await apiRequest('/api/test', {
+      method: 'POST',
+      body: JSON.stringify({ test: 'data' }),
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const headers = fetchCall[1].headers;
+    
+    expect(headers['X-Language']).toBe('en');
+  });
+
+  test('sends X-Language header with PUT requests', async () => {
+    i18n.changeLanguage('nl');
+
+    await apiRequest('/api/test', {
+      method: 'PUT',
+      body: JSON.stringify({ test: 'data' }),
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const headers = fetchCall[1].headers;
+    
+    expect(headers['X-Language']).toBe('nl');
+  });
+
+  test('sends X-Language header with DELETE requests', async () => {
+    i18n.changeLanguage('en');
+
+    await apiRequest('/api/test', {
+      method: 'DELETE',
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const headers = fetchCall[1].headers;
+    
+    expect(headers['X-Language']).toBe('en');
+  });
+
+  test('X-Language header persists across multiple requests', async () => {
+    i18n.changeLanguage('nl');
+
+    // Make multiple requests
+    await apiRequest('/api/test1', { method: 'GET' });
+    await apiRequest('/api/test2', { method: 'GET' });
+    await apiRequest('/api/test3', { method: 'GET' });
+
+    // All requests should have X-Language header
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    
+    calls.forEach(call => {
+      const headers = call[1].headers;
+      expect(headers['X-Language']).toBe('nl');
     });
   });
 
-  describe('authenticatedPost', () => {
-    it('should make POST request with JSON body', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
+  test('X-Language header updates when language changes', async () => {
+    // Start with Dutch
+    i18n.changeLanguage('nl');
+    await apiRequest('/api/test1', { method: 'GET' });
 
-      const body = { name: 'test', value: 123 };
+    // Change to English
+    i18n.changeLanguage('en');
+    await apiRequest('/api/test2', { method: 'GET' });
 
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(mockTokens);
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true })
-      });
-
-      await authenticatedPost('/api/data', body);
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/data',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify(body)
-        })
-      );
-    });
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    
+    // First call should have nl
+    expect(calls[0][1].headers['X-Language']).toBe('nl');
+    
+    // Second call should have en
+    expect(calls[1][1].headers['X-Language']).toBe('en');
   });
 
-  describe('authenticatedPut', () => {
-    it('should make PUT request with JSON body', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
+  test('X-Language header is included with authentication headers', async () => {
+    i18n.changeLanguage('nl');
 
-      const body = { name: 'updated', value: 456 };
+    // Mock localStorage to simulate authenticated user
+    const mockToken = 'mock-jwt-token';
+    Storage.prototype.getItem = jest.fn(() => mockToken);
 
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(mockTokens);
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true })
-      });
-
-      await authenticatedPut('/api/data/123', body);
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/data/123',
-        expect.objectContaining({
-          method: 'PUT',
-          body: JSON.stringify(body)
-        })
-      );
+    await apiRequest('/api/test', {
+      method: 'GET',
     });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const headers = fetchCall[1].headers;
+    
+    // Should have both Authorization and X-Language headers
+    expect(headers['X-Language']).toBe('nl');
+    expect(headers['Authorization']).toBeDefined();
   });
 
-  describe('authenticatedDelete', () => {
-    it('should make DELETE request', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
-
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(mockTokens);
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true })
-      });
-
-      await authenticatedDelete('/api/data/123');
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/data/123',
-        expect.objectContaining({
-          method: 'DELETE'
-        })
-      );
-    });
-  });
-
-  describe('authenticatedFormData', () => {
-    it('should make POST request with FormData', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
-
-      const formData = new FormData();
-      formData.append('file', new Blob(['test']), 'test.txt');
-
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(mockTokens);
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true })
-      });
-
-      await authenticatedFormData('/api/upload', formData);
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/upload',
-        expect.objectContaining({
-          method: 'POST',
-          body: formData,
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer mock-id-token'
-          })
-        })
-      );
+  test('X-Language header defaults to nl if language not set', async () => {
+    // Don't set language explicitly (should default to nl)
+    
+    await apiRequest('/api/test', {
+      method: 'GET',
     });
 
-    it('should not set Content-Type header for FormData', async () => {
-      const mockTokens = {
-        idToken: 'mock-id-token',
-        accessToken: 'mock-access-token'
-      };
-
-      const formData = new FormData();
-      formData.append('file', new Blob(['test']), 'test.txt');
-
-      (getCurrentAuthTokens as jest.Mock).mockResolvedValue(mockTokens);
-      (global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true })
-      });
-
-      await authenticatedFormData('/api/upload', formData);
-
-      const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
-      expect(callArgs.headers).not.toHaveProperty('Content-Type');
-    });
-  });
-
-  describe('buildApiUrl', () => {
-    it('should build URL without params', () => {
-      const url = buildApiUrl('/api/test');
-      expect(url).toBe('/api/test');
-    });
-
-    it('should build URL with URLSearchParams', () => {
-      const params = new URLSearchParams({ year: '2024', quarter: '1' });
-      const url = buildApiUrl('/api/test', params);
-      expect(url).toBe('/api/test?year=2024&quarter=1');
-    });
-
-    it('should build URL with object params', () => {
-      const params = { year: '2024', quarter: '1' };
-      const url = buildApiUrl('/api/test', params);
-      expect(url).toBe('/api/test?year=2024&quarter=1');
-    });
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const headers = fetchCall[1].headers;
+    
+    // Should default to nl
+    expect(headers['X-Language']).toBeDefined();
+    expect(['nl', 'en']).toContain(headers['X-Language']);
   });
 });

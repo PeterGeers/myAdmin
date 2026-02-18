@@ -54,6 +54,13 @@ export async function authenticatedRequest(
     ...fetchOptions.headers,
   };
 
+  // Add X-Language header with current language
+  const currentLanguage = localStorage.getItem('i18nextLng') || 'nl';
+  headers = {
+    ...headers,
+    'X-Language': currentLanguage,
+  };
+
   if (!skipAuth) {
     try {
       const tokens = await getCurrentAuthTokens();
@@ -111,6 +118,13 @@ export async function authenticatedRequest(
               'X-Tenant': currentTenant,
             };
           }
+
+          // Re-add X-Language header
+          const currentLanguage = localStorage.getItem('i18nextLng') || 'nl';
+          headers = {
+            ...headers,
+            'X-Language': currentLanguage,
+          };
           
           // Retry the request with refreshed token
           return await fetch(url, {
