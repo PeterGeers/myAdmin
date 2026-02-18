@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 
 // Import individual report components
 import BnbRevenueReport from './BnbRevenueReport';
@@ -11,16 +12,18 @@ import ToeristenbelastingReport from './ToeristenbelastingReport';
 import BnbCountryBookingsReport from './BnbCountryBookingsReport';
 
 const BnbReportsGroup: React.FC = () => {
+  const { t } = useTranslation('reports');
+
   return (
     <Tabs variant="soft-rounded" colorScheme="orange" mt={4}>
       <TabList>
-        <Tab color="white">🏠 Revenue</Tab>
-        <Tab color="white">🏡 Actuals</Tab>
-        <Tab color="white">🎻 Violins</Tab>
-        <Tab color="white">🔄 Terugkerend</Tab>
-        <Tab color="white">📈 Future</Tab>
-        <Tab color="white">🏨 Toeristenbelasting</Tab>
-        <Tab color="white">🌍 Country Bookings</Tab>
+        <Tab color="white">🏠 {t('titles.bnbRevenue')}</Tab>
+        <Tab color="white">🏡 {t('titles.bnbActuals')}</Tab>
+        <Tab color="white">🎻 {t('titles.bnbViolins')}</Tab>
+        <Tab color="white">🔄 {t('titles.bnbReturningGuests')}</Tab>
+        <Tab color="white">📈 {t('titles.bnbFuture')}</Tab>
+        <Tab color="white">🏨 {t('titles.toeristenbelasting')}</Tab>
+        <Tab color="white">🌍 {t('titles.bnbCountryBookings')}</Tab>
       </TabList>
 
       <TabPanels>

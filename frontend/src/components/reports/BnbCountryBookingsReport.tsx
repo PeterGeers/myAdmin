@@ -11,9 +11,11 @@ import {
   AlertDescription,
   Box
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 
 const BnbCountryBookingsReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
@@ -73,10 +75,10 @@ const BnbCountryBookingsReport: React.FC = () => {
           <VStack spacing={4} align="stretch">
             <Box>
               <Text color="white" fontSize="lg" fontWeight="bold" mb={2}>
-                🌍 Country Bookings Report
+                🌍 {t('titles.bnbCountryBookings')}
               </Text>
               <Text color="gray.300" fontSize="sm">
-                Generate a comprehensive HTML report showing guest origin statistics by country and region.
+                {t('messages.generating')}
               </Text>
             </Box>
 
@@ -84,17 +86,17 @@ const BnbCountryBookingsReport: React.FC = () => {
               colorScheme="orange"
               onClick={generateReport}
               isLoading={loading}
-              loadingText="Generating Report..."
+              loadingText={t('messages.generating')}
               size="lg"
               width="full"
             >
-              Generate Country Report
+              {t('actions.generateReport')}
             </Button>
 
             {error && (
               <Alert status="error" bg="red.600" color="white">
                 <AlertIcon />
-                <AlertTitle>Error!</AlertTitle>
+                <AlertTitle>{t('common:messages.error')}</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -103,13 +105,10 @@ const BnbCountryBookingsReport: React.FC = () => {
               <Alert status="success" bg="green.600" color="white">
                 <AlertIcon />
                 <Box>
-                  <AlertTitle>Report Downloaded Successfully!</AlertTitle>
+                  <AlertTitle>{t('messages.success')}</AlertTitle>
                   <AlertDescription>
                     <Text mt={2}>
-                      The country bookings report has been downloaded to your computer.
-                    </Text>
-                    <Text mt={2} fontSize="sm">
-                      Open the HTML file in your browser to view the report.
+                      {t('export.downloadStarted')}
                     </Text>
                   </AlertDescription>
                 </Box>

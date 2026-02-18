@@ -14,11 +14,13 @@ import {
   Text,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
 import { FilterPanel } from '../filters/FilterPanel';
 
 const BtwReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const { currentTenant } = useTenant();
   
   // Simplified state - no administration filter (uses tenant context)
@@ -150,7 +152,7 @@ const BtwReport: React.FC = () => {
       {!currentTenant && (
         <Alert status="warning">
           <AlertIcon />
-          No tenant selected. Please select a tenant first to generate BTW reports.
+          {t('common:messages.noTenantSelected')}
         </Alert>
       )}
 
@@ -163,20 +165,20 @@ const BtwReport: React.FC = () => {
             filters={[
               {
                 type: 'single',
-                label: 'Year',
+                label: t('filters.year'),
                 options: btwAvailableYears,
                 value: selectedYear,
                 onChange: (value) => setSelectedYear(value as string),
-                placeholder: 'Select year',
+                placeholder: t('filters.selectYear'),
                 isLoading: btwLoading,
               },
               {
                 type: 'single',
-                label: 'Quarter',
+                label: t('filters.quarter'),
                 options: ['1', '2', '3', '4'],
                 value: selectedQuarter,
                 onChange: (value) => setSelectedQuarter(value as string),
-                placeholder: 'Select quarter',
+                placeholder: t('filters.selectQuarter'),
                 getOptionLabel: (q) => `Q${q}`,
               },
             ]}
@@ -189,7 +191,7 @@ const BtwReport: React.FC = () => {
             size="sm"
             mt={4}
           >
-            Generate BTW Report
+            {t('actions.generateReport')}
           </Button>
         </CardBody>
       </Card>
@@ -198,7 +200,7 @@ const BtwReport: React.FC = () => {
         <Card bg="gray.700">
           <CardHeader>
             <HStack justify="space-between">
-              <Heading size="md" color="white">BTW Declaration Report</Heading>
+              <Heading size="md" color="white">{t('titles.btwReport')}</Heading>
               {btwTransaction && (
                 <Button 
                   colorScheme="green" 
@@ -207,7 +209,7 @@ const BtwReport: React.FC = () => {
                   isDisabled={!currentTenant}
                   size="sm"
                 >
-                  Save Transaction & Upload Report
+                  {t('common:buttons.save')} & {t('export.download')}
                 </Button>
               )}
             </HStack>
@@ -239,25 +241,25 @@ const BtwReport: React.FC = () => {
                 <Text color="white" fontSize="sm"><strong>Transaction Number:</strong> {btwTransaction.TransactionNumber}</Text>
               </GridItem>
               <GridItem>
-                <Text color="white" fontSize="sm"><strong>Date:</strong> {btwTransaction.TransactionDate}</Text>
+                <Text color="white" fontSize="sm"><strong>{t('tables.date')}:</strong> {btwTransaction.TransactionDate}</Text>
               </GridItem>
               <GridItem colSpan={2}>
-                <Text color="white" fontSize="sm"><strong>Description:</strong> {btwTransaction.TransactionDescription}</Text>
+                <Text color="white" fontSize="sm"><strong>{t('tables.description')}:</strong> {btwTransaction.TransactionDescription}</Text>
               </GridItem>
               <GridItem>
-                <Text color="white" fontSize="sm"><strong>Amount:</strong> €{Math.round(Number(btwTransaction.TransactionAmount)).toLocaleString('nl-NL')}</Text>
+                <Text color="white" fontSize="sm"><strong>{t('tables.amount')}:</strong> €{Math.round(Number(btwTransaction.TransactionAmount)).toLocaleString('nl-NL')}</Text>
               </GridItem>
               <GridItem>
-                <Text color="white" fontSize="sm"><strong>Administration:</strong> {btwTransaction.Administration}</Text>
+                <Text color="white" fontSize="sm"><strong>{t('filters.administration')}:</strong> {btwTransaction.Administration}</Text>
               </GridItem>
               <GridItem>
-                <Text color="white" fontSize="sm"><strong>Debet:</strong> {btwTransaction.Debet}</Text>
+                <Text color="white" fontSize="sm"><strong>{t('tables.debit')}:</strong> {btwTransaction.Debet}</Text>
               </GridItem>
               <GridItem>
-                <Text color="white" fontSize="sm"><strong>Credit:</strong> {btwTransaction.Credit}</Text>
+                <Text color="white" fontSize="sm"><strong>{t('tables.credit')}:</strong> {btwTransaction.Credit}</Text>
               </GridItem>
               <GridItem colSpan={2}>
-                <Text color="white" fontSize="sm"><strong>Reference:</strong> {btwTransaction.ReferenceNumber}</Text>
+                <Text color="white" fontSize="sm"><strong>{t('tables.reference')}:</strong> {btwTransaction.ReferenceNumber}</Text>
               </GridItem>
             </Grid>
           </CardBody>
