@@ -512,7 +512,7 @@ const ActualsReport: React.FC = () => {
               />
             </GridItem>
             <GridItem>
-              <Text color="white" mb={2}>Display Format</Text>
+              <Text color="white" mb={2}>{t('actuals.displayFormat')}</Text>
               <Select
                 value={displayFormat}
                 onChange={(e) => setDisplayFormat(e.target.value)}
@@ -520,14 +520,14 @@ const ActualsReport: React.FC = () => {
                 color="white"
                 size="sm"
               >
-                <option value="2dec">€1,234.56 (2 decimals)</option>
-                <option value="0dec">€1,235 (whole numbers)</option>
-                <option value="k">€1.2K (thousands)</option>
-                <option value="m">€1.2M (millions)</option>
+                <option value="2dec">{t('actuals.twoDecimals')}</option>
+                <option value="0dec">{t('actuals.wholeNumbers')}</option>
+                <option value="k">{t('actuals.thousands')}</option>
+                <option value="m">{t('actuals.millions')}</option>
               </Select>
             </GridItem>
             <GridItem>
-              <Text color="white" mb={2}>Drill Down Level</Text>
+              <Text color="white" mb={2}>{t('actuals.drillDownLevel')}</Text>
               <HStack>
                 <Button 
                   size="sm" 
@@ -538,7 +538,7 @@ const ActualsReport: React.FC = () => {
                   }}
                   isLoading={(loading && drillDownLevel !== 'year') || tenantSwitching}
                 >
-                  📅 Year
+                  📅 {t('actuals.year')}
                 </Button>
                 <Button 
                   size="sm" 
@@ -549,7 +549,7 @@ const ActualsReport: React.FC = () => {
                   }}
                   isLoading={(loading && drillDownLevel !== 'quarter') || tenantSwitching}
                 >
-                  📊 Quarter
+                  📊 {t('actuals.quarter')}
                 </Button>
                 <Button 
                   size="sm" 
@@ -560,22 +560,22 @@ const ActualsReport: React.FC = () => {
                   }}
                   isLoading={(loading && drillDownLevel !== 'month') || tenantSwitching}
                 >
-                  📈 Month
+                  📈 {t('actuals.month')}
                 </Button>
               </HStack>
             </GridItem>
             <GridItem>
               <Button colorScheme="orange" onClick={fetchActualsData} isLoading={loading || tenantSwitching} size="sm">
-                Update Data
+                {t('actuals.updateData')}
               </Button>
             </GridItem>
             <GridItem>
               <VStack align="start" spacing={1}>
                 <Text color="gray.400" fontSize="xs">
-                  Current View: {drillDownLevel === 'year' ? '📅 Yearly Summary' : drillDownLevel === 'quarter' ? '📊 Quarterly Breakdown' : '📈 Monthly Detail'}
+                  {t('actuals.currentView')}: {drillDownLevel === 'year' ? `📅 ${t('actuals.yearlySummary')}` : drillDownLevel === 'quarter' ? `📊 ${t('actuals.quarterlyBreakdown')}` : `📈 ${t('actuals.monthlyDetail')}`}
                 </Text>
                 <Text color="gray.500" fontSize="xs">
-                  {drillDownLevel === 'year' ? 'Shows annual totals' : drillDownLevel === 'quarter' ? 'Shows quarterly data' : 'Shows monthly granularity'}
+                  {drillDownLevel === 'year' ? t('actuals.showsAnnualTotals') : drillDownLevel === 'quarter' ? t('actuals.showsQuarterlyData') : t('actuals.showsMonthlyGranularity')}
                 </Text>
               </VStack>
             </GridItem>
@@ -589,15 +589,15 @@ const ActualsReport: React.FC = () => {
         <GridItem>
           <Card bg="gray.700">
             <CardHeader pb={2}>
-              <Heading size="md" color="white">Balance (VW = N) - All Years Total</Heading>
+              <Heading size="md" color="white">{t('actuals.balanceVwN')}</Heading>
             </CardHeader>
             <CardBody pt={0}>
               <TableContainer>
                 <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
                   <Thead>
                     <Tr>
-                      <Th color="white" width="120px" border="none">Account</Th>
-                      <Th color="white" width="100px" textAlign="right" border="none">Total Amount</Th>
+                      <Th color="white" width="120px" border="none">{t('actuals.account')}</Th>
+                      <Th color="white" width="100px" textAlign="right" border="none">{t('actuals.totalAmount')}</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -612,7 +612,7 @@ const ActualsReport: React.FC = () => {
         <GridItem>
           <Card bg="gray.700">
             <CardHeader pb={2}>
-              <Heading size="md" color="white">Balance Distribution</Heading>
+              <Heading size="md" color="white">{t('actuals.balanceDistribution')}</Heading>
             </CardHeader>
             <CardBody pt={0}>
               <ResponsiveContainer width="100%" height={300}>
@@ -700,14 +700,14 @@ const ActualsReport: React.FC = () => {
         <GridItem>
           <Card bg="gray.700">
             <CardHeader pb={2}>
-              <Heading size="md" color="white">Profit/Loss (VW = Y)</Heading>
+              <Heading size="md" color="white">{t('actuals.profitLossVwY')}</Heading>
             </CardHeader>
             <CardBody pt={0}>
               <TableContainer>
                 <Table size="sm" variant="simple" style={{borderCollapse: 'collapse'}}>
                   <Thead>
                     <Tr>
-                      <Th color="white" width="120px" border="none">Account</Th>
+                      <Th color="white" width="120px" border="none">{t('actuals.account')}</Th>
                       {drillDownLevel === 'year' && [...selectedYears].sort((a, b) => parseInt(a) - parseInt(b)).map(year => (
                         <Th key={year} color="white" width="60px" textAlign="right" border="none">{year}</Th>
                       ))}
@@ -739,7 +739,7 @@ const ActualsReport: React.FC = () => {
         <GridItem>
           <Card bg="gray.700">
             <CardHeader pb={2}>
-              <Heading size="md" color="white">P&L Distribution</Heading>
+              <Heading size="md" color="white">{t('actuals.plDistribution')}</Heading>
             </CardHeader>
             <CardBody pt={0}>
               <ResponsiveContainer width="100%" height={480}>
@@ -800,7 +800,7 @@ const ActualsReport: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
               <Text color="gray.400" fontSize="xs" mt={2} textAlign="center">
-                * 8099 Bijzondere baten en lasten not included
+                {t('actuals.bijzondereNote')}
               </Text>
             </CardBody>
           </Card>
