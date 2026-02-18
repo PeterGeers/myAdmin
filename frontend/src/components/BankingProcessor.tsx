@@ -458,13 +458,16 @@ const BankingProcessor: React.FC = () => {
         setBankingBalances(data.balances);
         console.log('Setting balances:', data.balances);
         const dateMsg = endDate ? ` as of ${endDate}` : '';
-        setMessage(`Found ${data.count} banking accounts${dateMsg}`);
+        setMessage(endDate 
+          ? t('messages.foundAccountsAsOf', { count: data.count, date: endDate })
+          : t('messages.foundAccounts', { count: data.count })
+        );
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (error) {
       console.error('API call failed:', error);
-      setMessage(`Error checking accounts: ${error}`);
+      setMessage(t('messages.errorCheckingAccounts', { error: String(error) }));
     } finally {
       setCheckingAccounts(false);
     }
@@ -486,13 +489,18 @@ const BankingProcessor: React.FC = () => {
       
       if (data.success) {
         setSequenceResult(data);
-        const gapMsg = data.has_gaps ? ` - ${data.sequence_issues.length} gaps found!` : ' - No gaps found';
-        setMessage(`Sequence check complete for ${account_code} (${administration})${gapMsg}`);
+        const gapMsg = data.has_gaps 
+          ? t('messages.gapsFound', { count: data.sequence_issues.length })
+          : t('messages.noGapsFound');
+        setMessage(t('messages.sequenceCheckComplete', { 
+          account: account_code, 
+          administration 
+        }) + ` - ${gapMsg}`);
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (error) {
-      setMessage(`Error checking sequence: ${error}`);
+      setMessage(t('messages.errorCheckingSequence', { error: String(error) }));
     } finally {
       setCheckingSequence(false);
     }
@@ -533,13 +541,13 @@ const BankingProcessor: React.FC = () => {
           return Math.abs(amount) > 0.01;
         });
         setRefSummaryData(filteredSummary);
-        setMessage(`Found ${filteredSummary.length} references with non-zero amounts`);
+        setMessage(t('messages.foundReferences', { count: filteredSummary.length }));
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (err) {
       console.error('Error fetching check reference data:', err);
-      setMessage(`Error fetching data: ${err}`);
+      setMessage(t('messages.errorFetchingData', { error: err }));
     } finally {
       setLoading(false);
     }
@@ -593,12 +601,12 @@ const BankingProcessor: React.FC = () => {
       
       if (data.success) {
         setStrChannelPreview(data.preview_data);
-        setMessage(`Found ${data.preview_data.length} STR channels for ${strChannelFilters.month}/${strChannelFilters.year}`);
+        setMessage(t('messages.foundStrChannels', { count: data.preview_data.length, month: strChannelFilters.month, year: strChannelFilters.year }));
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (error) {
-      setMessage(`Error fetching STR channel preview: ${error}`);
+      setMessage(t('messages.errorFetchingPreview', { error: String(error) }));
     } finally {
       setLoading(false);
     }
@@ -620,12 +628,12 @@ const BankingProcessor: React.FC = () => {
       if (data.success) {
         setStrChannelTransactions(data.transactions);
         setStrChannelSummary(data.summary);
-        setMessage(`Generated ${data.transactions.length} STR channel revenue transactions`);
+        setMessage(t('messages.generatedTransactions', { count: data.transactions.length }));
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (error) {
-      setMessage(`Error calculating STR channel revenue: ${error}`);
+      setMessage(t('messages.errorCalculating', { error }));
     } finally {
       setLoading(false);
     }
@@ -643,14 +651,14 @@ const BankingProcessor: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        setMessage(`${data.saved_count} STR channel transactions loaded`);
+        setMessage(t('messages.transactionsSaved', { count: data.saved_count }));
         setStrChannelTransactions([]);
         setStrChannelSummary(null);
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (error) {
-      setMessage(`Error saving STR channel transactions: ${error}`);
+      setMessage(t('messages.errorSavingStrChannel', { error }));
     } finally {
       setLoading(false);
     }
@@ -663,12 +671,12 @@ const BankingProcessor: React.FC = () => {
       file.name.toLowerCase().endsWith('.tsv')
     );
     setSelectedFiles(csvTsvFiles);
-    setMessage(`Selected ${csvTsvFiles.length} CSV/TSV files`);
-  }, []);
+    setMessage(t('messages.filesSelected', { count: csvTsvFiles.length }));
+  }, [t]);
 
   const processFiles = useCallback(async () => {
     if (selectedFiles.length === 0) {
-      setMessage('Please select at least one file to process');
+      setMessage(t('messages.selectFiles'));
       return;
     }
 
@@ -684,7 +692,7 @@ const BankingProcessor: React.FC = () => {
       // Get current tenant for validation
       const currentTenant = localStorage.getItem('selectedTenant');
       if (!currentTenant) {
-        setMessage('Error: No tenant selected. Please select a tenant first.');
+        setMessage(t('messages.noTenantSelected'));
         setLoading(false);
         return;
       }
@@ -730,7 +738,7 @@ const BankingProcessor: React.FC = () => {
             } else {
               // IBAN not found in current tenant's accounts - REJECT
               console.log('[TENANT VALIDATION] IBAN not found in current tenant accounts - BLOCKED');
-              setMessage(`Access denied: The bank account ${iban} in file "${file.name}" does not belong to your current organization. Please verify you have selected the correct file.`);
+              setMessage(t('messages.accessDenied', { iban, file: file.name }));
               setLoading(false);
               return;
             }
@@ -797,21 +805,24 @@ const BankingProcessor: React.FC = () => {
         if (checkResult.success && checkResult.duplicates.length > 0) {
           const filteredTransactions = allTransactions.filter(t => !checkResult.duplicates.includes(t.Ref2));
           setTransactions(filteredTransactions);
-          setMessage(`Loaded ${filteredTransactions.length} new transactions. WARNING: ${checkResult.duplicates.length} duplicates filtered out`);
+          setMessage(t('messages.duplicatesFiltered', { 
+            new: filteredTransactions.length, 
+            duplicates: checkResult.duplicates.length 
+          }));
         } else {
           setTransactions(allTransactions);
-          setMessage(`Loaded ${allTransactions.length} transactions for review`);
+          setMessage(t('messages.transactionsLoaded', { count: allTransactions.length }));
         }
       } else {
         setTransactions(allTransactions);
-        setMessage(`Loaded ${allTransactions.length} transactions for review`);
+        setMessage(t('messages.transactionsLoaded', { count: allTransactions.length }));
       }
     } catch (error) {
-      setMessage(`Error processing files: ${error}`);
+      setMessage(t('messages.errorProcessing', { error: String(error) }));
     } finally {
       setLoading(false);
     }
-  }, [selectedFiles, lookupData, testMode]);
+  }, [selectedFiles, lookupData, testMode, t]);
 
   const handleSaveTransactions = async (values: any) => {
     // REQ-UI-004: Add confirmation dialog before saving transactions to database
@@ -831,14 +842,14 @@ const BankingProcessor: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
-        setMessage(`✅ Successfully saved ${data.saved_count} transactions to ${data.table}`);
+        setMessage(t('messages.transactionsSavedSuccess', { count: data.saved_count, table: data.table }));
         setTransactions([]);
         setPatternResults(null); // Clear pattern results after saving
       } else {
-        setMessage(`❌ Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (error) {
-      setMessage(`❌ Error saving transactions: ${error}`);
+      setMessage(t('messages.errorSaving', { error: String(error) }));
     } finally {
       setLoading(false);
     }
@@ -948,16 +959,16 @@ const BankingProcessor: React.FC = () => {
         if (totalPredictions > 0) {
           // Show approval dialog for pattern suggestions
           setShowPatternApproval(true);
-          setMessage(`🔍 Found ${totalPredictions} pattern suggestions. Please review and approve the suggestions.`);
+          setMessage(t('messages.patternSuggestionsFound', { count: totalPredictions }));
         } else {
-          setMessage(`ℹ️ No pattern suggestions found. You may need to fill in the fields manually.`);
+          setMessage(t('messages.noPatternSuggestions'));
         }
       } else {
-        setMessage(`❌ Error applying patterns: ${data.error}`);
+        setMessage(t('messages.errorApplyingPatterns', { error: data.error }));
         setPatternResults(null);
       }
     } catch (error) {
-      setMessage(`❌ Error applying patterns: ${error}`);
+      setMessage(t('messages.errorApplyingPatterns', { error: String(error) }));
       setPatternResults(null);
     } finally {
       setLoading(false);
@@ -967,7 +978,8 @@ const BankingProcessor: React.FC = () => {
   const approvePatternSuggestions = () => {
     // Keep the current transactions with applied suggestions
     setShowPatternApproval(false);
-    setMessage(`✅ Pattern suggestions approved! Made ${Object.values(patternSuggestions?.predictions_made || {}).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0)} predictions. Review the highlighted fields before saving.`);
+    const count = Object.values(patternSuggestions?.predictions_made || {}).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0);
+    setMessage(t('messages.patternSuggestionsApproved', { count }));
   };
 
   const rejectPatternSuggestions = () => {
@@ -976,7 +988,7 @@ const BankingProcessor: React.FC = () => {
     setPatternResults(null);
     setPatternSuggestions(null);
     setShowPatternApproval(false);
-    setMessage(`❌ Pattern suggestions rejected. Fields restored to original values.`);
+    setMessage(t('messages.patternSuggestionsRejected'));
   };
 
   useEffect(() => {
