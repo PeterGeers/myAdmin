@@ -1,3 +1,41 @@
+/**
+ * i18n Configuration
+ * 
+ * Configures internationalization for the myAdmin application using i18next.
+ * Supports Dutch (nl) and English (en) with automatic language detection.
+ * 
+ * @module i18n
+ * 
+ * Features:
+ * - Automatic language detection from localStorage or browser settings
+ * - 8 translation namespaces for organized translations
+ * - Fallback to English if translation not found
+ * - Persistent language preference in localStorage
+ * 
+ * Namespaces:
+ * - common: Shared UI elements (buttons, labels, messages)
+ * - auth: Authentication and login
+ * - reports: Financial reports and analytics
+ * - str: Short-term rental features
+ * - banking: Banking and transaction features
+ * - admin: Administration and settings
+ * - errors: Error messages
+ * - validation: Form validation messages
+ * 
+ * Usage:
+ * ```typescript
+ * import i18n from './i18n';
+ * 
+ * // Change language
+ * i18n.changeLanguage('nl');
+ * 
+ * // Get current language
+ * const currentLang = i18n.language;
+ * ```
+ * 
+ * @see {@link https://www.i18next.com/|i18next Documentation}
+ */
+
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
@@ -20,6 +58,16 @@ import errorsEn from './locales/en/errors.json';
 import validationNl from './locales/nl/validation.json';
 import validationEn from './locales/en/validation.json';
 
+/**
+ * Initialize i18next with configuration
+ * 
+ * Configuration:
+ * - resources: Translation files for nl and en
+ * - fallbackLng: 'en' - Used when translation not found
+ * - defaultNS: 'common' - Default namespace if not specified
+ * - interpolation.escapeValue: false - React handles escaping
+ * - detection: Language detection from localStorage or browser
+ */
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)

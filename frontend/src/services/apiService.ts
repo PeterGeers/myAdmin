@@ -15,6 +15,7 @@ export interface AuthenticatedRequestOptions extends RequestInit {
   skipAuth?: boolean; // Skip authentication for public endpoints
   onUploadProgress?: (progressEvent: any) => void; // For file upload progress
   tenant?: string; // Optional tenant override (defaults to current tenant from context)
+  timeout?: number; // Request timeout in milliseconds (default: 30000ms = 30s)
 }
 
 /**
