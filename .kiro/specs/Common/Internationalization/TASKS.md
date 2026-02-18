@@ -619,10 +619,10 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 7.2 STR Components
 
-- [ ] Update STR Dashboard component
-- [ ] Update Pricing Optimizer component
-- [ ] Update Channel Management component
-- [ ] Update Invoice Management component
+- [ ] Update STRProcessor component (file upload, booking review)
+- [ ] Update STRPricing component (pricing optimizer)
+- [ ] Update STRInvoice component (invoice generator)
+- [ ] Update STRReports component (reports wrapper)
 - [ ] Test STR module in both languages
 
 ---
