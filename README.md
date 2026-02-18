@@ -148,12 +148,74 @@ The OpenRouter API powers AI features including invoice extraction and template 
 .\scripts\setup\gitUpdate.ps1 "Your message here"
 ```
 
+## Internationalization (i18n)
+
+myAdmin supports multiple languages with comprehensive internationalization:
+
+### Supported Languages
+
+- **Dutch (nl)** - Primary language
+- **English (en)** - Secondary language
+
+### Features
+
+- **Language Selector**: Switch languages from any page header
+- **Persistent Preferences**: Language choice saved to localStorage and AWS Cognito
+- **Localized Formatting**: Dates, numbers, and currency adapt to selected language
+  - Dutch: 18-02-2026, 1.234,56, €1.234,56
+  - English: 2/18/2026, 1,234.56, €1,234.56
+- **Translated UI**: All user-facing text translated (1,485+ translation keys)
+- **Translated Emails**: User invitation emails sent in user's preferred language
+- **API Language Support**: Backend responds in requested language via X-Language header
+
+### For Developers
+
+See comprehensive documentation in `.kiro/specs/Common/Internationalization/`:
+
+- **DEVELOPER_GUIDE.md** - Complete guide for working with translations
+- **FORMATTING_GUIDE.md** - Date, number, and currency formatting utilities
+- **TRANSLATION_WORKFLOW.md** - Translation process from development to deployment
+
+Quick reference:
+
+```typescript
+// Use translations in components
+import { useTypedTranslation } from '../hooks/useTypedTranslation';
+
+function MyComponent() {
+  const { t, i18n } = useTypedTranslation('common');
+
+  return (
+    <div>
+      <h1>{t('myFeature.title')}</h1>
+      <p>{formatDate(new Date(), i18n.language)}</p>
+      <p>{formatCurrency(1234.56, i18n.language)}</p>
+    </div>
+  );
+}
+```
+
+### Translation Completeness
+
+Run automated checks to verify all translations are complete:
+
+```bash
+# Frontend (1,485 keys)
+cd frontend
+node scripts/check-translations.js
+
+# Backend
+cd backend
+python scripts/check_translations.py
+```
+
 ## Tech Stack
 
-- **Frontend**: React, TypeScript, Chakra UI, Recharts
-- **Backend**: Python, Flask, MySQL, Google‑Drive, Gmail APIs
+- **Frontend**: React, TypeScript, Chakra UI, Recharts, react-i18next
+- **Backend**: Python, Flask, MySQL, Google‑Drive, Gmail APIs, Flask-Babel
 - **AI Integration**: OpenRouter API (GPT‑3.5‑turbo) for invoice extraction
 - **Processing**: PyPDF2, pdfplumber, pandas, openpyxl
 - **Pricing**: Business logic + AI correction factors
 - **Export**: HTML & XLSX (R script logic)
 - **Realtime**: Server‑Sent Events for progress tracking
+- **i18n**: react-i18next (frontend), Flask-Babel (backend), date-fns (formatting)
