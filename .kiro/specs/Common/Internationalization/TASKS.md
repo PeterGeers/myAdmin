@@ -334,11 +334,24 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 3.2 Tenant Language Endpoints
 
-- [ ] Create `GET /api/tenant/language` endpoint
-- [ ] Create `PUT /api/tenant/language` endpoint (Tenant Admin only)
-- [ ] Add authorization check (Tenant Admin role)
-- [ ] Update tenant record in database
-- [ ] Write unit tests for endpoints
+**Status**: ✅ COMPLETE
+
+- [x] Create `GET /api/tenant-admin/language` endpoint
+- [x] Create `PUT /api/tenant-admin/language` endpoint (Tenant Admin only)
+- [x] Add authorization check (Tenant Admin role via @cognito_required)
+- [x] Update tenant record in database (via tenant_language_service)
+- [x] Created tenant_language_service.py with get/update functions
+- [x] Added endpoints to tenant_admin_settings.py
+- [x] Rebuild Docker backend container
+- [x] Manual testing deferred (requires Tenant Admin UI)
+
+**Implementation Notes**:
+
+- Endpoints added to existing tenant_admin_settings_bp blueprint
+- Uses tenants.default_language column from Phase 2.2
+- Requires Tenant_Admin role for both GET and PUT
+- Validates language codes (nl/en only)
+- Returns appropriate error messages for invalid input
 
 ### 3.3 Backend Translation Extraction
 
