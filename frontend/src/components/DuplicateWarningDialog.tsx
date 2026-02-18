@@ -28,6 +28,7 @@ import {
     useColorModeValue
 } from '@chakra-ui/react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Transaction {
   id: string;
@@ -62,6 +63,8 @@ const DuplicateWarningDialog: React.FC<DuplicateWarningProps> = ({
   onCancel,
   isLoading = false
 }) => {
+  const { t } = useTranslation();
+  
   // Use consistent colors with myAdmin theme
   const bgColor = useColorModeValue('white', '#1a1a1a');
   const textColor = useColorModeValue('black', 'white');
@@ -276,7 +279,7 @@ const DuplicateWarningDialog: React.FC<DuplicateWarningProps> = ({
               isDisabled={isLoading}
               size="md"
             >
-              Cancel Import
+              {t('common:buttons.cancel')} Import
             </Button>
             
             <Button
@@ -285,11 +288,11 @@ const DuplicateWarningDialog: React.FC<DuplicateWarningProps> = ({
               _hover={{ bg: "#e55a00" }}
               onClick={onContinue}
               isLoading={isLoading}
-              loadingText="Processing..."
+              loadingText={t('common:status.processing')}
               spinner={<Spinner size="sm" />}
               size="md"
             >
-              Continue Anyway
+              {t('common:buttons.continue')} Anyway
             </Button>
           </HStack>
         </ModalFooter>
