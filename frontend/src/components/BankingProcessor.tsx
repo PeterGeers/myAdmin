@@ -1396,19 +1396,19 @@ const BankingProcessor: React.FC = () => {
                 <Table size="sm" variant="simple">
                   <Thead position="sticky" top={0} bg="gray.700" zIndex={1}>
                     <Tr>
-                      <Th color="white">ID</Th>
-                      <Th color="white">TrxNumber</Th>
-                      <Th color="white">Date</Th>
-                      <Th color="white" maxW="225px">Description</Th>
-                      <Th color="white">Amount</Th>
-                      <Th color="white">Debet</Th>
-                      <Th color="white">Credit</Th>
-                      <Th color="white" maxW="100px">Reference</Th>
-                      <Th color="white" maxW="100px">Ref1</Th>
-                      <Th color="white" maxW="100px">Ref2</Th>
-                      <Th color="white" maxW="100px">Ref3</Th>
-                      <Th color="white" maxW="100px">Ref4</Th>
-                      <Th color="white">Admin</Th>
+                      <Th color="white">{t('table.id')}</Th>
+                      <Th color="white">{t('table.transactionNumber')}</Th>
+                      <Th color="white">{t('table.transactionDate')}</Th>
+                      <Th color="white" maxW="225px">{t('table.description')}</Th>
+                      <Th color="white">{t('table.amount')}</Th>
+                      <Th color="white">{t('table.debit')}</Th>
+                      <Th color="white">{t('table.credit')}</Th>
+                      <Th color="white" maxW="100px">{t('table.referenceNumber')}</Th>
+                      <Th color="white" maxW="100px">{t('table.ref1')}</Th>
+                      <Th color="white" maxW="100px">{t('table.ref2')}</Th>
+                      <Th color="white" maxW="100px">{t('table.ref3')}</Th>
+                      <Th color="white" maxW="100px">{t('table.ref4')}</Th>
+                      <Th color="white">{t('table.administration')}</Th>
                     </Tr>
                     <Tr>
                       <Th p={1}><Input size="xs" placeholder="ID" value={columnFilters.ID} onChange={(e) => setColumnFilters(prev => ({ ...prev, ID: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
