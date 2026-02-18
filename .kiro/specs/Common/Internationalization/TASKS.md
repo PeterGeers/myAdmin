@@ -1052,13 +1052,19 @@ resource "aws_cognito_user_pool" "main" {
   - [x] Test with multiple browsers/devices (same user, same language preference)
   - [x] Test new user login (should use tenant default language initially)
   - [x] Clear localStorage, log in again, verify language loads from Cognito
-- [x] Test API with X-Language header
+- [x] Test API with X-Language header ✅ COMPLETE
   - [x] Verify backend endpoints return translated error messages
   - [x] Test with X-Language: nl header (Dutch responses)
   - [x] Test with X-Language: en header (English responses)
   - [x] Test with missing X-Language header (should default to nl)
   - [x] Test with invalid X-Language header (should fallback to nl)
   - [x] Verify frontend sends X-Language header with all API requests
+  - **Completion Notes**:
+    - Frontend: Updated `apiService.ts` to read current language from localStorage and add X-Language header to all requests
+    - Frontend: Created `apiService.test.ts` with 9 tests covering X-Language header functionality (all passing)
+    - Backend: Created `test_i18n_api.py` with 12 integration tests covering X-Language header handling (all passing)
+    - Tests verify: nl/en headers, missing header defaults to nl, invalid header fallback to nl, header persistence across requests
+    - Tests verify: header updates when language changes, header sent with GET/POST/PUT/DELETE requests
 - [x] ~~Test report generation in both languages~~ - SKIPPED (tenant-specific)
   - [x] ~~Switch to Dutch, generate Mutaties report, verify column headers and labels~~
   - [x] ~~Switch to English, generate Mutaties report, verify column headers and labels~~
