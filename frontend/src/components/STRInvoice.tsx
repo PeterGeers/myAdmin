@@ -106,7 +106,7 @@ const STRInvoice: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast, startDate]);
+  }, [toast, startDate, endDate, t]);
 
   // Load all bookings on component mount and when startDate or endDate changes
   useEffect(() => {
