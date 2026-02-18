@@ -1,5 +1,216 @@
 {
   "title": "Short-Term Rental",
-  "pricing": "Prijsoptimalisatie",
-  "channels": "Kanalen"
+  "processor": {
+    "title": "STR Bestandsverwerking",
+    "fileProcessing": "Bestandsverwerking",
+    "uploadBookingFile": "Boekingsbestand Uploaden",
+    "processFile": "Bestand Verwerken",
+    "importPayout": "Payout Importeren",
+    "processing": "Verwerken...",
+    "writeBnbFuture": "BNB Toekomst Schrijven",
+    "writing": "Schrijven...",
+    "importLinks": "Importeer Links",
+    "selectedFile": "Geselecteerd",
+    "platforms": {
+      "airbnb": "Airbnb",
+      "booking": "Booking.com Excel",
+      "direct": "Direct",
+      "payout": "Booking.com Payout"
+    },
+    "payoutInfo": {
+      "title": "Payout CSV Import:",
+      "description": "Upload maandelijkse Payout CSV om boekingen bij te werken met werkelijke financiële cijfers",
+      "format": "Verwacht formaat: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv"
+    },
+    "payoutResults": {
+      "title": "Payout Import Resultaten",
+      "totalRows": "Totaal Rijen",
+      "reservations": "Reserveringen",
+      "updatesPrepared": "Updates Voorbereid",
+      "updated": "Bijgewerkt",
+      "notFound": "Niet Gevonden",
+      "errors": "Fouten",
+      "notFoundInDatabase": "Reserveringen Niet Gevonden in Database:",
+      "andMore": "... en {{count}} meer",
+      "mayBeCancelled": "Deze reserveringen kunnen geannuleerde boekingen, testboekingen of van andere accommodaties zijn.",
+      "errorsList": "Fouten:"
+    },
+    "importDataLinks": {
+      "title": "Importeer Data Links",
+      "period": "Periode: {{from}} tot {{to}}",
+      "bookingStudios": "Booking.com Studios:",
+      "bookingPayout": "Booking.com Payout:",
+      "financialReports": "Financiële Rapporten (Download maandelijkse Payout CSV)",
+      "airbnb": "Airbnb:",
+      "allReservations": "Alles (Selecteer periode & download BTW factuur)",
+      "jabakiDirect": "JaBaKi Direct:",
+      "fileLocation": "Bestand al op: C:\\Users\\peter\\OneDrive\\R\\AirBnB\\data"
+    },
+    "summary": {
+      "title": "Samenvatting",
+      "totalBookings": "Totaal Boekingen",
+      "totalNights": "Totaal Nachten",
+      "totalGross": "Totaal Bruto",
+      "channels": "Kanalen"
+    },
+    "reviewBookings": {
+      "title": "Boekingen Beoordelen",
+      "realised": "Gerealiseerd",
+      "planned": "Gepland",
+      "alreadyLoaded": "Al Geladen",
+      "approveAndSave": "Goedkeuren & Opslaan in Database",
+      "saving": "Opslaan..."
+    },
+    "table": {
+      "channel": "Kanaal",
+      "guest": "Gast",
+      "listing": "Accommodatie",
+      "checkIn": "Inchecken",
+      "checkOut": "Uitchecken",
+      "nights": "Nachten",
+      "guests": "Gasten",
+      "gross": "Bruto",
+      "fee": "Kosten",
+      "net": "Netto",
+      "status": "Status",
+      "code": "Code"
+    },
+    "messages": {
+      "invalidPayoutFormat": "Ongeldig Payout bestandsformaat. Verwacht: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv",
+      "payoutImportSuccess": "✅ Payout import succesvol! {{updated}} boekingen bijgewerkt. {{notFound}}",
+      "notFoundWarning": "⚠️ {{count}} reserveringen niet gevonden in database.",
+      "processedSuccess": "Verwerkt {{realised}} gerealiseerd, {{planned}} gepland, {{alreadyLoaded}} al geladen boekingen van {{filename}}",
+      "failedToSave": "Kan boekingen niet opslaan",
+      "failedToUpload": "Kan bestand niet uploaden en verwerken",
+      "failedToWriteFuture": "Kan BNB toekomstige gegevens niet schrijven"
+    }
+  },
+  "pricing": {
+    "title": "💰 STR Prijsoptimalisatie",
+    "generatePricing": "Prijzen Genereren",
+    "generating": "Genereren...",
+    "allListings": "Alle Accommodaties",
+    "multipliersSummary": {
+      "title": "Prijsvermenigvuldigers Samenvatting",
+      "listing": "Accommodatie",
+      "baseRate": "Basisprijs",
+      "historical": "Historisch",
+      "occupancy": "Bezetting",
+      "revenueTrend": "Omzettrend",
+      "event": "Evenement",
+      "aiCorrection": "AI Correctie",
+      "records": "Records",
+      "noData": "Geen vermenigvuldigersgegevens beschikbaar. Genereer prijzen om vermenigvuldigers te zien."
+    },
+    "trendChart": {
+      "title": "Historisch vs Aanbevolen ADR Trend",
+      "historicalAdr": "Historische ADR",
+      "recommendedAdr": "Aanbevolen ADR",
+      "baseRate": "Basisprijs",
+      "noData": "Geen trendgegevens beschikbaar"
+    },
+    "monthlyMultipliers": {
+      "title": "Maandelijkse Vermenigvuldigers per Accommodatie",
+      "baseRate": "Basisprijs",
+      "historical": "Historisch",
+      "occupancy": "Bezetting",
+      "pace": "Tempo",
+      "event": "Evenement",
+      "aiCorrection": "AI Correctie",
+      "btw": "BTW",
+      "noData": "Geen gegevens beschikbaar voor vermenigvuldigersanalyse"
+    },
+    "quarterlySummary": {
+      "title": "Kwartaaloverzicht",
+      "quarter": "Kwartaal",
+      "recHist": "Aanb | Hist",
+      "total": "TOTAAL",
+      "noData": "Geen gegevens beschikbaar voor kwartaaloverzicht"
+    },
+    "recommendations": {
+      "title": "Prijsaanbevelingen",
+      "date": "Datum",
+      "recommended": "Aanbevolen",
+      "historical": "Historisch",
+      "variance": "Variantie",
+      "weekend": "Weekend",
+      "event": "Evenement",
+      "reasoning": "Redenering",
+      "noData": "Geen aanbevelingen beschikbaar",
+      "loading": "Laden..."
+    },
+    "messages": {
+      "errorLoadingListings": "Fout bij laden van accommodaties",
+      "errorLoadingRecommendations": "Fout bij laden van aanbevelingen",
+      "errorLoadingMultipliers": "Fout bij laden van vermenigvuldigers",
+      "pricingGeneratedSuccess": "Prijzen succesvol gegenereerd",
+      "generatedDailyPrices": "{{count}} dagprijzen gegenereerd",
+      "errorGeneratingPricing": "Fout bij genereren van prijzen"
+    }
+  },
+  "invoice": {
+    "title": "STR Factuur Generator",
+    "filterBookings": "Boekingen Filteren",
+    "startDate": "Startdatum",
+    "endDate": "Einddatum",
+    "search": "Zoeken",
+    "searchPlaceholder": "Filter op gastnaam, reserveringscode, kanaal of accommodatie",
+    "language": "Taal",
+    "languages": {
+      "nl": "Nederlands",
+      "en": "English"
+    },
+    "filter": "Filteren",
+    "filtering": "Filteren...",
+    "clear": "Wissen",
+    "reload": "Herladen",
+    "reloading": "Herladen...",
+    "loadingBookings": "Boekingen laden...",
+    "bookingsLoaded": "{{count}} boekingen geladen. Gebruik zoeken om resultaten te filteren.",
+    "filteredResults": "Gefilterde Resultaten ({{filtered}} van {{total}})",
+    "allBookings": "Alle Boekingen ({{count}})",
+    "table": {
+      "reservationCode": "Reserveringscode",
+      "guestName": "Gastnaam",
+      "channel": "Kanaal",
+      "listing": "Accommodatie",
+      "checkIn": "Inchecken",
+      "nights": "Nachten",
+      "amount": "Bedrag",
+      "action": "Actie",
+      "generateInvoice": "Genereer Factuur"
+    },
+    "billingAddress": {
+      "title": "Factuuradres - {{code}}",
+      "leaveEmpty": "Laat velden leeg om standaardwaarden te gebruiken",
+      "defaultName": "Standaard: {{name}}",
+      "defaultAddress": "Standaard: Via {{channel}}",
+      "defaultCity": "Standaard: Reservering: {{code}}",
+      "generate": "Genereer Factuur",
+      "cancel": "Annuleren"
+    },
+    "invoicePreview": {
+      "title": "Factuurvoorbeeld - {{code}}",
+      "print": "Factuur Afdrukken"
+    },
+    "messages": {
+      "bookingsLoadedSuccess": "Boekingen Geladen",
+      "bookingsLoadedCount": "{{count}} boekingen succesvol geladen",
+      "loadingError": "Fout bij Laden",
+      "failedToLoadBookings": "Kan boekingen niet laden",
+      "noResults": "Geen Resultaten",
+      "noBookingsFound": "Geen boekingen gevonden die overeenkomen met uw zoekopdracht",
+      "invoiceGeneratedSuccess": "Succes",
+      "invoiceGenerated": "Factuur succesvol gegenereerd",
+      "generationError": "Generatiefout",
+      "failedToGenerateInvoice": "Kan factuur niet genereren",
+      "noBookingsInDatabase": "Geen boekingen gevonden in database",
+      "noMatchingBookings": "Geen boekingen komen overeen met uw filter \"{{query}}\"",
+      "clearFilter": "Filter Wissen"
+    }
+  },
+  "reports": {
+    "title": "STR Rapporten",
+    "noPermission": "U heeft geen toestemming om STR-rapporten te bekijken. Neem contact op met uw beheerder."
+  }
 }
