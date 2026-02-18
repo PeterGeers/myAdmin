@@ -1,5 +1,256 @@
 {
-  "title": "Administration",
-  "users": "Users",
-  "settings": "Settings"
+  "sysAdmin": {
+    "title": "System Administration",
+    "loading": "Loading System Administration...",
+    "accessDenied": "Access Denied",
+    "noPermissions": "You do not have System Administrator permissions",
+    "tabs": {
+      "tenantManagement": "Tenant Management",
+      "roleManagement": "Role Management",
+      "healthCheck": "Health Check"
+    }
+  },
+  "tenantAdmin": {
+    "title": "Tenant Administration",
+    "loading": "Loading Tenant Administration...",
+    "accessDenied": "Access Denied",
+    "noPermissions": "You do not have Tenant Admin permissions",
+    "noTenants": "No tenants assigned to your account",
+    "selectTenant": "Please select a tenant from the header to continue",
+    "tabs": {
+      "userManagement": "User Management",
+      "chartOfAccounts": "Chart of Accounts",
+      "templateManagement": "Template Management",
+      "credentials": "Credentials",
+      "configuration": "Configuration",
+      "tenantDetails": "Tenant Details"
+    }
+  },
+  "tenantManagement": {
+    "title": "Tenant Management",
+    "loading": "Loading tenants...",
+    "createTenant": "Create Tenant",
+    "editTenant": "Edit Tenant",
+    "deleteTenant": "Delete Tenant",
+    "viewTenant": "Tenant Details",
+    "search": "Search",
+    "searchPlaceholder": "Search tenants...",
+    "status": "Status",
+    "allStatus": "All Status",
+    "total": "Total",
+    "rowsPerPage": "Rows per page",
+    "page": "Page",
+    "of": "of",
+    "table": {
+      "administration": "Administration",
+      "displayName": "Display Name",
+      "status": "Status",
+      "modules": "Modules",
+      "users": "Users",
+      "created": "Created"
+    },
+    "modal": {
+      "createTitle": "Create New Tenant",
+      "editTitle": "Edit Tenant: {{name}}",
+      "viewTitle": "Tenant Details: {{name}}",
+      "administrationId": "Administration ID",
+      "administrationPlaceholder": "e.g., goodwinsolutions",
+      "administrationHelp": "Lowercase, no spaces. Cannot be changed later.",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "e.g., Goodwin Solutions",
+      "contactEmail": "Contact Email",
+      "contactEmailPlaceholder": "admin@example.com",
+      "phoneNumber": "Phone Number",
+      "phonePlaceholder": "+31 6 12345678",
+      "streetAddress": "Street Address",
+      "streetPlaceholder": "123 Main Street",
+      "city": "City",
+      "cityPlaceholder": "Amsterdam",
+      "zipcode": "Zipcode",
+      "zipcodePlaceholder": "1012 AB",
+      "country": "Country",
+      "countryPlaceholder": "Netherlands",
+      "enabledModules": "Enabled Modules",
+      "moduleFinancial": "FIN - Financial Management",
+      "moduleSTR": "STR - Short-Term Rental",
+      "moduleAutoAdded": "TENADMIN module is added automatically",
+      "additionalInfo": "Additional Information:",
+      "userCount": "Users",
+      "createdAt": "Created",
+      "updatedAt": "Updated"
+    },
+    "actions": {
+      "close": "Close",
+      "edit": "Edit",
+      "delete": "Delete",
+      "manageModules": "Manage Modules",
+      "cancel": "Cancel",
+      "update": "Update",
+      "create": "Create",
+      "previousPage": "Previous page",
+      "nextPage": "Next page"
+    },
+    "deleteDialog": {
+      "title": "Delete Tenant",
+      "confirmMessage": "Are you sure you want to delete tenant",
+      "warning": "Warning: This action cannot be undone.",
+      "hasUsers": "This tenant has {{count}} user(s)."
+    },
+    "messages": {
+      "validationError": "Validation Error",
+      "requiredFields": "Administration, display name, and contact email are required",
+      "tenantCreated": "Tenant created",
+      "tenantCreatedSuccess": "Tenant \"{{name}}\" created successfully",
+      "errorCreating": "Error creating tenant",
+      "tenantUpdated": "Tenant updated",
+      "tenantUpdatedSuccess": "Tenant \"{{name}}\" updated successfully",
+      "errorUpdating": "Error updating tenant",
+      "tenantDeleted": "Tenant deleted",
+      "tenantDeletedSuccess": "Tenant \"{{name}}\" deleted",
+      "errorDeleting": "Error deleting tenant",
+      "errorLoading": "Error loading tenants",
+      "unknownError": "Unknown error"
+    },
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended",
+      "inactive": "Inactive",
+      "deleted": "Deleted"
+    }
+  },
+  "userManagement": {
+    "title": "User Management",
+    "loading": "Loading users...",
+    "createUser": "Create User",
+    "editUser": "Edit User",
+    "deleteUser": "Delete User",
+    "search": "Search",
+    "searchPlaceholder": "Search users...",
+    "role": "Role",
+    "allRoles": "All Roles",
+    "table": {
+      "email": "Email",
+      "name": "Name",
+      "role": "Role",
+      "status": "Status",
+      "lastLogin": "Last Login",
+      "actions": "Actions"
+    }
+  },
+  "roleManagement": {
+    "title": "Role Management",
+    "loading": "Loading roles...",
+    "createRole": "Create Role",
+    "editRole": "Edit Role",
+    "deleteRole": "Delete Role"
+  },
+  "healthCheck": {
+    "title": "System Health Check",
+    "loading": "Checking system health...",
+    "refresh": "Refresh",
+    "lastChecked": "Last checked",
+    "status": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "unhealthy": "Unhealthy"
+    },
+    "components": {
+      "database": "Database",
+      "api": "API",
+      "storage": "Storage",
+      "authentication": "Authentication"
+    }
+  },
+  "chartOfAccounts": {
+    "title": "Chart of Accounts",
+    "loading": "Loading chart of accounts...",
+    "createAccount": "Create Account",
+    "editAccount": "Edit Account",
+    "deleteAccount": "Delete Account",
+    "search": "Search",
+    "searchPlaceholder": "Search accounts...",
+    "export": "Export",
+    "import": "Import"
+  },
+  "templateManagement": {
+    "title": "Template Management",
+    "loading": "Loading templates...",
+    "createTemplate": "Create Template",
+    "editTemplate": "Edit Template",
+    "deleteTemplate": "Delete Template",
+    "preview": "Preview"
+  },
+  "credentials": {
+    "title": "Credentials Management",
+    "loading": "Loading credentials...",
+    "addCredential": "Add Credential",
+    "editCredential": "Edit Credential",
+    "deleteCredential": "Delete Credential",
+    "service": "Service",
+    "status": "Status"
+  },
+  "configuration": {
+    "title": "Tenant Configuration",
+    "loading": "Loading configuration...",
+    "save": "Save",
+    "reset": "Reset",
+    "general": "General",
+    "modules": "Modules",
+    "features": "Features",
+    "integrations": "Integrations"
+  },
+  "tenantDetails": {
+    "title": "Tenant Details",
+    "loading": "Loading tenant details...",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "basicInfo": "Basic Information",
+    "contactInfo": "Contact Information",
+    "billingInfo": "Billing Information",
+    "subscription": "Subscription"
+  },
+  "moduleManagement": {
+    "title": "Module Management",
+    "loading": "Loading modules...",
+    "save": "Save Changes",
+    "cancel": "Cancel",
+    "availableModules": "Available Modules",
+    "enabledModules": "Enabled Modules",
+    "description": "Description",
+    "enable": "Enable",
+    "disable": "Disable"
+  },
+  "common": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "deleting": "Deleting...",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "required": "Required",
+    "optional": "Optional",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  }
 }

@@ -658,11 +658,32 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 9.1 Admin Translations
 
-- [ ] Extract admin strings to `admin.json`
-- [ ] Translate SysAdmin module
-- [ ] Translate Tenant Admin module
-- [ ] Translate User Management
-- [ ] Translate Settings pages
+- [x] Extract admin strings to `admin.json` (200+ keys created)
+- [x] Translate SysAdmin module (dashboard, tenant management, role management, health check)
+- [x] Translate Tenant Admin module (dashboard, user management, chart of accounts, templates, credentials, configuration, tenant details)
+- [x] Translate User Management (table, actions, modals)
+- [x] Translate Settings pages (configuration, module management)
+
+**Translation Keys Created** (8 main categories):
+
+- sysAdmin: 7 keys (dashboard, tabs, messages)
+- tenantAdmin: 10 keys (dashboard, tabs, messages)
+- tenantManagement: 60+ keys (table, modal, actions, delete dialog, messages, status)
+- userManagement: 12 keys (table, actions, search)
+- roleManagement: 5 keys (basic CRUD operations)
+- healthCheck: 10 keys (status, components, actions)
+- chartOfAccounts: 8 keys (CRUD operations, search, export/import)
+- templateManagement: 6 keys (CRUD operations, preview)
+- credentials: 7 keys (CRUD operations, service, status)
+- configuration: 9 keys (sections, actions)
+- tenantDetails: 9 keys (sections, actions)
+- moduleManagement: 9 keys (enable/disable, save)
+- common: 40+ keys (shared admin UI strings)
+
+**Files Created**:
+
+- `frontend/src/locales/en/admin.json` (200+ keys)
+- `frontend/src/locales/nl/admin.json` (200+ keys)
 
 ### 9.2 Admin Components
 
