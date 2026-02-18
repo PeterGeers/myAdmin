@@ -2,7 +2,6 @@
 
 **Status**: Draft
 **Created**: February 5, 2026
-**Priority**: High - Blocks Phase 3 & 4 implementation
 
 ---
 
@@ -17,6 +16,7 @@ Make myAdmin fully language-agnostic, supporting multiple languages throughout t
 ### What Needs Translation
 
 **Frontend (React):**
+
 - ✅ UI labels, buttons, menus
 - ✅ Form labels and placeholders
 - ✅ Error messages and validation
@@ -25,6 +25,7 @@ Make myAdmin fully language-agnostic, supporting multiple languages throughout t
 - ✅ Email templates (user-facing)
 
 **Backend (Python):**
+
 - ✅ API error messages
 - ✅ Email templates (system-generated)
 - ✅ Report headers and labels
@@ -32,12 +33,14 @@ Make myAdmin fully language-agnostic, supporting multiple languages throughout t
 - ✅ Notification messages
 
 **Database:**
+
 - ✅ Chart of accounts (account names)
 - ✅ VAT rule descriptions
 - ✅ Template metadata
 - ✅ System messages
 
 **Templates:**
+
 - ✅ Report templates (HTML/XLSX)
 - ✅ Invoice templates
 - ✅ Email templates
@@ -47,10 +50,12 @@ Make myAdmin fully language-agnostic, supporting multiple languages throughout t
 ## 🌍 Supported Languages
 
 ### Phase 1 (Initial)
+
 - 🇳🇱 **Dutch (nl)** - Primary language
 - 🇬🇧 **English (en)** - Secondary language
 
 ### Phase 2 (Future)
+
 - 🇩🇪 German (de)
 - 🇫🇷 French (fr)
 - 🇪🇸 Spanish (es)
@@ -64,6 +69,7 @@ Make myAdmin fully language-agnostic, supporting multiple languages throughout t
 **Library**: `react-i18next` + `i18next`
 
 **Structure:**
+
 ```
 frontend/src/
 ├── locales/
@@ -91,12 +97,13 @@ frontend/src/
 ```
 
 **Usage Example:**
+
 ```typescript
 import { useTranslation } from 'react-i18next';
 
 function MyComponent() {
   const { t } = useTranslation('common');
-  
+
   return (
     <Button>{t('save')}</Button>
     <Text>{t('welcome', { name: user.name })}</Text>
@@ -109,6 +116,7 @@ function MyComponent() {
 **Library**: `Flask-Babel`
 
 **Structure:**
+
 ```
 backend/
 ├── translations/
@@ -128,6 +136,7 @@ backend/
 ```
 
 **Usage Example:**
+
 ```python
 from flask_babel import gettext as _
 
@@ -144,6 +153,7 @@ def example():
 ## 📋 Implementation Plan
 
 ### Phase 1: Infrastructure Setup (2 days)
+
 - [ ] Install and configure react-i18next (frontend)
 - [ ] Install and configure Flask-Babel (backend)
 - [ ] Create translation file structure
@@ -151,6 +161,7 @@ def example():
 - [ ] Store user language preference (localStorage + database)
 
 ### Phase 2: Frontend Translation (3-4 days)
+
 - [ ] Extract all hardcoded strings
 - [ ] Create translation keys
 - [ ] Translate to Dutch and English
@@ -158,6 +169,7 @@ def example():
 - [ ] Test language switching
 
 ### Phase 3: Backend Translation (2-3 days)
+
 - [ ] Extract all hardcoded strings
 - [ ] Create .po files for nl and en
 - [ ] Translate API messages
@@ -165,12 +177,14 @@ def example():
 - [ ] Test with different languages
 
 ### Phase 4: Database Content (2 days)
+
 - [ ] Add language columns to relevant tables
 - [ ] Create multilingual chart of accounts
 - [ ] Create multilingual VAT rules
 - [ ] Migration scripts for existing data
 
 ### Phase 5: Templates (2 days)
+
 - [ ] Create language-specific report templates
 - [ ] Update template service to select by language
 - [ ] Test report generation in both languages
@@ -180,18 +194,21 @@ def example():
 ## 🗄️ Database Schema Changes
 
 ### User Preferences
+
 ```sql
-ALTER TABLE users 
+ALTER TABLE users
 ADD COLUMN preferred_language VARCHAR(5) DEFAULT 'nl';
 ```
 
 ### Tenant Settings
+
 ```sql
-ALTER TABLE tenants 
+ALTER TABLE tenants
 ADD COLUMN default_language VARCHAR(5) DEFAULT 'nl';
 ```
 
 ### Multilingual Content
+
 ```sql
 -- Chart of Accounts with translations
 CREATE TABLE account_translations (
@@ -223,21 +240,25 @@ CREATE TABLE vat_rule_translations (
 ### Language Selection
 
 **User Level:**
+
 - User can select preferred language in profile settings
 - Language persists across sessions
 - Overrides tenant default
 
 **Tenant Level:**
+
 - Tenant Admin sets default language for tenant
 - New users inherit tenant default
 - Can be overridden per user
 
 **System Level:**
+
 - SysAdmin sets platform default (Dutch)
 - Used for new tenants
 - Used for unauthenticated pages (login, etc.)
 
 ### Language Switcher UI
+
 ```
 ┌─────────────────────────────────┐
 │  myAdmin                    🌍 NL│
@@ -254,6 +275,7 @@ CREATE TABLE vat_rule_translations (
 ## 📝 Translation File Examples
 
 ### frontend/src/locales/nl/common.json
+
 ```json
 {
   "save": "Opslaan",
@@ -269,6 +291,7 @@ CREATE TABLE vat_rule_translations (
 ```
 
 ### frontend/src/locales/en/common.json
+
 ```json
 {
   "save": "Save",
@@ -284,6 +307,7 @@ CREATE TABLE vat_rule_translations (
 ```
 
 ### frontend/src/locales/nl/reports.json
+
 ```json
 {
   "title": "Rapporten",
@@ -303,20 +327,22 @@ CREATE TABLE vat_rule_translations (
 ## 🔗 Integration Points
 
 ### Starter Package System
+
 - Chart of accounts: `default_nl.json`, `default_en.json`
 - VAT rules: `netherlands_nl.json`, `netherlands_en.json`
 - Templates: `str_invoice_nl.html`, `str_invoice_en.html`
 - Email templates: `invitation_nl.html`, `invitation_en.html`
 
 ### Report Generation
+
 ```python
 def generate_report(tenant, report_type, language):
     # Get template in user's language
     template = get_template(report_type, language)
-    
+
     # Get translations for report labels
     labels = get_report_labels(report_type, language)
-    
+
     # Generate report
     return render_template(template, data=data, labels=labels)
 ```
@@ -326,16 +352,19 @@ def generate_report(tenant, report_type, language):
 ## ⚠️ Impact on Existing Specs
 
 ### SysAdmin Module
+
 - **Update**: Starter Package Management must support multiple languages
 - **Add**: Language selection when creating tenant
 - **Add**: Upload translations for chart of accounts, VAT rules
 
 ### Tenant Admin Module
+
 - **Update**: Template Management must support language selection
 - **Add**: Language preference in tenant settings
 - **Add**: User language preference management
 
 ### Railway Migration
+
 - **Blocker**: Phase 3 & 4 should implement i18n from the start
 - **Recommendation**: Add Phase 2.5 for i18n infrastructure
 
@@ -343,14 +372,14 @@ def generate_report(tenant, report_type, language):
 
 ## 📊 Estimated Effort
 
-| Phase | Effort | Priority |
-|-------|--------|----------|
-| Infrastructure Setup | 2 days | High |
-| Frontend Translation | 3-4 days | High |
-| Backend Translation | 2-3 days | High |
-| Database Content | 2 days | Medium |
-| Templates | 2 days | Medium |
-| **Total** | **11-13 days** | **2-3 weeks** |
+| Phase                | Effort         | Priority      |
+| -------------------- | -------------- | ------------- |
+| Infrastructure Setup | 2 days         | High          |
+| Frontend Translation | 3-4 days       | High          |
+| Backend Translation  | 2-3 days       | High          |
+| Database Content     | 2 days         | Medium        |
+| Templates            | 2 days         | Medium        |
+| **Total**            | **11-13 days** | **2-3 weeks** |
 
 ---
 
@@ -373,32 +402,31 @@ def generate_report(tenant, report_type, language):
 
 ---
 
-## 🆘 Questions to Answer
+## ✅ Decisions Made
 
-1. **When to implement?** 
-   - Option A: Before Phase 3 (recommended - clean slate)
-   - Option B: After Phase 5 (refactor existing code)
+1. **When to implement?**
+   - ✅ **Start now** - Railway migration is complete
 
 2. **Translation workflow?**
-   - Who translates? (You, professional translator, AI?)
-   - How to manage translations? (JSON files, translation service?)
+   - ✅ **Who translates?** Kiro AI + User (Peter)
+   - ✅ **How to manage?** JSON files in version control
 
 3. **Date/Number formatting?**
-   - Dutch: 1.234,56 (comma decimal, dot thousands)
-   - English: 1,234.56 (dot decimal, comma thousands)
+   - ✅ **Dutch**: 1.234,56 (comma decimal, dot thousands)
+   - ✅ **English**: 1,234.56 (dot decimal, comma thousands)
+   - ✅ **Implementation**: Use `date-fns` with locale support
 
 4. **Currency?**
-   - Always EUR, or support multiple currencies?
+   - ✅ **Single currency only**: EUR (€)
+   - ✅ **Future**: Multi-currency support deferred to Phase 2
 
 ---
 
 ## Next Steps
 
-1. Review this specification
-2. Decide when to implement (before or after Phase 3?)
-3. Create detailed requirements.md and design.md
-4. Update Railway migration plan to include i18n phase
+1. ✅ Review this specification - COMPLETE
+2. ⏭️ Create detailed requirements.md
+3. ⏭️ Create detailed design.md
+4. ⏭️ Create TASKS.md with implementation checklist
 
 ---
-
-**This is a foundational change that affects everything. Should we implement it before continuing with Phase 3 & 4?**
