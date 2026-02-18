@@ -457,7 +457,6 @@ const BankingProcessor: React.FC = () => {
       if (data.success) {
         setBankingBalances(data.balances);
         console.log('Setting balances:', data.balances);
-        const dateMsg = endDate ? ` as of ${endDate}` : '';
         setMessage(endDate 
           ? t('messages.foundAccountsAsOf', { count: data.count, date: endDate })
           : t('messages.foundAccounts', { count: data.count })
@@ -471,7 +470,7 @@ const BankingProcessor: React.FC = () => {
     } finally {
       setCheckingAccounts(false);
     }
-  }, [testMode, endDate]);
+  }, [testMode, endDate, t]);
 
   const checkSequenceNumbers = useCallback(async () => {
     try {
@@ -504,7 +503,7 @@ const BankingProcessor: React.FC = () => {
     } finally {
       setCheckingSequence(false);
     }
-  }, [testMode, selectedAccount, sequenceStartDate]);
+  }, [testMode, selectedAccount, sequenceStartDate, t]);
 
   const fetchCheckRefOptions = async () => {
     try {
