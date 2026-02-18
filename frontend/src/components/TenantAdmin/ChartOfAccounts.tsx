@@ -37,12 +37,14 @@ import { Account, AccountFormData } from '../../types/chartOfAccounts';
 import AccountModal from './AccountModal';
 import { FilterPanel } from '../filters/FilterPanel';
 import { SearchFilterConfig } from '../filters/types';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 interface ChartOfAccountsProps {
   tenant: string;
 }
 
 const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
+  const { t } = useTypedTranslation('admin');
   // State
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
@@ -79,8 +81,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
         setHasFIN(false);
       } else {
         toast({
-          title: 'Error loading accounts',
-          description: error instanceof Error ? error.message : 'Unknown error',
+          title: t('chartOfAccounts.messages.errorLoading'),
+          description: error instanceof Error ? error.message : t('chartOfAccounts.messages.unknownError'),
           status: 'error',
           duration: 5000,
         });
@@ -127,14 +129,14 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       if (modalMode === 'create') {
         await createAccount(accountData);
         toast({
-          title: 'Account created',
+          title: t('chartOfAccounts.messages.accountCreated'),
           status: 'success',
           duration: 3000,
         });
       } else if (selectedAccount) {
         await updateAccount(selectedAccount.Account, accountData);
         toast({
-          title: 'Account updated',
+          title: t('chartOfAccounts.messages.accountUpdated'),
           status: 'success',
           duration: 3000,
         });
@@ -143,8 +145,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       loadAccounts();
     } catch (error) {
       toast({
-        title: modalMode === 'create' ? 'Error creating account' : 'Error updating account',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: modalMode === 'create' ? t('chartOfAccounts.messages.errorCreating') : t('chartOfAccounts.messages.errorUpdating'),
+        description: error instanceof Error ? error.message : t('chartOfAccounts.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -156,7 +158,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
     try {
       await deleteAccount(accountNumber);
       toast({
-        title: 'Account deleted',
+        title: t('chartOfAccounts.messages.accountDeleted'),
         status: 'success',
         duration: 3000,
       });
@@ -164,8 +166,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       loadAccounts();
     } catch (error) {
       toast({
-        title: 'Error deleting account',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('chartOfAccounts.messages.errorDeleting'),
+        description: error instanceof Error ? error.message : t('chartOfAccounts.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -186,15 +188,15 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       document.body.removeChild(a);
       
       toast({
-        title: 'Export successful',
-        description: 'Accounts exported to Excel',
+        title: t('chartOfAccounts.messages.exportSuccessful'),
+        description: t('chartOfAccounts.messages.exportDescription'),
         status: 'success',
         duration: 3000,
       });
     } catch (error) {
       toast({
-        title: 'Error exporting accounts',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('chartOfAccounts.messages.errorExporting'),
+        description: error instanceof Error ? error.message : t('chartOfAccounts.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -211,8 +213,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       if ('errors' in result) {
         // Validation errors
         toast({
-          title: 'Import validation errors',
-          description: `${result.errors.length} errors found. Check console for details.`,
+          title: t('chartOfAccounts.messages.importValidationErrors'),
+          description: t('chartOfAccounts.messages.importErrorsDescription', { count: result.errors.length }),
           status: 'warning',
           duration: 5000,
         });
@@ -220,8 +222,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       } else {
         // Success
         toast({
-          title: 'Import successful',
-          description: `Imported ${result.imported} new accounts, updated ${result.updated} existing accounts`,
+          title: t('chartOfAccounts.messages.importSuccessful'),
+          description: t('chartOfAccounts.messages.importDescription', { imported: result.imported, updated: result.updated }),
           status: 'success',
           duration: 5000,
         });
@@ -229,8 +231,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       }
     } catch (error) {
       toast({
-        title: 'Error importing accounts',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('chartOfAccounts.messages.errorImporting'),
+        description: error instanceof Error ? error.message : t('chartOfAccounts.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -245,7 +247,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
     return (
       <Alert status="warning">
         <AlertIcon />
-        FIN module not enabled for this tenant
+        {t('chartOfAccounts.messages.finModuleNotEnabled')}
       </Alert>
     );
   }
@@ -264,7 +266,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       {/* Header with actions and results summary */}
       <HStack justify="space-between" wrap="wrap">
         <Text color="gray.400" fontSize="sm">
-          Showing {filteredAccounts.length} of {accounts.length} accounts
+          {t('chartOfAccounts.showingResults', { filtered: filteredAccounts.length, total: accounts.length })}
         </Text>
         <HStack spacing={2}>
           <Button
@@ -273,7 +275,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
             onClick={handleExport}
             size="sm"
           >
-            Export
+            {t('chartOfAccounts.export')}
           </Button>
           <Button
             as="label"
@@ -282,7 +284,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
             size="sm"
             cursor="pointer"
           >
-            Import
+            {t('chartOfAccounts.import')}
             <input
               type="file"
               accept=".xlsx,.xls"
@@ -296,7 +298,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
             onClick={handleAddClick}
             size="sm"
           >
-            Add Account
+            {t('chartOfAccounts.addAccount')}
           </Button>
         </HStack>
       </HStack>
@@ -312,52 +314,52 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
         filters={[
           {
             type: 'search',
-            label: 'Account Number',
+            label: t('chartOfAccounts.filters.accountNumber'),
             value: searchFilters.Account,
             onChange: (value) => setSearchFilters(prev => ({...prev, Account: value})),
-            placeholder: 'Search account number...'
+            placeholder: t('chartOfAccounts.filters.accountNumberPlaceholder')
           } as SearchFilterConfig,
           {
             type: 'search',
-            label: 'Account Name',
+            label: t('chartOfAccounts.filters.accountName'),
             value: searchFilters.AccountName,
             onChange: (value) => setSearchFilters(prev => ({...prev, AccountName: value})),
-            placeholder: 'Search account name...'
+            placeholder: t('chartOfAccounts.filters.accountNamePlaceholder')
           } as SearchFilterConfig,
           {
             type: 'search',
-            label: 'Lookup Code',
+            label: t('chartOfAccounts.filters.lookupCode'),
             value: searchFilters.AccountLookup,
             onChange: (value) => setSearchFilters(prev => ({...prev, AccountLookup: value})),
-            placeholder: 'Search lookup code...'
+            placeholder: t('chartOfAccounts.filters.lookupCodePlaceholder')
           } as SearchFilterConfig,
           {
             type: 'search',
-            label: 'Sub Parent',
+            label: t('chartOfAccounts.filters.subParent'),
             value: searchFilters.SubParent,
             onChange: (value) => setSearchFilters(prev => ({...prev, SubParent: value})),
-            placeholder: 'Search sub parent...'
+            placeholder: t('chartOfAccounts.filters.subParentPlaceholder')
           } as SearchFilterConfig,
           {
             type: 'search',
-            label: 'Parent',
+            label: t('chartOfAccounts.filters.parent'),
             value: searchFilters.Parent,
             onChange: (value) => setSearchFilters(prev => ({...prev, Parent: value})),
-            placeholder: 'Search parent...'
+            placeholder: t('chartOfAccounts.filters.parentPlaceholder')
           } as SearchFilterConfig,
           {
             type: 'search',
-            label: 'VW',
+            label: t('chartOfAccounts.filters.vw'),
             value: searchFilters.VW,
             onChange: (value) => setSearchFilters(prev => ({...prev, VW: value})),
-            placeholder: 'Search VW...'
+            placeholder: t('chartOfAccounts.filters.vwPlaceholder')
           } as SearchFilterConfig,
           {
             type: 'search',
-            label: 'Tax Category',
+            label: t('chartOfAccounts.filters.taxCategory'),
             value: searchFilters.Belastingaangifte,
             onChange: (value) => setSearchFilters(prev => ({...prev, Belastingaangifte: value})),
-            placeholder: 'Search tax category...'
+            placeholder: t('chartOfAccounts.filters.taxCategoryPlaceholder')
           } as SearchFilterConfig
         ]}
       />
@@ -378,7 +380,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
           })}
           size="sm"
         >
-          Clear All Filters
+          {t('chartOfAccounts.clearAllFilters')}
         </Button>
       )}
 
@@ -387,14 +389,14 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
         <Table variant="simple" size="sm">
           <Thead bg="gray.700">
             <Tr>
-              <Th color="gray.300">Account</Th>
-              <Th color="gray.300">Name</Th>
-              <Th color="gray.300">Lookup</Th>
-              <Th color="gray.300">Sub Parent</Th>
-              <Th color="gray.300">Parent</Th>
-              <Th color="gray.300">VW</Th>
-              <Th color="gray.300">Tax Category</Th>
-              <Th color="gray.300">Pattern</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.account')}</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.name')}</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.lookup')}</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.subParent')}</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.parent')}</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.vw')}</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.taxCategory')}</Th>
+              <Th color="gray.300">{t('chartOfAccounts.table.pattern')}</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -425,7 +427,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
         {filteredAccounts.length === 0 && (
           <Box textAlign="center" py={8}>
             <Text color="gray.400">
-              {Object.values(searchFilters).some(v => v) ? 'No accounts match your search' : 'No accounts found'}
+              {Object.values(searchFilters).some(v => v) ? t('chartOfAccounts.emptyState.noMatches') : t('chartOfAccounts.emptyState.noAccounts')}
             </Text>
             {Object.values(searchFilters).some(v => v) && (
               <Button
@@ -442,7 +444,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
                 })}
                 mt={2}
               >
-                Clear filters
+                {t('chartOfAccounts.clearFilters')}
               </Button>
             )}
           </Box>
