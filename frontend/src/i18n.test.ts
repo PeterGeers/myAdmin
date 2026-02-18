@@ -46,7 +46,7 @@ describe('i18n Configuration', () => {
 
   test('can translate common keys', () => {
     i18n.changeLanguage('en');
-    const translation = i18n.t('common:actions.save');
+    const translation = (i18n.t as any)('common:actions.save');
     expect(translation).toBeDefined();
     expect(translation).not.toBe('common:actions.save'); // Should be translated
   });
@@ -61,14 +61,14 @@ describe('i18n Configuration', () => {
 
   test('interpolation works', () => {
     i18n.changeLanguage('en');
-    const translation = i18n.t('common:messages.itemsCount', { count: 5 });
+    const translation = (i18n.t as any)('common:messages.itemsCount', { count: 5 });
     expect(translation).toContain('5');
   });
 
   test('falls back to English for missing translations', () => {
     i18n.changeLanguage('nl');
     // Try to get a key that might not exist
-    const translation = i18n.t('nonexistent:key:path');
+    const translation = (i18n.t as any)('nonexistent:key:path');
     // Should return the key itself as fallback
     expect(translation).toBeDefined();
   });
