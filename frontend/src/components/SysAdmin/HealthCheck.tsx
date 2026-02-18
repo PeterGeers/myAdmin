@@ -8,8 +8,10 @@ import {
 } from '@chakra-ui/react';
 import { CheckCircleIcon, WarningIcon, InfoIcon } from '@chakra-ui/icons';
 import { getSystemHealth, SystemHealth, HealthStatus } from '../../services/sysadminService';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 export function HealthCheck() {
+  const { t } = useTypedTranslation('admin');
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -29,15 +31,15 @@ export function HealthCheck() {
     } catch (error) {
       console.error('Health check error:', error);
       toast({
-        title: 'Error loading health status',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('healthCheck.messages.errorLoading'),
+        description: error instanceof Error ? error.message : t('healthCheck.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
   useEffect(() => {
     loadHealth();
@@ -102,11 +104,11 @@ export function HealthCheck() {
   const getTimeSinceLastCheck = () => {
     if (!lastChecked) return '';
     const seconds = Math.floor((Date.now() - lastChecked.getTime()) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 60) return t('healthCheck.timeSince.seconds', { count: seconds });
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 60) return t('healthCheck.timeSince.minutes', { count: minutes });
     const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
+    return t('healthCheck.timeSince.hours', { count: hours });
   };
 
   return (
@@ -116,11 +118,11 @@ export function HealthCheck() {
         <HStack justify="space-between" wrap="wrap" spacing={4}>
           <VStack align="start" spacing={1}>
             <Text fontSize="2xl" fontWeight="bold" color="orange.400">
-              System Health Check
+              {t('healthCheck.title')}
             </Text>
             {lastChecked && (
               <Text fontSize="sm" color="gray.400">
-                Last checked: {getTimeSinceLastCheck()}
+                {t('healthCheck.lastChecked')}: {getTimeSinceLastCheck()}
               </Text>
             )}
           </VStack>
@@ -128,7 +130,7 @@ export function HealthCheck() {
           <HStack spacing={4}>
             <FormControl display="flex" alignItems="center" width="auto">
               <FormLabel htmlFor="auto-refresh" mb="0" mr={2} color="gray.300" fontSize="sm">
-                Auto-refresh
+                {t('healthCheck.autoRefresh')}
               </FormLabel>
               <Switch
                 id="auto-refresh"
@@ -148,9 +150,9 @@ export function HealthCheck() {
                 color="white"
                 borderColor="gray.600"
               >
-                <option value={30}>30s</option>
-                <option value={60}>1m</option>
-                <option value={300}>5m</option>
+                <option value={30}>{t('healthCheck.refreshIntervals.30s')}</option>
+                <option value={60}>{t('healthCheck.refreshIntervals.1m')}</option>
+                <option value={300}>{t('healthCheck.refreshIntervals.5m')}</option>
               </Select>
             )}
 
@@ -160,7 +162,7 @@ export function HealthCheck() {
               isLoading={loading}
               size="sm"
             >
-              Refresh Now
+              {t('healthCheck.refresh')}
             </Button>
           </HStack>
         </HStack>
@@ -182,7 +184,7 @@ export function HealthCheck() {
               />
               <VStack align="start" spacing={1}>
                 <Text fontSize="lg" fontWeight="bold" color="white">
-                  Overall Status
+                  {t('healthCheck.overallStatus')}
                 </Text>
                 <Badge
                   colorScheme={getStatusColor(health.overall)}
@@ -203,7 +205,7 @@ export function HealthCheck() {
           <Box display="flex" justifyContent="center" p={8}>
             <VStack spacing={4}>
               <Spinner size="xl" color="orange.400" />
-              <Text color="gray.400">Checking system health...</Text>
+              <Text color="gray.400">{t('healthCheck.loading')}</Text>
             </VStack>
           </Box>
         ) : health ? (
@@ -217,11 +219,11 @@ export function HealthCheck() {
             <Table variant="simple">
               <Thead bg="gray.800">
                 <Tr>
-                  <Th color="gray.400">Service</Th>
-                  <Th color="gray.400">Status</Th>
-                  <Th color="gray.400" isNumeric>Response Time</Th>
-                  <Th color="gray.400">Message</Th>
-                  <Th color="gray.400">Actions</Th>
+                  <Th color="gray.400">{t('healthCheck.table.service')}</Th>
+                  <Th color="gray.400">{t('healthCheck.table.status')}</Th>
+                  <Th color="gray.400" isNumeric>{t('healthCheck.table.responseTime')}</Th>
+                  <Th color="gray.400">{t('healthCheck.table.message')}</Th>
+                  <Th color="gray.400">{t('healthCheck.table.actions')}</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -256,7 +258,7 @@ export function HealthCheck() {
                         colorScheme="orange"
                         onClick={() => handleViewDetails(service)}
                       >
-                        View Details
+                        {t('healthCheck.table.viewDetails')}
                       </Button>
                     </Td>
                   </Tr>
@@ -268,7 +270,7 @@ export function HealthCheck() {
           <Alert status="error" bg="red.900" borderRadius="md">
             <AlertIcon />
             <AlertDescription color="gray.200">
-              Failed to load health status. Please try refreshing.
+              {t('healthCheck.messages.failedToLoad')}
             </AlertDescription>
           </Alert>
         )}
@@ -279,39 +281,39 @@ export function HealthCheck() {
         <ModalOverlay />
         <ModalContent bg="gray.800" color="white">
           <ModalHeader color="orange.400">
-            Service Details: {selectedService?.service.replace('_', ' ').toUpperCase()}
+            {t('healthCheck.modal.title', { service: selectedService?.service.replace('_', ' ').toUpperCase() })}
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             {selectedService && (
               <VStack spacing={4} align="stretch">
                 <Box>
-                  <Text fontSize="sm" color="gray.400" mb={1}>Status</Text>
+                  <Text fontSize="sm" color="gray.400" mb={1}>{t('healthCheck.modal.status')}</Text>
                   <Badge colorScheme={getStatusColor(selectedService.status)} fontSize="md">
                     {selectedService.status.toUpperCase()}
                   </Badge>
                 </Box>
 
                 <Box>
-                  <Text fontSize="sm" color="gray.400" mb={1}>Response Time</Text>
+                  <Text fontSize="sm" color="gray.400" mb={1}>{t('healthCheck.modal.responseTime')}</Text>
                   <Text color={getResponseTimeColor(selectedService.responseTime)}>
                     {selectedService.responseTime}ms
                   </Text>
                 </Box>
 
                 <Box>
-                  <Text fontSize="sm" color="gray.400" mb={1}>Message</Text>
-                  <Text color="white">{selectedService.message || 'No message'}</Text>
+                  <Text fontSize="sm" color="gray.400" mb={1}>{t('healthCheck.modal.message')}</Text>
+                  <Text color="white">{selectedService.message || t('healthCheck.modal.noMessage')}</Text>
                 </Box>
 
                 <Box>
-                  <Text fontSize="sm" color="gray.400" mb={1}>Last Checked</Text>
+                  <Text fontSize="sm" color="gray.400" mb={1}>{t('healthCheck.modal.lastChecked')}</Text>
                   <Text color="white">{formatTimestamp(selectedService.lastChecked)}</Text>
                 </Box>
 
                 {selectedService.details && Object.keys(selectedService.details).length > 0 && (
                   <Box>
-                    <Text fontSize="sm" color="gray.400" mb={2}>Additional Details</Text>
+                    <Text fontSize="sm" color="gray.400" mb={2}>{t('healthCheck.modal.additionalDetails')}</Text>
                     <Box
                       bg="gray.900"
                       p={3}
