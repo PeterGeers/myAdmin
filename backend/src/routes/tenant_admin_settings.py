@@ -11,6 +11,7 @@ Endpoints:
 """
 
 from flask import Blueprint, jsonify, request
+from flask_babel import gettext as _
 import os
 import logging
 
@@ -209,7 +210,7 @@ def get_tenant_language_preference(user_email, user_roles):
         
         if not tenant:
             return jsonify({
-                'error': 'Missing X-Tenant header'
+                'error': _('Missing X-Tenant header')
             }), 400
         
         # Get tenant's default language
@@ -222,7 +223,7 @@ def get_tenant_language_preference(user_email, user_roles):
     except Exception as e:
         logger.error(f"Error in get_tenant_language_preference: {e}")
         return jsonify({
-            'error': 'Failed to retrieve tenant language preference',
+            'error': _('Failed to retrieve tenant language preference'),
             'details': str(e)
         }), 500
 
@@ -253,7 +254,7 @@ def update_tenant_language_preference(user_email, user_roles):
         
         if not tenant:
             return jsonify({
-                'error': 'Missing X-Tenant header'
+                'error': _('Missing X-Tenant header')
             }), 400
         
         # Get request data
@@ -261,7 +262,7 @@ def update_tenant_language_preference(user_email, user_roles):
         
         if not data or 'default_language' not in data:
             return jsonify({
-                'error': 'Missing required field: default_language'
+                'error': _('Missing required field: default_language')
             }), 400
         
         language = data['default_language']
@@ -269,8 +270,8 @@ def update_tenant_language_preference(user_email, user_roles):
         # Validate language code
         if not validate_language_code(language):
             return jsonify({
-                'error': 'Invalid language code',
-                'details': 'Language must be "nl" or "en"'
+                'error': _('Invalid language code'),
+                'details': _('Language must be "nl" or "en"')
             }), 400
         
         # Update tenant's default language
@@ -278,11 +279,11 @@ def update_tenant_language_preference(user_email, user_roles):
         
         if not success:
             return jsonify({
-                'error': 'Failed to update tenant language preference'
+                'error': _('Failed to update tenant language preference')
             }), 500
         
         return jsonify({
-            'message': 'Tenant default language updated successfully',
+            'message': _('Tenant default language updated successfully'),
             'default_language': language
         }), 200
         

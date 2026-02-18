@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-02-18 13:33+0100\n"
+"POT-Creation-Date: 2026-02-18 13:39+0100\n"
 "PO-Revision-Date: 2026-02-18 13:33+0100\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: nl\n"
@@ -17,4 +17,51 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
+
+#: backend/src/routes/tenant_admin_settings.py:213
+#: backend/src/routes/tenant_admin_settings.py:257
+msgid "Missing X-Tenant header"
+msgstr "X-Tenant header ontbreekt"
+
+#: backend/src/routes/tenant_admin_settings.py:226
+msgid "Failed to retrieve tenant language preference"
+msgstr "Kan taalvoorkeur van tenant niet ophalen"
+
+#: backend/src/routes/tenant_admin_settings.py:265
+msgid "Missing required field: default_language"
+msgstr "Verplicht veld ontbreekt: default_language"
+
+#: backend/src/routes/tenant_admin_settings.py:273
+#: backend/src/routes/user_routes.py:83
+msgid "Invalid language code"
+msgstr "Ongeldige taalcode"
+
+#: backend/src/routes/tenant_admin_settings.py:274
+#: backend/src/routes/user_routes.py:84
+msgid "Language must be \"nl\" or \"en\""
+msgstr "Taal moet \"nl\" of \"en\" zijn"
+
+#: backend/src/routes/tenant_admin_settings.py:282
+msgid "Failed to update tenant language preference"
+msgstr "Kan taalvoorkeur van tenant niet bijwerken"
+
+#: backend/src/routes/tenant_admin_settings.py:286
+msgid "Tenant default language updated successfully"
+msgstr "Standaardtaal van tenant succesvol bijgewerkt"
+
+#: backend/src/routes/user_routes.py:44
+msgid "Failed to retrieve language preference"
+msgstr "Kan taalvoorkeur niet ophalen"
+
+#: backend/src/routes/user_routes.py:75
+msgid "Missing required field: language"
+msgstr "Verplicht veld ontbreekt: language"
+
+#: backend/src/routes/user_routes.py:92 backend/src/routes/user_routes.py:103
+msgid "Failed to update language preference"
+msgstr "Kan taalvoorkeur niet bijwerken"
+
+#: backend/src/routes/user_routes.py:96
+msgid "Language preference updated successfully"
+msgstr "Taalvoorkeur succesvol bijgewerkt"
 
