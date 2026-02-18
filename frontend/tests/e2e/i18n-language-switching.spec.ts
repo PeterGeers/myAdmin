@@ -31,13 +31,11 @@ async function switchLanguage(page: Page, language: 'nl' | 'en') {
   // Click language selector
   await page.click('[data-testid="language-selector"]');
   
-  // Wait for dropdown menu
-  await page.waitForSelector(`button:has-text("${language === 'nl' ? 'Nederlands' : 'English'}")`, { timeout: 5000 });
+  // Wait for dropdown menu and click language option
+  await page.waitForTimeout(500);
+  await page.click(`[data-testid="language-option-${language}"]`);
   
-  // Click language option
-  await page.click(`button:has-text("${language === 'nl' ? 'Nederlands' : 'English'}")`);
-  
-  // Wait for page to reload/update
+  // Wait for language change to complete
   await page.waitForTimeout(1000);
 }
 
