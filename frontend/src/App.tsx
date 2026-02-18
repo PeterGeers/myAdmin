@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import PDFUploadForm from './components/PDFUploadForm';
 import BankConnect from './components/BankConnect';
 import BankingProcessor from './components/BankingProcessor';
@@ -23,6 +24,7 @@ import { SysAdminDashboard } from './components/SysAdmin/SysAdminDashboard';
 type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin';
 
 function AppContent() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout } = useAuth();
@@ -61,8 +63,8 @@ function AppContent() {
     return (
       <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
         <VStack spacing={4}>
-          <Heading color="orange.400" size="lg">Loading...</Heading>
-          <Text color="gray.400">Checking authentication status</Text>
+          <Heading color="orange.400" size="lg">{t('common:status.loading')}</Heading>
+          <Text color="gray.400">{t('common:messages.checkingAuth', 'Checking authentication status')}</Text>
         </VStack>
       </Box>
     );
@@ -80,8 +82,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">📄 Import Invoices</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">📄 {t('common:navigation.modules.importInvoices')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -104,8 +106,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">🏦 Import Banking Accounts</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">🏦 {t('common:navigation.modules.importBanking')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -127,8 +129,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">🏦 Connect Bank (Salt Edge)</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">🏦 {t('common:navigation.modules.connectBank')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -150,8 +152,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">🏠 Import STR Bookings</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">🏠 {t('common:navigation.modules.importSTRBookings')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -173,8 +175,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">🧾 STR Invoice Generator</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">🧾 {t('common:navigation.modules.strInvoiceGenerator')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -197,8 +199,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">💰 STR Pricing Model</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">💰 {t('common:navigation.modules.strPricingModel')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -221,8 +223,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">⚙️ System Administration</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">⚙️ {t('common:navigation.modules.systemAdministration')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" hide={true} />
@@ -245,8 +247,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">🏢 Tenant Administration</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">🏢 {t('common:navigation.modules.tenantAdministration')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -270,8 +272,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">📊 FIN Reports</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">📊 {t('common:navigation.modules.finReports')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -294,8 +296,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">📊 FIN Reports</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">📊 {t('common:navigation.modules.finReports')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -318,8 +320,8 @@ function AppContent() {
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
                   <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← Back</Button>
-                    <Heading color="orange.400" size="lg">📈 STR Reports</Heading>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">📈 {t('common:navigation.modules.strReports')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
@@ -339,7 +341,7 @@ function AppContent() {
               {/* Top Header Bar */}
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
                 <HStack justify="space-between">
-                  <Heading color="orange.400" size="lg">myAdmin Dashboard</Heading>
+                  <Heading color="orange.400" size="lg">{t('common:navigation.myAdminDashboard')}</Heading>
                   <HStack spacing={3}>
                     <LanguageSelector />
                     <TenantSelector size="sm" />
@@ -351,75 +353,75 @@ function AppContent() {
               {/* Main Content */}
               <Box display="flex" alignItems="center" justifyContent="center" minH="calc(100vh - 80px)">
                 <VStack spacing={8}>
-                  <Text color="gray.300" fontSize="lg">Select a component to get started</Text>
+                  <Text color="gray.300" fontSize="lg">{t('common:navigation.selectComponent')}</Text>
                 
                 <VStack spacing={4} w="400px">
                   {/* Invoice Management - Finance module permissions */}
                   {hasFIN && (user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
-                      📄 Import Invoices
+                      📄 {t('common:navigation.modules.importInvoices')}
                     </Button>
                   )}
 
                   {/* Banking - Finance CRUD only (requires write access) */}
                   {hasFIN && (user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
-                      🏦 Import Banking Accounts
+                      🏦 {t('common:navigation.modules.importBanking')}
                     </Button>
                   )}
 
                   {/* STR Bookings - STR module permissions */}
                   {hasSTR && (user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
-                      🏠 Import STR Bookings
+                      🏠 {t('common:navigation.modules.importSTRBookings')}
                     </Button>
                   )}
 
                   {/* STR Invoice - STR module permissions */}
                   {hasSTR && (user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
-                      🧾 STR Invoice Generator
+                      🧾 {t('common:navigation.modules.strInvoiceGenerator')}
                     </Button>
                   )}
 
                   {/* STR Pricing - STR CRUD only (requires write access) */}
                   {hasSTR && (user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
-                      💰 STR Pricing Model
+                      💰 {t('common:navigation.modules.strPricingModel')}
                     </Button>
                   )}
 
                   {/* FIN Reports - Finance module users */}
                   {hasFIN && (user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read', 'Finance_Export'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('fin-reports')}>
-                      📊 FIN Reports
+                      📊 {t('common:navigation.modules.finReports')}
                     </Button>
                   )}
 
                   {/* STR Reports - STR module users */}
                   {hasSTR && (user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="cyan" onClick={() => setCurrentPage('str-reports')}>
-                      📈 STR Reports
+                      📈 {t('common:navigation.modules.strReports')}
                     </Button>
                   )}
 
                   {/* System Administration - SysAdmin only */}
                   {(user?.roles?.some(role => ['SysAdmin'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="gray" onClick={() => setCurrentPage('system-admin')}>
-                      ⚙️ System Administration
+                      ⚙️ {t('common:navigation.modules.systemAdministration')}
                     </Button>
                   )}
 
                   {/* Tenant Administration - Tenant_Admin only */}
                   {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="pink" onClick={() => setCurrentPage('tenant-admin')}>
-                      🏢 Tenant Administration
+                      🏢 {t('common:navigation.modules.tenantAdministration')}
                     </Button>
                   )}
                   
                   {/* Loading state */}
                   {modulesLoading && (
-                    <Text color="gray.500" fontSize="sm">Loading available modules...</Text>
+                    <Text color="gray.500" fontSize="sm">{t('common:navigation.loadingModules')}</Text>
                   )}
                 </VStack>
               </VStack>
