@@ -21,6 +21,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import {
   Bar,
   BarChart,
@@ -49,6 +50,7 @@ interface BalanceRecord {
 }
 
 const ActualsReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const { currentTenant } = useTenant();
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
   const [profitLossData, setProfitLossData] = useState<BalanceRecord[]>([]);

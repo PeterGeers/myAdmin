@@ -28,6 +28,7 @@ import {
   Tr,
   VStack,
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { useTenant } from '../../context/TenantContext';
@@ -256,6 +257,7 @@ const ViolinChart: React.FC<ViolinChartProps> = ({ data, metric, groupBy }) => {
  * Main BNB Violins Report Component
  */
 const BnbViolinsReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const { currentTenant } = useTenant();
   
   // Metric options constant

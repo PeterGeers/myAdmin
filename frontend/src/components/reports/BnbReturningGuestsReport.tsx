@@ -29,6 +29,7 @@ import {
   Tr,
   VStack,
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 
 interface ReturningGuest {
@@ -51,6 +52,7 @@ interface GuestBooking {
  * Main BNB Returning Guests Report Component
  */
 const BnbReturningGuestsReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const [returningGuests, setReturningGuests] = useState<ReturningGuest[]>([]);
   const [selectedGuestBookings, setSelectedGuestBookings] = useState<GuestBooking[]>([]);
   const [selectedGuestName, setSelectedGuestName] = useState<string>('');
