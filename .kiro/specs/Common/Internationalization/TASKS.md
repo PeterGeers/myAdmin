@@ -1557,10 +1557,51 @@ Put all related user documentation in .kiro\specs\Common\Internationalization\Us
 
 ### 16.3 Database Migration (production)
 
+**Status**: 📋 READY FOR EXECUTION (User action required)
+
 - [x] Backup production database
-- [ ] Run database migrations on production
-- [ ] Verify new columns added
-- [ ] Import translation data
+- [x] Create migration documentation (PRODUCTION_MIGRATION_GUIDE.md)
+- [x] Create quick start guide (MIGRATION_QUICK_START.md)
+- [x] Create Python migration scripts (add_tenant_language_column.py, create_account_translations_table.py)
+- [x] Create SQL migration scripts (add_tenant_default_language.sql, create_account_translations.sql)
+- [ ] **USER ACTION REQUIRED**: Run database migrations on production
+- [ ] **USER ACTION REQUIRED**: Verify new columns added
+- [ ] Import translation data (N/A - no data to import, tables created empty)
+
+**Migration Documentation**:
+
+- Full guide: `.kiro/specs/Common/Internationalization/PRODUCTION_MIGRATION_GUIDE.md`
+- Quick start: `.kiro/specs/Common/Internationalization/MIGRATION_QUICK_START.md`
+
+**Migration Scripts**:
+
+- Python: `backend/scripts/database/add_tenant_language_column.py`
+- Python: `backend/scripts/database/create_account_translations_table.py`
+- SQL: `backend/sql/add_tenant_default_language.sql`
+- SQL: `backend/sql/create_account_translations.sql`
+
+**To Execute Migrations**:
+
+```bash
+cd backend
+.\.venv\Scripts\Activate.ps1
+python scripts/database/add_tenant_language_column.py
+python scripts/database/create_account_translations_table.py
+```
+
+**Expected Changes**:
+
+1. `tenants` table: Add `default_language` column (VARCHAR(5), DEFAULT 'nl')
+2. `account_translations` table: Create new table for future use
+
+**Risk Level**: Low (non-breaking changes, no downtime required)
+
+**ESLint Warning Note**:
+
+- Minor warning in `STRInvoice.tsx` line 107 about `endDate` dependency
+- **FALSE POSITIVE**: `endDate` is already correctly included in dependency array `[toast, startDate, endDate, t]`
+- Warning can be safely ignored or cleared with `npm run lint -- --fix`
+- Does not affect functionality or deployment
 
 ### 16.4 Backend Deployment (auto-deploy from main)
 
