@@ -276,13 +276,18 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 2.4 VAT Rule Translations
 
-- [ ] Create `vat_rule_translations` table
-- [ ] Add columns: id, vat_rule_id, language, description, applies_to
-- [ ] Add foreign key to vat_rules
-- [ ] Add unique constraint on (vat_rule_id, language)
-- [ ] Add indexes
-- [ ] Test migration on test database
-- [ ] Run migration on production database
+**Status**: ✅ SKIPPED - No VAT rules table exists
+
+- [x] **DECISION**: Skip VAT rule translations table
+- [x] No `vat_rules` table found in database
+- [x] VAT/BTW logic is hardcoded in business logic (btw_aangifte_generator.py)
+- [x] No database-driven VAT rules to translate
+
+**Rationale**:
+
+- Database has no `vat_rules` table
+- BTW (VAT) calculations are in Python code, not database
+- If VAT rules table is added in future, can create translations table then
 
 ---
 
@@ -749,7 +754,7 @@ resource "aws_cognito_user_pool" "main" {
 ### Phase Status
 
 - [x] Phase 1: Infrastructure Setup (2 days) - COMPLETE
-- [ ] Phase 2: Database Schema (1 day)
+- [x] Phase 2: Database Schema (1 day) - COMPLETE
 - [ ] Phase 3: Backend API (2 days)
 - [ ] Phase 4: Frontend Translation - Common (2 days)
 - [ ] Phase 5: Frontend Translation - Auth (1 day)
