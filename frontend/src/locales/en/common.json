@@ -72,7 +72,8 @@
     "selectFolder": "Select a folder",
     "required": "Required field",
     "invalidFormat": "Invalid format",
-    "tryAgainLater": "Please try again later"
+    "tryAgainLater": "Please try again later",
+    "checkingAuth": "Checking authentication status"
   },
   "labels": {
     "date": "Date",
@@ -107,7 +108,22 @@
     "next": "Next",
     "previous": "Previous",
     "first": "First",
-    "last": "Last"
+    "last": "Last",
+    "myAdminDashboard": "myAdmin Dashboard",
+    "selectComponent": "Select a component to get started",
+    "loadingModules": "Loading available modules...",
+    "modules": {
+      "importInvoices": "Import Invoices",
+      "importBanking": "Import Banking Accounts",
+      "importSTRBookings": "Import STR Bookings",
+      "strInvoiceGenerator": "STR Invoice Generator",
+      "strPricingModel": "STR Pricing Model",
+      "finReports": "FIN Reports",
+      "strReports": "STR Reports",
+      "systemAdministration": "System Administration",
+      "tenantAdministration": "Tenant Administration",
+      "connectBank": "Connect Bank (Salt Edge)"
+    }
   },
   "time": {
     "today": "Today",

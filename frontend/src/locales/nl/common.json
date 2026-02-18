@@ -72,7 +72,8 @@
     "selectFolder": "Selecteer een map",
     "required": "Verplicht veld",
     "invalidFormat": "Ongeldig formaat",
-    "tryAgainLater": "Probeer het later opnieuw"
+    "tryAgainLater": "Probeer het later opnieuw",
+    "checkingAuth": "Authenticatiestatus controleren"
   },
   "labels": {
     "date": "Datum",
@@ -107,7 +108,22 @@
     "next": "Volgende",
     "previous": "Vorige",
     "first": "Eerste",
-    "last": "Laatste"
+    "last": "Laatste",
+    "myAdminDashboard": "myAdmin Dashboard",
+    "selectComponent": "Selecteer een component om te beginnen",
+    "loadingModules": "Beschikbare modules laden...",
+    "modules": {
+      "importInvoices": "Facturen Importeren",
+      "importBanking": "Bankrekeningen Importeren",
+      "importSTRBookings": "STR Boekingen Importeren",
+      "strInvoiceGenerator": "STR Factuur Generator",
+      "strPricingModel": "STR Prijsmodel",
+      "finReports": "FIN Rapporten",
+      "strReports": "STR Rapporten",
+      "systemAdministration": "Systeembeheer",
+      "tenantAdministration": "Tenant Beheer",
+      "connectBank": "Bank Verbinden (Salt Edge)"
+    }
   },
   "time": {
     "today": "Vandaag",
