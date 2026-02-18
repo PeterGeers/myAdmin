@@ -94,7 +94,8 @@ class EmailTemplateService:
         self,
         template_name: str,
         variables: Dict[str, str],
-        format: str = 'html'
+        format: str = 'html',
+        language: Optional[str] = None
     ) -> Optional[str]:
         """
         Render an email template with variable substitution
@@ -106,12 +107,17 @@ class EmailTemplateService:
             template_name: Name of the template (without extension)
             variables: Dictionary of variables to substitute
             format: 'html' or 'txt'
+            language: Language code ('nl' or 'en'). If None, defaults to 'en'
         
         Returns:
             Rendered template content or None if template not found
         """
         try:
             template_content = None
+            
+            # Default to English if no language specified
+            if language is None:
+                language = 'en'
             
             # Try to load from Google Drive first (tenant-specific)
             if self.administration:
@@ -120,18 +126,33 @@ class EmailTemplateService:
             # Fall back to local file template
             if not template_content:
                 extension = 'html' if format == 'html' else 'txt'
-                template_path = os.path.join(
-                    self.template_dir,
-                    f"{template_name}.{extension}"
-                )
                 
-                if os.path.exists(template_path):
-                    with open(template_path, 'r', encoding='utf-8') as f:
-                        template_content = f.read()
-                    logger.debug(f"Loaded {template_name} template from local file")
-                else:
-                    logger.error(f"Template not found: {template_path}")
-                    return None
+                # Try language-specific template first (e.g., user_invitation_nl.html)
+                if language != 'en':
+                    localized_template_path = os.path.join(
+                        self.template_dir,
+                        f"{template_name}_{language}.{extension}"
+                    )
+                    
+                    if os.path.exists(localized_template_path):
+                        with open(localized_template_path, 'r', encoding='utf-8') as f:
+                            template_content = f.read()
+                        logger.debug(f"Loaded {template_name} template ({language}) from local file")
+                
+                # Fall back to English template
+                if not template_content:
+                    template_path = os.path.join(
+                        self.template_dir,
+                        f"{template_name}.{extension}"
+                    )
+                    
+                    if os.path.exists(template_path):
+                        with open(template_path, 'r', encoding='utf-8') as f:
+                            template_content = f.read()
+                        logger.debug(f"Loaded {template_name} template (en) from local file")
+                    else:
+                        logger.error(f"Template not found: {template_path}")
+                        return None
             
             # Substitute variables
             rendered_content = template_content
@@ -151,7 +172,8 @@ class EmailTemplateService:
         temporary_password: str,
         tenant: str,
         login_url: Optional[str] = None,
-        format: str = 'html'
+        format: str = 'html',
+        language: Optional[str] = None
     ) -> Optional[str]:
         """
         Render user invitation email template
@@ -162,12 +184,17 @@ class EmailTemplateService:
             tenant: Tenant name
             login_url: Login URL (defaults to FRONTEND_URL env var)
             format: 'html' or 'txt'
+            language: Language code ('nl' or 'en'). If None, detects from user/tenant
         
         Returns:
             Rendered email content
         """
         if login_url is None:
             login_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        
+        # Detect language if not provided
+        if language is None:
+            language = self._detect_user_language(email, tenant)
         
         variables = {
             'email': email,
@@ -176,16 +203,60 @@ class EmailTemplateService:
             'login_url': login_url
         }
         
-        return self.render_template('user_invitation', variables, format)
+        return self.render_template('user_invitation', variables, format, language)
     
-    def get_invitation_subject(self, tenant: str) -> str:
+    def _detect_user_language(self, email: str, tenant: str) -> str:
+        """
+        Detect user's preferred language
+        
+        Priority:
+        1. User's preferred language from Cognito custom attribute
+        2. Tenant's default language
+        3. Default to 'nl'
+        
+        Args:
+            email: User's email address
+            tenant: Tenant name
+        
+        Returns:
+            Language code ('nl' or 'en')
+        """
+        try:
+            # Try to get user's preferred language from Cognito
+            from services.user_language_service import get_user_language
+            user_lang = get_user_language(email)
+            if user_lang and user_lang in ['nl', 'en']:
+                logger.debug(f"Using user language: {user_lang}")
+                return user_lang
+        except Exception as e:
+            logger.debug(f"Could not get user language: {e}")
+        
+        try:
+            # Fall back to tenant's default language
+            from services.tenant_language_service import get_tenant_language
+            tenant_lang = get_tenant_language(tenant)
+            if tenant_lang and tenant_lang in ['nl', 'en']:
+                logger.debug(f"Using tenant language: {tenant_lang}")
+                return tenant_lang
+        except Exception as e:
+            logger.debug(f"Could not get tenant language: {e}")
+        
+        # Default to Dutch
+        logger.debug("Using default language: nl")
+        return 'nl'
+    
+    def get_invitation_subject(self, tenant: str, language: Optional[str] = None) -> str:
         """
         Get subject line for invitation email
         
         Args:
             tenant: Tenant name
+            language: Language code ('nl' or 'en')
         
         Returns:
             Email subject line
         """
-        return f"Welcome to myAdmin - {tenant} Invitation"
+        if language == 'nl':
+            return f"Welkom bij myAdmin - {tenant} Uitnodiging"
+        else:
+            return f"Welcome to myAdmin - {tenant} Invitation"

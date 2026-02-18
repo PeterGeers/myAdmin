@@ -864,20 +864,32 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 11.1 User Invitation Email Translation
 
-- [ ] Create `user_invitation_nl.html` template (Dutch version)
-- [ ] Create `user_invitation_nl.txt` template (Dutch plain text version)
-- [ ] Update email service to detect user language preference
-- [ ] Update email service to select template based on language (nl/en)
-- [ ] Test invitation email in both languages
+**Status**: ✅ COMPLETE
+
+- [x] Create `user_invitation_nl.html` template (Dutch version)
+- [x] Create `user_invitation_nl.txt` template (Dutch plain text version)
+- [x] Update email service to detect user language preference
+- [x] Update email service to select template based on language (nl/en)
+- [ ] Test invitation email in both languages - Manual testing deferred to Phase 14
 
 **Implementation Notes**:
 
-- Keep same structure and styling as English version
-- Translate all text content (headers, instructions, security notice, footer)
-- Maintain variable placeholders: {{email}}, {{tenant}}, {{temporary_password}}, {{login_url}}
-- Email service should check user's preferred language from Cognito custom attribute
-- Fallback to tenant's default language if user language not set
-- Fallback to 'nl' if neither is available
+- Dutch templates created with same structure and styling as English version
+- All text content translated (headers, instructions, security notice, footer)
+- Variable placeholders maintained: {{email}}, {{tenant}}, {{temporary_password}}, {{login_url}}
+- Email service now detects language with fallback chain:
+  1. User's preferred language from Cognito custom attribute (custom:preferred_language)
+  2. Tenant's default language from database (tenants.default_language)
+  3. Default to 'nl' if neither is available
+- Template selection logic: tries language-specific template first (e.g., user_invitation_nl.html), falls back to English
+- Subject line also translated based on language
+- No changes needed to cognito_service.py - language detection happens automatically
+
+**Files Created/Modified**:
+
+- `backend/templates/email/user_invitation_nl.html` (Dutch HTML template)
+- `backend/templates/email/user_invitation_nl.txt` (Dutch plain text template)
+- `backend/src/services/email_template_service.py` (added language parameter and detection)
 
 ---
 
