@@ -1,5 +1,256 @@
 {
-  "title": "Beheer",
-  "users": "Gebruikers",
-  "settings": "Instellingen"
+  "sysAdmin": {
+    "title": "Systeembeheer",
+    "loading": "Systeembeheer laden...",
+    "accessDenied": "Toegang geweigerd",
+    "noPermissions": "U heeft geen systeembeheerder rechten",
+    "tabs": {
+      "tenantManagement": "Tenantbeheer",
+      "roleManagement": "Rollenbeheer",
+      "healthCheck": "Systeemstatus"
+    }
+  },
+  "tenantAdmin": {
+    "title": "Tenantbeheer",
+    "loading": "Tenantbeheer laden...",
+    "accessDenied": "Toegang geweigerd",
+    "noPermissions": "U heeft geen tenantbeheerder rechten",
+    "noTenants": "Geen tenants toegewezen aan uw account",
+    "selectTenant": "Selecteer een tenant in de header om door te gaan",
+    "tabs": {
+      "userManagement": "Gebruikersbeheer",
+      "chartOfAccounts": "Rekeningschema",
+      "templateManagement": "Sjabloonbeheer",
+      "credentials": "Inloggegevens",
+      "configuration": "Configuratie",
+      "tenantDetails": "Tenantgegevens"
+    }
+  },
+  "tenantManagement": {
+    "title": "Tenantbeheer",
+    "loading": "Tenants laden...",
+    "createTenant": "Tenant aanmaken",
+    "editTenant": "Tenant bewerken",
+    "deleteTenant": "Tenant verwijderen",
+    "viewTenant": "Tenantgegevens",
+    "search": "Zoeken",
+    "searchPlaceholder": "Tenants zoeken...",
+    "status": "Status",
+    "allStatus": "Alle statussen",
+    "total": "Totaal",
+    "rowsPerPage": "Rijen per pagina",
+    "page": "Pagina",
+    "of": "van",
+    "table": {
+      "administration": "Administratie",
+      "displayName": "Weergavenaam",
+      "status": "Status",
+      "modules": "Modules",
+      "users": "Gebruikers",
+      "created": "Aangemaakt"
+    },
+    "modal": {
+      "createTitle": "Nieuwe tenant aanmaken",
+      "editTitle": "Tenant bewerken: {{name}}",
+      "viewTitle": "Tenantgegevens: {{name}}",
+      "administrationId": "Administratie-ID",
+      "administrationPlaceholder": "bijv., goodwinsolutions",
+      "administrationHelp": "Kleine letters, geen spaties. Kan later niet worden gewijzigd.",
+      "displayName": "Weergavenaam",
+      "displayNamePlaceholder": "bijv., Goodwin Solutions",
+      "contactEmail": "Contact e-mail",
+      "contactEmailPlaceholder": "admin@voorbeeld.nl",
+      "phoneNumber": "Telefoonnummer",
+      "phonePlaceholder": "+31 6 12345678",
+      "streetAddress": "Straat en huisnummer",
+      "streetPlaceholder": "Hoofdstraat 123",
+      "city": "Plaats",
+      "cityPlaceholder": "Amsterdam",
+      "zipcode": "Postcode",
+      "zipcodePlaceholder": "1012 AB",
+      "country": "Land",
+      "countryPlaceholder": "Nederland",
+      "enabledModules": "Ingeschakelde modules",
+      "moduleFinancial": "FIN - Financieel beheer",
+      "moduleSTR": "STR - Vakantieverhuur",
+      "moduleAutoAdded": "TENADMIN module wordt automatisch toegevoegd",
+      "additionalInfo": "Aanvullende informatie:",
+      "userCount": "Gebruikers",
+      "createdAt": "Aangemaakt",
+      "updatedAt": "Bijgewerkt"
+    },
+    "actions": {
+      "close": "Sluiten",
+      "edit": "Bewerken",
+      "delete": "Verwijderen",
+      "manageModules": "Modules beheren",
+      "cancel": "Annuleren",
+      "update": "Bijwerken",
+      "create": "Aanmaken",
+      "previousPage": "Vorige pagina",
+      "nextPage": "Volgende pagina"
+    },
+    "deleteDialog": {
+      "title": "Tenant verwijderen",
+      "confirmMessage": "Weet u zeker dat u tenant wilt verwijderen",
+      "warning": "Waarschuwing: Deze actie kan niet ongedaan worden gemaakt.",
+      "hasUsers": "Deze tenant heeft {{count}} gebruiker(s)."
+    },
+    "messages": {
+      "validationError": "Validatiefout",
+      "requiredFields": "Administratie, weergavenaam en contact e-mail zijn verplicht",
+      "tenantCreated": "Tenant aangemaakt",
+      "tenantCreatedSuccess": "Tenant \"{{name}}\" succesvol aangemaakt",
+      "errorCreating": "Fout bij aanmaken tenant",
+      "tenantUpdated": "Tenant bijgewerkt",
+      "tenantUpdatedSuccess": "Tenant \"{{name}}\" succesvol bijgewerkt",
+      "errorUpdating": "Fout bij bijwerken tenant",
+      "tenantDeleted": "Tenant verwijderd",
+      "tenantDeletedSuccess": "Tenant \"{{name}}\" verwijderd",
+      "errorDeleting": "Fout bij verwijderen tenant",
+      "errorLoading": "Fout bij laden tenants",
+      "unknownError": "Onbekende fout"
+    },
+    "status": {
+      "active": "Actief",
+      "suspended": "Opgeschort",
+      "inactive": "Inactief",
+      "deleted": "Verwijderd"
+    }
+  },
+  "userManagement": {
+    "title": "Gebruikersbeheer",
+    "loading": "Gebruikers laden...",
+    "createUser": "Gebruiker aanmaken",
+    "editUser": "Gebruiker bewerken",
+    "deleteUser": "Gebruiker verwijderen",
+    "search": "Zoeken",
+    "searchPlaceholder": "Gebruikers zoeken...",
+    "role": "Rol",
+    "allRoles": "Alle rollen",
+    "table": {
+      "email": "E-mail",
+      "name": "Naam",
+      "role": "Rol",
+      "status": "Status",
+      "lastLogin": "Laatste login",
+      "actions": "Acties"
+    }
+  },
+  "roleManagement": {
+    "title": "Rollenbeheer",
+    "loading": "Rollen laden...",
+    "createRole": "Rol aanmaken",
+    "editRole": "Rol bewerken",
+    "deleteRole": "Rol verwijderen"
+  },
+  "healthCheck": {
+    "title": "Systeemstatus controle",
+    "loading": "Systeemstatus controleren...",
+    "refresh": "Vernieuwen",
+    "lastChecked": "Laatst gecontroleerd",
+    "status": {
+      "healthy": "Gezond",
+      "degraded": "Verminderd",
+      "unhealthy": "Ongezond"
+    },
+    "components": {
+      "database": "Database",
+      "api": "API",
+      "storage": "Opslag",
+      "authentication": "Authenticatie"
+    }
+  },
+  "chartOfAccounts": {
+    "title": "Rekeningschema",
+    "loading": "Rekeningschema laden...",
+    "createAccount": "Rekening aanmaken",
+    "editAccount": "Rekening bewerken",
+    "deleteAccount": "Rekening verwijderen",
+    "search": "Zoeken",
+    "searchPlaceholder": "Rekeningen zoeken...",
+    "export": "Exporteren",
+    "import": "Importeren"
+  },
+  "templateManagement": {
+    "title": "Sjabloonbeheer",
+    "loading": "Sjablonen laden...",
+    "createTemplate": "Sjabloon aanmaken",
+    "editTemplate": "Sjabloon bewerken",
+    "deleteTemplate": "Sjabloon verwijderen",
+    "preview": "Voorbeeld"
+  },
+  "credentials": {
+    "title": "Inloggegevens beheer",
+    "loading": "Inloggegevens laden...",
+    "addCredential": "Inloggegevens toevoegen",
+    "editCredential": "Inloggegevens bewerken",
+    "deleteCredential": "Inloggegevens verwijderen",
+    "service": "Service",
+    "status": "Status"
+  },
+  "configuration": {
+    "title": "Tenantconfiguratie",
+    "loading": "Configuratie laden...",
+    "save": "Opslaan",
+    "reset": "Resetten",
+    "general": "Algemeen",
+    "modules": "Modules",
+    "features": "Functies",
+    "integrations": "Integraties"
+  },
+  "tenantDetails": {
+    "title": "Tenantgegevens",
+    "loading": "Tenantgegevens laden...",
+    "edit": "Bewerken",
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "basicInfo": "Basisinformatie",
+    "contactInfo": "Contactinformatie",
+    "billingInfo": "Factuurgegevens",
+    "subscription": "Abonnement"
+  },
+  "moduleManagement": {
+    "title": "Modulebeheer",
+    "loading": "Modules laden...",
+    "save": "Wijzigingen opslaan",
+    "cancel": "Annuleren",
+    "availableModules": "Beschikbare modules",
+    "enabledModules": "Ingeschakelde modules",
+    "description": "Beschrijving",
+    "enable": "Inschakelen",
+    "disable": "Uitschakelen"
+  },
+  "common": {
+    "loading": "Laden...",
+    "saving": "Opslaan...",
+    "deleting": "Verwijderen...",
+    "success": "Succes",
+    "error": "Fout",
+    "warning": "Waarschuwing",
+    "info": "Info",
+    "confirm": "Bevestigen",
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "delete": "Verwijderen",
+    "edit": "Bewerken",
+    "create": "Aanmaken",
+    "close": "Sluiten",
+    "back": "Terug",
+    "next": "Volgende",
+    "previous": "Vorige",
+    "search": "Zoeken",
+    "filter": "Filteren",
+    "export": "Exporteren",
+    "import": "Importeren",
+    "refresh": "Vernieuwen",
+    "required": "Verplicht",
+    "optional": "Optioneel",
+    "yes": "Ja",
+    "no": "Nee",
+    "active": "Actief",
+    "inactive": "Inactief",
+    "enabled": "Ingeschakeld",
+    "disabled": "Uitgeschakeld"
+  }
 }
