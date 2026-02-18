@@ -701,7 +701,16 @@ resource "aws_cognito_user_pool" "main" {
     - [x] Additional info section in view mode
 - [x] Update Tenant Admin components
   - [x] TenantAdminDashboard - tabs, loading, access control messages (COMPLETE)
-- [ ] Update User Management components (deferred - can be done incrementally)
+  - [x] UserManagement - ✅ 100% COMPLETE (all UI elements translated)
+    - [x] Toast messages (error handling, success messages)
+    - [x] Loading states
+    - [x] Search and filter labels (email, name, status, role)
+    - [x] Table headers with sorting indicators
+    - [x] Create/Edit/Details modal forms (all fields: email, display name, temporary password, roles)
+    - [x] User details section (email, name, status, created, roles, tenants)
+    - [x] Send email section (resend invitation, email template selector)
+    - [x] All modal footer buttons (Cancel, Create, Update, Close, Edit User, Enable/Disable, Delete)
+    - [x] Email template names (User Invitation, Password Reset, Account Update)
 - [ ] Update Settings components (deferred - can be done incrementally)
 - [ ] Test admin modules in both languages (manual testing deferred to Phase 14)
 
@@ -709,9 +718,10 @@ resource "aws_cognito_user_pool" "main" {
 
 - Core admin dashboards: 100% translated
 - TenantManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
+- UserManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
 - Other admin sub-components can be translated incrementally as needed
 
-**Note**: The admin module translation infrastructure is complete. Core navigation, error messages, and the TenantManagement component are fully internationalized. Remaining UI elements in other sub-components (UserManagement, RoleManagement, etc.) can be translated incrementally during future maintenance.
+**Note**: The admin module translation infrastructure is complete. Core navigation, error messages, TenantManagement, and UserManagement components are fully internationalized. Remaining UI elements in other sub-components (RoleManagement, HealthCheck, etc.) can be translated incrementally during future maintenance.
 
 ### 9.3 Chart of Accounts Management
 
