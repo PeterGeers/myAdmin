@@ -9,6 +9,7 @@ import {
   AlertDialogContent, AlertDialogOverlay
 } from '@chakra-ui/react';
 import { AddIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { getTenants, createTenant, updateTenant, deleteTenant, Tenant, CreateTenantRequest, UpdateTenantRequest } from '../../services/sysadminService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { FilterConfig, SearchFilterConfig } from '../filters/types';
@@ -45,6 +46,7 @@ export function TenantManagement() {
   });
   
   const toast = useToast();
+  const { t } = useTypedTranslation('admin');
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const { isOpen: isModuleOpen, onOpen: onModuleOpen, onClose: onModuleClose } = useDisclosure();
@@ -72,8 +74,8 @@ export function TenantManagement() {
       setTotalCount(data.total);
     } catch (error) {
       toast({
-        title: 'Error loading tenants',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('tenantManagement.messages.errorLoading'),
+        description: error instanceof Error ? error.message : t('tenantManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -129,8 +131,8 @@ export function TenantManagement() {
   const handleCreateTenant = async () => {
     if (!formData.administration || !formData.display_name || !formData.contact_email) {
       toast({
-        title: 'Validation Error',
-        description: 'Administration, display name, and contact email are required',
+        title: t('tenantManagement.messages.validationError'),
+        description: t('tenantManagement.messages.requiredFields'),
         status: 'warning',
         duration: 3000,
       });
@@ -154,8 +156,8 @@ export function TenantManagement() {
       await createTenant(request);
 
       toast({
-        title: 'Tenant created',
-        description: `Tenant "${formData.display_name}" created successfully`,
+        title: t('tenantManagement.messages.tenantCreated'),
+        description: t('tenantManagement.messages.tenantCreatedSuccess', { name: formData.display_name }),
         status: 'success',
         duration: 3000,
       });
@@ -165,8 +167,8 @@ export function TenantManagement() {
       loadTenants();
     } catch (error) {
       toast({
-        title: 'Error creating tenant',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('tenantManagement.messages.errorCreating'),
+        description: error instanceof Error ? error.message : t('tenantManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -203,8 +205,8 @@ export function TenantManagement() {
       console.log('updateTenant result:', result);
 
       toast({
-        title: 'Tenant updated',
-        description: `Tenant "${formData.display_name}" updated successfully`,
+        title: t('tenantManagement.messages.tenantUpdated'),
+        description: t('tenantManagement.messages.tenantUpdatedSuccess', { name: formData.display_name }),
         status: 'success',
         duration: 3000,
       });
@@ -215,8 +217,8 @@ export function TenantManagement() {
     } catch (error) {
       console.error('Error updating tenant:', error);
       toast({
-        title: 'Error updating tenant',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('tenantManagement.messages.errorUpdating'),
+        description: error instanceof Error ? error.message : t('tenantManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -233,8 +235,8 @@ export function TenantManagement() {
       await deleteTenant(selectedTenant.administration);
 
       toast({
-        title: 'Tenant deleted',
-        description: `Tenant "${selectedTenant.display_name}" deleted`,
+        title: t('tenantManagement.messages.tenantDeleted'),
+        description: t('tenantManagement.messages.tenantDeletedSuccess', { name: selectedTenant.display_name }),
         status: 'success',
         duration: 3000,
       });
@@ -244,8 +246,8 @@ export function TenantManagement() {
       loadTenants();
     } catch (error) {
       toast({
-        title: 'Error deleting tenant',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('tenantManagement.messages.errorDeleting'),
+        description: error instanceof Error ? error.message : t('tenantManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -297,7 +299,7 @@ export function TenantManagement() {
       <Box display="flex" justifyContent="center" p={8}>
         <VStack spacing={4}>
           <Spinner size="xl" color="orange.400" />
-          <Text color="gray.400">Loading tenants...</Text>
+          <Text color="gray.400">{t('tenantManagement.loading')}</Text>
         </VStack>
       </Box>
     );
@@ -314,18 +316,18 @@ export function TenantManagement() {
             filters={[
               {
                 type: 'search',
-                label: 'Search',
+                label: t('tenantManagement.search'),
                 value: searchTerm,
                 onChange: setSearchTerm,
-                placeholder: 'Search tenants...',
+                placeholder: t('tenantManagement.searchPlaceholder'),
               } as SearchFilterConfig,
               {
                 type: 'single',
-                label: 'Status',
+                label: t('tenantManagement.status'),
                 options: ['all', 'active', 'suspended', 'inactive', 'deleted'],
                 value: statusFilter,
                 onChange: setStatusFilter,
-                getOptionLabel: (option: string) => option === 'all' ? 'All Status' : option.charAt(0).toUpperCase() + option.slice(1),
+                getOptionLabel: (option: string) => option === 'all' ? t('tenantManagement.allStatus') : t(`tenantManagement.status.${option}`),
               } as FilterConfig<string>,
             ]}
             labelColor="white"
@@ -334,10 +336,10 @@ export function TenantManagement() {
           />
           <HStack>
             <Text color="gray.400" fontSize="sm">
-              Total: <Text as="span" color="orange.400" fontWeight="bold">{totalCount}</Text>
+              {t('tenantManagement.total')}: <Text as="span" color="orange.400" fontWeight="bold">{totalCount}</Text>
             </Text>
             <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={openCreateModal}>
-              Create Tenant
+              {t('tenantManagement.createTenant')}
             </Button>
           </HStack>
         </HStack>
