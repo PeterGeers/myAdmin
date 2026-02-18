@@ -21,6 +21,7 @@ import {
 } from '@chakra-ui/react';
 import { WarningIcon, LockIcon, CheckCircleIcon } from '@chakra-ui/icons';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface UnauthorizedProps {
   requiredRoles?: string[];
@@ -33,6 +34,7 @@ interface UnauthorizedProps {
  * Displays current roles and required roles for transparency.
  */
 export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
 
   const handleGoBack = () => {
@@ -56,10 +58,10 @@ export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) 
           {/* Title */}
           <VStack spacing={2}>
             <Heading color="red.400" size="xl">
-              Access Denied
+              {t('auth:unauthorized.title')}
             </Heading>
             <Text color="gray.300" fontSize="lg" textAlign="center">
-              You don't have permission to access this resource
+              {t('auth:unauthorized.subtitle')}
             </Text>
           </VStack>
 
@@ -68,7 +70,7 @@ export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) 
             <VStack spacing={4} w="full" bg="gray.700" p={4} borderRadius="md">
               <HStack w="full" justify="space-between">
                 <Text color="gray.400" fontSize="sm">
-                  Logged in as:
+                  {t('auth:unauthorized.loggedInAs')}
                 </Text>
                 <Text color="orange.400" fontSize="sm" fontWeight="bold">
                   {user.email}
@@ -79,7 +81,7 @@ export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) 
               {user.roles && user.roles.length > 0 && (
                 <VStack w="full" align="start" spacing={2}>
                   <Text color="gray.400" fontSize="sm">
-                    Your current roles:
+                    {t('auth:unauthorized.yourRoles')}
                   </Text>
                   <HStack wrap="wrap" spacing={2}>
                     {user.roles.map((role) => (
@@ -95,7 +97,7 @@ export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) 
               {requiredRoles.length > 0 && (
                 <VStack w="full" align="start" spacing={2}>
                   <Text color="gray.400" fontSize="sm">
-                    Required roles (you need at least one):
+                    {t('auth:unauthorized.requiredRoles')}
                   </Text>
                   <List spacing={1}>
                     {requiredRoles.map((role) => (
@@ -123,10 +125,10 @@ export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) 
               <Icon as={WarningIcon} color="orange.400" />
               <VStack align="start" spacing={1}>
                 <Text color="orange.200" fontSize="sm" fontWeight="bold">
-                  Need Access?
+                  {t('auth:unauthorized.needAccess')}
                 </Text>
                 <Text color="gray.300" fontSize="xs">
-                  Contact your administrator to request the necessary permissions.
+                  {t('auth:unauthorized.contactAdmin')}
                 </Text>
               </VStack>
             </HStack>
@@ -140,7 +142,7 @@ export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) 
               colorScheme="orange"
               onClick={handleGoBack}
             >
-              Go Back
+              {t('auth:unauthorized.goBack')}
             </Button>
             <Button
               size="lg"
@@ -149,7 +151,7 @@ export default function Unauthorized({ requiredRoles = [] }: UnauthorizedProps) 
               colorScheme="gray"
               onClick={logout}
             >
-              Logout
+              {t('common:buttons.cancel')}
             </Button>
           </HStack>
         </VStack>
