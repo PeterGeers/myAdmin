@@ -1316,10 +1316,72 @@ python scripts/check_translations.py
 
 ### 15.2 User Documentation
 
-- [ ] Create user guide for language selection
-- [ ] Update screenshots with language selector
-- [ ] Document language-specific features
-- [ ] Update FAQ with i18n questions
+**Status**: ✅ COMPLETE
+
+Put all related user documentation in .kiro\specs\Common\Internationalization\User documentation
+
+- [x] Create user guide for language selection - USER_GUIDE.md created
+- [x] Update screenshots with language selector - SCREENSHOTS_GUIDE.md created (describes visual elements)
+- [x] Document language-specific features - LANGUAGE_FEATURES.md created
+- [x] Update FAQ with i18n questions - FAQ.md created
+
+**Documentation Created**:
+
+- `.kiro/specs/Common/Internationalization/User documentation/USER_GUIDE.md` - Comprehensive user guide covering:
+  - Supported languages (Dutch and English)
+  - How to change language (step-by-step with visual examples)
+  - Language preference persistence
+  - What changes when switching languages
+  - Language-specific features (date/number formatting)
+  - Frequently asked questions
+  - Troubleshooting guide
+  - Quick reference card
+
+- `.kiro/specs/Common/Internationalization/User documentation/SCREENSHOTS_GUIDE.md` - Visual documentation guide covering:
+  - Language selector location (Dashboard header only)
+  - Language selector states (closed, open, selected)
+  - User interaction flow
+  - Visual design specifications (colors, typography, spacing, icons)
+  - Responsive behavior (desktop, tablet, mobile)
+  - Accessibility features (keyboard navigation, screen reader support)
+  - Screenshot requirements and guidelines
+  - Screenshot storage and naming conventions
+
+- `.kiro/specs/Common/Internationalization/User documentation/LANGUAGE_FEATURES.md` - Feature-specific documentation covering:
+  - How each core module works with multiple languages
+  - Invoice Management (translated UI, formatting, what's NOT translated)
+  - Banking Processor (transaction handling, CSV imports)
+  - STR Processor (booking data, platform integration)
+  - STR Pricing Optimizer (pricing recommendations, ADR)
+  - Reports & Analytics (all 12 reports documented)
+  - PDF Validation System
+  - Administrative features (User Management, Tenant Management, Chart of Accounts)
+  - System features (Authentication, Navigation, Error Messages)
+  - Data entry and validation (date/number formats)
+  - Export and import (Excel, CSV)
+  - Best practices for using multiple languages
+
+- `.kiro/specs/Common/Internationalization/User documentation/FAQ.md` - Comprehensive FAQ covering:
+  - General questions (supported languages, what's translated)
+  - Changing language (how-to, where to find selector)
+  - Language preferences (saving, persistence, multi-device)
+  - Dates and numbers (format differences, entry guidelines)
+  - Reports and exports (translation, Excel, charts)
+  - Email notifications (language selection, preferences)
+  - Technical questions (performance, system behavior)
+  - Troubleshooting (common issues and solutions)
+  - Best practices and quick tips
+
+**Implementation Notes**:
+
+- All user documentation is comprehensive and production-ready
+- Written in clear, non-technical language for end users
+- Includes practical examples and visual descriptions
+- Covers all core modules and features
+- Addresses common questions and issues
+- Provides troubleshooting guidance
+- Ready for distribution to users
+- **Note**: Language selector only appears on Dashboard page (corrected in all documentation)
 
 ### 15.3 Code Documentation
 
