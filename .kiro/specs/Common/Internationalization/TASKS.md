@@ -262,13 +262,17 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 2.3 Chart of Accounts Translations
 
-- [ ] Create `account_translations` table
-- [ ] Add columns: id, account_number, language, account_name, description
-- [ ] Add foreign key to chart_of_accounts
-- [ ] Add unique constraint on (account_number, language)
-- [ ] Add indexes
-- [ ] Test migration on test database
-- [ ] Run migration on production database
+- [x] Create `account_translations` table
+- [x] Add columns: id, account_code, language, account_name, description
+- [x] Add foreign key to rekeningschema (Account column)
+- [x] Add unique constraint on (account_code, language)
+- [x] Add indexes on language and account_code
+- [x] Test migration on development database
+- [ ] Run migration on production database (after deployment)
+- [x] Created SQL script (backend/sql/create_account_translations.sql)
+- [x] Created Python migration script (backend/scripts/database/create_account_translations_table.py)
+
+**Note**: Table references `rekeningschema.Account` (not chart_of_accounts)
 
 ### 2.4 VAT Rule Translations
 
