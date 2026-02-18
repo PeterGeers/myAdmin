@@ -21,7 +21,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import {
   Bar,
   BarChart,
@@ -50,7 +50,7 @@ interface BalanceRecord {
 }
 
 const ActualsReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
   const [profitLossData, setProfitLossData] = useState<BalanceRecord[]>([]);
@@ -222,7 +222,7 @@ const ActualsReport: React.FC = () => {
     rows.push(
       <Tr key="grand-total" bg="orange.600">
         <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
-          TOTAL
+          {t('actuals.total')}
         </Td>
         {columnKeys.map(key => (
           <Td key={key} color="white" fontSize="sm" width="60px" textAlign="right" fontWeight="bold" border="none" py={1}>
@@ -309,7 +309,7 @@ const ActualsReport: React.FC = () => {
     rows.push(
       <Tr key="grand-total" bg="orange.600">
         <Td color="white" fontSize="sm" width="120px" fontWeight="bold" border="none" py={1}>
-          TOTAL
+          {t('actuals.total')}
         </Td>
         <Td color="white" fontSize="sm" width="100px" textAlign="right" fontWeight="bold" border="none" py={1}>
           {formatAmount(grandTotal, displayFormat)}
@@ -327,7 +327,7 @@ const ActualsReport: React.FC = () => {
       // Validate tenant before making API call
       if (!currentTenant) {
         console.warn('[SECURITY] Attempted to fetch actuals data without tenant selection');
-        setError('No tenant selected. Please select a tenant to view actuals data.');
+        setError(t('actuals.noTenantError'));
         return;
       }
 
@@ -352,7 +352,7 @@ const ActualsReport: React.FC = () => {
         setBalanceData(transformedData);
       } else {
         console.error('[TENANT SECURITY] Failed to fetch balance data for tenant:', currentTenant, balanceResult.message);
-        setError(`Failed to fetch balance data: ${balanceResult.message || 'Unknown error'}`);
+        setError(`${t('actuals.failedToFetchBalance')}: ${balanceResult.message || t('actuals.unknownError')}`);
       }
 
       // Profit/Loss data (VW = Y)
@@ -370,15 +370,15 @@ const ActualsReport: React.FC = () => {
         setProfitLossData(transformedData);
       } else {
         console.error('[TENANT SECURITY] Failed to fetch profit/loss data for tenant:', currentTenant, profitLossResult.message);
-        setError(`Failed to fetch profit/loss data: ${profitLossResult.message || 'Unknown error'}`);
+        setError(`${t('actuals.failedToFetchProfitLoss')}: ${profitLossResult.message || t('actuals.unknownError')}`);
       }
     } catch (err) {
       console.error('[TENANT SECURITY] Error fetching actuals data for tenant:', currentTenant, err);
-      setError(`Error loading actuals data. Please check your connection and try again.`);
+      setError(t('actuals.errorLoadingData'));
     } finally {
       setLoading(false);
     }
-  }, [currentTenant, selectedYears, drillDownLevel]);
+  }, [currentTenant, selectedYears, drillDownLevel, t]);
 
   const fetchAvailableYears = useCallback(async () => {
     try {
@@ -401,13 +401,13 @@ const ActualsReport: React.FC = () => {
         setAvailableYears(data.years);
       } else {
         console.error('[TENANT SECURITY] Failed to fetch available years for tenant:', currentTenant, data.message);
-        setError(`Failed to fetch available years: ${data.message || 'Unknown error'}`);
+        setError(`${t('actuals.failedToFetchYears')}: ${data.message || t('actuals.unknownError')}`);
       }
     } catch (err) {
       console.error('[TENANT SECURITY] Error fetching available years for tenant:', currentTenant, err);
-      setError('Error loading available years. Please check your connection and try again.');
+      setError(t('actuals.errorLoadingYears'));
     }
-  }, [currentTenant]);
+  }, [currentTenant, t]);
 
   // Initial data fetch and tenant change handler
   useEffect(() => {
@@ -482,7 +482,7 @@ const ActualsReport: React.FC = () => {
       {!currentTenant && (
         <Alert status="warning">
           <AlertIcon />
-          No tenant selected. Please select a tenant first.
+          {t('actuals.noTenantSelected')}
         </Alert>
       )}
 
@@ -490,7 +490,7 @@ const ActualsReport: React.FC = () => {
       {tenantSwitching && (
         <Alert status="info" bg="blue.500" color="white" mb={4}>
           <AlertIcon color="white" />
-          Switching tenant... Please wait while data is being loaded.
+          {t('actuals.switchingTenant')}
         </Alert>
       )}
 
