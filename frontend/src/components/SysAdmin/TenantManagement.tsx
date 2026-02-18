@@ -349,18 +349,18 @@ export function TenantManagement() {
             <Thead>
               <Tr>
                 <Th color="gray.400" cursor="pointer" onClick={() => handleSort('administration')}>
-                  Administration {sortBy === 'administration' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  {t('tenantManagement.table.administration')} {sortBy === 'administration' && (sortOrder === 'asc' ? '↑' : '↓')}
                 </Th>
                 <Th color="gray.400" cursor="pointer" onClick={() => handleSort('display_name')}>
-                  Display Name {sortBy === 'display_name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  {t('tenantManagement.table.displayName')} {sortBy === 'display_name' && (sortOrder === 'asc' ? '↑' : '↓')}
                 </Th>
                 <Th color="gray.400" cursor="pointer" onClick={() => handleSort('status')}>
-                  Status {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  {t('tenantManagement.table.status')} {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
                 </Th>
-                <Th color="gray.400">Modules</Th>
-                <Th color="gray.400">Users</Th>
+                <Th color="gray.400">{t('tenantManagement.table.modules')}</Th>
+                <Th color="gray.400">{t('tenantManagement.table.users')}</Th>
                 <Th color="gray.400" cursor="pointer" onClick={() => handleSort('created_at')}>
-                  Created {sortBy === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  {t('tenantManagement.table.created')} {sortBy === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
                 </Th>
               </Tr>
             </Thead>
@@ -403,7 +403,7 @@ export function TenantManagement() {
 
         <HStack justify="space-between">
           <HStack>
-            <Text color="gray.400" fontSize="sm">Rows per page:</Text>
+            <Text color="gray.400" fontSize="sm">{t('tenantManagement.rowsPerPage')}:</Text>
             <Select
               value={perPage}
               onChange={(e) => setPerPage(Number(e.target.value))}
@@ -421,17 +421,17 @@ export function TenantManagement() {
           </HStack>
           <HStack>
             <Text color="gray.400" fontSize="sm">
-              Page {currentPage} of {totalPages}
+              {t('tenantManagement.page')} {currentPage} {t('tenantManagement.of')} {totalPages}
             </Text>
             <IconButton
-              aria-label="Previous page"
+              aria-label={t('tenantManagement.actions.previousPage')}
               icon={<ChevronLeftIcon />}
               size="sm"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               isDisabled={currentPage === 1}
             />
             <IconButton
-              aria-label="Next page"
+              aria-label={t('tenantManagement.actions.nextPage')}
               icon={<ChevronRightIcon />}
               size="sm"
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
@@ -445,17 +445,17 @@ export function TenantManagement() {
         <ModalOverlay />
         <ModalContent bg="gray.800" color="white">
           <ModalHeader color="orange.400">
-            {modalMode === 'create' && 'Create New Tenant'}
-            {modalMode === 'edit' && `Edit Tenant: ${selectedTenant?.display_name}`}
-            {modalMode === 'view' && `Tenant Details: ${selectedTenant?.display_name}`}
+            {modalMode === 'create' && t('tenantManagement.modal.createTitle')}
+            {modalMode === 'edit' && t('tenantManagement.modal.editTitle', { name: selectedTenant?.display_name })}
+            {modalMode === 'view' && t('tenantManagement.modal.viewTitle', { name: selectedTenant?.display_name })}
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4} align="stretch">
               <FormControl isRequired={modalMode === 'create'} isDisabled={modalMode === 'view' || modalMode === 'edit'}>
-                <FormLabel color="white">Administration ID</FormLabel>
+                <FormLabel color="white">{t('tenantManagement.modal.administrationId')}</FormLabel>
                 <Input
-                  placeholder="e.g., goodwinsolutions"
+                  placeholder={t('tenantManagement.modal.administrationPlaceholder')}
                   value={formData.administration}
                   onChange={(e) => setFormData({ ...formData, administration: e.target.value.toLowerCase() })}
                   bg="gray.600"
@@ -466,15 +466,15 @@ export function TenantManagement() {
                 />
                 {modalMode === 'create' && (
                   <Text fontSize="xs" color="gray.400" mt={1}>
-                    Lowercase, no spaces. Cannot be changed later.
+                    {t('tenantManagement.modal.administrationHelp')}
                   </Text>
                 )}
               </FormControl>
 
               <FormControl isRequired isDisabled={modalMode === 'view'}>
-                <FormLabel color="white">Display Name</FormLabel>
+                <FormLabel color="white">{t('tenantManagement.modal.displayName')}</FormLabel>
                 <Input
-                  placeholder="e.g., Goodwin Solutions"
+                  placeholder={t('tenantManagement.modal.displayNamePlaceholder')}
                   value={formData.display_name}
                   onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
                   bg="gray.600"
@@ -486,10 +486,10 @@ export function TenantManagement() {
               </FormControl>
 
               <FormControl isRequired isDisabled={modalMode === 'view'}>
-                <FormLabel color="white">Contact Email</FormLabel>
+                <FormLabel color="white">{t('tenantManagement.modal.contactEmail')}</FormLabel>
                 <Input
                   type="email"
-                  placeholder="admin@example.com"
+                  placeholder={t('tenantManagement.modal.contactEmailPlaceholder')}
                   value={formData.contact_email}
                   onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
                   bg="gray.600"
@@ -502,7 +502,7 @@ export function TenantManagement() {
 
               {modalMode === 'edit' && (
                 <FormControl>
-                  <FormLabel color="white">Status</FormLabel>
+                  <FormLabel color="white">{t('tenantManagement.status')}</FormLabel>
                   <Select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
@@ -510,17 +510,17 @@ export function TenantManagement() {
                     color="white"
                     borderColor="gray.500"
                   >
-                    <option style={{ background: '#2D3748', color: 'white' }} value="active">Active</option>
-                    <option style={{ background: '#2D3748', color: 'white' }} value="suspended">Suspended</option>
-                    <option style={{ background: '#2D3748', color: 'white' }} value="inactive">Inactive</option>
+                    <option style={{ background: '#2D3748', color: 'white' }} value="active">{t('tenantManagement.status.active')}</option>
+                    <option style={{ background: '#2D3748', color: 'white' }} value="suspended">{t('tenantManagement.status.suspended')}</option>
+                    <option style={{ background: '#2D3748', color: 'white' }} value="inactive">{t('tenantManagement.status.inactive')}</option>
                   </Select>
                 </FormControl>
               )}
 
               <FormControl isDisabled={modalMode === 'view'}>
-                <FormLabel color="white">Phone Number</FormLabel>
+                <FormLabel color="white">{t('tenantManagement.modal.phoneNumber')}</FormLabel>
                 <Input
-                  placeholder="+31 6 12345678"
+                  placeholder={t('tenantManagement.modal.phonePlaceholder')}
                   value={formData.phone_number}
                   onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                   bg="gray.600"
@@ -532,9 +532,9 @@ export function TenantManagement() {
               </FormControl>
 
               <FormControl isDisabled={modalMode === 'view'}>
-                <FormLabel color="white">Street Address</FormLabel>
+                <FormLabel color="white">{t('tenantManagement.modal.streetAddress')}</FormLabel>
                 <Input
-                  placeholder="123 Main Street"
+                  placeholder={t('tenantManagement.modal.streetPlaceholder')}
                   value={formData.street_address}
                   onChange={(e) => setFormData({ ...formData, street_address: e.target.value })}
                   bg="gray.600"
@@ -547,9 +547,9 @@ export function TenantManagement() {
 
               <HStack>
                 <FormControl isDisabled={modalMode === 'view'}>
-                  <FormLabel color="white">City</FormLabel>
+                  <FormLabel color="white">{t('tenantManagement.modal.city')}</FormLabel>
                   <Input
-                    placeholder="Amsterdam"
+                    placeholder={t('tenantManagement.modal.cityPlaceholder')}
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     bg="gray.600"
@@ -561,9 +561,9 @@ export function TenantManagement() {
                 </FormControl>
 
                 <FormControl isDisabled={modalMode === 'view'}>
-                  <FormLabel color="white">Zipcode</FormLabel>
+                  <FormLabel color="white">{t('tenantManagement.modal.zipcode')}</FormLabel>
                   <Input
-                    placeholder="1012 AB"
+                    placeholder={t('tenantManagement.modal.zipcodePlaceholder')}
                     value={formData.zipcode}
                     onChange={(e) => setFormData({ ...formData, zipcode: e.target.value })}
                     bg="gray.600"
@@ -576,9 +576,9 @@ export function TenantManagement() {
               </HStack>
 
               <FormControl isDisabled={modalMode === 'view'}>
-                <FormLabel color="white">Country</FormLabel>
+                <FormLabel color="white">{t('tenantManagement.modal.country')}</FormLabel>
                 <Input
-                  placeholder="Netherlands"
+                  placeholder={t('tenantManagement.modal.countryPlaceholder')}
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   bg="gray.600"
@@ -591,50 +591,50 @@ export function TenantManagement() {
 
               {modalMode === 'create' && (
                 <FormControl>
-                  <FormLabel color="gray.300">Enabled Modules</FormLabel>
+                  <FormLabel color="gray.300">{t('tenantManagement.modal.enabledModules')}</FormLabel>
                   <Stack spacing={2}>
                     <Checkbox
                       isChecked={formData.enabled_modules.includes('FIN')}
                       onChange={() => toggleModule('FIN')}
                       colorScheme="orange"
                     >
-                      <Text color="gray.300">FIN - Financial Management</Text>
+                      <Text color="gray.300">{t('tenantManagement.modal.moduleFinancial')}</Text>
                     </Checkbox>
                     <Checkbox
                       isChecked={formData.enabled_modules.includes('STR')}
                       onChange={() => toggleModule('STR')}
                       colorScheme="orange"
                     >
-                      <Text color="gray.300">STR - Short-Term Rental</Text>
+                      <Text color="gray.300">{t('tenantManagement.modal.moduleSTR')}</Text>
                     </Checkbox>
                   </Stack>
                   <Text fontSize="xs" color="gray.500" mt={1}>
-                    TENADMIN module is added automatically
+                    {t('tenantManagement.modal.moduleAutoAdded')}
                   </Text>
                 </FormControl>
               )}
 
               {modalMode === 'view' && selectedTenant && (
                 <Box>
-                  <Text color="gray.400" fontSize="sm" mb={2}>Additional Information:</Text>
+                  <Text color="gray.400" fontSize="sm" mb={2}>{t('tenantManagement.modal.additionalInfo')}</Text>
                   <VStack align="stretch" spacing={2} fontSize="sm">
                     <HStack>
-                      <Text color="gray.500">Status:</Text>
+                      <Text color="gray.500">{t('tenantManagement.status')}:</Text>
                       <Badge colorScheme={getStatusColor(selectedTenant.status)}>
-                        {selectedTenant.status}
+                        {t(`tenantManagement.status.${selectedTenant.status}`)}
                       </Badge>
                     </HStack>
                     <HStack>
-                      <Text color="gray.500">Users:</Text>
+                      <Text color="gray.500">{t('tenantManagement.modal.userCount')}:</Text>
                       <Text color="gray.300">{selectedTenant.user_count}</Text>
                     </HStack>
                     <HStack>
-                      <Text color="gray.500">Created:</Text>
+                      <Text color="gray.500">{t('tenantManagement.modal.createdAt')}:</Text>
                       <Text color="gray.300">{new Date(selectedTenant.created_at).toLocaleString()}</Text>
                     </HStack>
                     {selectedTenant.updated_at && (
                       <HStack>
-                        <Text color="gray.500">Updated:</Text>
+                        <Text color="gray.500">{t('tenantManagement.modal.updatedAt')}:</Text>
                         <Text color="gray.300">{new Date(selectedTenant.updated_at).toLocaleString()}</Text>
                       </HStack>
                     )}
@@ -646,9 +646,9 @@ export function TenantManagement() {
           <ModalFooter>
             {modalMode === 'view' ? (
               <>
-                <Button variant="ghost" mr={3} onClick={onModalClose}>Close</Button>
+                <Button variant="ghost" mr={3} onClick={onModalClose}>{t('tenantManagement.actions.close')}</Button>
                 <Button colorScheme="orange" onClick={() => { onModalClose(); openEditModal(selectedTenant!); }}>
-                  Edit
+                  {t('tenantManagement.actions.edit')}
                 </Button>
               </>
             ) : modalMode === 'edit' ? (
@@ -660,33 +660,33 @@ export function TenantManagement() {
                   onClick={() => { onModalClose(); openDeleteDialog(selectedTenant!); }}
                   isDisabled={selectedTenant?.administration === 'myAdmin'}
                 >
-                  Delete
+                  {t('tenantManagement.actions.delete')}
                 </Button>
                 <Button 
                   variant="outline" 
                   colorScheme="blue"
                   onClick={() => { onModalClose(); onModuleOpen(); }}
                 >
-                  Manage Modules
+                  {t('tenantManagement.actions.manageModules')}
                 </Button>
-                <Button variant="ghost" mr={3} onClick={onModalClose}>Cancel</Button>
+                <Button variant="ghost" mr={3} onClick={onModalClose}>{t('tenantManagement.actions.cancel')}</Button>
                 <Button
                   colorScheme="orange"
                   onClick={handleUpdateTenant}
                   isLoading={actionLoading}
                 >
-                  Update
+                  {t('tenantManagement.actions.update')}
                 </Button>
               </>
             ) : (
               <>
-                <Button variant="ghost" mr={3} onClick={onModalClose}>Cancel</Button>
+                <Button variant="ghost" mr={3} onClick={onModalClose}>{t('tenantManagement.actions.cancel')}</Button>
                 <Button
                   colorScheme="orange"
                   onClick={handleCreateTenant}
                   isLoading={actionLoading}
                 >
-                  Create
+                  {t('tenantManagement.actions.create')}
                 </Button>
               </>
             )}
@@ -698,23 +698,23 @@ export function TenantManagement() {
         <AlertDialogOverlay>
           <AlertDialogContent bg="gray.800" color="white">
             <AlertDialogHeader fontSize="lg" fontWeight="bold" color="orange.400">
-              Delete Tenant
+              {t('tenantManagement.deleteDialog.title')}
             </AlertDialogHeader>
             <AlertDialogBody>
-              Are you sure you want to delete tenant <Text as="span" fontWeight="bold" color="orange.400">"{selectedTenant?.display_name}"</Text>?
+              {t('tenantManagement.deleteDialog.confirmMessage')} <Text as="span" fontWeight="bold" color="orange.400">"{selectedTenant?.display_name}"</Text>?
               <br /><br />
-              <Text color="red.400">Warning: This action cannot be undone.</Text>
+              <Text color="red.400">{t('tenantManagement.deleteDialog.warning')}</Text>
               {selectedTenant && selectedTenant.user_count > 0 && (
                 <>
                   <br />
-                  <Text color="orange.400">This tenant has {selectedTenant.user_count} user(s).</Text>
+                  <Text color="orange.400">{t('tenantManagement.deleteDialog.hasUsers', { count: selectedTenant.user_count })}</Text>
                 </>
               )}
             </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onDeleteClose}>Cancel</Button>
+              <Button ref={cancelRef} onClick={onDeleteClose}>{t('tenantManagement.actions.cancel')}</Button>
               <Button colorScheme="red" onClick={handleDeleteTenant} ml={3} isLoading={actionLoading}>
-                Delete
+                {t('tenantManagement.actions.delete')}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
