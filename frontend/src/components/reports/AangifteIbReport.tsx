@@ -20,6 +20,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
 import { FilterPanel } from '../filters/FilterPanel';
@@ -48,6 +49,7 @@ interface XlsxExportProgress {
 }
 
 const AangifteIbReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const { currentTenant } = useTenant();
   const [aangifteIbData, setAangifteIbData] = useState<AangifteIbRecord[]>([]);
   const [aangifteIbDetails, setAangifteIbDetails] = useState<AangifteIbDetail[]>([]);
@@ -424,7 +426,7 @@ const AangifteIbReport: React.FC = () => {
       {!currentTenant && (
         <Alert status="warning">
           <AlertIcon />
-          No tenant selected. Please select a tenant first.
+          {t('common:messages.noTenantSelected')}
         </Alert>
       )}
       
@@ -438,11 +440,11 @@ const AangifteIbReport: React.FC = () => {
               filters={[
                 {
                   type: 'single',
-                  label: 'Year',
+                  label: t('filters.year'),
                   options: aangifteIbAvailableYears,
                   value: selectedYear,
                   onChange: (value) => setSelectedYear(value as string),
-                  placeholder: 'Select year',
+                  placeholder: t('filters.selectYear'),
                   isLoading: aangifteIbLoading || tenantSwitching,
                 },
               ]}
@@ -453,7 +455,7 @@ const AangifteIbReport: React.FC = () => {
               size="sm"
               isDisabled={aangifteIbData.length === 0 || !currentTenant || tenantSwitching}
             >
-              Export HTML
+              {t('export.exportToExcel')}
             </Button>
             <Button 
               colorScheme="green" 
@@ -462,7 +464,7 @@ const AangifteIbReport: React.FC = () => {
               size="sm"
               isDisabled={!currentTenant || !selectedYear || tenantSwitching}
             >
-              Generate XLSX
+              {t('actions.generateReport')}
             </Button>
           </HStack>
           
@@ -504,7 +506,7 @@ const AangifteIbReport: React.FC = () => {
 
       <Card bg="gray.700">
         <CardHeader>
-          <Heading size="md" color="white">Aangifte IB Summary</Heading>
+          <Heading size="md" color="white">{t('titles.aangifteIb')}</Heading>
         </CardHeader>
         <CardBody>
           <TableContainer>
@@ -512,9 +514,9 @@ const AangifteIbReport: React.FC = () => {
               <Thead>
                 <Tr>
                   <Th color="white" w="50px"></Th>
-                  <Th color="white">Parent</Th>
-                  <Th color="white">Aangifte</Th>
-                  <Th color="white" isNumeric>Amount</Th>
+                  <Th color="white">{t('common:labels.parent')}</Th>
+                  <Th color="white">{t('common:labels.category')}</Th>
+                  <Th color="white" isNumeric>{t('tables.amount')}</Th>
                 </Tr>
               </Thead>
               <Tbody>

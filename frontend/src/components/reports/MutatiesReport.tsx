@@ -17,8 +17,10 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { useTenant } from '../../context/TenantContext';
+import { formatCurrency, formatDate } from '../../utils/formatting';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -31,6 +33,7 @@ interface MutatiesRecord {
 }
 
 const MutatiesReport: React.FC = () => {
+  const { t, i18n } = useTranslation('reports');
   const { currentTenant } = useTenant();
   const [mutatiesData, setMutatiesData] = useState<MutatiesRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,7 +66,7 @@ const MutatiesReport: React.FC = () => {
 
   const exportMutatiesCsv = useCallback(() => {
     const csvContent = [
-      ['Date', 'Reference', 'Description', 'Amount', 'Debet', 'Credit', 'Administration'],
+      [t('tables.date'), t('tables.reference'), t('tables.description'), t('tables.amount'), t('tables.debit'), t('tables.credit'), t('filters.administration')],
       ...filteredMutatiesData.map(row => [
         row.TransactionDate,
         row.ReferenceNumber,
@@ -82,7 +85,7 @@ const MutatiesReport: React.FC = () => {
     a.download = `mutaties-${mutatiesFilters.dateFrom}-${mutatiesFilters.dateTo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filteredMutatiesData, mutatiesFilters.dateFrom, mutatiesFilters.dateTo]);
+  }, [filteredMutatiesData, mutatiesFilters.dateFrom, mutatiesFilters.dateTo, t]);
 
   const fetchMutatiesData = useCallback(async () => {
     setLoading(true);
@@ -155,7 +158,7 @@ const MutatiesReport: React.FC = () => {
     return (
       <Alert status="warning">
         <AlertIcon />
-        No tenant selected. Please select a tenant first.
+        {t('common:messages.noTenantSelected')}
       </Alert>
     );
   }
@@ -188,7 +191,7 @@ const MutatiesReport: React.FC = () => {
         <CardBody>
           <HStack spacing={4} wrap="wrap">
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Date From</Text>
+              <Text color="white" fontSize="sm">{t('filters.startDate')}</Text>
               <Input
                 type="date"
                 value={mutatiesFilters.dateFrom}
@@ -200,7 +203,7 @@ const MutatiesReport: React.FC = () => {
               />
             </VStack>
             <VStack spacing={1}>
-              <Text color="white" fontSize="sm">Date To</Text>
+              <Text color="white" fontSize="sm">{t('filters.endDate')}</Text>
               <Input
                 type="date"
                 value={mutatiesFilters.dateTo}
@@ -212,10 +215,10 @@ const MutatiesReport: React.FC = () => {
               />
             </VStack>
             <Button colorScheme="orange" onClick={fetchMutatiesData} isLoading={loading} size="sm">
-              Update Data
+              {t('actions.refreshReport')}
             </Button>
             <Button variant="outline" onClick={exportMutatiesCsv} size="sm">
-              Export CSV
+              {t('export.exportToCsv')}
             </Button>
           </HStack>
         </CardBody>
@@ -225,7 +228,7 @@ const MutatiesReport: React.FC = () => {
         <CardBody>
           <HStack spacing={2} mb={4} wrap="wrap">
             <Input
-              placeholder="Search Description"
+              placeholder={t('common:placeholders.searchDescription')}
               value={searchFilters.TransactionDescription}
               onChange={(e) => setSearchFilters(prev => ({...prev, TransactionDescription: e.target.value}))}
               bg="gray.600"
@@ -234,7 +237,7 @@ const MutatiesReport: React.FC = () => {
               w="200px"
             />
             <Input
-              placeholder="Search Account"
+              placeholder={t('common:placeholders.searchAccount')}
               value={searchFilters.AccountName}
               onChange={(e) => setSearchFilters(prev => ({...prev, AccountName: e.target.value}))}
               bg="gray.600"
@@ -243,7 +246,7 @@ const MutatiesReport: React.FC = () => {
               w="200px"
             />
             <Input
-              placeholder="Search Reference"
+              placeholder={t('common:placeholders.searchReference')}
               value={searchFilters.ReferenceNumber}
               onChange={(e) => setSearchFilters(prev => ({...prev, ReferenceNumber: e.target.value}))}
               bg="gray.600"
@@ -257,28 +260,28 @@ const MutatiesReport: React.FC = () => {
               <Thead>
                 <Tr>
                   <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDate')} style={{color: 'white !important'}}>
-                    Date {sortField === 'TransactionDate' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.date')} {sortField === 'TransactionDate' && (sortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDescription')} style={{color: 'white !important'}}>
-                    Description {sortField === 'TransactionDescription' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.description')} {sortField === 'TransactionDescription' && (sortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleSort('Amount')} style={{color: 'white !important'}}>
-                    Amount {sortField === 'Amount' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.amount')} {sortField === 'Amount' && (sortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleSort('AccountName')} style={{color: 'white !important'}}>
-                    Account {sortField === 'AccountName' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.account')} {sortField === 'AccountName' && (sortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                   <Th color="white" cursor="pointer" onClick={() => handleSort('ReferenceNumber')} style={{color: 'white !important'}}>
-                    Reference {sortField === 'ReferenceNumber' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    {t('tables.reference')} {sortField === 'ReferenceNumber' && (sortDirection === 'asc' ? '↑' : '↓')}
                   </Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {filteredMutatiesData.slice(0, 100).map((row, index) => (
                   <Tr key={index}>
-                    <Td color="white" fontSize="sm">{new Date(row.TransactionDate).toLocaleDateString('nl-NL')}</Td>
+                    <Td color="white" fontSize="sm">{formatDate(new Date(row.TransactionDate), i18n.language)}</Td>
                     <Td color="white" fontSize="sm" maxW="300px" isTruncated title={row.TransactionDescription}>{row.TransactionDescription}</Td>
-                    <Td color="white" fontSize="sm">€{Number(row.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}</Td>
+                    <Td color="white" fontSize="sm">{formatCurrency(Number(row.Amount), i18n.language)}</Td>
                     <Td color="white" fontSize="sm">{row.AccountName}</Td>
                     <Td color="white" fontSize="sm">{row.ReferenceNumber}</Td>
                   </Tr>

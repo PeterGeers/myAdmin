@@ -12,9 +12,11 @@ import {
   Text,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 
 const ToeristenbelastingReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const [toeristenbelastingData, setToeristenbelastingData] = useState<any>(null);
   const [toeristenbelastingFilters, setToeristenbelastingFilters] = useState({
     year: new Date().getFullYear().toString()
@@ -100,13 +102,13 @@ const ToeristenbelastingReport: React.FC = () => {
     <VStack spacing={4} align="stretch">
       <Card bg="gray.700">
         <CardHeader>
-          <Heading size="md" color="white">Aangifte Toeristenbelasting</Heading>
+          <Heading size="md" color="white">{t('titles.toeristenbelasting')}</Heading>
         </CardHeader>
         <CardBody>
           <VStack spacing={4} align="stretch">
             <HStack spacing={4}>
               <Box minW="150px">
-                <Text color="white" mb={2} fontSize="sm">Jaar</Text>
+                <Text color="white" mb={2} fontSize="sm">{t('filters.year')}</Text>
                 <Select
                   value={toeristenbelastingFilters.year}
                   onChange={(e) => setToeristenbelastingFilters(prev => ({ ...prev, year: e.target.value }))}
@@ -126,7 +128,7 @@ const ToeristenbelastingReport: React.FC = () => {
                   size="xs"
                   mt={6}
                 >
-                  Export HTML
+                  {t('export.exportToExcel')}
                 </Button>
               </Box>
             </HStack>
@@ -137,7 +139,7 @@ const ToeristenbelastingReport: React.FC = () => {
       {toeristenbelastingLoading && (
         <Card bg="gray.700">
           <CardBody>
-            <Text color="white">Loading...</Text>
+            <Text color="white">{t('messages.loading')}</Text>
           </CardBody>
         </Card>
       )}

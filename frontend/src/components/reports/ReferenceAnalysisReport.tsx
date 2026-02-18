@@ -19,10 +19,12 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { useTenant } from '../../context/TenantContext';
+import { formatCurrency, formatDate } from '../../utils/formatting';
 
 interface ReferenceAnalysisTransaction {
   TransactionDate: string;
@@ -46,6 +48,7 @@ interface AccountOption {
 }
 
 const ReferenceAnalysisReport: React.FC = () => {
+  const { t, i18n } = useTranslation('reports');
   const { currentTenant } = useTenant();
   
   // Separate state for each filter
@@ -130,7 +133,7 @@ const ReferenceAnalysisReport: React.FC = () => {
       {!currentTenant && (
         <Alert status="warning">
           <AlertIcon />
-          No tenant selected. Please select a tenant first to view reference analysis data.
+          {t('common:messages.noTenantSelected')}
         </Alert>
       )}
 
@@ -146,26 +149,26 @@ const ReferenceAnalysisReport: React.FC = () => {
                 filters={[
                   {
                     type: 'multi',
-                    label: 'Years',
+                    label: t('filters.year'),
                     options: availableYears,
                     value: selectedYears,
                     onChange: setSelectedYears,
-                    placeholder: 'Select year(s)'
+                    placeholder: t('filters.selectYear')
                   },
                   {
                     type: 'search',
-                    label: 'Reference Number (Regex)',
+                    label: t('tables.reference'),
                     value: referenceNumber,
                     onChange: setReferenceNumber,
-                    placeholder: 'Enter regex pattern (e.g. AMZN or .*Amazon.*)'
+                    placeholder: t('common:placeholders.searchReference')
                   },
                   {
                     type: 'multi',
-                    label: 'Accounts',
+                    label: t('filters.account'),
                     options: availableRefAccounts,
                     value: availableRefAccounts.filter(acc => selectedAccounts.includes(acc.Reknum)),
                     onChange: (accounts: AccountOption[]) => setSelectedAccounts(accounts.map(acc => acc.Reknum)),
-                    placeholder: 'Select accounts...',
+                    placeholder: t('filters.selectAccount'),
                     getOptionLabel: (account) => `${account.Reknum} - ${account.AccountName}`,
                     getOptionValue: (account) => account.Reknum,
                     treatEmptyAsSelected: false
@@ -181,7 +184,7 @@ const ReferenceAnalysisReport: React.FC = () => {
                   size="sm"
                   mt={6}
                 >
-                  Analyze
+                  {t('common:buttons.analyze')}
                 </Button>
               </Box>
             </HStack>
@@ -193,7 +196,7 @@ const ReferenceAnalysisReport: React.FC = () => {
       {refTrendData.length > 0 && (
         <Card bg="gray.700">
           <CardHeader>
-            <Heading size="md" color="white">Expense Trend by Quarter</Heading>
+            <Heading size="md" color="white">{t('charts.trend')}</Heading>
           </CardHeader>
           <CardBody>
             <ResponsiveContainer width="100%" height={400}>
@@ -242,32 +245,32 @@ const ReferenceAnalysisReport: React.FC = () => {
       {refAnalysisData.length > 0 && (
         <Card bg="gray.700">
           <CardHeader>
-            <Heading size="md" color="white">Transactions ({refAnalysisData.length})</Heading>
+            <Heading size="md" color="white">{t('titles.mutaties')} ({refAnalysisData.length})</Heading>
           </CardHeader>
           <CardBody>
             <TableContainer maxH="600px" overflowY="auto">
               <Table size="sm" variant="simple">
                 <Thead position="sticky" top={0} bg="gray.700" zIndex={1}>
                   <Tr>
-                    <Th color="white">Date</Th>
-                    <Th color="white">Description</Th>
-                    <Th color="white" isNumeric>Amount</Th>
-                    <Th color="white">Account</Th>
-                    <Th color="white">Reference</Th>
-                    <Th color="white">Administration</Th>
+                    <Th color="white">{t('tables.date')}</Th>
+                    <Th color="white">{t('tables.description')}</Th>
+                    <Th color="white" isNumeric>{t('tables.amount')}</Th>
+                    <Th color="white">{t('tables.account')}</Th>
+                    <Th color="white">{t('tables.reference')}</Th>
+                    <Th color="white">{t('filters.administration')}</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
                   {refAnalysisData.map((row, index) => (
                     <Tr key={index}>
                       <Td color="white" fontSize="sm">
-                        {new Date(row.TransactionDate).toLocaleDateString('nl-NL')}
+                        {formatDate(new Date(row.TransactionDate), i18n.language)}
                       </Td>
                       <Td color="white" fontSize="sm" maxW="300px" isTruncated title={row.TransactionDescription}>
                         {row.TransactionDescription}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        €{Number(row.Amount).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                        {formatCurrency(Number(row.Amount), i18n.language)}
                       </Td>
                       <Td color="white" fontSize="sm">
                         {row.Reknum} - {row.AccountName}
@@ -287,7 +290,7 @@ const ReferenceAnalysisReport: React.FC = () => {
             {/* Summary */}
             <Box mt={4} p={3} bg="gray.600" borderRadius="md">
               <Text color="white" fontWeight="bold">
-                Total: €{refAnalysisData.reduce((sum, row) => sum + Math.abs(Number(row.Amount)), 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                {t('tables.total')}: {formatCurrency(refAnalysisData.reduce((sum, row) => sum + Math.abs(Number(row.Amount)), 0), i18n.language)}
               </Text>
             </Box>
           </CardBody>
