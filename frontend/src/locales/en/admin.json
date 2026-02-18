@@ -214,7 +214,58 @@
     "loading": "Loading roles...",
     "createRole": "Create Role",
     "editRole": "Edit Role",
-    "deleteRole": "Delete Role"
+    "deleteRole": "Delete Role",
+    "totalRoles": "Total Roles",
+    "categories": {
+      "platform": "Platform",
+      "module": "Module",
+      "other": "Other",
+      "platformRoles": "Platform Roles",
+      "moduleRoles": "Module Roles",
+      "otherRoles": "Other Roles"
+    },
+    "labels": {
+      "user": "user",
+      "users": "users",
+      "precedence": "Precedence"
+    },
+    "modal": {
+      "createTitle": "Create New Role",
+      "editTitle": "Edit Role: {{name}}",
+      "roleName": "Role Name",
+      "roleNamePlaceholder": "e.g., Finance_Manager",
+      "roleNameHintCreate": "Use underscore for module roles. Cannot be changed later.",
+      "roleNameHintEdit": "Role name cannot be changed",
+      "description": "Description",
+      "descriptionPlaceholder": "Describe the role",
+      "precedence": "Precedence",
+      "precedenceHint": "Lower = higher priority",
+      "cancel": "Cancel",
+      "create": "Create Role",
+      "update": "Update Role"
+    },
+    "deleteDialog": {
+      "title": "Delete Role",
+      "confirmMessage": "Are you sure you want to delete",
+      "warning": "Warning: Users will lose permissions.",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "messages": {
+      "errorLoading": "Error loading roles",
+      "validationError": "Validation Error",
+      "roleNameRequired": "Role name is required",
+      "roleCreated": "Role created",
+      "roleCreatedSuccess": "Role \"{{name}}\" created successfully",
+      "errorCreating": "Error creating role",
+      "roleUpdated": "Role updated",
+      "roleUpdatedSuccess": "Role \"{{name}}\" updated successfully",
+      "errorUpdating": "Error updating role",
+      "roleDeleted": "Role deleted",
+      "roleDeletedSuccess": "Role \"{{name}}\" deleted",
+      "errorDeleting": "Error deleting role",
+      "unknownError": "Unknown error"
+    }
   },
   "healthCheck": {
     "title": "System Health Check",

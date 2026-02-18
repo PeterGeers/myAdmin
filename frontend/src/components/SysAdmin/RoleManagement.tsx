@@ -10,8 +10,10 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
 import { getRoles, createRole, updateRole, deleteRole, Role } from '../../services/sysadminService';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 export function RoleManagement() {
+  const { t } = useTypedTranslation('admin');
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -54,8 +56,8 @@ export function RoleManagement() {
       setRoles(categorizedRoles);
     } catch (error) {
       toast({
-        title: 'Error loading roles',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('roleManagement.messages.errorLoading'),
+        description: error instanceof Error ? error.message : t('roleManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -93,8 +95,8 @@ export function RoleManagement() {
   const handleCreateRole = async () => {
     if (!formData.name.trim()) {
       toast({
-        title: 'Validation Error',
-        description: 'Role name is required',
+        title: t('roleManagement.messages.validationError'),
+        description: t('roleManagement.messages.roleNameRequired'),
         status: 'warning',
         duration: 3000,
       });
@@ -110,8 +112,8 @@ export function RoleManagement() {
       });
 
       toast({
-        title: 'Role created',
-        description: `Role "${formData.name}" created successfully`,
+        title: t('roleManagement.messages.roleCreated'),
+        description: t('roleManagement.messages.roleCreatedSuccess', { name: formData.name }),
         status: 'success',
         duration: 3000,
       });
@@ -120,8 +122,8 @@ export function RoleManagement() {
       loadRoles();
     } catch (error) {
       toast({
-        title: 'Error creating role',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('roleManagement.messages.errorCreating'),
+        description: error instanceof Error ? error.message : t('roleManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -141,8 +143,8 @@ export function RoleManagement() {
       });
 
       toast({
-        title: 'Role updated',
-        description: `Role "${selectedRole.name}" updated successfully`,
+        title: t('roleManagement.messages.roleUpdated'),
+        description: t('roleManagement.messages.roleUpdatedSuccess', { name: selectedRole.name }),
         status: 'success',
         duration: 3000,
       });
@@ -152,8 +154,8 @@ export function RoleManagement() {
       loadRoles();
     } catch (error) {
       toast({
-        title: 'Error updating role',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('roleManagement.messages.errorUpdating'),
+        description: error instanceof Error ? error.message : t('roleManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -170,8 +172,8 @@ export function RoleManagement() {
       await deleteRole(selectedRole.name);
 
       toast({
-        title: 'Role deleted',
-        description: `Role "${selectedRole.name}" deleted`,
+        title: t('roleManagement.messages.roleDeleted'),
+        description: t('roleManagement.messages.roleDeletedSuccess', { name: selectedRole.name }),
         status: 'success',
         duration: 3000,
       });
@@ -181,8 +183,8 @@ export function RoleManagement() {
       loadRoles();
     } catch (error) {
       toast({
-        title: 'Error deleting role',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('roleManagement.messages.errorDeleting'),
+        description: error instanceof Error ? error.message : t('roleManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -206,9 +208,9 @@ export function RoleManagement() {
 
   const getCategoryLabel = (category?: string) => {
     switch (category) {
-      case 'platform': return 'Platform';
-      case 'module': return 'Module';
-      default: return 'Other';
+      case 'platform': return t('roleManagement.categories.platform');
+      case 'module': return t('roleManagement.categories.module');
+      default: return t('roleManagement.categories.other');
     }
   };
 
@@ -217,7 +219,7 @@ export function RoleManagement() {
       <Box display="flex" justifyContent="center" p={8}>
         <VStack spacing={4}>
           <Spinner size="xl" color="orange.400" />
-          <Text color="gray.400">Loading roles...</Text>
+          <Text color="gray.400">{t('roleManagement.loading')}</Text>
         </VStack>
       </Box>
     );
@@ -232,17 +234,17 @@ export function RoleManagement() {
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between">
           <Text color="gray.300" fontSize="lg">
-            Total Roles: <Text as="span" color="orange.400" fontWeight="bold">{roles.length}</Text>
+            {t('roleManagement.totalRoles')}: <Text as="span" color="orange.400" fontWeight="bold">{roles.length}</Text>
           </Text>
           <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={openCreateModal}>
-            Create Role
+            {t('roleManagement.createRole')}
           </Button>
         </HStack>
 
         {platformRoles.length > 0 && (
           <Box>
             <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>
-              Platform Roles ({platformRoles.length})
+              {t('roleManagement.categories.platformRoles')} ({platformRoles.length})
             </Text>
             <VStack align="stretch" spacing={2}>
               {platformRoles.map((role) => (
@@ -263,14 +265,14 @@ export function RoleManagement() {
                       </Badge>
                       {role.user_count !== undefined && (
                         <Badge colorScheme="green" fontSize="xs">
-                          {role.user_count} {role.user_count === 1 ? 'user' : 'users'}
+                          {role.user_count} {role.user_count === 1 ? t('roleManagement.labels.user') : t('roleManagement.labels.users')}
                         </Badge>
                       )}
                     </HStack>
                     <Text color="gray.400" fontSize="sm">{role.description}</Text>
                   </VStack>
                   <HStack spacing={3}>
-                    <Badge colorScheme="purple">Precedence: {role.precedence}</Badge>
+                    <Badge colorScheme="purple">{t('roleManagement.labels.precedence')}: {role.precedence}</Badge>
                     <Button
                       size="sm"
                       colorScheme="red"
@@ -279,7 +281,7 @@ export function RoleManagement() {
                       onClick={() => openDeleteDialog(role)}
                       isDisabled={role.name === 'SysAdmin' || role.name === 'Tenant_Admin'}
                     >
-                      Delete
+                      {t('roleManagement.deleteRole')}
                     </Button>
                   </HStack>
                 </HStack>
@@ -291,7 +293,7 @@ export function RoleManagement() {
         {moduleRoles.length > 0 && (
           <Box>
             <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>
-              Module Roles ({moduleRoles.length})
+              {t('roleManagement.categories.moduleRoles')} ({moduleRoles.length})
             </Text>
             <VStack align="stretch" spacing={2}>
               {moduleRoles.map((role) => (
@@ -312,16 +314,16 @@ export function RoleManagement() {
                       </Badge>
                       {role.user_count !== undefined && (
                         <Badge colorScheme="green" fontSize="xs">
-                          {role.user_count} {role.user_count === 1 ? 'user' : 'users'}
+                          {role.user_count} {role.user_count === 1 ? t('roleManagement.labels.user') : t('roleManagement.labels.users')}
                         </Badge>
                       )}
                     </HStack>
                     <Text color="gray.400" fontSize="sm">{role.description}</Text>
                   </VStack>
                   <HStack spacing={3}>
-                    <Badge colorScheme="purple">Precedence: {role.precedence}</Badge>
+                    <Badge colorScheme="purple">{t('roleManagement.labels.precedence')}: {role.precedence}</Badge>
                     <Button size="sm" colorScheme="red" variant="ghost" leftIcon={<DeleteIcon />} onClick={() => openDeleteDialog(role)}>
-                      Delete
+                      {t('roleManagement.deleteRole')}
                     </Button>
                   </HStack>
                 </HStack>
@@ -333,7 +335,7 @@ export function RoleManagement() {
         {otherRoles.length > 0 && (
           <Box>
             <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>
-              Other Roles ({otherRoles.length})
+              {t('roleManagement.categories.otherRoles')} ({otherRoles.length})
             </Text>
             <VStack align="stretch" spacing={2}>
               {otherRoles.map((role) => (
@@ -351,16 +353,16 @@ export function RoleManagement() {
                       </Text>
                       {role.user_count !== undefined && (
                         <Badge colorScheme="green" fontSize="xs">
-                          {role.user_count} {role.user_count === 1 ? 'user' : 'users'}
+                          {role.user_count} {role.user_count === 1 ? t('roleManagement.labels.user') : t('roleManagement.labels.users')}
                         </Badge>
                       )}
                     </HStack>
                     <Text color="gray.400" fontSize="sm">{role.description}</Text>
                   </VStack>
                   <HStack spacing={3}>
-                    <Badge colorScheme="purple">Precedence: {role.precedence}</Badge>
+                    <Badge colorScheme="purple">{t('roleManagement.labels.precedence')}: {role.precedence}</Badge>
                     <Button size="sm" colorScheme="red" variant="ghost" leftIcon={<DeleteIcon />} onClick={() => openDeleteDialog(role)}>
-                      Delete
+                      {t('roleManagement.deleteRole')}
                     </Button>
                   </HStack>
                 </HStack>
@@ -374,15 +376,15 @@ export function RoleManagement() {
         <ModalOverlay />
         <ModalContent bg="gray.800" color="white">
           <ModalHeader color="orange.400">
-            {modalMode === 'create' ? 'Create New Role' : `Edit Role: ${selectedRole?.name}`}
+            {modalMode === 'create' ? t('roleManagement.modal.createTitle') : t('roleManagement.modal.editTitle', { name: selectedRole?.name })}
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4} align="stretch">
               <FormControl isRequired isDisabled={modalMode === 'edit'}>
-                <FormLabel color="white">Role Name</FormLabel>
+                <FormLabel color="white">{t('roleManagement.modal.roleName')}</FormLabel>
                 <Input
-                  placeholder="e.g., Finance_Manager"
+                  placeholder={t('roleManagement.modal.roleNamePlaceholder')}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   bg="gray.600"
@@ -393,20 +395,20 @@ export function RoleManagement() {
                 />
                 {modalMode === 'create' && (
                   <Text fontSize="xs" color="gray.400" mt={1}>
-                    Use underscore for module roles. Cannot be changed later.
+                    {t('roleManagement.modal.roleNameHintCreate')}
                   </Text>
                 )}
                 {modalMode === 'edit' && (
                   <Text fontSize="xs" color="gray.400" mt={1}>
-                    Role name cannot be changed
+                    {t('roleManagement.modal.roleNameHintEdit')}
                   </Text>
                 )}
               </FormControl>
 
               <FormControl>
-                <FormLabel color="white">Description</FormLabel>
+                <FormLabel color="white">{t('roleManagement.modal.description')}</FormLabel>
                 <Textarea
-                  placeholder="Describe the role"
+                  placeholder={t('roleManagement.modal.descriptionPlaceholder')}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   bg="gray.600"
@@ -418,7 +420,7 @@ export function RoleManagement() {
               </FormControl>
 
               <FormControl>
-                <FormLabel color="white">Precedence</FormLabel>
+                <FormLabel color="white">{t('roleManagement.modal.precedence')}</FormLabel>
                 <NumberInput
                   value={formData.precedence}
                   onChange={(_, value) => setFormData({ ...formData, precedence: value })}
@@ -433,15 +435,15 @@ export function RoleManagement() {
                   </NumberInputStepper>
                 </NumberInput>
                 <Text fontSize="xs" color="gray.400" mt={1}>
-                  Lower = higher priority
+                  {t('roleManagement.modal.precedenceHint')}
                 </Text>
               </FormControl>
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onModalClose}>Cancel</Button>
+            <Button variant="ghost" mr={3} onClick={onModalClose}>{t('roleManagement.modal.cancel')}</Button>
             <Button colorScheme="orange" onClick={handleSubmit} isLoading={actionLoading}>
-              {modalMode === 'create' ? 'Create Role' : 'Update Role'}
+              {modalMode === 'create' ? t('roleManagement.modal.create') : t('roleManagement.modal.update')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -451,17 +453,17 @@ export function RoleManagement() {
         <AlertDialogOverlay>
           <AlertDialogContent bg="gray.800" color="white">
             <AlertDialogHeader fontSize="lg" fontWeight="bold" color="orange.400">
-              Delete Role
+              {t('roleManagement.deleteDialog.title')}
             </AlertDialogHeader>
             <AlertDialogBody>
-              Are you sure you want to delete <Text as="span" fontWeight="bold" color="orange.400">"{selectedRole?.name}"</Text>?
+              {t('roleManagement.deleteDialog.confirmMessage')} <Text as="span" fontWeight="bold" color="orange.400">"{selectedRole?.name}"</Text>?
               <br /><br />
-              <Text color="red.400">Warning: Users will lose permissions.</Text>
+              <Text color="red.400">{t('roleManagement.deleteDialog.warning')}</Text>
             </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onDeleteClose}>Cancel</Button>
+              <Button ref={cancelRef} onClick={onDeleteClose}>{t('roleManagement.deleteDialog.cancel')}</Button>
               <Button colorScheme="red" onClick={handleDeleteRole} ml={3} isLoading={actionLoading}>
-                Delete
+                {t('roleManagement.deleteDialog.delete')}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>

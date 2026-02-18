@@ -214,7 +214,58 @@
     "loading": "Rollen laden...",
     "createRole": "Rol aanmaken",
     "editRole": "Rol bewerken",
-    "deleteRole": "Rol verwijderen"
+    "deleteRole": "Rol verwijderen",
+    "totalRoles": "Totaal aantal rollen",
+    "categories": {
+      "platform": "Platform",
+      "module": "Module",
+      "other": "Overig",
+      "platformRoles": "Platformrollen",
+      "moduleRoles": "Modulerollen",
+      "otherRoles": "Overige rollen"
+    },
+    "labels": {
+      "user": "gebruiker",
+      "users": "gebruikers",
+      "precedence": "Prioriteit"
+    },
+    "modal": {
+      "createTitle": "Nieuwe rol aanmaken",
+      "editTitle": "Rol bewerken: {{name}}",
+      "roleName": "Rolnaam",
+      "roleNamePlaceholder": "bijv. Finance_Manager",
+      "roleNameHintCreate": "Gebruik underscore voor modulerollen. Kan later niet worden gewijzigd.",
+      "roleNameHintEdit": "Rolnaam kan niet worden gewijzigd",
+      "description": "Beschrijving",
+      "descriptionPlaceholder": "Beschrijf de rol",
+      "precedence": "Prioriteit",
+      "precedenceHint": "Lager = hogere prioriteit",
+      "cancel": "Annuleren",
+      "create": "Rol aanmaken",
+      "update": "Rol bijwerken"
+    },
+    "deleteDialog": {
+      "title": "Rol verwijderen",
+      "confirmMessage": "Weet u zeker dat u wilt verwijderen",
+      "warning": "Waarschuwing: Gebruikers verliezen rechten.",
+      "cancel": "Annuleren",
+      "delete": "Verwijderen"
+    },
+    "messages": {
+      "errorLoading": "Fout bij laden van rollen",
+      "validationError": "Validatiefout",
+      "roleNameRequired": "Rolnaam is verplicht",
+      "roleCreated": "Rol aangemaakt",
+      "roleCreatedSuccess": "Rol \"{{name}}\" succesvol aangemaakt",
+      "errorCreating": "Fout bij aanmaken rol",
+      "roleUpdated": "Rol bijgewerkt",
+      "roleUpdatedSuccess": "Rol \"{{name}}\" succesvol bijgewerkt",
+      "errorUpdating": "Fout bij bijwerken rol",
+      "roleDeleted": "Rol verwijderd",
+      "roleDeletedSuccess": "Rol \"{{name}}\" verwijderd",
+      "errorDeleting": "Fout bij verwijderen rol",
+      "unknownError": "Onbekende fout"
+    }
   },
   "healthCheck": {
     "title": "Systeemstatus controle",
