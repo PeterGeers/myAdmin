@@ -1385,10 +1385,122 @@ Put all related user documentation in .kiro\specs\Common\Internationalization\Us
 
 ### 15.3 Code Documentation
 
-- [ ] Add JSDoc comments to i18n utilities
-- [ ] Add docstrings to backend i18n functions
-- [ ] Document translation key naming conventions
-- [ ] Document component usage patterns
+**Status**: ✅ COMPLETE
+
+- [x] Add JSDoc comments to i18n utilities - All frontend utilities documented
+- [x] Add docstrings to backend i18n functions - All backend functions documented
+- [x] Document translation key naming conventions - TRANSLATION_KEY_CONVENTIONS.md created
+- [x] Document component usage patterns - COMPONENT_USAGE_PATTERNS.md created
+
+**Documentation Added**:
+
+**Frontend JSDoc Comments:**
+
+- `frontend/src/i18n.ts` - Comprehensive module documentation covering:
+  - i18n configuration and initialization
+  - Supported languages and namespaces
+  - Usage examples
+  - Links to i18next documentation
+
+- `frontend/src/hooks/useTypedTranslation.ts` - Hook documentation covering:
+  - Type-safe translation hook usage
+  - Available namespaces
+  - Interpolation examples
+  - Language switching examples
+
+- `frontend/src/utils/formatting.ts` - Already had comprehensive JSDoc comments for:
+  - formatDate() - Date formatting with locale support
+  - formatNumber() - Number formatting with locale support
+  - formatCurrency() - Currency formatting with EUR symbol
+
+- `frontend/src/utils/errorHandling.ts` - Error handling documentation covering:
+  - getErrorMessageByStatus() - HTTP status code to translated message
+  - getErrorMessage() - Error object to translated message
+  - Usage examples with translation functions
+
+- `frontend/src/utils/validationHelpers.ts` - Validation helpers documentation covering:
+  - isValidEmail() - Email format validation
+  - isValidUrl() - URL format validation
+  - isValidPhone() - Phone number format validation
+  - isValidIBAN() - IBAN format validation (basic)
+  - Usage examples with translation integration
+
+**Backend Docstrings:**
+
+- `backend/src/i18n.py` - Already had comprehensive docstrings for:
+  - get_locale() - X-Language header detection
+  - init_babel() - Flask-Babel initialization
+
+- `backend/src/services/user_language_service.py` - Already had docstrings for:
+  - get_user_language() - Cognito custom attribute retrieval
+  - update_user_language() - Cognito custom attribute update
+  - validate_language_code() - Language code validation
+
+- `backend/src/services/tenant_language_service.py` - Already had docstrings for:
+  - get_tenant_language() - Database default language retrieval
+  - update_tenant_language() - Database default language update
+  - validate_language_code() - Language code validation
+
+- `backend/src/services/email_template_service.py` - Already had comprehensive docstrings for:
+  - EmailTemplateService class and all methods
+  - Template rendering with language support
+  - User invitation email rendering
+  - Language detection logic
+
+**Conventions Documentation:**
+
+- `.kiro/specs/Common/Internationalization/TRANSLATION_KEY_CONVENTIONS.md` - Comprehensive guide covering:
+  - General principles (hierarchical structure, descriptive names, camelCase)
+  - Namespace organization (all 8 namespaces documented)
+  - Naming patterns (buttons, labels, messages, status)
+  - Special cases (interpolation, pluralization, context-specific keys)
+  - Best practices (DO and DON'T examples)
+  - Key naming checklist
+  - Examples by feature (User Management, Banking Processor)
+  - Maintenance guidelines
+
+**Component Patterns Documentation:**
+
+- `.kiro/specs/Common/Internationalization/COMPONENT_USAGE_PATTERNS.md` - Comprehensive guide covering:
+  - Basic usage (useTypedTranslation hook, namespace specification)
+  - 18 component patterns:
+    1. Simple component
+    2. Multiple namespaces
+    3. Interpolation
+    4. Formatting
+    5. Conditional translations
+    6. Error handling
+    7. Date formatting
+    8. Number formatting
+    9. Currency formatting
+    10. Memoized formatting
+    11. Language switcher
+    12. Form validation
+    13. Toast notifications
+    14. Table headers
+    15. Chart labels
+    16. Testing translated components
+    17. Testing language switching
+    18. Testing with data-testid
+  - Common pitfalls (hardcoded text, missing namespace, etc.)
+  - Testing patterns
+  - Quick reference guide
+
+**Implementation Notes**:
+
+- All code documentation is comprehensive and production-ready
+- JSDoc comments follow standard conventions
+- Python docstrings follow PEP 257 conventions
+- All functions and utilities documented with:
+  - Purpose and description
+  - Parameters and return values
+  - Usage examples
+  - Links to external documentation where applicable
+- Conventions and patterns documentation provides:
+  - Clear guidelines for developers
+  - Practical examples
+  - Best practices and anti-patterns
+  - Maintenance guidelines
 
 ---
 
