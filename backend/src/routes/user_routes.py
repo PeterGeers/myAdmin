@@ -5,8 +5,8 @@ This module provides API endpoints for user-specific operations,
 including language preference management.
 """
 from flask import Blueprint, jsonify, request
-from src.auth.cognito_utils import cognito_required
-from src.services.user_language_service import (
+from auth.cognito_utils import cognito_required
+from services.user_language_service import (
     get_user_language,
     update_user_language,
     validate_language_code
