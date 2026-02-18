@@ -27,6 +27,7 @@ import {
   FormLabel
 } from '@chakra-ui/react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
+import { useTypedTranslation } from '../hooks/useTypedTranslation';
 
 interface Booking {
   reservationCode: string;
@@ -41,6 +42,7 @@ interface Booking {
 }
 
 const STRInvoice: React.FC = () => {
+  const { t } = useTypedTranslation('str');
   const [searchQuery, setSearchQuery] = useState('');
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [searchResults, setSearchResults] = useState<Booking[]>([]);
@@ -79,8 +81,8 @@ const STRInvoice: React.FC = () => {
         
         if (data.bookings && data.bookings.length > 0) {
           toast({
-            title: 'Bookings Loaded',
-            description: `${data.bookings.length} bookings loaded successfully`,
+            title: t('invoice.messages.bookingsLoadedSuccess'),
+            description: t('invoice.messages.bookingsLoadedCount', { count: data.bookings.length }),
             status: 'success',
             duration: 2000,
             isClosable: true,
@@ -92,8 +94,8 @@ const STRInvoice: React.FC = () => {
     } catch (error) {
       console.error('Loading error:', error);
       toast({
-        title: 'Loading Error',
-        description: error instanceof Error ? error.message : 'Failed to load bookings',
+        title: t('invoice.messages.loadingError'),
+        description: error instanceof Error ? error.message : t('invoice.messages.failedToLoadBookings'),
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -131,8 +133,8 @@ const STRInvoice: React.FC = () => {
 
     if (filtered.length === 0) {
       toast({
-        title: 'No Results',
-        description: 'No bookings found matching your search',
+        title: t('invoice.messages.noResults'),
+        description: t('invoice.messages.noBookingsFound'),
         status: 'info',
         duration: 3000,
         isClosable: true,
@@ -160,8 +162,8 @@ const STRInvoice: React.FC = () => {
         setSelectedBooking(booking);
         onOpen();
         toast({
-          title: 'Success',
-          description: 'Invoice generated successfully',
+          title: t('invoice.messages.invoiceGeneratedSuccess'),
+          description: t('invoice.messages.invoiceGenerated'),
           status: 'success',
           duration: 3000,
           isClosable: true,
@@ -171,8 +173,8 @@ const STRInvoice: React.FC = () => {
       }
     } catch (error) {
       toast({
-        title: 'Generation Error',
-        description: error instanceof Error ? error.message : 'Failed to generate invoice',
+        title: t('invoice.messages.generationError'),
+        description: error instanceof Error ? error.message : t('invoice.messages.failedToGenerateInvoice'),
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -194,21 +196,21 @@ const STRInvoice: React.FC = () => {
   return (
     <Box p={6}>
       <VStack spacing={6} align="stretch">
-        <Text fontSize="2xl" fontWeight="bold">STR Invoice Generator</Text>
+        <Text fontSize="2xl" fontWeight="bold">{t('invoice.title')}</Text>
         
         <Alert status="info" bg="blue.500" color="white">
           <AlertIcon />
-          {loading ? 'Loading bookings...' : `${allBookings.length} bookings loaded. Use search to filter results.`}
+          {loading ? t('invoice.loadingBookings') : t('invoice.bookingsLoaded', { count: allBookings.length })}
         </Alert>
 
         {/* Search Section */}
         <Box borderWidth={1} borderRadius="md" p={4}>
           <VStack spacing={4} align="stretch">
-            <Text fontSize="lg" fontWeight="semibold">Filter Bookings</Text>
+            <Text fontSize="lg" fontWeight="semibold">{t('invoice.filterBookings')}</Text>
             
             <HStack>
               <FormControl maxW="180px">
-                <FormLabel fontSize="sm">Start Date</FormLabel>
+                <FormLabel fontSize="sm">{t('invoice.startDate')}</FormLabel>
                 <Input
                   type="date"
                   value={startDate}
@@ -217,7 +219,7 @@ const STRInvoice: React.FC = () => {
                 />
               </FormControl>
               <FormControl maxW="180px">
-                <FormLabel fontSize="sm">End Date</FormLabel>
+                <FormLabel fontSize="sm">{t('invoice.endDate')}</FormLabel>
                 <Input
                   type="date"
                   value={endDate}
@@ -226,9 +228,9 @@ const STRInvoice: React.FC = () => {
                 />
               </FormControl>
               <FormControl flex="1">
-                <FormLabel fontSize="sm">Search</FormLabel>
+                <FormLabel fontSize="sm">{t('invoice.search')}</FormLabel>
                 <Input
-                  placeholder="Filter by guest name, reservation code, channel, or listing"
+                  placeholder={t('invoice.searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -250,10 +252,10 @@ const STRInvoice: React.FC = () => {
                 />
               </FormControl>
               <FormControl maxW="150px">
-                <FormLabel fontSize="sm">Language</FormLabel>
+                <FormLabel fontSize="sm">{t('invoice.language')}</FormLabel>
                 <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  <option value="nl">Nederlands</option>
-                  <option value="en">English</option>
+                  <option value="nl">{t('invoice.languages.nl')}</option>
+                  <option value="en">{t('invoice.languages.en')}</option>
                 </Select>
               </FormControl>
             </HStack>
@@ -262,10 +264,10 @@ const STRInvoice: React.FC = () => {
                 colorScheme="blue" 
                 onClick={searchBookings}
                 isLoading={loading}
-                loadingText="Filtering..."
+                loadingText={t('invoice.filtering')}
                 size="sm"
               >
-                Filter
+                {t('invoice.filter')}
               </Button>
               <Button 
                 colorScheme="gray" 
@@ -276,16 +278,16 @@ const STRInvoice: React.FC = () => {
                 isDisabled={loading}
                 size="sm"
               >
-                Clear
+                {t('invoice.clear')}
               </Button>
               <Button 
                 colorScheme="green" 
                 onClick={loadAllBookings}
                 isLoading={loading}
-                loadingText="Reloading..."
+                loadingText={t('invoice.reloading')}
                 size="sm"
               >
-                Reload
+                {t('invoice.reload')}
               </Button>
             </HStack>
           </VStack>
@@ -294,7 +296,7 @@ const STRInvoice: React.FC = () => {
         {/* Loading State */}
         {loading && (
           <Box borderWidth={1} borderRadius="md" p={8} textAlign="center">
-            <Text fontSize="lg" color="gray.600">Loading bookings...</Text>
+            <Text fontSize="lg" color="gray.600">{t('invoice.loadingBookings')}</Text>
           </Box>
         )}
 
@@ -302,20 +304,20 @@ const STRInvoice: React.FC = () => {
         {!loading && allBookings.length > 0 && (
           <Box borderWidth={1} borderRadius="md" p={4}>
             <Text fontSize="lg" fontWeight="semibold" mb={4}>
-              {searchQuery ? `Filtered Results (${searchResults.length} of ${allBookings.length})` : `All Bookings (${searchResults.length})`}
+              {searchQuery ? t('invoice.filteredResults', { filtered: searchResults.length, total: allBookings.length }) : t('invoice.allBookings', { count: searchResults.length })}
             </Text>
             
             <Table size="sm">
               <Thead>
                 <Tr>
-                  <Th>Reservation Code</Th>
-                  <Th>Guest Name</Th>
-                  <Th>Channel</Th>
-                  <Th>Listing</Th>
-                  <Th>Check-in</Th>
-                  <Th>Nights</Th>
-                  <Th>Amount</Th>
-                  <Th>Action</Th>
+                  <Th>{t('invoice.table.reservationCode')}</Th>
+                  <Th>{t('invoice.table.guestName')}</Th>
+                  <Th>{t('invoice.table.channel')}</Th>
+                  <Th>{t('invoice.table.listing')}</Th>
+                  <Th>{t('invoice.table.checkIn')}</Th>
+                  <Th>{t('invoice.table.nights')}</Th>
+                  <Th>{t('invoice.table.amount')}</Th>
+                  <Th>{t('invoice.table.action')}</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -338,7 +340,7 @@ const STRInvoice: React.FC = () => {
                             setShowBillingForm(true);
                           }}
                         >
-                          Generate Invoice
+                          {t('invoice.table.generateInvoice')}
                         </Button>
                       </VStack>
                     </Td>
@@ -352,7 +354,7 @@ const STRInvoice: React.FC = () => {
         {/* No Data Message */}
         {!loading && allBookings.length === 0 && (
           <Box borderWidth={1} borderRadius="md" p={8} textAlign="center">
-            <Text fontSize="lg" color="gray.600">No bookings found in database</Text>
+            <Text fontSize="lg" color="gray.600">{t('invoice.messages.noBookingsInDatabase')}</Text>
           </Box>
         )}
 
@@ -360,13 +362,13 @@ const STRInvoice: React.FC = () => {
         {!loading && allBookings.length > 0 && searchResults.length === 0 && searchQuery && (
           <Box borderWidth={1} borderRadius="md" p={8} textAlign="center">
             <Text fontSize="lg" color="gray.600">
-              No bookings match your filter "{searchQuery}"
+              {t('invoice.messages.noMatchingBookings', { query: searchQuery })}
             </Text>
             <Button mt={4} onClick={() => {
               setSearchQuery('');
               setSearchResults(allBookings);
             }}>
-              Clear Filter
+              {t('invoice.messages.clearFilter')}
             </Button>
           </Box>
         )}
@@ -375,27 +377,27 @@ const STRInvoice: React.FC = () => {
         <Modal isOpen={showBillingForm} onClose={() => setShowBillingForm(false)} size="md">
           <ModalOverlay />
           <ModalContent>
-            <ModalHeader>Billing Address - {selectedBooking?.reservationCode}</ModalHeader>
+            <ModalHeader>{t('invoice.billingAddress.title', { code: selectedBooking?.reservationCode })}</ModalHeader>
             <ModalCloseButton />
             <ModalBody pb={6}>
               <VStack spacing={4}>
                 <Text fontSize="sm" color="gray.600">
-                  Leave fields empty to use default values
+                  {t('invoice.billingAddress.leaveEmpty')}
                 </Text>
                 <Input
-                  placeholder={`Default: ${selectedBooking?.guestName}`}
+                  placeholder={t('invoice.billingAddress.defaultName', { name: selectedBooking?.guestName })}
                   value={customBilling.name}
                   onChange={(e) => setCustomBilling({...customBilling, name: e.target.value})}
                   size="sm"
                 />
                 <Input
-                  placeholder={`Default: Via ${selectedBooking?.channel}`}
+                  placeholder={t('invoice.billingAddress.defaultAddress', { channel: selectedBooking?.channel })}
                   value={customBilling.address}
                   onChange={(e) => setCustomBilling({...customBilling, address: e.target.value})}
                   size="sm"
                 />
                 <Input
-                  placeholder={`Default: Reservering: ${selectedBooking?.reservationCode}`}
+                  placeholder={t('invoice.billingAddress.defaultCity', { code: selectedBooking?.reservationCode })}
                   value={customBilling.city}
                   onChange={(e) => setCustomBilling({...customBilling, city: e.target.value})}
                   size="sm"
@@ -412,14 +414,14 @@ const STRInvoice: React.FC = () => {
                     isLoading={loading}
                     flex={1}
                   >
-                    Generate Invoice
+                    {t('invoice.billingAddress.generate')}
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => setShowBillingForm(false)}
                     flex={1}
                   >
-                    Cancel
+                    {t('invoice.billingAddress.cancel')}
                   </Button>
                 </HStack>
               </VStack>
@@ -432,14 +434,14 @@ const STRInvoice: React.FC = () => {
           <ModalOverlay />
           <ModalContent maxW="90vw" maxH="90vh">
             <ModalHeader>
-              Invoice Preview - {selectedBooking?.reservationCode}
+              {t('invoice.invoicePreview.title', { code: selectedBooking?.reservationCode })}
               <Button
                 ml={4}
                 size="sm"
                 colorScheme="blue"
                 onClick={printInvoice}
               >
-                Print Invoice
+                {t('invoice.invoicePreview.print')}
               </Button>
             </ModalHeader>
             <ModalCloseButton />
