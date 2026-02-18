@@ -38,6 +38,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
 import FilterPanel from './filters/FilterPanel';
+import { useTypedTranslation } from '../hooks/useTypedTranslation';
 
 interface Transaction {
   ID?: number;
@@ -263,6 +264,7 @@ const processRabobankTransaction = (columns: string[], index: number, lookupData
 };
 
 const BankingProcessor: React.FC = () => {
+  const { t } = useTypedTranslation('banking');
   const { currentTenant } = useTenant();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -1036,11 +1038,11 @@ const BankingProcessor: React.FC = () => {
     <Box w="100%" p={4}>
       <Tabs variant="enclosed" colorScheme="blue">
         <TabList>
-          <Tab>Process Files</Tab>
-          <Tab>Mutaties</Tab>
-          <Tab>Check Account Balances</Tab>
-          <Tab>Check Reference Numbers</Tab>
-          <Tab>STR Channel Revenue</Tab>
+          <Tab>{t('tabs.fileProcessing')}</Tab>
+          <Tab>{t('tabs.mutaties')}</Tab>
+          <Tab>{t('tabs.checkAccounts')}</Tab>
+          <Tab>{t('tabs.checkReference')}</Tab>
+          <Tab>{t('tabs.strChannelRevenue')}</Tab>
         </TabList>
 
         <TabPanels>
