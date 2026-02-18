@@ -711,7 +711,17 @@ resource "aws_cognito_user_pool" "main" {
     - [x] Send email section (resend invitation, email template selector)
     - [x] All modal footer buttons (Cancel, Create, Update, Close, Edit User, Enable/Disable, Delete)
     - [x] Email template names (User Invitation, Password Reset, Account Update)
-- [ ] Update Settings components (deferred - can be done incrementally)
+- [x] Update Settings components
+  - [x] RoleManagement - ✅ 100% COMPLETE (all UI elements translated)
+    - [x] Toast messages (error handling, success messages)
+    - [x] Loading states
+    - [x] Category labels (Platform, Module, Other)
+    - [x] Role list sections (Platform Roles, Module Roles, Other Roles)
+    - [x] User count labels (user/users)
+    - [x] Precedence labels
+    - [x] Create/Edit modal forms (role name, description, precedence with hints)
+    - [x] Delete confirmation dialog
+    - [x] All modal footer buttons (Cancel, Create Role, Update Role, Delete)
 - [ ] Test admin modules in both languages (manual testing deferred to Phase 14)
 
 **Progress Summary**:
@@ -719,9 +729,10 @@ resource "aws_cognito_user_pool" "main" {
 - Core admin dashboards: 100% translated
 - TenantManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
 - UserManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
+- RoleManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
 - Other admin sub-components can be translated incrementally as needed
 
-**Note**: The admin module translation infrastructure is complete. Core navigation, error messages, TenantManagement, and UserManagement components are fully internationalized. Remaining UI elements in other sub-components (RoleManagement, HealthCheck, etc.) can be translated incrementally during future maintenance.
+**Note**: The admin module translation infrastructure is complete. Core navigation, error messages, TenantManagement, UserManagement, and RoleManagement components are fully internationalized. Remaining UI elements in other sub-components (HealthCheck, ChartOfAccounts, CredentialsManagement, etc.) can be translated incrementally during future maintenance.
 
 ### 9.3 Chart of Accounts Management
 
