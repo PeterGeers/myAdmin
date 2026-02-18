@@ -1261,11 +1261,58 @@ python scripts/check_translations.py
 
 ### 15.1 Developer Documentation
 
-- [ ] Document translation workflow
-- [ ] Document how to add new translations
-- [ ] Document how to add new language
-- [ ] Document formatting utilities
-- [ ] Update README with i18n information
+**Status**: ✅ COMPLETE
+
+- [x] Document translation workflow - TRANSLATION_WORKFLOW.md created
+- [x] Document how to add new translations - DEVELOPER_GUIDE.md created
+- [x] Document how to add new language - DEVELOPER_GUIDE.md created
+- [x] Document formatting utilities - FORMATTING_GUIDE.md created
+- [x] Update README with i18n information - README.md updated
+
+**Documentation Created**:
+
+- `.kiro/specs/Common/Internationalization/DEVELOPER_GUIDE.md` - Comprehensive developer guide covering:
+  - Overview and architecture
+  - Translation workflow
+  - Adding new translations (frontend and backend)
+  - Adding new languages
+  - Formatting utilities (dates, numbers, currency)
+  - Best practices
+  - Testing strategies
+  - Troubleshooting guide
+
+- `.kiro/specs/Common/Internationalization/FORMATTING_GUIDE.md` - Detailed formatting guide covering:
+  - Date formatting (Dutch: 18-02-2026, English: 2/18/2026)
+  - Number formatting (Dutch: 1.234,56, English: 1,234.56)
+  - Currency formatting (EUR € for both locales)
+  - Custom formatting options
+  - Locale configuration
+  - Complete component examples
+  - Best practices and testing
+
+- `.kiro/specs/Common/Internationalization/TRANSLATION_WORKFLOW.md` - Complete workflow documentation covering:
+  - Development workflow (identify needs, add keys, implement, verify)
+  - Translation process (new features, existing features)
+  - Review process (accuracy, consistency, quality, technical)
+  - Testing workflow (unit, integration, E2E, manual)
+  - Deployment workflow (pre-deployment, merge, deploy, post-deployment)
+  - Maintenance workflow (regular maintenance, adding translations, handling errors)
+
+- `README.md` - Updated with i18n section covering:
+  - Supported languages (Dutch, English)
+  - Key features (language selector, persistent preferences, localized formatting)
+  - Developer quick reference
+  - Links to comprehensive documentation
+  - Translation completeness check commands
+  - Updated tech stack to include i18n libraries
+
+**Implementation Notes**:
+
+- All documentation is comprehensive and production-ready
+- Includes code examples, best practices, and troubleshooting guides
+- Covers complete workflow from development to deployment
+- Ready for team use and onboarding new developers
+- Documentation follows project standards and structure
 
 ### 15.2 User Documentation
 
