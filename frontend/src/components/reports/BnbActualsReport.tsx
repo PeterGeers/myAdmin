@@ -18,6 +18,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import {
   CartesianGrid,
   Cell,
@@ -43,6 +44,7 @@ interface BnbFilterOptions {
 }
 
 const BnbActualsReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const [loading, setLoading] = useState(false);
   
   // Simplified state - using arrays for multi-select

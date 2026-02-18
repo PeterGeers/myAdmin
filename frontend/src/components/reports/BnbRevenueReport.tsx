@@ -20,6 +20,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 
 interface BnbRecord {
@@ -39,6 +40,7 @@ interface BnbRecord {
 }
 
 const BnbRevenueReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [bnbSortField, setBnbSortField] = useState<string>('');

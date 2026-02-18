@@ -17,6 +17,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
+import { useTranslation } from 'react-i18next';
 import {
   Area,
   AreaChart,
@@ -38,6 +39,7 @@ interface BnbFutureRecord {
 }
 
 const BnbFutureReport: React.FC = () => {
+  const { t } = useTranslation('reports');
   const [bnbFutureData, setBnbFutureData] = useState<BnbFutureRecord[]>([]);
   const [bnbFutureLoading, setBnbFutureLoading] = useState(false);
   const [bnbFutureFilters, setBnbFutureFilters] = useState({
