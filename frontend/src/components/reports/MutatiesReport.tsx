@@ -156,7 +156,7 @@ const MutatiesReport: React.FC = () => {
   // Tenant validation - show alert if no tenant selected
   if (!currentTenant) {
     return (
-      <Alert status="warning">
+      <Alert status="warning" data-testid="no-tenant-alert">
         <AlertIcon />
         {t('common:messages.noTenantSelected')}
       </Alert>
@@ -217,7 +217,7 @@ const MutatiesReport: React.FC = () => {
             <Button colorScheme="orange" onClick={fetchMutatiesData} isLoading={loading} size="sm">
               {t('actions.refreshReport')}
             </Button>
-            <Button variant="outline" onClick={exportMutatiesCsv} size="sm">
+            <Button variant="outline" onClick={exportMutatiesCsv} size="sm" data-testid="export-csv-button">
               {t('export.exportToCsv')}
             </Button>
           </HStack>
