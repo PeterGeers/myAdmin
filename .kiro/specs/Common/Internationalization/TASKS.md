@@ -182,13 +182,43 @@ git push origin main
 
 ## Phase 2: Database Schema (1 day)
 
-### 2.1 User Language Preference
+**IMPORTANT**: Users are stored in AWS Cognito only, NOT in a local database.
 
-- [ ] Create migration script for users table
-- [ ] Add `preferred_language` column (VARCHAR(5), DEFAULT 'nl')
-- [ ] Add index on `preferred_language`
-- [ ] Test migration on test database
-- [ ] Run migration on production database
+### 2.1 User Language Preference (Cognito Custom Attribute)
+
+**Note**: No database migration needed. User language preference stored in Cognito custom attribute `custom:preferred_language`.
+
+- [ ] Verify Cognito User Pool has custom attribute `custom:preferred_language` defined
+- [ ] If not exists, add custom attribute to Cognito User Pool (via AWS Console or Terraform)
+- [ ] Set default value to 'nl' for new users
+- [ ] Test reading custom attribute from existing user
+- [ ] Test updating custom attribute for existing user
+- [ ] Document Cognito custom attribute in design.md
+
+**AWS Console Steps** (if needed):
+
+1. Go to AWS Cognito → User Pools → [Your Pool]
+2. Navigate to "Sign-up experience" → "Attributes"
+3. Add custom attribute: `preferred_language` (String, Mutable, Min: 2, Max: 5)
+4. Save changes
+
+**Terraform Alternative** (if using IaC):
+
+```hcl
+resource "aws_cognito_user_pool" "main" {
+  # ... existing config ...
+
+  schema {
+    name                = "preferred_language"
+    attribute_data_type = "String"
+    mutable             = true
+    string_attribute_constraints {
+      min_length = 2
+      max_length = 5
+    }
+  }
+}
+```
 
 ### 2.2 Tenant Default Language
 
@@ -222,14 +252,25 @@ git push origin main
 
 ## Phase 3: Backend API (2 days)
 
-### 3.1 User Language Endpoints
+### 3.1 User Language Endpoints (Cognito Integration)
 
-- [ ] Create `GET /api/user/language` endpoint
-- [ ] Create `PUT /api/user/language` endpoint
-- [ ] Add validation for language code
-- [ ] Update user record in database
-- [ ] Add authentication check
-- [ ] Write unit tests for endpoints
+- [ ] Create `backend/src/services/user_language_service.py`
+- [ ] Implement `get_user_language(user_email)` function (reads from Cognito)
+- [ ] Implement `update_user_language(user_email, language)` function (writes to Cognito)
+- [ ] Add boto3 Cognito client initialization
+- [ ] Add error handling for Cognito API calls
+- [ ] Create `GET /api/user/language` endpoint in `backend/src/routes/user_routes.py`
+- [ ] Create `PUT /api/user/language` endpoint in `backend/src/routes/user_routes.py`
+- [ ] Add validation for language code (whitelist: ['nl', 'en'])
+- [ ] Add authentication check (@cognito_required decorator)
+- [ ] Test endpoints with Postman
+- [ ] Write unit tests for service functions
+- [ ] Write API tests for endpoints
+
+**Note**: Requires AWS credentials with permissions:
+
+- `cognito-idp:AdminGetUser`
+- `cognito-idp:AdminUpdateUserAttributes`
 
 ### 3.2 Tenant Language Endpoints
 
