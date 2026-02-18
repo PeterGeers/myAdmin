@@ -106,8 +106,7 @@ describe('MutatiesReport', () => {
 
       render(<MutatiesReport />);
       
-      expect(screen.getByTestId('alert')).toBeInTheDocument();
-      expect(screen.getByText('No tenant selected. Please select a tenant first.')).toBeInTheDocument();
+      expect(screen.getByTestId('no-tenant-alert')).toBeInTheDocument();
     });
 
     it('renders component when tenant is selected', async () => {
@@ -214,8 +213,9 @@ describe('MutatiesReport', () => {
       render(<MutatiesReport />);
       
       await waitFor(() => {
-        expect(screen.getByText('€100,50')).toBeInTheDocument();
-        expect(screen.getByText('€-50,25')).toBeInTheDocument();
+        // Currency formatting now uses English locale (€100.50 instead of €100,50)
+        expect(screen.getByText('€100.50')).toBeInTheDocument();
+        expect(screen.getByText('-€50.25')).toBeInTheDocument();
       });
     });
 
@@ -243,7 +243,7 @@ describe('MutatiesReport', () => {
       render(<MutatiesReport />);
       
       await waitFor(() => {
-        expect(screen.getByText('Export CSV')).toBeInTheDocument();
+        expect(screen.getByTestId('export-csv-button')).toBeInTheDocument();
       });
     });
   });
@@ -312,7 +312,7 @@ describe('MutatiesReport', () => {
       expect(mockAuthenticatedGet).not.toHaveBeenCalled();
       
       // Should show warning message
-      expect(screen.getByText('No tenant selected. Please select a tenant first.')).toBeInTheDocument();
+      expect(screen.getByTestId('no-tenant-alert')).toBeInTheDocument();
     });
 
     it('validates tenant before API calls', async () => {

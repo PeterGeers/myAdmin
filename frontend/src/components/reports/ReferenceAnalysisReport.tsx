@@ -131,7 +131,7 @@ const ReferenceAnalysisReport: React.FC = () => {
     <VStack spacing={4} align="stretch">
       {/* Tenant validation alert */}
       {!currentTenant && (
-        <Alert status="warning">
+        <Alert status="warning" data-testid="no-tenant-alert">
           <AlertIcon />
           {t('common:messages.noTenantSelected')}
         </Alert>
@@ -183,6 +183,7 @@ const ReferenceAnalysisReport: React.FC = () => {
                   isDisabled={!currentTenant}
                   size="sm"
                   mt={6}
+                  data-testid="analyze-button"
                 >
                   {t('common:buttons.analyze')}
                 </Button>

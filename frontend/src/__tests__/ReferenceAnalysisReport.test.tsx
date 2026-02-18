@@ -212,7 +212,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       expect(screen.queryByTestId('alert')).not.toBeInTheDocument();
       
       // Analyze button should be enabled
-      const analyzeButton = screen.getByText('Analyze');
+      const analyzeButton = screen.getByTestId('analyze-button');
       expect(analyzeButton).not.toBeDisabled();
     });
 
@@ -227,11 +227,10 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       render(<ReferenceAnalysisReport />);
 
       // Should show tenant warning
-      expect(screen.getByTestId('alert')).toBeInTheDocument();
-      expect(screen.getByText(/No tenant selected/)).toBeInTheDocument();
+      expect(screen.getByTestId('no-tenant-alert')).toBeInTheDocument();
       
       // Analyze button should be disabled
-      const analyzeButton = screen.getByText('Analyze');
+      const analyzeButton = screen.getByTestId('analyze-button');
       expect(analyzeButton).toBeDisabled();
     });
   });
@@ -251,7 +250,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
 
       render(<ReferenceAnalysisReport />);
 
-      const analyzeButton = screen.getByText('Analyze');
+      const analyzeButton = screen.getByTestId('analyze-button');
       await userEvent.click(analyzeButton);
 
       await waitFor(() => {
@@ -274,7 +273,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
 
       render(<ReferenceAnalysisReport />);
 
-      const analyzeButton = screen.getByText('Analyze');
+      const analyzeButton = screen.getByTestId('analyze-button');
       expect(analyzeButton).toBeDisabled();
       
       // Button is disabled, so no API call should be made
@@ -297,7 +296,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
 
       render(<ReferenceAnalysisReport />);
 
-      const analyzeButton = screen.getByText('Analyze');
+      const analyzeButton = screen.getByTestId('analyze-button');
       await userEvent.click(analyzeButton);
 
       await waitFor(() => {
@@ -338,7 +337,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       
       render(<ReferenceAnalysisReport />);
 
-      const analyzeButton = screen.getByText('Analyze');
+      const analyzeButton = screen.getByTestId('analyze-button');
       await userEvent.click(analyzeButton);
 
       // Should not crash and button should not be loading
@@ -360,7 +359,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       render(<ReferenceAnalysisReport />);
 
       // Analyze button should be disabled
-      const analyzeButton = screen.getByText('Analyze');
+      const analyzeButton = screen.getByTestId('analyze-button');
       expect(analyzeButton).toBeDisabled();
 
       // No API call should be made
