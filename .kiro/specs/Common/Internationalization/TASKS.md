@@ -355,10 +355,20 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 3.3 Backend Translation Extraction
 
-- [ ] Run `pybabel extract` to create messages.pot
-- [ ] Run `pybabel init` for nl locale
-- [ ] Run `pybabel init` for en locale
-- [ ] Review extracted strings
+**Status**: ✅ COMPLETE
+
+- [x] Run `pybabel extract` to create messages.pot
+- [x] Run `pybabel init` for nl locale
+- [x] Run `pybabel init` for en locale
+- [x] Review extracted strings (empty - no \_() markers added yet)
+
+**Implementation Notes**:
+
+- Translation infrastructure set up successfully
+- messages.pot template created
+- nl and en locale catalogs initialized
+- No translatable strings found (expected - need to add \_() markers in code)
+- Phases 3.4-3.7 (adding \_() markers) deferred to focus on frontend translation first
 
 ### 3.4 Backend Translation - API Routes
 
