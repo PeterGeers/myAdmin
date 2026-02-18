@@ -309,9 +309,16 @@ resource "aws_cognito_user_pool" "main" {
 - [x] Update LanguageSelector component to call API after localStorage update (already implemented)
 - [x] Register user_routes blueprint in app.py
 - [x] Rebuild Docker backend container
-- [ ] Test endpoints with Postman
-- [ ] Write unit tests for service functions
-- [ ] Write API tests for endpoints
+- [x] Test endpoints manually via UI (language switching works)
+- [x] Manual testing complete - API calls successful, Cognito integration working
+
+**Testing Notes**:
+
+- Manual testing completed via UI language selector
+- Language switching works correctly (nl ↔ en)
+- Toast notifications appear in correct language
+- API calls to `/api/user/language` successful
+- Formal unit/API tests deferred to Phase 14
 
 **Note**: Requires AWS credentials with permissions:
 
