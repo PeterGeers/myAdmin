@@ -131,13 +131,16 @@
       "title": "Pricing Recommendations",
       "date": "Date",
       "recommended": "Recommended",
+      "aiRecommended": "AI Rec",
       "historical": "Historical",
       "variance": "Variance",
       "weekend": "Weekend",
+      "weekday": "Weekday",
       "event": "Event",
       "reasoning": "Reasoning",
       "noData": "No recommendations available",
-      "loading": "Loading..."
+      "loading": "Loading...",
+      "showingFirst": "Showing first {{count}} of {{total}} recommendations"
     },
     "messages": {
       "errorLoadingListings": "Error loading listings",
