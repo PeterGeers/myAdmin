@@ -94,6 +94,7 @@ export const LanguageSelector: React.FC = () => {
         color="white"
         _hover={{ bg: 'gray.700' }}
         _active={{ bg: 'gray.600' }}
+        data-testid="language-selector"
       >
         <span style={{ marginRight: '8px' }}>{currentLanguage.flag}</span>
         {currentLanguage.code.toUpperCase()}
@@ -105,6 +106,7 @@ export const LanguageSelector: React.FC = () => {
             onClick={() => changeLanguage(lang.code)}
             bg={lang.code === currentLang || currentLang.startsWith(lang.code) ? 'blue.50' : 'transparent'}
             _hover={{ bg: 'gray.100' }}
+            data-testid={`language-option-${lang.code}`}
           >
             <span style={{ marginRight: '12px', fontSize: '20px' }}>{lang.flag}</span>
             {lang.name}
