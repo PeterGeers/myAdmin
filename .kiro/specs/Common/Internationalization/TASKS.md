@@ -432,11 +432,11 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 4.1 Common Translations
 
-- [ ] Extract all common UI strings (buttons, labels)
-- [ ] Create translation keys in `common.json`
-- [ ] Translate to Dutch
-- [ ] Translate to English
-- [ ] Update all components to use `t('common:key')`
+- [x] Extract all common UI strings (buttons, labels)
+- [x] Create translation keys in `common.json`
+- [x] Translate to Dutch
+- [x] Translate to English
+- [ ] Update all components to use `t('common:key')` (in progress)
 
 ### 4.2 Navigation & Layout
 
