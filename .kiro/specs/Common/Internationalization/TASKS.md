@@ -293,21 +293,35 @@ resource "aws_cognito_user_pool" "main" {
 
 ## Phase 3: Backend API (2 days)
 
-### 3.1 User Language Endpoints (SKIPPED - Using localStorage)
+### 3.1 User Language Endpoints (Cognito Integration)
 
-**Status**: ✅ SKIPPED - Not needed due to AWS Cognito limitation
+**Status**: Ready to implement
 
-- [x] **DECISION**: Skip user language API endpoints
-- [x] User language preference stored in localStorage only (already working)
-- [x] No backend persistence needed for user language
-- [x] Tenant default language API still needed (Phase 3.2)
+- [ ] Create `backend/src/services/user_language_service.py`
+- [ ] Implement `get_user_language(user_email)` function (reads from Cognito custom:preferred_language)
+- [ ] Implement `update_user_language(user_email, language)` function (writes to Cognito)
+- [ ] Add boto3 Cognito client initialization
+- [ ] Add error handling for Cognito API calls
+- [ ] Create `GET /api/user/language` endpoint in `backend/src/routes/user_routes.py`
+- [ ] Create `PUT /api/user/language` endpoint in `backend/src/routes/user_routes.py`
+- [ ] Add validation for language code (whitelist: ['nl', 'en'])
+- [ ] Add authentication check (@cognito_required decorator)
+- [ ] Update LanguageSelector component to call API after localStorage update
+- [ ] Test endpoints with Postman
+- [ ] Write unit tests for service functions
+- [ ] Write API tests for endpoints
 
-**Rationale**:
+**Note**: Requires AWS credentials with permissions:
 
-- AWS Cognito doesn't allow adding custom attributes to existing user pools
-- localStorage approach is simpler and already implemented
-- User language preference is browser-specific (acceptable)
-- Reduces backend complexity and API calls
+- `cognito-idp:AdminGetUser`
+- `cognito-idp:AdminUpdateUserAttributes`
+
+**Implementation Notes**:
+
+- Cognito custom attribute `custom:preferred_language` successfully added in Phase 2.1
+- API will read/write to this attribute
+- localStorage still used for immediate UI updates (no page refresh)
+- Cognito attribute ensures preference persists across browsers/devices
 
 ### 3.2 Tenant Language Endpoints
 
