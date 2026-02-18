@@ -295,18 +295,20 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 3.1 User Language Endpoints (Cognito Integration)
 
-**Status**: Ready to implement
+**Status**: ✅ COMPLETE
 
-- [ ] Create `backend/src/services/user_language_service.py`
-- [ ] Implement `get_user_language(user_email)` function (reads from Cognito custom:preferred_language)
-- [ ] Implement `update_user_language(user_email, language)` function (writes to Cognito)
-- [ ] Add boto3 Cognito client initialization
-- [ ] Add error handling for Cognito API calls
-- [ ] Create `GET /api/user/language` endpoint in `backend/src/routes/user_routes.py`
-- [ ] Create `PUT /api/user/language` endpoint in `backend/src/routes/user_routes.py`
-- [ ] Add validation for language code (whitelist: ['nl', 'en'])
-- [ ] Add authentication check (@cognito_required decorator)
-- [ ] Update LanguageSelector component to call API after localStorage update
+- [x] Create `backend/src/services/user_language_service.py`
+- [x] Implement `get_user_language(user_email)` function (reads from Cognito custom:preferred_language)
+- [x] Implement `update_user_language(user_email, language)` function (writes to Cognito)
+- [x] Add boto3 Cognito client initialization
+- [x] Add error handling for Cognito API calls
+- [x] Create `GET /api/user/language` endpoint in `backend/src/routes/user_routes.py`
+- [x] Create `PUT /api/user/language` endpoint in `backend/src/routes/user_routes.py`
+- [x] Add validation for language code (whitelist: ['nl', 'en'])
+- [x] Add authentication check (@cognito_required decorator)
+- [x] Update LanguageSelector component to call API after localStorage update (already implemented)
+- [x] Register user_routes blueprint in app.py
+- [x] Rebuild Docker backend container
 - [ ] Test endpoints with Postman
 - [ ] Write unit tests for service functions
 - [ ] Write API tests for endpoints
