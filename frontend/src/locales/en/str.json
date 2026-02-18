@@ -1,5 +1,216 @@
 {
   "title": "Short-Term Rental",
-  "pricing": "Pricing Optimization",
-  "channels": "Channels"
+  "processor": {
+    "title": "STR File Processing",
+    "fileProcessing": "File Processing",
+    "uploadBookingFile": "Upload Booking File",
+    "processFile": "Process File",
+    "importPayout": "Import Payout",
+    "processing": "Processing...",
+    "writeBnbFuture": "Write BNB Future",
+    "writing": "Writing...",
+    "importLinks": "Import Links",
+    "selectedFile": "Selected",
+    "platforms": {
+      "airbnb": "Airbnb",
+      "booking": "Booking.com Excel",
+      "direct": "Direct",
+      "payout": "Booking.com Payout"
+    },
+    "payoutInfo": {
+      "title": "Payout CSV Import:",
+      "description": "Upload monthly Payout CSV to update bookings with actual financial figures",
+      "format": "Expected format: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv"
+    },
+    "payoutResults": {
+      "title": "Payout Import Results",
+      "totalRows": "Total Rows",
+      "reservations": "Reservations",
+      "updatesPrepared": "Updates Prepared",
+      "updated": "Updated",
+      "notFound": "Not Found",
+      "errors": "Errors",
+      "notFoundInDatabase": "Reservations Not Found in Database:",
+      "andMore": "... and {{count}} more",
+      "mayBeCancelled": "These reservations may be cancelled bookings, test bookings, or from other properties.",
+      "errorsList": "Errors:"
+    },
+    "importDataLinks": {
+      "title": "Import Data Links",
+      "period": "Period: {{from}} to {{to}}",
+      "bookingStudios": "Booking.com Studios:",
+      "bookingPayout": "Booking.com Payout:",
+      "financialReports": "Financial Reports (Download monthly Payout CSV)",
+      "airbnb": "Airbnb:",
+      "allReservations": "All (Select period & download BTW invoice)",
+      "jabakiDirect": "JaBaKi Direct:",
+      "fileLocation": "File already at: C:\\Users\\peter\\OneDrive\\R\\AirBnB\\data"
+    },
+    "summary": {
+      "title": "Summary",
+      "totalBookings": "Total Bookings",
+      "totalNights": "Total Nights",
+      "totalGross": "Total Gross",
+      "channels": "Channels"
+    },
+    "reviewBookings": {
+      "title": "Review Bookings",
+      "realised": "Realised",
+      "planned": "Planned",
+      "alreadyLoaded": "Already Loaded",
+      "approveAndSave": "Approve & Save to Database",
+      "saving": "Saving..."
+    },
+    "table": {
+      "channel": "Channel",
+      "guest": "Guest",
+      "listing": "Listing",
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "nights": "Nights",
+      "guests": "Guests",
+      "gross": "Gross",
+      "fee": "Fee",
+      "net": "Net",
+      "status": "Status",
+      "code": "Code"
+    },
+    "messages": {
+      "invalidPayoutFormat": "Invalid Payout file format. Expected: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv",
+      "payoutImportSuccess": "✅ Payout import successful! {{updated}} bookings updated. {{notFound}}",
+      "notFoundWarning": "⚠️ {{count}} reservations not found in database.",
+      "processedSuccess": "Processed {{realised}} realised, {{planned}} planned, {{alreadyLoaded}} already loaded bookings from {{filename}}",
+      "failedToSave": "Failed to save bookings",
+      "failedToUpload": "Failed to upload and process file",
+      "failedToWriteFuture": "Failed to write BNB future data"
+    }
+  },
+  "pricing": {
+    "title": "💰 STR Pricing Optimizer",
+    "generatePricing": "Generate Pricing",
+    "generating": "Generating...",
+    "allListings": "All Listings",
+    "multipliersSummary": {
+      "title": "Pricing Multipliers Summary",
+      "listing": "Listing",
+      "baseRate": "Base Rate",
+      "historical": "Historical",
+      "occupancy": "Occupancy",
+      "revenueTrend": "Revenue Trend",
+      "event": "Event",
+      "aiCorrection": "AI Correction",
+      "records": "Records",
+      "noData": "No multiplier data available. Generate pricing to see multipliers."
+    },
+    "trendChart": {
+      "title": "Historical vs Recommended ADR Trend",
+      "historicalAdr": "Historical ADR",
+      "recommendedAdr": "Recommended ADR",
+      "baseRate": "Base Rate",
+      "noData": "No trend data available"
+    },
+    "monthlyMultipliers": {
+      "title": "Monthly Multipliers by Listing",
+      "baseRate": "Base Rate",
+      "historical": "Historical",
+      "occupancy": "Occupancy",
+      "pace": "Pace",
+      "event": "Event",
+      "aiCorrection": "AI Correction",
+      "btw": "VAT",
+      "noData": "No data available for multipliers analysis"
+    },
+    "quarterlySummary": {
+      "title": "Quarterly Summary",
+      "quarter": "Quarter",
+      "recHist": "Rec | Hist",
+      "total": "TOTAL",
+      "noData": "No data available for quarterly summary"
+    },
+    "recommendations": {
+      "title": "Pricing Recommendations",
+      "date": "Date",
+      "recommended": "Recommended",
+      "historical": "Historical",
+      "variance": "Variance",
+      "weekend": "Weekend",
+      "event": "Event",
+      "reasoning": "Reasoning",
+      "noData": "No recommendations available",
+      "loading": "Loading..."
+    },
+    "messages": {
+      "errorLoadingListings": "Error loading listings",
+      "errorLoadingRecommendations": "Error loading recommendations",
+      "errorLoadingMultipliers": "Error loading multipliers",
+      "pricingGeneratedSuccess": "Pricing generated successfully",
+      "generatedDailyPrices": "Generated {{count}} daily prices",
+      "errorGeneratingPricing": "Error generating pricing"
+    }
+  },
+  "invoice": {
+    "title": "STR Invoice Generator",
+    "filterBookings": "Filter Bookings",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "search": "Search",
+    "searchPlaceholder": "Filter by guest name, reservation code, channel, or listing",
+    "language": "Language",
+    "languages": {
+      "nl": "Nederlands",
+      "en": "English"
+    },
+    "filter": "Filter",
+    "filtering": "Filtering...",
+    "clear": "Clear",
+    "reload": "Reload",
+    "reloading": "Reloading...",
+    "loadingBookings": "Loading bookings...",
+    "bookingsLoaded": "{{count}} bookings loaded. Use search to filter results.",
+    "filteredResults": "Filtered Results ({{filtered}} of {{total}})",
+    "allBookings": "All Bookings ({{count}})",
+    "table": {
+      "reservationCode": "Reservation Code",
+      "guestName": "Guest Name",
+      "channel": "Channel",
+      "listing": "Listing",
+      "checkIn": "Check-in",
+      "nights": "Nights",
+      "amount": "Amount",
+      "action": "Action",
+      "generateInvoice": "Generate Invoice"
+    },
+    "billingAddress": {
+      "title": "Billing Address - {{code}}",
+      "leaveEmpty": "Leave fields empty to use default values",
+      "defaultName": "Default: {{name}}",
+      "defaultAddress": "Default: Via {{channel}}",
+      "defaultCity": "Default: Reservation: {{code}}",
+      "generate": "Generate Invoice",
+      "cancel": "Cancel"
+    },
+    "invoicePreview": {
+      "title": "Invoice Preview - {{code}}",
+      "print": "Print Invoice"
+    },
+    "messages": {
+      "bookingsLoadedSuccess": "Bookings Loaded",
+      "bookingsLoadedCount": "{{count}} bookings loaded successfully",
+      "loadingError": "Loading Error",
+      "failedToLoadBookings": "Failed to load bookings",
+      "noResults": "No Results",
+      "noBookingsFound": "No bookings found matching your search",
+      "invoiceGeneratedSuccess": "Success",
+      "invoiceGenerated": "Invoice generated successfully",
+      "generationError": "Generation Error",
+      "failedToGenerateInvoice": "Failed to generate invoice",
+      "noBookingsInDatabase": "No bookings found in database",
+      "noMatchingBookings": "No bookings match your filter \"{{query}}\"",
+      "clearFilter": "Clear Filter"
+    }
+  },
+  "reports": {
+    "title": "STR Reports",
+    "noPermission": "You do not have permission to access STR reports. Please contact your administrator."
+  }
 }
