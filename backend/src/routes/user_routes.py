@@ -5,6 +5,7 @@ This module provides API endpoints for user-specific operations,
 including language preference management.
 """
 from flask import Blueprint, jsonify, request
+from flask_babel import gettext as _
 from auth.cognito_utils import cognito_required
 from services.user_language_service import (
     get_user_language,
@@ -40,7 +41,7 @@ def get_user_language_preference(user_email, user_roles):
     except Exception as e:
         print(f"❌ Error in get_user_language_preference: {e}")
         return jsonify({
-            'error': 'Failed to retrieve language preference',
+            'error': _('Failed to retrieve language preference'),
             'details': str(e)
         }), 500
 
@@ -71,7 +72,7 @@ def update_user_language_preference(user_email, user_roles):
         
         if not data or 'language' not in data:
             return jsonify({
-                'error': 'Missing required field: language'
+                'error': _('Missing required field: language')
             }), 400
         
         language = data['language']
@@ -79,8 +80,8 @@ def update_user_language_preference(user_email, user_roles):
         # Validate language code
         if not validate_language_code(language):
             return jsonify({
-                'error': 'Invalid language code',
-                'details': 'Language must be "nl" or "en"'
+                'error': _('Invalid language code'),
+                'details': _('Language must be "nl" or "en"')
             }), 400
         
         # Update language in Cognito
@@ -88,17 +89,17 @@ def update_user_language_preference(user_email, user_roles):
         
         if not success:
             return jsonify({
-                'error': 'Failed to update language preference'
+                'error': _('Failed to update language preference')
             }), 500
         
         return jsonify({
-            'message': 'Language preference updated successfully',
+            'message': _('Language preference updated successfully'),
             'language': language
         }), 200
         
     except Exception as e:
         print(f"❌ Error in update_user_language_preference: {e}")
         return jsonify({
-            'error': 'Failed to update language preference',
+            'error': _('Failed to update language preference'),
             'details': str(e)
         }), 500
