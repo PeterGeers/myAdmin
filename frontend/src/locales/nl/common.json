@@ -62,6 +62,7 @@
     "success": "Succesvol opgeslagen",
     "error": "Er is een fout opgetreden",
     "errorOccurred": "Er is een fout opgetreden",
+    "unexpectedError": "Er is een onverwachte fout opgetreden",
     "noData": "Geen gegevens beschikbaar",
     "noResults": "Geen resultaten gevonden",
     "confirmDelete": "Weet u zeker dat u dit wilt verwijderen?",
@@ -73,7 +74,10 @@
     "required": "Verplicht veld",
     "invalidFormat": "Ongeldig formaat",
     "tryAgainLater": "Probeer het later opnieuw",
-    "checkingAuth": "Authenticatiestatus controleren"
+    "checkingAuth": "Authenticatiestatus controleren",
+    "filterError": "Filter Fout",
+    "filterErrorDescription": "Het filtercomponent heeft een fout aangetroffen en kan niet correct worden weergegeven.",
+    "unknownError": "Onbekende fout"
   },
   "labels": {
     "date": "Datum",
@@ -99,7 +103,8 @@
     "quarter": "Kwartaal",
     "all": "Alle",
     "selected": "Geselecteerd",
-    "none": "Geen"
+    "none": "Geen",
+    "error": "Fout"
   },
   "navigation": {
     "home": "Home",

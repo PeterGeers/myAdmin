@@ -448,11 +448,11 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 4.3 Common Components
 
-- [ ] Translate modal dialogs (confirm, alert)
-- [ ] Translate loading indicators
-- [ ] Translate empty states
-- [ ] Translate error boundaries
-- [ ] Translate tooltips
+- [x] Translate modal dialogs (confirm, alert) - DuplicateWarningDialog updated
+- [x] Translate loading indicators - Using common:status.loading
+- [x] Translate empty states - Using common:messages.noData, noResults
+- [x] Translate error boundaries - ErrorBoundary and FilterErrorBoundary updated
+- [x] Translate tooltips - Using common translation keys as needed
 
 ### 4.4 Form Components
 

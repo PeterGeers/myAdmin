@@ -55,6 +55,17 @@ class FilterErrorBoundary extends React.Component<FilterErrorBoundaryProps, Erro
         return <FallbackComponent error={this.state.error!} retry={this.handleRetry} />;
       }
 
+      // Note: Using hardcoded strings as class components can't use useTranslation hook
+      // Translations: nl="Filter Fout" / en="Filter Error"
+      const currentLang = localStorage.getItem('i18nextLng') || 'en';
+      const filterErrorTitle = currentLang === 'nl' ? 'Filter Fout' : 'Filter Error';
+      const filterErrorDesc = currentLang === 'nl' 
+        ? 'Het filtercomponent heeft een fout aangetroffen en kan niet correct worden weergegeven.'
+        : 'The filter component encountered an error and cannot be displayed properly.';
+      const errorLabel = currentLang === 'nl' ? 'Fout' : 'Error';
+      const unknownError = currentLang === 'nl' ? 'Onbekende fout' : 'Unknown error';
+      const tryAgainText = currentLang === 'nl' ? 'Opnieuw proberen' : 'Try Again';
+
       // Default error UI
       return (
         <Box
@@ -68,13 +79,13 @@ class FilterErrorBoundary extends React.Component<FilterErrorBoundaryProps, Erro
         >
           <VStack spacing={3} align="stretch">
             <Text color="red.800" fontWeight="bold" fontSize="sm">
-              ⚠️ Filter Error
+              ⚠️ {filterErrorTitle}
             </Text>
             <Text color="red.700" fontSize="sm">
-              The filter component encountered an error and cannot be displayed properly.
+              {filterErrorDesc}
             </Text>
             <Text color="red.600" fontSize="xs">
-              Error: {this.state.error?.message || 'Unknown error'}
+              {errorLabel}: {this.state.error?.message || unknownError}
             </Text>
             <Button
               size="sm"
@@ -83,7 +94,7 @@ class FilterErrorBoundary extends React.Component<FilterErrorBoundaryProps, Erro
               onClick={this.handleRetry}
               alignSelf="flex-start"
             >
-              Try Again
+              {tryAgainText}
             </Button>
           </VStack>
         </Box>
