@@ -893,51 +893,38 @@ resource "aws_cognito_user_pool" "main" {
 
 ---
 
-## Phase 12: Report Templates (1 day)
+## Phase 12: Report Templates (SKIPPED)
 
-**Note**: Report templates (PDF, Excel, XML) ARE managed by the Template Management system in Tenant Admin. These templates use field mappings and are stored in Google Drive. Translation involves updating field mappings and template content.
+**Status**: ⏭️ SKIPPED - Not needed for MVP
 
-### 12.1 Template Field Mappings Translation
+**Rationale**:
 
-- [ ] Review existing field mappings in `backend/templates/FIELD_MAPPINGS_INDEX.md`
-- [ ] Identify which field labels need translation
-- [ ] Update field mapping configurations to support language parameter
-- [ ] Create Dutch field label mappings for all report types
-- [ ] Test field mappings with both languages
+1. **Excel Exports**: Excel exports load raw data into a data tab. Tenant admins create their own pivot tables and formulas in any language they prefer. Column names are technical identifiers used in pivot references, not user-facing labels.
 
-### 12.2 Excel Report Headers Translation
+2. **HTML Templates**: HTML report templates (Aangifte IB, BTW, STR Invoices, Toeristenbelasting) are managed by tenant administrators via Template Management system. Each tenant can:
+   - Upload custom templates in any language
+   - Create multiple language variants (e.g., `str_invoice_nl`, `str_invoice_en`)
+   - Customize all text, labels, and formatting
+   - Use pre-defined field placeholders (e.g., `{{guestName}}`, `{{amountGross}}`)
 
-- [ ] Update Excel export functions to accept language parameter
-- [ ] Translate column headers for Mutaties report
-- [ ] Translate column headers for BTW report
-- [ ] Translate column headers for Aangifte IB report
-- [ ] Translate column headers for STR reports
-- [ ] Update Excel export to format numbers by language (already done in Phase 1.7)
-- [ ] Update Excel export to format dates by language (already done in Phase 1.7)
-- [ ] Test Excel exports in both languages
+3. **Field Placeholders**: Field placeholders are technical identifiers that remain in English (e.g., `{{company_name}}`, `{{invoice_date}}`). The surrounding text and labels in the template HTML are what tenant admins translate.
 
-### 12.3 Report Service Updates
+4. **Report Generators**: Report generators produce data structures that populate the templates. The generators use database field names (technical identifiers) and don't contain user-facing text that needs translation.
 
-- [ ] Update report generation services to accept language parameter
-- [ ] Update report services to pass language to template rendering
-- [ ] Update report services to use translated field mappings
-- [ ] Test report generation in both languages
+**What Tenant Admins Control**:
 
-**Implementation Notes**:
+- All visible text in templates (headers, labels, instructions, footers)
+- Language variants (Dutch, English, or any other language)
+- Template design and branding
+- Field placement and formatting
 
-- Template Management system stores templates in Google Drive
-- Field mappings are defined in backend code and configuration files
-- Excel exports use openpyxl library
-- Number and date formatting utilities already created in Phase 1.7
-- Focus on translating field labels and column headers
-- Template content translation can be done incrementally by tenant admins
+**What's Hardcoded**:
 
-### 12.3 Report Service Updates
+- Field placeholder names (technical identifiers)
+- Database field names
+- Excel column names (used in pivot table references)
 
-- [ ] Update report service to accept language parameter
-- [ ] Update report service to select template by language
-- [ ] Update report service to use translated labels
-- [ ] Test report generation in both languages
+**Conclusion**: Template translation is a **tenant-level customization**, not a system-level internationalization task. Each tenant can create templates in their preferred language(s) using the Template Management system.
 
 ---
 
@@ -1122,9 +1109,9 @@ resource "aws_cognito_user_pool" "main" {
 - [x] Phase 7: Frontend Translation - STR (1 day) - COMPLETE
 - [x] Phase 8: Frontend Translation - Banking (1 day) - COMPLETE
 - [x] Phase 9: Frontend Translation - Admin (1 day) - COMPLETE (core components and TenantManagement fully translated)
-- [ ] Phase 10: Error & Validation (1 day)
-- [ ] Phase 11: Email Templates (1 day)
-- [ ] Phase 12: Report Templates (1 day)
+- [x] Phase 10: Error & Validation (1 day) - COMPLETE
+- [x] Phase 11: Email Templates (0.5 days) - COMPLETE
+- [x] Phase 12: Report Templates (SKIPPED) - Not needed for MVP
 - [ ] Phase 13: Database Content (1 day)
 - [ ] Phase 14: Testing (2 days)
 - [ ] Phase 15: Documentation (1 day)
