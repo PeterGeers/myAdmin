@@ -1067,9 +1067,9 @@ const BankingProcessor: React.FC = () => {
                 <Button
                   colorScheme="green"
                   size="sm"
-                  onClick={() => alert('Salt Edge integration ready! Waiting for account approval (2 business days). Bank account mappings now loaded from database.')}
+                  onClick={() => alert(t('messages.saltEdgeAlert'))}
                 >
-                  🏦 Connect Bank (Salt Edge)
+                  {t('labels.connectBank')}
                 </Button>
               </HStack>
               <FormControl>
@@ -1126,28 +1126,28 @@ const BankingProcessor: React.FC = () => {
             {patternResults && (
               <Card mb={6} bg="blue.50" borderColor="blue.200" borderWidth="1px">
                 <CardBody>
-                  <Heading size="sm" mb={3} color="blue.800">Pattern Application Results</Heading>
+                  <Heading size="sm" mb={3} color="blue.800">{t('labels.patternResultsTitle')}</Heading>
                   <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                     <Box>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Patterns Found:</strong> {patternResults.patterns_found}
+                        <strong>{t('labels.patternsFound')}:</strong> {patternResults.patterns_found}
                       </Text>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Debet Predictions:</strong> {patternResults.predictions_made?.debet || 0}
+                        <strong>{t('labels.debetPredictions')}:</strong> {patternResults.predictions_made?.debet || 0}
                       </Text>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Credit Predictions:</strong> {patternResults.predictions_made?.credit || 0}
+                        <strong>{t('labels.creditPredictions')}:</strong> {patternResults.predictions_made?.credit || 0}
                       </Text>
                     </Box>
                     <Box>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Reference Predictions:</strong> {patternResults.predictions_made?.reference || 0}
+                        <strong>{t('labels.referencePredictions')}:</strong> {patternResults.predictions_made?.reference || 0}
                       </Text>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Average Confidence:</strong> {(patternResults.average_confidence * 100).toFixed(1)}%
+                        <strong>{t('labels.averageConfidence')}:</strong> {(patternResults.average_confidence * 100).toFixed(1)}%
                       </Text>
                       <Text fontSize="xs" color="blue.600" mt={2}>
-                        💡 Fields with blue borders were auto-filled by patterns
+                        {t('labels.fieldsAutoFilled')}
                       </Text>
                     </Box>
                   </Grid>
@@ -1191,18 +1191,18 @@ const BankingProcessor: React.FC = () => {
                         <Table variant="simple" size="sm">
                           <Thead>
                             <Tr>
-                              <Th>TrxNumber</Th>
-                              <Th>Date</Th>
-                              <Th>Description</Th>
-                              <Th>Amount</Th>
-                              <Th>Debet</Th>
-                              <Th>Credit</Th>
+                              <Th>{t('labels.trxNumber')}</Th>
+                              <Th>{t('labels.date')}</Th>
+                              <Th>{t('table.description')}</Th>
+                              <Th>{t('table.amount')}</Th>
+                              <Th>{t('table.debit')}</Th>
+                              <Th>{t('table.credit')}</Th>
                             </Tr>
                             <Tr>
-                              <Th>RefNumber</Th>
-                              <Th>Ref1</Th>
-                              <Th>Ref2</Th>
-                              <Th>Admin</Th>
+                              <Th>{t('labels.refNumber')}</Th>
+                              <Th>{t('table.ref1')}</Th>
+                              <Th>{t('table.ref2')}</Th>
+                              <Th>{t('labels.administration')}</Th>
                               <Th colSpan={2}></Th>
                             </Tr>
                           </Thead>
@@ -1230,7 +1230,7 @@ const BankingProcessor: React.FC = () => {
                                         isInvalid={!transaction.TransactionDate}
                                       />
                                       {!transaction.TransactionDate && (
-                                        <FormErrorMessage fontSize="xs">Required</FormErrorMessage>
+                                        <FormErrorMessage fontSize="xs">{t('labels.required')}</FormErrorMessage>
                                       )}
                                     </FormControl>
                                   </Td>
@@ -1333,7 +1333,7 @@ const BankingProcessor: React.FC = () => {
                                       value={transaction.Ref2}
                                       onChange={(e) => updateTransaction(transaction.row_id, 'Ref2', e.target.value)}
                                       onKeyDown={handleKeyDown}
-                                      placeholder="Reference 2"
+                                      placeholder={t('labels.reference2')}
                                     />
                                   </Td>
                                   <Td>
@@ -1343,7 +1343,7 @@ const BankingProcessor: React.FC = () => {
                                       isReadOnly
                                       bg="gray.100"
                                       cursor="not-allowed"
-                                      title="Administration is set automatically and cannot be changed"
+                                      title={t('labels.administrationAutoSet')}
                                     />
                                   </Td>
                                   <Td></Td>
@@ -1411,19 +1411,19 @@ const BankingProcessor: React.FC = () => {
                       <Th color="white">{t('table.administration')}</Th>
                     </Tr>
                     <Tr>
-                      <Th p={1}><Input size="xs" placeholder="ID" value={columnFilters.ID} onChange={(e) => setColumnFilters(prev => ({ ...prev, ID: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="TrxNumber" value={columnFilters.TransactionNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Date" value={columnFilters.TransactionDate} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDate: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="225px"><Input size="xs" placeholder="Description" value={columnFilters.TransactionDescription} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDescription: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Amount" value={columnFilters.TransactionAmount} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionAmount: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Debet" value={columnFilters.Debet} onChange={(e) => setColumnFilters(prev => ({ ...prev, Debet: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Credit" value={columnFilters.Credit} onChange={(e) => setColumnFilters(prev => ({ ...prev, Credit: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Reference" value={columnFilters.ReferenceNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, ReferenceNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref1" value={columnFilters.Ref1} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref1: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref2" value={columnFilters.Ref2} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref2: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref3" value={columnFilters.Ref3} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref3: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder="Ref4" value={columnFilters.Ref4} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref4: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder="Admin" value={columnFilters.Administration} onChange={(e) => setColumnFilters(prev => ({ ...prev, Administration: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder={t('placeholders.id')} value={columnFilters.ID} onChange={(e) => setColumnFilters(prev => ({ ...prev, ID: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder={t('placeholders.trxNumber')} value={columnFilters.TransactionNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder={t('placeholders.date')} value={columnFilters.TransactionDate} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDate: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="225px"><Input size="xs" placeholder={t('placeholders.description')} value={columnFilters.TransactionDescription} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDescription: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder={t('placeholders.amount')} value={columnFilters.TransactionAmount} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionAmount: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder={t('placeholders.debit')} value={columnFilters.Debet} onChange={(e) => setColumnFilters(prev => ({ ...prev, Debet: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder={t('placeholders.credit')} value={columnFilters.Credit} onChange={(e) => setColumnFilters(prev => ({ ...prev, Credit: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.reference')} value={columnFilters.ReferenceNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, ReferenceNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref1')} value={columnFilters.Ref1} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref1: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref2')} value={columnFilters.Ref2} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref2: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref3')} value={columnFilters.Ref3} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref3: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref4')} value={columnFilters.Ref4} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref4: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
+                      <Th p={1}><Input size="xs" placeholder={t('placeholders.admin')} value={columnFilters.Administration} onChange={(e) => setColumnFilters(prev => ({ ...prev, Administration: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -1963,72 +1963,72 @@ const BankingProcessor: React.FC = () => {
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent bg="gray.700">
-          <ModalHeader color="white">Edit Record - ID: {editingRecord?.ID}</ModalHeader>
+          <ModalHeader color="white">{t('labels.editRecord')} - ID: {editingRecord?.ID}</ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody>
             {editingRecord && (
               <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                 <FormControl>
-                  <FormLabel color="white">Transaction Number</FormLabel>
+                  <FormLabel color="white">{t('table.transactionNumber')}</FormLabel>
                   <Input value={editingRecord.TransactionNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionNumber: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Transaction Date</FormLabel>
+                  <FormLabel color="white">{t('table.transactionDate')}</FormLabel>
                   <Input type="date" value={editingRecord.TransactionDate ? new Date(editingRecord.TransactionDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionDate: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl gridColumn="span 2">
-                  <FormLabel color="white">Description</FormLabel>
+                  <FormLabel color="white">{t('table.description')}</FormLabel>
                   <Textarea value={editingRecord.TransactionDescription || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionDescription: e.target.value } : prev)} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Amount</FormLabel>
+                  <FormLabel color="white">{t('table.amount')}</FormLabel>
                   <Input type="number" step="0.01" value={editingRecord.TransactionAmount || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionAmount: parseFloat(e.target.value) || 0 } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Administration</FormLabel>
+                  <FormLabel color="white">{t('table.administration')}</FormLabel>
                   <Input 
                     value={editingRecord.Administration || ''} 
                     isReadOnly 
                     bg="gray.500" 
                     color="gray.300" 
                     cursor="not-allowed"
-                    title="Administration cannot be changed"
+                    title={t('labels.administrationCannotChange')}
                   />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Debet</FormLabel>
+                  <FormLabel color="white">{t('table.debit')}</FormLabel>
                   <Input value={editingRecord.Debet || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Debet: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Credit</FormLabel>
+                  <FormLabel color="white">{t('table.credit')}</FormLabel>
                   <Input value={editingRecord.Credit || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Credit: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Reference Number</FormLabel>
+                  <FormLabel color="white">{t('table.referenceNumber')}</FormLabel>
                   <Input value={editingRecord.ReferenceNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, ReferenceNumber: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Ref1</FormLabel>
+                  <FormLabel color="white">{t('table.ref1')}</FormLabel>
                   <Input value={editingRecord.Ref1 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref1: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Ref2</FormLabel>
+                  <FormLabel color="white">{t('table.ref2')}</FormLabel>
                   <Input value={editingRecord.Ref2 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref2: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl gridColumn="span 2">
-                  <FormLabel color="white">Ref3</FormLabel>
+                  <FormLabel color="white">{t('table.ref3')}</FormLabel>
                   <Textarea value={editingRecord.Ref3 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref3: e.target.value } : prev)} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="white">Ref4</FormLabel>
+                  <FormLabel color="white">{t('table.ref4')}</FormLabel>
                   <Input value={editingRecord.Ref4 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref4: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
               </Grid>
             )}
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="gray" mr={3} onClick={onClose}>Cancel</Button>
-            <Button colorScheme="orange" onClick={updateRecord} isLoading={loading}>Update Record</Button>
+            <Button colorScheme="gray" mr={3} onClick={onClose}>{t('labels.cancel')}</Button>
+            <Button colorScheme="orange" onClick={updateRecord} isLoading={loading}>{t('labels.updateRecord')}</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -2037,37 +2037,37 @@ const BankingProcessor: React.FC = () => {
       <Modal isOpen={showSaveConfirmation} onClose={() => setShowSaveConfirmation(false)} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Confirm Save to Database</ModalHeader>
+          <ModalHeader>{t('labels.confirmSaveToDatabase')}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack align="stretch" spacing={4}>
               <Text>
-                You are about to save <strong>{transactions.length} transactions</strong> to the database.
+                {t('labels.aboutToSave')} <strong>{transactions.length} {t('labels.transactionsToDatabase')}</strong>.
               </Text>
               
               {patternResults && (
                 <Box bg="blue.50" p={4} borderRadius="md" borderColor="blue.200" borderWidth="1px">
-                  <Text fontSize="sm" fontWeight="bold" mb={2}>Pattern Application Summary:</Text>
+                  <Text fontSize="sm" fontWeight="bold" mb={2}>{t('labels.patternApplicationSummary')}:</Text>
                   <Grid templateColumns="repeat(2, 1fr)" gap={2}>
-                    <Text fontSize="sm">Debet predictions: {patternResults.predictions_made?.debet || 0}</Text>
-                    <Text fontSize="sm">Credit predictions: {patternResults.predictions_made?.credit || 0}</Text>
-                    <Text fontSize="sm">Reference predictions: {patternResults.predictions_made?.reference || 0}</Text>
-                    <Text fontSize="sm">Avg. confidence: {(patternResults.average_confidence * 100).toFixed(1)}%</Text>
+                    <Text fontSize="sm">{t('labels.debetPredictions')}: {patternResults.predictions_made?.debet || 0}</Text>
+                    <Text fontSize="sm">{t('labels.creditPredictions')}: {patternResults.predictions_made?.credit || 0}</Text>
+                    <Text fontSize="sm">{t('labels.referencePredictions')}: {patternResults.predictions_made?.reference || 0}</Text>
+                    <Text fontSize="sm">{t('labels.avgConfidence')}: {(patternResults.average_confidence * 100).toFixed(1)}%</Text>
                   </Grid>
                 </Box>
               )}
               
               <Text fontSize="sm" color="gray.600">
-                This action cannot be undone. Please review all transactions before confirming.
+                {t('labels.cannotBeUndone')}
               </Text>
             </VStack>
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="gray" mr={3} onClick={() => setShowSaveConfirmation(false)}>
-              Cancel
+              {t('labels.cancel')}
             </Button>
             <Button colorScheme="green" onClick={confirmSaveTransactions} isLoading={loading}>
-              Confirm Save
+              {t('labels.confirmSave')}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -2077,44 +2077,44 @@ const BankingProcessor: React.FC = () => {
       <Modal isOpen={showPatternApproval} onClose={() => setShowPatternApproval(false)} size="xl">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Review Pattern Suggestions</ModalHeader>
+          <ModalHeader>{t('labels.reviewPatternSuggestions')}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack align="stretch" spacing={4}>
               <Alert status="info" borderRadius="md">
                 <AlertIcon />
                 <Box>
-                  <Text fontWeight="bold">Pattern suggestions have been filled into empty fields</Text>
+                  <Text fontWeight="bold">{t('labels.patternSuggestionsFilled')}</Text>
                   <Text fontSize="sm">
-                    Review the blue-highlighted fields below and approve or reject the suggestions.
+                    {t('labels.reviewBlueHighlighted')}
                   </Text>
                 </Box>
               </Alert>
               
               {patternSuggestions && (
                 <Box bg="blue.50" p={4} borderRadius="md" borderColor="blue.200" borderWidth="1px">
-                  <Text fontSize="sm" fontWeight="bold" mb={3}>Pattern Analysis Results:</Text>
+                  <Text fontSize="sm" fontWeight="bold" mb={3}>{t('labels.patternAnalysisResults')}:</Text>
                   <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                     <Box>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Patterns Found:</strong> {patternSuggestions.patterns_found}
+                        <strong>{t('labels.patternsFound')}:</strong> {patternSuggestions.patterns_found}
                       </Text>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Debet Suggestions:</strong> {patternSuggestions.predictions_made?.debet || 0}
+                        <strong>{t('labels.debetSuggestions')}:</strong> {patternSuggestions.predictions_made?.debet || 0}
                       </Text>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Credit Suggestions:</strong> {patternSuggestions.predictions_made?.credit || 0}
+                        <strong>{t('labels.creditSuggestions')}:</strong> {patternSuggestions.predictions_made?.credit || 0}
                       </Text>
                     </Box>
                     <Box>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Reference Suggestions:</strong> {patternSuggestions.predictions_made?.reference || 0}
+                        <strong>{t('labels.referenceSuggestions')}:</strong> {patternSuggestions.predictions_made?.reference || 0}
                       </Text>
                       <Text fontSize="sm" color="blue.700">
-                        <strong>Average Confidence:</strong> {(patternSuggestions.average_confidence * 100).toFixed(1)}%
+                        <strong>{t('labels.averageConfidence')}:</strong> {(patternSuggestions.average_confidence * 100).toFixed(1)}%
                       </Text>
                       <Text fontSize="xs" color="blue.600" mt={2}>
-                        💡 Suggested values are highlighted with blue borders in the transaction table
+                        {t('labels.suggestedValuesHighlighted')}
                       </Text>
                     </Box>
                   </Grid>
@@ -2123,26 +2123,26 @@ const BankingProcessor: React.FC = () => {
               
               <Box bg="yellow.50" p={3} borderRadius="md" borderColor="yellow.200" borderWidth="1px">
                 <Text fontSize="sm" color="yellow.800">
-                  <strong>What happens next:</strong>
+                  <strong>{t('labels.whatHappensNext')}:</strong>
                 </Text>
                 <Text fontSize="xs" color="yellow.700" mt={1}>
-                  • <strong>Approve:</strong> Keep the suggested values in the highlighted fields
+                  • <strong>{t('patternApproval.approve')}:</strong> {t('labels.approveKeepValues')}
                 </Text>
                 <Text fontSize="xs" color="yellow.700">
-                  • <strong>Reject:</strong> Remove all suggestions and restore original empty fields
+                  • <strong>{t('patternApproval.reject')}:</strong> {t('labels.rejectRemoveValues')}
                 </Text>
                 <Text fontSize="xs" color="yellow.700">
-                  • You can manually edit any field after making your choice
+                  • {t('labels.canManuallyEdit')}
                 </Text>
               </Box>
             </VStack>
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="red" mr={3} onClick={rejectPatternSuggestions}>
-              Reject Suggestions
+              {t('labels.rejectSuggestions')}
             </Button>
             <Button colorScheme="green" onClick={approvePatternSuggestions}>
-              Approve Suggestions
+              {t('labels.approveSuggestions')}
             </Button>
           </ModalFooter>
         </ModalContent>
