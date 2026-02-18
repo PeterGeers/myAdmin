@@ -1036,29 +1036,29 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 14.2 Integration Tests
 
-- [ ] Test language switching across modules
-  - [ ] Switch language from main header, verify page refreshes and redirects to dashboard
-  - [ ] From dashboard, verify all navigation and content displays in new language
-  - [ ] Navigate to Reports page, verify content displays in selected language
-  - [ ] Navigate to Banking page, verify content displays in selected language
-  - [ ] Navigate to STR page, verify content displays in selected language
-  - [ ] Navigate to Admin page, verify content displays in selected language
-  - [ ] Verify language selector in header shows current language correctly
-- [ ] Test language persistence (localStorage + database)
-  - [ ] Set language preference via header, verify localStorage updated
-  - [ ] Refresh page manually, verify language persists from localStorage
-  - [ ] Log out and log back in, verify language persists from Cognito
-  - [ ] Verify localStorage and Cognito custom attribute stay in sync
-  - [ ] Test with multiple browsers/devices (same user, same language preference)
-  - [ ] Test new user login (should use tenant default language initially)
-  - [ ] Clear localStorage, log in again, verify language loads from Cognito
-- [ ] Test API with X-Language header
-  - [ ] Verify backend endpoints return translated error messages
-  - [ ] Test with X-Language: nl header (Dutch responses)
-  - [ ] Test with X-Language: en header (English responses)
-  - [ ] Test with missing X-Language header (should default to nl)
-  - [ ] Test with invalid X-Language header (should fallback to nl)
-  - [ ] Verify frontend sends X-Language header with all API requests
+- [x] Test language switching across modules
+  - [x] Switch language from main header, verify page refreshes and redirects to dashboard
+  - [x] From dashboard, verify all navigation and content displays in new language
+  - [x] Navigate to Reports page, verify content displays in selected language
+  - [x] Navigate to Banking page, verify content displays in selected language
+  - [x] Navigate to STR page, verify content displays in selected language
+  - [x] Navigate to Admin page, verify content displays in selected language
+  - [x] Verify language selector in header shows current language correctly
+- [x] Test language persistence (localStorage + database)
+  - [x] Set language preference via header, verify localStorage updated
+  - [x] Refresh page manually, verify language persists from localStorage
+  - [x] Log out and log back in, verify language persists from Cognito
+  - [x] Verify localStorage and Cognito custom attribute stay in sync
+  - [x] Test with multiple browsers/devices (same user, same language preference)
+  - [x] Test new user login (should use tenant default language initially)
+  - [x] Clear localStorage, log in again, verify language loads from Cognito
+- [x] Test API with X-Language header
+  - [x] Verify backend endpoints return translated error messages
+  - [x] Test with X-Language: nl header (Dutch responses)
+  - [x] Test with X-Language: en header (English responses)
+  - [x] Test with missing X-Language header (should default to nl)
+  - [x] Test with invalid X-Language header (should fallback to nl)
+  - [x] Verify frontend sends X-Language header with all API requests
 - [x] ~~Test report generation in both languages~~ - SKIPPED (tenant-specific)
   - [x] ~~Switch to Dutch, generate Mutaties report, verify column headers and labels~~
   - [x] ~~Switch to English, generate Mutaties report, verify column headers and labels~~
