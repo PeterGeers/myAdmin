@@ -1,5 +1,148 @@
 {
-  "notFound": "Niet gevonden",
-  "serverError": "Serverfout",
-  "unauthorized": "Niet geautoriseerd"
+  "api": {
+    "networkError": "Netwerkfout. Controleer uw verbinding.",
+    "serverError": "Serverfout. Probeer het later opnieuw.",
+    "unauthorized": "U bent niet geautoriseerd om deze actie uit te voeren.",
+    "forbidden": "Toegang geweigerd. U heeft geen toestemming.",
+    "notFound": "De gevraagde bron is niet gevonden.",
+    "timeout": "Verzoek verlopen. Probeer het opnieuw.",
+    "badRequest": "Ongeldig verzoek. Controleer uw invoer.",
+    "conflict": "Er is een conflict opgetreden. De bron is mogelijk gewijzigd.",
+    "tooManyRequests": "Te veel verzoeken. Vertraag alstublieft.",
+    "serviceUnavailable": "Service tijdelijk niet beschikbaar. Probeer het later opnieuw.",
+    "unknownError": "Er is een onbekende fout opgetreden.",
+    "authenticationRequired": "Authenticatie vereist. Log alstublieft in.",
+    "sessionExpired": "Uw sessie is verlopen. Log opnieuw in.",
+    "noAuthToken": "Geen authenticatietoken beschikbaar.",
+    "authenticationFailed": "Authenticatie mislukt. Probeer het opnieuw.",
+    "tokenRefreshFailed": "Kan authenticatietoken niet vernieuwen."
+  },
+  "tenant": {
+    "noTenantSelected": "Geen tenant geselecteerd. Selecteer eerst een tenant.",
+    "tenantNotFound": "Tenant niet gevonden.",
+    "tenantAccessDenied": "U heeft geen toegang tot deze tenant.",
+    "invalidTenant": "Ongeldige tenant."
+  },
+  "validation": {
+    "required": "Dit veld is verplicht.",
+    "invalidEmail": "Voer een geldig e-mailadres in.",
+    "invalidFormat": "Ongeldig formaat.",
+    "tooShort": "Waarde is te kort.",
+    "tooLong": "Waarde is te lang.",
+    "invalidNumber": "Voer een geldig nummer in.",
+    "invalidDate": "Voer een geldige datum in.",
+    "invalidUrl": "Voer een geldige URL in.",
+    "passwordTooWeak": "Wachtwoord is te zwak. Moet minimaal 8 tekens zijn.",
+    "passwordsDoNotMatch": "Wachtwoorden komen niet overeen.",
+    "invalidFileType": "Ongeldig bestandstype.",
+    "fileTooLarge": "Bestand is te groot.",
+    "invalidRange": "Waarde valt buiten bereik."
+  },
+  "file": {
+    "uploadFailed": "Bestand uploaden mislukt.",
+    "downloadFailed": "Bestand downloaden mislukt.",
+    "invalidFileType": "Ongeldig bestandstype. Upload een geldig bestand.",
+    "fileTooLarge": "Bestand is te groot. Maximale grootte is {{maxSize}}.",
+    "fileNotFound": "Bestand niet gevonden.",
+    "processingFailed": "Bestandsverwerking mislukt."
+  },
+  "data": {
+    "loadFailed": "Kan gegevens niet laden.",
+    "saveFailed": "Kan gegevens niet opslaan.",
+    "deleteFailed": "Kan gegevens niet verwijderen.",
+    "updateFailed": "Kan gegevens niet bijwerken.",
+    "createFailed": "Kan gegevens niet aanmaken.",
+    "exportFailed": "Kan gegevens niet exporteren.",
+    "importFailed": "Kan gegevens niet importeren.",
+    "noData": "Geen gegevens beschikbaar.",
+    "dataCorrupted": "Gegevens zijn beschadigd of ongeldig."
+  },
+  "banking": {
+    "processingFailed": "Verwerking banktransacties mislukt.",
+    "invalidFormat": "Ongeldig bankafschrift formaat.",
+    "duplicateTransaction": "Dubbele transactie gedetecteerd.",
+    "patternNotFound": "Geen overeenkomend patroon gevonden.",
+    "accountNotFound": "Rekening niet gevonden in rekeningschema."
+  },
+  "str": {
+    "processingFailed": "STR gegevensverwerking mislukt.",
+    "invalidPlatform": "Ongeldige platformgegevens.",
+    "bookingNotFound": "Boeking niet gevonden.",
+    "pricingFailed": "Prijsberekening mislukt."
+  },
+  "invoice": {
+    "extractionFailed": "Factuur extractie mislukt.",
+    "validationFailed": "Factuur validatie mislukt.",
+    "generationFailed": "Factuur generatie mislukt.",
+    "notFound": "Factuur niet gevonden."
+  },
+  "report": {
+    "generationFailed": "Rapport generatie mislukt.",
+    "exportFailed": "Rapport export mislukt.",
+    "invalidDateRange": "Ongeldige datumbereik.",
+    "noDataForPeriod": "Geen gegevens beschikbaar voor de geselecteerde periode."
+  },
+  "user": {
+    "notFound": "Gebruiker niet gevonden.",
+    "createFailed": "Kan gebruiker niet aanmaken.",
+    "updateFailed": "Kan gebruiker niet bijwerken.",
+    "deleteFailed": "Kan gebruiker niet verwijderen.",
+    "emailSendFailed": "Kan e-mail niet verzenden.",
+    "invalidCredentials": "Ongeldige inloggegevens.",
+    "accountLocked": "Account is vergrendeld.",
+    "accountDisabled": "Account is uitgeschakeld."
+  },
+  "template": {
+    "previewFailed": "Kan sjabloon niet voorvertonen.",
+    "validationFailed": "Kan sjabloon niet valideren.",
+    "approveFailed": "Kan sjabloon niet goedkeuren.",
+    "rejectFailed": "Kan sjabloon niet afwijzen.",
+    "aiFailed": "AI-assistentie mislukt.",
+    "notFound": "Sjabloon niet gevonden."
+  },
+  "chartOfAccounts": {
+    "loadFailed": "Kan rekeningschema niet laden.",
+    "createFailed": "Kan rekening niet aanmaken.",
+    "updateFailed": "Kan rekening niet bijwerken.",
+    "deleteFailed": "Kan rekening niet verwijderen.",
+    "exportFailed": "Kan rekeningen niet exporteren.",
+    "importFailed": "Kan rekeningen niet importeren.",
+    "accountNotFound": "Rekening niet gevonden.",
+    "duplicateAccount": "Rekening bestaat al."
+  },
+  "pages": {
+    "notFound": {
+      "title": "404 - Pagina niet gevonden",
+      "message": "De pagina die u zoekt bestaat niet.",
+      "action": "Ga naar Dashboard"
+    },
+    "unauthorized": {
+      "title": "403 - Toegang geweigerd",
+      "message": "U heeft geen toestemming om deze pagina te bekijken.",
+      "action": "Ga terug"
+    },
+    "serverError": {
+      "title": "500 - Serverfout",
+      "message": "Er is iets misgegaan aan onze kant. Probeer het later opnieuw.",
+      "action": "Pagina vernieuwen"
+    },
+    "serviceUnavailable": {
+      "title": "503 - Service niet beschikbaar",
+      "message": "De service is tijdelijk niet beschikbaar. Probeer het later opnieuw.",
+      "action": "Probeer opnieuw"
+    }
+  },
+  "boundary": {
+    "title": "Er is iets misgegaan",
+    "message": "Er is een onverwachte fout opgetreden. Probeer het opnieuw.",
+    "action": "Probeer opnieuw",
+    "details": "Foutdetails"
+  },
+  "generic": {
+    "error": "Fout",
+    "warning": "Waarschuwing",
+    "tryAgain": "Probeer opnieuw",
+    "contactSupport": "Als het probleem aanhoudt, neem dan contact op met support.",
+    "unexpectedError": "Er is een onverwachte fout opgetreden."
+  }
 }

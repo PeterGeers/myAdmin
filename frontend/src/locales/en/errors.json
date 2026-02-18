@@ -1,5 +1,148 @@
 {
-  "notFound": "Not found",
-  "serverError": "Server error",
-  "unauthorized": "Unauthorized"
+  "api": {
+    "networkError": "Network error. Please check your connection.",
+    "serverError": "Server error. Please try again later.",
+    "unauthorized": "You are not authorized to perform this action.",
+    "forbidden": "Access denied. You don't have permission.",
+    "notFound": "The requested resource was not found.",
+    "timeout": "Request timed out. Please try again.",
+    "badRequest": "Invalid request. Please check your input.",
+    "conflict": "A conflict occurred. The resource may have been modified.",
+    "tooManyRequests": "Too many requests. Please slow down.",
+    "serviceUnavailable": "Service temporarily unavailable. Please try again later.",
+    "unknownError": "An unknown error occurred.",
+    "authenticationRequired": "Authentication required. Please log in.",
+    "sessionExpired": "Your session has expired. Please log in again.",
+    "noAuthToken": "No authentication token available.",
+    "authenticationFailed": "Authentication failed. Please try again.",
+    "tokenRefreshFailed": "Failed to refresh authentication token."
+  },
+  "tenant": {
+    "noTenantSelected": "No tenant selected. Please select a tenant first.",
+    "tenantNotFound": "Tenant not found.",
+    "tenantAccessDenied": "You don't have access to this tenant.",
+    "invalidTenant": "Invalid tenant."
+  },
+  "validation": {
+    "required": "This field is required.",
+    "invalidEmail": "Please enter a valid email address.",
+    "invalidFormat": "Invalid format.",
+    "tooShort": "Value is too short.",
+    "tooLong": "Value is too long.",
+    "invalidNumber": "Please enter a valid number.",
+    "invalidDate": "Please enter a valid date.",
+    "invalidUrl": "Please enter a valid URL.",
+    "passwordTooWeak": "Password is too weak. Must be at least 8 characters.",
+    "passwordsDoNotMatch": "Passwords do not match.",
+    "invalidFileType": "Invalid file type.",
+    "fileTooLarge": "File is too large.",
+    "invalidRange": "Value is out of range."
+  },
+  "file": {
+    "uploadFailed": "File upload failed.",
+    "downloadFailed": "File download failed.",
+    "invalidFileType": "Invalid file type. Please upload a valid file.",
+    "fileTooLarge": "File is too large. Maximum size is {{maxSize}}.",
+    "fileNotFound": "File not found.",
+    "processingFailed": "File processing failed."
+  },
+  "data": {
+    "loadFailed": "Failed to load data.",
+    "saveFailed": "Failed to save data.",
+    "deleteFailed": "Failed to delete data.",
+    "updateFailed": "Failed to update data.",
+    "createFailed": "Failed to create data.",
+    "exportFailed": "Failed to export data.",
+    "importFailed": "Failed to import data.",
+    "noData": "No data available.",
+    "dataCorrupted": "Data is corrupted or invalid."
+  },
+  "banking": {
+    "processingFailed": "Banking transaction processing failed.",
+    "invalidFormat": "Invalid bank statement format.",
+    "duplicateTransaction": "Duplicate transaction detected.",
+    "patternNotFound": "No matching pattern found.",
+    "accountNotFound": "Account not found in chart of accounts."
+  },
+  "str": {
+    "processingFailed": "STR data processing failed.",
+    "invalidPlatform": "Invalid platform data.",
+    "bookingNotFound": "Booking not found.",
+    "pricingFailed": "Pricing calculation failed."
+  },
+  "invoice": {
+    "extractionFailed": "Invoice extraction failed.",
+    "validationFailed": "Invoice validation failed.",
+    "generationFailed": "Invoice generation failed.",
+    "notFound": "Invoice not found."
+  },
+  "report": {
+    "generationFailed": "Report generation failed.",
+    "exportFailed": "Report export failed.",
+    "invalidDateRange": "Invalid date range.",
+    "noDataForPeriod": "No data available for the selected period."
+  },
+  "user": {
+    "notFound": "User not found.",
+    "createFailed": "Failed to create user.",
+    "updateFailed": "Failed to update user.",
+    "deleteFailed": "Failed to delete user.",
+    "emailSendFailed": "Failed to send email.",
+    "invalidCredentials": "Invalid credentials.",
+    "accountLocked": "Account is locked.",
+    "accountDisabled": "Account is disabled."
+  },
+  "template": {
+    "previewFailed": "Failed to preview template.",
+    "validationFailed": "Failed to validate template.",
+    "approveFailed": "Failed to approve template.",
+    "rejectFailed": "Failed to reject template.",
+    "aiFailed": "AI assistance failed.",
+    "notFound": "Template not found."
+  },
+  "chartOfAccounts": {
+    "loadFailed": "Failed to load chart of accounts.",
+    "createFailed": "Failed to create account.",
+    "updateFailed": "Failed to update account.",
+    "deleteFailed": "Failed to delete account.",
+    "exportFailed": "Failed to export accounts.",
+    "importFailed": "Failed to import accounts.",
+    "accountNotFound": "Account not found.",
+    "duplicateAccount": "Account already exists."
+  },
+  "pages": {
+    "notFound": {
+      "title": "404 - Page Not Found",
+      "message": "The page you're looking for doesn't exist.",
+      "action": "Go to Dashboard"
+    },
+    "unauthorized": {
+      "title": "403 - Access Denied",
+      "message": "You don't have permission to access this page.",
+      "action": "Go Back"
+    },
+    "serverError": {
+      "title": "500 - Server Error",
+      "message": "Something went wrong on our end. Please try again later.",
+      "action": "Refresh Page"
+    },
+    "serviceUnavailable": {
+      "title": "503 - Service Unavailable",
+      "message": "The service is temporarily unavailable. Please try again later.",
+      "action": "Try Again"
+    }
+  },
+  "boundary": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred. Please try again.",
+    "action": "Try Again",
+    "details": "Error Details"
+  },
+  "generic": {
+    "error": "Error",
+    "warning": "Warning",
+    "tryAgain": "Try Again",
+    "contactSupport": "If the problem persists, please contact support.",
+    "unexpectedError": "An unexpected error occurred."
+  }
 }
