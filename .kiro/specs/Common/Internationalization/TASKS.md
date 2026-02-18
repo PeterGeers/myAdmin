@@ -1557,68 +1557,102 @@ Put all related user documentation in .kiro\specs\Common\Internationalization\Us
 
 ### 16.3 Database Migration (production)
 
-**Status**: 📋 READY FOR EXECUTION (User action required)
+**Status**: ✅ COMPLETE
 
 - [x] Backup production database
 - [x] Create migration documentation (PRODUCTION_MIGRATION_GUIDE.md)
 - [x] Create quick start guide (MIGRATION_QUICK_START.md)
-- [x] Create Python migration scripts (add_tenant_language_column.py, create_account_translations_table.py)
-- [x] Create SQL migration scripts (add_tenant_default_language.sql, create_account_translations.sql)
-- [ ] **USER ACTION REQUIRED**: Run database migrations on production
-- [ ] **USER ACTION REQUIRED**: Verify new columns added
-- [ ] Import translation data (N/A - no data to import, tables created empty)
+- [x] Create Python migration script (add_tenant_language_column.py)
+- [x] Create SQL migration script (add_tenant_default_language.sql)
+- [x] Run database migration on production - **SUCCESSFUL** ✅
+- [x] Verify new column added - **VERIFIED** ✅
 
-**Migration Documentation**:
+**Migration Executed**: February 19, 2026
 
-- Full guide: `.kiro/specs/Common/Internationalization/PRODUCTION_MIGRATION_GUIDE.md`
-- Quick start: `.kiro/specs/Common/Internationalization/MIGRATION_QUICK_START.md`
+**Migration Result**:
 
-**Migration Scripts**:
-
-- Python: `backend/scripts/database/add_tenant_language_column.py`
-- Python: `backend/scripts/database/create_account_translations_table.py`
-- SQL: `backend/sql/add_tenant_default_language.sql`
-- SQL: `backend/sql/create_account_translations.sql`
-
-**To Execute Migrations**:
-
-```bash
-cd backend
-.\.venv\Scripts\Activate.ps1
-python scripts/database/add_tenant_language_column.py
-python scripts/database/create_account_translations_table.py
+```
+✅ Added default_language column to tenants table
+✅ All 4 tenants now have default_language = 'nl'
+   - GoodwinSolutions: nl (active)
+   - InterimManagement: nl (archive)
+   - myAdmin: nl (active)
+   - PeterPrive: nl (active)
 ```
 
-**Expected Changes**:
+**Changes Applied**:
 
-1. `tenants` table: Add `default_language` column (VARCHAR(5), DEFAULT 'nl')
-2. `account_translations` table: Create new table for future use
+1. `tenants` table: Added `default_language` column (VARCHAR(5), DEFAULT 'nl')
+2. Index created: `idx_tenants_default_language`
+3. All existing tenants set to 'nl'
 
-**Risk Level**: Low (non-breaking changes, no downtime required)
+**Note on account_translations table**:
+
+- Originally planned but **NOT CREATED** (design flaw identified)
+- Chart of accounts is tenant-specific business data, not system-level data
+- Tenants already create account names in their preferred language
+- Table will be created only if/when multilingual accounts are actually needed
+- Migration scripts preserved in codebase but not executed
 
 **ESLint Warning Note**:
 
 - Minor warning in `STRInvoice.tsx` line 107 about `endDate` dependency
-- **FALSE POSITIVE**: `endDate` is already correctly included in dependency array `[toast, startDate, endDate, t]`
-- Warning can be safely ignored or cleared with `npm run lint -- --fix`
+- **FALSE POSITIVE**: `endDate` is already correctly included in dependency array
+- Warning can be safely ignored
 - Does not affect functionality or deployment
 
 ### 16.4 Backend Deployment (auto-deploy from main)
 
-- [ ] Railway auto-deploys backend from main
+**Status**: 🔄 IN PROGRESS (Auto-deployment triggered)
+
+- [x] Railway auto-deploys backend from main - **Triggered after merge** ✅
 - [ ] Verify backend deployment successful
-- [ ] Install Flask-Babel on production (if needed)
-- [ ] Compile translations on production
+- [ ] Verify Flask-Babel initialized correctly
 - [ ] Verify backend API works
-- [ ] Test with X-Language header
+- [ ] Test language endpoints (GET/PUT /api/user/language)
+- [ ] Test X-Language header handling
+
+**Deployment Info**:
+
+- Platform: Railway
+- Trigger: Automatic on push to `main` branch
+- Branch: `main` (commit 6589790)
+- Backend URL: [Your Railway backend URL]
+
+**Verification Steps**:
+
+1. Check Railway deployment logs for success
+2. Check backend logs for Flask-Babel initialization message
+3. Test API health endpoint
+4. Test language preference endpoints
+5. Verify X-Language header is processed correctly
 
 ### 16.5 Frontend Deployment (auto-deploy from main)
 
-- [ ] GitHub Actions builds frontend from main
+**Status**: 🔄 IN PROGRESS (Auto-deployment triggered)
+
+- [x] GitHub Actions builds frontend from main - **Triggered after merge** ✅
 - [ ] Deploy to GitHub Pages (auto)
-- [ ] Railway deploys frontend (auto)
-- [ ] Verify language selector appears
-- [ ] Test language switching
+- [ ] Verify language selector appears on Dashboard
+- [ ] Test language switching (Dutch ↔ English)
+- [ ] Verify localStorage persistence
+- [ ] Verify UI translations update correctly
+
+**Deployment Info**:
+
+- Platform: GitHub Pages
+- Trigger: Automatic on push to `main` branch
+- Branch: `main` (commit 6589790)
+- Frontend URL: [Your GitHub Pages URL]
+
+**Verification Steps**:
+
+1. Check GitHub Actions workflow for success
+2. Open application in browser
+3. Navigate to Dashboard
+4. Verify language selector visible (🇳🇱 Nederlands / 🇬🇧 English)
+5. Test switching languages
+6. Verify UI updates correctly
 
 ### 16.6 Post-Deployment
 
