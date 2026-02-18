@@ -14,13 +14,13 @@ import {
   Text,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
 import { FilterPanel } from '../filters/FilterPanel';
 
 const BtwReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
   
   // Simplified state - no administration filter (uses tenant context)

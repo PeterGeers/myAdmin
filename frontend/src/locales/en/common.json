@@ -77,7 +77,8 @@
     "checkingAuth": "Checking authentication status",
     "filterError": "Filter Error",
     "filterErrorDescription": "The filter component encountered an error and cannot be displayed properly.",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "clickRefreshToLoad": "Click \"Refresh Data\" to load the latest data"
   },
   "labels": {
     "date": "Date",
@@ -114,7 +115,8 @@
     "country": "Country",
     "zipCode": "Zip Code",
     "optional": "Optional",
-    "requiredField": "Required field"
+    "requiredField": "Required field",
+    "instructions": "Instructions"
   },
   "placeholders": {
     "search": "Search...",

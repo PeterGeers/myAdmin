@@ -29,7 +29,7 @@ import {
   Tr,
   VStack,
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 
 interface ReturningGuest {
@@ -52,7 +52,7 @@ interface GuestBooking {
  * Main BNB Returning Guests Report Component
  */
 const BnbReturningGuestsReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const [returningGuests, setReturningGuests] = useState<ReturningGuest[]>([]);
   const [selectedGuestBookings, setSelectedGuestBookings] = useState<GuestBooking[]>([]);
   const [selectedGuestName, setSelectedGuestName] = useState<string>('');
@@ -117,9 +117,9 @@ const BnbReturningGuestsReport: React.FC = () => {
       <Card bg="gray.700">
         <CardHeader>
           <HStack justify="space-between">
-            <Heading size="md" color="white">Returning Guests (Aantal &gt; 1)</Heading>
+            <Heading size="md" color="white">{t('bnb.returningGuests')}</Heading>
             <Text color="orange.300" fontSize="sm" fontWeight="bold">
-              {returningGuests.length} guests found
+              {t('bnb.guestsFound', { count: returningGuests.length })}
             </Text>
           </HStack>
         </CardHeader>
@@ -131,7 +131,7 @@ const BnbReturningGuestsReport: React.FC = () => {
             size="sm"
             mb={4}
           >
-            Refresh Data
+            {t('actions.refreshData')}
           </Button>
           
           <TableContainer>
@@ -139,8 +139,8 @@ const BnbReturningGuestsReport: React.FC = () => {
               <Thead>
                 <Tr>
                   <Th color="white" w="50px"></Th>
-                  <Th color="white" w="80px">Aantal</Th>
-                  <Th color="white">Guest Name</Th>
+                  <Th color="white" w="80px">{t('bnb.count')}</Th>
+                  <Th color="white">{t('tables.guestName')}</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -165,19 +165,19 @@ const BnbReturningGuestsReport: React.FC = () => {
                         <Td colSpan={3} p={0}>
                           <Box bg="gray.800" p={4}>
                             <Text color="white" fontWeight="bold" mb={3}>
-                              Bookings for {selectedGuestName}
+                              {t('bnb.bookingsFor', { name: selectedGuestName })}
                             </Text>
                             <Table size="sm" variant="simple">
                               <Thead>
                                 <Tr>
-                                  <Th color="white" fontSize="xs">Check-in</Th>
-                                  <Th color="white" fontSize="xs">Check-out</Th>
-                                  <Th color="white" fontSize="xs">Channel</Th>
-                                  <Th color="white" fontSize="xs">Listing</Th>
-                                  <Th color="white" fontSize="xs">Nights</Th>
-                                  <Th color="white" fontSize="xs" isNumeric>Gross</Th>
-                                  <Th color="white" fontSize="xs" isNumeric>Net</Th>
-                                  <Th color="white" fontSize="xs">Reservation</Th>
+                                  <Th color="white" fontSize="xs">{t('tables.checkIn')}</Th>
+                                  <Th color="white" fontSize="xs">{t('tables.checkOut')}</Th>
+                                  <Th color="white" fontSize="xs">{t('filters.channel')}</Th>
+                                  <Th color="white" fontSize="xs">{t('filters.listing')}</Th>
+                                  <Th color="white" fontSize="xs">{t('tables.nights')}</Th>
+                                  <Th color="white" fontSize="xs" isNumeric>{t('tables.gross')}</Th>
+                                  <Th color="white" fontSize="xs" isNumeric>{t('tables.net')}</Th>
+                                  <Th color="white" fontSize="xs">{t('tables.reservation')}</Th>
                                 </Tr>
                               </Thead>
                               <Tbody>
@@ -205,8 +205,8 @@ const BnbReturningGuestsReport: React.FC = () => {
                             </Table>
                             <Box mt={3} p={2} bg="gray.700" borderRadius="md">
                               <Text color="white" fontSize="sm" fontWeight="bold">
-                                Total: {selectedGuestBookings.length} bookings | 
-                                {selectedGuestBookings.reduce((sum, b) => sum + (Number(b.nights) || 0), 0)} nights | 
+                                {t('bnb.totalBookings', { count: selectedGuestBookings.length })} | 
+                                {selectedGuestBookings.reduce((sum, b) => sum + (Number(b.nights) || 0), 0)} {t('tables.nights').toLowerCase()} | 
                                 €{selectedGuestBookings.reduce((sum, b) => sum + (Number(b.amountGross) || 0), 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
                               </Text>
                             </Box>
@@ -227,21 +227,21 @@ const BnbReturningGuestsReport: React.FC = () => {
         <Card bg="gray.700">
           <CardBody>
             <VStack spacing={3} align="start">
-              <Heading size="md" color="white">Returning Guests Instructions</Heading>
+              <Heading size="md" color="white">{t('titles.bnbReturningGuests')} {t('common:labels.instructions')}</Heading>
               <Text color="white" fontSize="sm">
-                1. Click "Refresh Data" to load the latest returning guests data
+                1. {t('common:messages.clickRefreshToLoad')}
               </Text>
               <Text color="white" fontSize="sm">
-                2. The table shows guests who have made more than one booking
+                2. {t('bnb.tableShowsReturningGuests')}
               </Text>
               <Text color="white" fontSize="sm">
-                3. Click on any guest row to expand and view their individual bookings
+                3. {t('bnb.clickGuestToExpand')}
               </Text>
               <Text color="white" fontSize="sm">
-                4. The expanded view shows detailed booking information including dates, channels, listings, and amounts
+                4. {t('bnb.expandedViewShowsDetails')}
               </Text>
               <Text color="gray.400" fontSize="xs">
-                This report helps identify loyal customers and analyze their booking patterns.
+                {t('bnb.helpsIdentifyLoyalCustomers')}
               </Text>
             </VStack>
           </CardBody>

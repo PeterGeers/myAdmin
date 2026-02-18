@@ -2,8 +2,10 @@ import React from 'react';
 import { Box, VStack, Alert, AlertIcon } from '@chakra-ui/react';
 import BnbReportsGroup from './reports/BnbReportsGroup';
 import { useAuth } from '../context/AuthContext';
+import { useTypedTranslation } from '../hooks/useTypedTranslation';
 
 const STRReports: React.FC = () => {
+  const { t } = useTypedTranslation('str');
   const { user } = useAuth();
 
   // Check if user has access to BNB (STR) reports
@@ -17,7 +19,7 @@ const STRReports: React.FC = () => {
       <Box p={6} bg="gray.800" minH="100vh">
         <Alert status="warning">
           <AlertIcon />
-          You do not have permission to access STR reports. Please contact your administrator.
+          {t('reports.noPermission')}
         </Alert>
       </Box>
     );

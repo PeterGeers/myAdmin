@@ -1,4 +1,4 @@
-// TypeScript definitions for react-i18next
+// TypeScript definitions for react-i18next with namespace support
 import 'react-i18next';
 
 declare module 'react-i18next' {

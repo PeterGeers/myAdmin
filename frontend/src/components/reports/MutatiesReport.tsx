@@ -17,7 +17,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { useTenant } from '../../context/TenantContext';
 import { formatCurrency, formatDate } from '../../utils/formatting';
@@ -33,7 +33,7 @@ interface MutatiesRecord {
 }
 
 const MutatiesReport: React.FC = () => {
-  const { t, i18n } = useTranslation('reports');
+  const { t, i18n } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
   const [mutatiesData, setMutatiesData] = useState<MutatiesRecord[]>([]);
   const [loading, setLoading] = useState(false);

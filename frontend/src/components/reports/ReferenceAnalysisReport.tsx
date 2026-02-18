@@ -19,7 +19,7 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
@@ -48,7 +48,7 @@ interface AccountOption {
 }
 
 const ReferenceAnalysisReport: React.FC = () => {
-  const { t, i18n } = useTranslation('reports');
+  const { t, i18n } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
   
   // Separate state for each filter
