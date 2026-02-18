@@ -6,15 +6,13 @@
 
 import React from 'react';
 import { Box, Heading, Text, Button, VStack } from '@chakra-ui/react';
-import { useNavigate } from 'react-router-dom';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 
 const NotFound: React.FC = () => {
   const { t } = useTypedTranslation('errors');
-  const navigate = useNavigate();
 
   const handleGoHome = () => {
-    navigate('/');
+    window.location.href = '/';
   };
 
   return (

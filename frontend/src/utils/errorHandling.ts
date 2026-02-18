@@ -4,12 +4,10 @@
  * Provides functions for handling and translating API errors.
  */
 
-import { TFunction } from 'i18next';
-
 /**
  * Get translated error message based on HTTP status code
  */
-export function getErrorMessageByStatus(status: number, t: TFunction): string {
+export function getErrorMessageByStatus(status: number, t: (key: string) => string): string {
   switch (status) {
     case 400:
       return t('errors:api.badRequest');
@@ -37,7 +35,7 @@ export function getErrorMessageByStatus(status: number, t: TFunction): string {
 /**
  * Get translated error message from error object
  */
-export function getErrorMessage(error: unknown, t: TFunction): string {
+export function getErrorMessage(error: unknown, t: (key: string) => string): string {
   if (error instanceof Error) {
     return error.message;
   }
