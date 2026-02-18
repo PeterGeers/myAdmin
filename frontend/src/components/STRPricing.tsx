@@ -5,6 +5,7 @@ import {
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
+import { useTypedTranslation } from '../hooks/useTypedTranslation';
 
 interface PricingRecommendation {
   listing_name: string;
@@ -32,6 +33,7 @@ interface PricingRecommendation {
 
 
 const STRPricing: React.FC = () => {
+  const { t } = useTypedTranslation('str');
   const [listings, setListings] = useState<string[]>([]);
   const [selectedListing, setSelectedListing] = useState<string>('');
   const [recommendations, setRecommendations] = useState<PricingRecommendation[]>([]);
@@ -63,14 +65,14 @@ const STRPricing: React.FC = () => {
       }
     } catch (error) {
       toast({
-        title: 'Error loading listings',
+        title: t('pricing.messages.errorLoadingListings'),
         description: String(error),
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const loadRecommendations = useCallback(async () => {
     setLoading(true);
@@ -82,7 +84,7 @@ const STRPricing: React.FC = () => {
       }
     } catch (error) {
       toast({
-        title: 'Error loading recommendations',
+        title: t('pricing.messages.errorLoadingRecommendations'),
         description: String(error),
         status: 'error',
         duration: 5000,
@@ -91,7 +93,7 @@ const STRPricing: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const loadMultipliers = useCallback(async () => {
     try {
@@ -102,14 +104,14 @@ const STRPricing: React.FC = () => {
       }
     } catch (error) {
       toast({
-        title: 'Error loading multipliers',
+        title: t('pricing.messages.errorLoadingMultipliers'),
         description: String(error),
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   useEffect(() => {
     loadListings();
@@ -133,8 +135,8 @@ const STRPricing: React.FC = () => {
       const data = await response.json();
       if (data.success) {
         toast({
-          title: 'Pricing generated successfully',
-          description: `Generated ${data.result.daily_prices_count} daily prices`,
+          title: t('pricing.messages.pricingGeneratedSuccess'),
+          description: t('pricing.messages.generatedDailyPrices', { count: data.result.daily_prices_count }),
           status: 'success',
           duration: 5000,
           isClosable: true,
@@ -147,7 +149,7 @@ const STRPricing: React.FC = () => {
       }
     } catch (error) {
       toast({
-        title: 'Error generating pricing',
+        title: t('pricing.messages.errorGeneratingPricing'),
         description: String(error),
         status: 'error',
         duration: 5000,
@@ -236,7 +238,7 @@ const STRPricing: React.FC = () => {
     <Box p={6} bg="gray.900" minH="100vh" color="white">
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between">
-          <Heading color="orange.400" size="lg">💰 STR Pricing Optimizer</Heading>
+          <Heading color="orange.400" size="lg">{t('pricing.title')}</Heading>
           <HStack>
             <Select
               value={selectedListing}
@@ -246,7 +248,7 @@ const STRPricing: React.FC = () => {
               color="white"
               w="200px"
             >
-              <option value="">All Listings</option>
+              <option value="">{t('pricing.allListings')}</option>
               {listings.map(listing => (
                 <option key={listing} value={listing}>{listing}</option>
               ))}
@@ -255,29 +257,29 @@ const STRPricing: React.FC = () => {
               colorScheme="orange"
               onClick={generatePricing}
               isLoading={generating}
-              loadingText="Generating..."
+              loadingText={t('pricing.generating')}
             >
-              Generate Pricing
+              {t('pricing.generatePricing')}
             </Button>
           </HStack>
         </HStack>
 
         {/* Multiplier Summary Table */}
         <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
-          <Heading size="md" mb={4} color="orange.300">Pricing Multipliers Summary</Heading>
+          <Heading size="md" mb={4} color="orange.300">{t('pricing.multipliersSummary.title')}</Heading>
           {multipliers.length > 0 ? (
             <Box overflowX="auto">
               <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th color="orange.300">Listing</Th>
-                    <Th color="orange.300" isNumeric>Base Rate</Th>
-                    <Th color="orange.300" isNumeric>Historical</Th>
-                    <Th color="orange.300" isNumeric>Occupancy</Th>
-                    <Th color="orange.300" isNumeric>Revenue Trend</Th>
-                    <Th color="orange.300" isNumeric>Event</Th>
-                    <Th color="orange.300" isNumeric>AI Correction</Th>
-                    <Th color="orange.300" isNumeric>Records</Th>
+                    <Th color="orange.300">{t('pricing.multipliersSummary.listing')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.multipliersSummary.baseRate')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.multipliersSummary.historical')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.multipliersSummary.occupancy')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.multipliersSummary.revenueTrend')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.multipliersSummary.event')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.multipliersSummary.aiCorrection')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.multipliersSummary.records')}</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -299,13 +301,13 @@ const STRPricing: React.FC = () => {
               </Table>
             </Box>
           ) : (
-            <Text color="gray.400">No multiplier data available. Generate pricing to see multipliers.</Text>
+            <Text color="gray.400">{t('pricing.multipliersSummary.noData')}</Text>
           )}
         </Box>
 
         {/* Trend Chart */}
         <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
-          <Heading size="md" mb={4} color="orange.300">Historical vs Recommended ADR Trend</Heading>
+          <Heading size="md" mb={4} color="orange.300">{t('pricing.trendChart.title')}</Heading>
           {trendData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={trendData}>
@@ -322,7 +324,7 @@ const STRPricing: React.FC = () => {
                   dataKey="historical_adr" 
                   stroke="#4299E1" 
                   strokeWidth={2}
-                  name="Historical ADR"
+                  name={t('pricing.trendChart.historicalAdr')}
                   connectNulls={false}
                 />
                 <Line 
@@ -330,7 +332,7 @@ const STRPricing: React.FC = () => {
                   dataKey="recommended_adr" 
                   stroke="#ED8936" 
                   strokeWidth={2}
-                  name="Recommended ADR"
+                  name={t('pricing.trendChart.recommendedAdr')}
                   connectNulls={false}
                 />
                 <Line 
@@ -338,32 +340,32 @@ const STRPricing: React.FC = () => {
                   dataKey="base_rate" 
                   stroke="#68D391" 
                   strokeWidth={2}
-                  name="Base Rate"
+                  name={t('pricing.trendChart.baseRate')}
                   connectNulls={false}
                 />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <Text color="gray.400">No trend data available</Text>
+            <Text color="gray.400">{t('pricing.trendChart.noData')}</Text>
           )}
         </Box>
 
         {/* Monthly Multipliers Table */}
         <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
-          <Heading size="md" mb={4} color="orange.300">Monthly Multipliers by Listing</Heading>
+          <Heading size="md" mb={4} color="orange.300">{t('pricing.monthlyMultipliers.title')}</Heading>
           {recommendations.length > 0 ? (
             <Box overflowX="auto">
               <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th color="orange.300">Listing</Th>
-                    <Th color="orange.300" isNumeric>Base Rate</Th>
-                    <Th color="orange.300" isNumeric>Historical</Th>
-                    <Th color="orange.300" isNumeric>Occupancy</Th>
-                    <Th color="orange.300" isNumeric>Pace</Th>
-                    <Th color="orange.300" isNumeric>Event</Th>
-                    <Th color="orange.300" isNumeric>AI Correction</Th>
-                    <Th color="orange.300" isNumeric>BTW</Th>
+                    <Th color="orange.300">{t('pricing.monthlyMultipliers.listing')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.monthlyMultipliers.baseRate')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.monthlyMultipliers.historical')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.monthlyMultipliers.occupancy')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.monthlyMultipliers.pace')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.monthlyMultipliers.event')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.monthlyMultipliers.aiCorrection')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.monthlyMultipliers.btw')}</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -534,19 +536,19 @@ const STRPricing: React.FC = () => {
               </Table>
             </Box>
           ) : (
-            <Text color="gray.400">No data available for multipliers analysis</Text>
+            <Text color="gray.400">{t('pricing.monthlyMultipliers.noData')}</Text>
           )}
         </Box>
 
         {/* Quarterly Summary Table */}
         <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
-          <Heading size="md" mb={4} color="orange.300">Quarterly Summary</Heading>
+          <Heading size="md" mb={4} color="orange.300">{t('pricing.quarterlySummary.title')}</Heading>
           {recommendations.length > 0 ? (
             <Box overflowX="auto">
               <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th color="orange.300">Quarter</Th>
+                    <Th color="orange.300">{t('pricing.quarterlySummary.quarter')}</Th>
                     {(selectedListing ? [selectedListing] : ['Green Studio', 'Red Studio', 'Child Friendly']).map(listing => (
                       <Th key={listing} color="orange.300" textAlign="center">{listing}</Th>
                     ))}
@@ -554,7 +556,7 @@ const STRPricing: React.FC = () => {
                   <Tr>
                     <Th></Th>
                     {(selectedListing ? [selectedListing] : ['Green Studio', 'Red Studio', 'Child Friendly']).map(listing => (
-                      <Th key={listing} color="gray.400" fontSize="xs" textAlign="center">Rec | Hist</Th>
+                      <Th key={listing} color="gray.400" fontSize="xs" textAlign="center">{t('pricing.quarterlySummary.recHist')}</Th>
                     ))}
                   </Tr>
                 </Thead>
@@ -629,7 +631,7 @@ const STRPricing: React.FC = () => {
                         );
                       }),
                       <Tr key="total" bg="orange.900">
-                        <Td fontWeight="bold" color="orange.300">TOTAL</Td>
+                        <Td fontWeight="bold" color="orange.300">{t('pricing.quarterlySummary.total')}</Td>
                         {(selectedListing ? [selectedListing] : ['Green Studio', 'Red Studio', 'Child Friendly']).map(listing => (
                           <Td key={listing} textAlign="center" fontWeight="bold" color="orange.300">
                             €{totals[listing].rec.toFixed(0)} | €{totals[listing].hist.toFixed(0)}
@@ -642,40 +644,40 @@ const STRPricing: React.FC = () => {
               </Table>
             </Box>
           ) : (
-            <Text color="gray.400">No data available for quarterly summary</Text>
+            <Text color="gray.400">{t('pricing.quarterlySummary.noData')}</Text>
           )}
         </Box>
 
         {/* Pricing Recommendations Table */}
         <Box bg="gray.800" p={4} borderRadius="md" borderColor="orange.500" borderWidth="1px">
           <Heading size="md" mb={4} color="orange.300">
-            Pricing Recommendations {selectedListing && `- ${selectedListing}`}
+            {t('pricing.recommendations.title')} {selectedListing && `- ${selectedListing}`}
           </Heading>
           
           {loading ? (
             <HStack justify="center" p={8}>
               <Spinner color="orange.400" />
-              <Text>Loading recommendations...</Text>
+              <Text>{t('pricing.recommendations.loading')}</Text>
             </HStack>
           ) : filteredRecommendations.length === 0 ? (
             <Alert status="info">
               <AlertIcon />
-              No pricing recommendations found. Generate pricing for a listing to see recommendations.
+              {t('pricing.recommendations.noData')}
             </Alert>
           ) : (
             <Box overflowX="auto">
               <Table variant="simple" size="sm">
                 <Thead>
                   <Tr>
-                    <Th color="orange.300">Listing</Th>
-                    <Th color="orange.300">Date</Th>
-                    <Th color="orange.300" isNumeric>Recommended</Th>
-                    <Th color="orange.300" isNumeric>AI Rec</Th>
-                    <Th color="orange.300" isNumeric>Historical</Th>
-                    <Th color="orange.300" isNumeric>Variance</Th>
-                    <Th color="orange.300">Weekend</Th>
-                    <Th color="orange.300">Event</Th>
-                    <Th color="orange.300">AI Reasoning</Th>
+                    <Th color="orange.300">{t('pricing.multipliersSummary.listing')}</Th>
+                    <Th color="orange.300">{t('pricing.recommendations.date')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.recommendations.recommended')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.recommendations.aiRecommended')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.recommendations.historical')}</Th>
+                    <Th color="orange.300" isNumeric>{t('pricing.recommendations.variance')}</Th>
+                    <Th color="orange.300">{t('pricing.recommendations.weekend')}</Th>
+                    <Th color="orange.300">{t('pricing.recommendations.event')}</Th>
+                    <Th color="orange.300">{t('pricing.recommendations.reasoning')}</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -699,9 +701,9 @@ const STRPricing: React.FC = () => {
                       </Td>
                       <Td>
                         {rec.is_weekend ? (
-                          <Badge colorScheme="purple">Weekend</Badge>
+                          <Badge colorScheme="purple">{t('pricing.recommendations.weekend')}</Badge>
                         ) : (
-                          <Badge colorScheme="gray">Weekday</Badge>
+                          <Badge colorScheme="gray">{t('pricing.recommendations.weekday')}</Badge>
                         )}
                       </Td>
                       <Td>
@@ -713,7 +715,7 @@ const STRPricing: React.FC = () => {
                       </Td>
                       <Td maxW="200px">
                         <Text fontSize="xs" color="gray.300" noOfLines={2}>
-                          {rec.ai_reasoning || 'No reasoning provided'}
+                          {rec.ai_reasoning || t('pricing.recommendations.noData')}
                         </Text>
                       </Td>
                     </Tr>
@@ -722,7 +724,7 @@ const STRPricing: React.FC = () => {
               </Table>
               {filteredRecommendations.length > 50 && (
                 <Text mt={2} color="gray.400" fontSize="sm">
-                  Showing first 50 of {filteredRecommendations.length} recommendations
+                  Showing first 50 of {filteredRecommendations.length} {t('pricing.recommendations.title').toLowerCase()}
                 </Text>
               )}
             </Box>

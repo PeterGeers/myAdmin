@@ -131,13 +131,16 @@
       "title": "Prijsaanbevelingen",
       "date": "Datum",
       "recommended": "Aanbevolen",
+      "aiRecommended": "AI Aanb",
       "historical": "Historisch",
       "variance": "Variantie",
       "weekend": "Weekend",
+      "weekday": "Doordeweeks",
       "event": "Evenement",
       "reasoning": "Redenering",
       "noData": "Geen aanbevelingen beschikbaar",
-      "loading": "Laden..."
+      "loading": "Laden...",
+      "showingFirst": "Eerste {{count}} van {{total}} aanbevelingen weergegeven"
     },
     "messages": {
       "errorLoadingListings": "Fout bij laden van accommodaties",
