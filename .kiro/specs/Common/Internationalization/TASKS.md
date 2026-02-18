@@ -722,6 +722,15 @@ resource "aws_cognito_user_pool" "main" {
     - [x] Create/Edit modal forms (role name, description, precedence with hints)
     - [x] Delete confirmation dialog
     - [x] All modal footer buttons (Cancel, Create Role, Update Role, Delete)
+  - [x] HealthCheck - ✅ 100% COMPLETE (all UI elements translated)
+    - [x] Title and loading states
+    - [x] Auto-refresh controls and interval options
+    - [x] Time since last check (seconds/minutes/hours ago)
+    - [x] Overall status section
+    - [x] Service status table (headers: Service, Status, Response Time, Message, Actions)
+    - [x] View Details button
+    - [x] Service details modal (status, response time, message, last checked, additional details)
+    - [x] Error messages and alerts
 - [ ] Test admin modules in both languages (manual testing deferred to Phase 14)
 
 **Progress Summary**:
@@ -730,9 +739,10 @@ resource "aws_cognito_user_pool" "main" {
 - TenantManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
 - UserManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
 - RoleManagement component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
+- HealthCheck component: ✅ 100% COMPLETE - All user-facing strings now use i18n translation keys
 - Other admin sub-components can be translated incrementally as needed
 
-**Note**: The admin module translation infrastructure is complete. Core navigation, error messages, TenantManagement, UserManagement, and RoleManagement components are fully internationalized. Remaining UI elements in other sub-components (HealthCheck, ChartOfAccounts, CredentialsManagement, etc.) can be translated incrementally during future maintenance.
+**Note**: The admin module translation infrastructure is complete. Core navigation, error messages, TenantManagement, UserManagement, RoleManagement, and HealthCheck components are fully internationalized. Remaining UI elements in other sub-components (ChartOfAccounts, CredentialsManagement, TenantConfigManagement, etc.) can be translated incrementally during future maintenance.
 
 ### 9.3 Chart of Accounts Management
 

@@ -270,18 +270,46 @@
   "healthCheck": {
     "title": "Systeemstatus controle",
     "loading": "Systeemstatus controleren...",
-    "refresh": "Vernieuwen",
+    "refresh": "Nu vernieuwen",
     "lastChecked": "Laatst gecontroleerd",
+    "autoRefresh": "Automatisch vernieuwen",
+    "refreshIntervals": {
+      "30s": "30s",
+      "1m": "1m",
+      "5m": "5m"
+    },
+    "timeSince": {
+      "seconds": "{{count}}s geleden",
+      "minutes": "{{count}}m geleden",
+      "hours": "{{count}}u geleden"
+    },
+    "overallStatus": "Algemene status",
     "status": {
       "healthy": "Gezond",
       "degraded": "Verminderd",
       "unhealthy": "Ongezond"
     },
-    "components": {
-      "database": "Database",
-      "api": "API",
-      "storage": "Opslag",
-      "authentication": "Authenticatie"
+    "table": {
+      "service": "Service",
+      "status": "Status",
+      "responseTime": "Reactietijd",
+      "message": "Bericht",
+      "actions": "Acties",
+      "viewDetails": "Details bekijken"
+    },
+    "modal": {
+      "title": "Service details: {{service}}",
+      "status": "Status",
+      "responseTime": "Reactietijd",
+      "message": "Bericht",
+      "noMessage": "Geen bericht",
+      "lastChecked": "Laatst gecontroleerd",
+      "additionalDetails": "Aanvullende details"
+    },
+    "messages": {
+      "errorLoading": "Fout bij laden systeemstatus",
+      "failedToLoad": "Kan systeemstatus niet laden. Probeer te vernieuwen.",
+      "unknownError": "Onbekende fout"
     }
   },
   "chartOfAccounts": {

@@ -270,18 +270,46 @@
   "healthCheck": {
     "title": "System Health Check",
     "loading": "Checking system health...",
-    "refresh": "Refresh",
+    "refresh": "Refresh Now",
     "lastChecked": "Last checked",
+    "autoRefresh": "Auto-refresh",
+    "refreshIntervals": {
+      "30s": "30s",
+      "1m": "1m",
+      "5m": "5m"
+    },
+    "timeSince": {
+      "seconds": "{{count}}s ago",
+      "minutes": "{{count}}m ago",
+      "hours": "{{count}}h ago"
+    },
+    "overallStatus": "Overall Status",
     "status": {
       "healthy": "Healthy",
       "degraded": "Degraded",
       "unhealthy": "Unhealthy"
     },
-    "components": {
-      "database": "Database",
-      "api": "API",
-      "storage": "Storage",
-      "authentication": "Authentication"
+    "table": {
+      "service": "Service",
+      "status": "Status",
+      "responseTime": "Response Time",
+      "message": "Message",
+      "actions": "Actions",
+      "viewDetails": "View Details"
+    },
+    "modal": {
+      "title": "Service Details: {{service}}",
+      "status": "Status",
+      "responseTime": "Response Time",
+      "message": "Message",
+      "noMessage": "No message",
+      "lastChecked": "Last Checked",
+      "additionalDetails": "Additional Details"
+    },
+    "messages": {
+      "errorLoading": "Error loading health status",
+      "failedToLoad": "Failed to load health status. Please try refreshing.",
+      "unknownError": "Unknown error"
     }
   },
   "chartOfAccounts": {
