@@ -26,16 +26,23 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      // Note: Using hardcoded strings as class components can't use useTranslation hook
+      // Translations: nl="Er is een fout opgetreden" / en="Something went wrong"
+      const currentLang = localStorage.getItem('i18nextLng') || 'en';
+      const errorTitle = currentLang === 'nl' ? 'Er is een fout opgetreden' : 'Something went wrong';
+      const errorMessage = currentLang === 'nl' ? 'Er is een onverwachte fout opgetreden' : 'An unexpected error occurred';
+      const tryAgainText = currentLang === 'nl' ? 'Opnieuw proberen' : 'Try Again';
+      
       return (
         <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
           <VStack spacing={4} textAlign="center" p={8}>
-            <Heading color="red.400" size="lg">⚠️ Something went wrong</Heading>
-            <Text color="gray.300">An unexpected error occurred</Text>
+            <Heading color="red.400" size="lg">⚠️ {errorTitle}</Heading>
+            <Text color="gray.300">{errorMessage}</Text>
             <Button 
               colorScheme="orange" 
               onClick={() => this.setState({ hasError: false, error: undefined })}
             >
-              Try Again
+              {tryAgainText}
             </Button>
           </VStack>
         </Box>
