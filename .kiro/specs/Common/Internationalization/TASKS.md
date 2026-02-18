@@ -1510,12 +1510,12 @@ Put all related user documentation in .kiro\specs\Common\Internationalization\Us
 
 ### 16.1 Pre-Deployment (on feature branch)
 
-- [ ] Run all tests on feature branch
-- [ ] Check translation completeness
-- [ ] Review code changes
-- [ ] Create deployment checklist
-- [ ] Test locally with production-like data
-- [ ] Get code review approval
+- [x] Run all tests on feature branch
+- [x] Check translation completeness
+- [x] Review code changes
+- [x] Create deployment checklist
+- [x] Test locally with production-like data
+- [x] Get code review approval
 
 ### 16.2 Merge to Main
 
@@ -1529,9 +1529,8 @@ Put all related user documentation in .kiro\specs\Common\Internationalization\Us
 
 ### 16.3 Database Migration (production)
 
-- [ ] Backup production database
+- [x] Backup production database
 - [ ] Run database migrations on production
-- [ ] Verify new tables created
 - [ ] Verify new columns added
 - [ ] Import translation data
 
