@@ -858,43 +858,67 @@ resource "aws_cognito_user_pool" "main" {
 
 ---
 
-## Phase 11: Email Templates (1 day)
+## Phase 11: Email Templates (0.5 days)
 
-### 11.1 Email Template Creation
+**Note**: Email templates are static files in `backend/templates/email/`, NOT managed by the Template Management system (which handles report templates). AWS Cognito handles most user emails automatically. Only the user invitation email needs translation.
 
-- [ ] Create invitation_nl.html template
-- [ ] Create invitation_en.html template
-- [ ] Create password_reset_nl.html template
-- [ ] Create password_reset_en.html template
-- [ ] Create notification_nl.html template
-- [ ] Create notification_en.html template
+### 11.1 User Invitation Email Translation
 
-### 11.2 Email Service Updates
+- [ ] Create `user_invitation_nl.html` template (Dutch version)
+- [ ] Create `user_invitation_nl.txt` template (Dutch plain text version)
+- [ ] Update email service to detect user language preference
+- [ ] Update email service to select template based on language (nl/en)
+- [ ] Test invitation email in both languages
 
-- [ ] Update email service to detect user language
-- [ ] Update email service to select template by language
-- [ ] Add language parameter to email functions
-- [ ] Test email sending in both languages
+**Implementation Notes**:
+
+- Keep same structure and styling as English version
+- Translate all text content (headers, instructions, security notice, footer)
+- Maintain variable placeholders: {{email}}, {{tenant}}, {{temporary_password}}, {{login_url}}
+- Email service should check user's preferred language from Cognito custom attribute
+- Fallback to tenant's default language if user language not set
+- Fallback to 'nl' if neither is available
 
 ---
 
 ## Phase 12: Report Templates (1 day)
 
-### 12.1 HTML Report Templates
+**Note**: Report templates (PDF, Excel, XML) ARE managed by the Template Management system in Tenant Admin. These templates use field mappings and are stored in Google Drive. Translation involves updating field mappings and template content.
 
-- [ ] Create profit_loss_nl.html template
-- [ ] Create profit_loss_en.html template
-- [ ] Create balance_sheet_nl.html template
-- [ ] Create balance_sheet_en.html template
-- [ ] Create btw_aangifte_nl.html template
-- [ ] Create btw_aangifte_en.html template
+### 12.1 Template Field Mappings Translation
 
-### 12.2 Excel Report Templates
+- [ ] Review existing field mappings in `backend/templates/FIELD_MAPPINGS_INDEX.md`
+- [ ] Identify which field labels need translation
+- [ ] Update field mapping configurations to support language parameter
+- [ ] Create Dutch field label mappings for all report types
+- [ ] Test field mappings with both languages
 
-- [ ] Update Excel export to use translated headers
-- [ ] Update Excel export to format numbers by language
-- [ ] Update Excel export to format dates by language
+### 12.2 Excel Report Headers Translation
+
+- [ ] Update Excel export functions to accept language parameter
+- [ ] Translate column headers for Mutaties report
+- [ ] Translate column headers for BTW report
+- [ ] Translate column headers for Aangifte IB report
+- [ ] Translate column headers for STR reports
+- [ ] Update Excel export to format numbers by language (already done in Phase 1.7)
+- [ ] Update Excel export to format dates by language (already done in Phase 1.7)
 - [ ] Test Excel exports in both languages
+
+### 12.3 Report Service Updates
+
+- [ ] Update report generation services to accept language parameter
+- [ ] Update report services to pass language to template rendering
+- [ ] Update report services to use translated field mappings
+- [ ] Test report generation in both languages
+
+**Implementation Notes**:
+
+- Template Management system stores templates in Google Drive
+- Field mappings are defined in backend code and configuration files
+- Excel exports use openpyxl library
+- Number and date formatting utilities already created in Phase 1.7
+- Focus on translating field labels and column headers
+- Template content translation can be done incrementally by tenant admins
 
 ### 12.3 Report Service Updates
 
