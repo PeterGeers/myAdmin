@@ -18,7 +18,8 @@ import {
   Tr,
   VStack
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import {
   CartesianGrid,
   Cell,
@@ -44,7 +45,7 @@ interface BnbFilterOptions {
 }
 
 const BnbActualsReport: React.FC = () => {
-  const { t } = useTranslation('reports');
+  const { t } = useTypedTranslation('reports');
   const [loading, setLoading] = useState(false);
   
   // Simplified state - using arrays for multi-select
@@ -390,70 +391,70 @@ const BnbActualsReport: React.FC = () => {
             filters={[
               {
                 type: 'multi',
-                label: 'Years',
+                label: t('filters.year'),
                 options: bnbAvailableYears,
                 value: selectedYears,
                 onChange: (values) => setSelectedYears(values as string[]),
-                placeholder: 'Select year(s)',
+                placeholder: t('filters.selectYear'),
                 isLoading: loading,
               },
               {
                 type: 'multi',
-                label: 'Listings',
+                label: t('filters.listings'),
                 options: bnbFilterOptions.listings || [],
                 value: selectedListings,
                 onChange: (values) => setSelectedListings(values as string[]),
-                placeholder: 'All Listings',
+                placeholder: t('filters.allListings'),
                 treatEmptyAsSelected: true,
               },
               {
                 type: 'multi',
-                label: 'Channels',
+                label: t('filters.channels'),
                 options: bnbFilterOptions.channels || [],
                 value: selectedChannels,
                 onChange: (values) => setSelectedChannels(values as string[]),
-                placeholder: 'All Channels',
+                placeholder: t('filters.allChannels'),
                 treatEmptyAsSelected: true,
               },
               {
                 type: 'single',
-                label: 'View Type',
+                label: t('filters.viewType'),
                 options: ['listing', 'channel'],
                 value: viewType,
                 onChange: (value) => setViewType(value as 'listing' | 'channel'),
-                getOptionLabel: (option) => option === 'listing' ? 'Listing' : 'Channel',
+                getOptionLabel: (option) => option === 'listing' ? t('filters.listing') : t('filters.channel'),
               },
               {
                 type: 'single',
-                label: 'Display Format',
+                label: t('actuals.displayFormat'),
                 options: ['2dec', '0dec', 'k', 'm'],
                 value: displayFormat,
                 onChange: (value) => setDisplayFormat(value as string),
                 getOptionLabel: (option) => {
                   switch (option) {
-                    case '2dec': return '€1,234.56 (2 decimals)';
-                    case '0dec': return '€1,235 (whole numbers)';
-                    case 'k': return '€1.2K (thousands)';
-                    case 'm': return '€1.2M (millions)';
+                    case '2dec': return t('actuals.twoDecimals');
+                    case '0dec': return t('actuals.wholeNumbers');
+                    case 'k': return t('actuals.thousands');
+                    case 'm': return t('actuals.millions');
                     default: return option;
                   }
                 },
               },
               {
                 type: 'multi',
-                label: 'Show Amounts',
+                label: t('bnb.selectAmounts'),
                 options: [
-                  { key: 'amountGross', label: 'Gross Amount' },
-                  { key: 'amountNett', label: 'Net Amount' },
-                  { key: 'amountChannelFee', label: 'Channel Fee' },
-                  { key: 'amountTouristTax', label: 'Tourist Tax' },
-                  { key: 'amountVat', label: 'VAT Amount' }
+                  { key: 'amountGross', label: t('bnb.grossAmount') },
+                  { key: 'amountNett', label: t('bnb.netAmount') },
+                  { key: 'amountChannelFee', label: t('tables.channelFee') },
+                  { key: 'amountTouristTax', label: t('tables.touristTax') },
+                  { key: 'amountVat', label: t('tables.vat') }
                 ],
                 value: selectedAmounts,
                 onChange: (values) => setSelectedAmounts(values as string[]),
                 getOptionLabel: (option) => option.label,
                 getOptionValue: (option) => option.key,
-                placeholder: 'Select amounts...',
+                placeholder: t('bnb.selectAmounts'),
               },
             ]}
           />
@@ -464,7 +465,7 @@ const BnbActualsReport: React.FC = () => {
             size="sm"
             mt={4}
           >
-            Update Data
+            {t('actuals.updateData')}
           </Button>
         </CardBody>
       </Card>
@@ -472,7 +473,7 @@ const BnbActualsReport: React.FC = () => {
       {/* Revenue Trend Chart */}
       <Card bg="gray.700">
         <CardHeader>
-          <Heading size="md" color="white">Revenue Trend Over Time</Heading>
+          <Heading size="md" color="white">{t('bnb.revenueTrend')}</Heading>
         </CardHeader>
         <CardBody>
           <ResponsiveContainer width="100%" height={300}>
@@ -506,11 +507,11 @@ const BnbActualsReport: React.FC = () => {
               <Legend wrapperStyle={{color: 'white'}} />
               {selectedAmounts.map((amount, index) => {
                 const amountLabel = {
-                  'amountGross': 'Gross Revenue',
-                  'amountNett': 'Net Revenue',
-                  'amountChannelFee': 'Channel Fees',
-                  'amountTouristTax': 'Tourist Tax',
-                  'amountVat': 'VAT'
+                  'amountGross': t('bnb.grossRevenue'),
+                  'amountNett': t('bnb.netRevenue'),
+                  'amountChannelFee': t('bnb.channelFees'),
+                  'amountTouristTax': t('tables.touristTax'),
+                  'amountVat': t('tables.vat')
                 }[amount] || amount;
                 return (
                   <Line
@@ -534,7 +535,7 @@ const BnbActualsReport: React.FC = () => {
           <Card bg="gray.700">
             <CardHeader>
               <Heading size="md" color="white">
-                {viewType === 'listing' ? 'Listing' : 'Channel'} Distribution
+                {viewType === 'listing' ? t('bnb.listingDistribution') : t('bnb.channelDistribution')}
               </Heading>
             </CardHeader>
             <CardBody>
@@ -590,7 +591,7 @@ const BnbActualsReport: React.FC = () => {
         <GridItem>
           <Card bg="gray.700">
             <CardHeader>
-              <Heading size="md" color="white">Year-over-Year Performance</Heading>
+              <Heading size="md" color="white">{t('bnb.yearOverYearPerformance')}</Heading>
             </CardHeader>
             <CardBody>
               {(() => {
@@ -663,7 +664,7 @@ const BnbActualsReport: React.FC = () => {
                         {difference >= 0 ? '+' : ''}{formatAmount(difference, displayFormat)}
                       </Text>
                       <Text color="gray.400" fontSize="xs">
-                        {percentage >= 100 ? 'Growth' : percentage >= 90 ? 'Slight Decline' : 'Significant Decline'}
+                        {percentage >= 100 ? t('bnb.growth') : percentage >= 90 ? t('bnb.slightDecline') : t('bnb.significantDecline')}
                       </Text>
                     </VStack>
                   </VStack>
@@ -678,7 +679,7 @@ const BnbActualsReport: React.FC = () => {
       <Card bg="gray.700">
         <CardHeader>
           <Heading size="md" color="white">
-            {viewType === 'listing' ? 'Listing' : 'Channel'} Summary
+            {viewType === 'listing' ? t('bnb.listingSummary') : t('bnb.channelSummary')}
           </Heading>
         </CardHeader>
         <CardBody>
@@ -686,7 +687,7 @@ const BnbActualsReport: React.FC = () => {
             <Table size="sm" variant="simple">
               <Thead>
                 <Tr>
-                  <Th color="white" w="120px">Period</Th>
+                  <Th color="white" w="120px">{t('tables.period')}</Th>
                   {(() => {
                     // Extract unique headers from actual data
                     const data = viewType === 'listing' ? bnbListingData : bnbChannelData;
@@ -696,11 +697,11 @@ const BnbActualsReport: React.FC = () => {
                     return headers.flatMap(header => 
                       selectedAmounts.map(amount => {
                         const amountLabel = {
-                          'amountGross': 'Gross',
-                          'amountNett': 'Net', 
-                          'amountChannelFee': 'Fee',
-                          'amountTouristTax': 'Tax',
-                          'amountVat': 'VAT'
+                          'amountGross': t('tables.gross'),
+                          'amountNett': t('tables.net'), 
+                          'amountChannelFee': t('tables.channelFee'),
+                          'amountTouristTax': t('tables.touristTax'),
+                          'amountVat': t('tables.vat')
                         }[amount] || amount;
                         return (
                           <Th key={`${header}-${amount}`} color="white" w="60px" textAlign="right">
@@ -712,15 +713,15 @@ const BnbActualsReport: React.FC = () => {
                   })()}
                   {selectedAmounts.map(amount => {
                     const amountLabel = {
-                      'amountGross': 'Total Gross',
-                      'amountNett': 'Total Net', 
-                      'amountChannelFee': 'Total Fee',
-                      'amountTouristTax': 'Total Tax',
-                      'amountVat': 'Total VAT'
+                      'amountGross': t('bnb.grossRevenue'),
+                      'amountNett': t('bnb.netRevenue'), 
+                      'amountChannelFee': t('bnb.channelFees'),
+                      'amountTouristTax': t('tables.touristTax'),
+                      'amountVat': t('tables.vat')
                     }[amount] || `Total ${amount}`;
                     return (
                       <Th key={`total-${amount}`} color="white" w="80px" textAlign="right">
-                        {amountLabel}
+                        {t('charts.total')} {amountLabel}
                       </Th>
                     );
                   })}
