@@ -8,6 +8,7 @@ import {
 import { EditIcon, AddIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { buildApiUrl } from '../../config';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 interface User {
   username: string;
@@ -36,6 +37,7 @@ interface UserManagementProps {
 }
 
 export default function UserManagement({ tenant }: UserManagementProps) {
+  const { t } = useTypedTranslation('admin');
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,9 +65,9 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
   // Available email templates
   const emailTemplates: EmailTemplate[] = [
-    { template_type: 'user_invitation', display_name: 'User Invitation' },
-    { template_type: 'password_reset', display_name: 'Password Reset' },
-    { template_type: 'account_update', display_name: 'Account Update Notification' },
+    { template_type: 'user_invitation', display_name: t('userManagement.emailTemplates.userInvitation') },
+    { template_type: 'password_reset', display_name: t('userManagement.emailTemplates.passwordReset') },
+    { template_type: 'account_update', display_name: t('userManagement.emailTemplates.accountUpdate') },
   ];
 
   const loadData = async () => {
@@ -75,7 +77,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       const token = session.tokens?.idToken?.toString();
       
       if (!token) {
-        throw new Error('No authentication token available');
+        throw new Error(t('userManagement.messages.noAuthToken'));
       }
 
       const headers = {
@@ -101,8 +103,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       }
     } catch (error) {
       toast({
-        title: 'Error loading data',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('userManagement.messages.errorLoading'),
+        description: error instanceof Error ? error.message : t('userManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -219,11 +221,11 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
       if (response.ok) {
         const successMessage = data.existing_user 
-          ? `${data.message}. The user already existed and has been added to this tenant.`
+          ? `${data.message}. ${t('userManagement.messages.userExistsMessage')}`
           : data.message;
         
         toast({
-          title: data.existing_user ? 'User added to tenant' : 'User created',
+          title: data.existing_user ? t('userManagement.messages.userAddedToTenant') : t('userManagement.messages.userCreated'),
           description: successMessage,
           status: 'success',
           duration: 5000,
@@ -235,7 +237,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         if (response.status === 409) {
           // User already in this tenant
           toast({
-            title: 'User already exists',
+            title: t('userManagement.messages.userAlreadyExists'),
             description: data.message || data.error,
             status: 'warning',
             duration: 5000,
@@ -246,8 +248,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       }
     } catch (error) {
       toast({
-        title: 'Error creating user',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('userManagement.messages.errorCreating'),
+        description: error instanceof Error ? error.message : t('userManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -307,7 +309,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       }
 
       toast({
-        title: 'User updated',
+        title: t('userManagement.messages.userUpdated'),
         status: 'success',
         duration: 3000,
       });
@@ -315,8 +317,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       loadData();
     } catch (error) {
       toast({
-        title: 'Error updating user',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('userManagement.messages.errorUpdating'),
+        description: error instanceof Error ? error.message : t('userManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -342,7 +344,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
       if (response.ok) {
         toast({
-          title: `User ${enable ? 'enabled' : 'disabled'}`,
+          title: enable ? t('userManagement.messages.userEnabled') : t('userManagement.messages.userDisabled'),
           status: 'success',
           duration: 3000,
         });
@@ -352,8 +354,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       }
     } catch (error) {
       toast({
-        title: 'Error updating user status',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('userManagement.messages.errorUpdatingStatus'),
+        description: error instanceof Error ? error.message : t('userManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -361,7 +363,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
   };
 
   const handleDeleteUser = async (user: User) => {
-    if (!window.confirm(`Are you sure you want to delete user ${user.email}?`)) {
+    if (!window.confirm(t('userManagement.messages.confirmDelete', { email: user.email }))) {
       return;
     }
 
@@ -381,7 +383,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
       if (response.ok) {
         toast({
-          title: 'User deleted',
+          title: t('userManagement.messages.userDeleted'),
           description: data.message,
           status: 'success',
           duration: 3000,
@@ -392,8 +394,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       }
     } catch (error) {
       toast({
-        title: 'Error deleting user',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('userManagement.messages.errorDeleting'),
+        description: error instanceof Error ? error.message : t('userManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -430,8 +432,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
       if (response.ok) {
         toast({
-          title: 'Email sent',
-          description: `Email sent successfully to ${selectedUser.email}`,
+          title: t('userManagement.messages.emailSent'),
+          description: t('userManagement.messages.emailSentTo', { email: selectedUser.email }),
           status: 'success',
           duration: 3000,
         });
@@ -440,8 +442,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       }
     } catch (error) {
       toast({
-        title: 'Error sending email',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('userManagement.messages.errorSendingEmail'),
+        description: error instanceof Error ? error.message : t('userManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -475,8 +477,11 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
       if (response.ok) {
         toast({
-          title: 'Invitation resent',
-          description: `New invitation sent to ${selectedUser.email}. Expires in ${data.expiry_days} days.`,
+          title: t('userManagement.messages.invitationResent'),
+          description: t('userManagement.messages.invitationResentMessage', { 
+            email: selectedUser.email, 
+            days: data.expiry_days 
+          }),
           status: 'success',
           duration: 5000,
         });
@@ -486,8 +491,8 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       }
     } catch (error) {
       toast({
-        title: 'Error resending invitation',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('userManagement.messages.errorResendingInvitation'),
+        description: error instanceof Error ? error.message : t('userManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
       });
@@ -509,9 +514,9 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       {/* Filters */}
       <HStack spacing={4} wrap="wrap">
         <FormControl maxW="250px">
-          <FormLabel color="gray.300" fontSize="sm">Search Email</FormLabel>
+          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.searchEmail')}</FormLabel>
           <Input
-            placeholder="Search by email..."
+            placeholder={t('userManagement.filters.searchEmailPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             bg="gray.800"
@@ -521,9 +526,9 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         </FormControl>
 
         <FormControl maxW="250px">
-          <FormLabel color="gray.300" fontSize="sm">Search Name</FormLabel>
+          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.searchName')}</FormLabel>
           <Input
-            placeholder="Search by name..."
+            placeholder={t('userManagement.filters.searchNamePlaceholder')}
             value={searchName}
             onChange={(e) => setSearchName(e.target.value)}
             bg="gray.800"
@@ -533,7 +538,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         </FormControl>
 
         <FormControl maxW="200px">
-          <FormLabel color="gray.300" fontSize="sm">Status</FormLabel>
+          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.status')}</FormLabel>
           <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -541,15 +546,15 @@ export default function UserManagement({ tenant }: UserManagementProps) {
             color="white"
             borderColor="gray.600"
           >
-            <option value="all">All Statuses</option>
-            <option value="CONFIRMED">Confirmed</option>
-            <option value="FORCE_CHANGE_PASSWORD">Force Change Password</option>
-            <option value="UNCONFIRMED">Unconfirmed</option>
+            <option value="all">{t('userManagement.filters.allStatuses')}</option>
+            <option value="CONFIRMED">{t('userManagement.status.confirmed')}</option>
+            <option value="FORCE_CHANGE_PASSWORD">{t('userManagement.status.forceChangePassword')}</option>
+            <option value="UNCONFIRMED">{t('userManagement.status.unconfirmed')}</option>
           </Select>
         </FormControl>
 
         <FormControl maxW="200px">
-          <FormLabel color="gray.300" fontSize="sm">Role</FormLabel>
+          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.role')}</FormLabel>
           <Select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -557,7 +562,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
             color="white"
             borderColor="gray.600"
           >
-            <option value="all">All Roles</option>
+            <option value="all">{t('userManagement.filters.allRoles')}</option>
             {roles.map(role => (
               <option key={role.name} value={role.name}>{role.name}</option>
             ))}
@@ -570,7 +575,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
           onClick={openCreateModal}
           alignSelf="flex-end"
         >
-          Create User
+          {t('userManagement.createUser')}
         </Button>
       </HStack>
 
@@ -580,18 +585,18 @@ export default function UserManagement({ tenant }: UserManagementProps) {
           <Thead>
             <Tr>
               <Th color="gray.400" cursor="pointer" onClick={() => handleSort('email')}>
-                Email {sortField === 'email' && (sortDirection === 'asc' ? '↑' : '↓')}
+                {t('userManagement.table.email')} {sortField === 'email' && (sortDirection === 'asc' ? '↑' : '↓')}
               </Th>
               <Th color="gray.400" cursor="pointer" onClick={() => handleSort('name')}>
-                Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                {t('userManagement.table.name')} {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
               </Th>
               <Th color="gray.400" cursor="pointer" onClick={() => handleSort('status')}>
-                Status {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+                {t('userManagement.table.status')} {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
               </Th>
-              <Th color="gray.400">Roles</Th>
-              <Th color="gray.400">Tenants</Th>
+              <Th color="gray.400">{t('userManagement.table.roles')}</Th>
+              <Th color="gray.400">{t('userManagement.table.tenants')}</Th>
               <Th color="gray.400" cursor="pointer" onClick={() => handleSort('created')}>
-                Created {sortField === 'created' && (sortDirection === 'asc' ? '↑' : '↓')}
+                {t('userManagement.table.created')} {sortField === 'created' && (sortDirection === 'asc' ? '↑' : '↓')}
               </Th>
             </Tr>
           </Thead>
@@ -641,7 +646,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
         {filteredAndSortedUsers.length === 0 && (
           <Text color="gray.400" textAlign="center" py={8}>
-            No users found
+            {t('userManagement.table.noUsers')}
           </Text>
         )}
       </Box>
@@ -651,9 +656,9 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         <ModalOverlay />
         <ModalContent bg="gray.800">
           <ModalHeader color="orange.400">
-            {modalMode === 'create' && 'Create New User'}
-            {modalMode === 'edit' && 'Edit User'}
-            {modalMode === 'details' && 'User Details'}
+            {modalMode === 'create' && t('userManagement.modal.createTitle')}
+            {modalMode === 'edit' && t('userManagement.modal.editTitle')}
+            {modalMode === 'details' && t('userManagement.modal.detailsTitle')}
           </ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody>
@@ -663,21 +668,21 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                 <Box bg="gray.700" p={4} borderRadius="md">
                   <VStack spacing={3} align="stretch">
                     <HStack justify="space-between">
-                      <Text color="gray.400" fontSize="sm">Email:</Text>
+                      <Text color="gray.400" fontSize="sm">{t('userManagement.modal.email')}:</Text>
                       <Text color="white" fontWeight="bold">{selectedUser.email}</Text>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text color="gray.400" fontSize="sm">Name:</Text>
+                      <Text color="gray.400" fontSize="sm">{t('userManagement.modal.displayName')}:</Text>
                       <Text color="white">{selectedUser.name || '-'}</Text>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text color="gray.400" fontSize="sm">Status:</Text>
+                      <Text color="gray.400" fontSize="sm">{t('userManagement.table.status')}:</Text>
                       <Badge colorScheme={selectedUser.enabled ? 'green' : 'red'}>
                         {selectedUser.status}
                       </Badge>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text color="gray.400" fontSize="sm">Created:</Text>
+                      <Text color="gray.400" fontSize="sm">{t('userManagement.table.created')}:</Text>
                       <Text color="white" fontSize="sm">
                         {new Date(selectedUser.created).toLocaleString()}
                       </Text>
@@ -687,7 +692,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
                 {/* Roles */}
                 <Box>
-                  <Text color="gray.300" fontWeight="bold" mb={2}>Roles:</Text>
+                  <Text color="gray.300" fontWeight="bold" mb={2}>{t('userManagement.modal.roles')}:</Text>
                   <HStack spacing={2} wrap="wrap">
                     {selectedUser.groups.map(group => (
                       <Badge key={group} colorScheme="blue">
@@ -699,7 +704,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
                 {/* Tenants */}
                 <Box>
-                  <Text color="gray.300" fontWeight="bold" mb={2}>Tenants:</Text>
+                  <Text color="gray.300" fontWeight="bold" mb={2}>{t('userManagement.table.tenants')}:</Text>
                   <HStack spacing={2} wrap="wrap">
                     {selectedUser.tenants.map(t => (
                       <Badge key={t} colorScheme="purple">
@@ -711,7 +716,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
                 {/* Send Email Section */}
                 <Box bg="gray.700" p={4} borderRadius="md" borderWidth="1px" borderColor="orange.500">
-                  <Text color="orange.400" fontWeight="bold" mb={3}>Send Email</Text>
+                  <Text color="orange.400" fontWeight="bold" mb={3}>{t('userManagement.modal.sendEmail')}</Text>
                   <VStack spacing={3}>
                     {selectedUser.status === 'FORCE_CHANGE_PASSWORD' && (
                       <Button
@@ -720,11 +725,11 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                         onClick={handleResendInvitation}
                         isLoading={sendingEmail}
                       >
-                        Resend Invitation (New Password)
+                        {t('userManagement.modal.resendInvitation')}
                       </Button>
                     )}
                     <FormControl>
-                      <FormLabel color="gray.300" fontSize="sm">Email Template</FormLabel>
+                      <FormLabel color="gray.300" fontSize="sm">{t('userManagement.modal.emailTemplate')}</FormLabel>
                       <Select
                         value={selectedEmailTemplate}
                         onChange={(e) => setSelectedEmailTemplate(e.target.value)}
@@ -746,7 +751,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                       onClick={handleSendEmail}
                       isLoading={sendingEmail}
                     >
-                      Send Email
+                      {t('userManagement.modal.sendEmailButton')}
                     </Button>
                   </VStack>
                 </Box>
@@ -764,7 +769,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                       }}
                       color="blue.400"
                     >
-                      Edit User
+                      {t('userManagement.editUser')}
                     </Button>
                     <Button
                       colorScheme={selectedUser.enabled ? 'yellow' : 'green'}
@@ -775,7 +780,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                       }}
                       color={selectedUser.enabled ? 'yellow.400' : 'green.400'}
                     >
-                      {selectedUser.enabled ? 'Disable' : 'Enable'}
+                      {selectedUser.enabled ? t('userManagement.modal.disable') : t('userManagement.modal.enable')}
                     </Button>
                     <Button
                       colorScheme="red"
@@ -786,7 +791,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                       }}
                       color="red.400"
                     >
-                      Delete
+                      {t('userManagement.modal.delete')}
                     </Button>
                   </HStack>
                 </Box>
@@ -796,7 +801,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
               {modalMode === 'create' && (
                 <>
                   <FormControl isRequired>
-                    <FormLabel color="gray.300">Email</FormLabel>
+                    <FormLabel color="gray.300">{t('userManagement.modal.email')}</FormLabel>
                     <Input
                       type="email"
                       value={newUserEmail}
@@ -804,22 +809,24 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                       bg="gray.700"
                       color="white"
                       borderColor="gray.600"
+                      placeholder={t('userManagement.modal.emailPlaceholder')}
                     />
                   </FormControl>
 
                   <FormControl>
-                    <FormLabel color="gray.300">Display Name</FormLabel>
+                    <FormLabel color="gray.300">{t('userManagement.modal.displayName')}</FormLabel>
                     <Input
                       value={newUserName}
                       onChange={(e) => setNewUserName(e.target.value)}
                       bg="gray.700"
                       color="white"
                       borderColor="gray.600"
+                      placeholder={t('userManagement.modal.displayNamePlaceholder')}
                     />
                   </FormControl>
 
                   <FormControl isRequired>
-                    <FormLabel color="gray.300">Temporary Password</FormLabel>
+                    <FormLabel color="gray.300">{t('userManagement.modal.temporaryPassword')}</FormLabel>
                     <Input
                       type="password"
                       value={newUserPassword}
@@ -827,7 +834,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                       bg="gray.700"
                       color="white"
                       borderColor="gray.600"
-                      placeholder="Min 8 characters"
+                      placeholder={t('userManagement.modal.temporaryPasswordPlaceholder')}
                     />
                   </FormControl>
                 </>
@@ -835,7 +842,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
               {modalMode === 'edit' && (
                 <FormControl>
-                  <FormLabel color="gray.300">Display Name</FormLabel>
+                  <FormLabel color="gray.300">{t('userManagement.modal.displayName')}</FormLabel>
                   <Input
                     value={editUserName}
                     onChange={(e) => setEditUserName(e.target.value)}
@@ -847,7 +854,7 @@ export default function UserManagement({ tenant }: UserManagementProps) {
               )}
 
               <FormControl>
-                <FormLabel color="gray.300">Roles</FormLabel>
+                <FormLabel color="gray.300">{t('userManagement.modal.roles')}</FormLabel>
                 <Stack spacing={2} bg="gray.700" p={3} borderRadius="md">
                   {roles.map(role => (
                     <Checkbox
@@ -880,21 +887,21 @@ export default function UserManagement({ tenant }: UserManagementProps) {
           {modalMode !== 'details' && (
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={onClose} color="white">
-                Cancel
+                {t('userManagement.modal.cancel')}
               </Button>
               <Button
                 colorScheme="orange"
                 onClick={modalMode === 'create' ? handleCreateUser : handleUpdateUser}
                 isLoading={actionLoading}
               >
-                {modalMode === 'create' ? 'Create User' : 'Update User'}
+                {modalMode === 'create' ? t('userManagement.modal.create') : t('userManagement.modal.update')}
               </Button>
             </ModalFooter>
           )}
           {modalMode === 'details' && (
             <ModalFooter>
               <Button variant="ghost" onClick={onClose} color="white">
-                Close
+                {t('userManagement.modal.close')}
               </Button>
             </ModalFooter>
           )}
