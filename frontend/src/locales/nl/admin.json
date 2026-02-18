@@ -191,6 +191,8 @@
       "userAlreadyExists": "Gebruiker bestaat al",
       "userExistsMessage": "De gebruiker bestond al en is toegevoegd aan deze tenant.",
       "errorCreating": "Fout bij aanmaken gebruiker",
+      "requestTimeout": "Verzoek duurt te lang",
+      "timeoutDescription": "Het aanmaken van de gebruiker duurt langer dan verwacht. De gebruiker is mogelijk wel aangemaakt. Controleer de gebruikerslijst.",
       "userUpdated": "Gebruiker bijgewerkt",
       "errorUpdating": "Fout bij bijwerken gebruiker",
       "userEnabled": "Gebruiker ingeschakeld",
