@@ -107,7 +107,7 @@ class EmailTemplateService:
             template_name: Name of the template (without extension)
             variables: Dictionary of variables to substitute
             format: 'html' or 'txt'
-            language: Language code ('nl' or 'en'). If None, defaults to 'en'
+            language: Language code ('nl' or 'en'). If None, defaults to 'nl'
         
         Returns:
             Rendered template content or None if template not found
@@ -115,9 +115,9 @@ class EmailTemplateService:
         try:
             template_content = None
             
-            # Default to English if no language specified
+            # Default to Dutch if no language specified
             if language is None:
-                language = 'en'
+                language = 'nl'
             
             # Try to load from Google Drive first (tenant-specific)
             if self.administration:
