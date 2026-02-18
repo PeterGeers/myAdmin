@@ -6,6 +6,7 @@ import {
   Tr, Th, Td, TableContainer, Tabs, TabList, TabPanels, Tab, TabPanel, Link
 } from '@chakra-ui/react';
 import { authenticatedPost, authenticatedFormData } from '../services/apiService';
+import { useTranslation } from 'react-i18next';
 
 interface STRBooking {
   sourceFile: string;
@@ -31,6 +32,7 @@ interface STRSummary {
 }
 
 const STRProcessor: React.FC = () => {
+  const { t } = useTranslation('str');
   // Removed files state - no longer scanning download folder
   const [loading, setLoading] = useState(false);
   const [realisedBookings, setRealisedBookings] = useState<STRBooking[]>([]);
@@ -114,7 +116,7 @@ const STRProcessor: React.FC = () => {
       // Validate Payout CSV filename if payout platform is selected
       if (selectedPlatform === 'payout') {
         if (!file.name.toLowerCase().startsWith('payout_from') || !file.name.toLowerCase().endsWith('.csv')) {
-          setError('Invalid Payout file format. Expected: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv');
+          setError(t('processor.messages.invalidPayoutFormat'));
           return;
         }
       }
@@ -143,10 +145,11 @@ const STRProcessor: React.FC = () => {
         
         if (data.success) {
           setPayoutResult(data);
-          setMessage(`✅ Payout import successful! Updated ${data.summary.total_updated} bookings. ${data.summary.total_not_found > 0 ? `⚠️ ${data.summary.total_not_found} reservations not found in database.` : ''}`);
+          const notFoundMsg = data.summary.total_not_found > 0 ? t('processor.messages.notFoundWarning', { count: data.summary.total_not_found }) : '';
+          setMessage(t('processor.messages.payoutImportSuccess', { updated: data.summary.total_updated, notFound: notFoundMsg }));
           setSelectedFile(null);
         } else {
-          setError(data.error || 'Failed to import Payout CSV');
+          setError(data.error || t('processor.messages.failedToUpload'));
         }
       } else {
         // Handle regular booking files
@@ -167,14 +170,19 @@ const STRProcessor: React.FC = () => {
           setPlannedBookings(data.planned);
           setAlreadyLoadedBookings(data.already_loaded || []);
           setSummary(data.summary);
-          setMessage(`Processed ${data.realised.length} realised, ${data.planned.length} planned, ${data.already_loaded?.length || 0} already loaded bookings from ${selectedFile.name}`);
+          setMessage(t('processor.messages.processedSuccess', { 
+            realised: data.realised.length, 
+            planned: data.planned.length, 
+            alreadyLoaded: data.already_loaded?.length || 0,
+            filename: selectedFile.name 
+          }));
           setSelectedFile(null);
         } else {
           setError(data.error);
         }
       }
     } catch (err) {
-      setError('Failed to upload and process file');
+      setError(t('processor.messages.failedToUpload'));
     } finally {
       setLoading(false);
     }
@@ -195,7 +203,7 @@ const STRProcessor: React.FC = () => {
         setError(data.error);
       }
     } catch (err) {
-      setError('Failed to write BNB future data');
+      setError(t('processor.messages.failedToWriteFuture'));
     } finally {
       setLoading(false);
     }
@@ -222,30 +230,30 @@ const STRProcessor: React.FC = () => {
         <Card bg="gray.700">
           <CardHeader>
             <HStack justify="space-between">
-              <Heading size="md" color="white">File Processing</Heading>
+              <Heading size="md" color="white">{t('processor.fileProcessing')}</Heading>
               <HStack spacing={2}>
                 <Button
                   colorScheme="green"
                   size="sm"
                   onClick={() => setShowImportPopup(true)}
                 >
-                  Import Links
+                  {t('processor.importLinks')}
                 </Button>
                 <Button
                   colorScheme="blue"
                   onClick={writeFutureData}
                   isLoading={loading}
-                  loadingText="Writing..."
+                  loadingText={t('processor.writing')}
                   size="sm"
                 >
-                  Write BNB Future
+                  {t('processor.writeBnbFuture')}
                 </Button>
               </HStack>
             </HStack>
           </CardHeader>
           <CardBody>
             <FormControl>
-              <FormLabel color="gray.300">Upload Booking File</FormLabel>
+              <FormLabel color="gray.300">{t('processor.uploadBookingFile')}</FormLabel>
               <HStack spacing={3}>
                 <Select 
                   value={selectedPlatform} 
@@ -258,10 +266,10 @@ const STRProcessor: React.FC = () => {
                   color="white"
                   maxW="220px"
                 >
-                  <option value="airbnb">Airbnb</option>
-                  <option value="booking">Booking.com Excel</option>
-                  <option value="direct">Direct</option>
-                  <option value="payout">Booking.com Payout</option>
+                  <option value="airbnb">{t('processor.platforms.airbnb')}</option>
+                  <option value="booking">{t('processor.platforms.booking')}</option>
+                  <option value="direct">{t('processor.platforms.direct')}</option>
+                  <option value="payout">{t('processor.platforms.payout')}</option>
                 </Select>
                 <Input
                   type="file"
@@ -276,24 +284,24 @@ const STRProcessor: React.FC = () => {
                   onClick={uploadAndProcess}
                   isDisabled={!selectedFile || loading}
                   isLoading={loading}
-                  loadingText="Processing..."
+                  loadingText={t('processor.processing')}
                   minW="150px"
                 >
-                  {selectedPlatform === 'payout' ? 'Import Payout' : 'Process File'}
+                  {selectedPlatform === 'payout' ? t('processor.importPayout') : t('processor.processFile')}
                 </Button>
               </HStack>
               {selectedFile && (
                 <Text color="green.300" fontSize="sm" mt={2}>
-                  ✓ Selected: {selectedFile.name}
+                  ✓ {t('processor.selectedFile')}: {selectedFile.name}
                 </Text>
               )}
               {selectedPlatform === 'payout' && (
                 <Alert status="info" mt={3} bg="blue.900" borderRadius="md">
                   <AlertIcon />
                   <Box color="white" fontSize="xs">
-                    <Text fontWeight="bold">Payout CSV Import:</Text>
-                    <Text>Upload monthly Payout CSV to update bookings with actual financial figures</Text>
-                    <Text mt={1}>Expected format: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv</Text>
+                    <Text fontWeight="bold">{t('processor.payoutInfo.title')}</Text>
+                    <Text>{t('processor.payoutInfo.description')}</Text>
+                    <Text mt={1}>{t('processor.payoutInfo.format')}</Text>
                   </Box>
                 </Alert>
               )}
@@ -305,24 +313,24 @@ const STRProcessor: React.FC = () => {
         {payoutResult && (
           <Card bg="gray.600" borderColor="purple.500" borderWidth="2px">
             <CardHeader>
-              <Heading size="sm" color="white">Payout Import Results</Heading>
+              <Heading size="sm" color="white">{t('processor.payoutResults.title')}</Heading>
             </CardHeader>
             <CardBody>
               <Grid templateColumns="repeat(3, 1fr)" gap={4} mb={4}>
                 <GridItem>
-                  <Text color="gray.300" fontSize="sm">Total Rows</Text>
+                  <Text color="gray.300" fontSize="sm">{t('processor.payoutResults.totalRows')}</Text>
                   <Text color="white" fontSize="xl" fontWeight="bold">
                     {payoutResult.processing.total_rows}
                   </Text>
                 </GridItem>
                 <GridItem>
-                  <Text color="gray.300" fontSize="sm">Reservations</Text>
+                  <Text color="gray.300" fontSize="sm">{t('processor.payoutResults.reservations')}</Text>
                   <Text color="white" fontSize="xl" fontWeight="bold">
                     {payoutResult.processing.reservation_rows}
                   </Text>
                 </GridItem>
                 <GridItem>
-                  <Text color="gray.300" fontSize="sm">Updates Prepared</Text>
+                  <Text color="gray.300" fontSize="sm">{t('processor.payoutResults.updatesPrepared')}</Text>
                   <Text color="white" fontSize="xl" fontWeight="bold">
                     {payoutResult.processing.updates_prepared}
                   </Text>
@@ -332,17 +340,17 @@ const STRProcessor: React.FC = () => {
               <Grid templateColumns="repeat(3, 1fr)" gap={4}>
                 <GridItem>
                   <Badge colorScheme="green" fontSize="md" p={2}>
-                    ✓ Updated: {payoutResult.summary.total_updated}
+                    ✓ {t('processor.payoutResults.updated')}: {payoutResult.summary.total_updated}
                   </Badge>
                 </GridItem>
                 <GridItem>
                   <Badge colorScheme="orange" fontSize="md" p={2}>
-                    ⚠ Not Found: {payoutResult.summary.total_not_found}
+                    ⚠ {t('processor.payoutResults.notFound')}: {payoutResult.summary.total_not_found}
                   </Badge>
                 </GridItem>
                 <GridItem>
                   <Badge colorScheme="red" fontSize="md" p={2}>
-                    ✗ Errors: {payoutResult.summary.total_errors}
+                    ✗ {t('processor.payoutResults.errors')}: {payoutResult.summary.total_errors}
                   </Badge>
                 </GridItem>
               </Grid>
@@ -350,7 +358,7 @@ const STRProcessor: React.FC = () => {
               {payoutResult.database.not_found && payoutResult.database.not_found.length > 0 && (
                 <Box mt={4}>
                   <Text color="gray.300" fontSize="sm" fontWeight="bold" mb={2}>
-                    Reservations Not Found in Database:
+                    {t('processor.payoutResults.notFoundInDatabase')}
                   </Text>
                   <Box 
                     bg="gray.700" 
@@ -366,12 +374,12 @@ const STRProcessor: React.FC = () => {
                     ))}
                     {payoutResult.database.not_found.length > 10 && (
                       <Text color="gray.400" fontSize="xs" mt={2}>
-                        ... and {payoutResult.database.not_found.length - 10} more
+                        {t('processor.payoutResults.andMore', { count: payoutResult.database.not_found.length - 10 })}
                       </Text>
                     )}
                   </Box>
                   <Text color="gray.400" fontSize="xs" mt={2}>
-                    These reservations may be cancelled bookings, test bookings, or from other properties.
+                    {t('processor.payoutResults.mayBeCancelled')}
                   </Text>
                 </Box>
               )}
@@ -379,7 +387,7 @@ const STRProcessor: React.FC = () => {
               {payoutResult.database.errors && payoutResult.database.errors.length > 0 && (
                 <Box mt={4}>
                   <Text color="red.300" fontSize="sm" fontWeight="bold" mb={2}>
-                    Errors:
+                    {t('processor.payoutResults.errorsList')}
                   </Text>
                   <Box bg="red.900" p={3} borderRadius="md">
                     {payoutResult.database.errors.map((error: string, idx: number) => (
@@ -417,9 +425,9 @@ const STRProcessor: React.FC = () => {
             >
               <HStack justify="space-between" mb={4}>
                 <Box>
-                  <Heading size="md">Import Data Links</Heading>
+                  <Heading size="md">{t('processor.importDataLinks.title')}</Heading>
                   <Text color="gray.300" fontSize="sm">
-                    Period: {dateFrom} to {dateTo}
+                    {t('processor.importDataLinks.period', { from: dateFrom, to: dateTo })}
                   </Text>
                 </Box>
                 <Button
@@ -435,7 +443,7 @@ const STRProcessor: React.FC = () => {
               
               <VStack spacing={4} align="stretch">
                 <Box>
-                  <Text fontWeight="bold" mb={2}>Booking.com Studios:</Text>
+                  <Text fontWeight="bold" mb={2}>{t('processor.importDataLinks.bookingStudios')}</Text>
                   <VStack spacing={2}>
                     {accommodations.map((acc) => (
                       <Link
@@ -456,7 +464,7 @@ const STRProcessor: React.FC = () => {
                 </Box>
                 
                 <Box>
-                  <Text fontWeight="bold" mb={2}>Booking.com Payout:</Text>
+                  <Text fontWeight="bold" mb={2}>{t('processor.importDataLinks.bookingPayout')}</Text>
                   <Link
                     href="https://admin.booking.com/hotel/hoteladmin/groups/finance/financial-reports.html?lang=en&ses=09e4df8beca29c56616bb0d50937218e"
                     isExternal
@@ -468,12 +476,12 @@ const STRProcessor: React.FC = () => {
                     _hover={{ bg: 'purple.500' }}
                     display="block"
                   >
-                    Financial Reports (Download monthly Payout CSV)
+                    {t('processor.importDataLinks.financialReports')}
                   </Link>
                 </Box>
                 
                 <Box>
-                  <Text fontWeight="bold" mb={2}>Airbnb:</Text>
+                  <Text fontWeight="bold" mb={2}>{t('processor.importDataLinks.airbnb')}</Text>
                   <Link
                     href="https://www.airbnb.nl/hosting/reservations/all"
                     isExternal
@@ -485,14 +493,14 @@ const STRProcessor: React.FC = () => {
                     _hover={{ bg: 'gray.500' }}
                     display="block"
                   >
-                    Alles (Select period & download BTW factuur)
+                    {t('processor.importDataLinks.allReservations')}
                   </Link>
                 </Box>
                 
                 <Box>
-                  <Text fontWeight="bold" mb={2}>JaBaKi Direct:</Text>
+                  <Text fontWeight="bold" mb={2}>{t('processor.importDataLinks.jabakiDirect')}</Text>
                   <Box p={2} bg="blue.600" borderRadius="md">
-                    File already at: C:\Users\peter\OneDrive\R\AirBnB\data
+                    {t('processor.importDataLinks.fileLocation')}
                   </Box>
                 </Box>
               </VStack>
@@ -503,30 +511,30 @@ const STRProcessor: React.FC = () => {
         {summary && (
           <Card bg="gray.700">
             <CardHeader>
-              <Heading size="md" color="white">Summary</Heading>
+              <Heading size="md" color="white">{t('processor.summary.title')}</Heading>
             </CardHeader>
             <CardBody>
               <Grid templateColumns="repeat(4, 1fr)" gap={4}>
                 <GridItem>
-                  <Text color="gray.300" fontSize="sm">Total Bookings</Text>
+                  <Text color="gray.300" fontSize="sm">{t('processor.summary.totalBookings')}</Text>
                   <Text color="white" fontSize="xl" fontWeight="bold">
                     {summary.total_bookings}
                   </Text>
                 </GridItem>
                 <GridItem>
-                  <Text color="gray.300" fontSize="sm">Total Nights</Text>
+                  <Text color="gray.300" fontSize="sm">{t('processor.summary.totalNights')}</Text>
                   <Text color="white" fontSize="xl" fontWeight="bold">
                     {summary.total_nights}
                   </Text>
                 </GridItem>
                 <GridItem>
-                  <Text color="gray.300" fontSize="sm">Total Gross</Text>
+                  <Text color="gray.300" fontSize="sm">{t('processor.summary.totalGross')}</Text>
                   <Text color="white" fontSize="xl" fontWeight="bold">
                     €{summary.total_gross ? summary.total_gross.toFixed(2) : '0.00'}
                   </Text>
                 </GridItem>
                 <GridItem>
-                  <Text color="gray.300" fontSize="sm">Channels</Text>
+                  <Text color="gray.300" fontSize="sm">{t('processor.summary.channels')}</Text>
                   <HStack wrap="wrap">
                     {summary.channels && Object.entries(summary.channels).map(([channel, count]) => (
                       <Badge key={channel} colorScheme="green">
@@ -544,24 +552,24 @@ const STRProcessor: React.FC = () => {
           <Card bg="gray.700">
             <CardHeader>
               <HStack justify="space-between">
-                <Heading size="md" color="white">Review Bookings</Heading>
+                <Heading size="md" color="white">{t('processor.reviewBookings.title')}</Heading>
                 <HStack>
                   <Button
                     colorScheme="blue"
                     onClick={writeFutureData}
                     isLoading={loading}
-                    loadingText="Writing..."
+                    loadingText={t('processor.writing')}
                     isDisabled={plannedBookings.length === 0}
                   >
-                    Write BNB Future
+                    {t('processor.writeBnbFuture')}
                   </Button>
                   <Button
                     colorScheme="orange"
                     onClick={saveBookings}
                     isLoading={loading}
-                    loadingText="Saving..."
+                    loadingText={t('processor.reviewBookings.saving')}
                   >
-                    Approve & Save to Database
+                    {t('processor.reviewBookings.approveAndSave')}
                   </Button>
                 </HStack>
               </HStack>
@@ -569,9 +577,9 @@ const STRProcessor: React.FC = () => {
             <CardBody>
               <Tabs variant="enclosed" colorScheme="orange">
                 <TabList>
-                  <Tab color="white">Realised ({realisedBookings.length})</Tab>
-                  <Tab color="white">Planned ({plannedBookings.length})</Tab>
-                  <Tab color="white">Already Loaded ({alreadyLoadedBookings.length})</Tab>
+                  <Tab color="white">{t('processor.reviewBookings.realised')} ({realisedBookings.length})</Tab>
+                  <Tab color="white">{t('processor.reviewBookings.planned')} ({plannedBookings.length})</Tab>
+                  <Tab color="white">{t('processor.reviewBookings.alreadyLoaded')} ({alreadyLoadedBookings.length})</Tab>
                 </TabList>
                 <TabPanels>
                   <TabPanel p={0} pt={4}>
@@ -580,18 +588,18 @@ const STRProcessor: React.FC = () => {
                         <Table size="sm" variant="simple">
                           <Thead>
                             <Tr>
-                              <Th color="gray.300">Channel</Th>
-                              <Th color="gray.300">Guest</Th>
-                              <Th color="gray.300">Listing</Th>
-                              <Th color="gray.300">Check-in</Th>
-                              <Th color="gray.300">Check-out</Th>
-                              <Th color="gray.300">Nights</Th>
-                              <Th color="gray.300">Guests</Th>
-                              <Th color="gray.300">Gross</Th>
-                              <Th color="gray.300">Fee</Th>
-                              <Th color="gray.300">Net</Th>
-                              <Th color="gray.300">Status</Th>
-                              <Th color="gray.300">Code</Th>
+                              <Th color="gray.300">{t('processor.table.channel')}</Th>
+                              <Th color="gray.300">{t('processor.table.guest')}</Th>
+                              <Th color="gray.300">{t('processor.table.listing')}</Th>
+                              <Th color="gray.300">{t('processor.table.checkIn')}</Th>
+                              <Th color="gray.300">{t('processor.table.checkOut')}</Th>
+                              <Th color="gray.300">{t('processor.table.nights')}</Th>
+                              <Th color="gray.300">{t('processor.table.guests')}</Th>
+                              <Th color="gray.300">{t('processor.table.gross')}</Th>
+                              <Th color="gray.300">{t('processor.table.fee')}</Th>
+                              <Th color="gray.300">{t('processor.table.net')}</Th>
+                              <Th color="gray.300">{t('processor.table.status')}</Th>
+                              <Th color="gray.300">{t('processor.table.code')}</Th>
                             </Tr>
                           </Thead>
                           <Tbody>
@@ -622,18 +630,18 @@ const STRProcessor: React.FC = () => {
                         <Table size="sm" variant="simple">
                           <Thead>
                             <Tr>
-                              <Th color="gray.300">Channel</Th>
-                              <Th color="gray.300">Guest</Th>
-                              <Th color="gray.300">Listing</Th>
-                              <Th color="gray.300">Check-in</Th>
-                              <Th color="gray.300">Check-out</Th>
-                              <Th color="gray.300">Nights</Th>
-                              <Th color="gray.300">Guests</Th>
-                              <Th color="gray.300">Gross</Th>
-                              <Th color="gray.300">Fee</Th>
-                              <Th color="gray.300">Net</Th>
-                              <Th color="gray.300">Status</Th>
-                              <Th color="gray.300">Code</Th>
+                              <Th color="gray.300">{t('processor.table.channel')}</Th>
+                              <Th color="gray.300">{t('processor.table.guest')}</Th>
+                              <Th color="gray.300">{t('processor.table.listing')}</Th>
+                              <Th color="gray.300">{t('processor.table.checkIn')}</Th>
+                              <Th color="gray.300">{t('processor.table.checkOut')}</Th>
+                              <Th color="gray.300">{t('processor.table.nights')}</Th>
+                              <Th color="gray.300">{t('processor.table.guests')}</Th>
+                              <Th color="gray.300">{t('processor.table.gross')}</Th>
+                              <Th color="gray.300">{t('processor.table.fee')}</Th>
+                              <Th color="gray.300">{t('processor.table.net')}</Th>
+                              <Th color="gray.300">{t('processor.table.status')}</Th>
+                              <Th color="gray.300">{t('processor.table.code')}</Th>
                             </Tr>
                           </Thead>
                           <Tbody>
@@ -664,18 +672,18 @@ const STRProcessor: React.FC = () => {
                         <Table size="sm" variant="simple">
                           <Thead>
                             <Tr>
-                              <Th color="gray.300">Channel</Th>
-                              <Th color="gray.300">Guest</Th>
-                              <Th color="gray.300">Listing</Th>
-                              <Th color="gray.300">Check-in</Th>
-                              <Th color="gray.300">Check-out</Th>
-                              <Th color="gray.300">Nights</Th>
-                              <Th color="gray.300">Guests</Th>
-                              <Th color="gray.300">Gross</Th>
-                              <Th color="gray.300">Fee</Th>
-                              <Th color="gray.300">Net</Th>
-                              <Th color="gray.300">Status</Th>
-                              <Th color="gray.300">Code</Th>
+                              <Th color="gray.300">{t('processor.table.channel')}</Th>
+                              <Th color="gray.300">{t('processor.table.guest')}</Th>
+                              <Th color="gray.300">{t('processor.table.listing')}</Th>
+                              <Th color="gray.300">{t('processor.table.checkIn')}</Th>
+                              <Th color="gray.300">{t('processor.table.checkOut')}</Th>
+                              <Th color="gray.300">{t('processor.table.nights')}</Th>
+                              <Th color="gray.300">{t('processor.table.guests')}</Th>
+                              <Th color="gray.300">{t('processor.table.gross')}</Th>
+                              <Th color="gray.300">{t('processor.table.fee')}</Th>
+                              <Th color="gray.300">{t('processor.table.net')}</Th>
+                              <Th color="gray.300">{t('processor.table.status')}</Th>
+                              <Th color="gray.300">{t('processor.table.code')}</Th>
                             </Tr>
                           </Thead>
                           <Tbody>
