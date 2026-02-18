@@ -928,25 +928,45 @@ resource "aws_cognito_user_pool" "main" {
 
 ---
 
-## Phase 13: Database Content Translation (1 day)
+## Phase 13: Database Content Translation (SKIPPED)
 
-### 13.1 Chart of Accounts Translation
+**Status**: ⏭️ SKIPPED - Not needed for MVP
 
-- [ ] Export current chart of accounts
-- [ ] Create Dutch translations for all accounts
-- [ ] Create English translations for all accounts
-- [ ] Create import script for translations
-- [ ] Import translations to account_translations table
-- [ ] Verify translations in UI
+**Rationale**:
 
-### 13.2 VAT Rules Translation
+### 13.1 Chart of Accounts Translation - NOT NEEDED
 
-- [ ] Export current VAT rules
-- [ ] Create Dutch translations for all rules
-- [ ] Create English translations for all rules
-- [ ] Create import script for translations
-- [ ] Import translations to vat_rule_translations table
-- [ ] Verify translations in UI
+**Why Skip**:
+
+1. **Tenant-Specific Business Data**: Chart of accounts is business data that each tenant defines and manages themselves, not system-level data that needs translation.
+
+2. **Already in Preferred Language**: Tenants create account names in their own preferred language (typically Dutch for Dutch businesses, English for international businesses).
+
+3. **No Standard Chart**: Unlike UI labels, there is no "standard" chart of accounts that all tenants share. Each tenant has their own unique account structure.
+
+4. **Tenant Control**: If a tenant wants multilingual account names (e.g., for international reporting), they can:
+   - Manage translations themselves via the ChartOfAccounts UI
+   - Use the `account_translations` table (created in Phase 2.3) if needed
+   - This is a tenant-level customization, not a system-level requirement
+
+**The `account_translations` table**:
+
+- Created in Phase 2.3 for future extensibility
+- Available if tenants need multilingual account names
+- Not populated by default (tenants populate as needed)
+- Not a system internationalization concern
+
+### 13.2 VAT Rules Translation - ALREADY SKIPPED
+
+**Status**: ✅ SKIPPED in Phase 2.4
+
+**Why Skip**:
+
+- No `vat_rules` table exists in the database
+- VAT/BTW logic is hardcoded in business logic (`btw_aangifte_generator.py`)
+- No database-driven VAT rules to translate
+
+**Conclusion**: Phase 13 is entirely skipped because database content translation applies to **tenant-specific business data**, not system-level data. Tenants manage their own data in their preferred language(s).
 
 ---
 
@@ -1108,11 +1128,11 @@ resource "aws_cognito_user_pool" "main" {
 - [x] Phase 6: Frontend Translation - Reports (2 days) - COMPLETE
 - [x] Phase 7: Frontend Translation - STR (1 day) - COMPLETE
 - [x] Phase 8: Frontend Translation - Banking (1 day) - COMPLETE
-- [x] Phase 9: Frontend Translation - Admin (1 day) - COMPLETE (core components and TenantManagement fully translated)
+- [x] Phase 9: Frontend Translation - Admin (1 day) - COMPLETE
 - [x] Phase 10: Error & Validation (1 day) - COMPLETE
 - [x] Phase 11: Email Templates (0.5 days) - COMPLETE
-- [x] Phase 12: Report Templates (SKIPPED) - Not needed for MVP
-- [ ] Phase 13: Database Content (1 day)
+- [x] Phase 12: Report Templates (SKIPPED) - Tenant-level customization
+- [x] Phase 13: Database Content (SKIPPED) - Tenant-specific business data
 - [ ] Phase 14: Testing (2 days)
 - [ ] Phase 15: Documentation (1 day)
 - [ ] Phase 16: Deployment (1 day)
