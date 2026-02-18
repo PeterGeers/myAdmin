@@ -4,6 +4,7 @@ import {
   useToast, Spinner, Text, Alert, AlertIcon
 } from '@chakra-ui/react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import RoleManagement from './RoleManagement';
 import TenantManagement from './TenantManagement';
 import HealthCheck from './HealthCheck';
@@ -12,6 +13,7 @@ export function SysAdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const toast = useToast();
+  const { t } = useTypedTranslation('admin');
 
   useEffect(() => {
     loadUserInfo();
@@ -35,8 +37,8 @@ export function SysAdminDashboard() {
       // Check if user has SysAdmin role
       if (!roles.includes('SysAdmin')) {
         toast({
-          title: 'Access Denied',
-          description: 'You do not have System Administrator permissions',
+          title: t('sysAdmin.accessDenied'),
+          description: t('sysAdmin.noPermissions'),
           status: 'error',
           duration: 5000,
         });
@@ -62,7 +64,7 @@ export function SysAdminDashboard() {
       <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
         <VStack spacing={4}>
           <Spinner size="xl" color="orange.400" />
-          <Text color="gray.400">Loading System Administration...</Text>
+          <Text color="gray.400">{t('sysAdmin.loading')}</Text>
         </VStack>
       </Box>
     );
@@ -73,7 +75,7 @@ export function SysAdminDashboard() {
       <Box minH="100vh" bg="gray.900" p={8}>
         <Alert status="error">
           <AlertIcon />
-          Access Denied: You do not have System Administrator permissions
+          {t('sysAdmin.accessDenied')}: {t('sysAdmin.noPermissions')}
         </Alert>
       </Box>
     );
@@ -86,13 +88,13 @@ export function SysAdminDashboard() {
         <Tabs colorScheme="orange" variant="enclosed">
           <TabList>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Tenant Management
+              {t('sysAdmin.tabs.tenantManagement')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Role Management
+              {t('sysAdmin.tabs.roleManagement')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Health Check
+              {t('sysAdmin.tabs.healthCheck')}
             </Tab>
           </TabList>
 

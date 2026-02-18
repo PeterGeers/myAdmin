@@ -4,6 +4,7 @@ import {
   useToast, Spinner, Text, Alert, AlertIcon
 } from '@chakra-ui/react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import UserManagement from './UserManagement';
@@ -31,6 +32,7 @@ export function TenantAdminDashboard() {
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [tenantModules, setTenantModules] = useState<string[]>([]);
   const toast = useToast();
+  const { t } = useTypedTranslation('admin');
   const { currentTenant } = useTenant(); // Just read from context, don't manage it here
 
   useEffect(() => {
@@ -75,8 +77,8 @@ export function TenantAdminDashboard() {
       // Check if user has Tenant_Admin role
       if (!roles.includes('Tenant_Admin')) {
         toast({
-          title: 'Access Denied',
-          description: 'You do not have Tenant Admin permissions',
+          title: t('tenantAdmin.accessDenied'),
+          description: t('tenantAdmin.noPermissions'),
           status: 'error',
           duration: 5000,
         });
@@ -110,7 +112,7 @@ export function TenantAdminDashboard() {
       <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center">
         <VStack spacing={4}>
           <Spinner size="xl" color="orange.400" />
-          <Text color="gray.400">Loading Tenant Administration...</Text>
+          <Text color="gray.400">{t('tenantAdmin.loading')}</Text>
         </VStack>
       </Box>
     );
@@ -121,7 +123,7 @@ export function TenantAdminDashboard() {
       <Box minH="100vh" bg="gray.900" p={8}>
         <Alert status="error">
           <AlertIcon />
-          Access Denied: You do not have Tenant Admin permissions
+          {t('tenantAdmin.accessDenied')}: {t('tenantAdmin.noPermissions')}
         </Alert>
       </Box>
     );
@@ -132,7 +134,7 @@ export function TenantAdminDashboard() {
       <Box minH="100vh" bg="gray.900" p={8}>
         <Alert status="warning">
           <AlertIcon />
-          No tenants assigned to your account
+          {t('tenantAdmin.noTenants')}
         </Alert>
       </Box>
     );
@@ -143,7 +145,7 @@ export function TenantAdminDashboard() {
       <Box minH="100vh" bg="gray.900" p={8}>
         <Alert status="info">
           <AlertIcon />
-          Please select a tenant from the header to continue
+          {t('tenantAdmin.selectTenant')}
         </Alert>
       </Box>
     );
@@ -158,24 +160,24 @@ export function TenantAdminDashboard() {
         <Tabs key={currentTenant} colorScheme="orange" variant="enclosed" isLazy>
           <TabList>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              User Management
+              {t('tenantAdmin.tabs.userManagement')}
             </Tab>
             {hasFIN && (
               <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                Chart of Accounts
+                {t('tenantAdmin.tabs.chartOfAccounts')}
               </Tab>
             )}
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Template Management
+              {t('tenantAdmin.tabs.templateManagement')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Credentials
+              {t('tenantAdmin.tabs.credentials')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Configuration
+              {t('tenantAdmin.tabs.configuration')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              Tenant Details
+              {t('tenantAdmin.tabs.tenantDetails')}
             </Tab>
           </TabList>
 
