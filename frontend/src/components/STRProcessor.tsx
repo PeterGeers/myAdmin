@@ -6,7 +6,7 @@ import {
   Tr, Th, Td, TableContainer, Tabs, TabList, TabPanels, Tab, TabPanel, Link
 } from '@chakra-ui/react';
 import { authenticatedPost, authenticatedFormData } from '../services/apiService';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '../hooks/useTypedTranslation';
 
 interface STRBooking {
   sourceFile: string;
@@ -32,7 +32,7 @@ interface STRSummary {
 }
 
 const STRProcessor: React.FC = () => {
-  const { t } = useTranslation('str');
+  const { t } = useTypedTranslation('str');
   // Removed files state - no longer scanning download folder
   const [loading, setLoading] = useState(false);
   const [realisedBookings, setRealisedBookings] = useState<STRBooking[]>([]);
