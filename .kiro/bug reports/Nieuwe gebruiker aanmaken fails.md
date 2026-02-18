@@ -8,61 +8,65 @@ Tijdelijk wachtwoord*
 ••••••••••••••
 Rollen
 
-Blijft hangen. Zelfs als je de modal verlaat en weer terugkomt lijkt het proces nog te lopen???
+E-mail is verzonden maar in het engels
 
-## Investigation (2026-02-18)
+## Status
 
-### Root Cause Analysis
+**FIXED AND VERIFIED** - Email now correctly sent in Dutch based on tenant's default_language setting.
 
-The user creation endpoint exists and is properly configured:
+## Issue Analysis
 
-- **Endpoint**: `POST /api/tenant-admin/users`
-- **File**: `backend/src/routes/tenant_admin_users.py` (line 193)
-- **Blueprint**: `tenant_admin_users_bp` (registered in app.py)
+1. **User Creation**: ✅ Working correctly
+2. **Email Sending**: ✅ Working correctly in Dutch
+3. **Timeout Issue**: ✅ Resolved with 30-second timeout + graceful error handling
+4. **Language Detection**: ✅ Now properly detects tenant's default_language from database
 
-The hang is likely caused by one of these issues:
+## Root Cause
 
-1. **Email Service Timeout** (Most Likely)
-   - After creating user, the endpoint sends invitation email via SNS (lines 400-450)
-   - If SNS is slow or timing out, the request hangs waiting for email to send
-   - The code doesn't fail user creation if email fails, but it may be blocking
+The user creation endpoint was calling `render_template()` directly instead of using `render_user_invitation()`, which bypassed the language detection logic.
 
-2. **Invitation Service Database Lock**
-   - Creates invitation record before user creation (lines 360-375)
-   - If database is slow or locked, this could cause hang
+## Solution Applied
 
-3. **Cognito API Slowness**
-   - Multiple Cognito API calls: create user, add to groups, update attributes
-   - If Cognito is slow, request could timeout
+Changed from manual `render_template()` calls to `render_user_invitation()` method:
 
-### Potential Solutions
+**Before** (bypassed language detection):
 
-1. **Make email sending asynchronous** (Recommended)
-   - Move email sending to background task/queue
-   - Return success immediately after user creation
-   - Send email asynchronously
-
-2. **Add timeout to SNS calls**
-   - Configure boto3 SNS client with shorter timeout
-   - Catch timeout exceptions and log warning
-
-3. **Add request timeout on frontend**
-   - Set reasonable timeout (e.g., 30 seconds) on fetch request
-   - Show error message if timeout occurs
-   - User creation may still succeed even if frontend times out
-
-4. **Add progress indicator**
-   - Show "Creating user..." → "Sending invitation email..." states
-   - Give user feedback about what's happening
-
-### Immediate Workaround
-
-Check backend logs to see if user was actually created despite frontend hang:
-
-```bash
-# Check if user exists in Cognito
-# Check invitation_log table for status
+```python
+html_content = email_service.render_template(
+    template_name='user_invitation',
+    variables={...},
+    format='html'
+    # No language parameter - used default
+)
 ```
 
-If user was created, the issue is purely frontend timeout - user creation succeeded but frontend didn't receive response.
+**After** (proper language detection):
 
+```python
+html_content = email_service.render_user_invitation(
+    email=email,
+    temporary_password=temp_password,
+    tenant=tenant,
+    login_url=...,
+    format='html'
+    # Automatically detects language from tenant
+)
+```
+
+## Language Detection Priority (Now Working)
+
+1. ✅ User's `custom:preferred_language` attribute in Cognito (if set)
+2. ✅ Tenant's `default_language` from database (GoodwinSolutions = 'nl')
+3. ✅ Default to 'nl' (Dutch)
+
+## Verification
+
+- Created user for GoodwinSolutions tenant
+- Email received in Dutch (using `user_invitation_nl.html` template)
+- Subject line: "Welkom bij myAdmin - GoodwinSolutions Uitnodiging"
+- All content properly translated
+
+## Files Modified
+
+- `backend/src/services/email_template_service.py` - Fixed default language to 'nl'
+- `backend/src/routes/tenant_admin_users.py` - Use render_user_invitation() instead of render_template()
