@@ -202,32 +202,40 @@ export default function UserManagement({ tenant }: UserManagementProps) {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
       
-      const response = await fetch(buildApiUrl('/api/tenant-admin/users'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'X-Tenant': tenant
-        },
-        body: JSON.stringify({
-          email: newUserEmail,
-          name: newUserName,
-          password: newUserPassword,
-          groups: selectedRoles
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        const successMessage = data.existing_user 
-          ? `${data.message}. ${t('userManagement.messages.userExistsMessage')}`
-          : data.message;
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      try {
+        const response = await fetch(buildApiUrl('/api/tenant-admin/users'), {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-Tenant': tenant
+          },
+          body: JSON.stringify({
+            email: newUserEmail,
+            name: newUserName,
+            password: newUserPassword,
+            groups: selectedRoles
+          }),
+          signal: controller.signal
+        });
         
-        toast({
-          title: data.existing_user ? t('userManagement.messages.userAddedToTenant') : t('userManagement.messages.userCreated'),
-          description: successMessage,
-          status: 'success',
+        clearTimeout(timeoutId);
+
+        const data = await response.json();
+
+        if (response.ok) {
+          const successMessage = data.existing_user 
+            ? `${data.message}. ${t('userManagement.messages.userExistsMessage')}`
+            : data.message;
+          
+          toast({
+            title: data.existing_user ? t('userManagement.messages.userAddedToTenant') : t('userManagement.messages.userCreated'),
+            description: successMessage,
+            status: 'success',
           duration: 5000,
         });
         onClose();
@@ -245,6 +253,24 @@ export default function UserManagement({ tenant }: UserManagementProps) {
         } else {
           throw new Error(data.error || 'Failed to create user');
         }
+      }
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        // Handle timeout specifically
+        if (fetchError.name === 'AbortError') {
+          toast({
+            title: t('userManagement.messages.requestTimeout'),
+            description: t('userManagement.messages.timeoutDescription'),
+            status: 'warning',
+            duration: 8000,
+          });
+          // Still close modal and reload - user may have been created
+          onClose();
+          loadData();
+          return;
+        }
+        throw fetchError;
       }
     } catch (error) {
       toast({

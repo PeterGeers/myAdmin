@@ -191,6 +191,8 @@
       "userAlreadyExists": "User already exists",
       "userExistsMessage": "The user already existed and has been added to this tenant.",
       "errorCreating": "Error creating user",
+      "requestTimeout": "Request taking too long",
+      "timeoutDescription": "Creating the user is taking longer than expected. The user may have been created successfully. Please check the user list.",
       "userUpdated": "User updated",
       "errorUpdating": "Error updating user",
       "userEnabled": "User enabled",
