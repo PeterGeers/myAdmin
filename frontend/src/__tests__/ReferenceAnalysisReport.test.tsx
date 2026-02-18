@@ -19,7 +19,7 @@ import { authenticatedGet } from '../services/apiService';
 
 // Mock all Chakra UI components
 jest.mock('@chakra-ui/react', () => ({
-  Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
+  Alert: ({ children, ...props }: any) => <div data-testid={props['data-testid'] || 'alert'} {...props}>{children}</div>,
   AlertIcon: () => <span data-testid="alert-icon">⚠️</span>,
   Box: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   Button: ({ children, onClick, isDisabled, isLoading, ...props }: any) => (
