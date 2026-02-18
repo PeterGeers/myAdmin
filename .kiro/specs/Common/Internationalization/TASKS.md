@@ -222,11 +222,13 @@ resource "aws_cognito_user_pool" "main" {
 
 ### 2.2 Tenant Default Language
 
-- [ ] Create migration script for tenants table
-- [ ] Add `default_language` column (VARCHAR(5), DEFAULT 'nl')
-- [ ] Add index on `default_language`
-- [ ] Test migration on test database
-- [ ] Run migration on production database
+- [x] Create migration script for tenants table (backend/sql/add_tenant_default_language.sql)
+- [x] Add `default_language` column (VARCHAR(5), DEFAULT 'nl')
+- [x] Add index on `default_language`
+- [x] Test migration on development database
+- [ ] Run migration on production database (after deployment)
+- [x] Created Python migration script (backend/scripts/database/add_tenant_language_column.py)
+- [x] Verified migration successful - all 4 tenants now have default_language='nl'
 
 ### 2.3 Chart of Accounts Translations
 
