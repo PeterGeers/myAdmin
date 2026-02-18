@@ -1037,10 +1037,43 @@ resource "aws_cognito_user_pool" "main" {
 ### 14.2 Integration Tests
 
 - [ ] Test language switching across modules
+  - [ ] Switch language from main header, verify page refreshes and redirects to dashboard
+  - [ ] From dashboard, verify all navigation and content displays in new language
+  - [ ] Navigate to Reports page, verify content displays in selected language
+  - [ ] Navigate to Banking page, verify content displays in selected language
+  - [ ] Navigate to STR page, verify content displays in selected language
+  - [ ] Navigate to Admin page, verify content displays in selected language
+  - [ ] Verify language selector in header shows current language correctly
 - [ ] Test language persistence (localStorage + database)
+  - [ ] Set language preference via header, verify localStorage updated
+  - [ ] Refresh page manually, verify language persists from localStorage
+  - [ ] Log out and log back in, verify language persists from Cognito
+  - [ ] Verify localStorage and Cognito custom attribute stay in sync
+  - [ ] Test with multiple browsers/devices (same user, same language preference)
+  - [ ] Test new user login (should use tenant default language initially)
+  - [ ] Clear localStorage, log in again, verify language loads from Cognito
 - [ ] Test API with X-Language header
-- [ ] Test report generation in both languages
+  - [ ] Verify backend endpoints return translated error messages
+  - [ ] Test with X-Language: nl header (Dutch responses)
+  - [ ] Test with X-Language: en header (English responses)
+  - [ ] Test with missing X-Language header (should default to nl)
+  - [ ] Test with invalid X-Language header (should fallback to nl)
+  - [ ] Verify frontend sends X-Language header with all API requests
+- [x] ~~Test report generation in both languages~~ - SKIPPED (tenant-specific)
+  - [x] ~~Switch to Dutch, generate Mutaties report, verify column headers and labels~~
+  - [x] ~~Switch to English, generate Mutaties report, verify column headers and labels~~
+  - [x] ~~Generate BTW report in both languages~~
+  - [x] ~~Generate Aangifte IB report in both languages~~
+  - [x] ~~Verify Excel exports use correct language for column headers~~
+  - [x] ~~Verify date and number formatting in reports matches selected language~~
 - [ ] Test email sending in both languages
+  - [ ] Send user invitation email to Dutch user, verify Dutch template used
+  - [ ] Send user invitation email to English user, verify English template used
+  - [ ] Verify email subject line translated correctly
+  - [ ] Verify email body content translated correctly
+  - [ ] Test fallback to tenant default language if user preference not set
+
+**Note**: Report generation testing skipped because reports are tenant-specific customizations managed by tenant administrators, not system-level i18n.
 
 ### 14.3 E2E Tests
 
@@ -1061,7 +1094,7 @@ resource "aws_cognito_user_pool" "main" {
 - [ ] Test all pages in Dutch
 - [ ] Test all pages in English
 - [ ] Test language switching on each page
-- [ ] Test reports in both languages
+- [x] ~~Test reports in both languages~~ - SKIPPED (tenant-specific)
 - [ ] Test emails in both languages
 - [ ] Test with different browsers
 
