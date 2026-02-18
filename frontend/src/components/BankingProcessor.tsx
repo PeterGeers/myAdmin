@@ -354,7 +354,7 @@ const BankingProcessor: React.FC = () => {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
-      setMessage('Copied to clipboard!');
+      setMessage(t('messages.copiedToClipboard'));
       setTimeout(() => setMessage(''), 2000);
     });
   };
@@ -395,14 +395,14 @@ const BankingProcessor: React.FC = () => {
       const response = await authenticatedPost('/api/banking/update-mutatie', editingRecord);
       const data = await response.json();
       if (data.success) {
-        setMessage('Record updated successfully!');
+        setMessage(t('messages.recordUpdated'));
         fetchMutaties();
         onClose();
       } else {
-        setMessage(`Error: ${data.error}`);
+        setMessage(t('messages.errorGeneric', { error: data.error }));
       }
     } catch (error) {
-      setMessage(`Error updating record: ${error}`);
+      setMessage(t('messages.errorUpdating') + `: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -1051,7 +1051,7 @@ const BankingProcessor: React.FC = () => {
             {/* File Selection */}
             <VStack align="stretch" mb={6}>
               <HStack justify="space-between" mb={2}>
-                <FormLabel color="white" mb={0}>Select CSV/TSV Files (Banking or Credit Card)</FormLabel>
+                <FormLabel color="white" mb={0}>{t('fileProcessing.selectFiles')}</FormLabel>
                 <Button
                   colorScheme="green"
                   size="sm"
@@ -1073,7 +1073,7 @@ const BankingProcessor: React.FC = () => {
 
               {selectedFiles.length > 0 && (
                 <VStack align="stretch" spacing={2}>
-                  <Text color="white">Selected Files ({selectedFiles.length}):</Text>
+                  <Text color="white">{t('fileProcessing.selectedFiles', { count: selectedFiles.length })}</Text>
                   {selectedFiles.map((file, index) => (
                     <Text key={index} fontSize="sm" color="gray.300">
                       {file.name} ({(file.size / 1024).toFixed(1)} KB)
@@ -1084,11 +1084,12 @@ const BankingProcessor: React.FC = () => {
                       onClick={processFiles}
                       isLoading={loading}
                       colorScheme="blue"
+                      loadingText={t('fileProcessing.processing')}
                     >
-                      Process Files
+                      {t('fileProcessing.processFiles')}
                     </Button>
                     <Button onClick={clearSelection} size="sm">
-                      Clear Selection
+                      {t('common:actions.clear')}
                     </Button>
                   </HStack>
                 </VStack>
@@ -1152,22 +1153,24 @@ const BankingProcessor: React.FC = () => {
                   <Form>
                     <Box mb={6}>
                       <HStack justify="space-between" mb={4}>
-                        <Heading size="md">Review Transactions ({transactions.length})</Heading>
+                        <Heading size="md">{t('fileProcessing.reviewTransactions', { count: transactions.length })}</Heading>
                         <HStack>
                           <Button
                             colorScheme="blue"
                             isLoading={loading}
                             onClick={applyPatterns}
+                            loadingText={t('fileProcessing.applyingPatterns')}
                           >
-                            Apply Patterns
+                            {t('fileProcessing.applyPatterns')}
                           </Button>
                           <Button
                             type="submit"
                             colorScheme="green"
                             isLoading={loading}
                             onClick={() => handleSubmit()}
+                            loadingText={t('fileProcessing.saving')}
                           >
-                            Save to Database
+                            {t('fileProcessing.saveTransactions')}
                           </Button>
                         </HStack>
                       </HStack>
@@ -1438,7 +1441,7 @@ const BankingProcessor: React.FC = () => {
           <TabPanel>
             <VStack align="stretch" spacing={4}>
               <HStack justify="space-between">
-                <Heading size="md">Check Account Balances</Heading>
+                <Heading size="md">{t('checkAccounts.title')}</Heading>
                 <HStack wrap="wrap" spacing={3}>
                   <Button
                     onClick={checkBankingAccounts}
@@ -1447,10 +1450,10 @@ const BankingProcessor: React.FC = () => {
                     alignSelf="flex-end"
                     size="sm"
                   >
-                    Check Account Balances
+                    {t('checkAccounts.checkBalances')}
                   </Button>
                   <FormControl maxW="130px">
-                    <FormLabel color="white" fontSize="sm">End Date (optional)</FormLabel>
+                    <FormLabel color="white" fontSize="sm">{t('checkAccounts.endDate')}</FormLabel>
                     <Input
                       type="date"
                       value={endDate}
@@ -1468,10 +1471,10 @@ const BankingProcessor: React.FC = () => {
                     alignSelf="flex-end"
                     size="sm"
                   >
-                    Check Sequence
+                    {t('checkSequence.checkSequence')}
                   </Button>
                   <FormControl maxW="160px">
-                    <FormLabel color="white" fontSize="sm">Account</FormLabel>
+                    <FormLabel color="white" fontSize="sm">{t('checkSequence.selectAccount')}</FormLabel>
                     <Select
                       value={selectedAccount}
                       onChange={(e) => setSelectedAccount(e.target.value)}
@@ -1639,7 +1642,7 @@ const BankingProcessor: React.FC = () => {
 
               {bankingBalances.length === 0 && !checkingAccounts && !sequenceResult && (
                 <Text color="white" textAlign="center" py={8}>
-                  Use the buttons above to check account balances or sequence numbers
+                  {t('checkAccounts.noAccounts')}
                 </Text>
               )}
             </VStack>
@@ -1832,7 +1835,7 @@ const BankingProcessor: React.FC = () => {
                     size="sm"
                     alignSelf="flex-end"
                   >
-                    Preview Data
+                    {t('strChannel.previewData')}
                   </Button>
                   <Button
                     onClick={calculateStrChannelRevenue}
@@ -1842,7 +1845,7 @@ const BankingProcessor: React.FC = () => {
                     alignSelf="flex-end"
                     isDisabled={strChannelPreview.length === 0}
                   >
-                    Calculate Revenue
+                    {t('strChannel.calculateRevenue')}
                   </Button>
                 </HStack>
 
@@ -1936,7 +1939,7 @@ const BankingProcessor: React.FC = () => {
 
               {strChannelPreview.length === 0 && strChannelTransactions.length === 0 && (
                 <Text color="white" textAlign="center" py={8}>
-                  Select year, month, and administration, then click "Preview Data" to see available STR channel data
+                  {t('strChannel.noChannels')}
                 </Text>
               )}
             </VStack>
