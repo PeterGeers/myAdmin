@@ -150,37 +150,100 @@ The OpenRouter API powers AI features including invoice extraction and template 
 
 ## Internationalization (i18n)
 
-myAdmin supports multiple languages with comprehensive internationalization:
+myAdmin supports Dutch and English with comprehensive internationalization across the entire application.
 
 ### Supported Languages
 
-- **Dutch (nl)** - Primary language
-- **English (en)** - Secondary language
+- **🇳🇱 Dutch (nl)** - Primary language (default)
+- **🇬🇧 English (en)** - Secondary language
 
-### Features
+### User Features
 
-- **Language Selector**: Switch languages from any page header
-- **Persistent Preferences**: Language choice saved to localStorage and AWS Cognito
-- **Localized Formatting**: Dates, numbers, and currency adapt to selected language
-  - Dutch: 18-02-2026, 1.234,56, €1.234,56
-  - English: 2/18/2026, 1,234.56, €1,234.56
-- **Translated UI**: All user-facing text translated (1,485+ translation keys)
-- **Translated Emails**: User invitation emails sent in user's preferred language
-- **API Language Support**: Backend responds in requested language via X-Language header
+**Language Selector**
+
+- Located on Dashboard header (top-right)
+- Switch between Dutch and English instantly
+- No page refresh required
+
+**Persistent Preferences**
+
+- Language choice saved to browser (localStorage)
+- Synced to AWS Cognito user profile
+- Persists across devices and sessions
+- New users inherit tenant's default language
+
+**Localized Formatting**
+
+- **Dates**: Dutch (19-02-2026) vs English (2/19/2026)
+- **Numbers**: Dutch (1.234,56) vs English (1,234.56)
+- **Currency**: Dutch (€1.234,56) vs English (€1,234.56)
+
+**Translated Content**
+
+- All UI elements (buttons, labels, menus, messages)
+- All modules (Reports, Banking, STR, Admin)
+- Error messages and validation
+- Email templates (user invitations)
+- 1,485 translation keys across 8 namespaces
+
+### What's Translated
+
+✅ **Complete Translation**:
+
+- Dashboard and navigation
+- All report modules (Financial, BNB, STR)
+- Banking processor (transaction management, filters, modals)
+- STR processor (file upload, booking review, pricing, invoices)
+- Admin modules (Tenant Management, User Management, Role Management, Health Check)
+- Authentication pages (Login, Unauthorized)
+- Error pages (404, 500, 503)
+- Form validation and error messages
+- Toast notifications and alerts
+
+❌ **Not Translated** (by design):
+
+- **Chart of Accounts**: Tenant-specific business data, already in tenant's preferred language
+- **Report Templates**: Tenant-managed HTML templates (tenants create their own language versions)
+- **Excel Exports**: Technical column names used in pivot table references
+- **Database Content**: Tenant-specific business data (account names, descriptions)
+
+### Technical Implementation
+
+**Frontend**:
+
+- react-i18next for translation management
+- 8 namespaces: common, auth, reports, str, banking, admin, errors, validation
+- Type-safe translations with TypeScript
+- date-fns for locale-aware date formatting
+
+**Backend**:
+
+- Flask-Babel for translation support
+- X-Language header for API language selection
+- User language stored in AWS Cognito custom attribute
+- Tenant default language stored in database
+
+**Database**:
+
+- `tenants.default_language` column (VARCHAR(5), default 'nl')
+- User language preference in Cognito `custom:preferred_language`
 
 ### For Developers
 
-See comprehensive documentation in `.kiro/specs/Common/Internationalization/`:
+**Documentation** (`.kiro/specs/Common/Internationalization/`):
 
-- **DEVELOPER_GUIDE.md** - Complete guide for working with translations
-- **FORMATTING_GUIDE.md** - Date, number, and currency formatting utilities
-- **TRANSLATION_WORKFLOW.md** - Translation process from development to deployment
+- `DEVELOPER_GUIDE.md` - Complete development guide
+- `FORMATTING_GUIDE.md` - Date/number/currency formatting
+- `TRANSLATION_WORKFLOW.md` - Translation process
+- `COMPONENT_USAGE_PATTERNS.md` - Component patterns and examples
+- `TRANSLATION_KEY_CONVENTIONS.md` - Naming conventions
 
-Quick reference:
+**Quick Start**:
 
 ```typescript
 // Use translations in components
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
+import { formatDate, formatNumber, formatCurrency } from '../utils/formatting';
 
 function MyComponent() {
   const { t, i18n } = useTypedTranslation('common');
@@ -189,25 +252,42 @@ function MyComponent() {
     <div>
       <h1>{t('myFeature.title')}</h1>
       <p>{formatDate(new Date(), i18n.language)}</p>
+      <p>{formatNumber(1234.56, i18n.language)}</p>
       <p>{formatCurrency(1234.56, i18n.language)}</p>
     </div>
   );
 }
 ```
 
-### Translation Completeness
-
-Run automated checks to verify all translations are complete:
+**Translation Completeness Check**:
 
 ```bash
-# Frontend (1,485 keys)
+# Frontend (1,485 keys across 8 namespaces)
 cd frontend
 node scripts/check-translations.js
 
-# Backend
+# Backend (11 keys)
 cd backend
 python scripts/check_translations.py
 ```
+
+**Adding New Translations**:
+
+1. Add keys to both `frontend/src/locales/nl/{namespace}.json` and `en/{namespace}.json`
+2. Use `t('namespace:key')` in components
+3. Run completeness check to verify
+4. Test in both languages
+
+### Production Deployment
+
+**Status**: ✅ Live in production (deployed February 19, 2026)
+
+**URLs**:
+
+- Frontend: https://petergeers.github.io/myAdmin/
+- Backend: Railway (auto-deployed)
+
+**Testing**: See `PRODUCTION_TESTING_CHECKLIST.md` for comprehensive testing guide
 
 ## Tech Stack
 
