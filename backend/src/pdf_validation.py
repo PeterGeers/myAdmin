@@ -7,11 +7,22 @@ class PDFValidator:
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
         self.drive_service = None
-        try:
-            self.drive_service = GoogleDriveService()
-        except Exception as e:
-            print(f"Warning: Could not initialize Google Drive service: {e}")
-            self.drive_service = None
+        self.administration = None  # Will be set when needed
+    
+    def _ensure_drive_service(self, administration):
+        """Initialize Google Drive service if not already initialized or if administration changed
+        
+        Args:
+            administration: Tenant/administration identifier
+        """
+        if self.drive_service is None or self.administration != administration:
+            try:
+                from google_drive_service import GoogleDriveService
+                self.drive_service = GoogleDriveService(administration)
+                self.administration = administration
+            except Exception as e:
+                print(f"Warning: Could not initialize Google Drive service for {administration}: {e}")
+                self.drive_service = None
     
     def validate_pdf_urls(self):
         """Validate all Google Drive URLs in mutaties table"""
@@ -74,6 +85,10 @@ class PDFValidator:
             if administration and administration != 'all':
                 where_clause += " AND administration = %s"
                 params.append(administration)
+            
+            # Initialize Google Drive service with the administration
+            if administration and administration != 'all':
+                self._ensure_drive_service(administration)
             
             print(f"Validating year: {year}, administration: {administration}")
             

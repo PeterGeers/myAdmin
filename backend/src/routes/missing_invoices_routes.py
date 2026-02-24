@@ -54,14 +54,21 @@ def get_transactions(user_email, user_roles):
 @missing_invoices_bp.route('/api/upload-receipt', methods=['POST'])
 @cognito_required(required_permissions=['invoices_create'])
 def upload_receipt(user_email, user_roles):
+    from auth.tenant_context import get_current_tenant
+    
     file = request.files.get('file')
     supplier_name = request.form.get('supplierName')
     
     if not file or not supplier_name:
         return jsonify({'error': 'Missing file or supplier name'}), 400
     
+    # Get administration from tenant context
+    administration = get_current_tenant(request)
+    if not administration:
+        return jsonify({'error': 'Administration context not found'}), 400
+    
     try:
-        drive_service = GoogleDriveService()
+        drive_service = GoogleDriveService(administration)
         drive_folders = drive_service.list_subfolders()
         
         # Find folder ID for supplier

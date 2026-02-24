@@ -363,8 +363,14 @@ class BTWProcessor:
             if conn:
                 conn.close()
     
-    def upload_report_to_drive(self, html_content, filename):
-        """Upload HTML report to Google Drive BTW folder"""
+    def upload_report_to_drive(self, html_content, filename, administration):
+        """Upload HTML report to Google Drive BTW folder
+        
+        Args:
+            html_content: HTML content to upload
+            filename: Name of the file
+            administration: Tenant/administration identifier
+        """
         try:
             if self.test_mode:
                 # In test mode, save locally
@@ -379,7 +385,7 @@ class BTWProcessor:
                 }
             else:
                 # Production mode - upload to Google Drive
-                drive_service = GoogleDriveService()
+                drive_service = GoogleDriveService(administration)
                 
                 # Find BTW folder
                 folders = drive_service.list_subfolders()
