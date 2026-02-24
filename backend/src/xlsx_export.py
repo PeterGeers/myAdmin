@@ -198,7 +198,7 @@ class XLSXExportProcessor:
         failed_downloads = []
         print(f"Found {len(df)} Google Drive files to download")
         try:
-            service = self._get_drive_service()
+            service = self._get_drive_service(administration)
             if service:
                 for _, row in df.iterrows():
                     print(f"Processing file: {row['DocUrl']} -> {row['ReferenceNumber']}")
@@ -626,7 +626,7 @@ class XLSXExportProcessor:
         print(f"Found {total_files} Google Drive files to download")
         
         try:
-            service = self._get_drive_service()
+            service = self._get_drive_service(administration)
             if service:
                 for index, (_, row) in enumerate(df.iterrows()):
                     # Yield progress for each file
@@ -742,7 +742,7 @@ class XLSXExportProcessor:
         print(f"Found {total_files} Google Drive files to download")
         
         try:
-            service = self._get_drive_service()
+            service = self._get_drive_service(administration)
             if service:
                 for index, (_, row) in enumerate(df.iterrows()):
                     # Report progress for each file
@@ -861,10 +861,14 @@ class XLSXExportProcessor:
             print(f"Error downloading file {filename}: {e}")
             return False
     
-    def _get_drive_service(self):
-        """Get Google Drive service"""
+    def _get_drive_service(self, administration):
+        """Get Google Drive service
+        
+        Args:
+            administration: Tenant/administration identifier
+        """
         try:
-            drive_service = GoogleDriveService()
+            drive_service = GoogleDriveService(administration)
             return drive_service.service
         except Exception as e:
             print(f"Could not initialize Google Drive service: {e}")

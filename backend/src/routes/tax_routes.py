@@ -226,9 +226,14 @@ def btw_save_transaction(user_email, user_roles):
 def btw_upload_report(user_email, user_roles):
     """Upload BTW report to Google Drive"""
     try:
+        from auth.tenant_context import get_current_tenant
+        
         data = request.get_json()
         html_content = data.get('html_content')
         filename = data.get('filename')
+        
+        # Get administration from tenant context
+        administration = get_current_tenant(request)
         
         if not all([html_content, filename]):
             return jsonify({
@@ -236,8 +241,14 @@ def btw_upload_report(user_email, user_roles):
                 'error': 'HTML content and filename are required'
             }), 400
         
+        if not administration:
+            return jsonify({
+                'success': False,
+                'error': 'Administration context not found'
+            }), 400
+        
         btw_processor = BTWProcessor(test_mode=flag)
-        result = btw_processor.upload_report_to_drive(html_content, filename)
+        result = btw_processor.upload_report_to_drive(html_content, filename, administration)
         
         return jsonify(result)
         

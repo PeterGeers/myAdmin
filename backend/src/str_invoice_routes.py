@@ -358,7 +358,7 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
     try:
         from google_drive_service import GoogleDriveService
         
-        drive_service = GoogleDriveService()
+        drive_service = GoogleDriveService(tenant)
         
         # Use tenant-specific folder structure
         # Base template folder ID - this should be configurable per tenant in the future
