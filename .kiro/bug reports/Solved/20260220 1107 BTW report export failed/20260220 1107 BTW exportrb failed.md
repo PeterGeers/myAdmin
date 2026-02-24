@@ -1,0 +1,1 @@
+Prioblem fixed  adnministration added to api request: BTW transaction saved, but report upload failed: GoogleDriveService.__init__() missing 1 required positional argument: 'administration'
