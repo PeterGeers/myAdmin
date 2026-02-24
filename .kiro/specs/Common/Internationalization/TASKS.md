@@ -1606,7 +1606,7 @@ Put all related user documentation in .kiro\specs\Common\Internationalization\Us
 **Status**: 🔄 IN PROGRESS (Auto-deployment triggered)
 
 - [x] Railway auto-deploys backend from main - **Triggered after merge** ✅
-- [ ] Verify backend deployment successful
+- [x] Verify backend deployment successful
 - [ ] Verify Flask-Babel initialized correctly
 - [ ] Verify backend API works
 - [ ] Test language endpoints (GET/PUT /api/user/language)
@@ -1632,11 +1632,11 @@ Put all related user documentation in .kiro\specs\Common\Internationalization\Us
 **Status**: 🔄 IN PROGRESS (Auto-deployment triggered)
 
 - [x] GitHub Actions builds frontend from main - **Triggered after merge** ✅
-- [ ] Deploy to GitHub Pages (auto)
-- [ ] Verify language selector appears on Dashboard
-- [ ] Test language switching (Dutch ↔ English)
-- [ ] Verify localStorage persistence
-- [ ] Verify UI translations update correctly
+- [x] Deploy to GitHub Pages (auto)
+- [x] Verify language selector appears on Dashboard
+- [x] Test language switching (Dutch ↔ English)
+- [x] Verify localStorage persistence
+- [x] Verify UI translations update correctly
 
 **Deployment Info**:
 
