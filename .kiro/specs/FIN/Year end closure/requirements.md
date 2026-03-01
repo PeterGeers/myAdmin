@@ -265,16 +265,77 @@ All TransactionAmount values are positive (no sign).
 
 ### FR-3: Tenant Configuration
 
+**Configuration approach**:
+
+Use a `parameters` JSON column in the `rekeningschema` (chart of accounts) table to store account roles. This approach scales to support multiple features (year-end closure, VAT, tourist tax, etc.) without schema changes.
+
 **Required configuration per tenant**:
 
-- Equity result account code (e.g., 3080)
-- Fiscal year definition (currently: calendar year only)
-- Language preference (for transaction descriptions)
+- **Equity result account** (e.g., 3080) - Role: "equity_result" - Where net P&L result is recorded
+- **P&L closing account** (e.g., 8099) - Role: "pl_closing" - Used in year-end closure transaction
+- **Interim account** (e.g., 2001) - Role: "interim_opening_balance" - Used as balancing account for opening balances
+- **Fiscal year definition** (currently: calendar year only)
+- **Language preference** (for transaction descriptions)
 
-**Configuration storage**:
+**Future parameters** (same approach):
 
-- Store in tenants table or separate configuration table
-- Validate account exists and is VW='N' (balance sheet)
+- VAT accounts: "vat_payable", "vat_collected_high", "vat_collected_low"
+- Tourist tax: "tourist_tax_payable"
+- Other feature-specific accounts as needed
+
+**Database implementation**:
+
+```sql
+ALTER TABLE rekeningschema
+ADD COLUMN parameters JSON;
+
+-- Example data:
+-- Reknum: 3080, parameters: {"role": "equity_result"}
+-- Reknum: 8099, parameters: {"role": "pl_closing"}
+-- Reknum: 2001, parameters: {"role": "interim_opening_balance"}
+```
+
+**Helper function**:
+
+```python
+def get_account_by_role(administration, role):
+    """Get account code by parameter role"""
+    query = """
+        SELECT Reknum
+        FROM rekeningschema
+        WHERE administration = %s
+        AND JSON_EXTRACT(parameters, '$.role') = %s
+    """
+    return db.execute_query(query, [administration, role])
+```
+
+**UI implementation** (two complementary approaches):
+
+1. **Account-centric** (in Chart of Accounts management):
+   - Add "Role" dropdown column to account list/edit screen
+   - User can assign roles while managing accounts
+   - Shows which accounts have special purposes
+
+2. **Role-centric** (in feature configuration screens):
+   - Year-End Closure Settings screen with dropdowns:
+     - "Equity Result Account: [3080 - Equity ▼]"
+     - "P&L Closing Account: [8099 - P&L Close ▼]"
+     - "Interim Account: [2001 - Interim ▼]"
+   - VAT Settings screen with VAT-specific account dropdowns
+   - Tourist Tax Settings screen with tax-specific account dropdowns
+   - Better UX for feature setup with grouped, validated settings
+
+Both UIs update the same `parameters` JSON field.
+
+**Validation**:
+
+- Validate accounts exist in chart of accounts
+- Validate correct VW classification:
+  - Equity result account: VW='N' (balance sheet)
+  - P&L closing account: VW='Y' (P&L)
+  - Interim account: VW='N' (balance sheet)
+- Ensure role names are unique per tenant
+- Provide helpful error messages if configuration is invalid
 
 ## Non-Functional Requirements
 
