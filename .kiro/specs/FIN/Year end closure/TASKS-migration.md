@@ -34,33 +34,33 @@ Generate opening balance transactions for all historical years so all years use 
 
 ### Core Migration Class
 
-- [ ] Create `OpeningBalanceMigrator` class
-- [ ] Implement `migrate()` method (main entry point)
-- [ ] Implement `_migrate_tenant()` method
-- [ ] Implement `_get_tenants()` helper
-- [ ] Implement `_get_year_range()` helper
-- [ ] Implement `_is_already_migrated()` check
+- [x] Create `OpeningBalanceMigrator` class
+- [x] Implement `migrate()` method (main entry point)
+- [x] Implement `_migrate_tenant()` method
+- [x] Implement `_get_tenants()` helper
+- [x] Implement `_get_year_range()` helper
+- [x] Implement `_is_already_migrated()` check
 
 ### Calculate Ending Balances
 
-- [ ] Implement `_calculate_ending_balances()` method
-- [ ] Query vw_mutaties for balance sheet accounts (VW='N')
-- [ ] Filter for non-zero balances
-- [ ] Test with sample data
+- [x] Implement `_calculate_ending_balances()` method
+- [x] Query vw_mutaties for balance sheet accounts (VW='N')
+- [x] Filter for non-zero balances
+- [x] Test with sample data
 
 ### Create Opening Balance Transactions
 
-- [ ] Implement `_create_opening_balances()` method
-- [ ] Get interim account from configuration
-- [ ] Generate transaction records with proper debit/credit
-- [ ] Handle positive and negative balances correctly
-- [ ] Test transaction creation
+- [x] Implement `_create_opening_balances()` method
+- [x] Get interim account from configuration
+- [x] Generate transaction records with proper debit/credit
+- [x] Handle positive and negative balances correctly
+- [x] Test transaction creation
 
 ### Account Configuration
 
-- [ ] Implement `_get_account_by_role()` helper
-- [ ] Test JSON parameter queries
-- [ ] Handle missing configuration gracefully
+- [x] Implement `_get_account_by_role()` helper
+- [x] Test JSON parameter queries
+- [x] Handle missing configuration gracefully
 
 ## Phase 2: Validation (2-3 days)
 
