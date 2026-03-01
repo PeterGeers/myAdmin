@@ -12,7 +12,6 @@ import json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.database import DatabaseManager
-from src.config import Config
 
 
 def test_json_column_exists():
@@ -27,10 +26,10 @@ def test_json_column_exists():
         cursor.execute("""
             SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, IS_NULLABLE, COLUMN_COMMENT
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = %s
+            WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = 'rekeningschema'
             AND COLUMN_NAME = 'parameters'
-        """, (Config.DB_NAME,))
+        """)
         
         result = cursor.fetchone()
         

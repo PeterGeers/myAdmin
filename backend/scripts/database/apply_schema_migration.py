@@ -10,7 +10,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.database import DatabaseManager
-from src.config import Config
 
 
 def check_column_exists(db_manager):
@@ -22,10 +21,10 @@ def check_column_exists(db_manager):
         cursor.execute("""
             SELECT COUNT(*) as count
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = %s
+            WHERE TABLE_SCHEMA = DATABASE()
             AND TABLE_NAME = 'rekeningschema'
             AND COLUMN_NAME = 'parameters'
-        """, (Config.DB_NAME,))
+        """)
         
         result = cursor.fetchone()
         return result['count'] > 0
@@ -40,8 +39,8 @@ def apply_migration():
     print("=" * 60)
     print("Schema Migration: Add parameters column")
     print("=" * 60)
-    print(f"Database: {Config.DB_NAME}")
-    print(f"Host: {Config.DB_HOST}")
+    print(f"Database: {os.getenv('DB_NAME', 'myAdmin')}")
+    print(f"Host: {os.getenv('DB_HOST', 'localhost')}")
     print()
     
     # Initialize database manager
