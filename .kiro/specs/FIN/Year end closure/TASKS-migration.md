@@ -27,10 +27,10 @@ Generate opening balance transactions for all historical years so all years use 
 
 ### Migration Script Structure
 
-- [ ] Create `backend/scripts/database/migrate_opening_balances.py`
-- [ ] Implement argument parsing (--dry-run, --tenant, --start-year, --end-year)
-- [ ] Setup logging (console + file)
-- [ ] Create main entry point
+- [x] Create `backend/scripts/database/migrate_opening_balances.py`
+- [x] Implement argument parsing (--dry-run, --tenant, --start-year, --end-year)
+- [x] Setup logging (console + file)
+- [x] Create main entry point
 
 ### Core Migration Class
 
