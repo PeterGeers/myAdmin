@@ -1,12 +1,20 @@
 # Year-End Closure - Migration Tasks
 
 **Status**: Not Started  
-**Related**: design-migration.md  
+**Related**: design-migration.md, requirements.md, `.kiro/specs/FIN/README.md`  
 **Purpose**: One-time historical data migration
 
 ## Overview
 
 Generate opening balance transactions for all historical years so all years use the same calculation method.
+
+**IMPORTANT**: Before implementing any task, read `.kiro/specs/FIN/README.md` to understand:
+
+- Double-entry bookkeeping principles (Debet + Credit in every transaction)
+- TransactionAmount format (always positive)
+- VW classification ('Y' = P&L, 'N' = Balance Sheet)
+- Transaction structure and reference field patterns
+- Code organization guidelines (500 lines target, 1000 max)
 
 ## Phase 1: Core Migration Script (3-4 days)
 
