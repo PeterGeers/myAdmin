@@ -492,30 +492,705 @@ def _print_summary(self, summary):
 
 ## Usage Examples
 
-### Dry Run (Preview Changes)
+### Basic Usage
+
+#### Dry Run (Preview Changes)
+
+Always start with a dry run to preview what will happen:
 
 ```bash
 cd backend
+source .venv/bin/activate  # Activate virtual environment
 python scripts/database/migrate_opening_balances.py --dry-run
 ```
 
-### Migrate Specific Tenant
+**Output**:
 
-```bash
-python scripts/database/migrate_opening_balances.py --tenant GoodwinSolutions
+```
+============================================================
+Opening Balance Migration
+============================================================
+Mode: DRY RUN
+Tenant: ALL
+Start Year: AUTO
+End Year: AUTO
+
+Processing 3 tenant(s)
+
+Processing tenant: GoodwinSolutions
+  Years to process: 1995 to 2024
+    Processing year 1995...
+    Found 45 accounts with balances
+    DRY RUN: Would create 45 opening balance transactions
+    ✓ Year 1995 completed and validated
+    ...
+  ✓ Completed GoodwinSolutions
+
+============================================================
+Migration Summary
+============================================================
+Tenants processed: 3
+Tenants failed: 0
+Years processed: 57
+Transactions created: 615
+Validation errors: 0
+============================================================
 ```
 
-### Migrate Specific Year Range
+#### Full Migration (All Tenants)
 
-```bash
-python scripts/database/migrate_opening_balances.py --start-year 2020 --end-year 2023
-```
-
-### Full Migration
+After verifying dry run results:
 
 ```bash
 python scripts/database/migrate_opening_balances.py
 ```
+
+This will:
+
+- Process all tenants
+- Create opening balance transactions
+- Validate all calculations
+- Commit changes to database
+
+### Advanced Usage
+
+#### Migrate Specific Tenant
+
+Process only one tenant (useful for testing or incremental migration):
+
+```bash
+python scripts/database/migrate_opening_balances.py --tenant "GoodwinSolutions"
+```
+
+#### Migrate Specific Year Range
+
+Process only specific years:
+
+```bash
+# Process years 2020-2023 only
+python scripts/database/migrate_opening_balances.py --start-year 2020 --end-year 2023
+
+# Process from 2020 onwards
+python scripts/database/migrate_opening_balances.py --start-year 2020
+
+# Process up to 2023
+python scripts/database/migrate_opening_balances.py --end-year 2023
+```
+
+#### Verbose Logging
+
+Enable detailed debug logging:
+
+```bash
+python scripts/database/migrate_opening_balances.py --verbose
+```
+
+#### Custom Log File
+
+Specify custom log file location:
+
+```bash
+python scripts/database/migrate_opening_balances.py --log-file /path/to/migration.log
+```
+
+#### Combined Options
+
+Combine multiple options:
+
+```bash
+# Dry run for specific tenant with verbose logging
+python scripts/database/migrate_opening_balances.py \
+  --dry-run \
+  --tenant "GoodwinSolutions" \
+  --start-year 2020 \
+  --verbose \
+  --log-file test_migration.log
+```
+
+### Production Deployment Example
+
+Complete production deployment workflow:
+
+```bash
+# 1. Backup database first
+mysqldump -u peter -p myAdmin > backup_before_migration_$(date +%Y%m%d).sql
+
+# 2. Activate virtual environment
+cd backend
+source .venv/bin/activate
+
+# 3. Dry run to preview
+python scripts/database/migrate_opening_balances.py --dry-run
+
+# 4. Review output carefully
+# Check for any errors or warnings
+
+# 5. Run actual migration
+python scripts/database/migrate_opening_balances.py
+
+# 6. Verify results
+# Check log file in backend/logs/migration_YYYYMMDD_HHMMSS.log
+# Verify transaction counts match dry run
+
+# 7. Test reports
+# Run some reports to verify they show correct values
+```
+
+## Command-Line Options Reference
+
+### Required Options
+
+None - all options are optional with sensible defaults.
+
+### Optional Arguments
+
+| Option              | Type    | Default              | Description                                                                                |
+| ------------------- | ------- | -------------------- | ------------------------------------------------------------------------------------------ |
+| `--dry-run`         | flag    | false                | Preview changes without committing to database. Use this first to verify what will happen. |
+| `--tenant TENANT`   | string  | all tenants          | Process only the specified tenant. Useful for testing or incremental migration.            |
+| `--start-year YEAR` | integer | first year with data | Start processing from this year. Earlier years will be skipped.                            |
+| `--end-year YEAR`   | integer | current year - 1     | Stop processing at this year. Later years will be skipped.                                 |
+| `--verbose`         | flag    | false                | Enable verbose debug logging. Shows detailed information about each step.                  |
+| `--log-file FILE`   | string  | auto-generated       | Custom log file path. Default: `logs/migration_YYYYMMDD_HHMMSS.log`                        |
+
+### Exit Codes
+
+| Code | Meaning                                                            |
+| ---- | ------------------------------------------------------------------ |
+| 0    | Success - all tenants migrated successfully                        |
+| 1    | Failure - one or more tenants failed or validation errors occurred |
+
+### Examples by Use Case
+
+**Testing on staging**:
+
+```bash
+python scripts/database/migrate_opening_balances.py --dry-run --verbose
+```
+
+**Migrate one tenant at a time**:
+
+```bash
+python scripts/database/migrate_opening_balances.py --tenant "Tenant1"
+python scripts/database/migrate_opening_balances.py --tenant "Tenant2"
+```
+
+**Re-run for new years only**:
+
+```bash
+# If you already migrated up to 2023, now migrate 2024
+python scripts/database/migrate_opening_balances.py --start-year 2024
+```
+
+**Troubleshooting specific year**:
+
+```bash
+python scripts/database/migrate_opening_balances.py \
+  --tenant "ProblemTenant" \
+  --start-year 2020 \
+  --end-year 2020 \
+  --verbose
+```
+
+## Troubleshooting Guide
+
+### Common Issues and Solutions
+
+#### Issue: "No tenants found to process"
+
+**Symptoms**:
+
+```
+No tenants found to process
+```
+
+**Causes**:
+
+- Specified tenant name doesn't exist
+- No data in mutaties table
+- Database connection issue
+
+**Solutions**:
+
+1. Check tenant name spelling (case-sensitive)
+2. Verify tenant exists:
+   ```sql
+   SELECT DISTINCT administration FROM mutaties;
+   ```
+3. Check database connection in `.env` file
+
+#### Issue: "Interim account not configured"
+
+**Symptoms**:
+
+```
+Interim account not configured for [tenant]
+```
+
+**Causes**:
+
+- Account 2001 not configured with `interim_opening_balance` role
+- Missing parameters column in rekeningschema table
+
+**Solutions**:
+
+1. Configure interim account:
+   ```sql
+   UPDATE rekeningschema
+   SET parameters = JSON_OBJECT('roles', JSON_ARRAY('interim_opening_balance'))
+   WHERE Account = '2001'
+   AND administration = '[tenant]';
+   ```
+2. Verify configuration:
+   ```sql
+   SELECT Account, parameters
+   FROM rekeningschema
+   WHERE administration = '[tenant]'
+   AND JSON_CONTAINS(parameters->'$.roles', '"interim_opening_balance"');
+   ```
+
+#### Issue: "Validation failed"
+
+**Symptoms**:
+
+```
+VALIDATION FAILED: Account 1000 old=5000.00 new=5001.50
+```
+
+**Causes**:
+
+- Data inconsistency in vw_mutaties view
+- Rounding errors exceeding tolerance (0.01)
+- Missing transactions in current year
+
+**Solutions**:
+
+1. Check for data issues:
+   ```sql
+   -- Verify vw_mutaties view is correct
+   SELECT * FROM vw_mutaties
+   WHERE administration = '[tenant]'
+   AND Reknum = '1000'
+   AND jaar = [year]
+   ORDER BY TransactionDate;
+   ```
+2. Check if difference is just rounding:
+   - If difference < 0.01, it's within tolerance
+   - If difference > 0.01, investigate data
+3. Verify opening balance transaction was created correctly:
+   ```sql
+   SELECT * FROM mutaties
+   WHERE administration = '[tenant]'
+   AND TransactionNumber = 'OpeningBalance [year]';
+   ```
+
+#### Issue: "Year already migrated"
+
+**Symptoms**:
+
+```
+Year 2023 already migrated
+```
+
+**Causes**:
+
+- Migration was already run for this year
+- Opening balance transactions already exist
+
+**Solutions**:
+
+1. This is normal - migration is idempotent
+2. To re-run migration, first delete existing opening balances:
+   ```sql
+   DELETE FROM mutaties
+   WHERE administration = '[tenant]'
+   AND TransactionNumber LIKE 'OpeningBalance%';
+   ```
+3. Then run migration again
+
+#### Issue: "Performance is slow"
+
+**Symptoms**:
+
+- Migration takes > 30 seconds
+- Database queries are slow
+
+**Causes**:
+
+- Missing database indexes
+- Large dataset (> 100K transactions)
+- Database server resource constraints
+
+**Solutions**:
+
+1. Check indexes exist:
+   ```sql
+   SHOW INDEX FROM mutaties;
+   SHOW INDEX FROM rekeningschema;
+   ```
+2. Add missing indexes:
+   ```sql
+   CREATE INDEX idx_mutaties_admin_date ON mutaties(administration, TransactionDate);
+   CREATE INDEX idx_mutaties_admin_number ON mutaties(administration, TransactionNumber);
+   CREATE INDEX idx_parameters_roles ON rekeningschema((CAST(parameters->'$.roles' AS CHAR(255))));
+   ```
+3. Optimize database:
+   ```sql
+   ANALYZE TABLE mutaties;
+   ANALYZE TABLE rekeningschema;
+   ```
+
+#### Issue: "Database connection lost"
+
+**Symptoms**:
+
+```
+Error processing [tenant]: Lost connection to MySQL server
+```
+
+**Causes**:
+
+- Long-running transaction timeout
+- Network issue
+- Database server restart
+
+**Solutions**:
+
+1. Increase MySQL timeout:
+   ```sql
+   SET GLOBAL wait_timeout = 600;
+   SET GLOBAL interactive_timeout = 600;
+   ```
+2. Process tenants one at a time:
+   ```bash
+   python scripts/database/migrate_opening_balances.py --tenant "Tenant1"
+   ```
+3. Check database server logs for issues
+
+#### Issue: "Permission denied"
+
+**Symptoms**:
+
+```
+Access denied for user 'peter'@'localhost'
+```
+
+**Causes**:
+
+- Insufficient database permissions
+- Wrong credentials in `.env` file
+
+**Solutions**:
+
+1. Verify credentials in `backend/.env`:
+   ```
+   DB_USER=peter
+   DB_PASSWORD=[correct_password]
+   ```
+2. Check user permissions:
+   ```sql
+   SHOW GRANTS FOR 'peter'@'localhost';
+   ```
+3. Grant necessary permissions:
+   ```sql
+   GRANT SELECT, INSERT, UPDATE ON myAdmin.* TO 'peter'@'localhost';
+   ```
+
+### Debugging Tips
+
+#### Enable Verbose Logging
+
+```bash
+python scripts/database/migrate_opening_balances.py --verbose --dry-run
+```
+
+This shows:
+
+- Each SQL query executed
+- Number of rows affected
+- Detailed balance calculations
+- Validation comparisons
+
+#### Check Log Files
+
+Log files are created in `backend/logs/`:
+
+```bash
+# View latest log
+ls -lt backend/logs/migration_*.log | head -1
+
+# Tail log in real-time
+tail -f backend/logs/migration_20260301_143022.log
+
+# Search for errors
+grep ERROR backend/logs/migration_*.log
+```
+
+#### Manual Validation
+
+Verify calculations manually:
+
+```sql
+-- Old method: sum from beginning of time
+SELECT Reknum, SUM(Amount) as balance
+FROM vw_mutaties
+WHERE administration = 'GoodwinSolutions'
+AND VW = 'N'
+AND TransactionDate <= '2023-12-31'
+GROUP BY Reknum
+HAVING ABS(SUM(Amount)) > 0.01;
+
+-- New method: opening balance + current year
+SELECT Reknum, SUM(Amount) as balance
+FROM vw_mutaties
+WHERE administration = 'GoodwinSolutions'
+AND VW = 'N'
+AND TransactionDate >= '2023-01-01'
+AND TransactionDate <= '2023-12-31'
+GROUP BY Reknum
+HAVING ABS(SUM(Amount)) > 0.01;
+```
+
+#### Test with Single Year
+
+Isolate issues by testing one year:
+
+```bash
+python scripts/database/migrate_opening_balances.py \
+  --tenant "GoodwinSolutions" \
+  --start-year 2023 \
+  --end-year 2023 \
+  --verbose \
+  --dry-run
+```
+
+### Getting Help
+
+If issues persist:
+
+1. **Check logs**: Review `backend/logs/migration_*.log`
+2. **Verify data**: Run manual SQL queries to check data integrity
+3. **Test on staging**: Try migration on staging environment first
+4. **Contact support**: Provide log files and error messages
+
+## Rollback Procedures
+
+### When to Rollback
+
+Rollback if:
+
+- Validation errors occur
+- Incorrect balances detected
+- Performance issues arise
+- Data corruption suspected
+
+### Automatic Rollback
+
+The migration script includes automatic rollback:
+
+- Each tenant is processed in a transaction
+- If validation fails, tenant is automatically rolled back
+- Other tenants continue processing
+- No manual intervention needed
+
+### Manual Rollback
+
+If you need to manually rollback after successful migration:
+
+#### Option 1: Delete Opening Balance Transactions
+
+Remove only the opening balance transactions:
+
+```sql
+-- Preview what will be deleted
+SELECT
+    administration,
+    TransactionNumber,
+    COUNT(*) as transaction_count
+FROM mutaties
+WHERE TransactionNumber LIKE 'OpeningBalance%'
+GROUP BY administration, TransactionNumber
+ORDER BY administration, TransactionNumber;
+
+-- Delete opening balance transactions
+DELETE FROM mutaties
+WHERE TransactionNumber LIKE 'OpeningBalance%';
+
+-- Verify deletion
+SELECT COUNT(*) FROM mutaties
+WHERE TransactionNumber LIKE 'OpeningBalance%';
+-- Should return 0
+```
+
+#### Option 2: Restore from Backup
+
+If you have a database backup from before migration:
+
+```bash
+# Stop application
+docker-compose down
+
+# Restore database
+mysql -u peter -p myAdmin < backup_before_migration_20260301.sql
+
+# Restart application
+docker-compose up -d
+
+# Verify restoration
+mysql -u peter -p myAdmin -e "
+  SELECT COUNT(*) as opening_balance_count
+  FROM mutaties
+  WHERE TransactionNumber LIKE 'OpeningBalance%';
+"
+# Should return 0 if backup was from before migration
+```
+
+#### Option 3: Selective Rollback (Specific Tenant)
+
+Rollback only one tenant:
+
+```sql
+-- Preview
+SELECT
+    TransactionNumber,
+    COUNT(*) as count
+FROM mutaties
+WHERE administration = 'GoodwinSolutions'
+AND TransactionNumber LIKE 'OpeningBalance%'
+GROUP BY TransactionNumber;
+
+-- Delete
+DELETE FROM mutaties
+WHERE administration = 'GoodwinSolutions'
+AND TransactionNumber LIKE 'OpeningBalance%';
+```
+
+#### Option 4: Selective Rollback (Specific Year)
+
+Rollback only specific years:
+
+```sql
+-- Preview
+SELECT
+    administration,
+    TransactionNumber,
+    COUNT(*) as count
+FROM mutaties
+WHERE TransactionNumber IN ('OpeningBalance 2023', 'OpeningBalance 2024')
+GROUP BY administration, TransactionNumber;
+
+-- Delete
+DELETE FROM mutaties
+WHERE TransactionNumber IN ('OpeningBalance 2023', 'OpeningBalance 2024');
+```
+
+### Post-Rollback Steps
+
+After rollback:
+
+1. **Verify rollback**:
+
+   ```sql
+   -- Check opening balance transactions are gone
+   SELECT COUNT(*) FROM mutaties
+   WHERE TransactionNumber LIKE 'OpeningBalance%';
+   ```
+
+2. **Test reports**:
+   - Run reports to verify they still work
+   - Check that values match pre-migration state
+
+3. **Investigate issue**:
+   - Review migration logs
+   - Identify root cause
+   - Fix migration script if needed
+
+4. **Re-test on staging**:
+   - Test fixed migration on staging
+   - Verify no issues
+
+5. **Re-run migration**:
+   - Run migration again with fixes
+   - Monitor closely
+
+### Rollback Checklist
+
+Before rollback:
+
+- [ ] Document reason for rollback
+- [ ] Save migration logs for analysis
+- [ ] Notify stakeholders
+- [ ] Create new database backup (current state)
+
+During rollback:
+
+- [ ] Stop application (optional, for safety)
+- [ ] Execute rollback SQL or restore backup
+- [ ] Verify rollback completed successfully
+
+After rollback:
+
+- [ ] Restart application (if stopped)
+- [ ] Test reports and functionality
+- [ ] Investigate root cause
+- [ ] Plan re-migration
+
+### Emergency Rollback
+
+If critical issues arise in production:
+
+```bash
+# 1. IMMEDIATE: Stop application
+docker-compose down
+
+# 2. IMMEDIATE: Restore from backup
+mysql -u peter -p myAdmin < backup_before_migration.sql
+
+# 3. IMMEDIATE: Restart application
+docker-compose up -d
+
+# 4. Verify system is working
+# Test critical reports and functionality
+
+# 5. Investigate issue offline
+# Review logs, identify problem, fix code
+
+# 6. Test fix on staging before re-deploying
+```
+
+### Preventing Need for Rollback
+
+Best practices to avoid rollback:
+
+1. **Always dry-run first**:
+
+   ```bash
+   python scripts/database/migrate_opening_balances.py --dry-run
+   ```
+
+2. **Test on staging**:
+   - Use copy of production data
+   - Verify results thoroughly
+
+3. **Backup before migration**:
+
+   ```bash
+   mysqldump -u peter -p myAdmin > backup_$(date +%Y%m%d_%H%M%S).sql
+   ```
+
+4. **Migrate incrementally**:
+
+   ```bash
+   # One tenant at a time
+   python scripts/database/migrate_opening_balances.py --tenant "Tenant1"
+   # Verify results
+   python scripts/database/migrate_opening_balances.py --tenant "Tenant2"
+   ```
+
+5. **Monitor during migration**:
+   - Watch logs in real-time
+   - Check for errors immediately
+   - Stop if issues arise
 
 ## Testing Strategy
 

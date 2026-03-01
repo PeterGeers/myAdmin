@@ -202,14 +202,58 @@ class OpeningBalanceMigrator:
             
             self.logger.info(f"  Years to process: {years[0]} to {years[-1]}")
             
-            # Process each year
+            # STEP 1: Pre-calculate ALL ending balances using OLD method (before any opening balances exist)
+            self.logger.info(f"  Step 1: Pre-calculating ending balances for all years using OLD method")
+            ending_balances_by_year = {}
             for year in years:
-                success = self._migrate_year(tenant, year)
+                balances = self._calculate_ending_balances_old_method(tenant, year)
+                if balances:
+                    ending_balances_by_year[year] = balances
+                    self.logger.debug(f"    Year {year}: {len(balances)} accounts with balances")
+            
+            # STEP 2: Create opening balance transactions for each year
+            self.logger.info(f"  Step 2: Creating opening balance transactions")
+            for year in years:
+                # Skip first year (no opening balance needed)
+                if year == years[0]:
+                    self.logger.info(f"    Year {year}: First year, no opening balance needed")
+                    continue
                 
-                if not success:
-                    self.logger.error(f"  Failed to migrate year {year}")
+                # Check if already migrated
+                if self._is_already_migrated(tenant, year):
+                    self.logger.info(f"    Year {year}: Already migrated")
+                    continue
+                
+                # Get ending balances from previous year
+                prev_year = year - 1
+                if prev_year not in ending_balances_by_year:
+                    self.logger.info(f"    Year {year}: No balances from previous year")
+                    continue
+                
+                balances = ending_balances_by_year[prev_year]
+                self.logger.info(f"    Year {year}: Creating {len(balances)} opening balance transactions")
+                
+                # Create opening balance transactions
+                transaction_ids = self._create_opening_balances(tenant, year, balances)
+                
+                if not transaction_ids:
+                    self.logger.error(f"    Failed to create opening balances for {year}")
                     return False
                 
+                self.stats['transactions_created'] += len(transaction_ids)
+            
+            # STEP 3: Validate each year
+            self.logger.info(f"  Step 3: Validating all years")
+            for year in years:
+                if year == years[0]:
+                    continue  # Skip first year
+                
+                if not self._validate_year(tenant, year, ending_balances_by_year.get(year, [])):
+                    self.logger.error(f"    Validation failed for year {year}")
+                    self.stats['validation_errors'] += 1
+                    return False
+                
+                self.logger.info(f"    ✓ Year {year} validated")
                 self.stats['years_processed'] += 1
             
             self.logger.info(f"  ✓ Completed {tenant}")
@@ -271,52 +315,6 @@ class OpeningBalanceMigrator:
             cursor.close()
             conn.close()
     
-    def _migrate_year(self, tenant: str, year: int) -> bool:
-        """
-        Migrate a single year for a tenant.
-        
-        Args:
-            tenant: Tenant name
-            year: Year to migrate
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        self.logger.info(f"    Processing year {year}...")
-        
-        # Check if already migrated
-        if self._is_already_migrated(tenant, year):
-            self.logger.info(f"    ✓ Year {year} already migrated")
-            return True
-        
-        # Calculate ending balances from previous year
-        balances = self._calculate_ending_balances(tenant, year - 1)
-        
-        if not balances:
-            self.logger.info(f"    No balances to migrate for {year}")
-            return True
-        
-        self.logger.info(f"    Found {len(balances)} accounts with balances")
-        
-        # Create opening balance transactions
-        transaction_ids = self._create_opening_balances(tenant, year, balances)
-        
-        if not transaction_ids:
-            self.logger.error(f"    Failed to create opening balances")
-            return False
-        
-        self.logger.info(f"    Created {len(transaction_ids)} opening balance transactions")
-        self.stats['transactions_created'] += len(transaction_ids)
-        
-        # Validate
-        if not self._validate_year(tenant, year):
-            self.logger.error(f"    Validation failed for {year}")
-            self.stats['validation_errors'] += 1
-            return False
-        
-        self.logger.info(f"    ✓ Year {year} completed and validated")
-        return True
-    
     def _is_already_migrated(self, tenant: str, year: int) -> bool:
         """
         Check if year is already migrated.
@@ -347,13 +345,14 @@ class OpeningBalanceMigrator:
             cursor.close()
             conn.close()
     
-    def _calculate_ending_balances(
+    def _calculate_ending_balances_old_method(
         self,
         tenant: str,
         year: int
     ) -> List[Dict]:
         """
-        Calculate ending balances for balance sheet accounts.
+        Calculate ending balances for balance sheet accounts using OLD method.
+        This calculates from beginning of time, EXCLUDING any opening balance transactions.
         
         Args:
             tenant: Tenant name
@@ -362,14 +361,15 @@ class OpeningBalanceMigrator:
         Returns:
             List of dicts with account and balance
         """
-        self.logger.debug(f"      Calculating ending balances for {year}")
+        self.logger.debug(f"      Calculating ending balances for {year} (OLD method)")
         
         conn = self.db_manager.get_connection()
         cursor = conn.cursor(dictionary=True)
         
         try:
             # Query vw_mutaties for balance sheet accounts (VW='N')
-            # Sum amounts up to end of year
+            # Sum amounts from beginning of time up to end of year
+            # EXCLUDE opening balance transactions
             cursor.execute("""
                 SELECT 
                     Reknum as account,
@@ -380,6 +380,7 @@ class OpeningBalanceMigrator:
                 WHERE administration = %s
                 AND VW = 'N'
                 AND TransactionDate <= %s
+                AND TransactionNumber NOT LIKE 'OpeningBalance%'
                 GROUP BY Reknum, AccountName, VW
                 HAVING ABS(SUM(Amount)) > 0.01
                 ORDER BY Reknum
@@ -394,6 +395,26 @@ class OpeningBalanceMigrator:
         finally:
             cursor.close()
             conn.close()
+    
+    def _calculate_ending_balances(
+        self,
+        tenant: str,
+        year: int
+    ) -> List[Dict]:
+        """
+        Calculate ending balances for balance sheet accounts.
+        
+        DEPRECATED: Use _calculate_ending_balances_old_method instead.
+        This method is kept for backwards compatibility.
+        
+        Args:
+            tenant: Tenant name
+            year: Year to calculate balances for
+            
+        Returns:
+            List of dicts with account and balance
+        """
+        return self._calculate_ending_balances_old_method(tenant, year)
     
     def _create_opening_balances(
         self,
@@ -520,16 +541,17 @@ class OpeningBalanceMigrator:
             cursor.close()
             conn.close()
     
-    def _validate_year(self, tenant: str, year: int) -> bool:
+    def _validate_year(self, tenant: str, year: int, expected_ending_balances: List[Dict]) -> bool:
         """
         Validate that migration was successful.
         
-        Compares balances calculated using old method (from beginning of time)
-        vs new method (opening balance + current year transactions).
+        Compares expected ending balances (calculated using OLD method before migration)
+        vs actual ending balances (calculated using NEW method with opening balances).
         
         Args:
             tenant: Tenant name
             year: Year to validate
+            expected_ending_balances: Pre-calculated ending balances from OLD method
             
         Returns:
             True if validation passed, False otherwise
@@ -545,22 +567,10 @@ class OpeningBalanceMigrator:
         cursor = conn.cursor(dictionary=True)
         
         try:
-            # Calculate balances using old method (from beginning of time)
-            cursor.execute("""
-                SELECT 
-                    Reknum as account,
-                    SUM(Amount) as balance_old
-                FROM vw_mutaties
-                WHERE administration = %s
-                AND VW = 'N'
-                AND TransactionDate <= %s
-                GROUP BY Reknum
-                HAVING ABS(SUM(Amount)) > 0.01
-            """, (tenant, f"{year}-12-31"))
+            # Convert expected balances to dict for easy lookup
+            expected_balances = {row['account']: float(row['balance']) for row in expected_ending_balances}
             
-            old_balances = {row['account']: float(row['balance_old']) for row in cursor.fetchall()}
-            
-            # Calculate balances using new method (opening balance + current year)
+            # Calculate balances using NEW method (opening balance + current year transactions)
             cursor.execute("""
                 SELECT 
                     Reknum as account,
@@ -577,19 +587,19 @@ class OpeningBalanceMigrator:
             new_balances = {row['account']: float(row['balance_new']) for row in cursor.fetchall()}
             
             # Compare balances
-            all_accounts = set(old_balances.keys()) | set(new_balances.keys())
+            all_accounts = set(expected_balances.keys()) | set(new_balances.keys())
             errors = []
             
             for account in all_accounts:
-                old_bal = old_balances.get(account, 0.0)
+                expected_bal = expected_balances.get(account, 0.0)
                 new_bal = new_balances.get(account, 0.0)
-                diff = abs(old_bal - new_bal)
+                diff = abs(expected_bal - new_bal)
                 
                 # Allow small rounding differences (0.01)
                 if diff > 0.01:
                     errors.append({
                         'account': account,
-                        'old_balance': old_bal,
+                        'expected_balance': expected_bal,
                         'new_balance': new_bal,
                         'difference': diff
                     })
@@ -599,7 +609,7 @@ class OpeningBalanceMigrator:
                 for error in errors[:5]:  # Show first 5 errors
                     self.logger.error(
                         f"        Account {error['account']}: "
-                        f"old={error['old_balance']:.2f}, "
+                        f"expected={error['expected_balance']:.2f}, "
                         f"new={error['new_balance']:.2f}, "
                         f"diff={error['difference']:.2f}"
                     )
