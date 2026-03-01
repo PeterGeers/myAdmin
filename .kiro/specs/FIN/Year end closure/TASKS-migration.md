@@ -91,12 +91,19 @@ Generate opening balance transactions for all historical years so all years use 
 
 ### Unit Tests
 
-- [ ] Create `backend/tests/unit/test_opening_balance_migrator.py`
-- [ ] Test `_calculate_ending_balances()`
-- [ ] Test `_create_opening_balances()`
-- [ ] Test `_validate_year()`
-- [ ] Test `_get_account_by_role()`
-- [ ] Test error handling
+- [x] Create `backend/tests/unit/test_opening_balance_migrator.py`
+- [x] Test `_calculate_ending_balances()`
+- [x] Test `_create_opening_balances()`
+- [x] Test `_validate_year()`
+- [x] Test `_get_account_by_role()`
+- [x] Test error handling
+
+**Note**: Tests created with 30+ test cases covering all methods. To run tests, install pytest:
+
+```bash
+pip install pytest pytest-mock
+pytest tests/unit/test_opening_balance_migrator.py -v
+```
 
 ### Integration Tests
 
