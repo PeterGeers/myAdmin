@@ -20,10 +20,10 @@ Generate opening balance transactions for all historical years so all years use 
 
 ### Database Schema
 
-- [ ] Add `parameters` JSON column to `rekeningschema` table
-- [ ] Test JSON_EXTRACT queries on MySQL 8.0
-- [ ] Create indexes for performance
-- [ ] Document schema changes
+- [x] Add `parameters` JSON column to `rekeningschema` table
+- [x] Test JSON_EXTRACT queries on MySQL 8.0
+- [x] Create indexes for performance
+- [x] Document schema changes
 
 ### Migration Script Structure
 
