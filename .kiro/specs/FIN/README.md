@@ -335,7 +335,7 @@ The `mutaties` table stores all financial transactions:
 
 ## What's NOT in FIN Module
 
-- **Year-end closure process** - Planned for implementation (will create opening balance transactions)
+- **Year-end closure process** - In development (see `.kiro/specs/FIN/Year end closure/`)
 - **Multi-currency support** - Single currency only
 - **Depreciation calculations** - Manual entry required
 - **Budget vs actual** - Not implemented
@@ -444,6 +444,7 @@ The `mutaties` table stores all financial transactions:
 
 ## Related Specifications
 
+- `.kiro/specs/FIN/Year end closure/` - Year-end closure process (migration and ongoing feature)
 - `.kiro/specs/FIN/VAT Rules/` - BTW calculation rules
 - `.kiro/specs/FIN/InkomstenBelasting/` - Income tax rules
 - `.kiro/specs/FIN/BankingProcessor/` - Bank import specs

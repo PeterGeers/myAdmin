@@ -1,0 +1,199 @@
+# Year-End Closure - Migration Tasks
+
+**Status**: Not Started  
+**Related**: design-migration.md  
+**Purpose**: One-time historical data migration
+
+## Overview
+
+Generate opening balance transactions for all historical years so all years use the same calculation method.
+
+## Phase 1: Core Migration Script (3-4 days)
+
+### Database Schema
+
+- [ ] Add `parameters` JSON column to `rekeningschema` table
+- [ ] Test JSON_EXTRACT queries on MySQL 8.0
+- [ ] Create indexes for performance
+- [ ] Document schema changes
+
+### Migration Script Structure
+
+- [ ] Create `backend/scripts/database/migrate_opening_balances.py`
+- [ ] Implement argument parsing (--dry-run, --tenant, --start-year, --end-year)
+- [ ] Setup logging (console + file)
+- [ ] Create main entry point
+
+### Core Migration Class
+
+- [ ] Create `OpeningBalanceMigrator` class
+- [ ] Implement `migrate()` method (main entry point)
+- [ ] Implement `_migrate_tenant()` method
+- [ ] Implement `_get_tenants()` helper
+- [ ] Implement `_get_year_range()` helper
+- [ ] Implement `_is_already_migrated()` check
+
+### Calculate Ending Balances
+
+- [ ] Implement `_calculate_ending_balances()` method
+- [ ] Query vw_mutaties for balance sheet accounts (VW='N')
+- [ ] Filter for non-zero balances
+- [ ] Test with sample data
+
+### Create Opening Balance Transactions
+
+- [ ] Implement `_create_opening_balances()` method
+- [ ] Get interim account from configuration
+- [ ] Generate transaction records with proper debit/credit
+- [ ] Handle positive and negative balances correctly
+- [ ] Test transaction creation
+
+### Account Configuration
+
+- [ ] Implement `_get_account_by_role()` helper
+- [ ] Test JSON parameter queries
+- [ ] Handle missing configuration gracefully
+
+## Phase 2: Validation (2-3 days)
+
+### Validation Logic
+
+- [ ] Implement `_validate_year()` method
+- [ ] Implement `_calculate_balance_old_method()` (from beginning of time)
+- [ ] Implement `_calculate_balance_new_method()` (opening balance + current year)
+- [ ] Compare old vs new calculations
+- [ ] Allow small rounding differences (0.01)
+- [ ] Collect validation errors
+
+### Error Handling
+
+- [ ] Implement transaction rollback on validation failure
+- [ ] Log validation errors with details
+- [ ] Continue with next tenant on error
+- [ ] Generate summary report
+
+### Dry-Run Mode
+
+- [ ] Implement dry-run flag handling
+- [ ] Preview changes without committing
+- [ ] Show what would be created
+- [ ] Test dry-run mode
+
+## Phase 3: Testing (2-3 days)
+
+### Unit Tests
+
+- [ ] Create `backend/tests/unit/test_opening_balance_migrator.py`
+- [ ] Test `_calculate_ending_balances()`
+- [ ] Test `_create_opening_balances()`
+- [ ] Test `_validate_year()`
+- [ ] Test `_get_account_by_role()`
+- [ ] Test error handling
+
+### Integration Tests
+
+- [ ] Create `backend/tests/integration/test_migration_integration.py`
+- [ ] Test full migration for single tenant
+- [ ] Test idempotent execution (can run multiple times)
+- [ ] Test rollback on validation failure
+- [ ] Test with multiple years
+
+### Test Data Setup
+
+- [ ] Create test tenant with multiple years
+- [ ] Create test transactions with known balances
+- [ ] Configure test account roles
+- [ ] Verify test data integrity
+
+## Phase 4: Performance & Polish (1-2 days)
+
+### Performance Optimization
+
+- [ ] Add database indexes
+- [ ] Optimize SQL queries
+- [ ] Test with large datasets (10 years, 10,000 transactions)
+- [ ] Measure execution time
+- [ ] Ensure < 30 seconds for typical dataset
+
+### Logging & Reporting
+
+- [ ] Implement detailed logging
+- [ ] Create summary report
+- [ ] Log validation errors clearly
+- [ ] Add progress indicators
+- [ ] Test log output
+
+### Documentation
+
+- [ ] Add usage examples to design-migration.md
+- [ ] Document command-line options
+- [ ] Create troubleshooting guide
+- [ ] Document rollback procedure
+
+## Phase 5: Deployment Preparation (1 day)
+
+### Pre-Deployment Testing
+
+- [ ] Test on staging environment
+- [ ] Run with --dry-run on production data copy
+- [ ] Review validation results
+- [ ] Verify no errors
+- [ ] Check performance
+
+### Deployment Plan
+
+- [ ] Document deployment steps
+- [ ] Create database backup procedure
+- [ ] Plan rollback strategy
+- [ ] Schedule deployment window
+- [ ] Notify stakeholders
+
+### Post-Deployment
+
+- [ ] Monitor first execution
+- [ ] Verify results
+- [ ] Check report performance improvement
+- [ ] Archive migration logs
+- [ ] Document lessons learned
+
+## Acceptance Criteria
+
+- [ ] Migration script runs successfully on all tenants
+- [ ] No validation errors
+- [ ] Execution time < 30 seconds for typical dataset
+- [ ] Dry-run mode works correctly
+- [ ] Idempotent (can be re-run safely)
+- [ ] All tests pass
+- [ ] Documentation complete
+- [ ] Reports show same values before and after migration
+- [ ] Reports run significantly faster (10x improvement)
+
+## Estimated Timeline
+
+- Phase 1: 3-4 days
+- Phase 2: 2-3 days
+- Phase 3: 2-3 days
+- Phase 4: 1-2 days
+- Phase 5: 1 day
+
+**Total: 9-13 days**
+
+## Dependencies
+
+- MySQL 8.0 with JSON support
+- Access to production database copy for testing
+- Staging environment for testing
+
+## Risks
+
+- **Validation failures**: Mitigated by thorough testing and dry-run mode
+- **Performance issues**: Mitigated by optimization and testing with large datasets
+- **Data corruption**: Mitigated by transactions and rollback capability
+- **Missing configuration**: Mitigated by validation and clear error messages
+
+## Notes
+
+- This is a one-time migration
+- After successful migration, the script won't need to run again
+- Keep the script for reference and potential future use
+- Migration logs should be archived for audit trail
