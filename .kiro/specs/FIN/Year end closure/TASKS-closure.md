@@ -1,12 +1,20 @@
 # Year-End Closure - Feature Tasks
 
 **Status**: Not Started  
-**Related**: design-closure.md  
+**Related**: design-closure.md, requirements.md, `.kiro/specs/FIN/README.md`  
 **Purpose**: User-facing year-end closure feature
 
 ## Overview
 
 Build the year-end closure feature that allows users to close fiscal years, creating year-end closure and opening balance transactions.
+
+**IMPORTANT**: Before implementing any task, read `.kiro/specs/FIN/README.md` to understand:
+
+- Double-entry bookkeeping principles (Debet + Credit in every transaction)
+- TransactionAmount format (always positive)
+- VW classification ('Y' = P&L, 'N' = Balance Sheet)
+- Transaction structure and reference field patterns
+- Code organization guidelines (500 lines target, 1000 max)
 
 ## Phase 1: Database & Configuration (2-3 days)
 
