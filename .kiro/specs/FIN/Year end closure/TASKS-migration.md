@@ -123,22 +123,14 @@ pytest tests/unit/test_opening_balance_migrator.py -v
 4 tests require actual historical data in database to fully validate (year range detection).
 Tests are ready for use once migration is run on real data.
 
-### Test Data Setup
-
-- [ ] Create test tenant with multiple years
-- [ ] Create test transactions with known balances
-- [ ] Configure test account roles
-- [ ] Verify test data integrity
-
 ## Phase 4: Performance & Polish (1-2 days)
 
-### Performance Optimization
+### Performance Testing
 
-- [ ] Add database indexes
-- [ ] Optimize SQL queries
-- [ ] Test with large datasets (10 years, 10,000 transactions)
-- [ ] Measure execution time
-- [ ] Ensure < 30 seconds for typical dataset
+- [ ] Test with actual production data (50K mutaties, 100K vw_mutaties)
+- [ ] Measure execution time for full migration
+- [ ] Verify performance is acceptable (< 30 seconds for typical tenant)
+- [ ] Check memory usage during migration
 
 ### Logging & Reporting
 
