@@ -66,26 +66,26 @@ Generate opening balance transactions for all historical years so all years use 
 
 ### Validation Logic
 
-- [ ] Implement `_validate_year()` method
-- [ ] Implement `_calculate_balance_old_method()` (from beginning of time)
-- [ ] Implement `_calculate_balance_new_method()` (opening balance + current year)
-- [ ] Compare old vs new calculations
-- [ ] Allow small rounding differences (0.01)
-- [ ] Collect validation errors
+- [x] Implement `_validate_year()` method
+- [x] Implement `_calculate_balance_old_method()` (from beginning of time)
+- [x] Implement `_calculate_balance_new_method()` (opening balance + current year)
+- [x] Compare old vs new calculations
+- [x] Allow small rounding differences (0.01)
+- [x] Collect validation errors
 
 ### Error Handling
 
-- [ ] Implement transaction rollback on validation failure
-- [ ] Log validation errors with details
-- [ ] Continue with next tenant on error
-- [ ] Generate summary report
+- [x] Implement transaction rollback on validation failure
+- [x] Log validation errors with details
+- [x] Continue with next tenant on error
+- [x] Generate summary report
 
 ### Dry-Run Mode
 
-- [ ] Implement dry-run flag handling
-- [ ] Preview changes without committing
-- [ ] Show what would be created
-- [ ] Test dry-run mode
+- [x] Implement dry-run flag handling
+- [x] Preview changes without committing
+- [x] Show what would be created
+- [x] Test dry-run mode
 
 ## Phase 3: Testing (2-3 days)
 
