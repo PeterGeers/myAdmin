@@ -337,6 +337,47 @@ Both UIs update the same `parameters` JSON field.
 - Ensure role names are unique per tenant
 - Provide helpful error messages if configuration is invalid
 
+## Permissions and Access Control
+
+### Tenant Administrator (Tenant_Admin role)
+
+**Responsibilities**: System configuration and setup
+
+**Permissions**:
+
+- Configure chart of accounts
+- Assign account roles (parameters column)
+- Configure year-end settings UI (role-centric: assign accounts to roles)
+- Configure VAT settings
+- Configure tourist tax settings
+- Manage users and permissions
+
+### Finance CRUD (Finance_CRUD role)
+
+**Responsibilities**: Financial operations and year-end processes
+
+**Permissions**:
+
+- All transaction operations (create, read, update, delete)
+- Generate reports
+- Close fiscal year (requires `year_end_close` permission)
+- Reopen fiscal year (if implemented, requires `year_end_close` permission)
+
+### Permission Assignment
+
+The `year_end_close` permission can be assigned to:
+
+- Finance_CRUD role (typical: finance manager closes the year)
+- Tenant_Admin role (if admin wants control over year-end)
+- Both roles (if both need the ability)
+- Custom role (for specific year-end closure responsibility)
+
+**Rationale**:
+
+- **Configuration** (which accounts to use) = Tenant_Admin
+- **Execution** (actually closing the year) = Finance_CRUD with year_end_close permission
+- **Flexibility** = Permission can be assigned based on tenant's organizational structure
+
 ## Non-Functional Requirements
 
 ### NFR-1: Performance
