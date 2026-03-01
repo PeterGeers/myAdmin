@@ -362,9 +362,38 @@ class OpeningBalanceMigrator:
         Returns:
             List of dicts with account and balance
         """
-        # TODO: Implement in next task
         self.logger.debug(f"      Calculating ending balances for {year}")
-        return []
+        
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
+            # Query vw_mutaties for balance sheet accounts (VW='N')
+            # Sum amounts up to end of year
+            cursor.execute("""
+                SELECT 
+                    Reknum as account,
+                    AccountName as account_name,
+                    VW,
+                    SUM(Amount) as balance
+                FROM vw_mutaties
+                WHERE administration = %s
+                AND VW = 'N'
+                AND TransactionDate <= %s
+                GROUP BY Reknum, AccountName, VW
+                HAVING ABS(SUM(Amount)) > 0.01
+                ORDER BY Reknum
+            """, (tenant, f"{year}-12-31"))
+            
+            results = cursor.fetchall()
+            
+            self.logger.debug(f"      Found {len(results)} accounts with non-zero balances")
+            
+            return results
+            
+        finally:
+            cursor.close()
+            conn.close()
     
     def _create_opening_balances(
         self,
@@ -383,13 +412,120 @@ class OpeningBalanceMigrator:
         Returns:
             List of transaction IDs created
         """
-        # TODO: Implement in next task
         self.logger.debug(f"      Creating opening balances for {year}")
-        return []
+        
+        if self.dry_run:
+            self.logger.debug(f"      DRY RUN: Would create {len(balances)} opening balance transactions")
+            return list(range(1, len(balances) + 1))  # Fake IDs for dry run
+        
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Get interim account from configuration
+            interim_account = self._get_account_by_role(tenant, 'interim_opening_balance')
+            
+            if not interim_account:
+                self.logger.error(f"      Interim account not configured for {tenant}")
+                return []
+            
+            transaction_ids = []
+            transaction_number = f"OpeningBalance {year}"
+            transaction_date = f"{year}-01-01"
+            description = f"Opening balance for year {year} of Administration {tenant}"
+            
+            # Create transaction for each account
+            for balance_row in balances:
+                account = balance_row['account']
+                balance = float(balance_row['balance'])
+                
+                # Determine debit and credit based on balance sign
+                if balance > 0:
+                    # Positive balance: account is debit, interim is credit
+                    debit = account
+                    credit = interim_account
+                else:
+                    # Negative balance: interim is debit, account is credit
+                    debit = interim_account
+                    credit = account
+                
+                amount = abs(balance)
+                
+                # Insert transaction
+                cursor.execute("""
+                    INSERT INTO mutaties (
+                        TransactionNumber,
+                        TransactionDate,
+                        TransactionDescription,
+                        TransactionAmount,
+                        Debet,
+                        Credit,
+                        administration
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    transaction_number,
+                    transaction_date,
+                    description,
+                    amount,
+                    debit,
+                    credit,
+                    tenant
+                ))
+                
+                transaction_ids.append(cursor.lastrowid)
+            
+            conn.commit()
+            
+            self.logger.debug(f"      Created {len(transaction_ids)} transactions")
+            return transaction_ids
+            
+        except Exception as e:
+            self.logger.error(f"      Error creating opening balances: {e}")
+            conn.rollback()
+            return []
+            
+        finally:
+            cursor.close()
+            conn.close()
+    
+    def _get_account_by_role(self, tenant: str, role: str) -> Optional[str]:
+        """
+        Get account code by role name.
+        
+        Args:
+            tenant: Tenant name
+            role: Role name (e.g., 'interim_opening_balance')
+            
+        Returns:
+            Account code or None if not found
+        """
+        import json
+        
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
+            cursor.execute("""
+                SELECT Account
+                FROM rekeningschema
+                WHERE administration = %s
+                AND JSON_CONTAINS(parameters->'$.roles', %s)
+                LIMIT 1
+            """, (tenant, json.dumps(role)))
+            
+            result = cursor.fetchone()
+            return result['Account'] if result else None
+            
+        finally:
+            cursor.close()
+            conn.close()
     
     def _validate_year(self, tenant: str, year: int) -> bool:
         """
         Validate that migration was successful.
+        
+        Compares balances calculated using old method (from beginning of time)
+        vs new method (opening balance + current year transactions).
         
         Args:
             tenant: Tenant name
@@ -398,9 +534,89 @@ class OpeningBalanceMigrator:
         Returns:
             True if validation passed, False otherwise
         """
-        # TODO: Implement in next task
         self.logger.debug(f"      Validating {year}")
-        return True
+        
+        # Skip validation in dry-run mode
+        if self.dry_run:
+            self.logger.debug(f"      DRY RUN: Skipping validation")
+            return True
+        
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
+            # Calculate balances using old method (from beginning of time)
+            cursor.execute("""
+                SELECT 
+                    Reknum as account,
+                    SUM(Amount) as balance_old
+                FROM vw_mutaties
+                WHERE administration = %s
+                AND VW = 'N'
+                AND TransactionDate <= %s
+                GROUP BY Reknum
+                HAVING ABS(SUM(Amount)) > 0.01
+            """, (tenant, f"{year}-12-31"))
+            
+            old_balances = {row['account']: float(row['balance_old']) for row in cursor.fetchall()}
+            
+            # Calculate balances using new method (opening balance + current year)
+            cursor.execute("""
+                SELECT 
+                    Reknum as account,
+                    SUM(Amount) as balance_new
+                FROM vw_mutaties
+                WHERE administration = %s
+                AND VW = 'N'
+                AND TransactionDate >= %s
+                AND TransactionDate <= %s
+                GROUP BY Reknum
+                HAVING ABS(SUM(Amount)) > 0.01
+            """, (tenant, f"{year}-01-01", f"{year}-12-31"))
+            
+            new_balances = {row['account']: float(row['balance_new']) for row in cursor.fetchall()}
+            
+            # Compare balances
+            all_accounts = set(old_balances.keys()) | set(new_balances.keys())
+            errors = []
+            
+            for account in all_accounts:
+                old_bal = old_balances.get(account, 0.0)
+                new_bal = new_balances.get(account, 0.0)
+                diff = abs(old_bal - new_bal)
+                
+                # Allow small rounding differences (0.01)
+                if diff > 0.01:
+                    errors.append({
+                        'account': account,
+                        'old_balance': old_bal,
+                        'new_balance': new_bal,
+                        'difference': diff
+                    })
+            
+            if errors:
+                self.logger.error(f"      Validation failed: {len(errors)} account(s) with differences")
+                for error in errors[:5]:  # Show first 5 errors
+                    self.logger.error(
+                        f"        Account {error['account']}: "
+                        f"old={error['old_balance']:.2f}, "
+                        f"new={error['new_balance']:.2f}, "
+                        f"diff={error['difference']:.2f}"
+                    )
+                if len(errors) > 5:
+                    self.logger.error(f"        ... and {len(errors) - 5} more")
+                return False
+            
+            self.logger.debug(f"      Validation passed: {len(all_accounts)} accounts checked")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"      Validation error: {e}")
+            return False
+            
+        finally:
+            cursor.close()
+            conn.close()
     
     def _print_summary(self):
         """Print migration summary."""
