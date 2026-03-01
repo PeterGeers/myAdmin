@@ -9,13 +9,13 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from src.database import get_db_connection
+from src.database import DatabaseManager
 from src.config import Config
 
 
-def check_column_exists():
+def check_column_exists(db_manager):
     """Check if parameters column already exists."""
-    conn = get_db_connection()
+    conn = db_manager.get_connection()
     cursor = conn.cursor(dictionary=True)
     
     try:
@@ -44,14 +44,17 @@ def apply_migration():
     print(f"Host: {Config.DB_HOST}")
     print()
     
+    # Initialize database manager
+    db_manager = DatabaseManager()
+    
     # Check if already applied
-    if check_column_exists():
+    if check_column_exists(db_manager):
         print("✓ Migration already applied - parameters column exists")
         return 0
     
     print("Applying migration...")
     
-    conn = get_db_connection()
+    conn = db_manager.get_connection()
     cursor = conn.cursor()
     
     try:
