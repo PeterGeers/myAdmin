@@ -11,7 +11,7 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from src.database import get_db_connection
+from src.database import DatabaseManager
 from src.config import Config
 
 
@@ -19,7 +19,8 @@ def test_json_column_exists():
     """Test that parameters column exists."""
     print("Testing parameters column existence...")
     
-    conn = get_db_connection()
+    db_manager = DatabaseManager()
+    conn = db_manager.get_connection()
     cursor = conn.cursor(dictionary=True)
     
     try:
@@ -52,7 +53,8 @@ def test_json_operations():
     """Test JSON operations on parameters column."""
     print("\nTesting JSON operations...")
     
-    conn = get_db_connection()
+    db_manager = DatabaseManager()
+    conn = db_manager.get_connection()
     cursor = conn.cursor(dictionary=True)
     
     try:
@@ -153,7 +155,8 @@ def test_helper_function():
     """Test get_account_by_role helper function."""
     print("\nTesting get_account_by_role helper function...")
     
-    conn = get_db_connection()
+    db_manager = DatabaseManager()
+    conn = db_manager.get_connection()
     cursor = conn.cursor(dictionary=True)
     
     try:
