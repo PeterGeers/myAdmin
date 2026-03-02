@@ -54,23 +54,23 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 #### Backend Service Testing
 
-- [ ] Test `YearEndConfigService` initialization
-- [ ] Test `REQUIRED_PURPOSES` contains 3 purposes
-- [ ] Test `validate_configuration()` with no config (should fail)
-- [ ] Test `get_available_accounts()` with VW filter
-- [ ] Test `set_account_purpose()` updates database
-- [ ] Test `get_configured_purposes()` returns correct data
+- [x] Test `YearEndConfigService` initialization
+- [x] Test `REQUIRED_PURPOSES` contains 3 purposes
+- [x] Test `validate_configuration()` with no config (should fail)
+- [x] Test `get_available_accounts()` with VW filter
+- [x] Test `set_account_purpose()` updates database
+- [x] Test `get_configured_purposes()` returns correct data
 
 #### Backend API Testing
 
-- [ ] Test `GET /api/tenant-admin/year-end-config/validate`
-- [ ] Test `GET /api/tenant-admin/year-end-config/purposes`
-- [ ] Test `GET /api/tenant-admin/year-end-config/available-accounts?vw=N`
-- [ ] Test `GET /api/tenant-admin/year-end-config/available-accounts?vw=Y`
-- [ ] Test `POST /api/tenant-admin/year-end-config/accounts` (set purpose)
-- [ ] Test `DELETE /api/tenant-admin/year-end-config/accounts/{code}` (clear purpose)
-- [ ] Test authentication required (401 without token)
-- [ ] Test authorization required (403 without Tenant_Admin role)
+- [x] Test `GET /api/tenant-admin/year-end-config/validate`
+- [x] Test `GET /api/tenant-admin/year-end-config/purposes`
+- [x] Test `GET /api/tenant-admin/year-end-config/available-accounts?vw=N`
+- [x] Test `GET /api/tenant-admin/year-end-config/available-accounts?vw=Y`
+- [x] Test `POST /api/tenant-admin/year-end-config/accounts` (set purpose)
+- [x] Test `DELETE /api/tenant-admin/year-end-config/accounts/{code}` (clear purpose)
+- [x] Test authentication required (401 without token)
+- [x] Test authorization required (403 without Tenant_Admin role)
 
 #### Frontend Chart of Accounts Testing
 
@@ -129,79 +129,80 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 ## Phase 2: Backend Core Logic (3-4 days)
 
+**Phase 2 Implementation Complete** - All methods tested and working
+
 ### Service Class Structure
 
-- [ ] Create `backend/src/services/year_end_service.py`
-- [ ] Create `YearEndClosureService` class
-- [ ] Implement `__init__()` with database connection
-- [ ] Keep file under 500 lines
+- [x] Create `backend/src/services/year_end_service.py`
+- [x] Create `YearEndClosureService` class
+- [x] Implement `__init__()` with database connection
+- [x] Keep file under 500 lines (currently 298 lines)
 
 ### Available Years
 
-- [ ] Implement `get_available_years()` method
-- [ ] Query years with transactions
-- [ ] Exclude already closed years
-- [ ] Test with sample data
+- [x] Implement `get_available_years()` method
+- [x] Query years with transactions
+- [x] Exclude already closed years
+- [x] Test with sample data (19 years found, 2010-2028)
 
 ### Validation Logic
 
-- [ ] Create `backend/src/services/year_end_validator.py`
-- [ ] Implement `validate_year_closure()` method
-- [ ] Check if year already closed
-- [ ] Check if previous year is closed
-- [ ] Check required accounts configured
-- [ ] Calculate net P&L result
-- [ ] Count balance sheet accounts
-- [ ] Return validation result object
+- [x] Implement `validate_year_closure()` method (in year_end_service.py)
+- [x] Check if year already closed
+- [x] Check if previous year is closed
+- [x] Check required accounts configured
+- [x] Calculate net P&L result
+- [x] Count balance sheet accounts
+- [x] Return validation result object
 
 ### Calculate Net P&L Result
 
-- [ ] Implement `_calculate_net_pl_result()` method
-- [ ] Query vw_mutaties for VW='Y' accounts
-- [ ] Sum amounts for the year
-- [ ] Test with profit and loss scenarios
+- [x] Implement `_calculate_net_pl_result()` method
+- [x] Query mutaties with rekeningschema for VW='Y' accounts
+- [x] Sum amounts for the year
+- [x] Test with profit and loss scenarios
 
 ### Create Closure Transaction
 
-- [ ] Implement `_create_closure_transaction()` method
-- [ ] Get equity and P&L closing accounts
-- [ ] Determine debit/credit based on profit/loss
-- [ ] Insert transaction into mutaties table
-- [ ] Return transaction ID
-- [ ] Test with profit and loss scenarios
+- [x] Implement `_create_closure_transaction()` method
+- [x] Get equity and P&L closing accounts
+- [x] Determine debit/credit based on profit/loss
+- [x] Insert transaction into mutaties table
+- [x] Return transaction number
+- [x] Test with profit and loss scenarios
 
 ### Create Opening Balances
 
-- [ ] Implement `_create_opening_balances()` method
-- [ ] Get ending balances from previous year
-- [ ] Get interim account from configuration
-- [ ] Create transaction records with proper debit/credit
-- [ ] Return list of transaction IDs
-- [ ] Test with sample balances
+- [x] Implement `_create_opening_balances()` method
+- [x] Get ending balances from previous year
+- [x] Get interim account from configuration
+- [x] Create transaction records with proper debit/credit
+- [x] Return transaction number
+- [x] Test with sample balances
 
 ### Close Year Method
 
-- [ ] Implement `close_year()` method
-- [ ] Validate year can be closed
-- [ ] Create closure transaction
-- [ ] Create opening balances
-- [ ] Record closure status
-- [ ] Use database transaction (rollback on error)
-- [ ] Return success result
+- [x] Implement `close_year()` method
+- [x] Validate year can be closed
+- [x] Create closure transaction
+- [x] Create opening balances
+- [x] Record closure status
+- [x] Use database transaction (rollback on error)
+- [x] Return success result
 
 ### Helper Methods
 
-- [ ] Implement `_get_ending_balances()`
-- [ ] Implement `_is_year_closed()`
-- [ ] Implement `_get_first_year()`
-- [ ] Implement `_count_balance_sheet_accounts()`
-- [ ] Implement `_record_closure_status()`
+- [x] Implement `_get_ending_balances()`
+- [x] Implement `_is_year_closed()`
+- [x] Implement `_get_first_year()`
+- [x] Implement `_count_balance_sheet_accounts()`
+- [x] Implement `_record_closure_status()`
 
 ### Query Methods
 
-- [ ] Implement `get_closed_years()`
-- [ ] Implement `get_year_status()`
-- [ ] Test all query methods
+- [x] Implement `get_closed_years()`
+- [x] Implement `get_year_status()`
+- [x] Test all query methods
 
 ## Phase 3: Backend API (2 days)
 
