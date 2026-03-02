@@ -280,16 +280,16 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 ### Backend Unit Tests
 
-- [ ] Create `backend/tests/unit/test_year_end_service.py`
-- [ ] Test `calculate_net_pl_result()`
-- [ ] Test `validate_year_closure()` - success case
-- [ ] Test `validate_year_closure()` - already closed
-- [ ] Test `validate_year_closure()` - previous not closed
-- [ ] Test `validate_year_closure()` - missing configuration
-- [ ] Test `_create_closure_transaction()` - profit
-- [ ] Test `_create_closure_transaction()` - loss
-- [ ] Test `_create_opening_balances()`
-- [ ] Test helper methods
+- [x] Create `backend/tests/unit/test_year_end_service.py`
+- [x] Test `calculate_net_pl_result()`
+- [x] Test `validate_year_closure()` - success case
+- [x] Test `validate_year_closure()` - already closed
+- [x] Test `validate_year_closure()` - previous not closed
+- [x] Test `validate_year_closure()` - missing configuration
+- [x] Test `_create_closure_transaction()` - profit
+- [x] Test `_create_closure_transaction()` - loss
+- [x] Test `_create_opening_balances()`
+- [x] Test helper methods
 
 ### Backend Integration Tests
 
