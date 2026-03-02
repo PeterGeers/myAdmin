@@ -15,7 +15,8 @@
     "bnbCountryBookings": "BNB Boekingen per Land",
     "bnbReturningGuests": "BNB Terugkerende Gasten",
     "referenceAnalysis": "Referentie Analyse",
-    "toeristenbelasting": "Toeristenbelasting"
+    "toeristenbelasting": "Toeristenbelasting",
+    "yearEndClosure": "Jaarafsluiting"
   },
   "filters": {
     "year": "Jaar",

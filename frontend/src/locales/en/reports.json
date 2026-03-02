@@ -15,7 +15,8 @@
     "bnbCountryBookings": "BNB Bookings by Country",
     "bnbReturningGuests": "BNB Returning Guests",
     "referenceAnalysis": "Reference Analysis",
-    "toeristenbelasting": "Tourist Tax"
+    "toeristenbelasting": "Tourist Tax",
+    "yearEndClosure": "Year-End Closure"
   },
   "filters": {
     "year": "Year",
