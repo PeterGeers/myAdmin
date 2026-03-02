@@ -328,6 +328,14 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 ## Phase 6: Integration & Polish (2-3 days)
 
+### Year-End Closure Integration
+
+- [x] Create YearEndClosureReport component for FIN Reports
+- [x] Add Year-End Closure tab to FinancialReportsGroup
+- [x] Add translations (English + Dutch)
+- [x] Integrate with tenant context
+- [ ] Test integration in FIN Reports
+
 ### Report Updates
 
 - [ ] Update `mutaties_cache.py` to use opening balances
