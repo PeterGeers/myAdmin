@@ -1,0 +1,22 @@
+{
+  "yearEnd": {
+    "title": "Jaarafsluiting",
+    "subtitle": "Sluit boekjaren af en beheer jaarafsluiting processen",
+    "closeYear": "Boekjaar Afsluiten",
+    "noYears": {
+      "title": "Geen Jaren Beschikbaar",
+      "description": "Er zijn momenteel geen jaren beschikbaar om af te sluiten."
+    },
+    "availableYears": {
+      "title": "{{count}} Jaar/Jaren Beschikbaar om Af te Sluiten",
+      "description": "Deze jaren hebben transacties en kunnen worden afgesloten. Jaren moeten sequentieel worden afgesloten, beginnend bij het oudste."
+    },
+    "closedYears": {
+      "title": "Afgesloten Jaren",
+      "count": "{{count}} jaar/jaren zijn afgesloten"
+    },
+    "errors": {
+      "loadFailed": "Laden van jaarafsluiting gegevens mislukt"
+    }
+  }
+}

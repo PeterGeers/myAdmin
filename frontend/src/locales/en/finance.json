@@ -1,0 +1,22 @@
+{
+  "yearEnd": {
+    "title": "Year-End Closure",
+    "subtitle": "Close fiscal years and manage year-end processes",
+    "closeYear": "Close Fiscal Year",
+    "noYears": {
+      "title": "No Years Available",
+      "description": "There are no years available to close at this time."
+    },
+    "availableYears": {
+      "title": "{{count}} Year(s) Available to Close",
+      "description": "These years have transactions and can be closed. Years must be closed sequentially starting from the oldest."
+    },
+    "closedYears": {
+      "title": "Closed Years",
+      "count": "{{count}} year(s) have been closed"
+    },
+    "errors": {
+      "loadFailed": "Failed to load year-end data"
+    }
+  }
+}
