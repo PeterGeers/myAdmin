@@ -293,21 +293,21 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 ### Backend Integration Tests
 
-- [ ] Create `backend/tests/integration/test_year_end_integration.py`
-- [ ] Test full year closure process
-- [ ] Test rollback on error
-- [ ] Test with multiple years
-- [ ] Test idempotent behavior
+- [x] Create `backend/tests/integration/test_year_end_integration.py`
+- [x] Test full year closure process
+- [x] Test rollback on error
+- [x] Test with multiple years
+- [x] Test idempotent behavior
 
 ### Backend API Tests
 
-- [ ] Create `backend/tests/api/test_year_end_routes.py`
-- [ ] Test GET /api/year-end/available-years
-- [ ] Test POST /api/year-end/validate
-- [ ] Test POST /api/year-end/close
-- [ ] Test GET /api/year-end/closed-years
-- [ ] Test permission enforcement
-- [ ] Test error responses
+- [x] Create `backend/tests/api/test_year_end_routes.py`
+- [x] Test GET /api/year-end/available-years
+- [x] Test POST /api/year-end/validate
+- [x] Test POST /api/year-end/close
+- [x] Test GET /api/year-end/closed-years
+- [x] Test permission enforcement
+- [x] Test error responses
 
 ### Frontend Tests
 
