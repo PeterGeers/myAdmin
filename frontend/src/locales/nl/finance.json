@@ -13,7 +13,38 @@
     },
     "closedYears": {
       "title": "Afgesloten Jaren",
-      "count": "{{count}} jaar/jaren zijn afgesloten"
+      "count": "{{count}} jaar/jaren zijn afgesloten",
+      "noYears": "Er zijn nog geen jaren afgesloten"
+    },
+    "table": {
+      "year": "Jaar",
+      "closedDate": "Afgesloten Datum",
+      "closedBy": "Afgesloten Door",
+      "notes": "Notities",
+      "status": "Status",
+      "closed": "Afgesloten"
+    },
+    "wizard": {
+      "title": "Boekjaar Afsluiten",
+      "step": "Stap {{current}} van {{total}}",
+      "selectYearPrompt": "Selecteer het boekjaar dat u wilt afsluiten:",
+      "year": "Jaar",
+      "selectYearPlaceholder": "Selecteer jaar",
+      "sequentialNote": "Sequentiële Afsluiting Vereist",
+      "sequentialDescription": "Jaren moeten in volgorde worden afgesloten, beginnend bij het oudste jaar met transacties.",
+      "cannotClose": "Kan Jaar Niet Afsluiten",
+      "warnings": "Waarschuwingen",
+      "readyToClose": "Jaar {{year}} is Klaar om Afgesloten te Worden",
+      "reviewBeforeClosing": "Controleer de onderstaande informatie voordat u doorgaat.",
+      "summary": "Samenvatting",
+      "netPLResult": "Netto Winst/Verlies Resultaat",
+      "balanceSheetAccounts": "Balans Rekeningen",
+      "notes": "Notities",
+      "notesPlaceholder": "Optionele notities over deze jaarafsluiting...",
+      "closeYearButton": "Jaar {{year}} Afsluiten",
+      "validationFailed": "Validatie Mislukt",
+      "success": "Jaar Succesvol Afgesloten",
+      "closeFailed": "Afsluiten van Jaar Mislukt"
     },
     "errors": {
       "loadFailed": "Laden van jaarafsluiting gegevens mislukt"
