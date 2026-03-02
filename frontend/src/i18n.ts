@@ -53,6 +53,8 @@ import bankingNl from './locales/nl/banking.json';
 import bankingEn from './locales/en/banking.json';
 import adminNl from './locales/nl/admin.json';
 import adminEn from './locales/en/admin.json';
+import financeNl from './locales/nl/finance.json';
+import financeEn from './locales/en/finance.json';
 import errorsNl from './locales/nl/errors.json';
 import errorsEn from './locales/en/errors.json';
 import validationNl from './locales/nl/validation.json';
@@ -80,6 +82,7 @@ i18n
         str: strNl,
         banking: bankingNl,
         admin: adminNl,
+        finance: financeNl,
         errors: errorsNl,
         validation: validationNl,
       },
@@ -90,6 +93,7 @@ i18n
         str: strEn,
         banking: bankingEn,
         admin: adminEn,
+        finance: financeEn,
         errors: errorsEn,
         validation: validationEn,
       }
