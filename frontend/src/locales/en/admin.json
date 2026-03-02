@@ -20,6 +20,7 @@
     "tabs": {
       "userManagement": "User Management",
       "chartOfAccounts": "Chart of Accounts",
+      "yearEndSettings": "Year-End Settings",
       "templateManagement": "Template Management",
       "credentials": "Credentials",
       "configuration": "Configuration",
@@ -374,6 +375,66 @@
       "importErrorsDescription": "{{count}} errors found. Check console for details.",
       "errorImporting": "Error importing accounts",
       "unknownError": "Unknown error"
+    }
+  },
+  "yearEndSettings": {
+    "title": "Year-End Closure Settings",
+    "subtitle": "Configure accounts for year-end closure process. All three purposes must be assigned.",
+    "loading": "Loading configuration...",
+    "saving": "Saving configuration...",
+    "accessDenied": "Access Denied",
+    "accessDeniedMessage": "You need Tenant_Admin role to configure year-end closure settings.",
+    "status": {
+      "complete": "Configuration Complete",
+      "incomplete": "Configuration Incomplete",
+      "completeMessage": "All required accounts are configured. Year-end closure is ready to use.",
+      "incompleteMessage": "Some required accounts are not configured. Complete the configuration below."
+    },
+    "errors": {
+      "title": "Configuration Errors",
+      "loadingError": "Error loading configuration"
+    },
+    "warnings": {
+      "title": "Warnings"
+    },
+    "purposes": {
+      "equityResult": {
+        "label": "Equity Result Account",
+        "description": "Account where net P&L result is recorded at year-end",
+        "vwBadge": "Balance Sheet (VW=N)",
+        "example": "Example: 3080 - Result Account"
+      },
+      "plClosing": {
+        "label": "P&L Closing Account",
+        "description": "Temporary account used in year-end closure transaction",
+        "vwBadge": "P&L Account (VW=Y)",
+        "example": "Example: 8099 - Closing Account"
+      },
+      "interimOpeningBalance": {
+        "label": "Interim Opening Balance Account",
+        "description": "Balancing account for opening balance transactions",
+        "vwBadge": "Balance Sheet (VW=N)",
+        "example": "Example: 2001 - Interim Account"
+      }
+    },
+    "form": {
+      "selectAccount": "Select account...",
+      "noAccountsAvailable": "No accounts available",
+      "saveButton": "Save Configuration",
+      "cancelButton": "Cancel"
+    },
+    "messages": {
+      "saveSuccess": "Configuration saved",
+      "saveSuccessDescription": "Year-end closure accounts configured successfully",
+      "saveError": "Error saving configuration",
+      "unknownError": "Unknown error"
+    },
+    "help": {
+      "title": "About Year-End Closure",
+      "description": "Year-end closure creates opening balance transactions for the new year, improving performance and formalizing the year-end process.",
+      "equityResultHelp": "Records the net profit or loss for the year",
+      "plClosingHelp": "Used to close P&L accounts to equity",
+      "interimOpeningBalanceHelp": "Balancing account for opening balance entries"
     }
   },
   "templateManagement": {
