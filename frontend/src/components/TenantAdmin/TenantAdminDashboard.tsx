@@ -13,6 +13,7 @@ import CredentialsManagement from './CredentialsManagement';
 import TenantConfigManagement from './TenantConfigManagement';
 import TenantDetails from './TenantDetails';
 import ChartOfAccounts from './ChartOfAccounts';
+import YearEndSettings from './YearEndSettings';
 
 interface TenantInfo {
   name: string;
@@ -167,6 +168,11 @@ export function TenantAdminDashboard() {
                 {t('tenantAdmin.tabs.chartOfAccounts')}
               </Tab>
             )}
+            {hasFIN && (
+              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+                {t('tenantAdmin.tabs.yearEndSettings')}
+              </Tab>
+            )}
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               {t('tenantAdmin.tabs.templateManagement')}
             </Tab>
@@ -188,6 +194,11 @@ export function TenantAdminDashboard() {
             {hasFIN && (
               <TabPanel>
                 <ChartOfAccounts tenant={currentTenant} />
+              </TabPanel>
+            )}
+            {hasFIN && (
+              <TabPanel>
+                <YearEndSettings tenant={currentTenant} />
               </TabPanel>
             )}
             <TabPanel>

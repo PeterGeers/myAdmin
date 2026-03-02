@@ -47,6 +47,7 @@ from routes.tax_routes import tax_bp
 from routes.pdf_validation_routes import pdf_validation_bp
 from routes.duplicate_detection_routes import duplicate_detection_bp
 from routes.chart_of_accounts_routes import chart_of_accounts_bp
+from routes.year_end_config_routes import year_end_config_bp
 from routes.user_routes import user_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -162,6 +163,7 @@ app.register_blueprint(tax_bp)  # Tax processing endpoints (BTW, tourist tax)
 app.register_blueprint(pdf_validation_bp)  # PDF validation endpoints
 app.register_blueprint(duplicate_detection_bp)  # Duplicate detection endpoints
 app.register_blueprint(chart_of_accounts_bp)  # Chart of Accounts management endpoints
+app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 

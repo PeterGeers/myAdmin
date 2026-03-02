@@ -53,14 +53,22 @@ CREATE TABLE year_closure_status (
   year INT NOT NULL,
   closed_date DATETIME NOT NULL,
   closed_by VARCHAR(255) NOT NULL,
-  closure_transaction_id INT,
-  opening_balance_transaction_id INT,
+  closure_transaction_number VARCHAR(50),
+  opening_balance_transaction_number VARCHAR(50),
   notes TEXT,
   UNIQUE KEY unique_admin_year (administration, year),
   INDEX idx_administration (administration),
-  INDEX idx_year (year)
+  INDEX idx_year (year),
+  INDEX idx_closure_txn (closure_transaction_number),
+  INDEX idx_opening_txn (opening_balance_transaction_number)
 );
 ```
+
+**Note**: Uses TransactionNumber (VARCHAR) instead of transaction IDs because:
+
+- Opening balance transactions create MULTIPLE records (one per balance sheet account)
+- All records share the same TransactionNumber (e.g., "OpeningBalance 2025")
+- TransactionNumber can reference all related records
 
 ### Modified Table: rekeningschema
 

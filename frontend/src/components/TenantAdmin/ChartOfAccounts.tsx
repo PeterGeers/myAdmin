@@ -22,7 +22,8 @@ import {
   useToast,
   useDisclosure,
   Alert,
-  AlertIcon
+  AlertIcon,
+  Badge
 } from '@chakra-ui/react';
 import { AddIcon, DownloadIcon, AttachmentIcon } from '@chakra-ui/icons';
 import {
@@ -61,7 +62,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
     SubParent: '',
     Parent: '',
     VW: '',
-    Belastingaangifte: ''
+    Belastingaangifte: '',
+    purpose: ''
   });
   
   const toast = useToast();
@@ -360,6 +362,13 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
             value: searchFilters.Belastingaangifte,
             onChange: (value) => setSearchFilters(prev => ({...prev, Belastingaangifte: value})),
             placeholder: t('chartOfAccounts.filters.taxCategoryPlaceholder')
+          } as SearchFilterConfig,
+          {
+            type: 'search',
+            label: 'Purpose',
+            value: searchFilters.purpose,
+            onChange: (value) => setSearchFilters(prev => ({...prev, purpose: value})),
+            placeholder: 'Search by purpose...'
           } as SearchFilterConfig
         ]}
       />
@@ -376,7 +385,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
             SubParent: '',
             Parent: '',
             VW: '',
-            Belastingaangifte: ''
+            Belastingaangifte: '',
+            purpose: ''
           })}
           size="sm"
         >
@@ -397,6 +407,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
               <Th color="gray.300">{t('chartOfAccounts.table.vw')}</Th>
               <Th color="gray.300">{t('chartOfAccounts.table.taxCategory')}</Th>
               <Th color="gray.300">{t('chartOfAccounts.table.pattern')}</Th>
+              <Th color="gray.300">Purpose</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -418,6 +429,13 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
                 <Td color="gray.300">{account.VW || '-'}</Td>
                 <Td color="gray.300">{account.Belastingaangifte}</Td>
                 <Td color="gray.300">{account.Pattern ? '✓' : ''}</Td>
+                <Td color="gray.300">
+                  {account.purpose ? (
+                    <Badge colorScheme="green" fontSize="xs">
+                      {account.purpose}
+                    </Badge>
+                  ) : '-'}
+                </Td>
               </Tr>
             ))}
           </Tbody>
@@ -440,7 +458,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
                   SubParent: '',
                   Parent: '',
                   VW: '',
-                  Belastingaangifte: ''
+                  Belastingaangifte: '',
+                  purpose: ''
                 })}
                 mt={2}
               >

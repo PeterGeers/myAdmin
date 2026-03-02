@@ -20,6 +20,7 @@
     "tabs": {
       "userManagement": "Gebruikersbeheer",
       "chartOfAccounts": "Rekeningschema",
+      "yearEndSettings": "Jaarafsluiting Instellingen",
       "templateManagement": "Sjabloonbeheer",
       "credentials": "Inloggegevens",
       "configuration": "Configuratie",
@@ -374,6 +375,66 @@
       "importErrorsDescription": "{{count}} fouten gevonden. Controleer console voor details.",
       "errorImporting": "Fout bij importeren rekeningen",
       "unknownError": "Onbekende fout"
+    }
+  },
+  "yearEndSettings": {
+    "title": "Jaarafsluiting Instellingen",
+    "subtitle": "Configureer rekeningen voor het jaarafsluitingsproces. Alle drie de doeleinden moeten worden toegewezen.",
+    "loading": "Configuratie laden...",
+    "saving": "Configuratie opslaan...",
+    "accessDenied": "Toegang geweigerd",
+    "accessDeniedMessage": "U heeft de Tenant_Admin rol nodig om jaarafsluiting instellingen te configureren.",
+    "status": {
+      "complete": "Configuratie Compleet",
+      "incomplete": "Configuratie Incompleet",
+      "completeMessage": "Alle vereiste rekeningen zijn geconfigureerd. Jaarafsluiting is klaar voor gebruik.",
+      "incompleteMessage": "Sommige vereiste rekeningen zijn niet geconfigureerd. Voltooi de configuratie hieronder."
+    },
+    "errors": {
+      "title": "Configuratiefouten",
+      "loadingError": "Fout bij laden configuratie"
+    },
+    "warnings": {
+      "title": "Waarschuwingen"
+    },
+    "purposes": {
+      "equityResult": {
+        "label": "Resultaatrekening Eigen Vermogen",
+        "description": "Rekening waar netto W&V resultaat wordt geboekt bij jaarafsluiting",
+        "vwBadge": "Balans (VW=N)",
+        "example": "Voorbeeld: 3080 - Resultaatrekening"
+      },
+      "plClosing": {
+        "label": "W&V Afsluitrekening",
+        "description": "Tijdelijke rekening gebruikt in jaarafsluiting transactie",
+        "vwBadge": "W&V Rekening (VW=Y)",
+        "example": "Voorbeeld: 8099 - Afsluitrekening"
+      },
+      "interimOpeningBalance": {
+        "label": "Tussenrekening Openingsbalans",
+        "description": "Balancerende rekening voor openingsbalans transacties",
+        "vwBadge": "Balans (VW=N)",
+        "example": "Voorbeeld: 2001 - Tussenrekening"
+      }
+    },
+    "form": {
+      "selectAccount": "Selecteer rekening...",
+      "noAccountsAvailable": "Geen rekeningen beschikbaar",
+      "saveButton": "Configuratie Opslaan",
+      "cancelButton": "Annuleren"
+    },
+    "messages": {
+      "saveSuccess": "Configuratie opgeslagen",
+      "saveSuccessDescription": "Jaarafsluiting rekeningen succesvol geconfigureerd",
+      "saveError": "Fout bij opslaan configuratie",
+      "unknownError": "Onbekende fout"
+    },
+    "help": {
+      "title": "Over Jaarafsluiting",
+      "description": "Jaarafsluiting creëert openingsbalans transacties voor het nieuwe jaar, wat de prestaties verbetert en het jaarafsluitingsproces formaliseert.",
+      "equityResultHelp": "Registreert de netto winst of verlies voor het jaar",
+      "plClosingHelp": "Gebruikt om W&V rekeningen af te sluiten naar eigen vermogen",
+      "interimOpeningBalanceHelp": "Balancerende rekening voor openingsbalans boekingen"
     }
   },
   "templateManagement": {

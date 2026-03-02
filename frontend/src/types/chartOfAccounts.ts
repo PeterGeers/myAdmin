@@ -18,6 +18,7 @@ export interface Account {
   Belastingaangifte: string;  // Tax declaration category
   administration?: string;    // Tenant name (set automatically, not editable)
   Pattern?: number;           // Pattern flag (0 or 1)
+  purpose?: string;           // Year-end closure purpose (equity_result, pl_closing, interim_opening_balance)
 }
 
 /**
@@ -52,6 +53,7 @@ export interface AccountFormData {
   vw?: string;
   belastingaangifte?: string;
   pattern?: boolean;
+  purpose?: string;
 }
 
 /**

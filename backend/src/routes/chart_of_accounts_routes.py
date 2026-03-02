@@ -191,7 +191,8 @@ def list_accounts(user_email, user_roles):
         query = """
             SELECT AccountID, Account, AccountName, AccountLookup, 
                    SubParent, Parent, VW, Belastingaangifte, 
-                   administration, Pattern
+                   administration, Pattern,
+                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.purpose')) as purpose
             FROM rekeningschema
             WHERE administration = %s
         """

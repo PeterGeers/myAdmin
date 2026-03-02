@@ -20,24 +20,112 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 ### Database Schema
 
-- [ ] Create `year_closure_status` table
-- [ ] Add indexes (administration, year)
-- [ ] Test table creation
-- [ ] Document schema
+- [x] Create `year_closure_status` table
+- [x] Add indexes (administration, year)
+- [x] Document schema
 
 ### Account Configuration
 
-- [ ] Ensure `parameters` JSON column exists in `rekeningschema`
-- [ ] Create helper function `get_account_by_role()`
-- [ ] Test JSON parameter queries
-- [ ] Document configuration approach
+- [x] Ensure `parameters` JSON column exists in `rekeningschema`
+- [x] Create helper function `get_account_by_purpose()`
+- [x] Document configuration approach
 
 ### Configuration UI (Tenant Admin)
 
-- [ ] Add "Role" dropdown to Chart of Accounts management
-- [ ] Create Year-End Settings screen (role-centric)
-- [ ] Add validation for account roles
-- [ ] Test configuration UI
+- [x] Add "Purpose" column to Chart of Accounts management
+- [x] Create Year-End Settings screen (purpose-centric)
+- [x] Add validation for account purposes
+- [x] Add role-based access control (Tenant_Admin)
+
+**Phase 1 Implementation Complete** - Ready for testing
+
+### Phase 1 Testing (1-2 hours)
+
+**Reference**: See `PHASE1_TESTING_GUIDE.md` for detailed testing instructions
+
+#### Database Testing
+
+- [x] Run migration in dry-run mode
+- [x] Run actual migration
+- [x] Verify `year_closure_status` table created
+- [x] Verify `parameters` column added to `rekeningschema` (already existed)
+- [x] Verify indexes created
+- [x] Fix transaction references to use TransactionNumber instead of IDs
+
+#### Backend Service Testing
+
+- [ ] Test `YearEndConfigService` initialization
+- [ ] Test `REQUIRED_PURPOSES` contains 3 purposes
+- [ ] Test `validate_configuration()` with no config (should fail)
+- [ ] Test `get_available_accounts()` with VW filter
+- [ ] Test `set_account_purpose()` updates database
+- [ ] Test `get_configured_purposes()` returns correct data
+
+#### Backend API Testing
+
+- [ ] Test `GET /api/tenant-admin/year-end-config/validate`
+- [ ] Test `GET /api/tenant-admin/year-end-config/purposes`
+- [ ] Test `GET /api/tenant-admin/year-end-config/available-accounts?vw=N`
+- [ ] Test `GET /api/tenant-admin/year-end-config/available-accounts?vw=Y`
+- [ ] Test `POST /api/tenant-admin/year-end-config/accounts` (set purpose)
+- [ ] Test `DELETE /api/tenant-admin/year-end-config/accounts/{code}` (clear purpose)
+- [ ] Test authentication required (401 without token)
+- [ ] Test authorization required (403 without Tenant_Admin role)
+
+#### Frontend Chart of Accounts Testing
+
+- [x] Verify "Purpose" column displays
+- [x] Verify configured purposes show as green badges
+- [x] Verify unconfigured accounts show "-"
+- [x] Test purpose filter (type "equity")
+- [x] Test clear all filters includes purpose filter
+- [x] Verify column uses correct terminology ("Purpose" not "Role")
+
+#### Frontend Year-End Settings Testing
+
+- [x] Navigate to Year-End Settings screen
+- [x] Verify access control (Tenant_Admin only)
+- [x] Test with non-admin user (should show "Access Denied")
+- [x] Verify initial state shows "Configuration Incomplete"
+- [x] Verify 3 purpose configuration boxes display
+- [x] Test Equity Result dropdown (VW='N' accounts only)
+- [x] Test P&L Closing dropdown (VW='Y' accounts only)
+- [x] Test Interim Opening Balance dropdown (VW='N' accounts only)
+- [x] Configure all 3 purposes
+- [x] Click Save Configuration
+- [x] Verify success message displays
+- [x] Verify validation shows "Configuration Complete"
+- [x] Refresh page and verify configuration persists
+
+#### Integration Testing
+
+- [x] Clear all configuration in database
+- [x] Open Year-End Settings (should show incomplete)
+- [x] Configure all 3 purposes and save
+- [x] Verify Chart of Accounts shows purpose badges
+- [x] Test purpose filter in Chart of Accounts
+- [x] Verify validation API returns `valid: true`
+- [x] Verify database has 3 accounts with purposes
+
+#### Error Handling Testing
+
+- [x] Test invalid purpose name (should return 400)
+- [x] Test wrong VW classification (should return 400)
+- [x] Test duplicate purpose assignment (should return 400)
+- [x] Test non-existent account (should return 400)
+- [x] Verify all errors have clear messages
+- [x] Verify no 500 errors occur
+
+#### Quick Smoke Test (5 minutes)
+
+- [x] Run migration
+- [x] Open Year-End Settings
+- [x] Configure all 3 purposes
+- [x] Save configuration
+- [x] Check Chart of Accounts shows badges
+- [x] Refresh page - configuration persists
+
+**Phase 1 Testing Complete**: All tests must pass before proceeding to Phase 2
 
 ## Phase 2: Backend Core Logic (3-4 days)
 
