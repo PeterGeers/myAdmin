@@ -26,6 +26,8 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
+import YearClosureWizard from '../components/YearClosureWizard';
+import ClosedYearsTable from '../components/ClosedYearsTable';
 import {
   getAvailableYears,
   getClosedYears,
@@ -182,41 +184,15 @@ const YearEndClosure: React.FC = () => {
             </Alert>
           )}
 
-          {/* Closed years section - placeholder for ClosedYearsTable component */}
-          {closedYears.length > 0 && (
-            <Box
-              bg="gray.800"
-              borderRadius="lg"
-              p={6}
-              borderWidth="1px"
-              borderColor="gray.700"
-            >
-              <Heading size="md" color="white" mb={4}>
-                {t('yearEnd.closedYears.title')}
-              </Heading>
-              <Text color="gray.400">
-                {t('yearEnd.closedYears.count', { count: closedYears.length })}
-              </Text>
-              {/* ClosedYearsTable component will be added in next task */}
-            </Box>
-          )}
+          {/* Closed years table */}
+          <ClosedYearsTable years={closedYears} />
 
-          {/* Wizard placeholder */}
+          {/* Wizard */}
           {showWizard && (
-            <Box
-              bg="gray.800"
-              borderRadius="lg"
-              p={6}
-              borderWidth="1px"
-              borderColor="gray.700"
-            >
-              <Text color="white">
-                Year Closure Wizard (to be implemented)
-              </Text>
-              <Button mt={4} onClick={handleWizardClose}>
-                Close
-              </Button>
-            </Box>
+            <YearClosureWizard
+              availableYears={availableYears}
+              onClose={handleWizardClose}
+            />
           )}
         </VStack>
       </Container>
