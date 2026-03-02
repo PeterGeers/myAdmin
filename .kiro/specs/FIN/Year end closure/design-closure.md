@@ -126,7 +126,7 @@ def validate_year(user_email, user_roles, tenant, user_tenants):
     return jsonify(validation)
 
 @year_end_bp.route('/api/year-end/close', methods=['POST'])
-@cognito_required(required_permissions=['year_end_close'])
+@cognito_required(required_permissions=['finance_write'])
 @tenant_required()
 def close_year(user_email, user_roles, tenant, user_tenants):
     """Close a fiscal year"""
@@ -1011,7 +1011,7 @@ def test_close_year():
 
 def test_close_year_unauthorized():
     """Test close year without permission"""
-    # Remove year_end_close permission
+    # Remove finance_write permission
     response = client.post('/api/year-end/close', json={'year': 2024})
     assert response.status_code == 403
 ```
@@ -1073,7 +1073,8 @@ class ConfigurationError(YearEndClosureError):
 
 ### Authentication & Authorization
 
-- Require `year_end_close` permission for closing years
+- Require `finance_write` permission for closing years (Finance_CRUD role)
+- Require `finance_read` permission for viewing and validation
 - Validate tenant access
 - Log all closure actions
 

@@ -50,7 +50,7 @@ Implemented REST API endpoints for year-end closure functionality, providing sec
 ### 3. POST /api/year-end/close
 
 **Purpose**: Close a fiscal year  
-**Permission**: `year_end_close` (restricted)  
+**Permission**: `finance_write` (Finance_CRUD role)  
 **Request**:
 
 ```json
@@ -136,7 +136,7 @@ Implemented REST API endpoints for year-end closure functionality, providing sec
    - GET /api/year-end/closed-years
    - GET /api/year-end/status/<year>
 
-2. **year_end_close**: Required for closing years (restricted permission)
+2. **finance_write**: Required for closing years (Finance_CRUD role)
    - POST /api/year-end/close
 
 ### Security Features

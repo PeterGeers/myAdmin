@@ -12,7 +12,7 @@ Endpoints:
 
 Permissions:
 - finance_read: View year-end data and validate
-- year_end_close: Close fiscal years (restricted permission)
+- finance_write: Close fiscal years (Finance_CRUD role)
 """
 
 from flask import Blueprint, request, jsonify
@@ -99,7 +99,7 @@ def validate_year(user_email, user_roles, tenant, user_tenants):
 
 
 @year_end_bp.route('/api/year-end/close', methods=['POST'])
-@cognito_required(required_permissions=['year_end_close'])
+@cognito_required(required_permissions=['finance_write'])
 @tenant_required()
 def close_year(user_email, user_roles, tenant, user_tenants):
     """
