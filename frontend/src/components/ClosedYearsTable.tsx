@@ -2,10 +2,10 @@
  * Closed Years Table Component
  * 
  * Displays a table of closed fiscal years with details.
- * Shows year, closure date, closed by user, notes, and status.
+ * Shows year, closure date, closed by user, notes, status, and actions.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Table,
@@ -17,21 +17,38 @@ import {
   Badge,
   Text,
   Heading,
-  VStack
+  VStack,
+  IconButton,
+  useToast,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  Button,
+  useDisclosure
 } from '@chakra-ui/react';
-import { CheckCircleIcon } from '@chakra-ui/icons';
+import { CheckCircleIcon, DeleteIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
-import { ClosedYear } from '../services/yearEndClosureService';
+import { ClosedYear, reopenYear } from '../services/yearEndClosureService';
 
 interface ClosedYearsTableProps {
   years: ClosedYear[];
+  onYearReopened?: () => void;
 }
 
 /**
  * Closed Years Table Component
  */
-const ClosedYearsTable: React.FC<ClosedYearsTableProps> = ({ years }) => {
+const ClosedYearsTable: React.FC<ClosedYearsTableProps> = ({ years, onYearReopened }) => {
   const { t } = useTypedTranslation('finance');
+  const { t: tCommon } = useTypedTranslation('common');
+  const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const cancelRef = React.useRef<HTMLButtonElement>(null);
 
   // Format date for display
   const formatDate = (dateString: string): string => {
@@ -43,6 +60,46 @@ const ClosedYearsTable: React.FC<ClosedYearsTableProps> = ({ years }) => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Handle reopen year click
+  const handleReopenClick = (year: number) => {
+    setSelectedYear(year);
+    onOpen();
+  };
+
+  // Confirm reopen year
+  const handleConfirmReopen = async () => {
+    if (!selectedYear) return;
+
+    setLoading(true);
+    try {
+      await reopenYear(selectedYear);
+      
+      toast({
+        title: t('yearEnd.reopen.success'),
+        description: t('yearEnd.reopen.successMessage', { year: selectedYear }),
+        status: 'success',
+        duration: 5000,
+        isClosable: true
+      });
+
+      onClose();
+      if (onYearReopened) {
+        onYearReopened();
+      }
+    } catch (error: any) {
+      console.error('Reopen year error:', error);
+      toast({
+        title: t('yearEnd.reopen.failed'),
+        description: error.message || 'Failed to reopen year',
+        status: 'error',
+        duration: 5000,
+        isClosable: true
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // No closed years
@@ -97,6 +154,9 @@ const ClosedYearsTable: React.FC<ClosedYearsTableProps> = ({ years }) => {
                 <Th color="gray.400" borderColor="gray.700">
                   {t('yearEnd.table.status')}
                 </Th>
+                <Th color="gray.400" borderColor="gray.700">
+                  {t('yearEnd.table.actions')}
+                </Th>
               </Tr>
             </Thead>
             <Tbody>
@@ -126,6 +186,17 @@ const ClosedYearsTable: React.FC<ClosedYearsTableProps> = ({ years }) => {
                       {t('yearEnd.table.closed')}
                     </Badge>
                   </Td>
+                  <Td borderColor="gray.700">
+                    <IconButton
+                      aria-label={t('yearEnd.reopen.button')}
+                      icon={<DeleteIcon />}
+                      size="sm"
+                      colorScheme="red"
+                      variant="ghost"
+                      onClick={() => handleReopenClick(year.year)}
+                      title={t('yearEnd.reopen.button')}
+                    />
+                  </Td>
                 </Tr>
               ))}
             </Tbody>
@@ -136,6 +207,45 @@ const ClosedYearsTable: React.FC<ClosedYearsTableProps> = ({ years }) => {
           {t('yearEnd.closedYears.count', { count: years.length })}
         </Text>
       </VStack>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onClose}
+      >
+        <AlertDialogOverlay bg="blackAlpha.800">
+          <AlertDialogContent bg="gray.800" borderColor="gray.700" borderWidth="1px">
+            <AlertDialogHeader fontSize="lg" fontWeight="bold" color="white">
+              {t('yearEnd.reopen.confirmTitle')}
+            </AlertDialogHeader>
+
+            <AlertDialogBody color="gray.300">
+              {t('yearEnd.reopen.confirmMessage', { year: selectedYear })}
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button
+                ref={cancelRef}
+                onClick={onClose}
+                variant="ghost"
+                color="gray.400"
+                _hover={{ bg: 'gray.700' }}
+              >
+                {tCommon('buttons.cancel')}
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleConfirmReopen}
+                ml={3}
+                isLoading={loading}
+              >
+                {t('yearEnd.reopen.confirm')}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };

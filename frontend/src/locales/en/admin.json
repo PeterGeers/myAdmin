@@ -409,12 +409,6 @@
         "description": "Temporary account used in year-end closure transaction",
         "vwBadge": "P&L Account (VW=Y)",
         "example": "Example: 8099 - Closing Account"
-      },
-      "interimOpeningBalance": {
-        "label": "Interim Opening Balance Account",
-        "description": "Balancing account for opening balance transactions",
-        "vwBadge": "Balance Sheet (VW=N)",
-        "example": "Example: 2001 - Interim Account"
       }
     },
     "form": {
@@ -432,9 +426,8 @@
     "help": {
       "title": "About Year-End Closure",
       "description": "Year-end closure creates opening balance transactions for the new year, improving performance and formalizing the year-end process.",
-      "equityResultHelp": "Records the net profit or loss for the year",
-      "plClosingHelp": "Used to close P&L accounts to equity",
-      "interimOpeningBalanceHelp": "Balancing account for opening balance entries"
+      "equityResultHelp": "Records the net profit or loss for the year. Also used as balancing account for opening balance entries.",
+      "plClosingHelp": "Used to close P&L accounts to equity"
     }
   },
   "templateManagement": {

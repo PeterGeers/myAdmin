@@ -222,3 +222,49 @@ def get_year_status(year, user_email, user_roles, tenant, user_tenants):
             'error': str(e),
             'message': f'Failed to get status for year {year}'
         }), 500
+
+
+@year_end_bp.route('/api/year-end/reopen', methods=['POST'])
+@cognito_required(required_permissions=['finance_write'])
+@tenant_required()
+def reopen_year(user_email, user_roles, tenant, user_tenants):
+    """
+    Reopen a closed fiscal year.
+    
+    This reverses the year closure by deleting:
+    1. Opening balance transactions for next year
+    2. Year-end closure transaction
+    3. Closure status record
+    
+    Request body:
+        {
+            "year": int
+        }
+    
+    Returns:
+        {
+            "success": bool,
+            "year": int,
+            "message": str
+        }
+    """
+    try:
+        data = request.get_json()
+        year = data.get('year')
+        
+        if not year:
+            return jsonify({
+                'error': 'year is required'
+            }), 400
+        
+        service = YearEndClosureService()
+        result = service.reopen_year(tenant, year, user_email)
+        
+        return jsonify(result), 200
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': f'Failed to reopen year {data.get("year", "unknown")}'
+        }), 500

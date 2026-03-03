@@ -116,7 +116,9 @@
     "zipCode": "Zip Code",
     "optional": "Optional",
     "requiredField": "Required field",
-    "instructions": "Instructions"
+    "instructions": "Instructions",
+    "parent": "Parent Category",
+    "category": "Category"
   },
   "placeholders": {
     "search": "Search...",

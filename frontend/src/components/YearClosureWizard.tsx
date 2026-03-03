@@ -58,6 +58,7 @@ const YearClosureWizard: React.FC<YearClosureWizardProps> = ({
   onClose
 }) => {
   const { t } = useTypedTranslation('finance');
+  const { t: tCommon } = useTypedTranslation('common');
   const [step, setStep] = useState(1);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [validation, setValidation] = useState<YearValidation | null>(null);
@@ -270,7 +271,7 @@ const YearClosureWizard: React.FC<YearClosureWizardProps> = ({
                   {/* Notes Field */}
                   <FormControl>
                     <FormLabel color="gray.400">
-                      {t('yearEnd.wizard.notes')} ({t('common.optional')})
+                      {t('yearEnd.wizard.notes')} ({tCommon('labels.optional')})
                     </FormLabel>
                     <Textarea
                       value={notes}
@@ -293,7 +294,7 @@ const YearClosureWizard: React.FC<YearClosureWizardProps> = ({
           {loading && (
             <HStack justify="center" py={4}>
               <Spinner color="blue.400" />
-              <Text color="gray.300">{t('common.processing')}</Text>
+              <Text color="gray.300">{tCommon('status.processing')}</Text>
             </HStack>
           )}
         </ModalBody>
@@ -307,7 +308,7 @@ const YearClosureWizard: React.FC<YearClosureWizardProps> = ({
               color="gray.400"
               _hover={{ bg: 'gray.700' }}
             >
-              {t('common.buttons.cancel')}
+              {tCommon('buttons.cancel')}
             </Button>
 
             {step === 2 && (
@@ -317,7 +318,7 @@ const YearClosureWizard: React.FC<YearClosureWizardProps> = ({
                 isDisabled={loading}
                 colorScheme="gray"
               >
-                {t('common.buttons.back')}
+                {tCommon('buttons.back')}
               </Button>
             )}
 
@@ -328,7 +329,7 @@ const YearClosureWizard: React.FC<YearClosureWizardProps> = ({
                 isDisabled={!selectedYear || loading}
                 isLoading={loading}
               >
-                {t('common.buttons.next')}
+                {tCommon('buttons.next')}
               </Button>
             )}
 

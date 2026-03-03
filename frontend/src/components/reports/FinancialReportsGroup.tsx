@@ -8,7 +8,6 @@ import ActualsReport from './ActualsReport';
 import BtwReport from './BtwReport';
 import ReferenceAnalysisReport from './ReferenceAnalysisReport';
 import AangifteIbReport from './AangifteIbReport';
-import YearEndClosureReport from './YearEndClosureReport';
 
 const FinancialReportsGroup: React.FC = () => {
   const { t } = useTypedTranslation('reports');
@@ -21,7 +20,6 @@ const FinancialReportsGroup: React.FC = () => {
         <Tab color="white">🧾 {t('titles.btwReport')}</Tab>
         <Tab color="white">📈 {t('titles.referenceAnalysis')}</Tab>
         <Tab color="white">📋 {t('titles.aangifteIb')}</Tab>
-        <Tab color="white">📅 {t('titles.yearEndClosure', 'Year-End Closure')}</Tab>
       </TabList>
 
       <TabPanels>
@@ -43,10 +41,6 @@ const FinancialReportsGroup: React.FC = () => {
 
         <TabPanel>
           <AangifteIbReport />
-        </TabPanel>
-
-        <TabPanel>
-          <YearEndClosureReport />
         </TabPanel>
       </TabPanels>
     </Tabs>
