@@ -58,20 +58,104 @@ class BTWProcessor:
             return {'success': False, 'error': str(e)}
     
     def _get_balance_data(self, administration, end_date):
-        """Get balance data for BTW accounts up to end date using cache"""
+        """
+        Get balance data for BTW accounts up to end date.
+        
+        NEW APPROACH (with year-end closure):
+        - Show opening balance from current year (netted VAT from previous year)
+        - Show current year transactions only
+        - Calculate ending balance = opening + current year
+        
+        This prevents showing cumulative balances from unclosed historical years.
+        """
         try:
-            # Get cache instance
+            # Extract year from end_date
+            year = int(end_date.split('-')[0])
+            
+            # Get opening balance for the year (from Opening Balance transactions)
+            opening_balance = self._get_opening_balance_vat(administration, year)
+            
+            # Get current year transactions (excluding opening balance)
+            current_year_data = self._get_current_year_vat(administration, year, end_date)
+            
+            # Combine opening balance + current year data
+            results = []
+            
+            # Add opening balance as first row if it exists
+            if opening_balance and abs(opening_balance['amount']) > 0.01:
+                results.append({
+                    'Reknum': 'Opening',
+                    'AccountName': 'Opening Balance (netted)',
+                    'amount': opening_balance['amount']
+                })
+            
+            # Add current year data
+            results.extend(current_year_data)
+            
+            return results
+        except Exception as e:
+            print(f"Error getting balance data: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def _get_opening_balance_vat(self, administration, year):
+        """
+        Get the opening balance for VAT accounts for the specified year.
+        
+        This looks for Opening Balance transactions with VAT accounts (2010, 2020, 2021).
+        With VAT netting enabled, there should be only one entry for the primary account.
+        
+        Returns:
+            dict: {'amount': net_opening_balance} or None
+        """
+        try:
             cache = get_cache()
             df = cache.get_data(self.db)
             
-            # Filter by date
-            df_filtered = df[df['TransactionDate'] <= end_date].copy()
+            # Filter for opening balance transactions in the specified year
+            df_filtered = df[
+                (df['ReferenceNumber'] == 'Opening Balance') &
+                (df['TransactionDate'] == f'{year}-01-01') &
+                (df['administration'].str.startswith(administration)) &
+                (df['Reknum'].isin(['2010', '2020', '2021']))
+            ].copy()
             
-            # Filter by administration (LIKE pattern) - lowercase column name
-            df_filtered = df_filtered[df_filtered['administration'].str.startswith(administration)]
+            if df_filtered.empty:
+                return None
             
-            # Filter by BTW accounts
-            df_filtered = df_filtered[df_filtered['Reknum'].isin(['2010', '2020', '2021'])]
+            # Sum all opening balance amounts (should be just one with netting)
+            total = df_filtered['Amount'].sum()
+            
+            return {'amount': total}
+        except Exception as e:
+            print(f"Error getting opening balance VAT: {e}", flush=True)
+            return None
+    
+    def _get_current_year_vat(self, administration, year, end_date):
+        """
+        Get VAT transactions for the current year only (excluding opening balance).
+        
+        Args:
+            administration: Tenant identifier
+            year: Year to get transactions for
+            end_date: End date for the report (e.g., '2026-03-31')
+            
+        Returns:
+            list: List of dicts with Reknum, AccountName, amount
+        """
+        try:
+            cache = get_cache()
+            df = cache.get_data(self.db)
+            
+            # Filter by date range (current year up to end_date, excluding opening balance)
+            df_filtered = df[
+                (df['TransactionDate'] >= f'{year}-01-01') &
+                (df['TransactionDate'] <= end_date) &
+                (df['ReferenceNumber'] != 'Opening Balance') &
+                (df['administration'].str.startswith(administration)) &
+                (df['Reknum'].isin(['2010', '2020', '2021']))
+            ].copy()
             
             # Group by account
             grouped = df_filtered.groupby(['Reknum', 'AccountName'], as_index=False).agg({
@@ -86,7 +170,7 @@ class BTWProcessor:
             
             return results
         except Exception as e:
-            print(f"Error getting balance data: {e}", flush=True)
+            print(f"Error getting current year VAT: {e}", flush=True)
             return []
     
     def _get_quarter_data(self, administration, year, quarter):
@@ -182,7 +266,7 @@ class BTWProcessor:
             <p>Dit overzicht laat de gegevens zien voor de BTW aangifte van <strong>{administration}</strong> 
             Boekjaar <strong>{year}</strong> en kwartaal <strong>{quarter}</strong> en opmaakdatum <strong>{end_date}</strong></p>
             
-            <h3>Eindbalans t/m {end_date}</h3>
+            <h3>Saldo t/m {end_date} (boekjaar {year})</h3>
             <table>
                 <thead>
                     <tr>

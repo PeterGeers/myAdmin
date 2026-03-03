@@ -428,6 +428,48 @@
       "description": "Jaarafsluiting creëert openingsbalans transacties voor het nieuwe jaar, wat de prestaties verbetert en het jaarafsluitingsproces formaliseert.",
       "equityResultHelp": "Registreert de netto winst of verlies voor het jaar. Ook gebruikt als balancerende rekening voor openingsbalans boekingen.",
       "plClosingHelp": "Gebruikt om W&V rekeningen af te sluiten naar eigen vermogen"
+    },
+    "vatNetting": {
+      "title": "BTW Rekeningen Salderen",
+      "description": "Configureer BTW rekeningen om samen te salderen tijdens jaarafsluiting. Dit voorkomt cumulatieve BTW saldi in rapporten.",
+      "loading": "BTW configuratie laden...",
+      "saving": "Opslaan...",
+      "enabled": "Ingeschakeld",
+      "disabled": "Uitgeschakeld",
+      "enableLabel": "BTW rekeningen salderen inschakelen",
+      "enableHelp": "Wanneer ingeschakeld, worden BTW rekeningen gesaldeerd tot één openingsbalans boeking",
+      "saveButton": "BTW Configuratie Opslaan",
+      "info": {
+        "title": "Wat is BTW Salderen?",
+        "description": "BTW salderen combineert meerdere BTW rekeningen (Betaalde BTW, Ontvangen BTW Hoog, Ontvangen BTW Laag) tot één netto saldo. Dit zorgt ervoor dat BTW rapporten elk jaar opnieuw beginnen in plaats van cumulatieve saldi te tonen."
+      },
+      "quickSetup": {
+        "title": "Snelle Instelling (Nederlandse BTW)",
+        "dutchVATConfigured": "Standaard Nederlandse BTW rekeningen geconfigureerd",
+        "primaryAccount": "Primaire rekening",
+        "advancedButton": "Geavanceerde Instelling"
+      },
+      "advanced": {
+        "title": "Geavanceerde Configuratie",
+        "simpleButton": "Eenvoudige Instelling",
+        "selectAccounts": "Selecteer BTW rekeningen om te salderen",
+        "selectAccountsHelp": "Kies alle BTW rekeningen die samen gesaldeerd moeten worden",
+        "primaryAccount": "Primaire rekening voor netto saldo",
+        "primaryAccountHelp": "De rekening die het netto BTW saldo zal ontvangen",
+        "selectPrimary": "Selecteer primaire rekening..."
+      },
+      "errors": {
+        "loadingError": "Fout bij laden BTW configuratie",
+        "saveError": "Fout bij opslaan BTW configuratie",
+        "noAccountsSelected": "Selecteer minimaal één BTW rekening",
+        "noPrimaryAccount": "Selecteer een primaire rekening",
+        "primaryNotInSelected": "Primaire rekening moet één van de geselecteerde BTW rekeningen zijn"
+      },
+      "messages": {
+        "saveSuccess": "BTW salderen geconfigureerd",
+        "saveSuccessDescription": "BTW rekeningen worden gesaldeerd tijdens jaarafsluiting",
+        "disabledSuccess": "BTW salderen uitgeschakeld"
+      }
     }
   },
   "templateManagement": {
