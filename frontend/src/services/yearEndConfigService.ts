@@ -6,7 +6,6 @@
  */
 
 import { authenticatedGet, authenticatedPost, authenticatedDelete } from './apiService';
-import { API_BASE_URL } from '../config/api';
 
 export interface YearEndPurpose {
   account_code: string;
@@ -43,7 +42,7 @@ export interface AvailableAccount {
  * Validate year-end closure configuration
  */
 export const validateConfiguration = async (): Promise<ConfigurationValidation> => {
-  const response = await authenticatedGet(`${API_BASE_URL}/api/tenant-admin/year-end-config/validate`);
+  const response = await authenticatedGet('/api/tenant-admin/year-end-config/validate');
   
   if (!response.ok) {
     const error = await response.json();
@@ -57,7 +56,7 @@ export const validateConfiguration = async (): Promise<ConfigurationValidation> 
  * Get all configured account purposes
  */
 export const getConfiguredPurposes = async (): Promise<ConfiguredPurposesResponse> => {
-  const response = await authenticatedGet(`${API_BASE_URL}/api/tenant-admin/year-end-config/purposes`);
+  const response = await authenticatedGet('/api/tenant-admin/year-end-config/purposes');
   
   if (!response.ok) {
     const error = await response.json();
@@ -71,7 +70,7 @@ export const getConfiguredPurposes = async (): Promise<ConfiguredPurposesRespons
  * Set purpose for an account
  */
 export const setAccountPurpose = async (accountCode: string, purpose: string | null): Promise<void> => {
-  const response = await authenticatedPost(`${API_BASE_URL}/api/tenant-admin/year-end-config/accounts`, {
+  const response = await authenticatedPost('/api/tenant-admin/year-end-config/accounts', {
     account_code: accountCode,
     purpose: purpose
   });
@@ -87,8 +86,8 @@ export const setAccountPurpose = async (accountCode: string, purpose: string | n
  */
 export const getAvailableAccounts = async (vwFilter?: 'Y' | 'N'): Promise<AvailableAccount[]> => {
   const url = vwFilter 
-    ? `${API_BASE_URL}/api/tenant-admin/year-end-config/available-accounts?vw=${vwFilter}`
-    : `${API_BASE_URL}/api/tenant-admin/year-end-config/available-accounts`;
+    ? `/api/tenant-admin/year-end-config/available-accounts?vw=${vwFilter}`
+    : '/api/tenant-admin/year-end-config/available-accounts';
   
   const response = await authenticatedGet(url);
   
@@ -125,7 +124,7 @@ export interface VATNettingRequest {
  * Get VAT netting configuration
  */
 export const getVATNettingConfig = async (): Promise<VATNettingConfig> => {
-  const response = await authenticatedGet(`${API_BASE_URL}/api/year-end-config/vat-netting`);
+  const response = await authenticatedGet('/api/year-end-config/vat-netting');
   
   if (!response.ok) {
     const error = await response.json();
@@ -140,7 +139,7 @@ export const getVATNettingConfig = async (): Promise<VATNettingConfig> => {
  */
 export const configureVATNetting = async (config: VATNettingRequest): Promise<void> => {
   const response = await authenticatedPost(
-    `${API_BASE_URL}/api/year-end-config/vat-netting`,
+    '/api/year-end-config/vat-netting',
     config
   );
   
@@ -154,7 +153,7 @@ export const configureVATNetting = async (config: VATNettingRequest): Promise<vo
  * Remove VAT netting configuration
  */
 export const removeVATNetting = async (): Promise<void> => {
-  const response = await authenticatedDelete(`${API_BASE_URL}/api/year-end-config/vat-netting`);
+  const response = await authenticatedDelete('/api/year-end-config/vat-netting');
   
   if (!response.ok) {
     const error = await response.json();
@@ -166,7 +165,7 @@ export const removeVATNetting = async (): Promise<void> => {
  * Get balance sheet accounts (for VAT netting selection)
  */
 export const getBalanceSheetAccounts = async (): Promise<AvailableAccount[]> => {
-  const response = await authenticatedGet(`${API_BASE_URL}/api/year-end-config/balance-sheet-accounts`);
+  const response = await authenticatedGet('/api/year-end-config/balance-sheet-accounts');
   
   if (!response.ok) {
     const error = await response.json();

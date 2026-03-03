@@ -6,7 +6,6 @@
  */
 
 import { authenticatedGet, authenticatedPost } from './apiService';
-import { API_BASE_URL } from '../config/api';
 
 /**
  * Year object
@@ -83,7 +82,7 @@ export interface YearStatus {
  * Get list of years available to close
  */
 export const getAvailableYears = async (): Promise<Year[]> => {
-  const response = await authenticatedGet(`${API_BASE_URL}/api/year-end/available-years`);
+  const response = await authenticatedGet('/api/year-end/available-years');
   
   if (!response.ok) {
     const error = await response.json();
@@ -98,7 +97,7 @@ export const getAvailableYears = async (): Promise<Year[]> => {
  */
 export const validateYear = async (year: number): Promise<YearValidation> => {
   const response = await authenticatedPost(
-    `${API_BASE_URL}/api/year-end/validate`,
+    '/api/year-end/validate',
     { year }
   );
   
@@ -115,7 +114,7 @@ export const validateYear = async (year: number): Promise<YearValidation> => {
  */
 export const closeYear = async (year: number, notes?: string): Promise<YearClosureResult> => {
   const response = await authenticatedPost(
-    `${API_BASE_URL}/api/year-end/close`,
+    '/api/year-end/close',
     { year, notes: notes || '' }
   );
   
@@ -131,7 +130,7 @@ export const closeYear = async (year: number, notes?: string): Promise<YearClosu
  * Get list of closed years
  */
 export const getClosedYears = async (): Promise<ClosedYear[]> => {
-  const response = await authenticatedGet(`${API_BASE_URL}/api/year-end/closed-years`);
+  const response = await authenticatedGet('/api/year-end/closed-years');
   
   if (!response.ok) {
     const error = await response.json();
@@ -145,7 +144,7 @@ export const getClosedYears = async (): Promise<ClosedYear[]> => {
  * Get closure status for a specific year
  */
 export const getYearStatus = async (year: number): Promise<YearStatus> => {
-  const response = await authenticatedGet(`${API_BASE_URL}/api/year-end/status/${year}`);
+  const response = await authenticatedGet(`/api/year-end/status/${year}`);
   
   if (!response.ok) {
     const error = await response.json();
@@ -160,7 +159,7 @@ export const getYearStatus = async (year: number): Promise<YearStatus> => {
  */
 export const reopenYear = async (year: number): Promise<{ success: boolean; year: number; message: string }> => {
   const response = await authenticatedPost(
-    `${API_BASE_URL}/api/year-end/reopen`,
+    '/api/year-end/reopen',
     { year }
   );
   
