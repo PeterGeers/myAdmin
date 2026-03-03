@@ -34,6 +34,7 @@ interface MigrationResult {
 
 interface MigrationResponse {
   success: boolean;
+  dry_run?: boolean;
   results?: MigrationResult[];
   summary?: {
     total_processed: number;

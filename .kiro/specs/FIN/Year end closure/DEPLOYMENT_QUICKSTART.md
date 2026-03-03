@@ -242,6 +242,13 @@ Wait for "Deployment successful" message.
 4. Click "Add"
 5. Backend will restart automatically (takes ~30 seconds)
 
+ALLOW_MIGRATION
+*******
+
+
+
+
+
 **Verify**: Check Railway logs for "Migration endpoint enabled" message
 
 ### 8. Run Historical Opening Balance Migration (30-60 min)
