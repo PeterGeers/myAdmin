@@ -438,10 +438,12 @@ function AppContent() {
                     </Button>
                   )}
 
-                  {/* Migration Tool - No authentication required (protected by secret) */}
-                  <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('migration')}>
-                    🔄 Migration Tool
-                  </Button>
+                  {/* Migration Tool - SysAdmin only (protected by secret + environment variable) */}
+                  {(user?.roles?.some(role => ['SysAdmin'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('migration')}>
+                      🔄 Migration Tool
+                    </Button>
+                  )}
                   
                   {/* Loading state */}
                   {modulesLoading && (
