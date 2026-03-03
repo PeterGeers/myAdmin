@@ -9,8 +9,6 @@ Remove this file after migration is complete!
 """
 
 from flask import Blueprint, jsonify, request
-from auth.cognito_utils import cognito_required
-from auth.tenant_context import tenant_context
 from services.year_end_service import YearEndClosureService
 from database import DatabaseManager
 import os
