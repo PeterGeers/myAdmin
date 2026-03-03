@@ -20,8 +20,9 @@ import { TenantProvider } from './context/TenantContext';
 import { useTenantModules } from './hooks/useTenantModules';
 import { TenantAdminDashboard } from './components/TenantAdmin/TenantAdminDashboard';
 import { SysAdminDashboard } from './components/SysAdmin/SysAdminDashboard';
+import MigrationTool from './pages/MigrationTool';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -334,6 +335,24 @@ function AppContent() {
           </ProtectedRoute>
         );
 
+      case 'migration':
+        return (
+          <Box minH="100vh" bg="gray.900">
+            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+              <HStack justify="space-between">
+                <HStack>
+                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                  <Heading color="orange.400" size="lg">🔄 Migration Tool</Heading>
+                </HStack>
+                <HStack spacing={3}>
+                  <UserMenu onLogout={logout} mode={status.mode} />
+                </HStack>
+              </HStack>
+            </Box>
+            <MigrationTool />
+          </Box>
+        );
+
       default:
         return (
           <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
@@ -418,6 +437,11 @@ function AppContent() {
                       🏢 {t('common:navigation.modules.tenantAdministration')}
                     </Button>
                   )}
+
+                  {/* Migration Tool - No authentication required (protected by secret) */}
+                  <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('migration')}>
+                    🔄 Migration Tool
+                  </Button>
                   
                   {/* Loading state */}
                   {modulesLoading && (
