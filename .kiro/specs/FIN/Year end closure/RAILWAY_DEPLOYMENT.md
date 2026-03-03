@@ -14,86 +14,186 @@
 - [x] All code committed to `feature/year-end-closure` branch
 - [x] All tests passing (50 unit tests)
 - [x] Documentation complete
-- [ ] Database backup created
-- [ ] Stakeholder approval obtained
+- [x] Database backup created
+- [x] Stakeholder approval obtained
 
 ## Step 1: Backup Production Database (15 min)
 
-### Option A: Using Railway CLI (Recommended)
+### Option A: Using Railway Dashboard (Recommended - Most Reliable)
+
+1. **Get MySQL Connection Details**:
+   - Go to Railway Dashboard: https://railway.app/dashboard
+   - Select your project
+   - Click on MySQL service
+   - Go to "Connect" tab
+   - Copy the connection details:
+     - `MYSQL_HOST` (e.g., `containers-us-west-xxx.railway.app`)
+     - `MYSQL_PORT` (e.g., `6379`)
+     - `MYSQL_USER` (usually `root`)
+     - `MYSQL_PASSWORD` (long string)
+     - `MYSQL_DATABASE` (e.g., `myAdmin`)
+
+2. **Create Backup Using mysqldump**:
 
 ```bash
-# Install Railway CLI if not installed
-npm i -g @railway/cli
-
-# Login to Railway
-railway login
-
-# Link to your project (if not already linked)
-railway link
-
-# Create backup
-railway run mysqldump -u root -p[PASSWORD] myAdmin > myAdmin_backup_$(date +%Y%m%d).sql
+# Replace with your actual Railway MySQL credentials
+mysqldump -h containers-us-west-xxx.railway.app \
+  -P 6379 \
+  -u root \
+  -p'YOUR_PASSWORD_HERE' \
+  myAdmin > myAdmin_backup_$(date +%Y%m%d).sql
 ```
 
-### Option B: Using MySQL Workbench/DBeaver
+**Note**: Replace the host, port, and password with your actual Railway values.
 
-1. Get connection details from Railway Dashboard:
-   - Go to MySQL service → Connect tab
-   - Copy: Host, Port, User, Password, Database
-2. Connect using MySQL Workbench or DBeaver
-3. Export database: Server → Data Export
-4. Save as `myAdmin_backup_YYYYMMDD.sql`
+### Option B: Using MySQL Workbench (GUI - Easiest)
 
-### Option C: Using Railway Dashboard
+1. Download MySQL Workbench if not installed: https://dev.mysql.com/downloads/workbench/
+2. Create new connection:
+   - Connection Name: `Railway Production`
+   - Hostname: (from Railway dashboard)
+   - Port: (from Railway dashboard)
+   - Username: `root`
+   - Password: (click "Store in Keychain" and enter password)
+3. Test connection
+4. Once connected: Server → Data Export
+5. Select `myAdmin` database
+6. Choose "Export to Self-Contained File"
+7. Save as `myAdmin_backup_YYYYMMDD.sql`
 
-1. Go to Railway project → MySQL service
-2. Click "Data" tab
-3. Use "Export" feature (if available)
+### Option C: Using DBeaver (Free Alternative)
+
+1. Download DBeaver: https://dbeaver.io/download/
+2. Create new MySQL connection with Railway credentials
+3. Right-click database → Tools → Dump Database
+4. Save backup file
+
+### Verify Backup
+
+```bash
+# Check backup file exists and has content
+ls -lh myAdmin_backup_*.sql
+
+# Should show file size > 1MB
+```
 
 ## Step 2: Verify Database Schema (5 min)
 
 **The schema changes are already applied!** ✅
 
-Verify (optional):
-
-```bash
-railway run mysql -u root -p[PASSWORD] myAdmin -e "SHOW TABLES LIKE 'year_closure_status';"
-railway run mysql -u root -p[PASSWORD] myAdmin -e "DESCRIBE rekeningschema;" | grep parameters
-```
-
-Expected output:
+The following were created during development with TEST_MODE=true:
 
 - `year_closure_status` table exists
 - `rekeningschema` has `parameters` JSON column
+- All indexes created
+
+### Verify Schema Using MySQL Workbench or HeidiSQL
+
+1. **Connect to Railway MySQL** (you already have this working)
+2. **Run these queries**:
+
+```sql
+-- Check year_closure_status table exists
+SHOW TABLES LIKE 'year_closure_status';
+
+-- Check rekeningschema has parameters column
+DESCRIBE rekeningschema;
+
+-- Check if any year closures exist
+SELECT COUNT(*) as closure_count FROM year_closure_status;
+```
+
+Expected:
+
+- `year_closure_status` table found ✅
+- `parameters` column exists in `rekeningschema` (type: json) ✅
+- Closure count may be 0 (if no years closed yet) or > 0 (if test closures exist)
+
+**No migration needed** - schema is already in production database!
 
 ## Step 3: Configure VAT Netting (15 min per tenant)
 
-### For GoodwinSolutions
+### Option A: Using Direct MySQL Connection (Recommended)
+
+Since Railway CLI isn't working, connect directly to MySQL and run the configuration:
+
+1. **Get Railway MySQL credentials** from Railway Dashboard → MySQL service → Connect tab
+
+2. **Connect to MySQL**:
 
 ```bash
-railway run python backend/scripts/database/configure_vat_netting.py --administration GoodwinSolutions
+# Using mysql command line (replace with your Railway credentials)
+mysql -h containers-us-west-xxx.railway.app \
+  -P 6379 \
+  -u root \
+  -p'YOUR_PASSWORD' \
+  myAdmin
 ```
 
-### For PeterPrive
+3. **Run VAT Configuration SQL**:
 
-```bash
-railway run python backend/scripts/database/configure_vat_netting.py --administration PeterPrive
-```
+```sql
+-- For GoodwinSolutions
+UPDATE rekeningschema
+SET parameters = JSON_SET(
+    COALESCE(parameters, '{}'),
+    '$.vat_netting', true,
+    '$.vat_primary', '2010'
+)
+WHERE Account IN ('2010', '2020', '2021')
+AND administration = 'GoodwinSolutions';
 
-### Verify Configuration
+-- For PeterPrive
+UPDATE rekeningschema
+SET parameters = JSON_SET(
+    COALESCE(parameters, '{}'),
+    '$.vat_netting', true,
+    '$.vat_primary', '2010'
+)
+WHERE Account IN ('2010', '2020', '2021')
+AND administration = 'PeterPrive';
 
-```bash
-railway run mysql -u root -p[PASSWORD] myAdmin -e "
+-- Verify configuration
 SELECT Account, AccountName,
        JSON_EXTRACT(parameters, '$.vat_netting') as vat_netting,
        JSON_EXTRACT(parameters, '$.vat_primary') as vat_primary
 FROM rekeningschema
 WHERE Account IN ('2010', '2020', '2021')
-AND administration = 'GoodwinSolutions';
-"
+AND administration IN ('GoodwinSolutions', 'PeterPrive');
 ```
 
-Expected: All three accounts have `vat_netting=true` and `vat_primary='2010'`
+Expected output: All 6 rows (3 accounts × 2 tenants) should show `vat_netting=1` and `vat_primary='2010'`
+
+### Option B: Using MySQL Workbench/DBeaver
+
+1. Connect to Railway MySQL (same connection as backup)
+2. Open SQL editor
+3. Paste and run the SQL commands above
+4. Verify results in the output
+
+### Option C: Using Railway Dashboard SQL Editor (if available)
+
+1. Go to Railway Dashboard → MySQL service
+2. Look for "Query" or "SQL" tab
+3. Run the SQL commands above
+
+### Verify Configuration
+
+After running the configuration, verify it worked:
+
+```sql
+SELECT
+    administration,
+    Account,
+    AccountName,
+    JSON_EXTRACT(parameters, '$.vat_netting') as vat_netting,
+    JSON_EXTRACT(parameters, '$.vat_primary') as vat_primary
+FROM rekeningschema
+WHERE Account IN ('2010', '2020', '2021')
+ORDER BY administration, Account;
+```
+
+Expected: 6 rows total, all with `vat_netting=1` and `vat_primary='2010'`
 
 ## Step 4: Deploy Backend to Railway (10 min)
 

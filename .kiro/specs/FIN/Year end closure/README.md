@@ -13,8 +13,9 @@ This folder contains all documentation for the Year-End Closure feature:
 
 ### For System Administrators
 
+- **[DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md)** - Quick deployment guide using MySQL Workbench/HeidiSQL (START HERE!)
+- **[RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)** - Detailed Railway + GitHub Pages deployment guide
 - **[ADMIN_GUIDE.md](ADMIN_GUIDE.md)** - System configuration, bulk operations, database queries, and troubleshooting
-- **[RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)** - Railway + GitHub Pages deployment guide (step-by-step)
 
 ### For Developers
 
@@ -56,17 +57,18 @@ Optional: VAT netting configuration for accounts 2010, 2020, 2021
 
 ## Documentation Structure
 
-The Year-End Closure documentation has been streamlined to 9 essential files:
+The Year-End Closure documentation has been streamlined to 10 essential files:
 
 1. **README.md** (this file) - Overview and navigation guide
-2. **USER_GUIDE.md** - End user documentation with step-by-step instructions
-3. **ADMIN_GUIDE.md** - Administrator guide for configuration and troubleshooting
-4. **RAILWAY_DEPLOYMENT.md** - Railway + GitHub Pages deployment guide
-5. **DEPLOYMENT_READY.md** - Production readiness checklist
-6. **requirements.md** - Business requirements and acceptance criteria
-7. **design-closure.md** - Technical design, architecture, and API specifications
-8. **TASKS-closure.md** - Implementation tasks and completion checklist
-9. **Performance Issues.md** - Cache optimization implementation and results
+2. **DEPLOYMENT_QUICKSTART.md** - Quick deployment using MySQL Workbench/HeidiSQL (START HERE!)
+3. **USER_GUIDE.md** - End user documentation with step-by-step instructions
+4. **ADMIN_GUIDE.md** - Administrator guide for configuration and troubleshooting
+5. **RAILWAY_DEPLOYMENT.md** - Detailed Railway + GitHub Pages deployment guide
+6. **DEPLOYMENT_READY.md** - Production readiness checklist
+7. **requirements.md** - Business requirements and acceptance criteria
+8. **design-closure.md** - Technical design, architecture, and API specifications
+9. **TASKS-closure.md** - Implementation tasks and completion checklist
+10. **Performance Issues.md** - Cache optimization implementation and results
 
 All phase summaries, bug fix documents, and historical analysis files have been removed. Essential information has been consolidated into the core documents above.
 
@@ -74,17 +76,19 @@ All phase summaries, bug fix documents, and historical analysis files have been 
 
 **Ready for Production**: ✅ Yes
 
-See **[RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)** for detailed deployment steps specific to Railway + GitHub Pages environment.
+**Quick Start**: See **[DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md)** for simplified deployment using MySQL Workbench/HeidiSQL (recommended).
+
+**Detailed Guide**: See **[RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)** for comprehensive Railway + GitHub Pages deployment steps.
 
 Quick summary:
 
-1. Backup database (15 min)
-2. Configure VAT netting (15 min per tenant)
+1. Backup database using MySQL Workbench/HeidiSQL (10 min)
+2. Configure VAT netting via SQL queries (15 min)
 3. Merge to main → Railway auto-deploys (10 min)
 4. Deploy frontend to GitHub Pages (5 min)
 5. Test and verify (1-2 hours)
 
-Total time: 2-3 hours
+Total time: 2-3 hours with zero downtime
 
 ## Recent Changes (March 3, 2026)
 
