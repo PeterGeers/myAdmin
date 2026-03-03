@@ -10,7 +10,7 @@ Remove this file after migration is complete!
 
 from flask import Blueprint, jsonify, request
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import tenant_required
+from auth.tenant_context import tenant_context
 from services.year_end_service import YearEndClosureService
 from database import DatabaseManager
 import os
@@ -88,184 +88,6 @@ def get_first_year_with_transactions(db, administration):
     conn.close()
     
     return result['first_year'] if result else None
-
-
-@migration_bp.route('/api/migration/opening-balances/preview', methods=['GET'])
-@cognito_required(required_permissions=['admin'])
-@tenant_required()
-def preview_opening_balance_migration(user_email, user_roles, tenant, user_tenants):
-    """
-    Preview which years need opening balance migration.
-    
-    Query params:
-        tenant: Optional - filter by specific tenant
-    """
-    try:
-        db = DatabaseManager(test_mode=flag)
-        
-        # Get tenant filter from query params
-        filter_tenant = request.args.get('tenant')
-        
-        # Validate user has access to requested tenant
-        if filter_tenant and filter_tenant not in user_tenants:
-            return jsonify({
-                'success': False,
-                'error': 'Access denied to specified tenant'
-            }), 403
-        
-        years_to_migrate = get_years_needing_migration(db, filter_tenant)
-        
-        # Group by administration
-        by_admin = {}
-        for item in years_to_migrate:
-            admin = item['administration']
-            year = item['year']
-            
-            # Only include tenants user has access to
-            if admin not in user_tenants:
-                continue
-            
-            if admin not in by_admin:
-                by_admin[admin] = []
-            by_admin[admin].append(year)
-        
-        summary = []
-        for admin, years in by_admin.items():
-            first_year = get_first_year_with_transactions(db, admin)
-            # Filter out first year (can't create opening balance for first year)
-            years_to_process = [y for y in years if y != first_year]
-            
-            summary.append({
-                'administration': admin,
-                'years_needing_migration': years_to_process,
-                'count': len(years_to_process),
-                'first_year': first_year,
-                'year_range': f"{min(years_to_process)}-{max(years_to_process)}" if years_to_process else "None"
-            })
-        
-        return jsonify({
-            'success': True,
-            'summary': summary,
-            'total_years': sum(s['count'] for s in summary)
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@migration_bp.route('/api/migration/opening-balances/execute', methods=['POST'])
-@cognito_required(required_permissions=['admin'])
-@tenant_required()
-def execute_opening_balance_migration(user_email, user_roles, tenant, user_tenants):
-    """
-    Execute opening balance migration for historical years.
-    
-    Body:
-        {
-            "tenant": "optional - specific tenant to migrate",
-            "confirm": true - must be true to execute
-        }
-    """
-    try:
-        data = request.get_json()
-        
-        if not data.get('confirm'):
-            return jsonify({
-                'success': False,
-                'error': 'Must set confirm=true to execute migration'
-            }), 400
-        
-        filter_tenant = data.get('tenant')
-        
-        # Validate user has access to requested tenant
-        if filter_tenant and filter_tenant not in user_tenants:
-            return jsonify({
-                'success': False,
-                'error': 'Access denied to specified tenant'
-            }), 403
-        
-        db = DatabaseManager(test_mode=flag)
-        service = YearEndClosureService()
-        
-        years_to_migrate = get_years_needing_migration(db, filter_tenant)
-        
-        # Filter by user access
-        years_to_migrate = [
-            item for item in years_to_migrate 
-            if item['administration'] in user_tenants
-        ]
-        
-        results = []
-        success_count = 0
-        error_count = 0
-        
-        for item in years_to_migrate:
-            admin = item['administration']
-            year = item['year']
-            
-            # Skip first year
-            first_year = get_first_year_with_transactions(db, admin)
-            if year == first_year:
-                results.append({
-                    'administration': admin,
-                    'year': year,
-                    'status': 'skipped',
-                    'reason': 'First year with transactions'
-                })
-                continue
-            
-            try:
-                # Create opening balance with database cursor
-                conn = db.get_connection()
-                cursor = conn.cursor(dictionary=True)
-                
-                result = service._create_opening_balances(admin, year, cursor)
-                
-                conn.commit()
-                cursor.close()
-                conn.close()
-                
-                if result['success']:
-                    results.append({
-                        'administration': admin,
-                        'year': year,
-                        'status': 'success',
-                        'transaction_number': result['transaction_number'],
-                        'account_count': result['account_count']
-                    })
-                    success_count += 1
-                else:
-                    results.append({
-                        'administration': admin,
-                        'year': year,
-                        'status': 'success',
-                        'reason': 'No opening balance needed (all balances zero)'
-                    })
-                    success_count += 1
-                    
-            except Exception as e:
-                results.append({
-                    'administration': admin,
-                    'year': year,
-                    'status': 'error',
-                    'error': str(e)
-                })
-                error_count += 1
-        
-        return jsonify({
-            'success': True,
-            'results': results,
-            'summary': {
-                'total_processed': len(results),
-                'successful': success_count,
-                'errors': error_count,
-                'skipped': len([r for r in results if r['status'] == 'skipped'])
-            }
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 
 
 @migration_bp.route('/api/migration/opening-balances/migrate', methods=['POST'])
@@ -369,19 +191,34 @@ def migrate_opening_balances_unauthenticated():
                 conn = db.get_connection()
                 cursor = conn.cursor(dictionary=True)
                 
-                result = service._create_opening_balances(admin, year, cursor)
+                # _create_opening_balances returns transaction_number (string) or None
+                transaction_number = service._create_opening_balances(admin, year, cursor)
                 
                 conn.commit()
                 cursor.close()
                 conn.close()
                 
-                if result['success']:
+                if transaction_number:
+                    # Count accounts in the opening balance transaction
+                    conn2 = db.get_connection()
+                    cursor2 = conn2.cursor(dictionary=True)
+                    cursor2.execute("""
+                        SELECT COUNT(*) as count
+                        FROM mutaties
+                        WHERE TransactionNumber = %s
+                        AND administration = %s
+                    """, (transaction_number, admin))
+                    count_result = cursor2.fetchone()
+                    account_count = count_result['count'] if count_result else 0
+                    cursor2.close()
+                    conn2.close()
+                    
                     results.append({
                         'administration': admin,
                         'year': year,
                         'status': 'success',
-                        'transaction_number': result['transaction_number'],
-                        'account_count': result['account_count']
+                        'transaction_number': transaction_number,
+                        'account_count': account_count
                     })
                     success_count += 1
                 else:
@@ -394,11 +231,13 @@ def migrate_opening_balances_unauthenticated():
                     success_count += 1
                     
             except Exception as e:
+                import traceback
                 results.append({
                     'administration': admin,
                     'year': year,
                     'status': 'error',
-                    'error': str(e)
+                    'error': str(e),
+                    'traceback': traceback.format_exc()
                 })
                 error_count += 1
         
