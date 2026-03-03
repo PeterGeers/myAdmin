@@ -215,8 +215,15 @@ def execute_opening_balance_migration(user_email, user_roles, tenant, user_tenan
                 continue
             
             try:
-                # Create opening balance
-                result = service._create_opening_balances(admin, year)
+                # Create opening balance with database cursor
+                conn = db.get_connection()
+                cursor = conn.cursor(dictionary=True)
+                
+                result = service._create_opening_balances(admin, year, cursor)
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
                 
                 if result['success']:
                     results.append({
@@ -358,8 +365,15 @@ def migrate_opening_balances_unauthenticated():
                 continue
             
             try:
-                # Create opening balance
-                result = service._create_opening_balances(admin, year)
+                # Create opening balance with database cursor
+                conn = db.get_connection()
+                cursor = conn.cursor(dictionary=True)
+                
+                result = service._create_opening_balances(admin, year, cursor)
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
                 
                 if result['success']:
                     results.append({
