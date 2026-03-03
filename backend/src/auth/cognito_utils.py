@@ -38,7 +38,7 @@ ROLE_PERMISSIONS = {
     # Finance Module - Financial data access (invoices, transactions, banking, reports)
     'Finance_CRUD': [
         'finance_create', 'finance_read', 'finance_update', 'finance_delete',
-        'finance_list', 'finance_export',
+        'finance_list', 'finance_export', 'finance_write',
         'invoices_create', 'invoices_read', 'invoices_update', 'invoices_delete',
         'invoices_list', 'invoices_export',
         'transactions_create', 'transactions_read', 'transactions_update', 'transactions_delete',

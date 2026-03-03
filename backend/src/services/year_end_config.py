@@ -7,7 +7,8 @@ Uses parameters JSON column in rekeningschema table.
 Account Purposes:
 - equity_result: Where net P&L result is recorded (e.g., 3080)
 - pl_closing: Used in year-end closure transaction (e.g., 8099)
-- interim_opening_balance: Balancing account for opening balances (e.g., 2001)
+
+Note: Opening balances use equity_result account for balancing (no separate interim account needed).
 """
 
 from database import DatabaseManager
@@ -27,11 +28,6 @@ class YearEndConfigService:
             'description': 'P&L closing account (used in closure transaction)',
             'expected_vw': 'Y',  # P&L account
             'example': '8099'
-        },
-        'interim_opening_balance': {
-            'description': 'Interim account (balancing account for opening balances)',
-            'expected_vw': 'N',  # Balance sheet account
-            'example': '2001'
         }
     }
     
@@ -44,7 +40,7 @@ class YearEndConfigService:
         
         Args:
             administration: Tenant identifier
-            purpose: Account purpose (equity_result, pl_closing, interim_opening_balance)
+            purpose: Account purpose (equity_result, pl_closing)
             
         Returns:
             str: Account code or None if not found

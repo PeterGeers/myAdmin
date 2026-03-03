@@ -33,7 +33,7 @@ Create opening balance transactions at year-end that capture:
 **Benefits**:
 
 - Reports only need to query current year data
-- Formal audit trail of year-end closure
+- Formal audit trail of year-end closBut your codecure
 - Can be done retrospectively (typically months after year-end when all transactions are finalized)
 - Formal audit trail of year-end closure
 - Consistent with accounting best practices

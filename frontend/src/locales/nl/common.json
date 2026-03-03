@@ -116,7 +116,9 @@
     "zipCode": "Postcode",
     "optional": "Optioneel",
     "requiredField": "Verplicht veld",
-    "instructions": "Instructies"
+    "instructions": "Instructies",
+    "parent": "Hoofdcategorie",
+    "category": "Categorie"
   },
   "placeholders": {
     "search": "Zoeken...",

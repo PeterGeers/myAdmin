@@ -152,6 +152,10 @@ class MutatiesCache:
         """
         Query Aangifte IB data from cache
         
+        Uses NEW MODEL (year-end closure):
+        - Balance sheet accounts (VW='N'): Current year only (includes OpeningBalance)
+        - P&L accounts (VW='Y'): Current year only
+        
         Args:
             year: Year to filter (string or int)
             administration: Administration to filter (default: 'all')
@@ -164,10 +168,10 @@ class MutatiesCache:
         
         df = self.data.copy()
         
-        # Apply VW logic: N (Balance) = all up to year end, Y (P&L) = only that year
-        year_end = pd.to_datetime(f"{year}-12-31")
+        # NEW MODEL: Use current year only for ALL accounts
+        # Balance sheet accounts include OpeningBalance which brings forward history
         mask = (
-            ((df['VW'] == 'N') & (df['TransactionDate'] <= year_end)) |
+            ((df['VW'] == 'N') & (df['jaar'] == int(year))) |
             ((df['VW'] == 'Y') & (df['jaar'] == int(year)))
         )
         df = df[mask]
@@ -190,6 +194,10 @@ class MutatiesCache:
         """
         Query detailed accounts for specific Parent and Aangifte
         
+        Uses NEW MODEL (year-end closure):
+        - Balance sheet accounts (VW='N'): Current year only (includes OpeningBalance)
+        - P&L accounts (VW='Y'): Current year only
+        
         Args:
             year: Year to filter
             administration: Administration to filter
@@ -209,10 +217,9 @@ class MutatiesCache:
         if user_tenants is not None:
             df = df[df['administration'].isin(user_tenants)]
         
-        # Apply VW logic
-        year_end = pd.to_datetime(f"{year}-12-31")
+        # NEW MODEL: Use current year only for ALL accounts
         mask = (
-            ((df['VW'] == 'N') & (df['TransactionDate'] <= year_end)) |
+            ((df['VW'] == 'N') & (df['jaar'] == int(year))) |
             ((df['VW'] == 'Y') & (df['jaar'] == int(year)))
         )
         df = df[mask]

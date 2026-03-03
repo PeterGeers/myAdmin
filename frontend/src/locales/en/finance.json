@@ -3,6 +3,23 @@
     "title": "Year-End Closure",
     "subtitle": "Close fiscal years and manage year-end processes",
     "closeYear": "Close Fiscal Year",
+    "closedDate": "Closed on",
+    "closedBy": "Closed by",
+    "notes": "Notes",
+    "netResult": "Net Result",
+    "balanceSheetAccounts": "Balance Sheet Accounts",
+    "previousYear": "Previous year",
+    "status": {
+      "title": "Status",
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "actions": {
+      "closeYear": "Close Year {{year}}",
+      "reopenYear": "Reopen Year {{year}}",
+      "confirmClose": "Confirm Closure",
+      "confirmReopen": "Confirm Reopen"
+    },
     "noYears": {
       "title": "No Years Available",
       "description": "There are no years available to close at this time."
@@ -22,7 +39,8 @@
       "closedBy": "Closed By",
       "notes": "Notes",
       "status": "Status",
-      "closed": "Closed"
+      "closed": "Closed",
+      "actions": "Actions"
     },
     "wizard": {
       "title": "Close Fiscal Year",
@@ -34,12 +52,14 @@
       "sequentialDescription": "Years must be closed in order, starting from the oldest year with transactions.",
       "cannotClose": "Cannot Close Year",
       "warnings": "Warnings",
-      "readyToClose": "Year {{year}} is Ready to Close",
+      "readyToClose": "Ready to Close",
+      "confirmTitle": "Close Year {{year}}?",
       "reviewBeforeClosing": "Please review the information below before proceeding.",
       "summary": "Summary",
       "netPLResult": "Net P&L Result",
       "balanceSheetAccounts": "Balance Sheet Accounts",
       "notes": "Notes",
+      "notesLabel": "Notes",
       "notesPlaceholder": "Optional notes about this year-end closure...",
       "closeYearButton": "Close Year {{year}}",
       "validationFailed": "Validation Failed",
@@ -48,6 +68,17 @@
     },
     "errors": {
       "loadFailed": "Failed to load year-end data"
+    },
+    "reopen": {
+      "button": "Reopen Year",
+      "confirmTitle": "Reopen Year {{year}}?",
+      "confirmMessage": "Are you sure you want to reopen year {{year}}? This will delete the year-end closure and opening balance transactions. This action cannot be undone.",
+      "warning": "This will delete the year-end closure and opening balance transactions.",
+      "confirm": "Reopen Year",
+      "success": "Year Reopened",
+      "successMessage": "Year {{year}} has been reopened successfully",
+      "failed": "Failed to Reopen Year",
+      "blockedByNextYear": "Cannot reopen year {{year}} because year {{nextYear}} is still closed. Please reopen year {{nextYear}} first."
     }
   }
 }

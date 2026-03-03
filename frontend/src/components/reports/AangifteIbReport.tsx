@@ -24,6 +24,7 @@ import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 import { useTenant } from '../../context/TenantContext';
 import { FilterPanel } from '../filters/FilterPanel';
+import YearEndClosureSection from '../YearEndClosureSection';
 
 interface AangifteIbRecord {
   Parent: string;
@@ -455,7 +456,7 @@ const AangifteIbReport: React.FC = () => {
               size="sm"
               isDisabled={aangifteIbData.length === 0 || !currentTenant || tenantSwitching}
             >
-              {t('export.exportToExcel')}
+              {t('actions.generateReport')}
             </Button>
             <Button 
               colorScheme="green" 
@@ -464,7 +465,7 @@ const AangifteIbReport: React.FC = () => {
               size="sm"
               isDisabled={!currentTenant || !selectedYear || tenantSwitching}
             >
-              {t('actions.generateReport')}
+              {t('export.exportToExcel')}
             </Button>
           </HStack>
           
@@ -526,6 +527,15 @@ const AangifteIbReport: React.FC = () => {
           </TableContainer>
         </CardBody>
       </Card>
+
+      {/* Year-End Closure Section */}
+      {selectedYear && currentTenant && !tenantSwitching && (
+        <YearEndClosureSection
+          year={parseInt(selectedYear)}
+          onYearClosed={fetchAangifteIbData}
+          onYearReopened={fetchAangifteIbData}
+        />
+      )}
     </VStack>
   );
 };

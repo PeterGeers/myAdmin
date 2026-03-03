@@ -409,12 +409,6 @@
         "description": "Tijdelijke rekening gebruikt in jaarafsluiting transactie",
         "vwBadge": "W&V Rekening (VW=Y)",
         "example": "Voorbeeld: 8099 - Afsluitrekening"
-      },
-      "interimOpeningBalance": {
-        "label": "Tussenrekening Openingsbalans",
-        "description": "Balancerende rekening voor openingsbalans transacties",
-        "vwBadge": "Balans (VW=N)",
-        "example": "Voorbeeld: 2001 - Tussenrekening"
       }
     },
     "form": {
@@ -432,9 +426,8 @@
     "help": {
       "title": "Over Jaarafsluiting",
       "description": "Jaarafsluiting creëert openingsbalans transacties voor het nieuwe jaar, wat de prestaties verbetert en het jaarafsluitingsproces formaliseert.",
-      "equityResultHelp": "Registreert de netto winst of verlies voor het jaar",
-      "plClosingHelp": "Gebruikt om W&V rekeningen af te sluiten naar eigen vermogen",
-      "interimOpeningBalanceHelp": "Balancerende rekening voor openingsbalans boekingen"
+      "equityResultHelp": "Registreert de netto winst of verlies voor het jaar. Ook gebruikt als balancerende rekening voor openingsbalans boekingen.",
+      "plClosingHelp": "Gebruikt om W&V rekeningen af te sluiten naar eigen vermogen"
     }
   },
   "templateManagement": {

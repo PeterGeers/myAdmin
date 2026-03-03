@@ -183,8 +183,7 @@ const YearEndSettings: React.FC<YearEndSettingsProps> = ({ tenant }) => {
   const getPurposeDisplayName = (purpose: string): string => {
     const names: Record<string, string> = {
       'equity_result': t('yearEndSettings.purposes.equityResult.label'),
-      'pl_closing': t('yearEndSettings.purposes.plClosing.label'),
-      'interim_opening_balance': t('yearEndSettings.purposes.interimOpeningBalance.label')
+      'pl_closing': t('yearEndSettings.purposes.plClosing.label')
     };
     return names[purpose] || purpose;
   };
@@ -359,9 +358,6 @@ const YearEndSettings: React.FC<YearEndSettingsProps> = ({ tenant }) => {
             </Text>
             <Text>
               <strong>{t('yearEndSettings.purposes.plClosing.label')}:</strong> {t('yearEndSettings.help.plClosingHelp')}
-            </Text>
-            <Text>
-              <strong>{t('yearEndSettings.purposes.interimOpeningBalance.label')}:</strong> {t('yearEndSettings.help.interimOpeningBalanceHelp')}
             </Text>
           </VStack>
         </Box>

@@ -3,6 +3,23 @@
     "title": "Jaarafsluiting",
     "subtitle": "Sluit boekjaren af en beheer jaarafsluiting processen",
     "closeYear": "Boekjaar Afsluiten",
+    "closedDate": "Afgesloten op",
+    "closedBy": "Afgesloten door",
+    "notes": "Notities",
+    "netResult": "Netto Resultaat",
+    "balanceSheetAccounts": "Balans Rekeningen",
+    "previousYear": "Vorig jaar",
+    "status": {
+      "title": "Status",
+      "open": "Open",
+      "closed": "Afgesloten"
+    },
+    "actions": {
+      "closeYear": "Jaar {{year}} Afsluiten",
+      "reopenYear": "Jaar {{year}} Heropenen",
+      "confirmClose": "Bevestig Afsluiting",
+      "confirmReopen": "Bevestig Heropening"
+    },
     "noYears": {
       "title": "Geen Jaren Beschikbaar",
       "description": "Er zijn momenteel geen jaren beschikbaar om af te sluiten."
@@ -22,7 +39,8 @@
       "closedBy": "Afgesloten Door",
       "notes": "Notities",
       "status": "Status",
-      "closed": "Afgesloten"
+      "closed": "Afgesloten",
+      "actions": "Acties"
     },
     "wizard": {
       "title": "Boekjaar Afsluiten",
@@ -34,12 +52,14 @@
       "sequentialDescription": "Jaren moeten in volgorde worden afgesloten, beginnend bij het oudste jaar met transacties.",
       "cannotClose": "Kan Jaar Niet Afsluiten",
       "warnings": "Waarschuwingen",
-      "readyToClose": "Jaar {{year}} is Klaar om Afgesloten te Worden",
+      "readyToClose": "Klaar om Af te Sluiten",
+      "confirmTitle": "Jaar {{year}} Afsluiten?",
       "reviewBeforeClosing": "Controleer de onderstaande informatie voordat u doorgaat.",
       "summary": "Samenvatting",
       "netPLResult": "Netto Winst/Verlies Resultaat",
       "balanceSheetAccounts": "Balans Rekeningen",
       "notes": "Notities",
+      "notesLabel": "Notities",
       "notesPlaceholder": "Optionele notities over deze jaarafsluiting...",
       "closeYearButton": "Jaar {{year}} Afsluiten",
       "validationFailed": "Validatie Mislukt",
@@ -48,6 +68,17 @@
     },
     "errors": {
       "loadFailed": "Laden van jaarafsluiting gegevens mislukt"
+    },
+    "reopen": {
+      "button": "Jaar Heropenen",
+      "confirmTitle": "Jaar {{year}} Heropenen?",
+      "confirmMessage": "Weet u zeker dat u jaar {{year}} wilt heropenen? Dit verwijdert de jaarafsluiting en openingsbalans transacties. Deze actie kan niet ongedaan worden gemaakt.",
+      "warning": "Dit verwijdert de jaarafsluiting en openingsbalans transacties.",
+      "confirm": "Jaar Heropenen",
+      "success": "Jaar Heropend",
+      "successMessage": "Jaar {{year}} is succesvol heropend",
+      "failed": "Heropenen van Jaar Mislukt",
+      "blockedByNextYear": "Kan jaar {{year}} niet heropenen omdat jaar {{nextYear}} nog afgesloten is. Heropen eerst jaar {{nextYear}}."
     }
   }
 }

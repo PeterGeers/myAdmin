@@ -192,7 +192,7 @@ const YearEndClosureReport: React.FC = () => {
       )}
 
       {/* Closed years table */}
-      <ClosedYearsTable years={closedYears} />
+      <ClosedYearsTable years={closedYears} onYearReopened={loadData} />
 
       {/* Wizard */}
       {showWizard && (

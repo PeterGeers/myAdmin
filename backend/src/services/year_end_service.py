@@ -11,7 +11,7 @@ Key Concepts:
 - VW='Y' accounts (P&L) are closed to equity at year-end
 - VW='N' accounts (Balance Sheet) carry forward to next year
 - Net P&L result is recorded in equity_result account
-- Opening balances use interim_opening_balance account for balancing
+- Opening balances use equity_result account for balancing
 """
 
 from database import DatabaseManager
@@ -206,6 +206,8 @@ class YearEndClosureService:
         Sums all P&L accounts (VW='Y') for the year.
         Positive = profit, Negative = loss
         
+        Uses vw_mutaties view which has Amount column with correct sign.
+        
         Args:
             administration: Tenant identifier
             year: Year to calculate
@@ -215,19 +217,11 @@ class YearEndClosureService:
         """
         query = """
             SELECT 
-                COALESCE(SUM(
-                    CASE 
-                        WHEN m.Debet = r.Account THEN m.TransactionAmount
-                        WHEN m.Credit = r.Account THEN -m.TransactionAmount
-                        ELSE 0
-                    END
-                ), 0) as net_result
-            FROM mutaties m
-            JOIN rekeningschema r ON (m.Debet = r.Account OR m.Credit = r.Account)
-                AND m.administration = r.administration
-            WHERE m.administration = %s
-            AND YEAR(m.TransactionDate) = %s
-            AND r.VW = 'Y'
+                COALESCE(SUM(Amount), 0) as net_result
+            FROM vw_mutaties
+            WHERE administration = %s
+            AND YEAR(TransactionDate) = %s
+            AND VW = 'Y'
         """
         
         result = self.db.execute_query(query, [administration, year])
@@ -237,6 +231,10 @@ class YearEndClosureService:
         """
         Count balance sheet accounts with non-zero balances.
         
+        Uses ONLY current year transactions (matches _get_ending_balances logic).
+        
+        Uses vw_mutaties view for accurate balance calculation.
+        
         Args:
             administration: Tenant identifier
             year: Year to check
@@ -245,25 +243,22 @@ class YearEndClosureService:
             int: Count of accounts with balances
         """
         query = """
-            SELECT COUNT(DISTINCT r.Account) as count
-            FROM mutaties m
-            JOIN rekeningschema r ON (m.Debet = r.Account OR m.Credit = r.Account)
-                AND m.administration = r.administration
-            WHERE m.administration = %s
-            AND YEAR(m.TransactionDate) <= %s
-            AND r.VW = 'N'
-            GROUP BY r.Account
-            HAVING SUM(
-                CASE 
-                    WHEN m.Debet = r.Account THEN m.TransactionAmount
-                    WHEN m.Credit = r.Account THEN -m.TransactionAmount
-                    ELSE 0
-                END
-            ) != 0
+            SELECT COUNT(DISTINCT Reknum) as count
+            FROM (
+                SELECT 
+                    Reknum,
+                    SUM(Amount) as balance
+                FROM vw_mutaties
+                WHERE administration = %s
+                AND VW = 'N'
+                AND YEAR(TransactionDate) = %s
+                GROUP BY Reknum
+                HAVING ABS(SUM(Amount)) > 0.01
+            ) as accounts_with_balance
         """
         
         result = self.db.execute_query(query, [administration, year])
-        return len(result) if result else 0
+        return int(result[0]['count']) if result else 0
 
     def _create_closure_transaction(self, administration, year, cursor):
         """
@@ -273,11 +268,14 @@ class YearEndClosureService:
         in the equity account. The P&L closing account is used as the
         offsetting account.
         
-        For profit (positive net result):
+        NOTE: In vw_mutaties, Amount is negative for revenue and positive for expenses.
+        Therefore: negative net_result = profit, positive net_result = loss
+        
+        For profit (negative net result):
             Debit: P&L Closing Account
             Credit: Equity Result Account
         
-        For loss (negative net result):
+        For loss (positive net result):
             Debit: Equity Result Account
             Credit: P&L Closing Account
         
@@ -313,16 +311,17 @@ class YearEndClosureService:
         
         # Determine debit and credit based on profit/loss
         # TransactionAmount is always positive
-        if net_result > 0:
-            # Profit: Debit P&L closing, Credit equity
+        # NOTE: In vw_mutaties, Amount is negative for revenue (profit) and positive for expenses (loss)
+        if net_result < 0:
+            # Profit (negative net_result means revenue > expenses): Debit P&L closing, Credit equity
             debet = pl_closing_account
             credit = equity_account
-            amount = net_result
+            amount = abs(net_result)
         else:
-            # Loss: Debit equity, Credit P&L closing
+            # Loss (positive net_result means expenses > revenue): Debit equity, Credit P&L closing
             debet = equity_account
             credit = pl_closing_account
-            amount = abs(net_result)
+            amount = net_result
         
         # Create transaction
         transaction_number = f"YearClose {year}"
@@ -337,9 +336,8 @@ class YearEndClosureService:
                 TransactionAmount,
                 Debet,
                 Credit,
-                ReferenceNumber,
                 administration
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
         """
         
         cursor.execute(insert_query, [
@@ -349,7 +347,6 @@ class YearEndClosureService:
             amount,
             debet,
             credit,
-            transaction_number,
             administration
         ])
         
@@ -359,19 +356,17 @@ class YearEndClosureService:
         """
         Create opening balance transactions for the new year.
         
-        Opening balances carry forward all balance sheet accounts (VW='N')
-        from the previous year. Each account with a non-zero balance gets
-        its own transaction record, all sharing the same TransactionNumber.
-        
-        The interim opening balance account is used as the offsetting account
-        for all opening balance entries.
+        CORRECTED APPROACH:
+        - Use equity account as offset for ALL balance sheet accounts
+        - Equity is calculated as negative sum of all other balance sheet accounts
+        - No separate entry for equity account (it's the balancing account)
         
         For positive balances (assets):
             Debit: Account
-            Credit: Interim Opening Balance Account
+            Credit: Equity Account
         
-        For negative balances (liabilities/equity):
-            Debit: Interim Opening Balance Account
+        For negative balances (liabilities):
+            Debit: Equity Account
             Credit: Account
         
         Args:
@@ -382,15 +377,15 @@ class YearEndClosureService:
         Returns:
             str: TransactionNumber of created transactions, or None if no balances
         """
-        # Get interim account from configuration
-        interim_account_info = self.config_service.get_account_by_purpose(
-            administration, 'interim_opening_balance'
+        # Get equity account from configuration
+        equity_account_info = self.config_service.get_account_by_purpose(
+            administration, 'equity_result'
         )
         
-        if not interim_account_info:
-            raise ValueError("Interim opening balance account not configured")
+        if not equity_account_info:
+            raise ValueError("Equity result account not configured")
         
-        interim_account = interim_account_info['Account']
+        equity_account = equity_account_info['Account']
         
         # Get ending balances from previous year
         ending_balances = self._get_ending_balances(administration, year - 1, cursor)
@@ -398,10 +393,15 @@ class YearEndClosureService:
         if not ending_balances:
             return None  # No balances to carry forward
         
+        # Filter out equity account - it will be calculated as the balancing account
+        non_equity_balances = [b for b in ending_balances if b['account'] != equity_account]
+        
+        if not non_equity_balances:
+            return None  # No non-equity balances to carry forward
+        
         # Create transaction records
         transaction_number = f"OpeningBalance {year}"
         transaction_date = f"{year}-01-01"
-        description = f"Opening balance for year {year} of Administration {administration}"
         
         insert_query = """
             INSERT INTO mutaties (
@@ -411,31 +411,36 @@ class YearEndClosureService:
                 TransactionAmount,
                 Debet,
                 Credit,
-                ReferenceNumber,
                 administration
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
         """
         
         records_created = 0
         
-        for balance_info in ending_balances:
+        # Create opening balance entries for all non-equity accounts
+        # Equity account is used as the offsetting account for all entries
+        for balance_info in non_equity_balances:
             account = balance_info['account']
+            account_name = balance_info['account_name']
             balance = balance_info['balance']
             
             # Skip zero balances (shouldn't happen due to query filter)
             if balance == 0:
                 continue
             
+            # Create description with account name
+            description = f"Opening balance {year} for {account_name}"
+            
             # Determine debit and credit based on balance sign
             # TransactionAmount is always positive
             if balance > 0:
-                # Positive balance (asset): Debit account, Credit interim
+                # Positive balance (asset): Debit account, Credit equity
                 debet = account
-                credit = interim_account
+                credit = equity_account
                 amount = balance
             else:
-                # Negative balance (liability/equity): Debit interim, Credit account
-                debet = interim_account
+                # Negative balance (liability): Debit equity, Credit account
+                debet = equity_account
                 credit = account
                 amount = abs(balance)
             
@@ -446,7 +451,6 @@ class YearEndClosureService:
                 amount,
                 debet,
                 credit,
-                transaction_number,
                 administration
             ])
             
@@ -458,8 +462,13 @@ class YearEndClosureService:
         """
         Get ending balances for all balance sheet accounts.
         
-        Calculates the balance for each VW='N' account as of December 31
-        of the specified year. Only returns accounts with non-zero balances.
+        LOGIC:
+        - If OpeningBalance {year} exists: Use YEAR(TransactionDate) = year (current year only)
+        - If OpeningBalance {year} does NOT exist: Use TransactionDate <= year-12-31 (cumulative)
+        
+        This handles both first closure (no opening balance) and re-closure scenarios.
+        
+        Uses vw_mutaties view which has Amount column with correct sign.
         
         Args:
             administration: Tenant identifier
@@ -469,35 +478,50 @@ class YearEndClosureService:
         Returns:
             list: List of dicts with 'account', 'account_name', 'balance'
         """
-        query = """
-            SELECT 
-                r.Account as account,
-                r.AccountName as account_name,
-                SUM(
-                    CASE 
-                        WHEN m.Debet = r.Account THEN m.TransactionAmount
-                        WHEN m.Credit = r.Account THEN -m.TransactionAmount
-                        ELSE 0
-                    END
-                ) as balance
-            FROM mutaties m
-            JOIN rekeningschema r ON (m.Debet = r.Account OR m.Credit = r.Account)
-                AND m.administration = r.administration
-            WHERE m.administration = %s
-            AND YEAR(m.TransactionDate) <= %s
-            AND r.VW = 'N'
-            GROUP BY r.Account, r.AccountName
-            HAVING SUM(
-                CASE 
-                    WHEN m.Debet = r.Account THEN m.TransactionAmount
-                    WHEN m.Credit = r.Account THEN -m.TransactionAmount
-                    ELSE 0
-                END
-            ) != 0
-            ORDER BY r.Account
+        # Check if OpeningBalance for this year already exists
+        check_query = """
+            SELECT COUNT(*) as count
+            FROM mutaties
+            WHERE administration = %s
+            AND TransactionNumber = %s
         """
+        cursor.execute(check_query, [administration, f"OpeningBalance {year}"])
+        result = cursor.fetchone()
+        has_opening_balance = (result['count'] if isinstance(result, dict) else result[0]) > 0
         
-        cursor.execute(query, [administration, year])
+        # Choose query based on whether opening balance exists
+        if has_opening_balance:
+            # Re-closure: Use current year only (includes OpeningBalance + year transactions)
+            query = """
+                SELECT 
+                    Reknum as account,
+                    AccountName as account_name,
+                    SUM(Amount) as balance
+                FROM vw_mutaties
+                WHERE administration = %s
+                AND VW = 'N'
+                AND YEAR(TransactionDate) = %s
+                GROUP BY Reknum, AccountName
+                HAVING ABS(SUM(Amount)) > 0.01
+                ORDER BY Reknum
+            """
+            cursor.execute(query, [administration, year])
+        else:
+            # First closure: Use cumulative (all history through year-end)
+            query = """
+                SELECT 
+                    Reknum as account,
+                    AccountName as account_name,
+                    SUM(Amount) as balance
+                FROM vw_mutaties
+                WHERE administration = %s
+                AND VW = 'N'
+                AND TransactionDate <= %s
+                GROUP BY Reknum, AccountName
+                HAVING ABS(SUM(Amount)) > 0.01
+                ORDER BY Reknum
+            """
+            cursor.execute(query, [administration, f"{year}-12-31"])
         
         balances = []
         for row in cursor.fetchall():
@@ -578,6 +602,10 @@ class YearEndClosureService:
             # Commit all changes
             conn.commit()
             
+            # Invalidate cache so reports pick up new transactions
+            from mutaties_cache import invalidate_cache
+            invalidate_cache()
+            
             # Return success result
             return {
                 'success': True,
@@ -641,3 +669,98 @@ class YearEndClosureService:
             opening_transaction_number,
             notes
         ])
+    
+    def reopen_year(self, administration, year, user_email):
+        """
+        Reopen a closed fiscal year.
+        
+        This reverses the year closure by:
+        1. Validating the year can be reopened
+        2. Deleting opening balance transactions for next year
+        3. Deleting year-end closure transaction
+        4. Removing closure status record
+        
+        All operations are performed within a database transaction,
+        so if any step fails, all changes are rolled back.
+        
+        Args:
+            administration: Tenant identifier
+            year: Year to reopen
+            user_email: Email of user performing reopen
+            
+        Returns:
+            dict: Success result
+            
+        Raises:
+            Exception: If validation fails or any step encounters an error
+        """
+        # Step 1: Validate year can be reopened
+        if not self._is_year_closed(administration, year):
+            raise Exception(f"Year {year} is not closed")
+        
+        # Check if next year is closed (can't reopen if next year is closed)
+        if self._is_year_closed(administration, year + 1):
+            raise Exception(f"Cannot reopen year {year} because year {year + 1} is already closed")
+        
+        # Get closure information
+        closure_info = self.get_year_status(administration, year)
+        if not closure_info:
+            raise Exception(f"No closure information found for year {year}")
+        
+        closure_txn = closure_info.get('closure_transaction_number')
+        opening_txn = closure_info.get('opening_balance_transaction_number')
+        
+        # Get database connection
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Step 2: Delete opening balance transactions for next year
+            if opening_txn:
+                delete_opening = """
+                    DELETE FROM mutaties
+                    WHERE administration = %s
+                    AND TransactionNumber = %s
+                """
+                cursor.execute(delete_opening, [administration, opening_txn])
+            
+            # Step 3: Delete year-end closure transaction
+            if closure_txn:
+                delete_closure = """
+                    DELETE FROM mutaties
+                    WHERE administration = %s
+                    AND TransactionNumber = %s
+                """
+                cursor.execute(delete_closure, [administration, closure_txn])
+            
+            # Step 4: Remove closure status record
+            delete_status = """
+                DELETE FROM year_closure_status
+                WHERE administration = %s
+                AND year = %s
+            """
+            cursor.execute(delete_status, [administration, year])
+            
+            # Commit all changes
+            conn.commit()
+            
+            # Invalidate cache so reports pick up changes
+            from mutaties_cache import invalidate_cache
+            invalidate_cache()
+            
+            # Return success result
+            return {
+                'success': True,
+                'year': year,
+                'message': f'Year {year} reopened successfully'
+            }
+        
+        except Exception as e:
+            # Rollback on any error
+            conn.rollback()
+            raise Exception(f"Failed to reopen year {year}: {str(e)}")
+        
+        finally:
+            cursor.close()
+            conn.close()
+
