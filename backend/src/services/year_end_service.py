@@ -327,6 +327,7 @@ class YearEndClosureService:
         transaction_number = f"YearClose {year}"
         transaction_date = f"{year}-12-31"
         description = f"Year-end closure {year} - {administration}"
+        reference_number = "Year Closure"
         
         insert_query = """
             INSERT INTO mutaties (
@@ -336,8 +337,9 @@ class YearEndClosureService:
                 TransactionAmount,
                 Debet,
                 Credit,
+                ReferenceNumber,
                 administration
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         cursor.execute(insert_query, [
@@ -347,6 +349,7 @@ class YearEndClosureService:
             amount,
             debet,
             credit,
+            reference_number,
             administration
         ])
         
@@ -402,6 +405,7 @@ class YearEndClosureService:
         # Create transaction records
         transaction_number = f"OpeningBalance {year}"
         transaction_date = f"{year}-01-01"
+        reference_number = "Opening Balance"
         
         insert_query = """
             INSERT INTO mutaties (
@@ -411,8 +415,9 @@ class YearEndClosureService:
                 TransactionAmount,
                 Debet,
                 Credit,
+                ReferenceNumber,
                 administration
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         records_created = 0
@@ -451,6 +456,7 @@ class YearEndClosureService:
                 amount,
                 debet,
                 credit,
+                reference_number,
                 administration
             ])
             
