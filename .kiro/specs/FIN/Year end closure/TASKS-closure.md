@@ -393,11 +393,11 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 ### End-to-End Tests
 
-- [ ] Create Playwright test for full workflow
-- [ ] Test selecting year
-- [ ] Test validation
-- [ ] Test closing year
-- [ ] Test viewing closed years
+- [x] Manual test for full workflow
+- [x] Test selecting year
+- [x] Test validation
+- [x] Test closing year
+- [x] Test viewing closed years
 
 ## Phase 6: Integration & Polish (2-3 days)
 
