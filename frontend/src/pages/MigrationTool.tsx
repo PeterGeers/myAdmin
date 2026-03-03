@@ -11,7 +11,6 @@ import {
   AlertTitle,
   AlertDescription,
   Progress,
-  Code,
   useToast,
   Divider,
   Badge,
@@ -50,7 +49,6 @@ interface MigrationResponse {
 
 const MigrationTool: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [isDryRun, setIsDryRun] = useState(true);
   const [results, setResults] = useState<MigrationResponse | null>(null);
   const [log, setLog] = useState<string>('');
   const toast = useToast();

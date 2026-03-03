@@ -26,7 +26,6 @@ import {
   Badge,
   Checkbox,
   Stack,
-  Icon,
   Collapse
 } from '@chakra-ui/react';
 import { InfoIcon, CheckCircleIcon } from '@chakra-ui/icons';
@@ -52,6 +51,7 @@ const VATNettingConfig: React.FC = () => {
 
   useEffect(() => {
     loadConfiguration();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadConfiguration = async () => {
