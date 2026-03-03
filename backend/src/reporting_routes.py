@@ -743,13 +743,27 @@ def get_reference_analysis(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
 def get_available_years(user_email, user_roles, tenant, user_tenants):
-    """Get available years from vw_mutaties - filtered by user tenants"""
+    """
+    Get available years from mutaties table - filtered by user tenants.
+    
+    IMPORTANT: Queries the base table directly, not the cache/view,
+    so all years are available even if not loaded in cache.
+    """
     try:
         service = ReportingService()
         
+        # Determine table name based on test mode
+        table_name = 'mutaties_test' if flag else 'mutaties'
+        
         # Build IN clause for user_tenants
         placeholders = ','.join(['%s'] * len(user_tenants))
-        query = f"SELECT DISTINCT jaar as value FROM vw_mutaties WHERE jaar IS NOT NULL AND administration IN ({placeholders}) ORDER BY jaar DESC"
+        query = f"""
+            SELECT DISTINCT YEAR(TransactionDate) as value 
+            FROM {table_name} 
+            WHERE TransactionDate IS NOT NULL 
+            AND administration IN ({placeholders}) 
+            ORDER BY value DESC
+        """
         
         with service.get_cursor() as cursor:
             cursor.execute(query, user_tenants)
@@ -805,7 +819,8 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants):
         
         # Query from cache (much faster than SQL)
         summary_data = cache.query_aangifte_ib(year, administration)
-        available_years = cache.get_available_years()
+        # Get ALL available years from database (not just cached years)
+        available_years = cache.get_available_years(db)
         # Only show administrations user has access to
         available_administrations = [admin for admin in cache.get_available_administrations(year) if admin in user_tenants]
         

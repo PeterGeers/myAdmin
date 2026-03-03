@@ -31,6 +31,7 @@ import {
 import { CheckCircleIcon, WarningIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import VATNettingConfig from './VATNettingConfig';
 import {
   validateConfiguration,
   getConfiguredPurposes,
@@ -345,6 +346,11 @@ const YearEndSettings: React.FC<YearEndSettingsProps> = ({ tenant }) => {
             {t('yearEndSettings.form.saveButton')}
           </Button>
         </HStack>
+
+        <Divider />
+
+        {/* VAT Netting Configuration */}
+        <VATNettingConfig />
 
         {/* Help Text */}
         <Box p={4} bg="gray.800" borderRadius="md" border="1px" borderColor="gray.700">

@@ -455,8 +455,11 @@ class BankingService:
         """
         Get mutaties with filters
         
+        OPTIMIZATION: Added LIMIT to prevent loading too many records at once.
+        Frontend should implement pagination for better UX.
+        
         Args:
-            filters (dict): Filter parameters (years, administration)
+            filters (dict): Filter parameters (years, administration, limit, offset)
             tenant (str): Current tenant
             user_tenants (list): List of tenants user has access to
             
@@ -472,6 +475,11 @@ class BankingService:
             # Get filter parameters
             years = filters.get('years', [str(datetime.now().year)])
             administration = filters.get('administration', 'all')
+            limit = int(filters.get('limit', 1000))  # Default limit: 1000 records
+            offset = int(filters.get('offset', 0))   # Default offset: 0
+            
+            # Cap limit at 5000 to prevent excessive memory usage
+            limit = min(limit, 5000)
             
             conn = db.get_connection()
             cursor = conn.cursor(dictionary=True)
@@ -508,6 +516,16 @@ class BankingService:
             
             where_clause = 'WHERE ' + ' AND '.join(where_conditions) if where_conditions else ''
             
+            # Get total count for pagination
+            count_query = f"""
+                SELECT COUNT(*) as total
+                FROM {table_name} 
+                {where_clause}
+            """
+            cursor.execute(count_query, params)
+            total_count = cursor.fetchone()['total']
+            
+            # Get paginated results
             query = f"""
                 SELECT ID, TransactionNumber, TransactionDate, TransactionDescription, 
                        TransactionAmount, Debet, Credit, ReferenceNumber, 
@@ -515,7 +533,9 @@ class BankingService:
                 FROM {table_name} 
                 {where_clause}
                 ORDER BY TransactionDate DESC, ID DESC
+                LIMIT %s OFFSET %s
             """
+            params.extend([limit, offset])
             cursor.execute(query, params)
             
             results = cursor.fetchall()
@@ -526,6 +546,10 @@ class BankingService:
                 'success': True,
                 'mutaties': results,
                 'count': len(results),
+                'total': total_count,
+                'limit': limit,
+                'offset': offset,
+                'has_more': (offset + len(results)) < total_count,
                 'table': table_name
             }
             

@@ -428,6 +428,48 @@
       "description": "Year-end closure creates opening balance transactions for the new year, improving performance and formalizing the year-end process.",
       "equityResultHelp": "Records the net profit or loss for the year. Also used as balancing account for opening balance entries.",
       "plClosingHelp": "Used to close P&L accounts to equity"
+    },
+    "vatNetting": {
+      "title": "VAT Account Netting",
+      "description": "Configure VAT accounts to be netted together during year-end closure. This prevents cumulative VAT balances in reports.",
+      "loading": "Loading VAT configuration...",
+      "saving": "Saving...",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enableLabel": "Enable VAT account netting",
+      "enableHelp": "When enabled, VAT accounts will be netted together into a single opening balance entry",
+      "saveButton": "Save VAT Configuration",
+      "info": {
+        "title": "What is VAT Netting?",
+        "description": "VAT netting combines multiple VAT accounts (Paid VAT, Received VAT High, Received VAT Low) into a single net balance. This ensures VAT reports start fresh each year instead of showing cumulative balances."
+      },
+      "quickSetup": {
+        "title": "Quick Setup (Dutch VAT)",
+        "dutchVATConfigured": "Standard Dutch VAT accounts configured",
+        "primaryAccount": "Primary account",
+        "advancedButton": "Advanced Setup"
+      },
+      "advanced": {
+        "title": "Advanced Configuration",
+        "simpleButton": "Simple Setup",
+        "selectAccounts": "Select VAT accounts to net",
+        "selectAccountsHelp": "Choose all VAT accounts that should be netted together",
+        "primaryAccount": "Primary account for net balance",
+        "primaryAccountHelp": "The account that will receive the net VAT balance",
+        "selectPrimary": "Select primary account..."
+      },
+      "errors": {
+        "loadingError": "Error loading VAT configuration",
+        "saveError": "Error saving VAT configuration",
+        "noAccountsSelected": "Please select at least one VAT account",
+        "noPrimaryAccount": "Please select a primary account",
+        "primaryNotInSelected": "Primary account must be one of the selected VAT accounts"
+      },
+      "messages": {
+        "saveSuccess": "VAT netting configured",
+        "saveSuccessDescription": "VAT accounts will be netted together during year-end closure",
+        "disabledSuccess": "VAT netting disabled"
+      }
     }
   },
   "templateManagement": {

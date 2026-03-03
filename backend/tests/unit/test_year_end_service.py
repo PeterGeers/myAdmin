@@ -202,12 +202,8 @@ class TestCountBalanceSheetAccounts:
     
     def test_count_balance_sheet_accounts(self, service, mock_db, test_administration):
         """Test counting accounts with balances"""
-        # Mock returns rows for each account with balance
-        mock_db.execute_query.return_value = [
-            {'account': '1000'},
-            {'account': '1100'},
-            {'account': '2000'}
-        ]
+        # Mock returns count directly
+        mock_db.execute_query.return_value = [{'count': 3}]
         
         count = service._count_balance_sheet_accounts(test_administration, 2023)
         
@@ -215,7 +211,7 @@ class TestCountBalanceSheetAccounts:
     
     def test_count_balance_sheet_accounts_zero(self, service, mock_db, test_administration):
         """Test with no balance sheet accounts"""
-        mock_db.execute_query.return_value = []
+        mock_db.execute_query.return_value = [{'count': 0}]
         
         count = service._count_balance_sheet_accounts(test_administration, 2023)
         
@@ -243,7 +239,7 @@ class TestValidateYearClosure:
             [{'first_year': 2020}],  # First year
             [{'count': 0}],  # Previous year not closed
             [{'net_result': 10000}],  # Net P&L result (needed even if validation fails)
-            [{'account': '1000'}],  # Balance sheet accounts
+            [{'count': 1}],  # Balance sheet accounts count
         ]
         mock_config_service.validate_configuration.return_value = {'valid': True, 'errors': []}
         
@@ -259,7 +255,7 @@ class TestValidateYearClosure:
             [{'count': 0}],  # Year not closed
             [{'first_year': 2023}],  # First year (no previous check needed)
             [{'net_result': 10000}],  # Net P&L result (calculated even if config invalid)
-            [{'account': '1000'}],  # Balance sheet accounts
+            [{'count': 1}],  # Balance sheet accounts count
         ]
         mock_config_service.validate_configuration.return_value = {
             'valid': False,
@@ -278,7 +274,7 @@ class TestValidateYearClosure:
             [{'count': 0}],  # Year not closed
             [{'first_year': 2023}],  # First year
             [{'net_result': 10000}],  # Net P&L result
-            [{'account': '1000'}, {'account': '2000'}],  # Balance sheet accounts
+            [{'count': 2}],  # Balance sheet accounts count
         ]
         mock_config_service.validate_configuration.return_value = {'valid': True, 'errors': []}
         
@@ -296,7 +292,7 @@ class TestValidateYearClosure:
             [{'count': 0}],  # Year not closed
             [{'first_year': 2023}],  # First year
             [{'net_result': 0}],  # Zero net result
-            [{'account': '1000'}],  # Balance sheet accounts
+            [{'count': 1}],  # Balance sheet accounts count
         ]
         mock_config_service.validate_configuration.return_value = {'valid': True, 'errors': []}
         
@@ -357,7 +353,7 @@ class TestCreateClosureTransaction:
             {'Account': '3080'},  # equity_result
             {'Account': '8999'}   # pl_closing
         ]
-        mock_db.execute_query.return_value = [{'net_result': 10000}]
+        mock_db.execute_query.return_value = [{'net_result': -10000}]  # Negative = profit in vw_mutaties
         
         transaction_number = service._create_closure_transaction(
             test_administration, 2023, mock_cursor
@@ -367,12 +363,13 @@ class TestCreateClosureTransaction:
         assert transaction_number == 'YearClose 2023'
         mock_cursor.execute.assert_called_once()
         
-        # Verify correct debit/credit for profit
+        # Verify correct debit/credit for profit (negative net_result)
         call_args = mock_cursor.execute.call_args[0]
         params = call_args[1]
         assert params[4] == '8999'  # Debit: P&L closing
         assert params[5] == '3080'  # Credit: Equity
-        assert params[3] == 10000   # Amount (positive)
+        assert params[3] == 10000   # Amount (absolute value)
+        assert params[6] == 'Year Closure'  # ReferenceNumber
     
     def test_create_closure_transaction_loss(self, service, mock_db, mock_config_service, test_administration):
         """Test creating closure transaction for loss"""
@@ -382,7 +379,7 @@ class TestCreateClosureTransaction:
             {'Account': '3080'},  # equity_result
             {'Account': '8999'}   # pl_closing
         ]
-        mock_db.execute_query.return_value = [{'net_result': -5000}]
+        mock_db.execute_query.return_value = [{'net_result': 5000}]  # Positive = loss in vw_mutaties
         
         transaction_number = service._create_closure_transaction(
             test_administration, 2023, mock_cursor
@@ -391,12 +388,13 @@ class TestCreateClosureTransaction:
         # Verify transaction created
         assert transaction_number == 'YearClose 2023'
         
-        # Verify correct debit/credit for loss
+        # Verify correct debit/credit for loss (positive net_result)
         call_args = mock_cursor.execute.call_args[0]
         params = call_args[1]
         assert params[4] == '3080'  # Debit: Equity
         assert params[5] == '8999'  # Credit: P&L closing
-        assert params[3] == 5000    # Amount (absolute value)
+        assert params[3] == 5000    # Amount (already positive)
+        assert params[6] == 'Year Closure'  # ReferenceNumber
     
     def test_create_closure_transaction_zero(self, service, mock_db, mock_config_service, test_administration):
         """Test creating closure transaction with zero result"""
@@ -432,6 +430,7 @@ class TestGetEndingBalances:
     def test_get_ending_balances_dict_cursor(self, service, test_administration):
         """Test with dict cursor results"""
         mock_cursor = Mock()
+        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00},
             {'account': '2000', 'account_name': 'Accounts Payable', 'balance': -3000.00}
@@ -448,6 +447,7 @@ class TestGetEndingBalances:
     def test_get_ending_balances_tuple_cursor(self, service, test_administration):
         """Test with tuple cursor results"""
         mock_cursor = Mock()
+        mock_cursor.fetchone.return_value = (0,)  # No existing opening balance (tuple format)
         mock_cursor.fetchall.return_value = [
             ('1000', 'Cash', 5000.00),
             ('2000', 'Accounts Payable', -3000.00)
@@ -462,6 +462,7 @@ class TestGetEndingBalances:
     def test_get_ending_balances_empty(self, service, test_administration):
         """Test with no balances"""
         mock_cursor = Mock()
+        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = []
         
         balances = service._get_ending_balances(test_administration, 2023, mock_cursor)
@@ -476,11 +477,12 @@ class TestCreateOpeningBalances:
         """Test creating opening balances"""
         # Setup mocks
         mock_cursor = Mock()
+        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00},
             {'account': '2000', 'account_name': 'Accounts Payable', 'balance': -3000.00}
         ]
-        mock_config_service.get_account_by_purpose.return_value = {'Account': '9999'}
+        mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
         transaction_number = service._create_opening_balances(
             test_administration, 2024, mock_cursor
@@ -489,51 +491,57 @@ class TestCreateOpeningBalances:
         # Verify transaction created
         assert transaction_number == 'OpeningBalance 2024'
         
-        # Verify three calls: 1 query + 2 inserts (one for each balance)
-        assert mock_cursor.execute.call_count == 3
+        # Verify four calls: 1 check query + 1 balance query + 2 inserts (one for each balance)
+        assert mock_cursor.execute.call_count == 4
     
     def test_create_opening_balances_positive_balance(self, service, mock_config_service, test_administration):
         """Test opening balance for positive balance (asset)"""
         # Setup mocks
         mock_cursor = Mock()
+        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00}
         ]
-        mock_config_service.get_account_by_purpose.return_value = {'Account': '9999'}
+        mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
         service._create_opening_balances(test_administration, 2024, mock_cursor)
         
         # Verify correct debit/credit for positive balance
+        # Get the last call (the INSERT, not the check query)
         call_args = mock_cursor.execute.call_args[0]
         params = call_args[1]
         assert params[4] == '1000'  # Debit: Account
-        assert params[5] == '9999'  # Credit: Interim
+        assert params[5] == '3080'  # Credit: Equity
         assert params[3] == 5000.00  # Amount
+        assert params[6] == 'Opening Balance'  # ReferenceNumber
     
     def test_create_opening_balances_negative_balance(self, service, mock_config_service, test_administration):
         """Test opening balance for negative balance (liability)"""
         # Setup mocks
         mock_cursor = Mock()
+        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = [
             {'account': '2000', 'account_name': 'Accounts Payable', 'balance': -3000.00}
         ]
-        mock_config_service.get_account_by_purpose.return_value = {'Account': '9999'}
+        mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
         service._create_opening_balances(test_administration, 2024, mock_cursor)
         
         # Verify correct debit/credit for negative balance
         call_args = mock_cursor.execute.call_args[0]
         params = call_args[1]
-        assert params[4] == '9999'  # Debit: Interim
+        assert params[4] == '3080'  # Debit: Equity
         assert params[5] == '2000'  # Credit: Account
         assert params[3] == 3000.00  # Amount (absolute value)
+        assert params[6] == 'Opening Balance'  # ReferenceNumber
     
     def test_create_opening_balances_no_balances(self, service, mock_config_service, test_administration):
         """Test with no balances to carry forward"""
         # Setup mocks
         mock_cursor = Mock()
+        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = []
-        mock_config_service.get_account_by_purpose.return_value = {'Account': '9999'}
+        mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
         transaction_number = service._create_opening_balances(
             test_administration, 2024, mock_cursor
@@ -541,16 +549,16 @@ class TestCreateOpeningBalances:
         
         # No transaction should be created
         assert transaction_number is None
-        # Only the query should be executed, no inserts
-        assert mock_cursor.execute.call_count == 1
+        # Only the check query and balance query should be executed, no inserts
+        assert mock_cursor.execute.call_count == 2
     
-    def test_create_opening_balances_missing_interim_account(self, service, mock_config_service, test_administration):
-        """Test error when interim account not configured"""
+    def test_create_opening_balances_missing_equity_account(self, service, mock_config_service, test_administration):
+        """Test error when equity account not configured"""
         # Setup mocks
         mock_cursor = Mock()
         mock_config_service.get_account_by_purpose.return_value = None
         
-        with pytest.raises(ValueError, match="Interim opening balance account not configured"):
+        with pytest.raises(ValueError, match="Equity result account not configured"):
             service._create_opening_balances(test_administration, 2024, mock_cursor)
 
 
@@ -602,9 +610,9 @@ class TestCloseYear:
         mock_db.execute_query.side_effect = [
             [{'count': 0}],  # Year not closed
             [{'first_year': 2023}],  # First year
-            [{'net_result': 10000}],  # Net P&L result
-            [{'account': '1000'}],  # Balance sheet accounts
-            [{'net_result': 10000}],  # Net P&L result (called again in _create_closure_transaction)
+            [{'net_result': -10000}],  # Net P&L result (negative = profit)
+            [{'count': 2}],  # Balance sheet accounts count
+            [{'net_result': -10000}],  # Net P&L result (called again in _create_closure_transaction)
         ]
         mock_config_service.validate_configuration.return_value = {'valid': True, 'errors': []}
         
@@ -612,15 +620,16 @@ class TestCloseYear:
         mock_conn = Mock()
         mock_cursor = Mock()
         mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00}
         ]
         mock_db.get_connection.return_value = mock_conn
         
         mock_config_service.get_account_by_purpose.side_effect = [
-            {'Account': '3080'},  # equity_result
-            {'Account': '8999'},  # pl_closing
-            {'Account': '9999'}   # interim_opening_balance
+            {'Account': '3080'},  # equity_result (for closure)
+            {'Account': '8999'},  # pl_closing (for closure)
+            {'Account': '3080'}   # equity_result (for opening balances)
         ]
         
         # Execute
@@ -642,7 +651,7 @@ class TestCloseYear:
             [{'count': 0}],  # Year not closed
             [{'first_year': 2023}],  # First year
             [{'net_result': 10000}],  # Net P&L result
-            [{'account': '1000'}],  # Balance sheet accounts
+            [{'count': 1}],  # Balance sheet accounts count
         ]
         mock_config_service.validate_configuration.return_value = {'valid': True, 'errors': []}
         

@@ -364,6 +364,12 @@ class YearEndClosureService:
         - Equity is calculated as negative sum of all other balance sheet accounts
         - No separate entry for equity account (it's the balancing account)
         
+        SPECIAL HANDLING FOR VAT ACCOUNTS:
+        - Accounts with vat_netting=true parameter are netted together
+        - Net balance = (Received VAT accounts) - (Paid VAT accounts)
+        - Net balance goes to the vat_primary account only
+        - Other VAT accounts are not carried forward individually
+        
         For positive balances (assets):
             Debit: Account
             Credit: Equity Account
@@ -402,6 +408,19 @@ class YearEndClosureService:
         if not non_equity_balances:
             return None  # No non-equity balances to carry forward
         
+        # Separate VAT accounts from regular accounts
+        vat_accounts = []
+        regular_accounts = []
+        
+        for balance_info in non_equity_balances:
+            account = balance_info['account']
+            
+            # Check if account has VAT netting flag
+            if self._is_vat_netting_account(administration, account, cursor):
+                vat_accounts.append(balance_info)
+            else:
+                regular_accounts.append(balance_info)
+        
         # Create transaction records
         transaction_number = f"OpeningBalance {year}"
         transaction_date = f"{year}-01-01"
@@ -422,9 +441,47 @@ class YearEndClosureService:
         
         records_created = 0
         
-        # Create opening balance entries for all non-equity accounts
+        # Handle VAT accounts with netting
+        if vat_accounts:
+            vat_primary_account = self._get_vat_primary_account(administration, cursor)
+            
+            if vat_primary_account:
+                # Calculate net VAT balance
+                # Net = (Received VAT) - (Paid VAT)
+                # In vw_mutaties: negative Amount = credit balance, positive Amount = debit balance
+                net_vat_balance = sum(b['balance'] for b in vat_accounts)
+                
+                # Create single entry for netted VAT if non-zero
+                if abs(net_vat_balance) > 0.01:
+                    description = f"Opening balance {year} for BTW (netted)"
+                    
+                    if net_vat_balance > 0:
+                        # Net debit (more paid than received - VAT receivable)
+                        debet = vat_primary_account
+                        credit = equity_account
+                        amount = net_vat_balance
+                    else:
+                        # Net credit (more received than paid - VAT payable)
+                        debet = equity_account
+                        credit = vat_primary_account
+                        amount = abs(net_vat_balance)
+                    
+                    cursor.execute(insert_query, [
+                        transaction_number,
+                        transaction_date,
+                        description,
+                        amount,
+                        debet,
+                        credit,
+                        reference_number,
+                        administration
+                    ])
+                    
+                    records_created += 1
+        
+        # Create opening balance entries for regular (non-VAT) accounts
         # Equity account is used as the offsetting account for all entries
-        for balance_info in non_equity_balances:
+        for balance_info in regular_accounts:
             account = balance_info['account']
             account_name = balance_info['account_name']
             balance = balance_info['balance']
@@ -770,3 +827,88 @@ class YearEndClosureService:
             cursor.close()
             conn.close()
 
+
+    def _is_vat_netting_account(self, administration, account, cursor):
+        """
+        Check if account has VAT netting flag in parameters.
+        
+        Args:
+            administration: Tenant identifier
+            account: Account code to check
+            cursor: Database cursor
+            
+        Returns:
+            bool: True if account has vat_netting=true parameter
+        """
+        query = """
+            SELECT JSON_EXTRACT(parameters, '$.vat_netting') as vat_netting
+            FROM rekeningschema
+            WHERE administration = %s
+            AND Account = %s
+        """
+        
+        cursor.execute(query, [administration, account])
+        result = cursor.fetchone()
+        
+        if result:
+            # Handle both dict and tuple cursor results
+            vat_netting = result['vat_netting'] if isinstance(result, dict) else result[0]
+            
+            # Handle both boolean true and string "true"
+            if vat_netting is not None:
+                if isinstance(vat_netting, bool):
+                    return vat_netting
+                elif isinstance(vat_netting, (int, float)):
+                    return bool(vat_netting)
+                else:
+                    # String value
+                    return str(vat_netting).strip('"').lower() == 'true'
+        
+        return False
+    
+    def _get_vat_primary_account(self, administration, cursor):
+        """
+        Get the primary VAT account that receives the net balance.
+        
+        Looks for an account with vat_netting=true that has a vat_primary parameter.
+        
+        Args:
+            administration: Tenant identifier
+            cursor: Database cursor
+            
+        Returns:
+            str: Account code of primary VAT account, or None if not found
+        """
+        query = """
+            SELECT 
+                Account,
+                JSON_EXTRACT(parameters, '$.vat_primary') as vat_primary
+            FROM rekeningschema
+            WHERE administration = %s
+            AND (
+                JSON_EXTRACT(parameters, '$.vat_netting') = true
+                OR JSON_EXTRACT(parameters, '$.vat_netting') = 'true'
+            )
+            LIMIT 1
+        """
+        
+        cursor.execute(query, [administration])
+        result = cursor.fetchone()
+        
+        if result:
+            # Handle both dict and tuple cursor results
+            if isinstance(result, dict):
+                vat_primary = result.get('vat_primary')
+                account = result.get('Account')
+            else:
+                account = result[0]
+                vat_primary = result[1]
+            
+            # If vat_primary is specified, use it; otherwise use the account itself
+            if vat_primary:
+                vat_primary_str = str(vat_primary).strip('"')
+                return vat_primary_str if vat_primary_str else account
+            else:
+                return account
+        
+        return None

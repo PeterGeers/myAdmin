@@ -261,3 +261,143 @@ class YearEndConfigService:
                 row['current_purpose'] = row['current_purpose'].strip('"')
         
         return results
+
+    
+    def get_vat_netting_accounts(self, administration):
+        """
+        Get all accounts with VAT netting enabled.
+        
+        Args:
+            administration: Tenant identifier
+            
+        Returns:
+            list: List of account dictionaries with VAT netting enabled
+        """
+        query = """
+            SELECT 
+                Account,
+                AccountName,
+                VW,
+                JSON_EXTRACT(parameters, '$.vat_netting') as vat_netting,
+                JSON_EXTRACT(parameters, '$.vat_primary') as vat_primary
+            FROM rekeningschema
+            WHERE administration = %s
+            AND (
+                JSON_EXTRACT(parameters, '$.vat_netting') = true
+                OR JSON_EXTRACT(parameters, '$.vat_netting') = 'true'
+            )
+            ORDER BY Account
+        """
+        
+        results = self.db.execute_query(query, [administration])
+        
+        # Clean up JSON extracted values
+        for row in results:
+            if row.get('vat_netting'):
+                # Handle both boolean true and string "true"
+                vat_netting_val = row['vat_netting']
+                if isinstance(vat_netting_val, str):
+                    row['vat_netting'] = vat_netting_val.strip('"').lower() == 'true'
+                else:
+                    row['vat_netting'] = bool(vat_netting_val)
+            if row.get('vat_primary'):
+                vat_primary_val = row['vat_primary']
+                if isinstance(vat_primary_val, str):
+                    row['vat_primary'] = vat_primary_val.strip('"')
+                else:
+                    row['vat_primary'] = str(vat_primary_val) if vat_primary_val else None
+        
+        return results
+    
+    def get_vat_primary_account(self, administration):
+        """
+        Get the primary VAT account code.
+        
+        Args:
+            administration: Tenant identifier
+            
+        Returns:
+            str: Primary VAT account code or None
+        """
+        query = """
+            SELECT JSON_EXTRACT(parameters, '$.vat_primary') as vat_primary
+            FROM rekeningschema
+            WHERE administration = %s
+            AND (
+                JSON_EXTRACT(parameters, '$.vat_netting') = true
+                OR JSON_EXTRACT(parameters, '$.vat_netting') = 'true'
+            )
+            LIMIT 1
+        """
+        
+        result = self.db.execute_query(query, [administration])
+        
+        if result and result[0].get('vat_primary'):
+            vat_primary_val = result[0]['vat_primary']
+            if isinstance(vat_primary_val, str):
+                return vat_primary_val.strip('"')
+            else:
+                return str(vat_primary_val) if vat_primary_val else None
+        
+        return None
+    
+    def configure_vat_netting(self, administration, vat_accounts, primary_account):
+        """
+        Configure VAT netting for specified accounts.
+        
+        Args:
+            administration: Tenant identifier
+            vat_accounts: List of account codes to net together
+            primary_account: Primary account for net balance
+            
+        Returns:
+            bool: True if successful
+        """
+        # First, remove VAT netting from all accounts
+        self.remove_vat_netting(administration)
+        
+        # Then, configure specified accounts
+        update_query = """
+            UPDATE rekeningschema
+            SET parameters = JSON_SET(
+                COALESCE(parameters, '{}'),
+                '$.vat_netting', true,
+                '$.vat_primary', %s
+            )
+            WHERE administration = %s
+            AND Account = %s
+        """
+        
+        for account in vat_accounts:
+            self.db.execute_query(
+                update_query,
+                [primary_account, administration, account],
+                fetch=False,
+                commit=True
+            )
+        
+        return True
+    
+    def remove_vat_netting(self, administration):
+        """
+        Remove VAT netting configuration from all accounts.
+        
+        Args:
+            administration: Tenant identifier
+            
+        Returns:
+            bool: True if successful
+        """
+        update_query = """
+            UPDATE rekeningschema
+            SET parameters = JSON_REMOVE(
+                COALESCE(parameters, '{}'),
+                '$.vat_netting',
+                '$.vat_primary'
+            )
+            WHERE administration = %s
+            AND JSON_EXTRACT(parameters, '$.vat_netting') IS NOT NULL
+        """
+        
+        self.db.execute_query(update_query, [administration], fetch=False, commit=True)
+        return True

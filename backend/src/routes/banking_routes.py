@@ -150,15 +150,19 @@ def banking_lookups(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['transactions_read'])
 @tenant_required()
 def banking_mutaties(user_email, user_roles, tenant, user_tenants):
-    """Get mutaties with filters"""
+    """Get mutaties with filters and pagination"""
     try:
         # Get filter parameters
         years = request.args.get('years', '').split(',') if request.args.get('years') else []
         administration = request.args.get('administration', 'all')
+        limit = request.args.get('limit', '1000')
+        offset = request.args.get('offset', '0')
         
         filters = {
             'years': years,
-            'administration': administration
+            'administration': administration,
+            'limit': limit,
+            'offset': offset
         }
         
         result = banking_service.get_mutaties(filters, tenant, user_tenants)
