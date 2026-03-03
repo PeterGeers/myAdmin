@@ -226,6 +226,7 @@ const YearEndClosureSection: React.FC<YearEndClosureSectionProps> = ({
   // Load year status on mount and when year changes
   useEffect(() => {
     fetchYearStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year]);
 
   if (!yearStatus) {
