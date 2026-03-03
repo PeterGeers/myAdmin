@@ -49,6 +49,7 @@ from routes.duplicate_detection_routes import duplicate_detection_bp
 from routes.chart_of_accounts_routes import chart_of_accounts_bp
 from routes.year_end_config_routes import year_end_config_bp
 from routes.year_end_routes import year_end_bp
+from routes.migration_routes import migration_bp
 from routes.user_routes import user_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -166,6 +167,7 @@ app.register_blueprint(duplicate_detection_bp)  # Duplicate detection endpoints
 app.register_blueprint(chart_of_accounts_bp)  # Chart of Accounts management endpoints
 app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
 app.register_blueprint(year_end_bp)  # Year-end closure endpoints
+app.register_blueprint(migration_bp)  # ONE-TIME migration endpoints (remove after use!)
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
