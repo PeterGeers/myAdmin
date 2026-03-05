@@ -124,6 +124,20 @@
     "touristTax": "Toeristenbelasting",
     "vat": "BTW"
   },
+  "months": {
+    "jan": "Jan",
+    "feb": "Feb",
+    "mar": "Mrt",
+    "apr": "Apr",
+    "may": "Mei",
+    "jun": "Jun",
+    "jul": "Jul",
+    "aug": "Aug",
+    "sep": "Sep",
+    "oct": "Okt",
+    "nov": "Nov",
+    "dec": "Dec"
+  },
   "periods": {
     "q1": "Q1",
     "q2": "Q2",
