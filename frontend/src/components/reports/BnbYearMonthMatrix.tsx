@@ -75,7 +75,22 @@ const BnbYearMonthMatrix: React.FC<BnbYearMonthMatrixProps> = ({
   }, {} as any);
 
   const years = Object.keys(yearMonthData).sort((a, b) => parseInt(b) - parseInt(a));
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  // Get translated month names
+  const monthNames = [
+    t('months.jan'),
+    t('months.feb'),
+    t('months.mar'),
+    t('months.apr'),
+    t('months.may'),
+    t('months.jun'),
+    t('months.jul'),
+    t('months.aug'),
+    t('months.sep'),
+    t('months.oct'),
+    t('months.nov'),
+    t('months.dec')
+  ];
 
   // Get the primary selected amount for display
   const primaryAmount = selectedAmounts[0] || 'amountGross';
