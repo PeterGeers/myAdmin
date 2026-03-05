@@ -37,6 +37,7 @@ import {
 } from 'recharts';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
+import BnbYearMonthMatrix from './BnbYearMonthMatrix';
 
 interface BnbFilterOptions {
   years: string[];
@@ -443,17 +444,19 @@ const BnbActualsReport: React.FC = () => {
               {
                 type: 'multi',
                 label: t('bnb.selectAmounts'),
-                options: [
-                  { key: 'amountGross', label: t('bnb.grossAmount') },
-                  { key: 'amountNett', label: t('bnb.netAmount') },
-                  { key: 'amountChannelFee', label: t('tables.channelFee') },
-                  { key: 'amountTouristTax', label: t('tables.touristTax') },
-                  { key: 'amountVat', label: t('tables.vat') }
-                ],
+                options: ['amountGross', 'amountNett', 'amountChannelFee', 'amountTouristTax', 'amountVat'],
                 value: selectedAmounts,
                 onChange: (values) => setSelectedAmounts(values as string[]),
-                getOptionLabel: (option) => option.label,
-                getOptionValue: (option) => option.key,
+                getOptionLabel: (option) => {
+                  const labels: Record<string, string> = {
+                    'amountGross': t('bnb.grossAmount'),
+                    'amountNett': t('bnb.netAmount'),
+                    'amountChannelFee': t('tables.channelFee'),
+                    'amountTouristTax': t('tables.touristTax'),
+                    'amountVat': t('tables.vat')
+                  };
+                  return labels[option] || option;
+                },
                 placeholder: t('bnb.selectAmounts'),
               },
             ]}
@@ -739,6 +742,14 @@ const BnbActualsReport: React.FC = () => {
           </TableContainer>
         </CardBody>
       </Card>
+
+      {/* Year-Month Matrix Overview */}
+      <BnbYearMonthMatrix
+        data={viewType === 'listing' ? bnbListingData : bnbChannelData}
+        viewType={viewType}
+        displayFormat={displayFormat}
+        selectedAmounts={selectedAmounts}
+      />
     </VStack>
   );
 };
