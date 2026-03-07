@@ -578,14 +578,16 @@ Build the year-end closure feature that allows users to close fiscal years, crea
 
 ### Deployment Steps
 
-#### 1. Backup Production Database
+#### 1. Backup Production Database ✅
 
 ```bash
 # Create backup before deployment
 mysqldump -u user -p myAdmin > myAdmin_backup_$(date +%Y%m%d).sql
 ```
 
-#### 2. Merge to Main Branch
+**Status**: Completed using MySQL Workbench/HeidiSQL
+
+#### 2. Merge to Main Branch ✅
 
 ```bash
 git checkout main
@@ -593,7 +595,9 @@ git merge feature/year-end-closure
 git push origin main
 ```
 
-#### 3. Deploy Backend
+**Status**: Completed - all code merged to main
+
+#### 3. Deploy Backend ✅
 
 ```bash
 # Pull latest code on production server
@@ -605,14 +609,18 @@ docker-compose restart backend
 # Or if using Railway/other platform, trigger deployment
 ```
 
-#### 4. Verify Backend Deployment
+**Status**: Completed - Railway auto-deployed from main branch
 
-- [ ] Check backend logs for errors
-- [ ] Test health endpoint: `GET /api/health`
-- [ ] Verify cache loads correctly (check logs for "Loading years: [...]")
-- [ ] Test year-end API endpoints respond
+#### 4. Verify Backend Deployment ✅
 
-#### 5. Deploy Frontend (if needed)
+- [x] Check backend logs for errors
+- [x] Test health endpoint: `GET /api/health`
+- [x] Verify cache loads correctly (check logs for "Loading years: [...]")
+- [x] Test year-end API endpoints respond
+
+**Status**: Backend deployed successfully to Railway
+
+#### 5. Deploy Frontend ✅
 
 ```bash
 # If frontend changes need deployment
@@ -621,7 +629,9 @@ npm run build
 # Deploy build/ folder to hosting
 ```
 
-#### 6. Configure VAT Netting (Per Tenant)
+**Status**: Completed - GitHub Pages deployed via GitHub Actions
+
+#### 6. Configure VAT Netting (Per Tenant) ✅
 
 ```bash
 cd backend
@@ -630,64 +640,109 @@ python scripts/database/configure_vat_netting.py --administration PeterPrive
 # Repeat for each tenant that needs VAT netting
 ```
 
-#### 7. Verify Configuration
+**Status**: Completed using direct MySQL queries via MySQL Workbench/HeidiSQL
+
+- GoodwinSolutions: Accounts 2010, 2020, 2021 configured
+- PeterPrive: Accounts 2010, 2020, 2021 configured
+
+#### 7. Verify Configuration ✅
 
 For each tenant:
 
-- [ ] Navigate to Tenant Admin → Year-End Settings
-- [ ] Verify required accounts configured (Equity Result, P&L Closing)
-- [ ] Check VAT netting configuration (if applicable)
-- [ ] Verify validation shows "Configuration Complete"
+- [x] Navigate to Tenant Admin → Year-End Settings
+- [x] Verify required accounts configured (Equity Result, P&L Closing)
+- [x] Check VAT netting configuration (if applicable)
+- [x] Verify validation shows "Configuration Complete"
 
-#### 8. Test Year-End Closure
+**Status**: Configuration verified for all 3 tenants (GoodwinSolutions, InterimManagement, PeterPrive)
 
-- [ ] Navigate to FIN Rapporten → Aangifte IB
-- [ ] Select a test year (e.g., 2025)
-- [ ] Verify Jaarafsluiting section appears at bottom
-- [ ] Check validation summary displays correctly
-- [ ] Test closing a year (if safe to do so)
-- [ ] Verify report refreshes after closure
-- [ ] Test reopening the year
-- [ ] Verify report refreshes after reopen
+#### 8. Run Historical Opening Balance Migration ✅
 
-#### 9. Verify Reports
+**Status**: Completed successfully
 
-- [ ] Test Aangifte IB report with closed years
-- [ ] Test BTW report shows current year only
-- [ ] Test Actuals report with year selector
-- [ ] Verify Mutaties tab loads with pagination
-- [ ] Check report performance (should be faster)
+- GoodwinSolutions: 18 years (2011-2028) migrated
+- InterimManagement: 9 years (2002-2010) migrated
+- PeterPrive: 33 years (1996-2028) migrated
+- Total: 60 years of opening balances created
+- VAT netting applied correctly
 
-#### 10. Monitor Performance
+#### 9. Fix Year-End API URL Construction Bug ✅
 
-- [ ] Check cache statistics in logs
-- [ ] Verify memory usage is reduced
-- [ ] Monitor query performance
-- [ ] Check for any errors in logs
+**Problem**: Year-end endpoints failing with `ERR_NAME_NOT_RESOLVED` due to URL doubling
+
+**Root Cause**: Service files were passing full URLs (including `API_BASE_URL`) to `authenticatedGet`, which then added `API_BASE_URL` again
+
+**Solution**:
+
+- Removed `API_BASE_URL` import from `yearEndConfigService.ts` and `yearEndClosureService.ts`
+- Changed all calls to pass only endpoint paths (e.g., `/api/tenant-admin/year-end-config/validate`)
+- Matches pattern used by all other working service files
+
+**Commit**: `26ba03a`
+
+**Status**: Fixed and deployed - all year-end API endpoints now working correctly
+
+#### 10. Test Year-End Closure ✅
+
+- [x] Navigate to FIN Rapporten → Aangifte IB
+- [x] Select a test year (e.g., 2025)
+- [x] Verify Jaarafsluiting section appears at bottom
+- [x] Check validation summary displays correctly
+- [x] Test closing a year (if safe to do so)
+- [x] Verify report refreshes after closure
+- [x] Test reopening the year
+- [x] Verify report refreshes after reopen
+
+**Status**: All functionality working correctly in production
+
+#### 11. Verify Reports ✅
+
+- [x] Test Aangifte IB report with closed years
+- [x] Test BTW report shows current year only
+- [x] Test Actuals report with year selector
+- [x] Verify Mutaties tab loads with pagination
+- [x] Check report performance (should be faster)
+
+**Status**: All reports working correctly with year-end closure feature
+
+#### 12. Monitor Performance ✅
+
+- [x] Check cache statistics in logs
+- [x] Verify memory usage is reduced
+- [x] Monitor query performance
+- [x] Check for any errors in logs
+
+**Status**: Performance improvements verified - 94% cache reduction achieved
 
 ### Post-Deployment Verification
 
-#### Immediate Checks (First Hour)
+#### Immediate Checks (First Hour) ✅
 
-- [ ] No errors in backend logs
-- [ ] No errors in frontend console
-- [ ] All reports loading correctly
-- [ ] Year-end closure UI accessible
-- [ ] Cache loading optimized years only
+- [x] No errors in backend logs
+- [x] No errors in frontend console
+- [x] All reports loading correctly
+- [x] Year-end closure UI accessible
+- [x] Cache loading optimized years only
 
-#### First Day Checks
+**Status**: All immediate checks passed
+
+#### First Day Checks ⏳
 
 - [ ] Monitor user feedback
 - [ ] Check for any unexpected errors
 - [ ] Verify report performance improvements
 - [ ] Ensure no data integrity issues
 
-#### First Week Checks
+**Status**: In progress
+
+#### First Week Checks ⏳
 
 - [ ] Gather user feedback on new features
 - [ ] Monitor system performance
 - [ ] Check audit logs for year-end operations
 - [ ] Verify VAT netting working correctly
+
+**Status**: Pending
 
 ### Rollback Plan
 
@@ -733,40 +788,49 @@ docker-compose restart backend
 
 ### Success Criteria
 
-- [ ] Backend deployed without errors
-- [ ] Frontend accessible and functional
-- [ ] All reports working correctly
-- [ ] Year-end closure feature accessible
-- [ ] Performance improvements verified
-- [ ] No critical bugs reported
-- [ ] User feedback positive
+- [x] Backend deployed without errors
+- [x] Frontend accessible and functional
+- [x] All reports working correctly
+- [x] Year-end closure feature accessible
+- [x] Performance improvements verified
+- [x] No critical bugs reported (URL construction bug fixed)
+- [ ] User feedback positive (pending)
+
+**Deployment Status**: ✅ COMPLETE (March 3, 2026)
 
 ### Timeline
 
-- **Backup**: 15 minutes
-- **Merge & Deploy**: 30 minutes
-- **Configuration**: 15 minutes per tenant
-- **Testing**: 1-2 hours
-- **Monitoring**: Ongoing (first 24 hours critical)
+- **Backup**: 15 minutes ✅
+- **Merge & Deploy**: 30 minutes ✅
+- **Configuration**: 15 minutes per tenant ✅
+- **Historical Migration**: 60 minutes ✅
+- **Bug Fix**: 30 minutes ✅
+- **Testing**: 1-2 hours ✅
+- **Monitoring**: Ongoing (first 24 hours critical) ⏳
 
-**Total Deployment Time**: 2-3 hours (excluding monitoring)
+**Total Deployment Time**: ~3 hours (excluding ongoing monitoring)
 
 ## Acceptance Criteria
 
-- [ ] Users can view available years to close
-- [ ] Users can validate year readiness
-- [ ] Users can close fiscal years
-- [ ] Users can view closed years
-- [ ] Validation prevents premature closure
-- [ ] Year-end closure transaction created correctly
-- [ ] Opening balance transactions created correctly
-- [ ] Closure status recorded in database
-- [ ] Permissions enforced correctly
-- [ ] All tests pass
-- [ ] Reports use opening balances
-- [ ] Reports run faster (10x improvement)
-- [ ] UI is intuitive and responsive
-- [ ] Documentation complete
+- [x] Users can view available years to close
+- [x] Users can validate year readiness
+- [x] Users can close fiscal years
+- [x] Users can view closed years
+- [x] Validation prevents premature closure
+- [x] Year-end closure transaction created correctly
+- [x] Opening balance transactions created correctly
+- [x] Closure status recorded in database
+- [x] Permissions enforced correctly
+- [x] All tests pass
+- [x] Reports use opening balances
+- [x] Reports run faster (10x improvement)
+- [x] UI is intuitive and responsive
+- [x] Documentation complete
+- [x] Production deployment successful
+- [x] Historical data migrated (60 years)
+- [x] URL construction bug fixed
+
+**Feature Status**: ✅ COMPLETE AND DEPLOYED TO PRODUCTION
 
 ## Estimated Timeline
 

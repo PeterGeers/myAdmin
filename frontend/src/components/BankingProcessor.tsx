@@ -351,6 +351,7 @@ const BankingProcessor: React.FC = () => {
   }, [columnFilters]);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [editingRecord, setEditingRecord] = useState<Transaction | null>(null);
+  const [isInsertMode, setIsInsertMode] = useState(false);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -385,6 +386,30 @@ const BankingProcessor: React.FC = () => {
 
   const openEditModal = (record: Transaction) => {
     setEditingRecord({ ...record });
+    setIsInsertMode(false);
+    onOpen();
+  };
+
+  const openInsertModal = () => {
+    const currentTenant = localStorage.getItem('selectedTenant') || 'PeterPrive';
+    const newRecord: Transaction = {
+      ID: 0,
+      row_id: Date.now(), // Use timestamp as temporary row_id
+      TransactionNumber: '',
+      TransactionDate: new Date().toISOString().split('T')[0],
+      TransactionDescription: '',
+      TransactionAmount: 0,
+      Administration: currentTenant,
+      Debet: '',
+      Credit: '',
+      ReferenceNumber: '',
+      Ref1: '',
+      Ref2: '',
+      Ref3: '',
+      Ref4: ''
+    };
+    setEditingRecord(newRecord);
+    setIsInsertMode(true);
     onOpen();
   };
 
@@ -405,6 +430,34 @@ const BankingProcessor: React.FC = () => {
       setMessage(t('messages.errorUpdating') + `: ${error}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const insertRecord = async () => {
+    if (!editingRecord) return;
+    try {
+      setLoading(true);
+      const response = await authenticatedPost('/api/banking/insert-mutatie', editingRecord);
+      const data = await response.json();
+      if (data.success) {
+        setMessage(t('messages.recordInserted'));
+        fetchMutaties();
+        onClose();
+      } else {
+        setMessage(t('messages.errorGeneric', { error: data.error }));
+      }
+    } catch (error) {
+      setMessage(t('messages.errorInserting') + `: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveRecord = () => {
+    if (isInsertMode) {
+      insertRecord();
+    } else {
+      updateRecord();
     }
   };
 
@@ -1379,9 +1432,9 @@ const BankingProcessor: React.FC = () => {
                     label: 'Records to show',
                     options: [50, 100, 250, 500, 1000],
                     value: displayLimit,
-                    onChange: (value) => setDisplayLimit(value),
+                    onChange: (value) => setDisplayLimit(Number(value)),
                     getOptionLabel: (val) => String(val),
-                    getOptionValue: (val) => val
+                    getOptionValue: (val) => String(val)
                   }
                 ]}
                 labelColor="white"
@@ -1389,7 +1442,17 @@ const BankingProcessor: React.FC = () => {
                 color="white"
               />
 
-              <Heading size="md">Mutaties ({filteredMutaties.length} of {mutaties.length})</Heading>
+              <HStack justify="space-between" align="center">
+                <Heading size="md">Mutaties ({filteredMutaties.length} of {mutaties.length})</Heading>
+                <Button 
+                  colorScheme="green" 
+                  size="sm" 
+                  leftIcon={<span>+</span>}
+                  onClick={openInsertModal}
+                >
+                  {t('mutaties.addNewRecord')}
+                </Button>
+              </HStack>
 
               <TableContainer maxH="600px" overflowY="auto" overflowX="auto">
                 <Table size="sm" variant="simple">
@@ -1958,11 +2021,13 @@ const BankingProcessor: React.FC = () => {
         </TabPanels>
       </Tabs>
 
-      {/* Edit Record Modal */}
+      {/* Edit/Insert Record Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent bg="gray.700">
-          <ModalHeader color="white">{t('labels.editRecord')} - ID: {editingRecord?.ID}</ModalHeader>
+          <ModalHeader color="white">
+            {isInsertMode ? t('mutaties.addNewRecord') : `${t('mutaties.editRecord')} - ID: ${editingRecord?.ID}`}
+          </ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody>
             {editingRecord && (
@@ -2027,7 +2092,9 @@ const BankingProcessor: React.FC = () => {
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="gray" mr={3} onClick={onClose}>{t('labels.cancel')}</Button>
-            <Button colorScheme="orange" onClick={updateRecord} isLoading={loading}>{t('labels.updateRecord')}</Button>
+            <Button colorScheme="orange" onClick={handleSaveRecord} isLoading={loading}>
+              {isInsertMode ? t('mutaties.insertRecord') : t('mutaties.updateRecord')}
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
