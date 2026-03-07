@@ -7,6 +7,12 @@
 # See .kiro/specs/Common/Security/SECURITY_INCIDENT_REMEDIATION.md
 # ============================================
 
+# Temporary analysis scripts (may contain credentials)
+analyze_*.py
+backfill_*.py
+debug_*.py
+test_connection*.py
+
 # Python
 __pycache__/
 *.pyc
@@ -14101,6 +14107,60 @@ __marimo__/
 **/myDatabaseForRailway*
 .kiro/specs/**/Railway migration/myDatabaseForRailway*
 .kiro/specs/**/Railway migration/extracted/
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
+
+# Added by ggshield
+.cache_ggshield
 
 # Added by ggshield
 .cache_ggshield
