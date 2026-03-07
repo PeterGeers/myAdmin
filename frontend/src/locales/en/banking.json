@@ -34,7 +34,9 @@
     "totalRecords": "Total: {{total}} records",
     "noRecords": "No records found",
     "editRecord": "Edit Record",
+    "addNewRecord": "Add New Record",
     "updateRecord": "Update Record",
+    "insertRecord": "Insert Record",
     "updating": "Updating..."
   },
   "checkAccounts": {
@@ -121,7 +123,9 @@
   "messages": {
     "copiedToClipboard": "Copied to clipboard!",
     "recordUpdated": "Record updated successfully!",
+    "recordInserted": "Record inserted successfully!",
     "errorUpdating": "Error updating record",
+    "errorInserting": "Error inserting record",
     "foundAccounts": "Found {{count}} banking accounts",
     "foundAccountsAsOf": "Found {{count}} banking accounts as of {{date}}",
     "sequenceCheckComplete": "Sequence check complete for {{account}} ({{administration}})",

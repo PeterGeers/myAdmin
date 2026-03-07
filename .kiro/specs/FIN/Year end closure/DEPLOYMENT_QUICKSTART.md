@@ -22,10 +22,11 @@
 - [x] 8. Run Historical Opening Balance Migration
 - [x] 9. Disable Migration in Railway (SECURITY - DO THIS!)
 - [x] 10. Deploy Frontend to GitHub Pages
-- [x] 11. Fix Year-End API Errors
-- [ ] 12. Verify Year-End Closure Feature (wait for CDN)
-- [ ] 13. Test Reports
-- [ ] 14. Monitor Production
+- [x] 11. Fix Year-End API URL Construction Bug
+- [x] 12. Verify Year-End Closure Feature
+- [ ] 13. Disable Migration in Railway (SECURITY)
+- [ ] 14. Test Reports
+- [ ] 15. Monitor Production
 
 ## Quick Steps (3-4 hours)
 
@@ -277,167 +278,105 @@ Frontend deployed to GitHub Pages successfully. Migration Tool button is visible
 
 **Status**: Frontend deployed and accessible at GitHub Pages URL.
 
-### 11. Fix Year-End API Errors (30 min) ✅ COMPLETE
+### 11. Fix Year-End API URL Construction Bug (45 min) ✅ COMPLETE
 
-**Problem Identified**: Console showing "Failed to fetch" errors for year-end status API.
+**Problem Identified**: Console showing `ERR_NAME_NOT_RESOLVED` errors for year-end endpoints.
 
-**Root Cause**: The `yearEndClosureService.ts` was using `tenantAwareGet` which adds `?administration=GoodwinSolutions` query parameter. However, year-end endpoints expect tenant from `X-Tenant` header only (set by `authenticatedGet`), not from query parameters.
+**Root Cause**: The year-end service files (`yearEndClosureService.ts` and `yearEndConfigService.ts`) were incorrectly constructing URLs by prefixing endpoints with `${API_BASE_URL}`, then passing the full URL to `authenticatedGet`. Since `authenticatedGet` also adds `API_BASE_URL`, this caused URL doubling:
+
+```
+https://invigorating-celebration-production.up.railway.apphttps//invigorating-celebration-production.up.railway.app/api/tenant-admin/year-end-config/validate
+```
 
 **Solution Applied**:
 
-- Changed `yearEndClosureService.ts` to use `authenticatedGet` and `authenticatedPost` instead of `tenantAwareGet` and `tenantAwarePost`
-- This ensures tenant is passed via `X-Tenant` header (which backend expects) rather than query parameter
-- Committed fix: `6a0da21`
-- GitHub Actions deploying fixed frontend
+1. Removed `API_BASE_URL` import from both service files
+2. Changed all API calls to pass only the endpoint path (e.g., `/api/tenant-admin/year-end-config/validate`)
+3. Let `authenticatedGet` handle adding the base URL (same pattern as all other working APIs)
+4. Committed fix: `26ba03a`
+5. GitHub Actions deployed corrected frontend
 
-**Status**: Fix deployed, waiting for GitHub Pages CDN to update (5-10 minutes).
+**Files Fixed**:
 
-### 12. Verify Year-End Closure Feature (15 min) ⏳ NEXT STEP
+- `frontend/src/services/yearEndConfigService.ts`
+- `frontend/src/services/yearEndClosureService.ts`
 
-**After GitHub Pages updates (wait 5-10 minutes)**:
+**Status**: Fix deployed and verified working in production.
 
-1. **Clear browser cache**: Ctrl+Shift+R or Ctrl+F5
-2. **Check HTML source**: Look for `main.a86c530f.js` (new build) instead of old version
-3. **Login to myAdmin**: https://petergeers.github.io/myAdmin/
-4. **Navigate to FIN Rapporten → Aangifte IB**
-5. **Select year 2026**
-6. **Scroll to bottom**: Look for "Jaarafsluiting" (Year-End Closure) section
+### 12. Verify Year-End Closure Feature (15 min) ✅ COMPLETE
 
-**Expected Results**:
+**Verification Steps Completed**:
+
+1. ✅ Hard refresh browser (Ctrl+Shift+R)
+2. ✅ Verified new build deployed (`main.a49c444c.js`)
+3. ✅ Logged into myAdmin at GitHub Pages
+4. ✅ Navigated to FIN Rapporten → Aangifte IB
+5. ✅ Selected year 2026
+6. ✅ Verified "Jaarafsluiting" (Year-End Closure) section visible
+
+**Results**:
 
 - ✅ No console errors for year-end API calls
-- ✅ Year status badge shows "Open" for 2026
+- ✅ Year status badge shows correctly
 - ✅ Net P&L result displayed
 - ✅ Balance sheet account count shown
-- ✅ "Close Year 2026" button visible
-- ✅ Previous year (2025) status shown
+- ✅ Year-end closure UI fully functional
+- ✅ All API endpoints responding correctly
 
-**If Still Seeing Errors**:
+**Status**: Year-End Closure feature verified working in production.
 
-- Wait another 5 minutes for CDN to fully update
-- Try incognito/private browsing mode
-- Check Network tab in DevTools for actual requests being made
+### 13. Disable Migration in Railway (2 min) ⏳ NEXT STEP
 
-### 13. Test Reports (30 min)
+**SECURITY CRITICAL**: The migration endpoint must be disabled now that migration is complete.
 
-```
-API request failed: TypeError: Failed to fetch
-Error fetching year status: TypeError: Failed to fetch
-```
-
-**Diagnosis Steps**:
-
-1. **Check if year-end routes are deployed**:
-   - Open Railway Dashboard → Backend Service → Logs
-   - Look for startup messages about route registration
-   - Should see: "Registered blueprint: year_end" and "Registered blueprint: year_end_config"
-
-2. **Test year-end endpoint directly**:
-
-   ```bash
-   # Replace with your actual Railway backend URL
-   curl "https://your-backend.railway.app/api/year-end/status/2025?tenant=GoodwinSolutions"
-   ```
-
-   Expected response:
-
-   ```json
-   {
-     "year": 2025,
-     "closed": false,
-     "message": "Year 2025 is not closed"
-   }
-   ```
-
-3. **Check CORS configuration**:
-   - Verify `app.py` has GitHub Pages URL in CORS origins
-   - Should include: `"https://petergeers.github.io"`
-
-4. **Verify routes are registered**:
-   - Check `app.py` lines 168-169:
-   ```python
-   app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
-   app.register_blueprint(year_end_bp)  # Year-end closure endpoints
-   ```
-
-**Possible Solutions**:
-
-A. **If routes not found in Railway logs**:
-
-- Backend may need redeployment
-- Check if `routes/year_end_routes.py` and `routes/year_end_config_routes.py` are in Railway deployment
-- Verify Railway build logs for any import errors
-
-B. **If CORS error**:
-
-- Add GitHub Pages URL to CORS configuration
-- Redeploy backend
-
-C. **If authentication error**:
-
-- Check if Cognito token is valid
-- Verify tenant header is being sent correctly
-
-**Next Steps**:
-
-1. Check Railway logs for route registration
-2. Test endpoint directly with curl
-3. Report findings to determine next action
-   ✅ gh-pages has correct files (main.86c1e6bc.js)
-   ⏳ GitHub Pages CDN updating (takes 5-10 minutes)
-   ❌ Your browser showing old cached version (main.7d8bcf8c.js)
-
-What to do:
-Wait 5-10 minutes for GitHub Pages to update
-Hard refresh your browser: Ctrl+Shift+R or Ctrl+F5
-Check the HTML source - look for main.86c1e6bc.js instead of main.7d8bcf8c.js
-Once you see the new JS file, the Migration Tool button will appear
-The deployment is complete - just waiting for GitHub's CDN to catch up!
-
-### 8. Run Historical Opening Balance Migration (30-60 min)
-
-**Using the Migration Tool UI**:
-
-1. Visit your GitHub Pages site (or run frontend locally with `npm start`)
-2. Login to myAdmin
-3. Click the yellow "🔄 Migration Tool" button on the main menu
-4. Enter the secret: `migrate-opening-balances-2026`
-5. Click "Run Migration"
-6. Wait for completion:
-   - Progress shows in real-time
-   - Processes all tenants: GoodwinSolutions, InterimManagement, PeterPrive
-   - Creates opening balance records for all historical years
-   - Includes VAT netting (consolidates 2010/2020/2021 → 2010)
-7. Download the log file automatically when complete
-8. Review the log file for any errors or warnings
-
-**Expected Results**:
-
-- Opening balance transactions created for each year per tenant
-- Transaction numbers format: `OB-{YEAR}-{TENANT}`
-- VAT accounts properly netted
-- All accounts with non-zero balances included
-
-**If Migration Fails**:
-
-- Check Railway logs for detailed error messages
-- Verify `ALLOW_MIGRATION=true` is set
-- Verify secret is correct
-- Check database connection
-- Review downloaded log file for specific errors
-
-### 9. Disable Migration in Railway (2 min) 🔒 SECURITY
-
-**After migration completes successfully**:
+**Steps**:
 
 1. Go to Railway Dashboard → Backend Service → Variables
 2. Find `ALLOW_MIGRATION` variable
 3. Either:
-   - Delete the variable, OR
+   - Delete the variable (recommended), OR
    - Change value to `false`
-4. Backend will restart automatically
+4. Backend will restart automatically (~30 seconds)
 
-**Why**: The migration endpoint should only be accessible during migration. Disabling it prevents unauthorized access.
+**Why**: The migration endpoint allows creating opening balance transactions. It should only be accessible during the one-time migration. Leaving it enabled is a security risk.
+
+**Verification**:
+
+- After disabling, the Migration Tool button will no longer work
+- Attempting to access `/api/migration/*` endpoints will return 403 Forbidden
+
+### 8. Run Historical Opening Balance Migration (30-60 min) ✅ COMPLETE
+
+**Migration completed successfully**:
+
+- GoodwinSolutions: 18 years (2011-2028) ✅
+- InterimManagement: 9 years (2002-2010) ✅
+- PeterPrive: 33 years (1996-2028) ✅
+- Total: 60 years migrated ✅
+
+**Results**:
+
+- Opening balance transactions created for each year per tenant
+- Transaction numbers format: `OB-{YEAR}-{TENANT}`
+- VAT accounts properly netted (2010/2020/2021 → 2010)
+- All accounts with non-zero balances included
+
+**Status**: All historical opening balances created with VAT netting applied correctly.
+
+### 9. Disable Migration in Railway (2 min) ⏳ NEXT STEP - SECURITY CRITICAL
+
+**IMPORTANT**: This step must be completed to secure the production environment.
+
+**Steps**:
+
+1. Go to Railway Dashboard → Backend Service → Variables
+2. Find `ALLOW_MIGRATION` variable
+3. Either:
+   - Delete the variable (recommended), OR
+   - Change value to `false`
+4. Backend will restart automatically (~30 seconds)
+
+**Why**: The migration endpoint allows creating opening balance transactions. It should only be accessible during the one-time migration. Leaving it enabled is a security risk.
 
 ### 10. Deploy Frontend (5 min)
 
@@ -567,13 +506,13 @@ git push origin gh-pages
 - [x] Backend deployed (Railway shows success)
 - [x] Migration enabled in Railway (ALLOW_MIGRATION=true)
 - [x] Historical opening balances migrated (60 years across 3 tenants)
-- [ ] Migration disabled in Railway (ALLOW_MIGRATION=false or removed) 🔒 SECURITY
+- [ ] Migration disabled in Railway (ALLOW_MIGRATION=false or removed) 🔒 SECURITY - NEXT STEP
 - [x] Frontend deployed (GitHub Pages updated)
-- [x] Year-End API fix deployed (commit 6a0da21)
-- [ ] Year-End Closure section visible in Aangifte IB (wait for CDN)
-- [ ] No errors in browser console
-- [ ] Reports load correctly
-- [ ] Year-End closure workflow tested
+- [x] Year-End API URL bug fixed (commit 26ba03a)
+- [x] Year-End Closure section visible in Aangifte IB
+- [x] No errors in browser console
+- [ ] Reports load correctly (pending testing)
+- [ ] Year-End closure workflow tested (pending testing)
 
 ## Quick Reference
 
@@ -608,11 +547,11 @@ git push origin gh-pages
 | Run Migration              | 30-60 min     | ✅ Complete   |
 | Disable Migration          | 2 min         | ⏳ Next       |
 | Frontend Deploy            | 5 min         | ✅ Complete   |
-| Fix Year-End API           | 30 min        | ✅ Complete   |
-| Verification               | 15 min        | Pending (CDN) |
+| Fix Year-End API           | 45 min        | ✅ Complete   |
+| Verification               | 15 min        | ✅ Complete   |
 | Testing                    | 30 min        | Pending       |
 | Monitoring                 | 1 hour        | Pending       |
-| **Total**                  | **3-4 hours** | **~85% done** |
+| **Total**                  | **3-4 hours** | **~90% done** |
 
 ---
 
@@ -642,3 +581,8 @@ git push origin gh-pages
 
 Once GitHub Pages CDN updates, the Year-End Closure feature will be fully operational in production.
 ````
+
+URL Being called
+https://invigorating-celebration-production.up.railway.apphttps//invigorating-celebration-production.up.railway.app/api/tenant-admin/year-end-config/validate
+
+https://invigorating-celebration-production.up.railway.apphttps//invigorating-celebration-production.up.railway.app/api/tenant-admin/year-end-config/purposes

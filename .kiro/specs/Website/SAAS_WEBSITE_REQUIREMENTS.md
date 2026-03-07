@@ -91,12 +91,9 @@ myAdmin
 
 **Data Import & Integration**
 
-- **Guesty Integration**: Import booking data from your channel manager
 - **Direct Platform Import**: CSV import from Airbnb, Booking.com
-- **Automatic Sync**: Set it once, data flows automatically
 - **Historical Data**: Import years of past bookings for trend analysis
 - **Unified Dashboard**: See all your properties and bookings in one place
-- **Real-time Updates**: Stay current with your latest bookings
 
 **AI-Powered Pricing Optimizer** ⭐ Hero Feature
 
@@ -105,7 +102,6 @@ myAdmin
 - **Event-Based Pricing**: Uplifts for local events, holidays, and peak periods
 - **14-Month Strategy**: Long-term pricing roadmap to maximize annual revenue
 - **Historical Comparison**: See how recommended prices compare to your actual rates
-- **What-If Scenarios**: Test different pricing strategies before implementing
 
 **Revenue Analytics & Reporting**
 
@@ -121,7 +117,6 @@ myAdmin
 **Booking Management**
 
 - **Realized vs Planned**: Separate confirmed bookings from future projections
-- **Cancellation Tracking**: Monitor cancellation rates and patterns
 - **Guest Information**: Complete guest profiles and booking history
 - **Reservation Details**: Check-in/out dates, nights, guests, special requests
 - **Multi-Property View**: Manage all properties from one interface

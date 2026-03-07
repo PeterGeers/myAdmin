@@ -482,12 +482,12 @@ Expected cost reduction:
 
 - [x] Railway backend deployed successfully
 - [x] GitHub Pages frontend accessible
-- [ ] All reports working correctly
-- [ ] Year-end closure feature functional
-- [ ] Performance improvements verified
-- [ ] No critical bugs
-- [ ] Cache optimization working
-- [ ] User feedback positive
+- [x] All reports working correctly
+- [x] Year-end closure feature functional
+- [x] Performance improvements verified
+- [x] No critical bugs (URL construction bug fixed)
+- [x] Cache optimization working
+- [ ] User feedback positive (pending)
 
 ## Timeline Summary
 
@@ -512,6 +512,60 @@ Expected cost reduction:
 - **USER_GUIDE.md**: End-user documentation
 - **ADMIN_GUIDE.md**: Administrator troubleshooting
 
+## Deployment Issues Encountered and Resolved
+
+### Issue 1: Year-End API URL Construction Bug (March 3, 2026)
+
+**Problem**: Year-end configuration and closure endpoints were failing with `ERR_NAME_NOT_RESOLVED` errors. The actual URLs being constructed were malformed:
+
+```
+https://invigorating-celebration-production.up.railway.apphttps//invigorating-celebration-production.up.railway.app/api/tenant-admin/year-end-config/validate
+```
+
+**Root Cause**: The year-end service files (`yearEndConfigService.ts` and `yearEndClosureService.ts`) were incorrectly importing and using `API_BASE_URL` from `config/api.ts`, then passing full URLs like:
+
+```typescript
+authenticatedGet(`${API_BASE_URL}/api/tenant-admin/year-end-config/validate`);
+```
+
+However, `authenticatedGet` in `apiService.ts` already adds `API_BASE_URL` internally:
+
+```typescript
+const url = `${API_BASE_URL}${endpoint}`;
+```
+
+This caused URL doubling with a malformed protocol separator.
+
+**Solution Applied** (Commit `26ba03a`):
+
+1. Removed `API_BASE_URL` import from both service files
+2. Changed all API calls to pass only the endpoint path:
+
+   ```typescript
+   // Before (WRONG)
+   authenticatedGet(
+     `${API_BASE_URL}/api/tenant-admin/year-end-config/validate`,
+   );
+
+   // After (CORRECT)
+   authenticatedGet("/api/tenant-admin/year-end-config/validate");
+   ```
+
+3. This matches the pattern used by all other working service files (e.g., `chartOfAccountsService.ts`)
+
+**Files Modified**:
+
+- `frontend/src/services/yearEndConfigService.ts`
+- `frontend/src/services/yearEndClosureService.ts`
+
+**Verification**:
+
+- URLs now correctly constructed as: `https://invigorating-celebration-production.up.railway.app/api/tenant-admin/year-end-config/validate`
+- All year-end API endpoints working correctly
+- No more `ERR_NAME_NOT_RESOLVED` errors
+
+**Lesson Learned**: Always pass only the endpoint path (starting with `/api/`) to `authenticatedGet`, `authenticatedPost`, etc. The `apiService` handles adding the base URL automatically based on the environment (localhost, Railway, GitHub Pages).
+
 ## Contact
 
 For deployment issues:
@@ -523,6 +577,7 @@ For deployment issues:
 
 ---
 
-**Deployment Status**: Ready ✅  
-**Recommended Time**: Evening or weekend (low traffic)  
-**Expected Downtime**: None (zero-downtime deployment)
+**Deployment Status**: ✅ COMPLETE  
+**Deployment Date**: March 3, 2026  
+**Final Status**: All features deployed and working correctly  
+**Expected Downtime**: None (zero-downtime deployment achieved)

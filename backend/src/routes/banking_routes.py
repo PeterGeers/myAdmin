@@ -253,6 +253,45 @@ def banking_update_mutatie(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@banking_bp.route('/api/banking/insert-mutatie', methods=['POST'])
+@cognito_required(required_permissions=['transactions_create'])
+@tenant_required()
+def banking_insert_mutatie(user_email, user_roles, tenant, user_tenants):
+    """Insert a new mutatie record"""
+    try:
+        data = request.get_json()
+        
+        print(f"Insert request for tenant: {tenant}", flush=True)
+        print(f"Data received: {data}", flush=True)
+        
+        # Force administration to current tenant
+        data['Administration'] = tenant
+        
+        # Use the existing insert_transaction method
+        from database import DatabaseManager
+        db = DatabaseManager(test_mode=False)
+        
+        table_name = 'mutaties'
+        success = db.insert_transaction(data, table_name)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Record inserted successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to insert record'
+            }), 500
+        
+    except Exception as e:
+        print(f"Insert error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @banking_bp.route('/api/banking/check-accounts', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
 @tenant_required()

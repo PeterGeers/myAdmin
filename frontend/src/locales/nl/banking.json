@@ -34,7 +34,9 @@
     "totalRecords": "Totaal: {{total}} records",
     "noRecords": "Geen records gevonden",
     "editRecord": "Record Bewerken",
+    "addNewRecord": "Nieuw Record Toevoegen",
     "updateRecord": "Record Bijwerken",
+    "insertRecord": "Record Invoegen",
     "updating": "Bijwerken..."
   },
   "checkAccounts": {
@@ -121,7 +123,9 @@
   "messages": {
     "copiedToClipboard": "Gekopieerd naar klembord!",
     "recordUpdated": "Record succesvol bijgewerkt!",
+    "recordInserted": "Record succesvol toegevoegd!",
     "errorUpdating": "Fout bij bijwerken van record",
+    "errorInserting": "Fout bij toevoegen van record",
     "foundAccounts": "{{count}} bankrekeningen gevonden",
     "foundAccountsAsOf": "{{count}} bankrekeningen gevonden per {{date}}",
     "sequenceCheckComplete": "Volgordecontrole voltooid voor {{account}} ({{administration}})",
