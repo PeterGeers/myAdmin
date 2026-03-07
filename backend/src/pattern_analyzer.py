@@ -494,7 +494,12 @@ class PatternAnalyzer:
                 continue
             
             # Skip transaction IDs and codes (patterns that are clearly not company names)
-            if (re.match(r'^[A-Z0-9]{8,}$', word) or  # Long alphanumeric codes
+            # FIX: Only skip alphanumeric codes that contain BOTH letters AND numbers
+            # Pure alphabetic words (like "HOOGVLIET") should NOT be filtered
+            has_letters = bool(re.search(r'[A-Z]', word))
+            has_digits = bool(re.search(r'\d', word))
+            
+            if ((has_letters and has_digits and len(word) >= 8) or  # Long mixed alphanumeric codes
                 re.match(r'^[A-Z]{2}\d+[A-Z]+\d+$', word) or  # Mixed letter-number patterns
                 re.match(r'^\d+[A-Z]+\d+$', word) or  # Number-letter-number patterns
                 re.match(r'^[A-Z]+\d+[A-Z]+$', word) or  # Letter-number-letter patterns
