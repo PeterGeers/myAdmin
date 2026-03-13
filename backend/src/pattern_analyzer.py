@@ -599,17 +599,23 @@ class PatternAnalyzer:
             return False
         
         # Reject patterns that look like transaction IDs
+        # FIX: Only reject long codes that have BOTH letters AND digits (transaction IDs)
+        # Pure alphabetic company names like "HOOGVLIET" should NOT be rejected
+        has_letters = bool(re.search(r'[A-Z]', verb))
+        has_digits = bool(re.search(r'\d', verb))
+        
         invalid_patterns = [
-            r'^[A-Z0-9]{8,}$',           # Long alphanumeric codes
-            r'^[A-Z]{2}\d+[A-Z]+\d+$',  # Mixed patterns like QG0DBCBZELL92QM4
-            r'^\d+[A-Z]+\d+$',          # Number-letter-number
-            r'^[A-Z]+\d+[A-Z]+$',       # Letter-number-letter
-            r'^P\d{10,}$',              # Transaction IDs starting with P
-            r'^[A-Z]{1,3}\d{8,}$'       # Short prefix + long number
+            # Only reject long alphanumeric codes that have BOTH letters AND digits
+            (r'^[A-Z0-9]{8,}$', has_letters and has_digits),  # Long mixed codes only
+            (r'^[A-Z]{2}\d+[A-Z]+\d+$', True),  # Mixed patterns like QG0DBCBZELL92QM4
+            (r'^\d+[A-Z]+\d+$', True),          # Number-letter-number
+            (r'^[A-Z]+\d+[A-Z]+$', True),       # Letter-number-letter
+            (r'^P\d{10,}$', True),              # Transaction IDs starting with P
+            (r'^[A-Z]{1,3}\d{8,}$', True)       # Short prefix + long number
         ]
         
-        for pattern in invalid_patterns:
-            if re.match(pattern, verb):
+        for pattern, should_check in invalid_patterns:
+            if should_check and re.match(pattern, verb):
                 return False
         
         # Reject specific known transaction prefixes
@@ -618,8 +624,14 @@ class PatternAnalyzer:
             return False
         
         # Must have at least one vowel (real words have vowels)
+        # EXCEPTION: Allow short acronyms (3-5 chars) without vowels (e.g., "TMC", "KPN", "NS")
         vowels = set('AEIOU')
-        if len(set(verb) & vowels) == 0:
+        has_vowels = len(set(verb) & vowels) > 0
+        
+        if not has_vowels:
+            # Allow short acronyms (3-5 uppercase letters without digits)
+            if 3 <= len(verb) <= 5 and verb.isupper() and not has_digits:
+                return True
             return False
         
         return True
