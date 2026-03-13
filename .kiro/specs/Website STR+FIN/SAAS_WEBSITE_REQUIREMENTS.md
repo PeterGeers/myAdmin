@@ -2,142 +2,99 @@
 
 **Last Updated:** March 2026  
 **Status:** Planning Phase  
-**Strategic Focus:** Financial Administration Platform with Integrated STR Management
+**Strategic Focus:** Integrated Platform for STR Property Managers (STR Analytics + Financial Administration)
 
 ## Executive Summary
 
-myAdmin is a **comprehensive financial administration platform with specialized STR analytics and pricing optimization** designed for small businesses, accountants, and property managers who need intelligent automation. While traditional accounting software handles basic bookkeeping, myAdmin answers the critical questions: "Are my finances truly optimized? Am I maximizing revenue from my rental properties? Are my taxes handled correctly?"
+myAdmin is an **integrated platform for STR property managers** that combines specialized rental analytics with complete financial administration. While property management software handles bookings and accounting software handles invoices, myAdmin answers the critical questions: "Am I maximizing revenue from my properties? Are my finances optimized? Are my taxes handled correctly?"
 
-**Primary Market**: Small business owners, accountants, and bookkeepers who need automated financial administration, with specialized support for those managing short-term rental properties.
+**Primary Market**: STR property managers (3-15 properties) who need both rental analytics AND financial administration in one platform.
 
-**Core Value**: Complete financial automation—from AI-powered invoice processing to tax declarations—with optional STR analytics for property managers who want revenue optimization alongside their bookkeeping.
+**Core Value**: Stop juggling multiple tools (PMS + accounting software + spreadsheets). Get integrated STR analytics and complete financial automation in one platform, with seamless data flow from bookings to tax declarations.
 
-**Key Differentiator**: We're not just accounting software. We combine intelligent financial automation with specialized STR revenue optimization, giving you both compliance and growth in one platform.
+**Key Differentiator**: We're not just property management software or accounting software. We integrate both—giving you rental optimization AND financial compliance in one platform. One platform replaces 3-4 tools.
 
-**Strategic Position**: "The intelligent financial platform that grows with your business"
+**Strategic Position**: "The integrated platform that manages your rentals AND your finances"
 
 ---
 
-## The Business Administration Problem
+## The STR Property Manager's Problem
 
-**Current Reality for Most Small Businesses:**
+**Current Reality for STR Property Managers:**
 
 ```
-Invoices arrive (email/mail)
-    ↓ [Manual data entry]
+Airbnb Dashboard
+    ↓ [Download CSV, manual entry]
+Booking.com Dashboard
+    ↓ [Download CSV, manual entry]
+Excel Spreadsheets
+    ↓ [Manual data combination]
 Accounting Software
     ↓ [Manual categorization]
 Bank Statements
     ↓ [Manual reconciliation]
-Financial Reports
-    ↓ [Manual preparation]
 Tax Returns
+    ↓ [Hire expensive accountant]
 ```
 
 **With myAdmin:**
 
 ```
-Invoices arrive (email/PDF)
-    ↓ [AI extraction to myAdmin]
-Bank Statements
-    ↓ [Automatic import & categorization]
-myAdmin
-    ├─→ Real-time Financial Reports
-    ├─→ Tax Declarations (one-click)
-    └─→ STR Analytics (if applicable)
+Airbnb + Booking.com
+    ↓ [Automatic import to myAdmin]
+myAdmin Integrated Platform
+    ├─→ STR Analytics & Pricing Insights
+    ├─→ Financial Reports (auto-categorized)
+    └─→ Tax Declarations (one-click)
 ```
 
-**The Insight**: Traditional accounting software requires manual data entry and categorization. myAdmin uses AI to read your invoices and bank statements, automatically categorizes everything, and prepares your tax declarations—eliminating repetitive manual work. And if you manage rental properties, you get specialized STR analytics and pricing optimization as a bonus.
+**The Insight**: Property managers juggle 3-4 tools (PMS + accounting software + spreadsheets + tax advisor). myAdmin integrates everything—data flows seamlessly from your bookings to your financials to your tax declarations. Stop juggling multiple tools.
 
 ---
 
 ## 1. Core Value Propositions
 
-### Primary Message (Financial Administration First)
+### Primary Message (For STR Property Managers - ONLY Target)
 
-#### ✅ Option A: The Intelligent Automation Platform (SELECTED)
+#### ✅ Option A: The Integrated Platform (SELECTED)
 
-**Headline:** Stop doing bookkeeping. Start growing your business.
+**Headline:** Manage your rentals. Optimize your pricing. Handle your taxes. All in one platform.
 
-**Sub-headline:** AI reads your invoices and bank statements, automatically categorizes everything, and prepares your tax declarations. Add STR analytics if you manage rental properties. All in one platform.
+**Sub-headline:** myAdmin connects directly to Airbnb and Booking.com, uses AI to maximize your revenue, and automatically handles your bookkeeping and tax declarations. Stop juggling multiple tools.
 
 **CTA:** Start your free 14-day trial  
-**Trust Signal:** "Built by financial professionals, tested in real business operations"
+**Trust Signal:** "Built by financial professionals, tested in real business operations. One platform replaces 3-4 tools."
 
-#### Option B: The Complete Financial Platform
+#### Option B: The Complete Solution
 
-**Headline:** Your finances, fully automated.
+**Headline:** Stop juggling PMS, accounting software, and spreadsheets.
 
-**Sub-headline:** From invoice processing to tax declarations, myAdmin handles it all. AI-powered automation eliminates manual data entry. Optional STR module for rental property managers.
+**Sub-headline:** One integrated platform for STR property managers. From booking analytics to tax declarations, myAdmin handles it all. Data flows seamlessly from your rentals to your financials.
 
 **CTA:** See how it works  
-**Trust Signal:** "AI-powered automation with bank-level security"
+**Trust Signal:** "Integrated platform with bank-level security and GDPR compliance"
 
-#### Option C: The Growth-Focused Platform
+#### Option C: The Time Saver
 
-**Headline:** Financial administration that scales with you.
+**Headline:** Your STR business, fully automated.
 
-**Sub-headline:** Start with automated bookkeeping. Add STR analytics when you grow into rental properties. One platform, modular pricing, near zero manual data entry.
+**Sub-headline:** Connect Airbnb and Booking.com. Get pricing insights, financial reports, and tax declarations—all automated. Spend less time on admin, more time on your guests.
 
 **CTA:** Discover your potential  
-**Trust Signal:** "Modular platform designed to scale with your business"
+**Trust Signal:** "Seamless data flow from bookings to taxes"
 
 ---
 
-## 2. Feature Showcase
+## 2. Feature Showcase (Integrated Platform)
 
-### 💰 Financial Administration (Primary Features) ⭐
+### 🏠 STR Analytics & Pricing (Core Feature)
 
-**AI-Powered Invoice Processing** ⭐ Hero Feature
-
-- **Universal Extraction**: AI reads any invoice format (PDF, email, scanned documents)
-- **Smart Categorization**: Automatically assigns correct account codes
-- **250+ Vendor Parsers**: Fallback parsers for common suppliers
-- **Google Drive Integration**: Automatic document storage and linking
-- **Manual Override**: Review and adjust before finalizing
-
-**Automated Banking**
-
-- **Bank Statement Import**: CSV import from major Dutch banks (Rabobank, ING, ABN AMRO)
-- **Pattern Recognition**: Learns from your categorization patterns
-- **Duplicate Detection**: Never double-count a transaction
-- **Bulk Processing**: Import months of transactions in seconds
-- **Real-Time Categorization**: Instant account assignment suggestions
-
-**Tax Compliance Made Easy**
-
-- **VAT (BTW) Declarations**: Automatic preparation with one-click submission
-- **Income Tax (IB)**: Annual tax return preparation with business-specific deductions
-- **Tourist Tax**: Calculate and track tourist tax obligations (for STR properties)
-- **Audit Trail**: Complete documentation for tax authorities
-- **Always Current**: Updated with latest Dutch tax regulations
-
-**Financial Reports & Analytics**
-
-- **Interactive Dashboards**: Beautiful visualizations with real-time data
-- **P&L Statements**: See your true profitability
-- **Balance Sheets**: Complete financial overview
-- **Cash Flow Tracking**: Monitor money in and out
-- **Custom Reports**: Create reports for investors, partners, or lenders
-- **Excel Export**: Download data for further analysis
-- **Multi-Year Comparison**: Track growth over time
-
-**Document Management**
-
-- **Google Drive Integration**: Store receipts and invoices securely
-- **Automatic Organization**: Files linked to transactions
-- **Easy Retrieval**: Find any document in seconds
-- **Validation Tools**: Ensure all transactions have supporting documents
-
-### 🏠 STR Analytics & Optimization (Optional Add-On)
-
-**For Property Managers: Add specialized rental analytics when you need them**
-
-**Data Import & Integration**
+**Multi-Platform Integration**
 
 - **Direct Platform Import**: Import from Airbnb, Booking.com
 - **Historical Data**: Import years of past bookings for trend analysis
 - **Unified Dashboard**: See all your properties and bookings in one place
+- **Automatic Sync**: Data flows seamlessly to financial module
 
 **Pricing Recommendations**
 
@@ -165,9 +122,55 @@ myAdmin
 - **Reservation Details**: Check-in/out dates, nights, guests, special requests
 - **Multi-Property View**: Manage all properties from one interface
 
+### 💰 Financial Administration (Core Feature)
+
+**AI-Powered Invoice Processing**
+
+- **Universal Extraction**: AI reads any invoice format (PDF, email, scanned documents)
+- **Smart Categorization**: Automatically assigns correct account codes
+- **250+ Vendor Parsers**: Fallback parsers for common suppliers
+- **Google Drive Integration**: Automatic document storage and linking
+- **Manual Override**: Review and adjust before finalizing
+
+**Automated Banking**
+
+- **Bank Statement Import**: CSV import from major Dutch banks (Rabobank, ING, ABN AMRO)
+- **Pattern Recognition**: Learns from your categorization patterns
+- **Duplicate Detection**: Never double-count a transaction
+- **Bulk Processing**: Import months of transactions in seconds
+- **Real-Time Categorization**: Instant account assignment suggestions
+- **STR Integration**: Booking revenue automatically categorized
+
+**Tax Compliance Made Easy**
+
+- **VAT (BTW) Declarations**: Automatic preparation with one-click submission
+- **Income Tax (IB)**: Annual tax return preparation with business-specific deductions
+- **Tourist Tax**: Calculate and track tourist tax obligations (for STR properties)
+- **Audit Trail**: Complete documentation for tax authorities
+- **Always Current**: Updated with latest Dutch tax regulations
+- **STR-Specific**: Understands rental income and expenses
+
+**Financial Reports & Analytics**
+
+- **Interactive Dashboards**: Beautiful visualizations with real-time data
+- **P&L Statements**: See your true profitability (including STR revenue)
+- **Balance Sheets**: Complete financial overview
+- **Cash Flow Tracking**: Monitor money in and out
+- **Custom Reports**: Create reports for investors, partners, or lenders
+- **Excel Export**: Download data for further analysis
+- **Multi-Year Comparison**: Track growth over time
+- **STR Revenue Breakdown**: Separate rental income from other business income
+
+**Document Management**
+
+- **Google Drive Integration**: Store receipts and invoices securely
+- **Automatic Organization**: Files linked to transactions
+- **Easy Retrieval**: Find any document in seconds
+- **Validation Tools**: Ensure all transactions have supporting documents
+
 ---
 
-## 3. Why STR Hosts Choose myAdmin
+## 3. Why STR Property Managers Choose myAdmin
 
 ### The Problem We Solve
 
@@ -179,31 +182,33 @@ myAdmin
 4. Calculate revenue → Make pricing guesses
 5. Export to accounting software → Manual data entry
 6. Prepare tax returns → Hire expensive accountant
-7. **Result**: Hours spent on manual admin, pricing uncertainty, tax complexity
+7. **Result**: Hours spent on manual admin, juggling 3-4 tools, pricing uncertainty, tax complexity
 
 **After myAdmin:**
 
 1. Log into myAdmin → Everything is already there
-2. Review AI pricing suggestions → Implement with one click
+2. Review pricing insights → Data-driven decisions
 3. Check financial reports → Everything auto-categorized
 4. Submit tax declarations → One-click submission
-5. **Result**: Automated admin, data-driven decisions, simplified compliance
+5. **Result**: One integrated platform, automated data flow, simplified compliance
 
 ### Competitive Advantages
 
 #### vs Property Management Software (Guesty, Hostaway, etc.)
 
 - ✅ **Integrated Financials**: No need for separate accounting software
-- ✅ **AI Pricing**: Not just calendar management, but revenue optimization
-- ✅ **Tax Compliance**: Built-in Dutch tax declaration support
-- ✅ **Lower Cost**: One platform instead of 3-4 tools
+- ✅ **Tax Compliance**: Built-in Dutch tax declaration support (VAT, Income Tax, Tourist Tax)
+- ✅ **One Platform**: Replaces PMS + accounting software + spreadsheets
+- ✅ **Lower Total Cost**: One subscription instead of 3-4 tools
+- ✅ **Seamless Data Flow**: Bookings → Financials → Taxes (automatic)
 
 #### vs Accounting Software (Exact, Twinfield, etc.)
 
 - ✅ **STR-Specific**: Understands booking platforms, not just invoices
 - ✅ **Automatic Data**: No manual entry from booking platforms
 - ✅ **Revenue Intelligence**: Analytics that accounting tools don't provide
-- ✅ **Pricing Optimization**: Accounting tools can't help you earn more
+- ✅ **Pricing Insights**: Compare your rates to historical performance
+- ✅ **Integrated Platform**: Don't need separate PMS
 
 #### vs Manual Spreadsheets
 
@@ -211,13 +216,15 @@ myAdmin
 - ✅ **Zero Errors**: No copy-paste mistakes
 - ✅ **Real-Time**: Always current, not outdated by weeks
 - ✅ **Scalable**: Works for 1 property or 50+
+- ✅ **Professional**: Real-time dashboards, not static spreadsheets
 
-#### vs Hiring an Accountant
+#### vs Hiring Multiple Professionals
 
 - ✅ **24/7 Access**: Check your numbers anytime
-- ✅ **Cost-Effective**: One platform vs multiple subscriptions
+- ✅ **Cost-Effective**: One platform vs accountant + revenue manager
 - ✅ **Real-Time**: Don't wait for monthly reports
 - ✅ **Still Compatible**: Your accountant can access the data if needed
+- ✅ **Data-Driven**: Pricing insights included
 
 ---
 
@@ -304,9 +311,9 @@ myAdmin
 
 **Visual Elements:**
 
-- **Hero Image**: Animated dashboard showing live financial data flowing in
-- **Platform Logos**: Bank logos + Tax Authority + Google Drive
-- **Trust Indicators**: "Bank-level security", "GDPR compliant", "Dutch tax certified"
+- **Hero Image**: Animated dashboard showing STR bookings flowing into financial reports
+- **Platform Logos**: Airbnb + Booking.com + Bank logos + Tax Authority
+- **Trust Indicators**: "Bank-level security", "GDPR compliant", "One platform replaces 3-4 tools"
 
 **Copy Structure:**
 
@@ -321,55 +328,55 @@ myAdmin
 **Example:**
 
 ```
-Headline: "Stop doing bookkeeping. Start growing your business."
-Sub-headline: "AI reads your invoices and bank statements, automatically categorizes everything, and prepares your tax declarations. Add STR analytics if you manage rental properties."
+Headline: "Manage your rentals. Optimize your pricing. Handle your taxes. All in one platform."
+Sub-headline: "myAdmin connects directly to Airbnb and Booking.com, uses AI to maximize your revenue, and automatically handles your bookkeeping and tax declarations. Stop juggling multiple tools."
 CTA: "Start Free Trial" | "Watch 2-Min Demo"
-Trust: "Built by financial professionals, GDPR compliant, bank-level security"
-Logos: [Rabobank] [ING] [Belastingdienst] [Google Drive] [OpenAI]
+Trust: "Built by financial professionals. One platform replaces PMS + accounting software + spreadsheets."
+Logos: [Airbnb] [Booking.com] [Rabobank] [ING] [Belastingdienst]
 ```
 
 ### 5.2 Problem/Solution Section
 
-**"The STR Admin Nightmare" (Problem)**
+**"The STR Property Manager's Challenge" (Problem)**
 
-- Visual: Chaotic diagram of multiple tools and manual processes
+- Visual: Chaotic diagram of multiple tools (PMS + accounting + spreadsheets + tax advisor)
 - Pain points with icons:
-  - 📊 Spreadsheet hell
+  - 📊 Juggling 3-4 tools
   - 💰 Pricing uncertainty
   - 📄 Tax complexity
-  - ⏰ Time-consuming manual work
+  - ⏰ Manual data entry between systems
 
-**"One Platform, Zero Chaos" (Solution)**
+**"One Platform, Complete Integration" (Solution)**
 
-- Visual: Clean, unified myAdmin dashboard
+- Visual: Clean, unified myAdmin dashboard showing STR + Financial data
 - Benefits with icons:
-  - 🤖 Automatic data sync
-  - 🎯 Data-driven insights
+  - 🤖 Automatic data sync (bookings → financials → taxes)
+  - 🎯 Data-driven pricing insights
   - ✅ One-click tax filing
   - ⚡ Streamlined admin
 
-### 5.3 Feature Showcase (Tabbed Interface)
+### 5.3 Feature Showcase (Integrated Tabs)
 
-**Tab 1: Revenue Optimization** (Lead with strength)
+**Tab 1: STR Analytics & Pricing** (Equal weight with Financial)
 
-- AI Pricing Engine demo
-- Before/After revenue comparison
-- Interactive pricing calendar
-- ROI calculator
+- Multi-platform integration demo (Airbnb + Booking.com)
+- Pricing insights dashboard
+- Revenue analytics (year-month matrix)
+- Property comparison charts
 
-**Tab 2: Analytics & Reporting**
+**Tab 2: Financial Administration** (Equal weight with STR)
 
-- Dashboard screenshots
-- Year-month matrix view
-- Channel comparison charts
-- Guest analytics
-
-**Tab 3: Financial Administration** (Position as bonus)
-
-- "And it handles your bookkeeping too"
 - Automatic categorization demo
 - Tax declaration preview
-- "No accounting degree required"
+- Financial reports (P&L, Balance Sheet)
+- "Seamless data flow from bookings to taxes"
+
+**Tab 3: Integrated Platform** (Show the connection)
+
+- Data flow visualization: Bookings → Financials → Taxes
+- "One platform replaces 3-4 tools"
+- ROI calculator
+- Time savings demonstration
 
 ### 5.4 Social Proof Section
 
@@ -710,25 +717,25 @@ Logos: [Rabobank] [ING] [Belastingdienst] [Google Drive] [OpenAI]
 
 ### Elevator Pitch (30 seconds)
 
-"myAdmin is the only platform that manages your entire STR business—from Airbnb bookings to tax declarations. Our AI optimizes your pricing to maximize revenue, while automatically handling all your bookkeeping and tax compliance. It's like having a revenue manager and an accountant, but for €99/month instead of €5000/month."
+"myAdmin is the integrated platform for STR property managers—from Airbnb bookings to tax declarations. We connect directly to your booking platforms, provide pricing insights based on your historical data, and automatically handle all your bookkeeping and tax compliance. It's one platform that replaces your PMS, accounting software, and spreadsheets."
 
 ### Value Proposition (One sentence)
 
-"The complete STR management platform that increases your revenue and eliminates your admin headaches."
+"The integrated platform that manages your STR rentals AND your finances—stop juggling multiple tools."
 
 ### Tagline Options
 
-- "Your STR business, simplified"
-- "More revenue, less admin"
-- "The smart way to manage rentals"
-- "From bookings to bank account"
+- "Your STR business, fully integrated"
+- "One platform. Rentals + Finances + Taxes."
+- "Stop juggling tools. Start growing."
+- "From bookings to tax declarations"
 
 ### Brand Voice
 
-- **Confident but not arrogant**: "We know STR"
-- **Helpful but not condescending**: "We're here to help you succeed"
-- **Professional but approachable**: "Serious about your business, easy to work with"
-- **Data-driven but human**: "Numbers matter, but so do you"
+- **Confident but not arrogant**: "We understand STR property management"
+- **Helpful but not condescending**: "We're here to simplify your business"
+- **Professional but approachable**: "Serious about integration, easy to work with"
+- **Data-driven but human**: "Seamless data flow, personal support"
 
 ---
 
@@ -982,4 +989,4 @@ Low Features -------- myAdmin -------- High Features
 
 ---
 
-_This document reflects the strategic pivot to financial administration-first positioning with STR analytics as an optional add-on feature. Review quarterly as market feedback is gathered._
+_This document reflects the strategic focus on STR property managers who need integrated rental analytics AND financial administration. Review quarterly as market feedback is gathered._

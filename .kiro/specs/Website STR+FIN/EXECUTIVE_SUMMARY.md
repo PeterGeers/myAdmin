@@ -272,10 +272,6 @@ Financial administration platform with integrated domain modules. STR is our fir
 
 ---
 
-**For detailed information, see:**
+**For comprehensive details, see:**
 
-- [MESSAGING.md](MESSAGING.md) - Headlines, value props, brand voice
-- [FEATURES.md](FEATURES.md) - Detailed feature descriptions
-- [TARGET_CUSTOMERS.md](TARGET_CUSTOMERS.md) - Customer profiles
-- [WEBSITE_STRUCTURE.md](WEBSITE_STRUCTURE.md) - Page layouts
-- [TECHNICAL_REQUIREMENTS.md](TECHNICAL_REQUIREMENTS.md) - Tech specs
+- [SAAS_WEBSITE_REQUIREMENTS.md](SAAS_WEBSITE_REQUIREMENTS.md) - Complete website requirements, features, messaging, and implementation roadmap
