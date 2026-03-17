@@ -17,8 +17,11 @@ export interface Account {
   VW?: string;                // VW flag (single character)
   Belastingaangifte: string;  // Tax declaration category
   administration?: string;    // Tenant name (set automatically, not editable)
-  Pattern?: number;           // Pattern flag (0 or 1)
+  Pattern?: number;           // Legacy - kept for backward compatibility, use bank_account instead
   purpose?: string;           // Year-end closure purpose (equity_result, pl_closing, interim_opening_balance)
+  bank_account?: boolean;     // Whether this is a bank account (replaces Pattern)
+  iban?: string;              // IBAN for bank accounts (replaces AccountLookup for bank accounts)
+  parameters?: string;        // Raw JSON parameters string
 }
 
 /**
@@ -54,6 +57,9 @@ export interface AccountFormData {
   belastingaangifte?: string;
   pattern?: boolean;
   purpose?: string;
+  bank_account?: boolean;
+  iban?: string;
+  parameters?: string | null;
 }
 
 /**
@@ -92,7 +98,7 @@ export interface AccountModalProps {
  */
 export interface AccountsQueryParams {
   search?: string;
-  sort_by?: 'Account' | 'AccountName' | 'AccountLookup' | 'Belastingaangifte' | 'SubParent' | 'Parent' | 'VW' | 'Pattern';
+  sort_by?: 'Account' | 'AccountName' | 'AccountLookup' | 'Belastingaangifte' | 'SubParent' | 'Parent' | 'VW';
   sort_order?: 'asc' | 'desc';
   page?: number;
   limit?: number;

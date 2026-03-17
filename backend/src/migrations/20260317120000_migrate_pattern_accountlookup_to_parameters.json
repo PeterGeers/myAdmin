@@ -1,0 +1,16 @@
+{
+  "name": "migrate_pattern_accountlookup_to_parameters",
+  "description": "Phase 1: Copy Pattern=1 to parameters $.bank_account=true and AccountLookup to parameters $.iban. Update vw_rekeningnummers to read from both old columns and new parameters (backward compatible).",
+  "timestamp": "20260317120000",
+  "up": [
+    "UPDATE rekeningschema SET parameters = JSON_SET(COALESCE(parameters, '{}'), '$.bank_account', true) WHERE Pattern IS NOT NULL AND (parameters IS NULL OR JSON_EXTRACT(parameters, '$.bank_account') IS NULL)",
+    "UPDATE rekeningschema SET parameters = JSON_SET(COALESCE(parameters, '{}'), '$.iban', AccountLookup) WHERE Pattern IS NOT NULL AND AccountLookup IS NOT NULL AND AccountLookup != '' AND (parameters IS NULL OR JSON_EXTRACT(parameters, '$.iban') IS NULL)",
+    "CREATE OR REPLACE VIEW vw_rekeningnummers AS SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')), AccountLookup) AS rekeningNummer, Account, administration FROM rekeningschema WHERE Pattern IS NOT NULL OR JSON_EXTRACT(parameters, '$.bank_account') = true ORDER BY administration, Account"
+  ],
+  "down": [
+    "CREATE OR REPLACE VIEW vw_rekeningnummers AS SELECT AccountLookup AS rekeningNummer, Account, administration FROM rekeningschema WHERE Pattern IS NOT NULL ORDER BY administration, Account",
+    "UPDATE rekeningschema SET parameters = JSON_REMOVE(parameters, '$.iban') WHERE JSON_EXTRACT(parameters, '$.iban') IS NOT NULL",
+    "UPDATE rekeningschema SET parameters = JSON_REMOVE(parameters, '$.bank_account') WHERE JSON_EXTRACT(parameters, '$.bank_account') IS NOT NULL"
+  ],
+  "version": "1.0"
+}

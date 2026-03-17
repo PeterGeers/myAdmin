@@ -21,6 +21,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin
 from database import DatabaseManager
 import os
+import json as json_lib
 import logging
 from typing import Dict, Any
 from datetime import datetime
@@ -191,8 +192,11 @@ def list_accounts(user_email, user_roles):
         query = """
             SELECT AccountID, Account, AccountName, AccountLookup, 
                    SubParent, Parent, VW, Belastingaangifte, 
-                   administration, Pattern,
-                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.purpose')) as purpose
+                   administration,
+                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.purpose')) as purpose,
+                   IFNULL(JSON_EXTRACT(parameters, '$.bank_account'), false) as bank_account,
+                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) as iban,
+                   parameters
             FROM rekeningschema
             WHERE administration = %s
         """
@@ -206,7 +210,7 @@ def list_accounts(user_email, user_roles):
         
         # Add sorting
         valid_columns = ['Account', 'AccountName', 'AccountLookup', 'Belastingaangifte', 
-                        'SubParent', 'Parent', 'VW', 'Pattern']
+                        'SubParent', 'Parent', 'VW']
         if sort_by in valid_columns:
             order = 'ASC' if sort_order == 'asc' else 'DESC'
             query += f" ORDER BY {sort_by} {order}"
@@ -303,7 +307,10 @@ def get_account(user_email, user_roles, account):
         query = """
             SELECT AccountID, Account, AccountName, AccountLookup, 
                    SubParent, Parent, VW, Belastingaangifte, 
-                   administration, Pattern
+                   administration,
+                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.purpose')) as purpose,
+                   IFNULL(JSON_EXTRACT(parameters, '$.bank_account'), false) as bank_account,
+                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) as iban
             FROM rekeningschema
             WHERE administration = %s AND Account = %s
         """
@@ -382,7 +389,17 @@ def create_account(user_email, user_roles):
         parent = data.get('parent', '').strip()
         vw = data.get('vw', '').strip()
         belastingaangifte = data.get('belastingaangifte', '').strip()
-        pattern = 1 if data.get('pattern') else 0
+        
+        # Build parameters JSON (bank_account and iban)
+        bank_account = bool(data.get('bank_account', data.get('pattern', False)))
+        iban = data.get('iban', account_lookup).strip() if data.get('iban') else account_lookup
+        
+        params_dict = {}
+        if bank_account:
+            params_dict['bank_account'] = True
+        if iban and bank_account:
+            params_dict['iban'] = iban
+        parameters_json = json_lib.dumps(params_dict) if params_dict else None
         
         # Initialize database
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
@@ -402,14 +419,14 @@ def create_account(user_email, user_roles):
         insert_query = """
             INSERT INTO rekeningschema
             (Account, AccountName, AccountLookup, SubParent, Parent, VW, 
-             Belastingaangifte, administration, Pattern)
+             Belastingaangifte, administration, parameters)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         db.execute_query(
             insert_query,
             (account, account_name, account_lookup, sub_parent, parent, vw, 
-             belastingaangifte, tenant, pattern),
+             belastingaangifte, tenant, parameters_json),
             fetch=False,
             commit=True
         )
@@ -428,7 +445,8 @@ def create_account(user_email, user_roles):
                 'VW': vw,
                 'Belastingaangifte': belastingaangifte,
                 'administration': tenant,
-                'Pattern': pattern
+                'bank_account': bank_account,
+                'iban': iban if bank_account else None
             }
         }), 201
         
@@ -493,7 +511,8 @@ def update_account(user_email, user_roles, account):
         
         # Check if account exists and get old values
         check_query = """
-            SELECT Account, AccountName, AccountLookup, Belastingaangifte
+            SELECT Account, AccountName, AccountLookup, Belastingaangifte,
+                   SubParent, Parent, VW, parameters
             FROM rekeningschema
             WHERE administration = %s AND Account = %s
         """
@@ -511,7 +530,35 @@ def update_account(user_email, user_roles, account):
         parent = data.get('parent', old_values.get('Parent', '')).strip()
         vw = data.get('vw', old_values.get('VW', '')).strip()
         belastingaangifte = data.get('belastingaangifte', old_values.get('Belastingaangifte', '')).strip()
-        pattern = 1 if data.get('pattern', old_values.get('Pattern', 0)) else 0
+        
+        # Build parameters JSON
+        old_params = old_values.get('parameters') or {}
+        if isinstance(old_params, str):
+            old_params = json_lib.loads(old_params)
+        
+        # If raw parameters JSON is provided (from key-value editor), use it directly
+        if 'parameters' in data:
+            raw_params = data['parameters']
+            if raw_params:
+                params_dict = json_lib.loads(raw_params) if isinstance(raw_params, str) else raw_params
+            else:
+                params_dict = {}
+        else:
+            # Legacy: build from individual fields
+            bank_account = data.get('bank_account', old_params.get('bank_account', False))
+            bank_account = bool(bank_account)
+            iban = data.get('iban', old_params.get('iban', account_lookup)).strip() if data.get('iban') is not None else old_params.get('iban', account_lookup)
+            
+            params_dict = dict(old_params)
+            if bank_account:
+                params_dict['bank_account'] = True
+                if iban:
+                    params_dict['iban'] = iban
+            else:
+                params_dict.pop('bank_account', None)
+                params_dict.pop('iban', None)
+        
+        parameters_json = json_lib.dumps(params_dict) if params_dict else None
         
         # Validate account name if provided
         if 'accountName' in data:
@@ -529,14 +576,14 @@ def update_account(user_email, user_roles, account):
                 Parent = %s,
                 VW = %s,
                 Belastingaangifte = %s,
-                Pattern = %s
+                parameters = %s
             WHERE administration = %s AND Account = %s
         """
         
         db.execute_query(
             update_query,
             (account_name, account_lookup, sub_parent, parent, vw, 
-             belastingaangifte, pattern, tenant, account),
+             belastingaangifte, parameters_json, tenant, account),
             fetch=False,
             commit=True
         )
@@ -555,7 +602,9 @@ def update_account(user_email, user_roles, account):
                 'VW': vw,
                 'Belastingaangifte': belastingaangifte,
                 'administration': tenant,
-                'Pattern': pattern
+                'bank_account': params_dict.get('bank_account', False),
+                'iban': params_dict.get('iban'),
+                'parameters': parameters_json
             }
         })
         
@@ -688,7 +737,9 @@ def export_accounts(user_email, user_roles):
         query = """
             SELECT AccountID, Account, AccountName, AccountLookup, 
                    SubParent, Parent, VW, Belastingaangifte, 
-                   administration, Pattern
+                   administration,
+                   IFNULL(JSON_EXTRACT(parameters, '$.bank_account'), false) as bank_account,
+                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) as iban
             FROM rekeningschema
             WHERE administration = %s
             ORDER BY Account
@@ -717,7 +768,7 @@ def export_accounts(user_email, user_roles):
                 account.get('Parent', ''),
                 account.get('VW', ''),
                 account.get('Belastingaangifte', ''),
-                1 if account.get('Pattern') else 0
+                1 if account.get('bank_account') else 0
             ])
         
         # Save to BytesIO
@@ -840,7 +891,8 @@ def import_accounts(user_email, user_roles):
                 'parent': str(parent).strip() if parent else '',
                 'vw': str(vw).strip() if vw else '',
                 'tax': str(tax).strip() if tax else '',
-                'pattern': 1 if pattern else 0
+                'bank_account': bool(pattern),
+                'iban': str(lookup).strip() if lookup and pattern else None
             })
         
         if errors:
@@ -859,6 +911,14 @@ def import_accounts(user_email, user_roles):
         updated = 0
         
         for acc in accounts_to_import:
+            # Build parameters JSON
+            params_dict = {}
+            if acc['bank_account']:
+                params_dict['bank_account'] = True
+            if acc['iban']:
+                params_dict['iban'] = acc['iban']
+            parameters_json = json_lib.dumps(params_dict) if params_dict else None
+            
             # Check if exists
             check_query = """
                 SELECT 1 FROM rekeningschema
@@ -871,13 +931,15 @@ def import_accounts(user_email, user_roles):
                 update_query = """
                     UPDATE rekeningschema
                     SET AccountName = %s, AccountLookup = %s, SubParent = %s, 
-                        Parent = %s, VW = %s, Belastingaangifte = %s, Pattern = %s
+                        Parent = %s, VW = %s, Belastingaangifte = %s,
+                        parameters = %s
                     WHERE administration = %s AND Account = %s
                 """
                 db.execute_query(
                     update_query,
                     (acc['name'], acc['lookup'], acc['sub_parent'], acc['parent'], 
-                     acc['vw'], acc['tax'], acc['pattern'], tenant, acc['account']),
+                     acc['vw'], acc['tax'], parameters_json, 
+                     tenant, acc['account']),
                     fetch=False,
                     commit=True
                 )
@@ -887,13 +949,14 @@ def import_accounts(user_email, user_roles):
                 insert_query = """
                     INSERT INTO rekeningschema
                     (Account, AccountName, AccountLookup, SubParent, Parent, VW, 
-                     Belastingaangifte, administration, Pattern)
+                     Belastingaangifte, administration, parameters)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 db.execute_query(
                     insert_query,
                     (acc['account'], acc['name'], acc['lookup'], acc['sub_parent'], 
-                     acc['parent'], acc['vw'], acc['tax'], tenant, acc['pattern']),
+                     acc['parent'], acc['vw'], acc['tax'], tenant,
+                     parameters_json),
                     fetch=False,
                     commit=True
                 )
