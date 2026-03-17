@@ -365,10 +365,10 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
           } as SearchFilterConfig,
           {
             type: 'search',
-            label: 'Purpose',
+            label: 'Parameters',
             value: searchFilters.purpose,
             onChange: (value) => setSearchFilters(prev => ({...prev, purpose: value})),
-            placeholder: 'Search by purpose...'
+            placeholder: 'Search by parameters...'
           } as SearchFilterConfig
         ]}
       />
@@ -406,8 +406,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
               <Th color="gray.300">{t('chartOfAccounts.table.parent')}</Th>
               <Th color="gray.300">{t('chartOfAccounts.table.vw')}</Th>
               <Th color="gray.300">{t('chartOfAccounts.table.taxCategory')}</Th>
-              <Th color="gray.300">{t('chartOfAccounts.table.pattern')}</Th>
-              <Th color="gray.300">Purpose</Th>
+              <Th color="gray.300">Parameters</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -428,13 +427,12 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
                 <Td color="gray.300">{account.Parent || '-'}</Td>
                 <Td color="gray.300">{account.VW || '-'}</Td>
                 <Td color="gray.300">{account.Belastingaangifte}</Td>
-                <Td color="gray.300">{account.Pattern ? '✓' : ''}</Td>
-                <Td color="gray.300">
-                  {account.purpose ? (
-                    <Badge colorScheme="green" fontSize="xs">
-                      {account.purpose}
-                    </Badge>
-                  ) : '-'}
+                <Td color="gray.300" fontSize="xs" maxW="200px" title={account.parameters || ''}>
+                  {account.parameters 
+                    ? (account.parameters.length > 30 
+                        ? account.parameters.substring(0, 30) + '...' 
+                        : account.parameters)
+                    : '-'}
                 </Td>
               </Tr>
             ))}

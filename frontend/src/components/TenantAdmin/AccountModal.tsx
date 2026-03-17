@@ -29,9 +29,27 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   useDisclosure,
-  Text
+  Text,
+  IconButton,
+  Select,
+  Switch,
+  Divider
 } from '@chakra-ui/react';
 import { AccountModalProps, AccountFormData } from '../../types/chartOfAccounts';
+
+// Known parameter keys with their types and descriptions
+const KNOWN_PARAMS: Record<string, { type: 'boolean' | 'string'; description: string }> = {
+  bank_account: { type: 'boolean', description: 'Bank account flag' },
+  iban: { type: 'string', description: 'IBAN number' },
+  purpose: { type: 'string', description: 'Year-end purpose (equity_result, pl_closing)' },
+  vat_netting: { type: 'boolean', description: 'VAT netting flag' },
+  vat_primary: { type: 'string', description: 'Primary VAT account number' },
+};
+
+interface ParamEntry {
+  key: string;
+  value: string | boolean;
+}
 
 const AccountModal: React.FC<AccountModalProps> = ({
   isOpen,
@@ -50,12 +68,16 @@ const AccountModal: React.FC<AccountModalProps> = ({
     parent: '',
     vw: '',
     belastingaangifte: '',
-    pattern: false
+    pattern: false,
+    bank_account: false,
+    iban: ''
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingParams, setEditingParams] = useState(false);
+  const [paramEntries, setParamEntries] = useState<ParamEntry[]>([]);
   
   // Delete confirmation dialog
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -73,8 +95,17 @@ const AccountModal: React.FC<AccountModalProps> = ({
           parent: account.Parent || '',
           vw: account.VW || '',
           belastingaangifte: account.Belastingaangifte || '',
-          pattern: !!account.Pattern
+          pattern: !!account.Pattern,
+          bank_account: !!account.bank_account || !!account.Pattern,
+          iban: account.iban || account.AccountLookup || ''
         });
+        // Parse parameters into entries
+        try {
+          const params = account.parameters ? JSON.parse(account.parameters as string) : {};
+          setParamEntries(Object.entries(params).map(([key, value]) => ({ key, value: value as string | boolean })));
+        } catch {
+          setParamEntries([]);
+        }
       } else {
         setFormData({
           account: '',
@@ -84,10 +115,14 @@ const AccountModal: React.FC<AccountModalProps> = ({
           parent: '',
           vw: '',
           belastingaangifte: '',
-          pattern: false
+          pattern: false,
+          bank_account: false,
+          iban: ''
         });
+        setParamEntries([]);
       }
       setErrors({});
+      setEditingParams(false);
     }
   }, [isOpen, mode, account]);
 
@@ -125,8 +160,18 @@ const AccountModal: React.FC<AccountModalProps> = ({
 
     setSaving(true);
     try {
-      await onSave(formData);
-      // onClose will be called by parent after successful save
+      // Build parameters from entries if editing
+      const saveData = { ...formData };
+      if (editingParams || paramEntries.length > 0) {
+        const paramsObj: Record<string, string | boolean> = {};
+        paramEntries.forEach(entry => {
+          if (entry.key.trim()) {
+            paramsObj[entry.key.trim()] = entry.value;
+          }
+        });
+        (saveData as any).parameters = Object.keys(paramsObj).length > 0 ? JSON.stringify(paramsObj) : null;
+      }
+      await onSave(saveData);
     } catch (error) {
       // Error toast will be shown by parent
     } finally {
@@ -266,16 +311,127 @@ const AccountModal: React.FC<AccountModalProps> = ({
                 />
               </FormControl>
 
-              {/* Pattern */}
-              <FormControl display="flex" alignItems="center">
-                <FormLabel color="gray.300" mb={0}>Pattern</FormLabel>
-                <Input
-                  type="checkbox"
-                  checked={formData.pattern}
-                  onChange={(e) => handleChange('pattern', e.target.checked ? 'true' : 'false')}
-                  width="auto"
-                  ml={2}
-                />
+              {/* Parameters */}
+              <Divider borderColor="gray.600" />
+              <FormControl>
+                <HStack justify="space-between" mb={2}>
+                  <FormLabel color="gray.300" mb={0}>Parameters</FormLabel>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    colorScheme="orange"
+                    onClick={() => setEditingParams(!editingParams)}
+                  >
+                    {editingParams ? 'Done' : 'Edit'}
+                  </Button>
+                </HStack>
+
+                {!editingParams ? (
+                  // Read-only view
+                  <Box
+                    bg="gray.700"
+                    p={3}
+                    borderRadius="md"
+                    border="1px"
+                    borderColor="gray.600"
+                    fontSize="xs"
+                    color="gray.300"
+                    fontFamily="mono"
+                    whiteSpace="pre-wrap"
+                    wordBreak="break-all"
+                    minH="40px"
+                  >
+                    {paramEntries.length > 0
+                      ? JSON.stringify(
+                          paramEntries.reduce((obj, e) => {
+                            if (e.key.trim()) obj[e.key.trim()] = e.value;
+                            return obj;
+                          }, {} as Record<string, string | boolean>),
+                          null, 2
+                        )
+                      : 'No parameters'}
+                  </Box>
+                ) : (
+                  // Editable key-value pairs
+                  <VStack spacing={2} align="stretch">
+                    {paramEntries.map((entry, idx) => (
+                      <HStack key={idx} spacing={2}>
+                        <Select
+                          size="sm"
+                          bg="gray.700"
+                          color="white"
+                          borderColor="gray.600"
+                          value={entry.key}
+                          onChange={(e) => {
+                            const newEntries = [...paramEntries];
+                            const newKey = e.target.value;
+                            newEntries[idx] = {
+                              key: newKey,
+                              value: KNOWN_PARAMS[newKey]?.type === 'boolean' ? false : ''
+                            };
+                            setParamEntries(newEntries);
+                          }}
+                          flex={1}
+                        >
+                          <option value="">Select key...</option>
+                          {Object.keys(KNOWN_PARAMS).map(k => (
+                            <option key={k} value={k}>{k}</option>
+                          ))}
+                          {entry.key && !KNOWN_PARAMS[entry.key] && (
+                            <option value={entry.key}>{entry.key}</option>
+                          )}
+                        </Select>
+
+                        {KNOWN_PARAMS[entry.key]?.type === 'boolean' ? (
+                          <Switch
+                            isChecked={entry.value === true}
+                            onChange={(e) => {
+                              const newEntries = [...paramEntries];
+                              newEntries[idx] = { ...entry, value: e.target.checked };
+                              setParamEntries(newEntries);
+                            }}
+                            colorScheme="orange"
+                          />
+                        ) : (
+                          <Input
+                            size="sm"
+                            bg="gray.700"
+                            color="white"
+                            borderColor="gray.600"
+                            value={entry.value as string}
+                            onChange={(e) => {
+                              const newEntries = [...paramEntries];
+                              newEntries[idx] = { ...entry, value: e.target.value };
+                              setParamEntries(newEntries);
+                            }}
+                            placeholder="Value"
+                            flex={1}
+                          />
+                        )}
+
+                        <IconButton
+                          aria-label="Remove parameter"
+                          icon={<Text>✕</Text>}
+                          size="sm"
+                          variant="ghost"
+                          colorScheme="red"
+                          onClick={() => {
+                            setParamEntries(paramEntries.filter((_, i) => i !== idx));
+                          }}
+                        />
+                      </HStack>
+                    ))}
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      colorScheme="orange"
+                      onClick={() => setParamEntries([...paramEntries, { key: '', value: '' }])}
+                    >
+                      + Add parameter
+                    </Button>
+                  </VStack>
+                )}
               </FormControl>
             </VStack>
           </ModalBody>
