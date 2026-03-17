@@ -977,7 +977,7 @@ Low Features -------- myAdmin -------- High Features
 "Built by financial professionals, tested in real business operations. GDPR compliant with bank-level security."
 
 **Platform Logos:**  
-[Airbnb] [Booking.com] [Rabobank] [ING] [Belastingdienst]
+[Airbnb] [Booking.com] [VRBO] [Rabobank] [ING] [Belastingdienst]
 
 **Why This Works:**
 

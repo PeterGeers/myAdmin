@@ -1,0 +1,159 @@
+# Docker Daemon Not Responding - DIAGNOSIS
+
+**Date**: February 7, 2026
+**Status**: ⚠️ NEEDS USER ACTION
+**Severity**: HIGH - Blocks all container operations
+
+## Symptoms
+
+1. MySQL container has exited (stopped 14 minutes ago)
+2. Backend container is running but marked as "unhealthy"
+3. Docker commands fail with: `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`
+
+## Root Cause
+
+The Docker Desktop daemon is not responding properly. The named pipe `//./pipe/dockerDesktopLinuxEngine` is not accessible, which means:
+
+- Docker Desktop processes are running (3 processes detected)
+- But the Docker daemon (backend service) is not functioning
+- This is a common issue with Docker Desktop on Windows
+
+## Diagnosis Results
+
+```powershell
+# Container Status
+docker-compose ps
+NAME                IMAGE             COMMAND                  SERVICE   CREATED       STATUS                   PORTS
+myadmin-backend-1   myadmin-backend   "/bin/sh -c 'python …"   backend   4 hours ago   Up 2 hours (unhealthy)
+myadmin-mysql-1     mysql:8.0         "docker-entrypoint.s…"   mysql     5 days ago    Exited (0) 14 minutes ago
+
+# Docker Desktop Processes Running
+Docker Desktop (3 processes)
+- PID 18540: 52 MB
+- PID 19816: 167 MB
+- PID 21820: 183 MB
+
+# Docker Daemon Status
+❌ NOT RESPONDING - Named pipe not accessible
+```
+
+## Solution
+
+### Option 1: Restart Docker Desktop (Recommended)
+
+1. **Close Docker Desktop completely**:
+
+   ```powershell
+   Stop-Process -Name "Docker Desktop" -Force
+   ```
+
+2. **Wait 10 seconds** for processes to fully terminate
+
+3. **Start Docker Desktop** from Start Menu or:
+
+   ```powershell
+   Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+   ```
+
+4. **Wait for Docker to fully start** (watch system tray icon)
+
+5. **Verify Docker is working**:
+
+   ```powershell
+   docker ps
+   ```
+
+6. **Start containers**:
+   ```powershell
+   .\scripts\containers\start.ps1 containers
+   ```
+
+### Option 2: Restart Docker Service (Alternative)
+
+1. **Restart Docker Desktop service**:
+
+   ```powershell
+   Restart-Service -Name "com.docker.service" -Force
+   ```
+
+2. **Wait 30 seconds**
+
+3. **Verify and start containers** (same as Option 1, steps 5-6)
+
+### Option 3: Full System Restart (If above fails)
+
+If Docker Desktop continues to have issues:
+
+1. Restart Windows
+2. Start Docker Desktop
+3. Start containers
+
+## Prevention
+
+This issue often occurs when:
+
+- Docker Desktop crashes or hangs
+- Windows updates interrupt Docker
+- System resources are exhausted
+- Docker Desktop auto-update fails
+
+**Recommendations**:
+
+1. Keep Docker Desktop updated
+2. Allocate sufficient resources (RAM: 4GB+, CPU: 2+ cores)
+3. Close Docker Desktop properly (don't force kill)
+4. Monitor Docker Desktop logs for warnings
+
+## Current Docker Desktop Settings
+
+Check your Docker Desktop settings:
+
+- Settings → Resources → Memory: Should be 4GB+ for myAdmin
+- Settings → Resources → CPUs: Should be 2+ cores
+- Settings → General → "Start Docker Desktop when you log in" (optional)
+
+## Quick Recovery Script
+
+Create `scripts/containers/restart-docker.ps1`:
+
+```powershell
+# Restart Docker Desktop
+Write-Host "Stopping Docker Desktop..." -ForegroundColor Yellow
+Stop-Process -Name "Docker Desktop" -Force -ErrorAction SilentlyContinue
+
+Write-Host "Waiting for processes to terminate..." -ForegroundColor Yellow
+Start-Sleep -Seconds 10
+
+Write-Host "Starting Docker Desktop..." -ForegroundColor Green
+Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+
+Write-Host "Waiting for Docker to start..." -ForegroundColor Yellow
+Start-Sleep -Seconds 30
+
+Write-Host "Verifying Docker..." -ForegroundColor Yellow
+docker ps
+
+Write-Host "Docker Desktop restarted!" -ForegroundColor Green
+```
+
+## Related Issues
+
+- Backend container showing "unhealthy" - likely due to MySQL being down
+- MySQL container exited cleanly (exit code 0) - not a crash, likely stopped due to daemon issue
+
+## Next Steps
+
+1. ✅ Restart Docker Desktop (Option 1 above)
+2. ✅ Verify containers start successfully
+3. ✅ Check backend health: `curl http://localhost:5000/api/health`
+4. ✅ Check MySQL connection: `docker exec myadmin-mysql-1 mysql -u peter -p -e "SELECT 1"`
+5. ✅ Test application: Open http://localhost:5000
+
+## Monitoring
+
+After restart, monitor for:
+
+- Container health status: `docker-compose ps`
+- Backend logs: `docker-compose logs -f backend`
+- MySQL logs: `docker-compose logs -f mysql`
+- Docker Desktop resource usage (Settings → Resources)

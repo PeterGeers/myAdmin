@@ -1,0 +1,38 @@
+When I try to upload files in Import STR Bookings
+Message: Failed to upload and process file
+
+Console:
+authService.ts:310 [Tenants] Raw value from JWT: ["myAdmin", "GoodwinSolutions", "PeterPrive"] Type: string
+authService.ts:325 [Tenants] Attempting to parse string: ["myAdmin", "GoodwinSolutions", "PeterPrive"]
+authService.ts:338 [Tenants] Parse result: (3) ['myAdmin', 'GoodwinSolutions', 'PeterPrive'] Type: object
+authService.ts:342 [Tenants] Final result (array): (3) ['myAdmin', 'GoodwinSolutions', 'PeterPrive']
+STRProcessor.tsx:153 Starting upload to backend...
+STRProcessor.tsx:158 Calling: /api/str/upload
+STRProcessor.tsx:153 Starting upload to backend...
+STRProcessor.tsx:158 Calling: /api/str/upload
+
+We had a similar problem with the imoport of import invoices 2 days ago
+
+Perfect! I've fixed the STR upload CORS issue and pushed the changes to Railway. The fix addresses:
+
+Fixed Endpoints
+✅ /api/str/upload - STR bookings file upload
+✅ /api/str/import-payout - Booking.com payout CSV import
+Both endpoints now handle OPTIONS preflight requests without requiring authentication, just like the invoice upload fix.
+
+What Was Fixed
+The same issue as before - CORS preflight OPTIONS requests were being blocked by the @cognito_required decorator. I restructured both endpoints to:
+
+Handle OPTIONS requests without authentication
+Apply authentication only to POST requests
+Deployment
+The fix has been pushed to GitHub and Railway will automatically redeploy in 2-3 minutes.
+
+Once deployed, you should be able to:
+
+✅ Upload STR booking files (Airbnb/Booking.com)
+✅ Import Booking.com payout CSV files
+✅ No more "Failed to upload and process file" errors
+You can monitor the deployment at: https://railway.app/project/81ec0d30-e4f2-4811-a8ed-07ebfe424f01
+
+Try uploading your STR files again once the deployment completes!
