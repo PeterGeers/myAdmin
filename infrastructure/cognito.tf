@@ -98,22 +98,41 @@ resource "aws_cognito_user_pool" "myadmin" {
     }
   }
 
+  # User preferred language (e.g. "en", "nl")
+  schema {
+    name                = "preferred_language"
+    attribute_data_type = "String"
+    mutable             = true
+
+    string_attribute_constraints {
+      min_length = 2
+      max_length = 5
+    }
+  }
+
   # Email configuration
   email_configuration {
     email_sending_account = "COGNITO_DEFAULT"
   }
 
-  # MFA configuration (optional but recommended)
-  mfa_configuration = "OPTIONAL"
+  # MFA disabled to enable passkeys (Decision 1.1)
+  # Passkeys are inherently multi-factor (device possession + biometric/PIN)
+  mfa_configuration = "OFF"
 
-  software_token_mfa_configuration {
-    enabled = true
-  }
-
-  # User pool add-ons
+  # User pool add-ons — ENFORCED required for choice-based auth (USER_AUTH / passkeys)
   user_pool_add_ons {
-    advanced_security_mode = "AUDIT"
+    advanced_security_mode = "ENFORCED"
   }
+
+  # NOTE: SignInPolicy.AllowedFirstAuthFactors (PASSWORD + WEB_AUTHN) is not yet
+  # supported by the Terraform AWS provider. It must be set via AWS CLI after apply:
+  #
+  #   aws cognito-idp update-user-pool \
+  #     --user-pool-id eu-west-1_Hdp40eWmu \
+  #     --region eu-west-1 \
+  #     --policies "SignInPolicy={AllowedFirstAuthFactors=[PASSWORD,WEB_AUTHN]}"
+  #
+  # This enables choice-based sign-in with passkey support.
 
   # Tags
   tags = {
@@ -129,20 +148,27 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
   name         = "myAdmin-client"
   user_pool_id = aws_cognito_user_pool.myadmin.id
 
+  # Auth flows for choice-based sign-in (Task 1.3 — passkey + password support)
+  explicit_auth_flows = [
+    "ALLOW_USER_AUTH",         # Choice-based (passkey + password)
+    "ALLOW_USER_SRP_AUTH",     # Password with SRP (existing)
+    "ALLOW_REFRESH_TOKEN_AUTH" # Token refresh
+  ]
+
   # OAuth settings
   generate_secret                      = false # Public client for browser apps
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"] # Authorization code flow with PKCE
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
 
-  # Callback URLs (update these for your deployment)
+  # Callback URLs
   callback_urls = [
     "http://localhost:3000/",
     "http://localhost:3000/callback",
     "http://localhost:5000/",
     "http://localhost:5000/callback",
-    "https://your-railway-app.railway.app/",
-    "https://your-railway-app.railway.app/callback"
+    "https://petergeers.github.io/myAdmin/", # Production (GitHub Pages)
+    "https://petergeers.github.io/myAdmin/callback"
   ]
 
   logout_urls = [
@@ -150,8 +176,8 @@ resource "aws_cognito_user_pool_client" "myadmin_client" {
     "http://localhost:3000/logout",
     "http://localhost:5000/",
     "http://localhost:5000/logout",
-    "https://your-railway-app.railway.app/",
-    "https://your-railway-app.railway.app/logout"
+    "https://petergeers.github.io/myAdmin/", # Production (GitHub Pages)
+    "https://petergeers.github.io/myAdmin/logout"
   ]
 
   # Supported identity providers
