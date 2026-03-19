@@ -1,6 +1,6 @@
 # Tasks: Trial Signup API Backend
 
-**Status:** In Progress
+**Status:** Complete
 **Spec:** [StartingPoints.md](./StartingPoints.md)
 
 ## Phase 1: Foundation (Day 1)
@@ -269,13 +269,13 @@
 
 ### 7.1 Admin Notification Email
 
-- [ ] Format notification email with signup details (name, email, company, property range)
-- [ ] Send on new signup (Phase 1 — informational)
-- [ ] Send on verification (Phase 1 — action required: provision tenant)
+- [x] Format notification email with signup details (name, email, company, property range)
+- [x] Send on new signup (Phase 1 — informational)
+- [x] Send on verification (Phase 1 — action required: provision tenant)
 
 ### 7.2 Manual Provisioning Script (Phase 1)
 
-- [ ] Create `backend/scripts/provision_tenant.py`:
+- [x] Create `backend/scripts/provision_tenant.py`:
   - Accept email as input
   - Look up `pending_signups` row (myadmin_promo DB)
   - Insert `tenant_config` row (finance DB)
@@ -287,7 +287,7 @@
   - Update Cognito user attributes (add administration)
   - Update `pending_signups.status = 'provisioned'`, `provisioned_at = NOW()` (myadmin_promo DB)
   - Send welcome email to user
-- [ ] Test script on Railway with a test signup
+- [x] Test script on Railway with a test signup
 
 ## Git Commit Strategy
 
