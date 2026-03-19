@@ -327,11 +327,11 @@ Mail received with reset ciode and password reset worked
 
 ### 5.3 Production Testing
 
-- [ ] Test password login in production
-- [ ] Register a passkey in production
-- [ ] Test passkey login in production
-- [ ] Test on mobile device in production
-- [ ] Verify all existing functionality still works (FIN module, STR module, reports, etc.)
+- [x] Test password login in production
+- [x] Register a passkey in production
+- [x] Test passkey login in production
+- [x] Test on mobile device in production
+- [x] Verify all existing functionality still works (FIN module, STR module, reports, etc.)
 
 ## Phase 6: Identity Linking (ONLY if Google/social login is added later)
 
