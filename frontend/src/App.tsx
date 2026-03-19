@@ -424,7 +424,7 @@ function AppContent() {
                   <Alert status="info" bg="blue.900" borderColor="blue.500" borderWidth="1px" borderRadius="md">
                     <AlertIcon color="blue.400" />
                     <AlertDescription color="gray.200" fontSize="sm" flex="1">
-                      {t('passkey.prompt', 'Register a passkey for faster, more secure login.')}{' '}
+                      {t('auth:passkey.prompt', 'Register a passkey for faster, more secure login.')}{' '}
                       <ChakraLink color="orange.400" onClick={() => { setShowPasskeyPrompt(false); setCurrentPage('settings'); }} cursor="pointer" textDecoration="underline">
                         {t('common:navigation.modules.settings', 'Settings')}
                       </ChakraLink>

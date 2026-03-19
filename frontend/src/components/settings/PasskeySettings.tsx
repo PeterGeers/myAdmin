@@ -44,7 +44,7 @@ interface PasskeyCredential {
 }
 
 export default function PasskeySettings() {
-  const { t } = useTranslation('auth');
+  const { t } = useTranslation();
   const toast = useToast();
 
   const [passkeys, setPasskeys] = useState<PasskeyCredential[]>([]);
@@ -84,8 +84,8 @@ export default function PasskeySettings() {
       setIsRegistering(true);
       await registerPasskey();
       toast({
-        title: t('passkey.registerSuccess', 'Passkey registered'),
-        description: t('passkey.registerSuccessDesc', 'You can now sign in with this passkey.'),
+        title: t('auth:passkey.registerSuccess', 'Passkey registered'),
+        description: t('auth:passkey.registerSuccessDesc', 'You can now sign in with this passkey.'),
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -93,10 +93,10 @@ export default function PasskeySettings() {
       await loadPasskeys();
     } catch (error: any) {
       const msg = error?.message?.includes('cancelled') || error?.message?.includes('AbortError')
-        ? t('login.passkeyCancelled')
-        : t('passkey.registerFailed', 'Failed to register passkey. Please try again.');
+        ? t('auth:login.passkeyCancelled')
+        : t('auth:passkey.registerFailed', 'Failed to register passkey. Please try again.');
       toast({
-        title: t('login.loginFailed'),
+        title: t('auth:login.loginFailed'),
         description: msg,
         status: 'error',
         duration: 5000,
@@ -120,7 +120,7 @@ export default function PasskeySettings() {
       setDeletingId(pendingDeleteId);
       await deletePasskey(pendingDeleteId);
       toast({
-        title: t('passkey.deleteSuccess', 'Passkey removed'),
+        title: t('auth:passkey.deleteSuccess', 'Passkey removed'),
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -128,7 +128,7 @@ export default function PasskeySettings() {
       await loadPasskeys();
     } catch (error) {
       toast({
-        title: t('passkey.deleteFailed', 'Failed to remove passkey'),
+        title: t('auth:passkey.deleteFailed', 'Failed to remove passkey'),
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -145,7 +145,7 @@ export default function PasskeySettings() {
         <Alert status="warning" bg="yellow.900" borderRadius="md">
           <AlertIcon />
           <AlertDescription color="gray.200">
-            {t('login.passkeyNotSupported')}
+            {t('auth:login.passkeyNotSupported')}
           </AlertDescription>
         </Alert>
       </Box>
@@ -157,7 +157,7 @@ export default function PasskeySettings() {
       <VStack spacing={5} align="stretch">
         <HStack justify="space-between">
           <Heading size="md" color="orange.400">
-            {t('passkey.title', 'Passkeys')}
+            {t('auth:passkey.title', 'Passkeys')}
           </Heading>
           <Button
             leftIcon={<AddIcon />}
@@ -165,20 +165,20 @@ export default function PasskeySettings() {
             size="sm"
             onClick={handleRegister}
             isLoading={isRegistering}
-            loadingText={t('passkey.registering', 'Registering...')}
+            loadingText={t('auth:passkey.registering', 'Registering...')}
           >
-            {t('passkey.register', 'Register new passkey')}
+            {t('auth:passkey.register', 'Register new passkey')}
           </Button>
         </HStack>
 
         {isLoadingList ? (
           <HStack justify="center" py={4}>
             <Spinner color="orange.400" />
-            <Text color="gray.400">{t('passkey.loading', 'Loading passkeys...')}</Text>
+            <Text color="gray.400">{t('auth:passkey.loading', 'Loading passkeys...')}</Text>
           </HStack>
         ) : passkeys.length === 0 ? (
           <Text color="gray.400" fontSize="sm">
-            {t('passkey.noPasskeys', 'No passkeys registered yet. Register one for faster, more secure sign-in.')}
+            {t('auth:passkey.noPasskeys', 'No passkeys registered yet. Register one for faster, more secure sign-in.')}
           </Text>
         ) : (
           <VStack spacing={3} align="stretch">
@@ -192,16 +192,16 @@ export default function PasskeySettings() {
               >
                 <VStack align="start" spacing={0}>
                   <Text color="white" fontSize="sm" fontWeight="medium">
-                    {pk.friendlyName || t('passkey.unnamed', 'Passkey')}
+                    {pk.friendlyName || t('auth:passkey.unnamed', 'Passkey')}
                   </Text>
                   {pk.createdAt && (
                     <Text color="gray.400" fontSize="xs">
-                      {t('passkey.created', 'Created')}: {new Date(pk.createdAt).toLocaleDateString()}
+                      {t('auth:passkey.created', 'Created')}: {new Date(pk.createdAt).toLocaleDateString()}
                     </Text>
                   )}
                 </VStack>
                 <IconButton
-                  aria-label={t('passkey.remove', 'Remove passkey')}
+                  aria-label={t('auth:passkey.remove', 'Remove passkey')}
                   icon={<DeleteIcon />}
                   size="sm"
                   colorScheme="red"
@@ -220,17 +220,17 @@ export default function PasskeySettings() {
         <AlertDialogOverlay>
           <AlertDialogContent bg="gray.800">
             <AlertDialogHeader color="white">
-              {t('passkey.confirmDeleteTitle', 'Remove passkey?')}
+              {t('auth:passkey.confirmDeleteTitle', 'Remove passkey?')}
             </AlertDialogHeader>
             <AlertDialogBody color="gray.300">
-              {t('passkey.confirmDeleteBody', 'This passkey will no longer work for sign-in. You can register a new one later.')}
+              {t('auth:passkey.confirmDeleteBody', 'This passkey will no longer work for sign-in. You can register a new one later.')}
             </AlertDialogBody>
             <AlertDialogFooter>
               <Button ref={cancelRef} onClick={onClose} variant="ghost" color="gray.300">
-                {t('passkey.cancel', 'Cancel')}
+                {t('auth:passkey.cancel', 'Cancel')}
               </Button>
               <Button colorScheme="red" onClick={handleDelete} ml={3}>
-                {t('passkey.remove', 'Remove')}
+                {t('auth:passkey.remove', 'Remove')}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
