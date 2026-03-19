@@ -31,6 +31,7 @@ import { useTenant } from '../context/TenantContext';
  */
 interface UserMenuProps {
   onLogout: () => void;
+  onSettings?: () => void;
   mode?: string;
 }
 
@@ -39,7 +40,7 @@ interface UserMenuProps {
  * 
  * Displays a button with user name/email that opens a popover with detailed info.
  */
-export default function UserMenu({ onLogout, mode }: UserMenuProps) {
+export default function UserMenu({ onLogout, onSettings, mode }: UserMenuProps) {
   const { user } = useAuth();
   const { currentTenant, availableTenants } = useTenant();
 
@@ -155,6 +156,20 @@ export default function UserMenu({ onLogout, mode }: UserMenuProps) {
             </Box>
 
             <Divider borderColor="gray.700" />
+
+            {/* Settings Button */}
+            {onSettings && (
+              <Button
+                size="sm"
+                colorScheme="gray"
+                variant="ghost"
+                onClick={onSettings}
+                width="full"
+                justifyContent="flex-start"
+              >
+                ⚙️ Settings
+              </Button>
+            )}
 
             {/* Logout Button */}
             <Button

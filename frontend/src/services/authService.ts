@@ -442,7 +442,12 @@ export async function getCurrentUserTenants(): Promise<string[]> {
  * 3. Sends attestation back to Cognito
  */
 export async function registerPasskey() {
-  await associateWebAuthnCredential();
+  try {
+    await associateWebAuthnCredential();
+  } catch (error) {
+    console.error('associateWebAuthnCredential error:', error);
+    throw error;
+  }
 }
 
 /**

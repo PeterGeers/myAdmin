@@ -12,12 +12,39 @@ myAdmin Website (Next.js/Amplify)     myAdmin Backend (Flask/Railway)
                                       POST /api/signup/verify
                                       POST /api/signup/resend
                                             ↓
-                                      AWS Cognito (eu-west-1)
+                                      AWS Cognito (eu-west-1, existing user pool)
+                                        └── Separate app client for signup flow
                                       Railway MySQL (EU-West Amsterdam)
+                                        ├── finance DB        (existing — mutaties, rekeningschema, tenants, etc.)
+                                        └── myadmin_promo DB  (new — pending_signups, onboarding data)
                                       AWS SES/SNS (notifications)
 ```
 
 All three endpoints are public (no JWT auth required). Protection via rate limiting, honeypot field, and CSRF token validation.
+
+## Cognito Strategy: Same Pool, Separate App Client
+
+Uses the existing myAdmin Cognito user pool (eu-west-1) — not a separate pool.
+
+**Why same pool:**
+
+- The signup creates a user who will eventually use the myAdmin app — same user, same pool
+- After provisioning, the user logs in with the same credentials. No migration needed.
+- One pool = one source of truth for "does this email exist?" — prevents duplicate accounts
+- Existing password policies, email verification, and custom attributes (`custom:administration`, roles) are reused
+
+**Separate app client:** Create a new app client in the same pool for the signup flow. This app client:
+
+- Has no client secret (required for public signup from the website)
+- Only allows `sign_up`, `confirm_sign_up`, `resend_confirmation_code` flows
+- Does NOT allow `initiate_auth` (users can't log in via the promo app client — they use the main app client for that)
+
+**Signup → App flow:**
+
+1. Website calls `/api/signup` → backend creates user in existing pool (unverified, no `custom:administration` yet)
+2. User verifies email → `pending_signups.status = 'verified'`
+3. Admin provisions tenant → adds `custom:administration` attribute to the Cognito user
+4. User logs into the myAdmin app with the same email/password — Cognito already knows them
 
 ## Endpoint Specifications
 
@@ -139,9 +166,59 @@ Resend the Cognito verification email.
 3. Call Cognito `resend_confirmation_code`
 4. Update `pending_signups.last_resend_at = NOW()`
 
-## Database Migration: pending_signups Table
+## Database: Separate myadmin_promo Database
 
-Run on Railway MySQL (EU-West Amsterdam):
+Signup/onboarding data lives in a separate database (`myadmin_promo`) on the same Railway MySQL server, keeping it isolated from the financial data in the existing `finance` database.
+
+**Why separate?**
+
+- Security isolation: signup endpoints are public, finance endpoints require auth
+- Clean separation of concerns (promo/onboarding vs financial transactions)
+- Independent cleanup/reset without touching finance data
+
+**Create the database on Railway MySQL:**
+
+```sql
+CREATE DATABASE myadmin_promo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE myadmin_promo;
+```
+
+**Local Docker dev:** Add an init script so the MySQL container creates `myadmin_promo` on first startup. Create `backend/docker-init/01_create_promo_db.sql`:
+
+```sql
+CREATE DATABASE IF NOT EXISTS myadmin_promo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL PRIVILEGES ON myadmin_promo.* TO 'peter'@'%';
+FLUSH PRIVILEGES;
+```
+
+Mount it in `docker-compose.yml`:
+
+```yaml
+mysql:
+  volumes:
+    - ./mysql_data:/var/lib/mysql
+    - ./backend/docker-init:/docker-entrypoint-initdb.d
+```
+
+> Note: MySQL init scripts only run on first container startup (empty data dir). For existing containers, run the SQL manually: `docker exec -i <mysql_container> mysql -u peter -p < backend/docker-init/01_create_promo_db.sql`
+
+**Environment variable:** `PROMO_DB_NAME=myadmin_promo` (alongside existing `DB_NAME` for finance)
+
+**Connection:** `signup_service.py` uses a dedicated `DatabaseManager` instance pointing to `myadmin_promo`:
+
+```python
+# In signup_service.py — uses existing pool, separate app client
+cognito_client.sign_up(
+    ClientId=SIGNUP_COGNITO_APP_CLIENT_ID,  # Separate app client (no secret, signup-only)
+    Username=email,
+    Password=password,
+    UserAttributes=[...]
+)
+```
+
+### pending_signups Table
+
+Run on Railway MySQL in the `myadmin_promo` database:
 
 ```sql
 CREATE TABLE pending_signups (
@@ -218,9 +295,9 @@ backend/src/
 ├── routes/
 │   └── signup_routes.py          # Blueprint: signup_bp (all 3 endpoints)
 ├── services/
-│   └── signup_service.py         # Business logic: Cognito calls, DB operations, notifications
+│   └── signup_service.py         # Business logic: Cognito calls, DB ops (uses myadmin_promo DB)
 ├── migrations/
-│   └── 20260318_create_pending_signups.sql   # Table creation script
+│   └── 20260319_create_myadmin_promo_db.sql  # Database + table creation script
 ```
 
 ## Recommended Implementation Order
@@ -263,3 +340,22 @@ After a signup is verified, admin receives email notification and manually provi
 
 Full request/response specs defined in the website repo:
 `myAdminPromo/.kiro/specs/Website/wireframes/trial-signup.md`
+
+## Future: Passkey Authentication
+
+**Status:** Post-launch enhancement
+**Reference implementation:** `C:\Users\peter\aws\h-dcn` (already implemented in h-dcn project)
+
+Cognito supports passkeys (WebAuthn/FIDO2) natively since November 2024 via the choice-based auth flow.
+
+**Key lesson from h-dcn:** Cognito creates separate user records (different `sub` IDs) when the same email is used with different auth methods (e.g. Google federated login vs passkey). After login, you must resolve which Cognito `sub` was used and map it back to a "prime ID" to retrieve the correct credentials and tenant context.
+
+**What to port from h-dcn:**
+
+- Post-login identity resolution logic (login `sub` → prime ID lookup)
+- Credential/tenant mapping keyed on prime ID, not raw Cognito `sub`
+- Google federated login + passkey coexistence handling
+
+**Cognito gotcha:** If MFA is enabled at the pool level, it overrides passkeys — they can't coexist. Choose one or the other.
+
+**Effort estimate:** ~2-3 days to port from h-dcn, plus testing.
