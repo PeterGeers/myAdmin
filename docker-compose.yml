@@ -9,6 +9,7 @@ services:
       MYSQL_USER: peter
     volumes:
       - ./mysql_data:/var/lib/mysql # Host directory mapping - survives volume deletion
+      - ./backend/docker-init:/docker-entrypoint-initdb.d
     ports:
       - "3306:3306"
     mem_limit: 2g
