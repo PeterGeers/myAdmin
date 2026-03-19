@@ -38,7 +38,7 @@ interface LoginProps {
 }
 
 export default function Login({ onLoginSuccess }: LoginProps) {
-  const { t } = useTranslation('auth');
+  const { t } = useTranslation();
   const toast = useToast();
 
   const [email, setEmail] = useState('');
@@ -78,14 +78,14 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       }
     } catch (error: any) {
       const code = error?.name || '';
-      let description = t('login.loginFailedDescription');
+      let description = t('auth:login.loginFailedDescription');
 
       if (code === 'NotAuthorizedException' || code === 'UserNotFoundException') {
-        description = t('login.loginFailedDescription');
+        description = t('auth:login.loginFailedDescription');
       }
 
       toast({
-        title: t('login.loginFailed'),
+        title: t('auth:login.loginFailed'),
         description,
         status: 'error',
         duration: 5000,
@@ -102,8 +102,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const handlePasskeyLogin = async () => {
     if (!email) {
       toast({
-        title: t('login.loginFailed'),
-        description: t('login.emailLabel') + ' is required.',
+        title: t('auth:login.loginFailed'),
+        description: t('auth:login.emailLabel') + ' is required.',
         status: 'warning',
         duration: 3000,
         isClosable: true,
@@ -120,16 +120,16 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       }
     } catch (error: any) {
       const code = error?.name || '';
-      let description = t('login.passkeyFailed');
+      let description = t('auth:login.passkeyFailed');
 
       if (code === 'NotAuthorizedException') {
-        description = t('login.noPasskeyRegistered');
+        description = t('auth:login.noPasskeyRegistered');
       } else if (error?.message?.includes('cancelled') || error?.message?.includes('AbortError')) {
-        description = t('login.passkeyCancelled');
+        description = t('auth:login.passkeyCancelled');
       }
 
       toast({
-        title: t('login.loginFailed'),
+        title: t('auth:login.loginFailed'),
         description,
         status: 'error',
         duration: 5000,
@@ -162,10 +162,10 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           {/* Title */}
           <VStack spacing={2}>
             <Heading color="orange.400" size="xl">
-              {t('login.title')}
+              {t('auth:login.title')}
             </Heading>
             <Text color="gray.300" fontSize="md" textAlign="center">
-              {t('login.subtitle')}
+              {t('auth:login.subtitle')}
             </Text>
           </VStack>
 
@@ -173,7 +173,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <Box as="form" w="full" onSubmit={handlePasswordLogin}>
             <VStack spacing={4}>
               <FormControl isRequired>
-                <FormLabel color="gray.300">{t('login.emailLabel')}</FormLabel>
+                <FormLabel color="gray.300">{t('auth:login.emailLabel')}</FormLabel>
                 <Input
                   type="email"
                   value={email}
@@ -189,7 +189,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel color="gray.300">{t('login.passwordLabel')}</FormLabel>
+                <FormLabel color="gray.300">{t('auth:login.passwordLabel')}</FormLabel>
                 <Input
                   type="password"
                   value={password}
@@ -209,10 +209,10 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 w="full"
                 colorScheme="orange"
                 isLoading={isPasswordLoading}
-                loadingText={t('login.signingIn')}
+                loadingText={t('auth:login.signingIn')}
                 isDisabled={isPasskeyLoading}
               >
-                {t('login.signInButton')}
+                {t('auth:login.signInButton')}
               </Button>
             </VStack>
           </Box>
@@ -223,7 +223,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               <HStack w="full" spacing={4}>
                 <Divider borderColor="gray.600" />
                 <Text color="gray.400" fontSize="sm" whiteSpace="nowrap">
-                  {t('login.or')}
+                  {t('auth:login.or')}
                 </Text>
                 <Divider borderColor="gray.600" />
               </HStack>
@@ -236,10 +236,10 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 leftIcon={<LockIcon />}
                 onClick={handlePasskeyLogin}
                 isLoading={isPasskeyLoading}
-                loadingText={t('login.signingIn')}
+                loadingText={t('auth:login.signingIn')}
                 isDisabled={isPasswordLoading}
               >
-                {t('login.signInWithPasskey')}
+                {t('auth:login.signInWithPasskey')}
               </Button>
             </>
           )}
@@ -247,7 +247,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           {/* Forgot Password Link */}
           <HStack spacing={2}>
             <Text color="gray.400" fontSize="sm">
-              {t('login.forgotPassword')}
+              {t('auth:login.forgotPassword')}
             </Text>
             <Link
               color="orange.400"
@@ -256,7 +256,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               cursor="pointer"
               _hover={{ textDecoration: 'underline' }}
             >
-              {t('login.resetPassword')}
+              {t('auth:login.resetPassword')}
             </Link>
           </HStack>
 
@@ -264,13 +264,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <Alert status="info" borderRadius="md" bg="blue.900" borderColor="blue.500" borderWidth="1px">
             <AlertIcon color="blue.400" />
             <AlertDescription color="gray.200" fontSize="sm">
-              {t('login.secureLoginInfo')}
+              {t('auth:login.secureLoginInfo')}
             </AlertDescription>
           </Alert>
 
           {/* Footer */}
           <Text color="gray.500" fontSize="xs" textAlign="center">
-            {t('login.protectedBy')}
+            {t('auth:login.protectedBy')}
           </Text>
         </VStack>
       </Container>
