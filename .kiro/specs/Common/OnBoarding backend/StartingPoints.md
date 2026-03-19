@@ -1,142 +1,130 @@
-# Backend Starting Points: Trial Signup API
+# Backend API Reference: Trial Signup & Provisioning
 
-**Status:** Ready for Implementation
-**Date:** March 18, 2026
-**Context:** The myAdmin website (Next.js on Amplify, separate repo) needs these API endpoints on the existing Flask backend (Railway) to complete its signup page.
+**Status:** ✅ Complete (Implemented & Tested)
+**Date:** March 19, 2026
+**Backend:** Flask on Railway — `backend/src/routes/signup_routes.py`, `backend/src/services/signup_service.py`
+**Provisioning:** `backend/scripts/provision_tenant.py`
 
-## Architecture Overview
+## Architecture
 
 ```
-myAdmin Website (Next.js/Amplify)     myAdmin Backend (Flask/Railway)
-  https://myadmin.jabaki.nl     →     POST /api/signup
-                                      POST /api/signup/verify
-                                      POST /api/signup/resend
+Promo App (Next.js/Amplify)           myAdmin Backend (Flask/Railway)
+  https://myadmin.jabaki.nl     →     POST /api/signup          (create account)
+                                      POST /api/signup/verify   (verify email)
+                                      POST /api/signup/resend   (resend code)
                                             ↓
-                                      AWS Cognito (eu-west-1, existing user pool)
-                                        └── Separate app client for signup flow
+                                      AWS Cognito (eu-west-1_Hdp40eWmu)
+                                        └── App client: myAdmin-signup (sl5e75tq75ne1urcajvn0v930)
                                       Railway MySQL (EU-West Amsterdam)
-                                        ├── finance DB        (existing — mutaties, rekeningschema, tenants, etc.)
-                                        └── myadmin_promo DB  (new — pending_signups, onboarding data)
-                                      AWS SES/SNS (notifications)
+                                        ├── finance DB        (tenants, rekeningschema, tenant_modules)
+                                        └── myadmin_promo DB  (pending_signups)
+                                      AWS SNS (admin notifications → peter@jabaki.nl)
 ```
 
-All three endpoints are public (no JWT auth required). Protection via rate limiting, honeypot field, and CSRF token validation.
+## Endpoints for the Promo App
 
-## Cognito Strategy: Same Pool, Separate App Client
+All endpoints are public (no JWT). Protected by rate limiting, honeypot, and CSRF token.
 
-Uses the existing myAdmin Cognito user pool (eu-west-1) — not a separate pool.
+Base URL: `https://<railway-backend-domain>/api/signup`
+CORS: Only `https://myadmin.jabaki.nl` is allowed.
 
-**Why same pool:**
+---
 
-- The signup creates a user who will eventually use the myAdmin app — same user, same pool
-- After provisioning, the user logs in with the same credentials. No migration needed.
-- One pool = one source of truth for "does this email exist?" — prevents duplicate accounts
-- Existing password policies, email verification, and custom attributes (`custom:administration`, roles) are reused
+### POST /api/signup
 
-**Separate app client:** Create a new app client in the same pool for the signup flow. This app client:
+Creates a Cognito user and pending signup record. Cognito sends the verification email automatically.
 
-- Has no client secret (required for public signup from the website)
-- Only allows `sign_up`, `confirm_sign_up`, `resend_confirmation_code` flows
-- Does NOT allow `initiate_auth` (users can't log in via the promo app client — they use the main app client for that)
+**Request Headers:**
 
-**Signup → App flow:**
+- `Content-Type: application/json`
+- `X-CSRF-Token: <csrf_token>` (must match backend `CSRF_SECRET` env var)
 
-1. Website calls `/api/signup` → backend creates user in existing pool (unverified, no `custom:administration` yet)
-2. User verifies email → `pending_signups.status = 'verified'`
-3. Admin provisions tenant → adds `custom:administration` attribute to the Cognito user
-4. User logs into the myAdmin app with the same email/password — Cognito already knows them
-
-## Endpoint Specifications
-
-### 1. POST /api/signup
-
-Create a new trial signup.
-
-**Request:**
+**Request Body:**
 
 ```json
 {
   "firstName": "string (required, 1-50 chars)",
   "lastName": "string (required, 1-50 chars)",
-  "email": "string (required, valid email)",
-  "password": "string (required, min 8 chars, 1 upper, 1 lower, 1 digit, 1 special)",
+  "email": "string (required, valid email format)",
+  "password": "string (required, min 8 chars — Cognito enforces upper/lower/digit/special)",
   "companyName": "string (optional, max 100 chars)",
-  "propertyRange": "string (optional, e.g. '1-5', '6-20', '21-50', '50+')",
-  "referralSource": "string (optional, e.g. 'google', 'friend', 'social')",
-  "acceptedTerms": "boolean (required, must be true)",
+  "propertyRange": "string (optional, one of: '1-5', '6-20', '21-50', '50+')",
+  "referralSource": "string (optional, max 50 chars)",
+  "acceptedTerms": true,
   "locale": "string (required, 'nl' or 'en')",
-  "honeypot": "string (optional, must be empty — bot detection)",
-  "csrfToken": "string (required)"
+  "honeypot": ""
 }
 ```
 
-**Response 201:**
+**Responses:**
 
-```json
-{
-  "success": true,
-  "userId": "cognito-sub-uuid",
-  "message": "Verification email sent"
-}
-```
+| Status | Meaning                     | Body                                                                                      |
+| ------ | --------------------------- | ----------------------------------------------------------------------------------------- |
+| `201`  | Success                     | `{ "success": true, "userId": "cognito-sub-uuid", "message": "Verification email sent" }` |
+| `200`  | Honeypot triggered (silent) | `{ "success": true, "userId": "ok", "message": "Verification email sent" }`               |
+| `403`  | Invalid CSRF token          | `{ "error": "Invalid CSRF token" }`                                                       |
+| `409`  | Email already registered    | `{ "error": "Email already registered" }`                                                 |
+| `422`  | Validation failed           | `{ "error": "Validation failed", "errors": { "field": "message", ... } }`                 |
+| `429`  | Rate limited                | `Too Many Requests` (max 5 per hour per IP)                                               |
+| `500`  | Server error                | `{ "error": "Signup failed. Please try again." }`                                         |
 
-**Error Responses:**
+**Validation errors returned (all at once, not one-by-one):**
 
-- `409` — Email already exists in Cognito
-- `422` — Validation error (details in `errors` array)
-- `429` — Rate limited (max 5 signups per IP per hour)
+- `firstName`: required, max 50 chars
+- `lastName`: required, max 50 chars
+- `email`: required, valid format
+- `password`: required, min 8 chars
+- `acceptedTerms`: must be `true`
+- `locale`: must be `nl` or `en`
+- `propertyRange`: if provided, must be one of `1-5`, `6-20`, `21-50`, `50+`
+- `companyName`: if provided, max 100 chars
 
-**Logic:**
+**Promo app notes:**
 
-1. Validate honeypot field (reject if filled → bot)
-2. Validate CSRF token
-3. Validate all input fields
-4. Create user in Cognito user pool (eu-west-1) with email as username
-5. Insert row into `pending_signups` table
-6. Cognito auto-sends verification email
-7. Send admin notification to peter@jabaki.nl via SES/SNS
-8. Return 201 with Cognito `sub` as userId
+- The `honeypot` field should be a hidden input. If a bot fills it, the backend returns 200 (fake success) without creating anything.
+- The CSRF token is a shared secret. The promo app must send it in the `X-CSRF-Token` header or as `csrfToken` in the body.
+- After 201, show the user a "check your email" screen with the verification code input.
 
-### 2. POST /api/signup/verify
+---
 
-Verify email after user clicks the Cognito verification link.
+### POST /api/signup/verify
 
-**Request:**
+Verifies the email using the 6-digit code from the Cognito verification email.
+
+**Request Body:**
 
 ```json
 {
   "email": "string (required)",
-  "code": "string (required, Cognito confirmation code)"
+  "code": "string (required, 6-digit Cognito confirmation code)"
 }
 ```
 
-**Response 200:**
+**Responses:**
 
-```json
-{
-  "success": true,
-  "redirectUrl": "https://app.myadmin.jabaki.nl/welcome"
-}
-```
+| Status | Meaning              | Body                                                                                         |
+| ------ | -------------------- | -------------------------------------------------------------------------------------------- |
+| `200`  | Verified             | `{ "success": true, "redirectUrl": "https://app.myadmin.jabaki.nl/welcome" }`                |
+| `400`  | Invalid/expired code | `{ "error": "Invalid verification code" }` or `{ "error": "Verification code has expired" }` |
+| `404`  | Email not found      | `{ "error": "Signup not found" }`                                                            |
+| `410`  | Already verified     | `{ "error": "Already verified" }`                                                            |
+| `422`  | Missing fields       | `{ "error": "Email and code are required" }`                                                 |
+| `429`  | Rate limited         | `Too Many Requests` (max 10 per hour per IP)                                                 |
 
-**Error Responses:**
+**Promo app notes:**
 
-- `400` — Invalid or expired code
-- `404` — Email not found in pending_signups
-- `410` — Already verified
+- On 200, redirect the user to the `redirectUrl` or show a success page.
+- On 400 (invalid code), let the user retry. On 400 (expired), offer the resend option.
+- On 410, the user already verified — redirect to login or show "already verified" message.
+- No CSRF token required for this endpoint.
 
-**Logic:**
+---
 
-1. Call Cognito `confirm_sign_up` with email + code
-2. Update `pending_signups` set `verified_at = NOW()`, `status = 'verified'`
-3. Send admin notification: "New verified signup — ready for tenant provisioning"
-4. Return redirect URL to the app
+### POST /api/signup/resend
 
-### 3. POST /api/signup/resend
+Resends the Cognito verification email.
 
-Resend the Cognito verification email.
-
-**Request:**
+**Request Body:**
 
 ```json
 {
@@ -144,81 +132,89 @@ Resend the Cognito verification email.
 }
 ```
 
-**Response 200:**
+**Responses:**
 
-```json
-{
-  "success": true,
-  "message": "Verification email resent"
-}
+| Status | Meaning          | Body                                                                    |
+| ------ | ---------------- | ----------------------------------------------------------------------- |
+| `200`  | Resent           | `{ "success": true, "message": "Verification email resent" }`           |
+| `404`  | Email not found  | `{ "error": "Signup not found" }`                                       |
+| `410`  | Already verified | `{ "error": "Already verified" }`                                       |
+| `422`  | Missing email    | `{ "error": "Email is required" }`                                      |
+| `429`  | Rate limited     | `Too Many Requests` (max 1 per minute per IP, also 60s per email in DB) |
+
+**Promo app notes:**
+
+- Show a "resend" link/button on the verification screen.
+- Disable the button for 60 seconds after a successful resend.
+- No CSRF token required for this endpoint.
+
+---
+
+## Signup Flow for the Promo App
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  PROMO APP (frontend)                                           │
+│                                                                 │
+│  1. Signup Form                                                 │
+│     ├── firstName, lastName, email, password                    │
+│     ├── companyName (optional)                                  │
+│     ├── propertyRange (optional dropdown)                       │
+│     ├── referralSource (optional)                               │
+│     ├── acceptedTerms (checkbox, required)                      │
+│     ├── locale (nl/en, from browser or selector)                │
+│     └── honeypot (hidden field, must be empty)                  │
+│                                                                 │
+│  2. POST /api/signup → 201                                      │
+│     └── Show "Check your email" screen                          │
+│                                                                 │
+│  3. Verification Screen                                         │
+│     ├── 6-digit code input                                      │
+│     ├── POST /api/signup/verify → 200                           │
+│     │   └── Redirect to redirectUrl or show success             │
+│     └── "Resend code" link                                      │
+│         └── POST /api/signup/resend → 200                       │
+│                                                                 │
+│  4. Success Screen                                              │
+│     └── "Your account is being set up. We'll email you          │
+│          when it's ready."                                      │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  BACKEND (automatic)                                            │
+│                                                                 │
+│  On signup: SNS notification → admin                            │
+│  On verify: SNS notification → admin ("ready for provisioning") │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  ADMIN (manual, via provision_tenant.py)                        │
+│                                                                 │
+│  python scripts/provision_tenant.py user@example.com            │
+│    --name "CompanyName"                                         │
+│    --modules "FIN,STR,TENADMIN"                                 │
+│                                                                 │
+│  What it does:                                                  │
+│  1. Looks up pending_signups (myadmin_promo DB)                 │
+│  2. Creates tenant in tenants table (finance DB)                │
+│  3. Inserts tenant_modules (FIN, STR, TENADMIN)                 │
+│  4. Copies chart of accounts from GoodwinSolutions template     │
+│  5. Updates Cognito user: custom:tenants = ["CompanyName"]      │
+│  6. Marks pending_signups.status = 'provisioned'                │
+│  7. Sends SNS notification to admin                             │
+│                                                                 │
+│  Flags:                                                         │
+│    --name       Override administration name (auto-generated    │
+│                 from company name or email if not provided)      │
+│    --modules    Override modules (default: FIN,STR,TENADMIN)    │
+│    --dry-run    Preview without making changes                  │
+│    --test-mode  Use testfinance DB                              │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Error Responses:**
+## Database Schema
 
-- `404` — Email not found
-- `410` — Already verified
-- `429` — Rate limited (1 per 60 seconds per email)
-
-**Logic:**
-
-1. Check `pending_signups` for email, reject if not found or already verified
-2. Check rate limit (last resend < 60s ago → 429)
-3. Call Cognito `resend_confirmation_code`
-4. Update `pending_signups.last_resend_at = NOW()`
-
-## Database: Separate myadmin_promo Database
-
-Signup/onboarding data lives in a separate database (`myadmin_promo`) on the same Railway MySQL server, keeping it isolated from the financial data in the existing `finance` database.
-
-**Why separate?**
-
-- Security isolation: signup endpoints are public, finance endpoints require auth
-- Clean separation of concerns (promo/onboarding vs financial transactions)
-- Independent cleanup/reset without touching finance data
-
-**Create the database on Railway MySQL:**
-
-```sql
-CREATE DATABASE myadmin_promo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE myadmin_promo;
-```
-
-**Local Docker dev:** Add an init script so the MySQL container creates `myadmin_promo` on first startup. Create `backend/docker-init/01_create_promo_db.sql`:
-
-```sql
-CREATE DATABASE IF NOT EXISTS myadmin_promo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-GRANT ALL PRIVILEGES ON myadmin_promo.* TO 'peter'@'%';
-FLUSH PRIVILEGES;
-```
-
-Mount it in `docker-compose.yml`:
-
-```yaml
-mysql:
-  volumes:
-    - ./mysql_data:/var/lib/mysql
-    - ./backend/docker-init:/docker-entrypoint-initdb.d
-```
-
-> Note: MySQL init scripts only run on first container startup (empty data dir). For existing containers, run the SQL manually: `docker exec -i <mysql_container> mysql -u peter -p < backend/docker-init/01_create_promo_db.sql`
-
-**Environment variable:** `PROMO_DB_NAME=myadmin_promo` (alongside existing `DB_NAME` for finance)
-
-**Connection:** `signup_service.py` uses a dedicated `DatabaseManager` instance pointing to `myadmin_promo`:
-
-```python
-# In signup_service.py — uses existing pool, separate app client
-cognito_client.sign_up(
-    ClientId=SIGNUP_COGNITO_APP_CLIENT_ID,  # Separate app client (no secret, signup-only)
-    Username=email,
-    Password=password,
-    UserAttributes=[...]
-)
-```
-
-### pending_signups Table
-
-Run on Railway MySQL in the `myadmin_promo` database:
+### myadmin_promo.pending_signups
 
 ```sql
 CREATE TABLE pending_signups (
@@ -238,124 +234,69 @@ CREATE TABLE pending_signups (
     last_resend_at TIMESTAMP NULL,
     ip_address VARCHAR(45) NULL,
     user_agent TEXT NULL,
-    INDEX idx_email (email),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at),
     UNIQUE KEY uk_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+);
 ```
+
+**Status flow:** `pending` → `verified` → `provisioned`
 
 ## Security
 
-| Measure            | Implementation                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| Rate limiting      | `flask-limiter` with Redis or in-memory store. 5 signups/IP/hour, 1 resend/email/60s |
-| Honeypot           | Hidden form field `honeypot` — reject if non-empty                                   |
-| CSRF               | Token generated by website, validated by backend (shared secret or session-based)    |
-| CORS               | Allow only `https://myadmin.jabaki.nl`                                               |
-| Input sanitization | Strip HTML, validate lengths, regex for email                                        |
-| Password           | Cognito enforces policy (8+ chars, upper, lower, digit, special)                     |
-| No auth required   | These are public endpoints — protection is rate limiting + honeypot + CSRF           |
+| Measure            | Implementation                                                     |
+| ------------------ | ------------------------------------------------------------------ |
+| Rate limiting      | `flask-limiter`: 5/hour (signup), 10/hour (verify), 1/min (resend) |
+| Honeypot           | Hidden `honeypot` field — if filled, returns fake 200              |
+| CSRF               | `X-CSRF-Token` header must match `CSRF_SECRET` env var             |
+| CORS               | Only `https://myadmin.jabaki.nl` allowed                           |
+| Input sanitization | HTML stripped, lengths validated, email regex checked              |
+| Password           | Cognito enforces policy (8+ chars, upper, lower, digit, special)   |
 
-## CORS Configuration
-
-Add to `app.py` or a dedicated CORS config:
-
-```python
-from flask_cors import CORS
-
-# Existing CORS setup — add the website origin
-CORS(app, resources={
-    r"/api/signup*": {
-        "origins": ["https://myadmin.jabaki.nl"],
-        "methods": ["POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "X-CSRF-Token"]
-    }
-})
-```
-
-## Dependencies
-
-Add to `requirements.txt`:
+## Environment Variables (Backend)
 
 ```
-flask-limiter>=3.5.0      # Rate limiting
+PROMO_DB_NAME=myadmin_promo
+SIGNUP_COGNITO_USER_POOL_ID=eu-west-1_Hdp40eWmu
+SIGNUP_COGNITO_APP_CLIENT_ID=sl5e75tq75ne1urcajvn0v930
+SIGNUP_ADMIN_EMAIL=peter@jabaki.nl
+CSRF_SECRET=<shared secret between promo app and backend>
+SIGNUP_REDIRECT_URL=https://app.myadmin.jabaki.nl/welcome
 ```
 
-Already available in the project:
+## Cognito Setup
 
-- `boto3` — AWS Cognito, SES/SNS calls
-- `flask-cors` — CORS handling
-- `PyJWT` / `python-jose` — JWT if needed later
+- User pool: `eu-west-1_Hdp40eWmu` (existing myAdmin pool)
+- App client: `myAdmin-signup` (`sl5e75tq75ne1urcajvn0v930`) — no client secret, public
+- Allowed flows: `sign_up`, `confirm_sign_up`, `resend_confirmation_code` only
+- Auto-verified attributes: `email`
+- Verification: Cognito sends email with 6-digit code
 
-## File Structure
+## Implementation Files
 
-```
-backend/src/
-├── routes/
-│   └── signup_routes.py          # Blueprint: signup_bp (all 3 endpoints)
-├── services/
-│   └── signup_service.py         # Business logic: Cognito calls, DB ops (uses myadmin_promo DB)
-├── migrations/
-│   └── 20260319_create_myadmin_promo_db.sql  # Database + table creation script
-```
+| File                                                          | Purpose                                           |
+| ------------------------------------------------------------- | ------------------------------------------------- |
+| `backend/src/routes/signup_routes.py`                         | Blueprint with 3 endpoints, rate limiting         |
+| `backend/src/services/signup_service.py`                      | Business logic, Cognito calls, DB ops, validation |
+| `backend/src/shared_limiter.py`                               | Shared flask-limiter instance                     |
+| `backend/scripts/provision_tenant.py`                         | Manual tenant provisioning script                 |
+| `backend/src/migrations/20260319_create_myadmin_promo_db.sql` | DB migration                                      |
+| `backend/docker-init/01_create_promo_db.sql`                  | Docker init script                                |
+| `backend/tests/api/test_signup_routes.py`                     | 20 API tests                                      |
+| `backend/tests/unit/test_signup_service.py`                   | 24 unit tests                                     |
 
-## Recommended Implementation Order
+## Future: Automated Provisioning (Phase 2)
 
-1. **Database first** — Run the `CREATE TABLE pending_signups` migration on Railway
-2. **signup_routes.py** — Create blueprint with the 3 route stubs, register in `app.py`
-3. **signup_service.py** — Implement Cognito integration (`sign_up`, `confirm_sign_up`, `resend_confirmation_code`)
-4. **POST /api/signup** — Full implementation with validation, honeypot, Cognito create, DB insert, admin notification
-5. **POST /api/signup/verify** — Cognito confirm + DB update + admin notification
-6. **POST /api/signup/resend** — Cognito resend + rate check
-7. **CORS** — Add website origin to allowed origins
-8. **Rate limiting** — Add `flask-limiter` decorators to all 3 endpoints
-9. **Test with website** — End-to-end flow from signup form to verification
+Currently provisioning is manual via `provision_tenant.py`. Future automation:
 
-## Phase 1: Manual Tenant Provisioning
-
-After a signup is verified, admin receives email notification and manually provisions:
-
-| Step | What                                            | Where                         |
-| ---- | ----------------------------------------------- | ----------------------------- |
-| 1    | Create Cognito user attributes (administration) | AWS Cognito console or script |
-| 2    | Insert `tenant_config` row                      | Railway MySQL                 |
-| 3    | Insert `tenant_credentials` row                 | Railway MySQL                 |
-| 4    | Insert `tenant_modules` rows (FIN, STR)         | Railway MySQL                 |
-| 5    | Insert `tenant_template_config` rows            | Railway MySQL                 |
-| 6    | Import general ledger template                  | Chart of Accounts import      |
-| 7    | Set purpose definitions                         | Year End Settings             |
-| 8    | Upload example template files                   | Template management           |
-| 9    | Send welcome email with user manual link        | Manual or SES                 |
-
-## Phase 2: Automated Provisioning (Post-Launch)
-
-1. Build tenant provisioning service/script that automates steps 1-9 above
-2. Trigger automatically after email verification (background job or Cognito post-confirmation Lambda)
-3. Build `pending_signups` → `tenants` promotion flow
-4. Set trial plan with 2-month expiry
-5. Send automated welcome/onboarding email
-
-## API Contract Reference
-
-Full request/response specs defined in the website repo:
-`myAdminPromo/.kiro/specs/Website/wireframes/trial-signup.md`
+1. Build a provisioning API endpoint (POST `/api/admin/provision`) callable from an admin dashboard
+2. Accept `administration_name` and `modules` from the frontend
+3. Trigger automatically after email verification (background job or Cognito post-confirmation Lambda)
+4. Set trial plan with expiry (e.g. 2 months)
+5. Send automated welcome email with user manual link
 
 ## Future: Passkey Authentication
 
-**Status:** Post-launch enhancement
-**Reference implementation:** `C:\Users\peter\aws\h-dcn` (already implemented in h-dcn project)
+**Reference:** `C:\Users\peter\aws\h-dcn` (already implemented)
 
-Cognito supports passkeys (WebAuthn/FIDO2) natively since November 2024 via the choice-based auth flow.
+Cognito supports passkeys (WebAuthn/FIDO2) natively. Key lesson from h-dcn: Cognito creates separate user records for different auth methods — need prime ID resolution after login.
 
-**Key lesson from h-dcn:** Cognito creates separate user records (different `sub` IDs) when the same email is used with different auth methods (e.g. Google federated login vs passkey). After login, you must resolve which Cognito `sub` was used and map it back to a "prime ID" to retrieve the correct credentials and tenant context.
-
-**What to port from h-dcn:**
-
-- Post-login identity resolution logic (login `sub` → prime ID lookup)
-- Credential/tenant mapping keyed on prime ID, not raw Cognito `sub`
-- Google federated login + passkey coexistence handling
-
-**Cognito gotcha:** If MFA is enabled at the pool level, it overrides passkeys — they can't coexist. Choose one or the other.
-
-**Effort estimate:** ~2-3 days to port from h-dcn, plus testing.
+**Cognito gotcha:** MFA and passkeys can't coexist at pool level. Choose one.
