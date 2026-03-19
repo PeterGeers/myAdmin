@@ -207,63 +207,63 @@
 
 ### 5.3 Integration Test with Website
 
-- [ ] Deploy to Railway
+- [x] Deploy to Railway
 - [ ] Test full flow from website signup form → verification email → verify click → redirect
 
 ## Phase 6: Unit & Integration Tests (Day 5)
 
 ### 6.1 Test Fixtures
 
-- [ ] Create `backend/tests/api/test_signup_routes.py`
-- [ ] Add pytest fixtures: mock Cognito client, mock DatabaseManager, test app client
-- [ ] Add `@pytest.mark.api` markers to all signup tests
+- [x] Create `backend/tests/api/test_signup_routes.py`
+- [x] Add pytest fixtures: mock Cognito client, mock DatabaseManager, test app client
+- [x] Add `@pytest.mark.api` markers to all signup tests
 
 ### 6.2 POST /api/signup Tests
 
-- [ ] Test valid signup → 201, userId returned
-- [ ] Test missing required fields (firstName, lastName, email, password, acceptedTerms) → 422
-- [ ] Test invalid email format → 422
-- [ ] Test acceptedTerms=false → 422
-- [ ] Test duplicate email (mock `UsernameExistsException`) → 409
-- [ ] Test honeypot filled → 200 (silent fake success)
-- [ ] Test invalid CSRF token → 403
-- [ ] Test propertyRange with invalid value → 422
-- [ ] Test field length limits (firstName > 50 chars, companyName > 100 chars) → 422
+- [x] Test valid signup → 201, userId returned
+- [x] Test missing required fields (firstName, lastName, email, password, acceptedTerms) → 422
+- [x] Test invalid email format → 422
+- [x] Test acceptedTerms=false → 422
+- [x] Test duplicate email (mock `UsernameExistsException`) → 409
+- [x] Test honeypot filled → 200 (silent fake success)
+- [x] Test invalid CSRF token → 403
+- [x] Test propertyRange with invalid value → 422
+- [x] Test field length limits (firstName > 50 chars, companyName > 100 chars) → 422
 
 ### 6.3 POST /api/signup/verify Tests
 
-- [ ] Test valid verification → 200, redirectUrl returned
-- [ ] Test email not found in pending_signups → 404
-- [ ] Test already verified signup → 410
-- [ ] Test invalid code (mock `CodeMismatchException`) → 400
-- [ ] Test expired code (mock `ExpiredCodeException`) → 400
+- [x] Test valid verification → 200, redirectUrl returned
+- [x] Test email not found in pending_signups → 404
+- [x] Test already verified signup → 410
+- [x] Test invalid code (mock `CodeMismatchException`) → 400
+- [x] Test expired code (mock `ExpiredCodeException`) → 400
 
 ### 6.4 POST /api/signup/resend Tests
 
-- [ ] Test valid resend → 200
-- [ ] Test email not found → 404
-- [ ] Test already verified → 410
-- [ ] Test resend within 60 seconds → 429
+- [x] Test valid resend → 200
+- [x] Test email not found → 404
+- [x] Test already verified → 410
+- [x] Test resend within 60 seconds → 429
 
 ### 6.5 Service Layer Tests
 
-- [ ] Create `backend/tests/unit/test_signup_service.py`
-- [ ] Add `@pytest.mark.unit` markers
-- [ ] Test `create_signup()` calls Cognito and inserts DB row
-- [ ] Test `verify_signup()` calls Cognito confirm and updates DB status
-- [ ] Test `resend_verification()` rate limit logic (last_resend_at check)
-- [ ] Test input validation helper: valid input passes, invalid input raises
+- [x] Create `backend/tests/unit/test_signup_service.py`
+- [x] Add `@pytest.mark.unit` markers
+- [x] Test `create_signup()` calls Cognito and inserts DB row
+- [x] Test `verify_signup()` calls Cognito confirm and updates DB status
+- [x] Test `resend_verification()` rate limit logic (last_resend_at check)
+- [x] Test input validation helper: valid input passes, invalid input raises
 
 ### 6.6 Run Tests & Verify
 
-- [ ] Run `pytest tests/api/test_signup_routes.py -v` — all pass
-- [ ] Run `pytest tests/unit/test_signup_service.py -v` — all pass
-- [ ] Run `pytest tests/ --cov=src/routes/signup_routes --cov=src/services/signup_service` — check coverage
+- [x] Run `pytest tests/api/test_signup_routes.py -v` — all pass
+- [x] Run `pytest tests/unit/test_signup_service.py -v` — all pass
+- [x] Run `pytest tests/ --cov=src/routes/signup_routes --cov=src/services/signup_service` — check coverage
 
 ### 6.7 Git Commit
 
-- [ ] `git add -A && git commit -m "feat: signup API with tests (Phase 1-6)"`
-- [ ] `git push`
+- [x] `git add -A && git commit -m "feat: signup API with tests (Phase 1-6)"`
+- [x] `git push`
 
 ## Phase 7: Admin Notification & Provisioning Script (Day 6)
 
