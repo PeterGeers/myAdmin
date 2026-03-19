@@ -8,7 +8,7 @@
  * - Role validation
  */
 
-import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
+import { fetchAuthSession, getCurrentUser, signIn, confirmSignIn } from 'aws-amplify/auth';
 
 /**
  * JWT Payload structure from Cognito tokens
@@ -39,6 +39,79 @@ export interface RoleValidation {
   hasPermissions: boolean;
   hasTenants: boolean;
   missingRoles: string[];
+}
+
+/**
+ * Sign in using passkey (WebAuthn) via Cognito USER_AUTH flow.
+ * 
+ * Initiates choice-based auth and handles the WEB_AUTHN challenge.
+ * The browser will prompt for biometric verification (Face ID / Touch ID / Windows Hello).
+ * 
+ * @param email - User's email address
+ * @returns Sign-in result from Amplify
+ */
+export async function signInWithPasskey(email: string) {
+  // Step 1: Initiate auth with USER_AUTH flow (preferring passkey)
+  const result = await signIn({
+    username: email,
+    options: { authFlowType: 'USER_AUTH' },
+  });
+
+  // Step 2: Handle WEB_AUTHN challenge
+  // If Cognito returns CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION,
+  // select WEB_AUTHN to trigger the browser's credential prompt
+  if (
+    result.nextStep?.signInStep === 'CONTINUE_SIGN_IN_WITH_FIRST_FACTOR_SELECTION'
+  ) {
+    const confirmResult = await confirmSignIn({
+      challengeResponse: 'WEB_AUTHN',
+    });
+    return confirmResult;
+  }
+
+  return result;
+}
+
+/**
+ * Sign in using email and password via Cognito USER_SRP_AUTH flow.
+ * 
+ * @param email - User's email address
+ * @param password - User's password
+ * @returns Sign-in result from Amplify
+ */
+export async function signInWithPassword(email: string, password: string) {
+  const result = await signIn({
+    username: email,
+    password: password,
+    options: { authFlowType: 'USER_SRP_AUTH' },
+  });
+  return result;
+}
+
+/**
+ * Wrapper around confirmSignIn for handling WebAuthn challenges.
+ * 
+ * Use this when the sign-in flow returns a challenge that requires
+ * a WebAuthn credential response (e.g. after factor selection).
+ * 
+ * @param challengeResponse - The WebAuthn challenge response string
+ * @returns Confirm sign-in result from Amplify
+ */
+export async function handleWebAuthnChallenge(challengeResponse: string) {
+  const result = await confirmSignIn({ challengeResponse });
+  return result;
+}
+
+/**
+ * Check if the current browser supports passkeys (WebAuthn).
+ * 
+ * @returns true if PublicKeyCredential API is available
+ */
+export function isPasskeySupported(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.PublicKeyCredential !== 'undefined'
+  );
 }
 
 /**
