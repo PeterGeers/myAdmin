@@ -1,44 +1,44 @@
 # Tasks: Trial Signup API Backend
 
-**Status:** Not Started
+**Status:** In Progress
 **Spec:** [StartingPoints.md](./StartingPoints.md)
 
 ## Phase 1: Foundation (Day 1)
 
 ### 1.1 Database Setup
 
-- [ ] Create `myadmin_promo` database on Railway MySQL (via MySQL Workbench):
+- [x] Create `myadmin_promo` database on Railway MySQL (via MySQL Workbench):
   ```sql
   CREATE DATABASE myadmin_promo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   ```
-- [ ] Create Docker init script `backend/docker-init/01_create_promo_db.sql`:
+- [x] Create Docker init script `backend/docker-init/01_create_promo_db.sql`:
   ```sql
   CREATE DATABASE IF NOT EXISTS myadmin_promo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   GRANT ALL PRIVILEGES ON myadmin_promo.* TO 'peter'@'%';
   FLUSH PRIVILEGES;
   ```
-- [ ] Add init script volume mount to `docker-compose.yml` mysql service:
+- [x] Add init script volume mount to `docker-compose.yml` mysql service:
   ```yaml
   volumes:
     - ./mysql_data:/var/lib/mysql
     - ./backend/docker-init:/docker-entrypoint-initdb.d
   ```
-- [ ] For existing local container, run manually:
+- [x] For existing local container, run manually:
       `docker exec -i <mysql_container> mysql -u peter -p < backend/docker-init/01_create_promo_db.sql`
-- [ ] Create migration file `backend/src/migrations/20260319_create_myadmin_promo_db.sql` (CREATE DATABASE + CREATE TABLE)
-- [ ] Run `CREATE TABLE pending_signups` in `myadmin_promo` on both Railway and local Docker
-- [ ] Verify both environments: `USE myadmin_promo; DESCRIBE pending_signups;`
+- [x] Create migration file `backend/src/migrations/20260319_create_myadmin_promo_db.sql` (CREATE DATABASE + CREATE TABLE)
+- [x] Run `CREATE TABLE pending_signups` in `myadmin_promo` on both Railway and local Docker
+- [x] Verify both environments: `USE myadmin_promo; DESCRIBE pending_signups;`
 
 ### 1.2 Dependencies
 
-- [ ] Add `flask-limiter>=3.5.0` to `backend/requirements.txt`
-- [ ] Install: `pip install flask-limiter`
+- [x] Add `flask-limiter>=3.5.0` to `backend/requirements.txt`
+- [x] Install: `pip install flask-limiter`
 
 ### 1.3 Blueprint Scaffold
 
-- [ ] Create `backend/src/routes/signup_routes.py` with `signup_bp` blueprint
-- [ ] Three route stubs: `/api/signup`, `/api/signup/verify`, `/api/signup/resend` (all POST, return 501 for now)
-- [ ] Register blueprint in `backend/src/app.py`:
+- [x] Create `backend/src/routes/signup_routes.py` with `signup_bp` blueprint
+- [x] Three route stubs: `/api/signup`, `/api/signup/verify`, `/api/signup/resend` (all POST, return 501 for now)
+- [x] Register blueprint in `backend/src/app.py`:
   ```python
   from routes.signup_routes import signup_bp
   app.register_blueprint(signup_bp)
@@ -46,25 +46,25 @@
 
 ### 1.4 Service Layer Scaffold
 
-- [ ] Create `backend/src/services/signup_service.py`
-- [ ] Stub methods: `create_signup()`, `verify_signup()`, `resend_verification()`
-- [ ] Add Cognito client initialization (boto3, region `eu-west-1`)
-- [ ] Add dedicated `DatabaseManager` instance for `myadmin_promo` DB:
+- [x] Create `backend/src/services/signup_service.py`
+- [x] Stub methods: `create_signup()`, `verify_signup()`, `resend_verification()`
+- [x] Add Cognito client initialization (boto3, region `eu-west-1`)
+- [x] Add dedicated `DatabaseManager` instance for `myadmin_promo` DB:
   ```python
   promo_db = DatabaseManager(test_mode=test_mode, db_name=os.getenv('PROMO_DB_NAME', 'myadmin_promo'))
   ```
 
 ### 1.5 CORS Update
 
-- [ ] Add `https://myadmin.jabaki.nl` to CORS origins in `app.py` (line ~237)
-- [ ] Add `X-CSRF-Token` to `allow_headers`
-- [ ] Verify OPTIONS preflight works for `/api/signup`
+- [x] Add `https://myadmin.jabaki.nl` to CORS origins in `app.py` (line ~237)
+- [x] Add `X-CSRF-Token` to `allow_headers`
+- [x] Verify OPTIONS preflight works for `/api/signup`
 
 ## Phase 2: Core Implementation (Day 2-3)
 
 ### 2.1 Input Validation
 
-- [ ] Create validation helper in `signup_service.py`:
+- [x] Create validation helper in `signup_service.py`:
   - firstName: required, 1-50 chars, strip HTML
   - lastName: required, 1-50 chars, strip HTML
   - email: required, valid format (regex)
@@ -74,13 +74,13 @@
   - referralSource: optional, max 50 chars
   - acceptedTerms: required, must be `true`
   - locale: required, one of `['nl', 'en']`
-- [ ] Honeypot check: reject if `honeypot` field is non-empty (return 200 silently to not tip off bots)
-- [ ] CSRF token validation
+- [x] Honeypot check: reject if `honeypot` field is non-empty (return 200 silently to not tip off bots)
+- [x] CSRF token validation
 
 ### 2.2 POST /api/signup — Full Implementation
 
-- [ ] Validate all input fields (call validation helper)
-- [ ] Call Cognito `sign_up`:
+- [x] Validate all input fields (call validation helper)
+- [x] Call Cognito `sign_up`:
   ```python
   cognito_client.sign_up(
       ClientId=COGNITO_APP_CLIENT_ID,
@@ -93,15 +93,15 @@
       ]
   )
   ```
-- [ ] Insert into `pending_signups` table (promo_db DatabaseManager → myadmin_promo DB)
-- [ ] Send admin notification to peter@jabaki.nl via SNS (use existing `aws_notifications.py` pattern)
-- [ ] Return 201 with `userId` (Cognito `UserSub`)
-- [ ] Handle errors: `UsernameExistsException` → 409, validation → 422
+- [x] Insert into `pending_signups` table (promo_db DatabaseManager → myadmin_promo DB)
+- [x] Send admin notification to peter@jabaki.nl via SNS (use existing `aws_notifications.py` pattern)
+- [x] Return 201 with `userId` (Cognito `UserSub`)
+- [x] Handle errors: `UsernameExistsException` → 409, validation → 422
 
 ### 2.3 POST /api/signup/verify — Full Implementation
 
-- [ ] Look up email in `pending_signups` (404 if not found, 410 if already verified)
-- [ ] Call Cognito `confirm_sign_up`:
+- [x] Look up email in `pending_signups` (404 if not found, 410 if already verified)
+- [x] Call Cognito `confirm_sign_up`:
   ```python
   cognito_client.confirm_sign_up(
       ClientId=COGNITO_APP_CLIENT_ID,
@@ -109,56 +109,56 @@
       ConfirmationCode=code
   )
   ```
-- [ ] Update `pending_signups`: `status='verified'`, `verified_at=NOW()`
-- [ ] Send admin notification: "New verified signup ready for provisioning"
-- [ ] Return 200 with `redirectUrl`
-- [ ] Handle errors: `CodeMismatchException` → 400, `ExpiredCodeException` → 400
+- [x] Update `pending_signups`: `status='verified'`, `verified_at=NOW()`
+- [x] Send admin notification: "New verified signup ready for provisioning"
+- [x] Return 200 with `redirectUrl`
+- [x] Handle errors: `CodeMismatchException` → 400, `ExpiredCodeException` → 400
 
 ### 2.4 POST /api/signup/resend — Full Implementation
 
-- [ ] Look up email in `pending_signups` (404 if not found, 410 if already verified)
-- [ ] Rate limit check: `last_resend_at` < 60 seconds ago → 429
-- [ ] Call Cognito `resend_confirmation_code`:
+- [x] Look up email in `pending_signups` (404 if not found, 410 if already verified)
+- [x] Rate limit check: `last_resend_at` < 60 seconds ago → 429
+- [x] Call Cognito `resend_confirmation_code`:
   ```python
   cognito_client.resend_confirmation_code(
       ClientId=COGNITO_APP_CLIENT_ID,
       Username=email
   )
   ```
-- [ ] Update `pending_signups.last_resend_at = NOW()`
-- [ ] Return 200
+- [x] Update `pending_signups.last_resend_at = NOW()`
+- [x] Return 200
 
 ## Phase 3: Security & Rate Limiting (Day 3)
 
 ### 3.1 Rate Limiting Setup
 
-- [ ] Initialize `flask-limiter` in `app.py`:
+- [x] Initialize `flask-limiter` in `app.py`:
   ```python
   from flask_limiter import Limiter
   from flask_limiter.util import get_remote_address
   limiter = Limiter(get_remote_address, app=app, default_limits=[])
   ```
-- [ ] Export `limiter` or pass to signup blueprint
-- [ ] Add decorators to signup routes:
+- [x] Export `limiter` or pass to signup blueprint
+- [x] Add decorators to signup routes:
   - `/api/signup`: `@limiter.limit("5 per hour")`
   - `/api/signup/verify`: `@limiter.limit("10 per hour")`
   - `/api/signup/resend`: `@limiter.limit("1 per minute")` (also enforced in DB check)
 
 ### 3.2 CSRF Token Validation
 
-- [ ] Define CSRF approach: shared secret between website and backend (env var `CSRF_SECRET`)
-- [ ] Validate `X-CSRF-Token` header or `csrfToken` body field in signup routes
-- [ ] Add `CSRF_SECRET` to `.env.example`
+- [x] Define CSRF approach: shared secret between website and backend (env var `CSRF_SECRET`)
+- [x] Validate `X-CSRF-Token` header or `csrfToken` body field in signup routes
+- [x] Add `CSRF_SECRET` to `.env.example`
 
 ### 3.3 Honeypot Field
 
-- [ ] Check `honeypot` field in `/api/signup` — if non-empty, return 200 with fake success (don't reveal detection)
+- [x] Check `honeypot` field in `/api/signup` — if non-empty, return 200 with fake success (don't reveal detection)
 
 ## Phase 4: Environment & Config (Day 3-4)
 
 ### 4.1 Environment Variables
 
-- [ ] Add to `backend/.env.example`:
+- [x] Add to `backend/.env.example`:
   ```
   # Signup API (same Cognito pool, separate app client)
   PROMO_DB_NAME=myadmin_promo
@@ -168,18 +168,18 @@
   CSRF_SECRET=your-csrf-secret-here
   SIGNUP_REDIRECT_URL=https://app.myadmin.jabaki.nl/welcome
   ```
-- [ ] Add actual values to Railway environment variables
-- [ ] Add actual values to local `backend/.env`
+- [x] Add actual values to Railway environment variables
+- [x] Add actual values to local `backend/.env`
 
 ### 4.2 Cognito App Client Setup
 
-- [ ] Create a new app client in the existing myAdmin Cognito user pool (eu-west-1)
+- [x] Create a new app client in the existing myAdmin Cognito user pool (eu-west-1)
   - Name: `myAdmin-signup` (or similar)
   - No client secret (public client for website signup)
   - Allowed auth flows: only what's needed for `sign_up`, `confirm_sign_up`, `resend_confirmation_code`
   - Do NOT enable `initiate_auth` — users log in via the main app client
-- [ ] Note the new app client ID → set as `SIGNUP_COGNITO_APP_CLIENT_ID` in env
-- [ ] `SIGNUP_COGNITO_USER_POOL_ID` is the same as the existing pool ID
+- [x] Note the new app client ID → set as `SIGNUP_COGNITO_APP_CLIENT_ID` in env
+- [x] `SIGNUP_COGNITO_USER_POOL_ID` is the same as the existing pool ID
 - [ ] Verify email verification flow works with the new app client
 - [ ] Customize verification email template if needed (Dutch + English based on locale)
 
@@ -187,23 +187,23 @@
 
 ### 5.1 Manual Testing
 
-- [ ] Test `/api/signup` with valid payload (curl or Postman)
-- [ ] Test `/api/signup` with duplicate email → 409
-- [ ] Test `/api/signup` with invalid input → 422
-- [ ] Test `/api/signup` with honeypot filled → silent 200
-- [ ] Test `/api/signup/verify` with valid code
-- [ ] Test `/api/signup/verify` with invalid code → 400
-- [ ] Test `/api/signup/resend` → success
-- [ ] Test `/api/signup/resend` within 60s → 429
-- [ ] Test rate limiting: 6th signup in 1 hour → 429
-- [ ] Test CORS: request from `https://myadmin.jabaki.nl` → allowed
-- [ ] Test CORS: request from other origin → blocked
+- [x] Test `/api/signup` with valid payload (curl or Postman)
+- [x] Test `/api/signup` with duplicate email → 409
+- [x] Test `/api/signup` with invalid input → 422
+- [x] Test `/api/signup` with honeypot filled → silent 200
+- [x] Test `/api/signup/verify` with valid code
+- [x] Test `/api/signup/verify` with invalid code → 400
+- [x] Test `/api/signup/resend` → success
+- [x] Test `/api/signup/resend` within 60s → 429
+- [x] Test rate limiting: 6th signup in 1 hour → 429
+- [x] Test CORS: request from `https://myadmin.jabaki.nl` → allowed
+- [x] Test CORS: request from other origin → blocked
 
 ### 5.2 Postman Collection
 
-- [ ] Create Postman collection "myAdmin Signup API" with all 3 endpoints
-- [ ] Add test scripts for response validation
-- [ ] Add environment variables for base URL, test email
+- [x] Create Postman collection "myAdmin Signup API" with all 3 endpoints
+- [x] Add test scripts for response validation
+- [x] Add environment variables for base URL, test email
 
 ### 5.3 Integration Test with Website
 

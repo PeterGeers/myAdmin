@@ -18,8 +18,19 @@
       "id": "48572055-9d43327b-58ef-4db3-aee3-4bca1290b2ef",
       "name": "Country Report API",
       "description": "Tests Country Bookings Report generation endpoint. Returns HTML file for download. Requires backend running on localhost:5000."
+    },
+    {
+      "id": "48572055-7ee17274-6020-409c-a922-466d8f450e60",
+      "name": "myAdmin Signup API",
+      "description": "Trial signup API endpoints for myAdmin. Tests the full signup flow: create account, verify email, resend verification code. Requires backend running on localhost:5000."
     }
   ],
-  "environments": [],
+  "environments": [
+    {
+      "id": "48572055-08600a52-df29-47bc-aa89-cb7807bdef7f",
+      "name": "myAdmin Signup - Local",
+      "description": "Local environment for signup API testing with CSRF token and test credentials"
+    }
+  ],
   "notes": "This file stores Postman workspace, collection, and environment IDs for automated testing. Note: Collections targeting localhost must be run from Postman Desktop App (cloud runner cannot reach local servers)."
 }

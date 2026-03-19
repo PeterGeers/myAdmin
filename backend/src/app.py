@@ -51,6 +51,7 @@ from routes.year_end_config_routes import year_end_config_bp
 from routes.year_end_routes import year_end_bp
 from routes.migration_routes import migration_bp
 from routes.user_routes import user_bp
+from routes.signup_routes import signup_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -94,6 +95,10 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False  # Disable pretty printing for performance
 app.config['JSON_SORT_KEYS'] = False  # Disable key sorting for performance
+
+# Initialize rate limiter (used by signup routes)
+from shared_limiter import init_limiter
+init_limiter(app)
 
 # MODE CONFIGURATION
 # Set flag = True for TEST mode (uses mutaties_test table, local storage)
@@ -169,6 +174,7 @@ app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
 app.register_blueprint(year_end_bp)  # Year-end closure endpoints
 app.register_blueprint(migration_bp)  # ONE-TIME migration endpoints (remove after use!)
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
+app.register_blueprint(signup_bp)  # Public trial signup endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
 # Set scalability manager reference for system_health_bp
@@ -239,10 +245,11 @@ CORS(app, resources={
             "http://localhost:3001", 
             "http://127.0.0.1:5000", 
             "https://petergeers.github.io",  # GitHub Pages
+            "https://myadmin.jabaki.nl",  # Promo website (signup)
             "null"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "X-Tenant", "X-Language"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Tenant", "X-Language", "X-CSRF-Token"],
         "supports_credentials": True,
         "expose_headers": ["Content-Type", "Authorization"]
     }
