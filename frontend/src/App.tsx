@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text } from '@chakra-ui/react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text, Alert, AlertIcon, AlertDescription, CloseButton, Link as ChakraLink } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import PDFUploadForm from './components/PDFUploadForm';
 import BankConnect from './components/BankConnect';
@@ -21,8 +21,10 @@ import { useTenantModules } from './hooks/useTenantModules';
 import { TenantAdminDashboard } from './components/TenantAdmin/TenantAdminDashboard';
 import { SysAdminDashboard } from './components/SysAdmin/SysAdminDashboard';
 import MigrationTool from './pages/MigrationTool';
+import PasskeySettings from './components/settings/PasskeySettings';
+import { listPasskeys, isPasskeySupported } from './services/authService';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -30,6 +32,31 @@ function AppContent() {
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout } = useAuth();
   const { hasFIN, hasSTR, loading: modulesLoading } = useTenantModules();
+  const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
+
+  // Check if user should be prompted to register a passkey
+  const checkPasskeyPrompt = useCallback(async () => {
+    if (!isAuthenticated || !isPasskeySupported()) return;
+    if (localStorage.getItem('passkey_prompt_dismissed') === 'true') return;
+
+    try {
+      const credentials = await listPasskeys();
+      if (credentials.length === 0) {
+        setShowPasskeyPrompt(true);
+      }
+    } catch {
+      // Silently ignore — user may not have permissions or session may be initializing
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    checkPasskeyPrompt();
+  }, [checkPasskeyPrompt]);
+
+  const dismissPasskeyPrompt = () => {
+    setShowPasskeyPrompt(false);
+    localStorage.setItem('passkey_prompt_dismissed', 'true');
+  };
 
   useEffect(() => {
     import('./config').then(({ buildApiUrl }) => {
@@ -353,6 +380,28 @@ function AppContent() {
           </Box>
         );
 
+      case 'settings':
+        return (
+          <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">⚙️ {t('common:navigation.modules.settings', 'Settings')}</Heading>
+                  </HStack>
+                  <HStack spacing={3}>
+                    <UserMenu onLogout={logout} mode={status.mode} />
+                  </HStack>
+                </HStack>
+              </Box>
+              <Box p={6} maxW="800px" mx="auto">
+                <PasskeySettings />
+              </Box>
+            </Box>
+          </ProtectedRoute>
+        );
+
       default:
         return (
           <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
@@ -370,6 +419,20 @@ function AppContent() {
               </Box>
 
               {/* Main Content */}
+              {showPasskeyPrompt && (
+                <Box px={6} pt={4} maxW="800px" mx="auto">
+                  <Alert status="info" bg="blue.900" borderColor="blue.500" borderWidth="1px" borderRadius="md">
+                    <AlertIcon color="blue.400" />
+                    <AlertDescription color="gray.200" fontSize="sm" flex="1">
+                      {t('passkey.prompt', 'Register a passkey for faster, more secure login.')}{' '}
+                      <ChakraLink color="orange.400" onClick={() => { setShowPasskeyPrompt(false); setCurrentPage('settings'); }} cursor="pointer" textDecoration="underline">
+                        {t('common:navigation.modules.settings', 'Settings')}
+                      </ChakraLink>
+                    </AlertDescription>
+                    <CloseButton color="gray.400" onClick={dismissPasskeyPrompt} />
+                  </Alert>
+                </Box>
+              )}
               <Box display="flex" alignItems="center" justifyContent="center" minH="calc(100vh - 80px)">
                 <VStack spacing={8}>
                   <Text color="gray.300" fontSize="lg">{t('common:navigation.selectComponent')}</Text>
@@ -444,6 +507,11 @@ function AppContent() {
                       🔄 Migration Tool
                     </Button>
                   )}
+
+                  {/* User Settings - available to all authenticated users */}
+                  <Button size="lg" w="full" colorScheme="gray" variant="outline" onClick={() => setCurrentPage('settings')}>
+                    ⚙️ {t('common:navigation.modules.settings', 'Settings')}
+                  </Button>
                   
                   {/* Loading state */}
                   {modulesLoading && (

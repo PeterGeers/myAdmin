@@ -8,7 +8,7 @@
  * - Role validation
  */
 
-import { fetchAuthSession, getCurrentUser, signIn, confirmSignIn } from 'aws-amplify/auth';
+import { fetchAuthSession, getCurrentUser, signIn, confirmSignIn, associateWebAuthnCredential, listWebAuthnCredentials, deleteWebAuthnCredential } from 'aws-amplify/auth';
 
 /**
  * JWT Payload structure from Cognito tokens
@@ -431,4 +431,35 @@ export async function getCurrentUserTenants(): Promise<string[]> {
     console.error('[Tenants] Failed to extract user tenants:', error);
     return [];
   }
+}
+
+/**
+ * Register a new passkey (WebAuthn credential) for the current user.
+ * 
+ * Amplify v6 handles the full WebAuthn registration flow:
+ * 1. Gets credential creation options from Cognito
+ * 2. Calls navigator.credentials.create() (browser biometric prompt)
+ * 3. Sends attestation back to Cognito
+ */
+export async function registerPasskey() {
+  await associateWebAuthnCredential();
+}
+
+/**
+ * List all registered passkeys for the current user.
+ * 
+ * @returns Array of WebAuthn credentials
+ */
+export async function listPasskeys() {
+  const result = await listWebAuthnCredentials();
+  return result.credentials;
+}
+
+/**
+ * Delete a registered passkey by credential ID.
+ * 
+ * @param credentialId - The ID of the credential to remove
+ */
+export async function deletePasskey(credentialId: string) {
+  await deleteWebAuthnCredential({ credentialId });
 }
