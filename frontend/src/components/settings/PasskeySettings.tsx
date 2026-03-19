@@ -92,6 +92,7 @@ export default function PasskeySettings() {
       });
       await loadPasskeys();
     } catch (error: any) {
+      console.error('Passkey registration failed:', error?.name, error?.message, error);
       const msg = error?.message?.includes('cancelled') || error?.message?.includes('AbortError')
         ? t('auth:login.passkeyCancelled')
         : t('auth:passkey.registerFailed', 'Failed to register passkey. Please try again.');

@@ -115,7 +115,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -139,7 +139,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -162,7 +162,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -185,7 +185,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -208,7 +208,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -232,7 +232,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -256,7 +256,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" hide={true} />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -280,7 +280,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -305,7 +305,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -329,7 +329,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -353,7 +353,7 @@ function AppContent() {
                   </HStack>
                   <HStack spacing={3}>
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -372,7 +372,7 @@ function AppContent() {
                   <Heading color="orange.400" size="lg">🔄 Migration Tool</Heading>
                 </HStack>
                 <HStack spacing={3}>
-                  <UserMenu onLogout={logout} mode={status.mode} />
+                  <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                 </HStack>
               </HStack>
             </Box>
@@ -391,7 +391,7 @@ function AppContent() {
                     <Heading color="orange.400" size="lg">⚙️ {t('common:navigation.modules.settings', 'Settings')}</Heading>
                   </HStack>
                   <HStack spacing={3}>
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -413,7 +413,7 @@ function AppContent() {
                   <HStack spacing={3}>
                     <LanguageSelector />
                     <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} mode={status.mode} />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>
               </Box>
@@ -507,11 +507,6 @@ function AppContent() {
                       🔄 Migration Tool
                     </Button>
                   )}
-
-                  {/* User Settings - available to all authenticated users */}
-                  <Button size="lg" w="full" colorScheme="gray" variant="outline" onClick={() => setCurrentPage('settings')}>
-                    ⚙️ {t('common:navigation.modules.settings', 'Settings')}
-                  </Button>
                   
                   {/* Loading state */}
                   {modulesLoading && (
