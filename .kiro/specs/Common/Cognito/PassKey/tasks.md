@@ -262,40 +262,46 @@ Users need a way to register passkeys from their profile/settings.
 
 ### 4.1 Password Login Regression
 
-- [ ] Test email/password login → success → dashboard loads with correct user/roles/tenants
-- [ ] Test wrong password → error toast, no crash
-- [ ] Test non-existent email → generic error (no user enumeration)
-- [ ] Test forgot password flow still works
+- [x] Test email/password login → success → dashboard loads with correct user/roles/tenants
+- [x] Test wrong password → error toast, no crash
+Sign in with your email and password, or use a passkey for faster, more secure access.
+Protected by AWS Cognito
+Login Failed
+Incorrect email or password. Please try again.
+- [x] Test non-existent email → generic error (no user enumeration)
+This gives an error.  Login Failed  Incorrect email or password. Please try again.  
+- [x] Test forgot password flow still works
+Mail received with reset ciode and password reset worked
 
 ### 4.2 Passkey Registration
 
-- [ ] Test register passkey on Chrome (Windows Hello) → success
-- [ ] Test register passkey on Safari (Touch ID) → success
-- [ ] Test register passkey on Firefox → success or graceful unsupported message
-- [ ] Test list passkeys → shows registered passkey
-- [ ] Test delete passkey → removed from list
+- [x] Test register passkey on Chrome (Windows Hello) → success
+- [x] Test register passkey on Safari (Touch ID) → success
+- [x] Test register passkey on Firefox → success or graceful unsupported message
+- [x] Test list passkeys → shows registered passkey
+- [x] Test delete passkey → removed from list
 
 ### 4.3 Passkey Login
 
-- [ ] Test passkey login on Chrome → biometric prompt → success → dashboard
-- [ ] Test passkey login on Safari → biometric prompt → success → dashboard
-- [ ] Test passkey login with cancelled biometric → error message, can retry
-- [ ] Test passkey login for user without passkey → appropriate error
-- [ ] Test passkey login on mobile (iOS Safari, Android Chrome) if possible
+- [x] Test passkey login on Chrome → biometric prompt → success → dashboard
+- [x] Test passkey login on Safari → biometric prompt → success → dashboard
+- [x] Test passkey login with cancelled biometric → error message, can retry
+- [x] Test passkey login for user without passkey → appropriate error
+- [x] Test passkey login on mobile (iOS Safari, Android Chrome) if possible
 
 ### 4.4 Cross-Auth Verification
 
-- [ ] Login with password → JWT contains correct `cognito:groups` and `custom:tenants`
-- [ ] Login with passkey → JWT contains correct `cognito:groups` and `custom:tenants`
-- [ ] Backend `@cognito_required` accepts tokens from both auth methods
-- [ ] Tenant context resolves correctly regardless of auth method
+- [x] Login with password → JWT contains correct `cognito:groups` and `custom:tenants`
+- [x] Login with passkey → JWT contains correct `cognito:groups` and `custom:tenants`
+- [x] Backend `@cognito_required` accepts tokens from both auth methods
+- [x] Tenant context resolves correctly regardless of auth method
 
 ### 4.5 Edge Cases
 
-- [ ] Browser without WebAuthn support → passkey button hidden, password login works
-- [ ] User registers passkey, then admin disables their account → passkey login fails gracefully
-- [ ] Token expiry → refresh works for both auth methods
-- [ ] Multiple passkeys registered → any of them works for login
+- [x] Browser without WebAuthn support → passkey button hidden, password login works
+- [x] User registers passkey, then admin disables their account → passkey login fails gracefully
+- [x] Token expiry → refresh works for both auth methods
+- [x] Multiple passkeys registered → any of them works for login
 
 ### 4.6 Update Existing Auth Tests
 
@@ -307,17 +313,17 @@ Users need a way to register passkeys from their profile/settings.
 
 ### 5.1 Pre-Deploy Checklist
 
-- [ ] All tests passing locally
-- [ ] Password login works locally
-- [ ] Passkey registration + login works locally
-- [ ] No console errors
+- [x] All tests passing locally
+- [x] Password login works locally
+- [x] Passkey registration + login works locally
+- [x] No console errors
 
 ### 5.2 Deploy
 
-- [ ] `git add -A && git commit -m "feat: passkey authentication support"` (if not already committed per phase)
-- [ ] `git push`
-- [ ] Verify Railway auto-deploys (or trigger manual deploy)
-- [ ] Verify Terraform changes already applied (Phase 1.4)
+- [x] `git add -A && git commit -m "feat: passkey authentication support"` (if not already committed per phase)
+- [x] `git push`
+- [x] Verify Railway auto-deploys (or trigger manual deploy)
+- [x] Verify Terraform changes already applied (Phase 1.4)
 
 ### 5.3 Production Testing
 
