@@ -8,6 +8,7 @@ Run after a user has verified their email (status='verified' in pending_signups)
 Usage:
     python scripts/provision_tenant.py <email>
     python scripts/provision_tenant.py peter@jabaki.nl --dry-run
+    python scripts/provision_tenant.py peter@jabaki.nl --name "MyCompany" --modules "FIN,STR,TENADMIN"
     python scripts/provision_tenant.py peter@jabaki.nl --test-mode
 
 Steps:
@@ -144,10 +145,8 @@ def insert_tenant(admin_name: str, display_name: str, email: str, test_mode=Fals
         conn.close()
 
 
-def insert_modules(admin_name: str, test_mode=False):
-    """Step 3: Insert tenant_modules — FIN, STR, TENADMIN for all trial signups"""
-    modules = ['FIN', 'STR', 'TENADMIN']
-
+def insert_modules_list(admin_name: str, modules: list, test_mode=False):
+    """Step 3: Insert tenant_modules from provided list"""
     conn = mysql.connector.connect(**get_finance_db_config(test_mode))
     try:
         cursor = conn.cursor()
@@ -260,7 +259,7 @@ def send_notification(email: str, admin_name: str, first_name: str):
 # Main
 # ============================================================================
 
-def provision(email: str, dry_run=False, test_mode=False):
+def provision(email: str, dry_run=False, test_mode=False, admin_name_override=None, modules_override=None):
     """Run the full provisioning flow"""
     db_label = 'testfinance' if test_mode else 'finance'
     logger.info(f"Provisioning tenant for: {email} (DB: {db_label})")
@@ -279,15 +278,41 @@ def provision(email: str, dry_run=False, test_mode=False):
         logger.error(f"❌ {email} status is '{signup['status']}' — must be 'verified' to provision")
         sys.exit(1)
 
-    # Generate administration name
-    admin_name = generate_administration_name(signup.get('company_name', ''), email, test_mode)
+    # Administration name: use override from frontend, fallback to auto-generated
+    if admin_name_override:
+        admin_name = admin_name_override
+        logger.info(f"  Using provided administration name: {admin_name}")
+        # Still check uniqueness
+        conn = mysql.connector.connect(**get_finance_db_config(test_mode))
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM tenants WHERE administration = %s", (admin_name,))
+            if cursor.fetchone()[0] > 0:
+                logger.error(f"❌ Administration '{admin_name}' already exists in tenants table")
+                sys.exit(1)
+            cursor.close()
+        finally:
+            conn.close()
+    else:
+        admin_name = generate_administration_name(signup.get('company_name', ''), email, test_mode)
+
+    # Modules: use override from frontend, fallback to default
+    if modules_override:
+        modules = [m.strip().upper() for m in modules_override.split(',')]
+        # Always ensure TENADMIN is included
+        if 'TENADMIN' not in modules:
+            modules.append('TENADMIN')
+        logger.info(f"  Using provided modules: {', '.join(modules)}")
+    else:
+        modules = ['FIN', 'STR', 'TENADMIN']
+
     display_name = signup.get('company_name') or f"{signup['first_name']} {signup['last_name']}"
     first_name = signup['first_name']
 
     logger.info(f"  Signup: {first_name} {signup['last_name']} ({email})")
     logger.info(f"  Administration: {admin_name}")
     logger.info(f"  Display name: {display_name}")
-    logger.info(f"  Modules: FIN, STR, TENADMIN")
+    logger.info(f"  Modules: {', '.join(modules)}")
 
     if dry_run:
         logger.info("\n🔍 DRY RUN — no changes made")
@@ -297,7 +322,7 @@ def provision(email: str, dry_run=False, test_mode=False):
     insert_tenant(admin_name, display_name, email, test_mode)
 
     # Step 3: Insert modules
-    insert_modules(admin_name, test_mode)
+    insert_modules_list(admin_name, modules, test_mode)
 
     # Step 4: Copy default chart of accounts
     copy_default_chart_of_accounts(admin_name, test_mode)
@@ -318,8 +343,11 @@ def provision(email: str, dry_run=False, test_mode=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Provision a new tenant from a verified signup')
     parser.add_argument('email', help='Email of the verified signup to provision')
+    parser.add_argument('--name', dest='admin_name', help='Administration name (overrides auto-generated)')
+    parser.add_argument('--modules', help='Comma-separated module list, e.g. "FIN,STR,TENADMIN" (default: FIN,STR,TENADMIN)')
     parser.add_argument('--dry-run', action='store_true', help='Show what would happen without making changes')
     parser.add_argument('--test-mode', action='store_true', help='Use testfinance DB instead of finance')
     args = parser.parse_args()
 
-    provision(args.email, dry_run=args.dry_run, test_mode=args.test_mode)
+    provision(args.email, dry_run=args.dry_run, test_mode=args.test_mode,
+              admin_name_override=args.admin_name, modules_override=args.modules)
