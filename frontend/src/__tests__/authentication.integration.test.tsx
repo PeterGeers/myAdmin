@@ -15,7 +15,7 @@ import userEvent from '@testing-library/user-event';
 import { AuthProvider } from '../context/AuthContext';
 
 // Import mocked functions
-import { getCurrentUser, signOut, signInWithRedirect, fetchAuthSession } from 'aws-amplify/auth';
+import { getCurrentUser, signOut, signIn, fetchAuthSession } from 'aws-amplify/auth';
 import * as authService from '../services/authService';
 
 // Import components after mocks
@@ -27,8 +27,11 @@ import Unauthorized from '../pages/Unauthorized';
 jest.mock('aws-amplify/auth', () => ({
   getCurrentUser: jest.fn(),
   signOut: jest.fn(),
+  signIn: jest.fn(),
   signInWithRedirect: jest.fn(),
   fetchAuthSession: jest.fn(),
+  resetPassword: jest.fn(),
+  confirmResetPassword: jest.fn(),
 }));
 
 // Mock authService to prevent infinite loops in AuthContext
@@ -44,17 +47,20 @@ jest.mock('../services/authService', () => ({
   hasAllRoles: jest.fn(),
   decodeJWTPayload: jest.fn(),
   validateRoleCombinations: jest.fn(),
+  signInWithPassword: jest.fn(),
+  signInWithPasskey: jest.fn(),
+  isPasskeySupported: jest.fn().mockReturnValue(true),
 }));
 
 // Mock Chakra UI components to avoid dependency issues
 jest.mock('@chakra-ui/react', () => ({
   ChakraProvider: ({ children }: any) => <div>{children}</div>,
-  Box: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  Box: ({ children, as: As, onSubmit, ...props }: any) => As === 'form' ? <form onSubmit={onSubmit} {...props}>{children}</form> : <div {...props}>{children}</div>,
   VStack: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   HStack: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   Heading: ({ children, ...props }: any) => <h1 {...props}>{children}</h1>,
   Text: ({ children, ...props }: any) => <p {...props}>{children}</p>,
-  Button: ({ children, onClick, ...props }: any) => <button onClick={onClick} {...props}>{children}</button>,
+  Button: ({ children, onClick, type, isLoading, loadingText, isDisabled, ...props }: any) => <button onClick={onClick} type={type} disabled={isDisabled || isLoading} {...props}>{isLoading ? loadingText : children}</button>,
   Image: (props: any) => <img alt="" {...props} />,
   Container: ({ children }: any) => <div>{children}</div>,
   Divider: () => <hr />,
@@ -62,11 +68,15 @@ jest.mock('@chakra-ui/react', () => ({
   Alert: ({ children }: any) => <div role="alert">{children}</div>,
   AlertIcon: () => <span>ℹ️</span>,
   AlertDescription: ({ children }: any) => <div>{children}</div>,
+  CloseButton: ({ onClick }: any) => <button onClick={onClick}>×</button>,
   Badge: ({ children }: any) => <span>{children}</span>,
   Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
   List: ({ children }: any) => <ul>{children}</ul>,
   ListItem: ({ children }: any) => <li>{children}</li>,
   ListIcon: () => <span>✓</span>,
+  FormControl: ({ children }: any) => <div>{children}</div>,
+  FormLabel: ({ children }: any) => <label>{children}</label>,
+  Input: ({ value, onChange, type, placeholder, disabled, ...props }: any) => <input type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} aria-label={placeholder} />,
   useToast: () => jest.fn(),
 }));
 
@@ -74,6 +84,12 @@ jest.mock('@chakra-ui/icons', () => ({
   WarningIcon: { name: 'WarningIcon' },
   LockIcon: { name: 'LockIcon' },
   CheckCircleIcon: { name: 'CheckCircleIcon' },
+}));
+
+// Mock react-i18next — t() returns the key as-is
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', changeLanguage: jest.fn() } }),
+  Trans: ({ children }: any) => children,
 }));
 
 // Helper to wrap components with providers
@@ -174,6 +190,9 @@ describe('Authentication Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
+    // Re-set isPasskeySupported after clearAllMocks resets it
+    (authService.isPasskeySupported as jest.Mock).mockReturnValue(true);
+    
     // Setup default mocks for authService to prevent hanging
     (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
     (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
@@ -184,63 +203,113 @@ describe('Authentication Integration Tests', () => {
   });
 
   describe('Login Flow', () => {
-    it('should show login page when not authenticated', async () => {
+    it('should show login page with email and password fields', async () => {
       setupUnauthenticatedMocks();
 
       renderWithProviders(<Login />);
 
       await waitFor(() => {
-        expect(screen.getByText('Welcome to myAdmin')).toBeInTheDocument();
-        expect(screen.getByText('Sign in with Cognito')).toBeInTheDocument();
+        expect(screen.getByText('auth:login.title')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('user@example.com')).toBeInTheDocument();
+        expect(screen.getByText('auth:login.signInButton')).toBeInTheDocument();
       });
     });
 
-    it('should initiate Cognito Hosted UI login when button clicked', async () => {
+    it('should show passkey button when WebAuthn is supported', async () => {
       setupUnauthenticatedMocks();
-      (signInWithRedirect as jest.Mock).mockResolvedValue(undefined);
 
       renderWithProviders(<Login />);
 
-      const loginButton = screen.getByText('Sign in with Cognito');
-      await userEvent.click(loginButton);
-
       await waitFor(() => {
-        expect(signInWithRedirect).toHaveBeenCalled();
+        expect(screen.getByText('auth:login.signInWithPasskey')).toBeInTheDocument();
       });
     });
 
-    it('should show loading state during login', async () => {
+    it('should call signInWithPassword on form submit', async () => {
       setupUnauthenticatedMocks();
-      // Use a delayed promise instead of never-resolving to avoid hanging tests
-      (signInWithRedirect as jest.Mock).mockImplementation(() => 
-        new Promise((resolve) => setTimeout(resolve, 100))
-      );
+      (authService.signInWithPassword as jest.Mock).mockResolvedValue({ isSignedIn: true });
 
-      renderWithProviders(<Login />);
+      renderWithProviders(<Login onLoginSuccess={jest.fn()} />);
 
-      const loginButton = screen.getByText('Sign in with Cognito');
-      await userEvent.click(loginButton);
+      const emailInput = screen.getByPlaceholderText('user@example.com');
+      await userEvent.type(emailInput, 'test@example.com');
 
-      // The button should show loading state with isLoading prop
-      // Since we're mocking Chakra UI, the button won't actually show "Redirecting..."
-      // Instead, we verify that signInWithRedirect was called
+      const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
+      await userEvent.type(passwordInput, 'password123');
+
+      const signInButton = screen.getByText('auth:login.signInButton');
+      await userEvent.click(signInButton);
+
       await waitFor(() => {
-        expect(signInWithRedirect).toHaveBeenCalled();
+        expect(authService.signInWithPassword).toHaveBeenCalledWith('test@example.com', 'password123');
       });
     });
 
-    it('should handle login errors gracefully', async () => {
+    it('should call signInWithPasskey when passkey button clicked', async () => {
       setupUnauthenticatedMocks();
-      (signInWithRedirect as jest.Mock).mockRejectedValue(new Error('Login failed'));
+      (authService.signInWithPasskey as jest.Mock).mockResolvedValue({ isSignedIn: true });
+
+      renderWithProviders(<Login onLoginSuccess={jest.fn()} />);
+
+      const emailInput = screen.getByPlaceholderText('user@example.com');
+      await userEvent.type(emailInput, 'test@example.com');
+
+      const passkeyButton = screen.getByText('auth:login.signInWithPasskey');
+      await userEvent.click(passkeyButton);
+
+      await waitFor(() => {
+        expect(authService.signInWithPasskey).toHaveBeenCalledWith('test@example.com');
+      });
+    });
+
+    it('should handle password login errors gracefully', async () => {
+      setupUnauthenticatedMocks();
+      (authService.signInWithPassword as jest.Mock).mockRejectedValue({ name: 'NotAuthorizedException' });
 
       renderWithProviders(<Login />);
 
-      const loginButton = screen.getByText('Sign in with Cognito');
-      await userEvent.click(loginButton);
+      const emailInput = screen.getByPlaceholderText('user@example.com');
+      await userEvent.type(emailInput, 'test@example.com');
 
-      // Error should be handled (toast notification would appear in real app)
+      const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
+      await userEvent.type(passwordInput, 'wrongpassword');
+
+      const signInButton = screen.getByText('auth:login.signInButton');
+      await userEvent.click(signInButton);
+
       await waitFor(() => {
-        expect(signInWithRedirect).toHaveBeenCalled();
+        expect(authService.signInWithPassword).toHaveBeenCalled();
+      });
+    });
+
+    it('should handle passkey login errors gracefully', async () => {
+      setupUnauthenticatedMocks();
+      (authService.signInWithPasskey as jest.Mock).mockRejectedValue({ name: 'NotAuthorizedException' });
+
+      renderWithProviders(<Login />);
+
+      const emailInput = screen.getByPlaceholderText('user@example.com');
+      await userEvent.type(emailInput, 'test@example.com');
+
+      const passkeyButton = screen.getByText('auth:login.signInWithPasskey');
+      await userEvent.click(passkeyButton);
+
+      await waitFor(() => {
+        expect(authService.signInWithPasskey).toHaveBeenCalled();
+      });
+    });
+
+    it('should show forgot password view when link clicked', async () => {
+      setupUnauthenticatedMocks();
+
+      renderWithProviders(<Login />);
+
+      const resetLink = screen.getByText('auth:login.resetPassword');
+      await userEvent.click(resetLink);
+
+      await waitFor(() => {
+        expect(screen.getByText('auth:forgotPassword.title')).toBeInTheDocument();
+        expect(screen.getByText('auth:forgotPassword.sendCode')).toBeInTheDocument();
       });
     });
   });
@@ -258,7 +327,7 @@ describe('Authentication Integration Tests', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Welcome to myAdmin')).toBeInTheDocument();
+        expect(screen.getByText('auth:login.title')).toBeInTheDocument();
         expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
       });
     });
@@ -375,7 +444,7 @@ describe('Authentication Integration Tests', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
+        expect(screen.getByText('auth:unauthorized.title')).toBeInTheDocument();
         expect(screen.queryByText('Admin Only Content')).not.toBeInTheDocument();
       });
     });
@@ -392,9 +461,9 @@ describe('Authentication Integration Tests', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
-        expect(screen.getByText(/Your current roles:/i)).toBeInTheDocument();
-        expect(screen.getByText(/Required roles/i)).toBeInTheDocument();
+        expect(screen.getByText('auth:unauthorized.title')).toBeInTheDocument();
+        expect(screen.getByText('auth:unauthorized.yourRoles')).toBeInTheDocument();
+        expect(screen.getByText('auth:unauthorized.requiredRoles')).toBeInTheDocument();
       });
     });
 
@@ -423,10 +492,10 @@ describe('Authentication Integration Tests', () => {
       renderWithProviders(<Unauthorized requiredRoles={['Administrators']} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Access Denied')).toBeInTheDocument();
+        expect(screen.getByText('auth:unauthorized.title')).toBeInTheDocument();
       });
 
-      const logoutButton = screen.getByText('Logout');
+      const logoutButton = screen.getByText('common:buttons.cancel');
       await userEvent.click(logoutButton);
 
       await waitFor(() => {
@@ -460,7 +529,7 @@ describe('Authentication Integration Tests', () => {
 
       // Should redirect to login due to expired token
       await waitFor(() => {
-        expect(screen.getByText('Welcome to myAdmin')).toBeInTheDocument();
+        expect(screen.getByText('auth:login.title')).toBeInTheDocument();
       });
     });
 
@@ -509,7 +578,7 @@ describe('Authentication Integration Tests', () => {
 
       // Should not show content or login page while loading
       expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
-      expect(screen.queryByText('Welcome to myAdmin')).not.toBeInTheDocument();
+      expect(screen.queryByText('auth:login.title')).not.toBeInTheDocument();
     });
 
     it('should display user email in unauthorized page', async () => {
@@ -528,7 +597,8 @@ describe('Authentication Integration Tests', () => {
       renderWithProviders(<Login />);
 
       await waitFor(() => {
-        expect(screen.getByText('Reset it here')).toBeInTheDocument();
+        expect(screen.getByText('auth:login.forgotPassword')).toBeInTheDocument();
+        expect(screen.getByText('auth:login.resetPassword')).toBeInTheDocument();
       });
     });
 
@@ -538,7 +608,7 @@ describe('Authentication Integration Tests', () => {
       renderWithProviders(<Unauthorized requiredRoles={['Administrators']} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Go Back')).toBeInTheDocument();
+        expect(screen.getByText('auth:unauthorized.goBack')).toBeInTheDocument();
       });
     });
   });
