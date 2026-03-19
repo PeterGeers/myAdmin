@@ -30,7 +30,7 @@ function AppContent() {
   const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
-  const { isAuthenticated, loading, user, logout } = useAuth();
+  const { isAuthenticated, loading, user, logout, refreshUserRoles } = useAuth();
   const { hasFIN, hasSTR, loading: modulesLoading } = useTenantModules();
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
@@ -83,7 +83,7 @@ function AppContent() {
 
   // Show login page if not authenticated
   if (!isAuthenticated && !loading) {
-    return <Login onLoginSuccess={() => setCurrentPage('menu')} />;
+    return <Login onLoginSuccess={() => { refreshUserRoles(); setCurrentPage('menu'); }} />;
   }
 
   // Show loading state while checking authentication
