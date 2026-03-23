@@ -33,6 +33,7 @@ Keep this in sync with `backend/.env.example` when adding new variables.
 | `SIGNUP_COGNITO_APP_CLIENT_ID` | Signup        | Public client (no secret)                |
 | `SIGNUP_COGNITO_USER_POOL_ID`  | Signup        | Same pool as main app                    |
 | `SIGNUP_REDIRECT_URL`          | Signup        | Post-verification redirect               |
+| `FRONTEND_URL`                 | Frontend      | `https://petergeers.github.io/myAdmin`   |
 | `SNS_TOPIC_ARN`                | Notifications | Admin alerts via SNS                     |
 | `FRONTEND_URL`                 | Frontend      | `https://petergeers.github.io/myAdmin`   |
 

@@ -377,9 +377,6 @@ def create_tenant_user(user_email, user_roles):
                 # Render email templates using render_user_invitation which detects language
                 from utils.frontend_url import get_frontend_url
                 login_url = get_frontend_url()
-                print(f"[DEBUG] X-Frontend-URL header: {request.headers.get('X-Frontend-URL')}", flush=True)
-                print(f"[DEBUG] Referer header: {request.headers.get('Referer')}", flush=True)
-                print(f"[DEBUG] Resolved login_url: {login_url}", flush=True)
                 
                 html_content = email_service.render_user_invitation(
                     email=email,
