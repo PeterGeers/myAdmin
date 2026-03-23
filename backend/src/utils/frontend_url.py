@@ -13,43 +13,45 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Known GitHub Pages deployments that need a path prefix
+GITHUB_PAGES_PATHS = {
+    'petergeers.github.io': '/myAdmin',
+}
+
 
 def get_frontend_url() -> str:
     """
     Resolve the frontend URL. Auto-detects from request headers.
-    
+
     Priority:
-    1. X-Frontend-URL custom header — includes path prefix for GitHub Pages
-       (e.g. https://petergeers.github.io/myAdmin)
-    2. Referer header — origin only (CRA proxy preserves this)
+    1. X-Frontend-URL custom header (includes path prefix)
+    2. Referer header (with GitHub Pages path lookup)
     3. FRONTEND_URL environment variable
-    4. http://localhost:3000 (hardcoded fallback)
-    
-    NOTE: Origin is NOT used — CRA proxy sets it to the backend URL.
-    
+    4. http://localhost:3000 (fallback)
+
     Returns:
         Frontend base URL (no trailing slash)
     """
-    # X-Frontend-URL is set by frontend to window.location.origin + PUBLIC_URL
-    # This includes the path prefix for GitHub Pages (e.g. /myAdmin)
-    # CRA proxy strips this, but it works for direct CORS requests
+    # X-Frontend-URL: set by frontend to origin + PUBLIC_URL
     try:
-        frontend_header = flask_request.headers.get('X-Frontend-URL')
-        if frontend_header:
-            url = frontend_header.rstrip('/')
+        header = flask_request.headers.get('X-Frontend-URL')
+        if header:
+            url = header.rstrip('/')
             parsed = urlparse(url)
             if parsed.scheme in ('http', 'https') and parsed.netloc:
                 return url
     except RuntimeError:
         pass
 
-    # Referer header — origin only (path is the current page, not the base)
+    # Referer: add known path prefix for GitHub Pages hosts
     try:
         referer = flask_request.headers.get('Referer')
         if referer:
             parsed = urlparse(referer)
             if parsed.scheme in ('http', 'https') and parsed.netloc:
-                return f"{parsed.scheme}://{parsed.netloc}"
+                base = f"{parsed.scheme}://{parsed.netloc}"
+                path_prefix = GITHUB_PAGES_PATHS.get(parsed.netloc, '')
+                return (base + path_prefix).rstrip('/')
     except RuntimeError:
         pass
 
