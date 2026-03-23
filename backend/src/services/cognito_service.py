@@ -568,7 +568,7 @@ class CognitoService:
         tenant: str
     ) -> bool:
         """
-        Send invitation email via SNS using HTML and plain text templates
+        Send invitation email via AWS SES directly to the recipient.
         
         Args:
             email: User's email address
@@ -577,19 +577,14 @@ class CognitoService:
         
         Returns:
             True if successful
-        
-        Note: This requires SNS_TOPIC_ARN to be configured
         """
         try:
-            sns_topic_arn = os.getenv('SNS_TOPIC_ARN')
-            if not sns_topic_arn:
-                logger.warning("SNS_TOPIC_ARN not configured, skipping invitation email")
-                return False
-            
             # Import email template service
             from services.email_template_service import EmailTemplateService
+            from services.ses_email_service import SESEmailService
             
             email_service = EmailTemplateService(administration=tenant)
+            ses = SESEmailService()
             
             # Render HTML and plain text versions
             html_content = email_service.render_user_invitation(
@@ -622,23 +617,22 @@ Temporary Password: {temporary_password}
 
 Please log in and change your password at your earliest convenience.
 
-Login URL: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}
+Login URL: {self._get_frontend_url()}
 """
             
-            sns_client = boto3.client('sns', region_name=self.region)
-            
-            # Send email via SNS
-            # Note: SNS supports both plain text and HTML, but email format depends on SNS configuration
-            # For now, we'll send the text version as the primary message
-            # HTML version can be sent via SNS Email protocol if configured
-            sns_client.publish(
-                TopicArn=sns_topic_arn,
-                Subject=subject,
-                Message=text_content
+            result = ses.send_invitation(
+                to_email=email,
+                subject=subject,
+                html_body=html_content,
+                text_body=text_content
             )
             
-            logger.info(f"Invitation email sent to {email} for tenant {tenant}")
-            return True
+            if result['success']:
+                logger.info(f"Invitation email sent to {email} for tenant {tenant}")
+                return True
+            else:
+                logger.error(f"SES failed to send invitation to {email}: {result.get('error')}")
+                return False
             
         except Exception as e:
             logger.error(f"Failed to send invitation to {email}: {e}")
@@ -649,6 +643,14 @@ Login URL: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}
     # ========================================================================
     # Helper Methods
     # ========================================================================
+    
+    def _get_frontend_url(self) -> str:
+        """Get frontend URL from request context or environment"""
+        try:
+            from utils.frontend_url import get_frontend_url
+            return get_frontend_url()
+        except Exception:
+            return os.getenv('FRONTEND_URL', 'http://localhost:3000')
     
     def _get_user_attribute(
         self, 

@@ -1,0 +1,22 @@
+3 issues:
+A) in email template Welcome to myAdmin - GoodwinSolutions Invitation 
+the new password is shown in 1 mail as ***** The user can not read this and in another mauil as a real password. This password is not the same as defined by the tenant
+
+
+
+B) The mail is sent to:	MyAdmin Application Notifications <no-reply@sns.amazonaws.com>
+aan:	peter@pgeers.nl
+datum:	23 mrt 2026, 18:20
+onderwerp:	Welcome to myAdmin - GoodwinSolutions Invitation
+verzonden door:	eu-west-1.amazonses.com
+ondertekend door:	sns.amazonaws.com
+beveiliging:	 Standaardversleuteling (TLS) Meer informatie
+:	Belangrijk omdat eerdere berichten in het gesprek belangrijk waren.
+
+While the mail should be sent to the e0mail asdress of the person invited as shown in the email
+
+
+C) LOGIN URL is not from the actual environment, It would be nice if that url is defined based on the ,location theapp is running that sendss the e-mail
+
+--------------------------------------------------------------------------------
+http://localhost:3000

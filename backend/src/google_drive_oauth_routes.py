@@ -135,11 +135,15 @@ def oauth_callback():
         session.pop('oauth_user_email', None)
         
         # Redirect to success page
-        return redirect(f'{os.getenv("FRONTEND_URL", "http://localhost:3000")}/oauth/success?service=google-drive')
+        from utils.frontend_url import get_frontend_url
+        frontend_url = get_frontend_url()
+        return redirect(f'{frontend_url}/oauth/success?service=google-drive')
         
     except Exception as e:
         logger.error(f"Error in OAuth callback: {e}")
-        return redirect(f'{os.getenv("FRONTEND_URL", "http://localhost:3000")}/oauth/error?service=google-drive&error={str(e)}')
+        from utils.frontend_url import get_frontend_url
+        frontend_url = get_frontend_url()
+        return redirect(f'{frontend_url}/oauth/error?service=google-drive&error={str(e)}')
 
 
 @google_drive_oauth_bp.route('/api/google-drive/oauth/status', methods=['GET'])

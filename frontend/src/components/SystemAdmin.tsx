@@ -681,20 +681,19 @@ export default function SystemAdmin() {
                       This name will be displayed in the application header
                     </Text>
                   </FormControl>
-                  <FormControl isRequired>
+                  <FormControl>
                     <FormLabel color="gray.300">Temporary Password</FormLabel>
                     <Input
-                      type="password"
-                      placeholder="Minimum 8 characters"
-                      value={newUserPassword}
-                      onChange={(e) => setNewUserPassword(e.target.value)}
-                      bg="gray.700"
-                      borderColor="gray.600"
-                      _hover={{ borderColor: 'gray.500' }}
-                      _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
+                      type="text"
+                      value="Auto-generated and sent via email"
+                      isReadOnly
+                      bg="gray.800"
+                      color="gray.400"
+                      borderColor="gray.700"
+                      cursor="not-allowed"
                     />
                     <Text fontSize="xs" color="gray.500" mt={1}>
-                      User will be required to change password on first login
+                      A secure password will be generated and emailed to the user
                     </Text>
                   </FormControl>
                   <Divider borderColor="gray.600" />

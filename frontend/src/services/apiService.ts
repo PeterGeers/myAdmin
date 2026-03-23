@@ -60,6 +60,7 @@ export async function authenticatedRequest(
   headers = {
     ...headers,
     'X-Language': currentLanguage,
+    'X-Frontend-URL': window.location.origin,
   };
 
   if (!skipAuth) {

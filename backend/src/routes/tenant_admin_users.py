@@ -375,11 +375,14 @@ def create_tenant_user(user_email, user_roles):
             # Send invitation email
             try:
                 # Render email templates using render_user_invitation which detects language
+                from utils.frontend_url import get_frontend_url
+                login_url = get_frontend_url()
+                
                 html_content = email_service.render_user_invitation(
                     email=email,
                     temporary_password=temp_password,
                     tenant=tenant,
-                    login_url=os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                    login_url=login_url,
                     format='html'
                 )
                 
@@ -387,36 +390,40 @@ def create_tenant_user(user_email, user_roles):
                     email=email,
                     temporary_password=temp_password,
                     tenant=tenant,
-                    login_url=os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                    login_url=login_url,
                     format='txt'
                 )
                 
-                # Send via SNS
-                sns_topic_arn = os.getenv('SNS_TOPIC_ARN')
-                if sns_topic_arn:
-                    import boto3
-                    sns_client = boto3.client('sns', region_name=AWS_REGION)
-                    # Get subject with detected language
-                    subject = email_service.get_invitation_subject(
-                        tenant,
-                        language=email_service._detect_user_language(email, tenant)
-                    )
-                    
-                    sns_client.publish(
-                        TopicArn=sns_topic_arn,
-                        Subject=subject,
-                        Message=text_content or f"Welcome to {tenant}! Your temporary password: {temp_password}"
-                    )
-                    
+                # Send via SES (direct to recipient)
+                from services.ses_email_service import SESEmailService
+                ses = SESEmailService()
+                # Get subject with detected language
+                subject = email_service.get_invitation_subject(
+                    tenant,
+                    language=email_service._detect_user_language(email, tenant)
+                )
+                
+                result = ses.send_invitation(
+                    to_email=email,
+                    subject=subject,
+                    html_body=html_content,
+                    text_body=text_content or f"Welcome to {tenant}! Your temporary password: {temp_password}"
+                )
+                
+                if result['success']:
                     # Mark invitation as sent
                     invitation_service.mark_invitation_sent(
                         administration=tenant,
                         email=email
                     )
-                    
                     print(f"AUDIT: Invitation email sent to {email} by {user_email} for tenant {tenant}", flush=True)
                 else:
-                    print(f"WARNING: SNS not configured, invitation email not sent to {email}", flush=True)
+                    print(f"WARNING: SES failed to send invitation to {email}: {result.get('error')}", flush=True)
+                    invitation_service.mark_invitation_failed(
+                        administration=tenant,
+                        email=email,
+                        error_message=f"SES send failed: {result.get('error')}"
+                    )
                     
             except Exception as e:
                 # Don't fail user creation if email fails, but log it
