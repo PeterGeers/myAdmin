@@ -249,7 +249,7 @@ CORS(app, resources={
             "null"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "X-Tenant", "X-Language", "X-CSRF-Token"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Tenant", "X-Language", "X-CSRF-Token", "X-Frontend-URL"],
         "supports_credentials": True,
         "expose_headers": ["Content-Type", "Authorization"]
     }

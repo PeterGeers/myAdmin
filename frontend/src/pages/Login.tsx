@@ -32,7 +32,7 @@ import {
   signInWithPasskey,
   isPasskeySupported,
 } from '../services/authService';
-import { resetPassword, confirmResetPassword } from 'aws-amplify/auth';
+import { resetPassword, confirmResetPassword, confirmSignIn } from 'aws-amplify/auth';
 
 interface LoginProps {
   onLoginSuccess?: () => void;
@@ -48,10 +48,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
 
   // Forgot password flow state
-  type ViewType = 'login' | 'forgotPassword' | 'resetPassword';
+  type ViewType = 'login' | 'forgotPassword' | 'resetPassword' | 'newPasswordRequired';
   const [view, setView] = useState<ViewType>('login');
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isResetLoading, setIsResetLoading] = useState(false);
 
   const isLoading = isPasswordLoading || isPasskeyLoading;
@@ -109,6 +110,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
       if (result.isSignedIn) {
         onLoginSuccess?.();
+      } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+        // First-time login with temporary password — user must set a new password
+        setView('newPasswordRequired');
+        setNewPassword('');
+        setConfirmNewPassword('');
       }
     } catch (error: any) {
       const code = error?.name || '';
@@ -171,6 +177,49 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       });
     } finally {
       setIsPasskeyLoading(false);
+    }
+  };
+
+  /**
+   * Handle new password required challenge — first-time login
+   */
+  const handleNewPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || !confirmNewPassword) return;
+
+    if (newPassword !== confirmNewPassword) {
+      toast({
+        title: t('auth:newPassword.mismatch'),
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      setIsResetLoading(true);
+      const result = await confirmSignIn({ challengeResponse: newPassword });
+
+      if (result.isSignedIn) {
+        toast({
+          title: t('auth:newPassword.success'),
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        onLoginSuccess?.();
+      }
+    } catch (error: any) {
+      toast({
+        title: t('auth:newPassword.failed'),
+        description: error?.message || '',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsResetLoading(false);
     }
   };
 
@@ -239,6 +288,40 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             <Link color="orange.400" fontSize="sm" onClick={() => setView('login')} cursor="pointer">
               ← {t('auth:forgotPassword.backToLogin')}
             </Link>
+          </VStack>
+        </Box>
+      </>
+    );
+  }
+
+  // New password required view — first-time login with temporary password
+  if (view === 'newPasswordRequired') {
+    return renderWrapper(
+      <>
+        <VStack spacing={2}>
+          <Heading color="orange.400" size="lg">{t('auth:newPassword.title')}</Heading>
+          <Text color="gray.300" fontSize="sm" textAlign="center">{t('auth:newPassword.subtitle')}</Text>
+        </VStack>
+        <Box as="form" w="full" onSubmit={handleNewPasswordSubmit}>
+          <VStack spacing={4}>
+            <FormControl isRequired>
+              <FormLabel color="gray.300">{t('auth:newPassword.newPasswordLabel')}</FormLabel>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
+                _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel color="gray.300">{t('auth:newPassword.confirmPasswordLabel')}</FormLabel>
+              <Input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)}
+                bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
+                _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+            </FormControl>
+            <Alert status="info" borderRadius="md" bg="blue.900" borderColor="blue.500" borderWidth="1px">
+              <AlertIcon color="blue.400" />
+              <AlertDescription color="gray.200" fontSize="sm">{t('auth:newPassword.requirements')}</AlertDescription>
+            </Alert>
+            <Button type="submit" size="lg" w="full" colorScheme="orange" isLoading={isResetLoading}
+              loadingText={t('auth:newPassword.saving')}>{t('auth:newPassword.saveButton')}</Button>
           </VStack>
         </Box>
       </>

@@ -190,7 +190,8 @@ class EmailTemplateService:
             Rendered email content
         """
         if login_url is None:
-            login_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            from utils.frontend_url import get_frontend_url
+            login_url = get_frontend_url()
         
         # Detect language if not provided
         if language is None:

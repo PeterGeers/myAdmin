@@ -94,6 +94,10 @@ def send_email_to_user(user_email, user_roles):
                 logger.warning(f"Could not fetch user details: {e}")
                 user_data['name'] = recipient_email.split('@')[0]
         
+        # Resolve frontend URL from request context
+        from utils.frontend_url import get_frontend_url
+        login_url = get_frontend_url()
+        
         # Render email template
         html_content = email_service.render_template(
             template_name=template_type,
@@ -101,7 +105,7 @@ def send_email_to_user(user_email, user_roles):
                 'email': recipient_email,
                 'tenant': tenant,
                 'name': user_data.get('name', recipient_email),
-                'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                'login_url': login_url,
                 'temporary_password': user_data.get('temporary_password', '********')
             },
             format='html'
@@ -113,22 +117,15 @@ def send_email_to_user(user_email, user_roles):
                 'email': recipient_email,
                 'tenant': tenant,
                 'name': user_data.get('name', recipient_email),
-                'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                'login_url': login_url,
                 'temporary_password': user_data.get('temporary_password', '********')
             },
             format='txt'
         )
         
-        # Send email via SNS
-        sns_topic_arn = os.getenv('SNS_TOPIC_ARN')
-        if not sns_topic_arn:
-            return jsonify({
-                'error': 'SNS not configured',
-                'message': 'SNS_TOPIC_ARN environment variable is not set'
-            }), 500
-        
-        import boto3
-        sns_client = boto3.client('sns', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
+        # Send email via SES (direct to recipient)
+        from services.ses_email_service import SESEmailService
+        ses = SESEmailService()
         
         # Get subject line
         subject = email_service.get_invitation_subject(tenant)
@@ -137,12 +134,19 @@ def send_email_to_user(user_email, user_roles):
         elif template_type == 'account_update':
             subject = f"Account Update - {tenant}"
         
-        # Send via SNS (use text content as primary message)
-        sns_client.publish(
-            TopicArn=sns_topic_arn,
-            Subject=subject,
-            Message=text_content or f"Email to {recipient_email} from {tenant}"
+        result = ses.send_email(
+            to_email=recipient_email,
+            subject=subject,
+            html_body=html_content,
+            text_body=text_content or f"Email to {recipient_email} from {tenant}"
         )
+        
+        if not result['success']:
+            logger.error(f"SES failed to send to {recipient_email}: {result.get('error')}")
+            return jsonify({
+                'error': 'Failed to send email',
+                'message': result.get('error')
+            }), 500
         
         logger.info(f"Email sent to {recipient_email} by {user_email} for tenant {tenant}, template={template_type}")
         
@@ -301,6 +305,10 @@ def resend_invitation(user_email, user_roles):
         except:
             pass
         
+        # Resolve frontend URL from request context
+        from utils.frontend_url import get_frontend_url
+        login_url = get_frontend_url()
+        
         # Render email templates
         html_content = email_service.render_template(
             template_name='user_invitation',
@@ -308,7 +316,7 @@ def resend_invitation(user_email, user_roles):
                 'email': recipient_email,
                 'tenant': tenant,
                 'name': user_name,
-                'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                'login_url': login_url,
                 'temporary_password': temp_password
             },
             format='html'
@@ -320,37 +328,33 @@ def resend_invitation(user_email, user_roles):
                 'email': recipient_email,
                 'tenant': tenant,
                 'name': user_name,
-                'login_url': os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+                'login_url': login_url,
                 'temporary_password': temp_password
             },
             format='txt'
         )
         
-        # Send email via SNS
-        sns_topic_arn = os.getenv('SNS_TOPIC_ARN')
-        if not sns_topic_arn:
-            return jsonify({
-                'error': 'SNS not configured',
-                'message': 'SNS_TOPIC_ARN environment variable is not set'
-            }), 500
-        
-        import boto3
-        sns_client = boto3.client('sns', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
+        # Send email via SES (direct to recipient)
+        from services.ses_email_service import SESEmailService
+        ses = SESEmailService()
         
         subject = email_service.get_invitation_subject(tenant)
         
-        # Send via SNS
-        sns_client.publish(
-            TopicArn=sns_topic_arn,
-            Subject=subject,
-            Message=text_content or f"Your new temporary password for {tenant}: {temp_password}"
+        result = ses.send_invitation(
+            to_email=recipient_email,
+            subject=subject,
+            html_body=html_content,
+            text_body=text_content or f"Your new temporary password for {tenant}: {temp_password}"
         )
         
-        # Mark invitation as sent
-        invitation_service.mark_invitation_sent(
-            administration=tenant,
-            email=recipient_email
-        )
+        if result['success']:
+            # Mark invitation as sent
+            invitation_service.mark_invitation_sent(
+                administration=tenant,
+                email=recipient_email
+            )
+        else:
+            logger.warning(f"SES failed to resend invitation to {recipient_email}: {result.get('error')}")
         
         logger.info(f"Invitation resent to {recipient_email} by {user_email} for tenant {tenant}")
         
