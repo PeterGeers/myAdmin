@@ -34,15 +34,15 @@ Keep this in sync with `backend/.env.example` when adding new variables.
 | `SIGNUP_COGNITO_USER_POOL_ID`  | Signup        | Same pool as main app                    |
 | `SIGNUP_REDIRECT_URL`          | Signup        | Post-verification redirect               |
 | `SNS_TOPIC_ARN`                | Notifications | Admin alerts via SNS                     |
+| `FRONTEND_URL`                 | Frontend      | `https://petergeers.github.io/myAdmin`   |
 
 ## Not needed in Railway
 
-| Variable                    | Why                                |
-| --------------------------- | ---------------------------------- |
-| `FRONTEND_URL`              | Auto-detected from request headers |
-| `TEST_MODE`                 | Defaults to `false`                |
-| `TEST_DB_NAME`              | Local test mode only               |
-| `TEST_FACTUREN_FOLDER_ID`   | Local test mode only               |
-| `TEST_FACTUREN_FOLDER_NAME` | Local test mode only               |
-| `FLASK_ENV`                 | Railway sets this                  |
-| `FLASK_DEBUG`               | Never enable in production         |
+| Variable                    | Why                        |
+| --------------------------- | -------------------------- |
+| `TEST_MODE`                 | Defaults to `false`        |
+| `TEST_DB_NAME`              | Local test mode only       |
+| `TEST_FACTUREN_FOLDER_ID`   | Local test mode only       |
+| `TEST_FACTUREN_FOLDER_NAME` | Local test mode only       |
+| `FLASK_ENV`                 | Railway sets this          |
+| `FLASK_DEBUG`               | Never enable in production |
