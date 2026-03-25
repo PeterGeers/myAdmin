@@ -119,7 +119,8 @@ export function TenantManagement() {
       zipcode: tenant.zipcode || '',
       country: tenant.country || '',
       status: tenant.status,
-      enabled_modules: tenant.enabled_modules || []
+      enabled_modules: tenant.enabled_modules || [],
+      locale: 'nl'
     });
     setModalMode('edit');
     onModalOpen();
