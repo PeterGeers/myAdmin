@@ -1,6 +1,6 @@
 # SES Email Service — Tasks
 
-**Status:** In Progress (Phases 1-3 complete, 4-5 remaining)
+**Status:** Complete ✅
 **Date:** 2026-03-23
 
 ---
@@ -36,12 +36,15 @@
 
 - [x] Add `SES_SENDER_EMAIL=support@jabaki.nl` to Railway backend service env vars
 - [x] Deploy to Railway
-- [ ] Send test invitation email from production
-- [ ] Verify email arrives at invited user's address (not SNS subscriber)
-- [ ] Verify admin SNS notifications still work
+- [x] Send test invitation email from production
+- [x] Verify email arrives at invited user's address (not SNS subscriber)
+- [x] Verify admin SNS notifications still work
 
 ## Phase 6: Documentation & Cleanup
 
 - [x] Update `findings.md` — mark Issue B as fixed
 - [x] Update `backend/.env.example` with SES variables
-- [ ] Optional: add `infrastructure/ses.tf` for Terraform management
+- [x] Optional: add `infrastructure/ses.tf` for Terraform management
+- [x] Import existing SES resources into Terraform state
+- [x] Add `FRONTEND_URL` to Railway env vars
+- [x] Add Railway env vars reference (`backend/RAILWAY_ENV_VARS.md`)
