@@ -169,7 +169,74 @@ class TestTemplateService:
         
         with pytest.raises(Exception, match="Failed to retrieve template metadata"):
             service.get_template_metadata('GoodwinSolutions', 'str_invoice')
-    
+
+    def test_get_template_metadata_falls_back_to_local_default(self, service, mock_db, tmp_path):
+        """When no DB row exists, fall back to local default template"""
+        mock_db.execute_query.return_value = []  # no tenant_template_config row
+
+        # Create a fake local template file
+        html_dir = tmp_path / 'html'
+        html_dir.mkdir()
+        template_file = html_dir / 'btw_aangifte_template.html'
+        template_file.write_text('<html>BTW default</html>', encoding='utf-8')
+
+        mappings_file = html_dir / 'btw_aangifte_field_mappings.json'
+        mappings_file.write_text('{"fields": {}}', encoding='utf-8')
+
+        service._templates_dir = str(tmp_path)
+
+        result = service.get_template_metadata('NewTenant', 'btw_aangifte_html')
+
+        assert result is not None
+        assert result['template_file_id'] is None
+        assert result['local_path'] == str(template_file)
+        assert result['is_active'] is True
+
+    def test_get_template_metadata_tenant_specific_overrides_default(self, service, mock_db, tmp_path, sample_field_mappings):
+        """When a tenant_template_config row exists, use it — not the local default"""
+        mock_db.execute_query.return_value = [{
+            'template_file_id': 'drive_file_id_123',
+            'field_mappings': json.dumps(sample_field_mappings),
+            'is_active': True,
+            'created_at': datetime(2026, 1, 1),
+            'updated_at': datetime(2026, 1, 1),
+        }]
+
+        # Even if a local default exists, the DB row should win
+        html_dir = tmp_path / 'html'
+        html_dir.mkdir()
+        (html_dir / 'btw_aangifte_template.html').write_text('<html>default</html>', encoding='utf-8')
+        service._templates_dir = str(tmp_path)
+
+        result = service.get_template_metadata('GoodwinSolutions', 'btw_aangifte_html')
+
+        assert result is not None
+        assert result['template_file_id'] == 'drive_file_id_123'
+        assert result['local_path'] is None
+        assert result['field_mappings'] == sample_field_mappings
+
+    def test_fetch_template_from_local_path(self, service, mock_db, tmp_path):
+        """fetch_template_from_drive reads local file when file_id is None"""
+        template_file = tmp_path / 'test_template.html'
+        template_file.write_text('<html>Local default content</html>', encoding='utf-8')
+
+        content = service.fetch_template_from_drive(
+            file_id=None,
+            administration='NewTenant',
+            local_path=str(template_file)
+        )
+
+        assert content == '<html>Local default content</html>'
+
+    def test_fetch_template_local_path_missing(self, service, mock_db, tmp_path):
+        """fetch_template_from_drive raises when local file doesn't exist"""
+        with pytest.raises(Exception, match="Failed to read local template"):
+            service.fetch_template_from_drive(
+                file_id=None,
+                administration='NewTenant',
+                local_path=str(tmp_path / 'nonexistent.html')
+            )
+
     # fetch_template_from_drive tests
     # Note: These tests are skipped as they require complex Google Drive API mocking
     # Integration tests will cover this functionality with real Google Drive service

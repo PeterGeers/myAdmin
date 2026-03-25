@@ -303,20 +303,49 @@ All report templates are per-tenant customizable, with local defaults as fallbac
 
 ### Phase 4: Report Template Defaults
 
-- [ ] Create `backend/templates/reports/` with default versions of all 5 template types
-- [ ] Extend `TemplateService` to fall back to local defaults when no Google Drive template exists
+- [x] Create `backend/templates/reports/` with default versions of all 5 template types
+- [x] Extend `TemplateService` to fall back to local defaults when no Google Drive template exists
 - [ ] Add `provision_report_templates(administration)` to `TenantProvisioningService` (optional: copy defaults to Google Drive)
-- [ ] Add idempotency: skip if `tenant_template_config` rows already exist for tenant
-- [ ] Test: new tenant can generate all report types using local defaults (no Google Drive setup needed)
-- [ ] Test: tenant with customized Google Drive template uses that instead of default
+- [x] Add idempotency: skip if `tenant_template_config` rows already exist for tenant
+- [x] Test: new tenant can generate all report types using local defaults (no Google Drive setup needed)
+- [x] Test: tenant with customized Google Drive template uses that instead of default
 
 ### Phase 5: End-to-End Testing
 
-- [ ] Test SysAdmin UI — create tenant, verify chart of accounts is populated
-- [ ] Test SysAdmin UI — create tenant, verify report generation works with default templates
-- [ ] Test `provision_tenant.py --dry-run` still works
-- [ ] Test `provision_tenant.py --force` reruns partial provisioning correctly
-- [ ] Test error case: missing chart template file → tenant created with warning
+- [ ] Test SysAdmin UI — create tenant, verify chart of accounts is populated (manual browser test)
+- [ ] Test SysAdmin UI — create tenant, verify report generation works with default templates (manual browser test)
+- [x] Test `provision_tenant.py --dry-run` still works (dry_run exits before shared service call — unchanged)
+- [x] Test `provision_tenant.py --force` reruns partial provisioning correctly (covered by `TestIdempotency`)
+- [x] Test error case: missing chart template file → tenant created with warning (covered by `test_tenant_still_created_when_chart_fails`)
+
+### Phase 6: Re-Provision Existing Tenants
+
+SysAdmin needs a way to re-provision an existing tenant to fill in missing pieces (e.g., chart of accounts was not loaded on first creation, or new modules need adding). This is separate from editing tenant details.
+
+**Why not reuse the create endpoint:**
+
+- Create returns 400 if tenant exists
+- Making create idempotent risks silently ignoring changes to tenant details (display_name, contact_email) — the admin expects those to be updated via the edit form
+
+**Approach:** Dedicated re-provision endpoint that only runs the idempotent gap-filling steps:
+
+- Add missing modules (skip existing)
+- Load chart of accounts from template if no rows exist (skip if rows > 0)
+- Does NOT touch the tenant record itself (use PUT endpoint for that)
+
+**Implementation tasks:**
+
+- [x] Create `POST /api/sysadmin/tenants/<administration>/reprovision` endpoint
+  - Accepts optional `locale` and `modules` in request body
+  - Calls `TenantProvisioningService` with existing tenant data
+  - Returns provisioning results dict (created/skipped per step)
+  - Authorization: SysAdmin role required
+- [x] Add "Re-provision" button to SysAdmin UI tenant detail/edit view
+  - Shows provisioning results after completion (what was created vs skipped)
+  - Only visible for existing tenants
+- [x] Add unit tests for the re-provision endpoint
+- [x] Test: re-provision tenant with missing chart → chart loaded from template
+- [x] Test: re-provision fully provisioned tenant → all steps skipped
 
 ---
 
@@ -390,3 +419,4 @@ New endpoint: `POST /api/admin/provision`
 - [ ] Implement auto-provisioning trigger (background job or Lambda)
 - [ ] Add unit + API tests for provisioning endpoint
 - [ ] Update `RAILWAY_ENV_VARS.md` with any new env vars
+

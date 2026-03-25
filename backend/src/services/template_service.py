@@ -24,7 +24,39 @@ class TemplateService:
     
     Supports template metadata retrieval, template fetching from storage,
     field mapping application, and output generation in multiple formats.
+    
+    Template resolution order:
+    1. Tenant-specific: tenant_template_config → Google Drive file
+    2. Local default: backend/templates/ directory (fallback)
     """
+    
+    # Mapping of template_type to local default files
+    _LOCAL_DEFAULTS = {
+        'aangifte_ib_html_report': {
+            'template': 'html/aangifte_ib_template.html',
+            'field_mappings': 'html/aangifte_ib_field_mappings.json',
+        },
+        'btw_aangifte_html': {
+            'template': 'html/btw_aangifte_template.html',
+            'field_mappings': 'html/btw_aangifte_field_mappings.json',
+        },
+        'toeristenbelasting_html': {
+            'template': 'html/toeristenbelasting_template.html',
+            'field_mappings': 'html/toeristenbelasting_field_mappings.json',
+        },
+        'str_invoice_nl': {
+            'template': 'html/str_invoice_nl_template.html',
+            'field_mappings': 'html/str_invoice_field_mappings.json',
+        },
+        'str_invoice_en': {
+            'template': 'html/str_invoice_en_template.html',
+            'field_mappings': 'html/str_invoice_field_mappings.json',
+        },
+        'financial_report_xlsx': {
+            'template': 'xlsx/template.xlsx',
+            'field_mappings': 'xlsx/financial_report_field_mappings.json',
+        },
+    }
     
     def __init__(self, db_manager):
         """
@@ -34,29 +66,24 @@ class TemplateService:
             db_manager: DatabaseManager instance for database operations
         """
         self.db = db_manager
+        # Templates dir: backend/templates/
+        src_dir = os.path.dirname(os.path.dirname(__file__))  # backend/src
+        backend_dir = os.path.dirname(src_dir)  # backend
+        self._templates_dir = os.path.join(backend_dir, 'templates')
         logger.info("TemplateService initialized successfully")
     
     def get_template_metadata(self, administration: str, template_type: str) -> Optional[Dict[str, Any]]:
         """
-        Get template metadata including field mappings from database.
-        
-        Args:
-            administration: The tenant/administration identifier
-            template_type: Type of template (e.g., 'str_invoice', 'btw_aangifte')
-            
+        Get template metadata including field mappings.
+
+        Resolution order:
+        1. tenant_template_config DB row (tenant-specific, Google Drive)
+        2. Local default file in backend/templates/ (fallback)
+
         Returns:
-            Dictionary containing template metadata:
-            {
-                'template_file_id': str,
-                'field_mappings': dict,
-                'is_active': bool,
-                'created_at': str,
-                'updated_at': str
-            }
-            Returns None if template not found or not active.
-            
-        Raises:
-            Exception: If database query fails
+            Dict with 'template_file_id' (or None for local), 'field_mappings',
+            'is_active', 'local_path' (set when using local default).
+            Returns None only if no DB row AND no local default exists.
         """
         try:
             query = """
@@ -68,60 +95,99 @@ class TemplateService:
             
             results = self.db.execute_query(query, (administration, template_type))
             
-            if not results or len(results) == 0:
-                logger.warning(
-                    f"No active template found for administration '{administration}', "
-                    f"type '{template_type}'"
+            if results and len(results) > 0:
+                result = results[0]
+                field_mappings = {}
+                if result.get('field_mappings'):
+                    try:
+                        if isinstance(result['field_mappings'], str):
+                            field_mappings = json.loads(result['field_mappings'])
+                        else:
+                            field_mappings = result['field_mappings']
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse field_mappings JSON: {e}")
+
+                logger.info(
+                    f"Retrieved tenant template for '{administration}', type '{template_type}'"
                 )
-                return None
-            
-            result = results[0]
-            
-            # Parse field_mappings JSON
-            field_mappings = {}
-            if result.get('field_mappings'):
-                try:
-                    if isinstance(result['field_mappings'], str):
-                        field_mappings = json.loads(result['field_mappings'])
-                    else:
-                        field_mappings = result['field_mappings']
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse field_mappings JSON: {e}")
-                    field_mappings = {}
-            
-            metadata = {
-                'template_file_id': result['template_file_id'],
-                'field_mappings': field_mappings,
-                'is_active': result['is_active'],
-                'created_at': result['created_at'].isoformat() if result.get('created_at') else None,
-                'updated_at': result['updated_at'].isoformat() if result.get('updated_at') else None
-            }
-            
-            logger.info(
-                f"Retrieved template metadata for administration '{administration}', "
-                f"type '{template_type}'"
-            )
-            
-            return metadata
-            
+                return {
+                    'template_file_id': result['template_file_id'],
+                    'field_mappings': field_mappings,
+                    'is_active': result['is_active'],
+                    'local_path': None,
+                    'created_at': result['created_at'].isoformat() if result.get('created_at') else None,
+                    'updated_at': result['updated_at'].isoformat() if result.get('updated_at') else None,
+                }
+
+            # Fall back to local default
+            return self._get_local_default_metadata(template_type)
+
         except Exception as e:
             logger.error(f"Failed to get template metadata: {e}")
             raise Exception(f"Failed to retrieve template metadata: {str(e)}")
-    
-    def fetch_template_from_drive(self, file_id: str, administration: str) -> str:
+
+    def _get_local_default_metadata(self, template_type: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch XML template content from Google Drive.
+        Return metadata for a local default template.
+        Returns None if no local default exists for this template_type.
+        """
+        default = self._LOCAL_DEFAULTS.get(template_type)
+        if not default:
+            logger.warning(
+                f"No tenant template and no local default for type '{template_type}'"
+            )
+            return None
+
+        template_path = os.path.join(self._templates_dir, *default['template'].split('/'))
+        mappings_path = os.path.join(self._templates_dir, *default['field_mappings'].split('/'))
+
+        if not os.path.exists(template_path):
+            logger.warning(f"Local default template not found: {template_path}")
+            return None
+
+        # Load field mappings from local JSON file
+        field_mappings = {}
+        if os.path.exists(mappings_path):
+            try:
+                with open(mappings_path, encoding='utf-8') as f:
+                    field_mappings = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load local field mappings from {mappings_path}: {e}")
+
+        logger.info(f"Using local default template for type '{template_type}': {template_path}")
+        return {
+            'template_file_id': None,
+            'field_mappings': field_mappings,
+            'is_active': True,
+            'local_path': template_path,
+            'created_at': None,
+            'updated_at': None,
+        }
+    
+    def fetch_template_from_drive(self, file_id: str, administration: str, local_path: str = None) -> str:
+        """
+        Fetch template content from Google Drive or local file.
         
         Args:
-            file_id: Google Drive file ID
-            administration: The tenant/administration identifier (for authentication)
+            file_id: Google Drive file ID (None if using local default)
+            administration: The tenant/administration identifier
+            local_path: Path to local default template (used when file_id is None)
             
         Returns:
-            Template content as string (XML)
-            
-        Raises:
-            Exception: If template fetch fails
+            Template content as string
         """
+        # Local default path — read from disk
+        if not file_id and local_path:
+            try:
+                with open(local_path, encoding='utf-8') as f:
+                    content = f.read()
+                logger.info(f"Loaded local default template from {local_path}")
+                return content
+            except Exception as e:
+                logger.error(f"Failed to read local template {local_path}: {e}")
+                raise Exception(f"Failed to read local template: {str(e)}")
+
+        # Google Drive path
         try:
             # Import here to avoid circular dependencies
             from google_drive_service import GoogleDriveService

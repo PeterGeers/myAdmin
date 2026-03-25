@@ -10,7 +10,7 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
-import { getTenants, createTenant, updateTenant, deleteTenant, Tenant, CreateTenantRequest, UpdateTenantRequest } from '../../services/sysadminService';
+import { getTenants, createTenant, updateTenant, deleteTenant, reprovisionTenant, Tenant, CreateTenantRequest, UpdateTenantRequest } from '../../services/sysadminService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { FilterConfig, SearchFilterConfig } from '../filters/types';
 import { ModuleManagement } from './ModuleManagement';
@@ -265,6 +265,55 @@ export function TenantManagement() {
     } else {
       setSortBy(field);
       setSortOrder('asc');
+    }
+  };
+
+  const handleReprovision = async () => {
+    if (!selectedTenant) return;
+
+    setActionLoading(true);
+    try {
+      const result = await reprovisionTenant(selectedTenant.administration, {
+        locale: formData.locale
+      });
+
+      const prov = result.provisioning as { chart?: string; chart_rows?: number; modules?: Array<{ name: string; status: string }> };
+      const chartStatus = prov?.chart || 'unknown';
+      const chartRows = prov?.chart_rows || 0;
+      const modulesCreated = (prov?.modules || []).filter((m: { status: string }) => m.status === 'created').length;
+
+      toast({
+        title: t('tenantManagement.messages.reprovisionComplete'),
+        description: t('tenantManagement.messages.reprovisionDetails', {
+          chart: chartStatus,
+          rows: chartRows,
+          modules: modulesCreated
+        }),
+        status: chartStatus === 'failed' ? 'warning' : 'success',
+        duration: 8000,
+        isClosable: true,
+      });
+
+      if (result.warnings && result.warnings.length > 0) {
+        toast({
+          title: t('tenantManagement.messages.reprovisionWarnings'),
+          description: result.warnings.join('; '),
+          status: 'warning',
+          duration: 10000,
+          isClosable: true,
+        });
+      }
+
+      loadTenants();
+    } catch (error) {
+      toast({
+        title: t('tenantManagement.messages.errorReprovisioning'),
+        description: error instanceof Error ? error.message : t('tenantManagement.messages.unknownError'),
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -683,6 +732,15 @@ export function TenantManagement() {
                   isDisabled={selectedTenant?.administration === 'myAdmin'}
                 >
                   {t('tenantManagement.actions.delete')}
+                </Button>
+                <Button
+                  variant="outline"
+                  colorScheme="green"
+                  onClick={handleReprovision}
+                  isLoading={actionLoading}
+                  title={t('tenantManagement.actions.reprovisionTooltip')}
+                >
+                  {t('tenantManagement.actions.reprovision')}
                 </Button>
                 <Button 
                   variant="outline" 

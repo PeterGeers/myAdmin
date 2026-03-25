@@ -171,6 +171,20 @@ export async function deleteTenant(administration: string): Promise<{ success: b
   return handleResponse(response);
 }
 
+export async function reprovisionTenant(
+  administration: string,
+  options?: { locale?: 'nl' | 'en'; modules?: string[] }
+): Promise<{ success: boolean; provisioning: Record<string, unknown>; warnings?: string[] }> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl(`/api/sysadmin/tenants/${administration}/reprovision`);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(options || {})
+  });
+  return handleResponse(response);
+}
+
 // ============================================================================
 // Role Management
 // ============================================================================
