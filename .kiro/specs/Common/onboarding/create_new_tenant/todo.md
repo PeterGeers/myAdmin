@@ -312,8 +312,8 @@ All report templates are per-tenant customizable, with local defaults as fallbac
 
 ### Phase 5: End-to-End Testing
 
-- [ ] Test SysAdmin UI — create tenant, verify chart of accounts is populated (manual browser test)
-- [ ] Test SysAdmin UI — create tenant, verify report generation works with default templates (manual browser test)
+- [x] Test SysAdmin UI — create tenant, verify chart of accounts is populated (manual browser test)
+- [x] Test SysAdmin UI — create tenant, verify report generation works with default templates (manual browser test)
 - [x] Test `provision_tenant.py --dry-run` still works (dry_run exits before shared service call — unchanged)
 - [x] Test `provision_tenant.py --force` reruns partial provisioning correctly (covered by `TestIdempotency`)
 - [x] Test error case: missing chart template file → tenant created with warning (covered by `test_tenant_still_created_when_chart_fails`)
@@ -411,12 +411,13 @@ New endpoint: `POST /api/admin/provision`
 
 ### Implementation tasks (Future)
 
-- [ ] Create `POST /api/admin/provision` endpoint in a new blueprint
+- [x] Create `POST /api/sysadmin/provisioning/provision` endpoint in a new blueprint
+- [x] Add `GET /api/sysadmin/provisioning/pending` to list verified signups
+- [x] Add `plan`, `plan_expires_at` columns to `tenants` table (migration SQL)
+- [x] Add plan check middleware to backend (blocks expired trials on data endpoints)
+- [x] Create welcome email template (nl/en) in provisioning endpoint
 - [ ] Add SysAdmin dashboard UI for provisioning verified signups (list pending, one-click provision)
-- [ ] Add `plan`, `plan_expires_at` columns to `tenants` table
-- [ ] Add plan check middleware to backend
-- [ ] Create welcome email template (nl/en) in SES email service
 - [ ] Implement auto-provisioning trigger (background job or Lambda)
 - [ ] Add unit + API tests for provisioning endpoint
 - [ ] Update `RAILWAY_ENV_VARS.md` with any new env vars
-
+- [ ] Run migration SQL on Railway database
