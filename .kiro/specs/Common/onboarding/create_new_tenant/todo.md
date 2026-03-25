@@ -86,7 +86,7 @@ backend/src/templates/chart_of_accounts/
 
 ---
 
-## 3. Template Design
+## 3. Chart of Accounts Template Design
 
 ### 3.1 Template format
 
@@ -163,7 +163,7 @@ The shared service must be safe to rerun if a previous attempt partially complet
 | Insert modules         | `SELECT` by administration + module_name         | Skip existing, insert missing |
 | Copy chart of accounts | `SELECT COUNT(*)` from rekeningschema for tenant | Skip if rows > 0, log count   |
 
-### Behavior
+### Shared service behavior
 
 ```python
 def create_and_provision_tenant(administration, ..., locale='nl'):
@@ -220,8 +220,6 @@ The service returns a results dict so the caller knows what was created vs skipp
 }
 ```
 
-The SysAdmin UI and `provision_tenant.py` can use this to show the admin exactly what happened.
-
 ### provision_tenant.py rerun handling
 
 The script also needs rerun safety for its own steps:
@@ -249,93 +247,76 @@ Email templates for user invitations are already handled correctly:
 
 Files: `user_invitation.html` (en), `user_invitation_nl.html` (nl), plus `.txt` versions.
 
-### 6.2 Report templates — needs provisioning
+### 6.2 Report templates — local defaults with tenant-specific override
 
-Beyond the chart of accounts, new tenants also need report templates to generate reports and tax forms. These are stored in `tenant_template_config` and the actual template files live in the tenant's Google Drive.
+Same pattern as email templates: local defaults in the backend, tenant-specific versions in Google Drive override them.
 
-### What templates exist
+```
+Template resolution order:
+1. Tenant's Google Drive (tenant_template_config → file_id) — customized
+2. Local default in backend/templates/reports/           — fallback
+```
 
-| Template type             | Purpose                     | Format |
-| ------------------------- | --------------------------- | ------ |
-| `aangifte_ib_html_report` | Income tax report (viewing) | HTML   |
-| `btw_aangifte_html`       | VAT report (viewing)        | HTML   |
-| `financial_report_xlsx`   | Financial report export     | XLSX   |
-| `str_invoice`             | STR invoice generation      | HTML   |
-| `toeristenbelasting_html` | Tourist tax report          | HTML   |
+1. Store default report templates locally in `backend/templates/reports/` (version-controlled)
+2. Extend `TemplateService` to fall back to local defaults when no Google Drive template exists
+3. On tenant provisioning, optionally copy defaults to tenant's Google Drive (so they can customize)
+4. If no Google Drive copy exists, the local default is used automatically
+5. Tenant admins can upload customized versions to Google Drive at any time
 
-### Current state
+All report templates are per-tenant customizable, with local defaults as fallback:
 
-- Templates are only set up for existing tenants (GoodwinSolutions, PeterPrive) via manual scripts
-- New tenants created via SysAdmin UI or `provision_tenant.py` get **no templates**
-- Without templates, report generation fails silently or returns errors
-
-### Proposed approach: Default templates in Google Drive
-
-1. Store default template files in a shared "system" Google Drive folder (not tenant-specific)
-2. On tenant provisioning, copy the default templates to the new tenant's Google Drive Templates folder
-3. Insert `tenant_template_config` rows pointing to the copied files
-4. Tenant admins can later replace templates with their own customized versions
-
-### Alternative: Shared system templates (no copy)
-
-Instead of copying, all tenants reference the same default template files:
-
-- Simpler — no Google Drive copy step needed
-- Less flexible — tenant can't customize without affecting all tenants
-- Suitable for official tax form templates (which are not customizable anyway)
-
-### Decision needed
-
-- Which templates should be copied per-tenant (customizable)?
-- Which templates should be shared system-wide (fixed)?
-
-Likely split:
-
-- Shared (fixed): `btw_aangifte_html`, `toeristenbelasting_html`, `aangifte_ib_html_report` — standard Dutch tax formats
-- Per-tenant (customizable):`btw_aangifte_html`, `toeristenbelasting_html`, `aangifte_ib_html_report`, `str_invoice`, `financial_report_xlsx` — branding/layout varies
-
-### Implementation tasks (Phase 6: Report Templates)
-
-- [ ] Identify which template files are "default" and store in a system Google Drive folder
-- [ ] Decide shared vs per-tenant for each template type
-- [ ] Add `provision_report_templates(administration)` to `TenantProvisioningService`
-- [ ] For per-tenant templates: copy files to tenant's Google Drive, insert `tenant_template_config` rows
-- [ ] For shared templates: insert `tenant_template_config` rows pointing to system files
-- [ ] Add idempotency: skip if `tenant_template_config` rows already exist for tenant
-- [ ] Test: new tenant can generate all report types after provisioning
+| Template type             | Customizable | Default fallback | Notes                     |
+| ------------------------- | ------------ | ---------------- | ------------------------- |
+| `aangifte_ib_html_report` | ✅           | ✅ local file    | Layout, branding          |
+| `btw_aangifte_html`       | ✅           | ✅ local file    | Layout, branding          |
+| `toeristenbelasting_html` | ✅           | ✅ local file    | Layout, branding          |
+| `str_invoice`             | ✅           | ✅ local file    | Branding, invoice layout  |
+| `financial_report_xlsx`   | ✅           | ✅ local file    | Column layout, formatting |
 
 ---
 
 ## 7. Implementation Tasks
 
-### Phase 1: Shared Service
+### Phase 1: Shared Provisioning Service
 
-- [ ] Create `backend/src/services/tenant_provisioning_service.py`
+- [x] Create `backend/src/services/tenant_provisioning_service.py`
   - `create_and_provision_tenant(administration, display_name, contact_email, modules, created_by, locale='nl')`
-  - Handles: insert tenant, insert modules, load chart from template
-- [ ] Update `backend/src/routes/sysadmin_tenants.py` — call shared service instead of inline DB logic
-- [ ] Update `backend/scripts/provision_tenant.py` — call shared service for steps 3-5
-- [ ] Add unit tests for `tenant_provisioning_service.py`
+  - Idempotent: check-before-act for each step (section 5)
+  - Returns results dict with created/skipped status per step
+- [x] Update `backend/src/routes/sysadmin_tenants.py` — call shared service instead of inline DB logic
+- [x] Update `backend/scripts/provision_tenant.py` — call shared service for steps 3-5
+- [x] Add `--force` flag to `provision_tenant.py` to allow rerun after partial failure
+- [x] Add unit tests for `tenant_provisioning_service.py` (including idempotency tests)
 
-### Phase 2: JSON Templates
+### Phase 2: Chart of Accounts JSON Templates
 
-- [ ] Create `backend/src/templates/chart_of_accounts/nl.json` — extract clean generic accounts from GoodwinSolutions
-- [ ] Create `backend/src/templates/chart_of_accounts/en.json` — translated version
-- [ ] Create `backend/src/templates/chart_of_accounts/schema.md` — document the format
-- [ ] Add unit tests for template loading and chart insertion
+- [x] Create `backend/src/templates/chart_of_accounts/nl.json` — extract clean generic accounts from GoodwinSolutions
+- [x] Create `backend/src/templates/chart_of_accounts/en.json` — translated version
+- [x] Create `backend/src/templates/chart_of_accounts/schema.md` — document the format
+- [x] Add unit tests for template loading and chart insertion
+- [x] Add unit test for locale fallback (unknown locale → `nl`)
 
 ### Phase 3: Locale Integration
 
-- [ ] Add `locale` dropdown (nl/en) to SysAdmin UI create tenant form
-- [ ] Update `provision_tenant.py` to pass `pending_signups.locale` to the shared service
-- [ ] Verify `account_translations` table integration (table already exists in DB)
+- [x] Add `locale` dropdown (nl/en) to SysAdmin UI create tenant form
+- [x] Update `provision_tenant.py` to pass `pending_signups.locale` to the shared service
 
-### Phase 4: Testing & Validation
+### Phase 4: Report Template Defaults
+
+- [ ] Create `backend/templates/reports/` with default versions of all 5 template types
+- [ ] Extend `TemplateService` to fall back to local defaults when no Google Drive template exists
+- [ ] Add `provision_report_templates(administration)` to `TenantProvisioningService` (optional: copy defaults to Google Drive)
+- [ ] Add idempotency: skip if `tenant_template_config` rows already exist for tenant
+- [ ] Test: new tenant can generate all report types using local defaults (no Google Drive setup needed)
+- [ ] Test: tenant with customized Google Drive template uses that instead of default
+
+### Phase 5: End-to-End Testing
 
 - [ ] Test SysAdmin UI — create tenant, verify chart of accounts is populated
+- [ ] Test SysAdmin UI — create tenant, verify report generation works with default templates
 - [ ] Test `provision_tenant.py --dry-run` still works
-- [ ] Test locale fallback (unknown locale falls back to `nl`)
-- [ ] Test error case: missing template file → tenant created with warning
+- [ ] Test `provision_tenant.py --force` reruns partial provisioning correctly
+- [ ] Test error case: missing chart template file → tenant created with warning
 
 ---
 
@@ -358,12 +339,13 @@ Likely split:
 python scripts/provision_tenant.py user@example.com
 python scripts/provision_tenant.py user@example.com --name "CompanyName" --modules "FIN,STR,TENADMIN"
 python scripts/provision_tenant.py user@example.com --dry-run
+python scripts/provision_tenant.py user@example.com --force
 python scripts/provision_tenant.py user@example.com --test-mode
 ```
 
 ---
 
-## 9. Automated Provisioning
+## 9. Future: Automated Provisioning
 
 Currently provisioning is manual (SysAdmin UI or CLI script). This phase adds an API endpoint and automation.
 
@@ -373,7 +355,7 @@ New endpoint: `POST /api/admin/provision`
 
 - Callable from the SysAdmin dashboard (replaces CLI script for promo signups)
 - Accepts `email`, `administration_name`, `modules`, `locale`
-- Calls the shared `TenantProvisioningService` (Phase 1) for tenant + modules + chart
+- Calls the shared `TenantProvisioningService` for tenant + modules + chart
 - Handles signup-specific steps: Cognito update, mark provisioned, SNS notification
 - Authorization: SysAdmin role required
 
@@ -398,7 +380,7 @@ New endpoint: `POST /api/admin/provision`
 - Triggered after successful provisioning (both manual and auto)
 - Locale-aware template (nl/en)
 
-### Implementation tasks (Phase 5: Automation)
+### Implementation tasks (Future)
 
 - [ ] Create `POST /api/admin/provision` endpoint in a new blueprint
 - [ ] Add SysAdmin dashboard UI for provisioning verified signups (list pending, one-click provision)

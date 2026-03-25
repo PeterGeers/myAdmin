@@ -61,78 +61,45 @@ def create_tenant(user_email, user_roles):
         if not is_valid:
             return jsonify({'error': error_msg}), 400
         
-        # Get database connection
+        # Provision tenant via shared service
+        from services.tenant_provisioning_service import TenantProvisioningService
+        
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
+        service = TenantProvisioningService(db)
         
-        # Check if tenant already exists
-        existing = db.execute_query(
-            "SELECT administration FROM tenants WHERE administration = %s",
-            (administration,),
-            fetch=True
-        )
-        
-        if existing:
-            return jsonify({'error': f'Tenant {administration} already exists'}), 400
-        
-        # Insert tenant
-        insert_query = """
-            INSERT INTO tenants (
-                administration, display_name, status, contact_email, phone_number,
-                street, city, zipcode, country,
-                created_at, updated_at, updated_by
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
-        """
-        
-        db.execute_query(
-            insert_query,
-            (
-                administration,
-                data['display_name'],
-                'active',
-                data['contact_email'],
-                data.get('phone_number'),
-                data.get('street_address'),
-                data.get('city'),
-                data.get('zipcode'),
-                data.get('country', 'Netherlands'),
-                user_email
-            ),
-            commit=True
-        )
-        
-        # Insert enabled modules
         enabled_modules = data.get('enabled_modules', [])
-        if enabled_modules:
-            for module in enabled_modules:
-                db.execute_query(
-                    """
-                    INSERT INTO tenant_modules (administration, module_name, is_active, created_at)
-                    VALUES (%s, %s, TRUE, NOW())
-                    """,
-                    (administration, module),
-                    commit=True
-                )
+        locale = data.get('locale', 'nl')
         
-        # Add TENADMIN module (all tenants have this)
-        db.execute_query(
-            """
-            INSERT INTO tenant_modules (administration, module_name, is_active, created_at)
-            VALUES (%s, 'TENADMIN', TRUE, NOW())
-            """,
-            (administration,),
-            commit=True
+        results = service.create_and_provision_tenant(
+            administration=administration,
+            display_name=data['display_name'],
+            contact_email=data['contact_email'],
+            modules=enabled_modules,
+            created_by=user_email,
+            locale=locale,
+            phone_number=data.get('phone_number'),
+            street=data.get('street_address'),
+            city=data.get('city'),
+            zipcode=data.get('zipcode'),
+            country=data.get('country', 'Netherlands'),
         )
         
         logger.info(f"Tenant {administration} created by {user_email}")
         
-        return jsonify({
+        response = {
             'success': True,
             'administration': administration,
             'display_name': data['display_name'],
             'status': 'active',
+            'provisioning': results,
             'message': f'Tenant {administration} created successfully'
-        }), 201
+        }
+        
+        if results.get('warnings'):
+            response['warnings'] = results['warnings']
+        
+        return jsonify(response), 201
         
     except Exception as e:
         logger.error(f"Error creating tenant: {e}")

@@ -259,7 +259,7 @@ def send_notification(email: str, admin_name: str, first_name: str):
 # Main
 # ============================================================================
 
-def provision(email: str, dry_run=False, test_mode=False, admin_name_override=None, modules_override=None):
+def provision(email: str, dry_run=False, test_mode=False, admin_name_override=None, modules_override=None, force=False):
     """Run the full provisioning flow"""
     db_label = 'testfinance' if test_mode else 'finance'
     logger.info(f"Provisioning tenant for: {email} (DB: {db_label})")
@@ -270,11 +270,12 @@ def provision(email: str, dry_run=False, test_mode=False, admin_name_override=No
         logger.error(f"❌ No pending_signups record found for {email}")
         sys.exit(1)
 
-    if signup['status'] == 'provisioned':
+    if signup['status'] == 'provisioned' and not force:
         logger.error(f"❌ {email} is already provisioned (provisioned_at: {signup.get('provisioned_at')})")
+        logger.info("  Use --force to rerun provisioning for partial failures")
         sys.exit(1)
 
-    if signup['status'] != 'verified':
+    if signup['status'] not in ('verified', 'provisioned'):
         logger.error(f"❌ {email} status is '{signup['status']}' — must be 'verified' to provision")
         sys.exit(1)
 
@@ -318,14 +319,29 @@ def provision(email: str, dry_run=False, test_mode=False, admin_name_override=No
         logger.info("\n🔍 DRY RUN — no changes made")
         return
 
-    # Step 2: Insert tenant
-    insert_tenant(admin_name, display_name, email, test_mode)
+    # Step 2: Insert tenant + modules + chart via shared service
+    from database import DatabaseManager
+    from services.tenant_provisioning_service import TenantProvisioningService
 
-    # Step 3: Insert modules
-    insert_modules_list(admin_name, modules, test_mode)
+    db = DatabaseManager(test_mode=test_mode)
+    service = TenantProvisioningService(db)
 
-    # Step 4: Copy default chart of accounts
-    copy_default_chart_of_accounts(admin_name, test_mode)
+    locale = signup.get('locale', 'nl')
+    results = service.create_and_provision_tenant(
+        administration=admin_name,
+        display_name=display_name,
+        contact_email=email,
+        modules=modules,
+        created_by='provision_tenant.py',
+        locale=locale,
+    )
+
+    logger.info(f"  Provisioning results: tenant={results['tenant']}, "
+                f"chart={results['chart']} ({results['chart_rows']} rows)")
+    for mod in results['modules']:
+        logger.info(f"    Module {mod['name']}: {mod['status']}")
+    for warning in results.get('warnings', []):
+        logger.warning(f"  ⚠️  {warning}")
 
     # Step 5: Update Cognito user
     update_cognito_user(email, admin_name)
@@ -346,8 +362,10 @@ if __name__ == '__main__':
     parser.add_argument('--name', dest='admin_name', help='Administration name (overrides auto-generated)')
     parser.add_argument('--modules', help='Comma-separated module list, e.g. "FIN,STR,TENADMIN" (default: FIN,STR,TENADMIN)')
     parser.add_argument('--dry-run', action='store_true', help='Show what would happen without making changes')
+    parser.add_argument('--force', action='store_true', help='Rerun provisioning even if already provisioned (for partial failures)')
     parser.add_argument('--test-mode', action='store_true', help='Use testfinance DB instead of finance')
     args = parser.parse_args()
 
     provision(args.email, dry_run=args.dry_run, test_mode=args.test_mode,
-              admin_name_override=args.admin_name, modules_override=args.modules)
+              admin_name_override=args.admin_name, modules_override=args.modules,
+              force=args.force)
