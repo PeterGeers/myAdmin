@@ -490,6 +490,45 @@ if __name__ == '__main__':
                 print(f"API Request: {request.method} {request.path}", flush=True)
             except (OSError, UnicodeError):
                 print("API Request: [logging error]", flush=True)
+
+    # Plan expiry check — block expired trial tenants from data endpoints
+    @app.before_request
+    def check_plan_expiry():
+        # Only check tenant-specific API routes (not sysadmin, signup, health, static)
+        skip_prefixes = (
+            '/api/sysadmin', '/api/signup', '/api/health',
+            '/api/system', '/static', '/api/tenant-admin'
+        )
+        if not request.path.startswith('/api/') or any(request.path.startswith(p) for p in skip_prefixes):
+            return None
+        if request.method == 'OPTIONS':
+            return None
+
+        tenant = request.headers.get('X-Tenant')
+        if not tenant:
+            return None
+
+        try:
+            from database import DatabaseManager as PlanDB
+            db = PlanDB()
+            result = db.execute_query(
+                "SELECT plan, plan_expires_at FROM tenants WHERE administration = %s",
+                (tenant,), fetch=True
+            )
+            if result and result[0].get('plan') == 'trial':
+                expires = result[0].get('plan_expires_at')
+                if expires:
+                    from datetime import datetime
+                    if datetime.now() > expires:
+                        return jsonify({
+                            'error': 'Trial expired',
+                            'message': 'Your trial period has expired. Please contact support to upgrade.',
+                            'plan': 'trial',
+                            'expired_at': expires.isoformat()
+                        }), 403
+        except Exception as e:
+            # Don't block requests if plan check fails
+            print(f"Plan check error (non-blocking): {e}", flush=True)
     
     # Get host from environment variable, default to 0.0.0.0 for Docker
     host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')

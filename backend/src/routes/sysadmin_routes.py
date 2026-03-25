@@ -18,6 +18,7 @@ File Structure:
 from flask import Blueprint
 from .sysadmin_tenants import sysadmin_tenants_bp
 from .sysadmin_roles import sysadmin_roles_bp
+from .sysadmin_provisioning import sysadmin_provisioning_bp
 
 # Create main blueprint for sysadmin routes
 sysadmin_bp = Blueprint('sysadmin', __name__, url_prefix='/api/sysadmin')
@@ -28,3 +29,6 @@ sysadmin_bp.register_blueprint(sysadmin_tenants_bp, url_prefix='/tenants')
 
 # Role routes: /api/sysadmin/roles
 sysadmin_bp.register_blueprint(sysadmin_roles_bp, url_prefix='/roles')
+
+# Provisioning routes: /api/sysadmin/provisioning
+sysadmin_bp.register_blueprint(sysadmin_provisioning_bp, url_prefix='/provisioning')
