@@ -611,3 +611,104 @@ def update_tenant_modules(user_email, user_roles, administration):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# Re-Provision Endpoint
+# ============================================================================
+
+
+@sysadmin_tenants_bp.route('/<administration>/reprovision', methods=['POST'])
+@cognito_required(required_roles=['SysAdmin'])
+def reprovision_tenant(user_email, user_roles, administration):
+    """
+    Re-provision an existing tenant to fill in missing pieces.
+
+    Idempotent — skips steps already completed, fills in gaps:
+    - Adds missing modules (skips existing)
+    - Loads chart of accounts from template if no rows exist (skips if rows > 0)
+    - Does NOT update the tenant record (use PUT endpoint for that)
+
+    Authorization: SysAdmin role required
+
+    Request body (all optional):
+    {
+        "locale": "nl",                          # Chart template locale (default: nl)
+        "modules": ["FIN", "STR", "TENADMIN"]   # Modules to ensure exist (default: current modules)
+    }
+
+    Response:
+    {
+        "success": true,
+        "administration": "TenantName",
+        "provisioning": {
+            "tenant": "skipped",
+            "modules": [{"name": "FIN", "status": "skipped"}, ...],
+            "chart": "created",
+            "chart_rows": 44,
+            "warnings": []
+        }
+    }
+    """
+    try:
+        data = request.get_json() or {}
+
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+
+        # Verify tenant exists
+        existing = db.execute_query(
+            "SELECT administration, display_name, contact_email FROM tenants WHERE administration = %s",
+            (administration,),
+            fetch=True
+        )
+        if not existing:
+            return jsonify({'error': f'Tenant {administration} not found'}), 404
+
+        tenant = existing[0]
+
+        # Determine modules to ensure: use provided list or fall back to current modules
+        if data.get('modules'):
+            modules = data['modules']
+        else:
+            current = db.execute_query(
+                "SELECT module_name FROM tenant_modules WHERE administration = %s AND is_active = TRUE",
+                (administration,),
+                fetch=True
+            )
+            modules = [m['module_name'] for m in current] if current else ['TENADMIN']
+
+        locale = data.get('locale', 'nl')
+
+        from services.tenant_provisioning_service import TenantProvisioningService
+        service = TenantProvisioningService(db)
+
+        results = service.create_and_provision_tenant(
+            administration=administration,
+            display_name=tenant['display_name'],
+            contact_email=tenant['contact_email'],
+            modules=modules,
+            created_by=user_email,
+            locale=locale,
+        )
+
+        logger.info(
+            f"Re-provision '{administration}' by {user_email}: "
+            f"tenant={results['tenant']}, chart={results['chart']} ({results['chart_rows']} rows)"
+        )
+
+        response = {
+            'success': True,
+            'administration': administration,
+            'provisioning': results,
+        }
+        if results.get('warnings'):
+            response['warnings'] = results['warnings']
+
+        return jsonify(response), 200
+
+    except Exception as e:
+        logger.error(f"Error re-provisioning tenant {administration}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
