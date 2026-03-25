@@ -56,6 +56,7 @@ export interface CreateTenantRequest {
   zipcode?: string;
   country?: string;
   enabled_modules: string[];
+  locale?: 'nl' | 'en';
 }
 
 export interface UpdateTenantRequest {

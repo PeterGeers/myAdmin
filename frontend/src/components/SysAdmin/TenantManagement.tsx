@@ -42,7 +42,8 @@ export function TenantManagement() {
     zipcode: '',
     country: '',
     status: 'active' as 'active' | 'suspended' | 'inactive' | 'deleted',
-    enabled_modules: [] as string[]
+    enabled_modules: [] as string[],
+    locale: 'nl' as 'nl' | 'en'
   });
   
   const toast = useToast();
@@ -95,7 +96,8 @@ export function TenantManagement() {
       zipcode: '',
       country: '',
       status: 'active',
-      enabled_modules: []
+      enabled_modules: [],
+      locale: 'nl'
     });
   };
 
@@ -150,7 +152,8 @@ export function TenantManagement() {
         city: formData.city.trim() || undefined,
         zipcode: formData.zipcode.trim() || undefined,
         country: formData.country.trim() || undefined,
-        enabled_modules: formData.enabled_modules
+        enabled_modules: formData.enabled_modules,
+        locale: formData.locale
       };
 
       await createTenant(request);
@@ -588,6 +591,25 @@ export function TenantManagement() {
                   isReadOnly={modalMode === 'view'}
                 />
               </FormControl>
+
+              {modalMode === 'create' && (
+                <FormControl>
+                  <FormLabel color="gray.300">{t('tenantManagement.modal.locale')}</FormLabel>
+                  <Select
+                    value={formData.locale}
+                    onChange={(e) => setFormData({ ...formData, locale: e.target.value as 'nl' | 'en' })}
+                    bg="gray.600"
+                    color="white"
+                    borderColor="gray.500"
+                  >
+                    <option value="nl" style={{ background: '#2D3748' }}>{t('tenantManagement.modal.localeNL')}</option>
+                    <option value="en" style={{ background: '#2D3748' }}>{t('tenantManagement.modal.localeEN')}</option>
+                  </Select>
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    {t('tenantManagement.modal.localeHint')}
+                  </Text>
+                </FormControl>
+              )}
 
               {modalMode === 'create' && (
                 <FormControl>
