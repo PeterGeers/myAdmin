@@ -153,7 +153,160 @@ Future: implement transaction validation against the chart of accounts to preven
 
 ---
 
-## 5. Implementation Tasks
+## 5. Idempotency (Rerun Safety)
+
+The shared service must be safe to rerun if a previous attempt partially completed (e.g., tenant inserted but chart copy failed). Each step checks before acting:
+
+| Step                   | Check before acting                              | On rerun (already exists)     |
+| ---------------------- | ------------------------------------------------ | ----------------------------- |
+| Insert tenant          | `SELECT` by administration name                  | Skip, log "already exists"    |
+| Insert modules         | `SELECT` by administration + module_name         | Skip existing, insert missing |
+| Copy chart of accounts | `SELECT COUNT(*)` from rekeningschema for tenant | Skip if rows > 0, log count   |
+
+### Behavior
+
+```python
+def create_and_provision_tenant(administration, ..., locale='nl'):
+    results = {'tenant': 'created', 'modules': [], 'chart': 'created'}
+
+    # Step 1: Insert tenant (skip if exists)
+    existing = db.execute_query(
+        "SELECT administration FROM tenants WHERE administration = %s", (administration,), fetch=True)
+    if existing:
+        logger.info(f"Tenant {administration} already exists — skipping insert")
+        results['tenant'] = 'skipped'
+    else:
+        # insert tenant record
+
+    # Step 2: Insert modules (skip existing, insert missing)
+    for module in modules:
+        existing_mod = db.execute_query(
+            "SELECT id FROM tenant_modules WHERE administration = %s AND module_name = %s",
+            (administration, module), fetch=True)
+        if existing_mod:
+            logger.info(f"Module {module} already exists — skipping")
+            results['modules'].append({'name': module, 'status': 'skipped'})
+        else:
+            # insert module
+            results['modules'].append({'name': module, 'status': 'created'})
+
+    # Step 3: Copy chart (skip if tenant already has rows)
+    count_result = db.execute_query(
+        "SELECT COUNT(*) as cnt FROM rekeningschema WHERE administration = %s",
+        (administration,), fetch=True)
+    count = count_result[0]['cnt'] if count_result else 0
+    if count > 0:
+        logger.info(f"Chart already exists ({count} rows) — skipping")
+        results['chart'] = 'skipped'
+    else:
+        # load from JSON template and insert
+
+    return results
+```
+
+### Return value
+
+The service returns a results dict so the caller knows what was created vs skipped:
+
+```json
+{
+  "tenant": "created",
+  "modules": [
+    { "name": "FIN", "status": "created" },
+    { "name": "STR", "status": "skipped" },
+    { "name": "TENADMIN", "status": "created" }
+  ],
+  "chart": "created"
+}
+```
+
+The SysAdmin UI and `provision_tenant.py` can use this to show the admin exactly what happened.
+
+### provision_tenant.py rerun handling
+
+The script also needs rerun safety for its own steps:
+
+| Step                     | Check                                 | On rerun                                  |
+| ------------------------ | ------------------------------------- | ----------------------------------------- |
+| Cognito `custom:tenants` | Already checks if tenant is in list   | Safe — skips if present                   |
+| Mark provisioned         | Overwrites `provisioned_at` timestamp | Safe — idempotent                         |
+| SNS notification         | No check                              | Sends duplicate notification (acceptable) |
+
+The script's existing check `if signup['status'] == 'provisioned': exit` should be changed to a `--force` flag that allows rerunning for partial failures.
+
+---
+
+## 6. Templates for New Tenants
+
+### 6.1 Email templates (user invitations) — no action needed
+
+Email templates for user invitations are already handled correctly:
+
+- Default templates live in `backend/templates/email/` (nl + en versions)
+- `EmailTemplateService.render_template()` tries Google Drive first (tenant-specific), then falls back to local defaults
+- New tenants automatically use the default templates — no provisioning step required
+- Tenant admins can customize by uploading their own version to Google Drive (overrides the default)
+
+Files: `user_invitation.html` (en), `user_invitation_nl.html` (nl), plus `.txt` versions.
+
+### 6.2 Report templates — needs provisioning
+
+Beyond the chart of accounts, new tenants also need report templates to generate reports and tax forms. These are stored in `tenant_template_config` and the actual template files live in the tenant's Google Drive.
+
+### What templates exist
+
+| Template type             | Purpose                     | Format |
+| ------------------------- | --------------------------- | ------ |
+| `aangifte_ib_html_report` | Income tax report (viewing) | HTML   |
+| `btw_aangifte_html`       | VAT report (viewing)        | HTML   |
+| `financial_report_xlsx`   | Financial report export     | XLSX   |
+| `str_invoice`             | STR invoice generation      | HTML   |
+| `toeristenbelasting_html` | Tourist tax report          | HTML   |
+
+### Current state
+
+- Templates are only set up for existing tenants (GoodwinSolutions, PeterPrive) via manual scripts
+- New tenants created via SysAdmin UI or `provision_tenant.py` get **no templates**
+- Without templates, report generation fails silently or returns errors
+
+### Proposed approach: Default templates in Google Drive
+
+1. Store default template files in a shared "system" Google Drive folder (not tenant-specific)
+2. On tenant provisioning, copy the default templates to the new tenant's Google Drive Templates folder
+3. Insert `tenant_template_config` rows pointing to the copied files
+4. Tenant admins can later replace templates with their own customized versions
+
+### Alternative: Shared system templates (no copy)
+
+Instead of copying, all tenants reference the same default template files:
+
+- Simpler — no Google Drive copy step needed
+- Less flexible — tenant can't customize without affecting all tenants
+- Suitable for official tax form templates (which are not customizable anyway)
+
+### Decision needed
+
+- Which templates should be copied per-tenant (customizable)?
+- Which templates should be shared system-wide (fixed)?
+
+Likely split:
+
+- Shared (fixed): `btw_aangifte_html`, `toeristenbelasting_html`, `aangifte_ib_html_report` — standard Dutch tax formats
+- Per-tenant (customizable): `str_invoice`, `financial_report_xlsx` — branding/layout varies
+
+### Implementation tasks (Phase 6: Report Templates)
+
+- [ ] Identify which template files are "default" and store in a system Google Drive folder
+- [ ] Decide shared vs per-tenant for each template type
+- [ ] Add `provision_report_templates(administration)` to `TenantProvisioningService`
+- [ ] For per-tenant templates: copy files to tenant's Google Drive, insert `tenant_template_config` rows
+- [ ] For shared templates: insert `tenant_template_config` rows pointing to system files
+- [ ] Add idempotency: skip if `tenant_template_config` rows already exist for tenant
+- [ ] Test: new tenant can generate all report types after provisioning
+
+---
+
+## 7. Implementation Tasks
 
 ### Phase 1: Shared Service
 
@@ -186,7 +339,7 @@ Future: implement transaction validation against the chart of accounts to preven
 
 ---
 
-## 6. Reference: Current provision_tenant.py Steps
+## 8. Reference: Current provision_tenant.py Steps
 
 | Step | Task                         | Target             | Shared service?                       |
 | ---- | ---------------------------- | ------------------ | ------------------------------------- |
@@ -210,11 +363,11 @@ python scripts/provision_tenant.py user@example.com --test-mode
 
 ---
 
-## 7. Automated Provisioning
+## 9. Automated Provisioning
 
 Currently provisioning is manual (SysAdmin UI or CLI script). This phase adds an API endpoint and automation.
 
-### 7.1 Provisioning API Endpoint
+### 9.1 Provisioning API Endpoint
 
 New endpoint: `POST /api/admin/provision`
 
@@ -224,21 +377,21 @@ New endpoint: `POST /api/admin/provision`
 - Handles signup-specific steps: Cognito update, mark provisioned, SNS notification
 - Authorization: SysAdmin role required
 
-### 7.2 Auto-Provisioning After Email Verification
+### 9.2 Auto-Provisioning After Email Verification
 
 - Trigger provisioning automatically when `pending_signups.status` changes to `verified`
 - Options: background job polling the DB, or Cognito post-confirmation Lambda
 - Uses the same shared service + provisioning API internally
 - Removes the need for manual admin intervention for standard signups
 
-### 7.3 Trial Plan Management
+### 9.3 Trial Plan Management
 
 - Add `plan` and `plan_expires_at` columns to `tenants` table
 - Default: `trial` plan with 2-month expiry from provisioning date
 - Backend middleware checks plan status on each request
 - Expired trials: read-only access, prompt to upgrade
 
-### 7.4 Automated Welcome Email
+### 9.4 Automated Welcome Email
 
 - Send via SES (already set up) to the new tenant's contact email
 - Include: login URL, getting started guide, user manual link
