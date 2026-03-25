@@ -6,6 +6,7 @@
     "noPermissions": "U heeft geen systeembeheerder rechten",
     "tabs": {
       "tenantManagement": "Tenantbeheer",
+      "provisioning": "Inrichting",
       "roleManagement": "Rollenbeheer",
       "healthCheck": "Systeemstatus"
     }
@@ -563,5 +564,39 @@
     "inactive": "Inactief",
     "enabled": "Ingeschakeld",
     "disabled": "Uitgeschakeld"
+  },
+  "provisioning": {
+    "title": "Wachtende aanmeldingen",
+    "loading": "Aanmeldingen laden...",
+    "pending": "wachtend",
+    "refresh": "Vernieuwen",
+    "noPending": "Geen geverifieerde aanmeldingen wachtend op inrichting",
+    "errorLoading": "Fout bij laden aanmeldingen",
+    "errorProvisioning": "Fout bij inrichten aanmelding",
+    "success": "Tenant ingericht",
+    "successDetail": "Tenant \"{{name}}\" aangemaakt voor {{email}}",
+    "provisionBtn": "Inrichten",
+    "table": {
+      "name": "Naam",
+      "email": "E-mail",
+      "company": "Bedrijf",
+      "locale": "Taal",
+      "verifiedAt": "Geverifieerd",
+      "action": "Actie"
+    },
+    "modal": {
+      "title": "Tenant inrichten",
+      "signup": "Aanmelding",
+      "adminName": "Administratienaam",
+      "adminNameHint": "PascalCase, alfanumeriek — wordt gebruikt als tenant-ID",
+      "locale": "Taal rekeningschema",
+      "willCreate": "Dit zal:",
+      "step1": "Tenant aanmaken met FIN, STR, TENADMIN modules",
+      "step2": "Rekeningschema laden vanuit sjabloon",
+      "step3": "Proefperiode van 2 maanden instellen",
+      "step4": "Welkomstmail sturen naar gebruiker",
+      "cancel": "Annuleren",
+      "provision": "Inrichten"
+    }
   }
 }
