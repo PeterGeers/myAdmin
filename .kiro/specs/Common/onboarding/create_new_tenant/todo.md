@@ -292,7 +292,7 @@ Instead of copying, all tenants reference the same default template files:
 Likely split:
 
 - Shared (fixed): `btw_aangifte_html`, `toeristenbelasting_html`, `aangifte_ib_html_report` — standard Dutch tax formats
-- Per-tenant (customizable): `str_invoice`, `financial_report_xlsx` — branding/layout varies
+- Per-tenant (customizable):`btw_aangifte_html`, `toeristenbelasting_html`, `aangifte_ib_html_report`, `str_invoice`, `financial_report_xlsx` — branding/layout varies
 
 ### Implementation tasks (Phase 6: Report Templates)
 
