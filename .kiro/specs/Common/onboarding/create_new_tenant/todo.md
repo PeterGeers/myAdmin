@@ -416,8 +416,8 @@ New endpoint: `POST /api/admin/provision`
 - [x] Add `plan`, `plan_expires_at` columns to `tenants` table (migration SQL)
 - [x] Add plan check middleware to backend (blocks expired trials on data endpoints)
 - [x] Create welcome email template (nl/en) in provisioning endpoint
-- [ ] Add SysAdmin dashboard UI for provisioning verified signups (list pending, one-click provision)
+- [x] Add SysAdmin dashboard UI for provisioning verified signups (list pending, one-click provision)
 - [ ] Implement auto-provisioning trigger (background job or Lambda)
 - [ ] Add unit + API tests for provisioning endpoint
-- [ ] Update `RAILWAY_ENV_VARS.md` with any new env vars
-- [ ] Run migration SQL on Railway database
+- [x] Update `RAILWAY_ENV_VARS.md` with any new env vars (none needed — all vars already configured)
+- [x] Run migration SQL on Railway database

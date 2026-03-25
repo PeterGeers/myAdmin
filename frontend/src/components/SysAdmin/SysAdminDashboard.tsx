@@ -8,6 +8,7 @@ import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import RoleManagement from './RoleManagement';
 import TenantManagement from './TenantManagement';
 import HealthCheck from './HealthCheck';
+import ProvisioningPanel from './ProvisioningPanel';
 
 export function SysAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -91,6 +92,9 @@ export function SysAdminDashboard() {
               {t('sysAdmin.tabs.tenantManagement')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              {t('sysAdmin.tabs.provisioning')}
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               {t('sysAdmin.tabs.roleManagement')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
@@ -101,6 +105,9 @@ export function SysAdminDashboard() {
           <TabPanels>
             <TabPanel>
               <TenantManagement />
+            </TabPanel>
+            <TabPanel>
+              <ProvisioningPanel />
             </TabPanel>
             <TabPanel>
               <RoleManagement />

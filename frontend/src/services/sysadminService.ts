@@ -186,6 +186,46 @@ export async function reprovisionTenant(
 }
 
 // ============================================================================
+// Provisioning
+// ============================================================================
+
+export interface PendingSignup {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  company_name: string | null;
+  property_range: string | null;
+  locale: string;
+  status: string;
+  created_at: string;
+  verified_at: string | null;
+}
+
+export async function getPendingSignups(): Promise<{ signups: PendingSignup[]; count: number }> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl('/api/sysadmin/provisioning/pending');
+  const response = await fetch(url, { headers });
+  return handleResponse(response);
+}
+
+export async function provisionSignup(data: {
+  email: string;
+  administration_name?: string;
+  modules?: string[];
+  locale?: string;
+}): Promise<{ success: boolean; administration: string; provisioning: Record<string, unknown> }> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl('/api/sysadmin/provisioning/provision');
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return handleResponse(response);
+}
+
+// ============================================================================
 // Role Management
 // ============================================================================
 

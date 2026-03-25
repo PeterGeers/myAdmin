@@ -6,6 +6,7 @@
     "noPermissions": "You do not have System Administrator permissions",
     "tabs": {
       "tenantManagement": "Tenant Management",
+      "provisioning": "Provisioning",
       "roleManagement": "Role Management",
       "healthCheck": "Health Check"
     }
@@ -563,5 +564,39 @@
     "inactive": "Inactive",
     "enabled": "Enabled",
     "disabled": "Disabled"
+  },
+  "provisioning": {
+    "title": "Pending Signups",
+    "loading": "Loading signups...",
+    "pending": "pending",
+    "refresh": "Refresh",
+    "noPending": "No verified signups awaiting provisioning",
+    "errorLoading": "Error loading signups",
+    "errorProvisioning": "Error provisioning signup",
+    "success": "Tenant provisioned",
+    "successDetail": "Tenant \"{{name}}\" created for {{email}}",
+    "provisionBtn": "Provision",
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "company": "Company",
+      "locale": "Language",
+      "verifiedAt": "Verified",
+      "action": "Action"
+    },
+    "modal": {
+      "title": "Provision Tenant",
+      "signup": "Signup",
+      "adminName": "Administration Name",
+      "adminNameHint": "PascalCase, alphanumeric — used as tenant identifier",
+      "locale": "Chart of Accounts Language",
+      "willCreate": "This will:",
+      "step1": "Create tenant with FIN, STR, TENADMIN modules",
+      "step2": "Load chart of accounts from template",
+      "step3": "Set 2-month trial plan",
+      "step4": "Send welcome email to user",
+      "cancel": "Cancel",
+      "provision": "Provision"
+    }
   }
 }
