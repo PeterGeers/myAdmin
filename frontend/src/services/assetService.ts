@@ -136,3 +136,41 @@ export async function generateDepreciation(data: {
   });
   return handleResponse(response);
 }
+
+
+export async function getAssetRegisterReport(): Promise<{
+  assets: Asset[];
+  summary: {
+    total_assets: number;
+    total_purchase: number;
+    total_book_value: number;
+    total_depreciation: number;
+    by_category: Record<string, { count: number; purchase: number; book_value: number; depreciation: number }>;
+  };
+}> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl('/api/assets/reports/register');
+  const response = await fetch(url, { headers });
+  return handleResponse(response);
+}
+
+export async function getDepreciationScheduleReport(year?: number): Promise<{
+  year: string;
+  schedule: Array<{
+    asset_id: number;
+    description: string;
+    category: string | null;
+    purchase_amount: number;
+    annual_depreciation: number;
+    total_depreciation: number;
+    book_value: number;
+  }>;
+  total_annual_depreciation: number;
+}> {
+  const headers = await getAuthHeaders();
+  const params = new URLSearchParams();
+  if (year) params.set('year', String(year));
+  const url = buildApiUrl('/api/assets/reports/depreciation-schedule', params);
+  const response = await fetch(url, { headers });
+  return handleResponse(response);
+}
