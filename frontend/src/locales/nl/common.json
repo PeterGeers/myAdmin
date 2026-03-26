@@ -180,7 +180,8 @@
       "strReports": "STR Rapporten",
       "systemAdministration": "Systeembeheer",
       "tenantAdministration": "Tenant Beheer",
-      "connectBank": "Bank Verbinden (Salt Edge)"
+      "connectBank": "Bank Verbinden (Salt Edge)",
+      "assets": "Activabeheer"
     }
   },
   "time": {

@@ -8,6 +8,7 @@ import STRProcessor from './components/STRProcessor';
 import STRInvoice from './components/STRInvoice';
 import STRPricing from './components/STRPricing';
 import FINReports from './components/FINReports';
+import AssetList from './components/Assets/AssetList';
 import STRReports from './components/STRReports';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -24,7 +25,7 @@ import MigrationTool from './pages/MigrationTool';
 import PasskeySettings from './components/settings/PasskeySettings';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -75,7 +76,7 @@ function AppContent() {
         setCurrentPage('menu');
       }
       // If on FIN page but no FIN access, redirect to menu
-      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'bank-connect' || currentPage === 'powerbi' || currentPage === 'fin-reports') && !hasFIN) {
+      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'bank-connect' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets') && !hasFIN) {
         setCurrentPage('menu');
       }
     }
@@ -338,6 +339,32 @@ function AppContent() {
           </ProtectedRoute>
         );
 
+      case 'assets':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Finance_CRUD', 'Finance_Read']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+                <HStack justify="space-between">
+                  <HStack>
+                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+                    <Heading color="orange.400" size="lg">🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}</Heading>
+                  </HStack>
+                  <HStack spacing={3}>
+                    <TenantSelector size="sm" />
+                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
+                  </HStack>
+                </HStack>
+              </Box>
+              <Box p={6}>
+                <AssetList />
+              </Box>
+            </Box>
+          </ProtectedRoute>
+        );
+
       case 'str-reports':
         return (
           <ProtectedRoute 
@@ -477,6 +504,13 @@ function AppContent() {
                   {hasFIN && (user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read', 'Finance_Export'].includes(role))) && (
                     <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('fin-reports')}>
                       📊 {t('common:navigation.modules.finReports')}
+                    </Button>
+                  )}
+
+                  {/* Asset Administration - Finance module users */}
+                  {hasFIN && (user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role))) && (
+                    <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('assets')}>
+                      🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}
                     </Button>
                   )}
 

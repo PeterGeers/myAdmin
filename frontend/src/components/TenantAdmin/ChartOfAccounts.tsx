@@ -22,8 +22,7 @@ import {
   useToast,
   useDisclosure,
   Alert,
-  AlertIcon,
-  Badge
+  AlertIcon
 } from '@chakra-ui/react';
 import { AddIcon, DownloadIcon, AttachmentIcon } from '@chakra-ui/icons';
 import {
