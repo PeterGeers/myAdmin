@@ -195,6 +195,7 @@ export default function AssetList() {
           <Table variant="simple" size="sm">
             <Thead>
               <Tr>
+                <Th color="gray.400" w="60px">ID</Th>
                 <Th color="gray.400" cursor="pointer" onClick={() => handleSort('description')}>
                   Description <SortIcon field="description" />
                 </Th>
@@ -219,6 +220,7 @@ export default function AssetList() {
               {sorted.map(asset => (
                 <Tr key={asset.id} _hover={{ bg: 'gray.700' }} cursor="pointer"
                   onClick={() => openDetail(asset)}>
+                  <Td color="gray.500" fontSize="xs">{asset.id}</Td>
                   <Td color="white">{asset.description}</Td>
                   <Td>
                     {asset.category

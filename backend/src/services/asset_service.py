@@ -112,7 +112,6 @@ class AssetService:
                     SUM(ABS(TransactionAmount)) AS total_depreciation
                 FROM mutaties
                 WHERE Ref1 LIKE 'ASSET-%%'
-                AND ReferenceNumber LIKE 'Afschrijving%%'
                 AND administration = %s COLLATE utf8mb4_unicode_ci
                 GROUP BY SUBSTRING(Ref1, 7)
             ) dep ON dep.asset_id_str = CAST(a.id AS CHAR) COLLATE utf8mb4_unicode_ci
@@ -177,15 +176,15 @@ class AssetService:
                 t['TransactionDate'] = t['TransactionDate'].isoformat()
             if isinstance(t.get('TransactionAmount'), Decimal):
                 t['TransactionAmount'] = float(t['TransactionAmount'])
-            # Determine transaction type from ReferenceNumber
-            ref = t.get('ReferenceNumber', '')
-            if ref.startswith('Afschrijving'):
+            # Determine transaction type from description
+            desc = t.get('TransactionDescription', '')
+            if desc.startswith('Afschrijving:'):
                 t['type'] = 'depreciation'
                 total_depreciation += abs(t['TransactionAmount'])
-            elif ref.startswith('Afboeking'):
+            elif desc.startswith('Afboeking:') or desc.startswith('Verkoop:'):
                 t['type'] = 'disposal'
             else:
-                t['type'] = 'purchase'
+                t['type'] = 'other'
             asset['transactions'].append(t)
 
         asset['total_depreciation'] = total_depreciation
@@ -213,7 +212,7 @@ class AssetService:
             """
             SELECT COUNT(*) as cnt FROM mutaties
             WHERE Ref1 = %s AND administration = %s
-            AND ReferenceNumber LIKE 'Afschrijving%%'
+            AND TransactionDescription LIKE 'Afschrijving:%%'
             """,
             (f'ASSET-{asset_id}', administration), fetch=True
         )
@@ -314,7 +313,7 @@ class AssetService:
                 amount=abs(write_off),
                 debet=asset['depreciation_account'] or '8099',
                 credit=asset['ledger_account'],
-                reference_number=f"Afboeking ASSET-{asset_id}",
+                reference_number=asset.get('reference_number') or asset['description'],
                 ref1=f'ASSET-{asset_id}',
                 asset_reference=asset.get('reference_number') or asset['description'],
             )
@@ -328,7 +327,7 @@ class AssetService:
                 amount=disposal_amount,
                 debet=credit_account,
                 credit=asset['ledger_account'],
-                reference_number=f"Afboeking ASSET-{asset_id}",
+                reference_number=asset.get('reference_number') or asset['description'],
                 ref1=f'ASSET-{asset_id}',
                 asset_reference=asset.get('reference_number') or asset['description'],
             )
@@ -376,7 +375,6 @@ class AssetService:
             }
         """
         ref2 = f'{year}-{period}' if period != 'annual' else str(year)
-        reference_number = f'Afschrijving {year}'
 
         # Get active assets that need depreciation
         assets = self.db.execute_query(
@@ -412,7 +410,7 @@ class AssetService:
                 """
                 SELECT COUNT(*) as cnt FROM mutaties
                 WHERE Ref1 = %s AND Ref2 = %s AND administration = %s
-                AND ReferenceNumber LIKE 'Afschrijving%%'
+                AND TransactionDescription LIKE 'Afschrijving:%%'
                 """,
                 (f'ASSET-{asset_id}', ref2, administration), fetch=True
             )
@@ -443,6 +441,7 @@ class AssetService:
 
             # Insert depreciation transaction
             dep_account = asset['depreciation_account'] or '4017'
+            asset_ref = asset.get('reference_number') or asset['description']
             self._insert_transaction(
                 administration=administration,
                 date=tx_date,
@@ -450,10 +449,10 @@ class AssetService:
                 amount=round(amount, 2),
                 debet=dep_account,
                 credit=asset['ledger_account'],
-                reference_number=reference_number,
+                reference_number=asset_ref,
                 ref1=f'ASSET-{asset_id}',
                 ref2=ref2,
-                asset_reference=asset.get('reference_number') or asset['description'],
+                asset_reference=asset_ref,
             )
 
             results['entries_created'] += 1

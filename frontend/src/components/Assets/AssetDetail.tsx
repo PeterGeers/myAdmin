@@ -93,7 +93,7 @@ export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispos
       <ModalOverlay />
       <ModalContent bg="gray.800" color="white">
         <ModalHeader color="orange.400">
-          {asset?.description || 'Asset Detail'}
+          {asset ? `#${asset.id} — ${asset.description}` : 'Asset Detail'}
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody>
@@ -112,6 +112,7 @@ export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispos
                   </Badge>
                 </HStack>
                 <HStack spacing={6} wrap="wrap" fontSize="sm" color="gray.300">
+                  <Text>Ref: ASSET-{asset.id}</Text>
                   <Text>Category: {asset.category || '—'}</Text>
                   <Text>Account: {asset.ledger_account}</Text>
                   <Text>Method: {asset.depreciation_method}</Text>
