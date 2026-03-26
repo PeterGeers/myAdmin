@@ -254,34 +254,32 @@ export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispos
         <ModalFooter>
           {asset && asset.status === 'active' && (
             <>
-              {asset.transactions.length === 0 && (
-                <Button
-                  colorScheme="red"
-                  variant="ghost"
-                  mr="auto"
-                  onClick={async () => {
-                    if (!asset) return;
-                    setDeleting(true);
-                    try {
-                      await deleteAsset(asset.id);
-                      toast({ title: 'Asset deleted', status: 'success', duration: 3000 });
-                      onClose();
-                      onDeleted?.();
-                    } catch (error) {
-                      toast({
-                        title: 'Error deleting asset',
-                        description: error instanceof Error ? error.message : 'Unknown error',
-                        status: 'error', duration: 5000,
-                      });
-                    } finally {
-                      setDeleting(false);
-                    }
-                  }}
-                  isLoading={deleting}
-                >
-                  Delete
-                </Button>
-              )}
+              <Button
+                colorScheme="red"
+                variant="ghost"
+                mr="auto"
+                onClick={async () => {
+                  if (!asset) return;
+                  setDeleting(true);
+                  try {
+                    await deleteAsset(asset.id);
+                    toast({ title: 'Asset deleted', status: 'success', duration: 3000 });
+                    onClose();
+                    onDeleted?.();
+                  } catch (error) {
+                    toast({
+                      title: 'Error deleting asset',
+                      description: error instanceof Error ? error.message : 'Unknown error',
+                      status: 'error', duration: 5000,
+                    });
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                isLoading={deleting}
+              >
+                Delete
+              </Button>
               <Button colorScheme="red" variant="outline" onClick={onDispose}>
                 Dispose
               </Button>

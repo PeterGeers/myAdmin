@@ -337,13 +337,11 @@ def delete_asset(user_email, user_roles, asset_id):
         if not existing:
             return jsonify({'error': 'Asset not found'}), 404
 
-        # Check for linked transactions
-        tx_count = db.execute_query(
-            "SELECT COUNT(*) as cnt FROM mutaties WHERE Ref1 = %s AND administration = %s COLLATE utf8mb4_unicode_ci",
-            (f'ASSET-{asset_id}', tenant), fetch=True
+        # Delete linked transactions first
+        db.execute_query(
+            "DELETE FROM mutaties WHERE Ref1 = %s AND administration = %s COLLATE utf8mb4_unicode_ci",
+            (f'ASSET-{asset_id}', tenant), commit=True
         )
-        if tx_count and tx_count[0]['cnt'] > 0:
-            return jsonify({'error': f'Cannot delete asset with {tx_count[0]["cnt"]} linked transactions. Use dispose instead.'}), 409
 
         db.execute_query(
             "DELETE FROM assets WHERE id = %s AND administration = %s",

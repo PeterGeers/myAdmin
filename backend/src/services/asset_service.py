@@ -67,23 +67,6 @@ class AssetService:
         if not asset_id:
             raise Exception("Failed to retrieve asset ID after insert")
 
-        # Optionally create purchase transaction in mutaties
-        transaction_created = False
-        if data.get('create_transaction', True):
-            credit_account = data.get('credit_account')  # e.g., bank account
-            if credit_account:
-                self._insert_transaction(
-                    administration=administration,
-                    date=data['purchase_date'],
-                    description=f"Aankoop: {data['description']}",
-                    amount=data['purchase_amount'],
-                    debet=data['ledger_account'],
-                    credit=credit_account,
-                    reference_number=data.get('reference_number', f'Asset-{asset_id}'),
-                    ref1=f'ASSET-{asset_id}',
-                )
-                transaction_created = True
-
         logger.info(
             f"Asset {asset_id} created for '{administration}': "
             f"{data['description']} ({data['purchase_amount']})"
@@ -91,7 +74,6 @@ class AssetService:
         return {
             'success': True,
             'asset_id': asset_id,
-            'transaction_created': transaction_created
         }
 
     def get_assets(

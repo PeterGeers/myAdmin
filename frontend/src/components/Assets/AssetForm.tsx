@@ -27,7 +27,7 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
     depreciation_account: '', purchase_date: '', purchase_amount: '',
     depreciation_method: 'straight_line', depreciation_frequency: 'annual',
     useful_life_years: '', residual_value: '0',
-    reference_number: '', credit_account: '', notes: '',
+    reference_number: '', notes: '',
   });
   const [assetAccounts, setAssetAccounts] = useState<AccountOption[]>([]);
   const [allAccounts, setAllAccounts] = useState<AccountOption[]>([]);
@@ -64,7 +64,6 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
         useful_life_years: String(asset.useful_life_years || ''),
         residual_value: String(asset.residual_value || '0'),
         reference_number: (asset.reference_number as string) || '',
-        credit_account: '',
         notes: (asset.notes as string) || '',
       });
     } else {
@@ -73,7 +72,7 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
         depreciation_account: '', purchase_date: '', purchase_amount: '',
         depreciation_method: 'straight_line', depreciation_frequency: 'annual',
         useful_life_years: '', residual_value: '0',
-        reference_number: '', credit_account: '', notes: '',
+        reference_number: '', notes: '',
       });
     }
   }, [isOpen, mode, asset]);
@@ -211,24 +210,6 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
                     </option>)}
                 </Select>
               </FormControl>
-              {mode === 'create' && (
-                <FormControl>
-                  <FormLabel color="gray.300">Credit Account (bank)</FormLabel>
-                  <Select value={form.credit_account}
-                    onChange={e => set('credit_account', e.target.value)}
-                    placeholder="No transaction" {...opt}>
-                    {allAccounts.filter(a => {
-                      try {
-                        const p = a.parameters ? JSON.parse(a.parameters) : {};
-                        return p.bank_account === true;
-                      } catch { return false; }
-                    }).map(a =>
-                      <option key={a.Account} value={a.Account} style={selStyle}>
-                        {a.Account} — {a.AccountName}
-                      </option>)}
-                  </Select>
-                </FormControl>
-              )}
             </HStack>
 
             <FormControl>
