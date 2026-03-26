@@ -26,6 +26,7 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
     description: '', category: '', ledger_account: '',
     depreciation_account: '', purchase_date: '', purchase_amount: '',
     depreciation_method: 'straight_line', depreciation_frequency: 'annual',
+    depreciation_rate: '',
     useful_life_years: '', residual_value: '0',
     reference_number: '', notes: '',
   });
@@ -61,6 +62,7 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
         purchase_amount: String(asset.purchase_amount || ''),
         depreciation_method: (asset.depreciation_method as string) || 'straight_line',
         depreciation_frequency: (asset.depreciation_frequency as string) || 'annual',
+        depreciation_rate: String(asset.depreciation_rate || ''),
         useful_life_years: String(asset.useful_life_years || ''),
         residual_value: String(asset.residual_value || '0'),
         reference_number: (asset.reference_number as string) || '',
@@ -71,6 +73,7 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
         description: '', category: '', ledger_account: '',
         depreciation_account: '', purchase_date: '', purchase_amount: '',
         depreciation_method: 'straight_line', depreciation_frequency: 'annual',
+        depreciation_rate: '',
         useful_life_years: '', residual_value: '0',
         reference_number: '', notes: '',
       });
@@ -88,6 +91,7 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
         ...form,
         purchase_amount: parseFloat(form.purchase_amount),
         residual_value: parseFloat(form.residual_value || '0'),
+        depreciation_rate: form.depreciation_rate ? parseFloat(form.depreciation_rate) : null,
         useful_life_years: form.useful_life_years ? parseInt(form.useful_life_years) : null,
       };
       if (mode === 'create') {
@@ -184,6 +188,15 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
                 </Select>
               </FormControl>
             </HStack>
+
+            {form.depreciation_method === 'declining_balance' && (
+              <FormControl>
+                <FormLabel color="gray.300">Depreciation Rate (%)</FormLabel>
+                <Input type="number" step="0.01" value={form.depreciation_rate}
+                  onChange={e => set('depreciation_rate', e.target.value)}
+                  placeholder="e.g., 40" {...opt} />
+              </FormControl>
+            )}
 
             <HStack w="100%" spacing={3}>
               <FormControl>

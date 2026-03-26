@@ -42,9 +42,9 @@ class AssetService:
             INSERT INTO assets (
                 administration, description, category, ledger_account,
                 depreciation_account, purchase_date, purchase_amount,
-                depreciation_method, depreciation_frequency,
+                depreciation_method, depreciation_rate, depreciation_frequency,
                 useful_life_years, residual_value, reference_number, notes
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 administration,
@@ -55,6 +55,7 @@ class AssetService:
                 data['purchase_date'],
                 data['purchase_amount'],
                 data.get('depreciation_method', 'straight_line'),
+                data.get('depreciation_rate'),
                 data.get('depreciation_frequency', 'annual'),
                 data.get('useful_life_years'),
                 data.get('residual_value', 0),
@@ -224,6 +225,7 @@ class AssetService:
             'category': 'category',
             'depreciation_account': 'depreciation_account',
             'depreciation_method': 'depreciation_method',
+            'depreciation_rate': 'depreciation_rate',
             'depreciation_frequency': 'depreciation_frequency',
             'useful_life_years': 'useful_life_years',
             'residual_value': 'residual_value',
@@ -380,7 +382,8 @@ class AssetService:
         assets = self.db.execute_query(
             """
             SELECT id, description, purchase_amount, residual_value,
-                   useful_life_years, depreciation_method, depreciation_frequency,
+                   useful_life_years, depreciation_method, depreciation_rate,
+                   depreciation_frequency,
                    ledger_account, depreciation_account, reference_number
             FROM assets
             WHERE administration = %s
@@ -425,7 +428,7 @@ class AssetService:
                 continue
 
             # Calculate period amount
-            amount = self._calculate_period_amount(asset, period)
+            amount = self._calculate_period_amount(asset, period, administration)
             if amount <= 0:
                 results['entries_skipped'] += 1
                 results['details'].append({
@@ -470,12 +473,13 @@ class AssetService:
         )
         return results
 
-    def _calculate_period_amount(self, asset: dict, period: str) -> float:
+    def _calculate_period_amount(self, asset: dict, period: str,
+                                administration: str = '') -> float:
         """
         Calculate depreciation amount for a single period.
 
         Straight-line: (purchase - residual) / useful_life / periods_per_year
-        Declining balance: book_value * (2 / useful_life) / periods_per_year
+        Declining balance: current_book_value * rate% / periods_per_year
         """
         purchase = float(asset['purchase_amount'])
         residual = float(asset.get('residual_value') or 0)
@@ -498,11 +502,34 @@ class AssetService:
             return annual / periods
 
         elif method == 'declining_balance':
-            # For declining balance, we'd need current book value
-            # Simplified: use double-declining rate
-            rate = 2.0 / life
-            annual = purchase * rate  # simplified — should use current book value
-            return annual / periods
+            rate = float(asset.get('depreciation_rate') or 0)
+            if rate <= 0:
+                return 0
+
+            # Get current book value from past depreciation
+            asset_id = asset['id']
+            dep_result = self.db.execute_query(
+                """
+                SELECT COALESCE(SUM(ABS(TransactionAmount)), 0) as total_dep
+                FROM mutaties
+                WHERE Ref1 = %s AND administration = %s
+                AND TransactionDescription LIKE 'Afschrijving:%%'
+                """,
+                (f'ASSET-{asset_id}', administration), fetch=True
+            )
+            total_past = float(dep_result[0]['total_dep']) if dep_result else 0
+            book_value = purchase - total_past
+
+            # Don't depreciate below residual value
+            if book_value <= residual:
+                return 0
+
+            annual = book_value * (rate / 100.0)
+            period_amount = annual / periods
+
+            # Cap at book_value - residual
+            max_amount = book_value - residual
+            return min(period_amount, max_amount)
 
         return 0
 
