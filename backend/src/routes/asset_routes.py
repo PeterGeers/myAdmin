@@ -33,7 +33,7 @@ def _get_service():
 def list_assets(user_email, user_roles):
     """List assets with current book values."""
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
@@ -74,7 +74,7 @@ def create_asset(user_email, user_roles):
     }
     """
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
@@ -100,7 +100,7 @@ def create_asset(user_email, user_roles):
 def get_asset(user_email, user_roles, asset_id):
     """Get single asset with transaction history."""
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
@@ -124,7 +124,7 @@ def update_asset(user_email, user_roles, asset_id):
     are locked after the first depreciation entry.
     """
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
@@ -158,7 +158,7 @@ def dispose_asset(user_email, user_roles, asset_id):
     }
     """
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
@@ -196,7 +196,7 @@ def generate_depreciation(user_email, user_roles):
     }
     """
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
@@ -221,7 +221,7 @@ def generate_depreciation(user_email, user_roles):
 def asset_register_report(user_email, user_roles):
     """Asset register report — all assets with current book values."""
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
@@ -266,7 +266,7 @@ def asset_register_report(user_email, user_roles):
 def depreciation_schedule_report(user_email, user_roles):
     """Depreciation schedule — per asset, per year."""
     try:
-        tenant = get_current_tenant()
+        tenant = get_current_tenant(request)
         if not tenant:
             return jsonify({'error': 'No tenant selected'}), 400
 
