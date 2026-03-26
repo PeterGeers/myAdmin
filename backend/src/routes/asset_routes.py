@@ -51,7 +51,7 @@ def list_assets(user_email, user_roles):
 
 
 @asset_bp.route('', methods=['POST'])
-@cognito_required(required_permissions=['finance_crud'])
+@cognito_required(required_permissions=['finance_write'])
 def create_asset(user_email, user_roles):
     """
     Create a new asset.
@@ -115,7 +115,7 @@ def get_asset(user_email, user_roles, asset_id):
 
 
 @asset_bp.route('/<int:asset_id>', methods=['PUT'])
-@cognito_required(required_permissions=['finance_crud'])
+@cognito_required(required_permissions=['finance_write'])
 def update_asset(user_email, user_roles, asset_id):
     """
     Update asset metadata.
@@ -145,7 +145,7 @@ def update_asset(user_email, user_roles, asset_id):
 
 
 @asset_bp.route('/<int:asset_id>/dispose', methods=['POST'])
-@cognito_required(required_permissions=['finance_crud'])
+@cognito_required(required_permissions=['finance_write'])
 def dispose_asset(user_email, user_roles, asset_id):
     """
     Dispose an asset.
@@ -184,7 +184,7 @@ def dispose_asset(user_email, user_roles, asset_id):
 
 
 @asset_bp.route('/generate-depreciation', methods=['POST'])
-@cognito_required(required_permissions=['finance_crud'])
+@cognito_required(required_permissions=['finance_write'])
 def generate_depreciation(user_email, user_roles):
     """
     Generate depreciation entries for a period.
