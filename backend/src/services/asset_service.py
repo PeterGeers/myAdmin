@@ -131,9 +131,9 @@ class AssetService:
                 FROM mutaties
                 WHERE Ref1 LIKE 'ASSET-%%'
                 AND ReferenceNumber LIKE 'Afschrijving%%'
-                AND administration = %s
+                AND administration = %s COLLATE utf8mb4_unicode_ci
                 GROUP BY SUBSTRING(Ref1, 7)
-            ) dep ON dep.asset_id_str = CAST(a.id AS CHAR)
+            ) dep ON dep.asset_id_str = CAST(a.id AS CHAR) COLLATE utf8mb4_unicode_ci
             WHERE {' AND '.join(where)}
             ORDER BY a.purchase_date DESC
         """
