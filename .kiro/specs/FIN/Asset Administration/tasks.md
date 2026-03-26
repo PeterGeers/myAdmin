@@ -72,7 +72,7 @@
   - Preview: which assets will be depreciated, amounts
   - Confirm: generate entries
   - Results: created vs skipped
-- [ ] Add depreciation schedule view per asset (past + projected)
+- [x] Add depreciation schedule view per asset (past + projected)
 
 ## Phase 6: Reporting
 
