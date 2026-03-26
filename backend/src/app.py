@@ -37,6 +37,7 @@ from routes.tenant_admin_config import tenant_admin_config_bp
 from routes.tenant_admin_details import tenant_admin_details_bp
 from routes.tenant_admin_email import tenant_admin_email_bp
 from routes.static_routes import static_bp
+from routes.config_routes import config_bp
 from routes.system_health_routes import system_health_bp
 from routes.cache_routes import cache_bp
 from routes.folder_routes import folder_bp
@@ -175,6 +176,7 @@ app.register_blueprint(year_end_bp)  # Year-end closure endpoints
 app.register_blueprint(migration_bp)  # ONE-TIME migration endpoints (remove after use!)
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(signup_bp)  # Public trial signup endpoints
+app.register_blueprint(config_bp)  # Public configuration endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
 # Set scalability manager reference for system_health_bp

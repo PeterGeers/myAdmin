@@ -17,7 +17,7 @@ myAdmin is a financial administration tool for small businesses and rental prope
 | 3   | Lifecycle Management      | ✅ Partial           | Acquisition and disposal — no industrial deployment/installation         |
 | 4   | Maintenance & Monitoring  | ❌ No                | Out of scope — myAdmin is financial, not operational                     |
 | 5   | Financial Management      | ✅ Yes (core)        | Depreciation, cost tracking, book value — integrates with rekeningschema |
-| 6   | Compliance & Risk         | ✅ Partial           | Tax compliance (Belastingdienst), insurance tracking                     |
+| 6   | Compliance & Risk         | ✅ Partial           | Tax compliance (Belastingdienst)                                         |
 | 7   | Security & Access Control | ❌ No                | Handled by tenant/role system, not asset-specific                        |
 | 8   | Reporting & Analytics     | ✅ Yes               | Asset list, depreciation schedule, book value reports                    |
 | 9   | Governance & Policy       | ❌ No                | Out of scope for a small-business tool                                   |
@@ -141,10 +141,10 @@ Asset reports for the business owner:
 In the current myAdmin implementation:
 
 - An asset is acquired and booked as a transaction in `mutaties` with date, debet, and credit
-- Ledger accounts relevant for assets get a `parameters` field with `"assets": true`
-- Financial records for an asset can be retrieved by: `SELECT * FROM mutaties WHERE debet = <ledger_account> OR credit = <ledger_account>`
-- Assets can be grouped/filtered by `ReferenceNumber` and/or `Ref1`
-- Adding a new asset means adding the purchase transaction in `mutaties` and also adding the future depreciation records
+- Ledger accounts relevant for assets get a `parameters` JSON field with `"asset_account": true` (consistent with existing `roles`, `vat_netting` parameters)
+- This enables: UI filtering (only show asset accounts in dropdowns), validation (depreciation targets must be asset accounts), and querying (`WHERE JSON_EXTRACT(parameters, '$.asset_account') = true`)
+- Financial records for an asset can be retrieved by: `SELECT * FROM mutaties WHERE Ref1 = 'ASSET-{id}'`
+- Assets can be grouped/filtered by `ReferenceNumber` for sub-summaries
 
 ### Depreciation strategy
 
@@ -256,13 +256,19 @@ CREATE TABLE assets (
 
 Transactions in `mutaties` are linked to assets via `Ref1` using the pattern `ASSET-{asset_id}`.
 
-See `.kiro/specs/FIN/mutaties_ref_fields.md` for the full Ref field usage guide.
+See `.kiro/specs/FIN/Data Model/mutaties_ref_fields.md` for the full Ref field usage guide.
 
-| Transaction type | ReferenceNumber | Ref1         | Ref2                     | Ref3             | Ref4             |
-| ---------------- | --------------- | ------------ | ------------------------ | ---------------- | ---------------- |
-| Asset purchase   | Invoice number  | `ASSET-{id}` | —                        | Google Drive URL | Invoice filename |
-| Depreciation     | `Asset-{id}`    | `ASSET-{id}` | Period (e.g., `2026-Q1`) | —                | —                |
-| Disposal         | `Disposal-{id}` | `ASSET-{id}` | —                        | —                | —                |
+| Transaction type | ReferenceNumber        | Ref1         | Ref2                     | Ref3             | Ref4             |
+| ---------------- | ---------------------- | ------------ | ------------------------ | ---------------- | ---------------- |
+| Asset purchase   | Invoice number         | `ASSET-{id}` | —                        | Google Drive URL | Invoice filename |
+| Depreciation     | `Afschrijving YYYY`    | `ASSET-{id}` | Period (e.g., `2026-Q1`) | —                | —                |
+| Disposal         | `Afboeking ASSET-{id}` | `ASSET-{id}` | —                        | —                | —                |
+
+Note on `ReferenceNumber`:
+
+- Asset purchase keeps the invoice number — enables reconciliation via check-by-reference
+- Depreciation uses `Afschrijving YYYY` — groups all depreciation entries for a year, enables sub-summaries
+- Disposal uses `Afboeking ASSET-{id}` — clearly identifies write-off transactions
 
 Query all transactions for an asset:
 
@@ -280,17 +286,17 @@ SELECT a.purchase_amount - COALESCE(SUM(ABS(m.TransactionAmount)), 0) as book_va
 FROM assets a
 LEFT JOIN mutaties m ON m.Ref1 = CONCAT('ASSET-', a.id)
     AND m.administration = a.administration
-    AND m.ReferenceNumber LIKE 'Asset-%'
+    AND m.ReferenceNumber LIKE 'Afschrijving%'
 WHERE a.id = 42;
 ```
 
 Why `Ref1` and not a foreign key or link table:
 
-- `ReferenceNumber` is already used for invoice numbers — can't overwrite
-- `Ref3` / `Ref4` are reserved for Google Drive URLs and filenames
+- `ReferenceNumber` is the primary grouping and reconciliation key — can't overwrite (see `.kiro/specs/FIN/Data Model/mutaties_ref_fields.md`)
 - A foreign key on `mutaties.id` breaks when transactions are re-imported (IDs change)
 - A link table has the same ID stability problem
 - `Ref1` is context-sensitive by design — for asset transactions it holds the asset reference
+- `Ref3` / `Ref4` usage depends on context: for invoices they hold Google Drive URLs, for banking they hold balance amounts
 
 ---
 
@@ -315,13 +321,3 @@ For completeness, here's the full framework. Areas not relevant for myAdmin are 
 - Asset management policies and procedures
 - Roles and responsibilities
 - Standards and best practices
-
-### 10. Implemantation considerations
-
-- In the current implementation an asset is acquired and booked as a transaction withj date debet and credit
-- ledger accounts that are relevant will get a parameter "Assets"
-- Financial records can be retrieved by select from mutaties(transactions) where debet = ledgeraccount or credit = ledgeraccount
-- Assets can be grouped / filtered by referencenumber and/or Ref1
-- Adding a new assets will be done by adding the purchase of the asset in the mutaties(transactions) and also add the depreciation records in the future
-  --- It would be nice if these records can be generated as a function after the asset
-  --- Question do we need an asset table or is the data in the transaction table with the link to invoices enough
