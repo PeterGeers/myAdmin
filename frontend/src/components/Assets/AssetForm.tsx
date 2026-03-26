@@ -247,7 +247,7 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
         </ModalBody>
         <ModalFooter>
           <Button variant="ghost" mr={3} onClick={onClose}>Cancel</Button>
-          <Button colorScheme="orange" onClick={handleSave} isLoading={saving}>
+          <Button colorScheme="orange" onClick={handleSave} isLoading={saving} isDisabled={saving}>
             {mode === 'create' ? 'Create' : 'Save'}
           </Button>
         </ModalFooter>

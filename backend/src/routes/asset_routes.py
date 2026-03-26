@@ -312,3 +312,45 @@ def depreciation_schedule_report(user_email, user_roles):
 def import_datetime():
     from datetime import datetime
     return datetime.now()
+
+
+@asset_bp.route('/<int:asset_id>', methods=['DELETE'])
+@cognito_required(required_permissions=['finance_write'])
+def delete_asset(user_email, user_roles, asset_id):
+    """
+    Delete an asset (only if no transactions are linked).
+    For assets with transactions, use dispose instead.
+    """
+    try:
+        tenant = get_current_tenant(request)
+        if not tenant:
+            return jsonify({'error': 'No tenant selected'}), 400
+
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+
+        # Check asset exists
+        existing = db.execute_query(
+            "SELECT id FROM assets WHERE id = %s AND administration = %s",
+            (asset_id, tenant), fetch=True
+        )
+        if not existing:
+            return jsonify({'error': 'Asset not found'}), 404
+
+        # Check for linked transactions
+        tx_count = db.execute_query(
+            "SELECT COUNT(*) as cnt FROM mutaties WHERE Ref1 = %s AND administration = %s COLLATE utf8mb4_unicode_ci",
+            (f'ASSET-{asset_id}', tenant), fetch=True
+        )
+        if tx_count and tx_count[0]['cnt'] > 0:
+            return jsonify({'error': f'Cannot delete asset with {tx_count[0]["cnt"]} linked transactions. Use dispose instead.'}), 409
+
+        db.execute_query(
+            "DELETE FROM assets WHERE id = %s AND administration = %s",
+            (asset_id, tenant), commit=True
+        )
+
+        return jsonify({'success': True, 'message': f'Asset {asset_id} deleted'})
+    except Exception as e:
+        logger.error(f"Error deleting asset {asset_id}: {e}")
+        return jsonify({'error': str(e)}), 500
