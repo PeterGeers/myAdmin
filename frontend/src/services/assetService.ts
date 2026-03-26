@@ -11,7 +11,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   if (!token) throw new Error('Not authenticated');
   return {
     'Authorization': `Bearer ${token}`,
-    'X-Tenant': localStorage.getItem('currentTenant') || '',
+    'X-Tenant': localStorage.getItem('selectedTenant') || '',
   };
 }
 
