@@ -4,7 +4,7 @@ import {
   ModalFooter, ModalCloseButton, Button, VStack, HStack, Text,
   Badge, Box, Table, Thead, Tbody, Tr, Th, Td, Spinner, Divider
 } from '@chakra-ui/react';
-import { getAsset, AssetDetail as AssetDetailType, AssetTransaction } from '../../services/assetService';
+import { getAsset, AssetDetail as AssetDetailType } from '../../services/assetService';
 
 interface AssetDetailProps {
   isOpen: boolean;
