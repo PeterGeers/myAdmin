@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, VStack, HStack, Button, Text, Badge, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, Select, Input, useDisclosure
+  Table, Thead, Tbody, Tr, Th, Td, Select, Input, useDisclosure,
+  Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
+  ModalFooter, ModalCloseButton, FormControl, FormLabel
 } from '@chakra-ui/react';
 import { TriangleDownIcon, TriangleUpIcon, AddIcon } from '@chakra-ui/icons';
 import { useTenant } from '../../context/TenantContext';
-import { getAssets, Asset } from '../../services/assetService';
+import { getAssets, Asset, generateDepreciation } from '../../services/assetService';
 import AssetForm from './AssetForm';
 import AssetDetail from './AssetDetail';
 
@@ -24,6 +26,11 @@ export default function AssetList() {
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
+  const { isOpen: isDepOpen, onOpen: onDepOpen, onClose: onDepClose } = useDisclosure();
+  const [depYear, setDepYear] = useState(new Date().getFullYear());
+  const [depPeriod, setDepPeriod] = useState('annual');
+  const [depRunning, setDepRunning] = useState(false);
+  const [depResults, setDepResults] = useState<{ entries_created: number; entries_skipped: number; details: Array<{ asset_id: number; description: string; amount?: number; status: string; reason?: string }> } | null>(null);
   const toast = useToast();
   const { currentTenant } = useTenant();
 
@@ -42,6 +49,26 @@ export default function AssetList() {
   const openDetail = (asset: Asset) => {
     setSelectedAsset(asset);
     onDetailOpen();
+  };
+
+  const handleGenerateDepreciation = async () => {
+    setDepRunning(true);
+    setDepResults(null);
+    try {
+      const result = await generateDepreciation({ year: depYear, period: depPeriod });
+      setDepResults(result as typeof depResults);
+      if (result.entries_created > 0) {
+        loadAssets(); // refresh book values
+      }
+    } catch (error) {
+      toast({
+        title: 'Error generating depreciation',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        status: 'error', duration: 5000,
+      });
+    } finally {
+      setDepRunning(false);
+    }
   };
 
   const loadAssets = useCallback(async () => {
@@ -120,6 +147,9 @@ export default function AssetList() {
       <HStack spacing={3} wrap="wrap">
         <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={openCreate}>
           New Asset
+        </Button>
+        <Button colorScheme="green" size="sm" onClick={() => { setDepResults(null); onDepOpen(); }}>
+          Generate Depreciation
         </Button>
         <Input
           placeholder="Search description..."
@@ -234,6 +264,82 @@ export default function AssetList() {
       onEdit={openEdit}
       onDispose={() => { onDetailClose(); toast({ title: 'Dispose not yet implemented', status: 'info', duration: 3000 }); }}
     />
+
+    {/* Generate Depreciation Modal */}
+    <Modal isOpen={isDepOpen} onClose={onDepClose} size="lg">
+      <ModalOverlay />
+      <ModalContent bg="gray.800" color="white">
+        <ModalHeader color="orange.400">Generate Depreciation</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          <VStack spacing={4} align="stretch">
+            <HStack spacing={3}>
+              <FormControl>
+                <FormLabel color="gray.300">Year</FormLabel>
+                <Input
+                  type="number"
+                  value={depYear}
+                  onChange={e => setDepYear(parseInt(e.target.value))}
+                  bg="gray.700" color="white" borderColor="gray.600"
+                />
+              </FormControl>
+              <FormControl>
+                <FormLabel color="gray.300">Period</FormLabel>
+                <Select
+                  value={depPeriod}
+                  onChange={e => setDepPeriod(e.target.value)}
+                  bg="gray.700" color="white" borderColor="gray.600"
+                >
+                  <option value="annual" style={{ background: '#2D3748' }}>Annual</option>
+                  <option value="Q1" style={{ background: '#2D3748' }}>Q1 (Jan-Mar)</option>
+                  <option value="Q2" style={{ background: '#2D3748' }}>Q2 (Apr-Jun)</option>
+                  <option value="Q3" style={{ background: '#2D3748' }}>Q3 (Jul-Sep)</option>
+                  <option value="Q4" style={{ background: '#2D3748' }}>Q4 (Oct-Dec)</option>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const m = String(i + 1).padStart(2, '0');
+                    return <option key={m} value={`M${m}`} style={{ background: '#2D3748' }}>M{m}</option>;
+                  })}
+                </Select>
+              </FormControl>
+            </HStack>
+
+            {depResults && (
+              <Box bg="gray.700" p={3} borderRadius="md">
+                <HStack spacing={4} mb={2}>
+                  <Badge colorScheme="green" fontSize="sm" px={2}>{depResults.entries_created} created</Badge>
+                  <Badge colorScheme="gray" fontSize="sm" px={2}>{depResults.entries_skipped} skipped</Badge>
+                </HStack>
+                {depResults.details.map((d, i) => (
+                  <HStack key={i} fontSize="sm" py={1} borderBottom="1px" borderColor="gray.600">
+                    <Text color="white" flex={1}>{d.description}</Text>
+                    {d.amount && (
+                      <Text color="green.300">
+                        {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(d.amount)}
+                      </Text>
+                    )}
+                    <Badge colorScheme={d.status === 'created' ? 'green' : 'gray'} fontSize="xs">
+                      {d.status}
+                    </Badge>
+                    {d.reason && <Text color="gray.400" fontSize="xs">{d.reason}</Text>}
+                  </HStack>
+                ))}
+              </Box>
+            )}
+          </VStack>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="ghost" mr={3} onClick={onDepClose}>Close</Button>
+          <Button
+            colorScheme="green"
+            onClick={handleGenerateDepreciation}
+            isLoading={depRunning}
+            isDisabled={!!depResults?.entries_created}
+          >
+            {depResults ? 'Done' : 'Generate'}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
     </>
   );
 }

@@ -67,7 +67,7 @@
 
 ## Phase 5: Frontend — Depreciation Generation UI
 
-- [ ] Add "Generate Depreciation" button/dialog to Asset List
+- [x] Add "Generate Depreciation" button/dialog to Asset List
   - Select year and period (annual / Q1-Q4 / M01-M12)
   - Preview: which assets will be depreciated, amounts
   - Confirm: generate entries
