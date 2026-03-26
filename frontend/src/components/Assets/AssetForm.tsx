@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, Button, FormControl, FormLabel,
-  Input, Select, Textarea, VStack, HStack, Text, useToast
+  Input, Select, Textarea, VStack, HStack, useToast
 } from '@chakra-ui/react';
-import { useTranslation } from 'react-i18next';
 import { listAccounts } from '../../services/chartOfAccountsService';
 import { createAsset, updateAsset } from '../../services/assetService';
 
@@ -34,7 +33,6 @@ export default function AssetForm({ isOpen, onClose, onSaved, mode, asset }: Ass
   const [allAccounts, setAllAccounts] = useState<AccountOption[]>([]);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
-  const { t } = useTranslation();
 
   useEffect(() => {
     if (!isOpen) return;

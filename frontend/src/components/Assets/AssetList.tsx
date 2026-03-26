@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, VStack, HStack, Button, Text, Badge, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, Select, Input
+  Table, Thead, Tbody, Tr, Th, Td, Select, Input, useDisclosure
 } from '@chakra-ui/react';
-import { TriangleDownIcon, TriangleUpIcon } from '@chakra-ui/icons';
+import { TriangleDownIcon, TriangleUpIcon, AddIcon } from '@chakra-ui/icons';
 import { useTenant } from '../../context/TenantContext';
 import { getAssets, Asset } from '../../services/assetService';
+import AssetForm from './AssetForm';
+import AssetDetail from './AssetDetail';
 
 type SortField = 'description' | 'category' | 'purchase_date'
   | 'purchase_amount' | 'book_value' | 'status';
@@ -18,8 +20,29 @@ export default function AssetList() {
   const [searchText, setSearchText] = useState('');
   const [sortField, setSortField] = useState<SortField>('purchase_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
+  const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
   const toast = useToast();
   const { currentTenant } = useTenant();
+
+  const openCreate = () => {
+    setSelectedAsset(null);
+    setFormMode('create');
+    onFormOpen();
+  };
+
+  const openEdit = () => {
+    setFormMode('edit');
+    onDetailClose();
+    onFormOpen();
+  };
+
+  const openDetail = (asset: Asset) => {
+    setSelectedAsset(asset);
+    onDetailOpen();
+  };
 
   const loadAssets = useCallback(async () => {
     if (!currentTenant) return;
@@ -91,9 +114,13 @@ export default function AssetList() {
   }
 
   return (
+    <>
     <VStack spacing={4} align="stretch">
       {/* Filters */}
       <HStack spacing={3} wrap="wrap">
+        <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={openCreate}>
+          New Asset
+        </Button>
         <Input
           placeholder="Search description..."
           value={searchText}
@@ -160,7 +187,8 @@ export default function AssetList() {
             </Thead>
             <Tbody>
               {sorted.map(asset => (
-                <Tr key={asset.id} _hover={{ bg: 'gray.700' }} cursor="pointer">
+                <Tr key={asset.id} _hover={{ bg: 'gray.700' }} cursor="pointer"
+                  onClick={() => openDetail(asset)}>
                   <Td color="white">{asset.description}</Td>
                   <Td>
                     {asset.category
@@ -188,5 +216,24 @@ export default function AssetList() {
         </Box>
       )}
     </VStack>
+
+    {/* Create/Edit Modal */}
+    <AssetForm
+      isOpen={isFormOpen}
+      onClose={onFormClose}
+      onSaved={loadAssets}
+      mode={formMode}
+      asset={selectedAsset as Record<string, unknown> | null}
+    />
+
+    {/* Detail Modal */}
+    <AssetDetail
+      isOpen={isDetailOpen}
+      onClose={onDetailClose}
+      assetId={selectedAsset?.id || null}
+      onEdit={openEdit}
+      onDispose={() => { onDetailClose(); toast({ title: 'Dispose not yet implemented', status: 'info', duration: 3000 }); }}
+    />
+    </>
   );
 }
