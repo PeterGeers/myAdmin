@@ -545,6 +545,8 @@ class AssetService:
         reference_number: str, ref1: str, ref2: str = '',
     ):
         """Insert a transaction into mutaties."""
+        # TransactionNumber: use ref1 + date for readability (e.g., "ASSET-42 2026-Q1")
+        tx_number = f'{ref1} {ref2}'.strip() if ref2 else ref1
         self.db.execute_query(
             """
             INSERT INTO mutaties (
@@ -554,7 +556,7 @@ class AssetService:
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
-                f'ASSET-{datetime.now().strftime("%Y%m%d%H%M%S")}',
+                tx_number,
                 date, description, amount,
                 debet, credit, reference_number,
                 ref1, ref2, '', '', administration
