@@ -76,11 +76,11 @@
 
 ## Phase 6: Reporting
 
-- [ ] Asset register report (all assets with current book values)
-- [ ] Depreciation schedule report (per asset, per year)
-- [ ] Asset summary by category
-- [ ] Disposed assets report
-- [ ] Integration with Aangifte IB (box 3 assets)
+- [x] Asset register report (all assets with current book values)
+- [x] Depreciation schedule report (per asset, per year)
+- [x] Asset summary by category (included in register report)
+- [x] Disposed assets report (AssetList with status filter = disposed)
+- [ ] Integration with Aangifte IB (box 3 assets) — deferred, depends on existing IB report structure
 
 ## Phase 7: Testing & Validation
 

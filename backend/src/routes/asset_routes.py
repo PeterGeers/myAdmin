@@ -214,3 +214,101 @@ def generate_depreciation(user_email, user_roles):
     except Exception as e:
         logger.error(f"Error generating depreciation: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@asset_bp.route('/reports/register', methods=['GET'])
+@cognito_required(required_permissions=['finance_read'])
+def asset_register_report(user_email, user_roles):
+    """Asset register report — all assets with current book values."""
+    try:
+        tenant = get_current_tenant()
+        if not tenant:
+            return jsonify({'error': 'No tenant selected'}), 400
+
+        service = _get_service()
+        assets = service.get_assets(administration=tenant)
+
+        # Summary by category
+        categories: dict = {}
+        total_purchase = 0
+        total_book = 0
+        total_depreciation = 0
+        for a in assets:
+            cat = a.get('category') or 'uncategorized'
+            if cat not in categories:
+                categories[cat] = {'count': 0, 'purchase': 0, 'book_value': 0, 'depreciation': 0}
+            categories[cat]['count'] += 1
+            categories[cat]['purchase'] += a['purchase_amount']
+            categories[cat]['book_value'] += a['book_value']
+            categories[cat]['depreciation'] += a['total_depreciation']
+            total_purchase += a['purchase_amount']
+            total_book += a['book_value']
+            total_depreciation += a['total_depreciation']
+
+        return jsonify({
+            'success': True,
+            'assets': assets,
+            'summary': {
+                'total_assets': len(assets),
+                'total_purchase': round(total_purchase, 2),
+                'total_book_value': round(total_book, 2),
+                'total_depreciation': round(total_depreciation, 2),
+                'by_category': categories,
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error generating asset register: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@asset_bp.route('/reports/depreciation-schedule', methods=['GET'])
+@cognito_required(required_permissions=['finance_read'])
+def depreciation_schedule_report(user_email, user_roles):
+    """Depreciation schedule — per asset, per year."""
+    try:
+        tenant = get_current_tenant()
+        if not tenant:
+            return jsonify({'error': 'No tenant selected'}), 400
+
+        year = request.args.get('year', str(import_datetime().year))
+
+        service = _get_service()
+        assets = service.get_assets(administration=tenant, status='active')
+
+        schedule = []
+        for a in assets:
+            if a.get('depreciation_method') == 'none' or not a.get('useful_life_years'):
+                continue
+
+            purchase = a['purchase_amount']
+            residual = a.get('residual_value', 0)
+            life = a['useful_life_years']
+            annual = (purchase - residual) / life if life > 0 else 0
+
+            schedule.append({
+                'asset_id': a['id'],
+                'description': a['description'],
+                'category': a.get('category'),
+                'purchase_amount': purchase,
+                'residual_value': residual,
+                'useful_life_years': life,
+                'depreciation_method': a['depreciation_method'],
+                'annual_depreciation': round(annual, 2),
+                'total_depreciation': a['total_depreciation'],
+                'book_value': a['book_value'],
+            })
+
+        return jsonify({
+            'success': True,
+            'year': year,
+            'schedule': schedule,
+            'total_annual_depreciation': round(sum(s['annual_depreciation'] for s in schedule), 2),
+        })
+    except Exception as e:
+        logger.error(f"Error generating depreciation schedule: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def import_datetime():
+    from datetime import datetime
+    return datetime.now()
