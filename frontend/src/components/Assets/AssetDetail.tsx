@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, Button, VStack, HStack, Text,
-  Badge, Box, Table, Thead, Tbody, Tr, Th, Td, Spinner, Divider
+  Badge, Box, Table, Thead, Tbody, Tr, Th, Td, Spinner, Divider,
+  useToast
 } from '@chakra-ui/react';
-import { getAsset, AssetDetail as AssetDetailType } from '../../services/assetService';
+import { getAsset, AssetDetail as AssetDetailType, deleteAsset } from '../../services/assetService';
 
 interface AssetDetailProps {
   isOpen: boolean;
@@ -12,11 +13,14 @@ interface AssetDetailProps {
   assetId: number | null;
   onEdit: () => void;
   onDispose: () => void;
+  onDeleted?: () => void;
 }
 
-export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispose }: AssetDetailProps) {
+export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispose, onDeleted }: AssetDetailProps) {
   const [asset, setAsset] = useState<AssetDetailType | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (!isOpen || !assetId) return;
@@ -250,7 +254,35 @@ export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispos
         <ModalFooter>
           {asset && asset.status === 'active' && (
             <>
-              <Button colorScheme="red" variant="outline" mr="auto" onClick={onDispose}>
+              {asset.transactions.length === 0 && (
+                <Button
+                  colorScheme="red"
+                  variant="ghost"
+                  mr="auto"
+                  onClick={async () => {
+                    if (!asset) return;
+                    setDeleting(true);
+                    try {
+                      await deleteAsset(asset.id);
+                      toast({ title: 'Asset deleted', status: 'success', duration: 3000 });
+                      onClose();
+                      onDeleted?.();
+                    } catch (error) {
+                      toast({
+                        title: 'Error deleting asset',
+                        description: error instanceof Error ? error.message : 'Unknown error',
+                        status: 'error', duration: 5000,
+                      });
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                  isLoading={deleting}
+                >
+                  Delete
+                </Button>
+              )}
+              <Button colorScheme="red" variant="outline" onClick={onDispose}>
                 Dispose
               </Button>
               <Button colorScheme="orange" variant="outline" mr={3} onClick={onEdit}>

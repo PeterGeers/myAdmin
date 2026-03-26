@@ -263,6 +263,7 @@ export default function AssetList() {
       assetId={selectedAsset?.id || null}
       onEdit={openEdit}
       onDispose={() => { onDetailClose(); toast({ title: 'Dispose not yet implemented', status: 'info', duration: 3000 }); }}
+      onDeleted={loadAssets}
     />
 
     {/* Generate Depreciation Modal */}

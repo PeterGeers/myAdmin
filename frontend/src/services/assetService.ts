@@ -108,6 +108,13 @@ export async function updateAsset(id: number, data: Record<string, unknown>): Pr
   return handleResponse(response);
 }
 
+export async function deleteAsset(id: number): Promise<{ success: boolean }> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl(`/api/assets/${id}`);
+  const response = await fetch(url, { method: 'DELETE', headers });
+  return handleResponse(response);
+}
+
 export async function disposeAsset(id: number, data: {
   disposal_date: string;
   disposal_amount: number;
