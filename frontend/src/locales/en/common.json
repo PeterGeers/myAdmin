@@ -180,7 +180,8 @@
       "strReports": "STR Reports",
       "systemAdministration": "System Administration",
       "tenantAdministration": "Tenant Administration",
-      "connectBank": "Connect Bank (Salt Edge)"
+      "connectBank": "Connect Bank (Salt Edge)",
+      "assets": "Asset Administration"
     }
   },
   "time": {
