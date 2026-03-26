@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Modal,
   ModalOverlay,
@@ -36,15 +37,20 @@ import {
   Divider
 } from '@chakra-ui/react';
 import { AccountModalProps, AccountFormData } from '../../types/chartOfAccounts';
+import { buildApiUrl } from '../../services/apiService';
 
-// Known parameter keys with their types and descriptions
-const KNOWN_PARAMS: Record<string, { type: 'boolean' | 'string'; description: string }> = {
-  bank_account: { type: 'boolean', description: 'Bank account flag' },
-  iban: { type: 'string', description: 'IBAN number' },
-  purpose: { type: 'string', description: 'Year-end purpose (equity_result, pl_closing)' },
-  vat_netting: { type: 'boolean', description: 'VAT netting flag' },
-  vat_primary: { type: 'string', description: 'Primary VAT account number' },
-};
+// Parameter definition from the API
+interface ParamDefinition {
+  key: string;
+  type: 'boolean' | 'string' | 'string[]';
+  label_en: string;
+  label_nl: string;
+  description_en: string;
+  description_nl: string;
+  module: string;
+  depends_on?: string;
+  options?: string[];
+}
 
 interface ParamEntry {
   key: string;
@@ -59,6 +65,12 @@ const AccountModal: React.FC<AccountModalProps> = ({
   onSave,
   onDelete
 }) => {
+  const { i18n } = useTranslation();
+  const lang = i18n.language?.startsWith('nl') ? 'nl' : 'en';
+
+  // Get localized label for a parameter definition
+  const getParamLabel = (def: ParamDefinition) => lang === 'nl' ? def.label_nl : def.label_en;
+
   // Form state
   const [formData, setFormData] = useState<AccountFormData>({
     account: '',
@@ -78,10 +90,28 @@ const AccountModal: React.FC<AccountModalProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [editingParams, setEditingParams] = useState(false);
   const [paramEntries, setParamEntries] = useState<ParamEntry[]>([]);
+  const [paramDefs, setParamDefs] = useState<ParamDefinition[]>([]);
   
   // Delete confirmation dialog
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // Load parameter definitions from API
+  useEffect(() => {
+    const loadParamDefs = async () => {
+      try {
+        const url = buildApiUrl('/api/config/ledger-parameters');
+        const response = await fetch(url);
+        if (response.ok) {
+          const defs = await response.json();
+          setParamDefs(defs);
+        }
+      } catch (e) {
+        console.warn('Failed to load ledger parameter definitions:', e);
+      }
+    };
+    loadParamDefs();
+  }, []);
 
   // Initialize form when modal opens or account changes
   useEffect(() => {
@@ -342,19 +372,36 @@ const AccountModal: React.FC<AccountModalProps> = ({
                     minH="40px"
                   >
                     {paramEntries.length > 0
-                      ? JSON.stringify(
-                          paramEntries.reduce((obj, e) => {
-                            if (e.key.trim()) obj[e.key.trim()] = e.value;
-                            return obj;
-                          }, {} as Record<string, string | boolean>),
-                          null, 2
-                        )
-                      : 'No parameters'}
+                      ? paramEntries
+                          .filter(e => e.key.trim())
+                          .map(e => {
+                            const def = paramDefs.find(d => d.key === e.key);
+                            const label = def ? getParamLabel(def) : e.key;
+                            const displayValue = typeof e.value === 'boolean' ? (e.value ? '✓' : '✗') : e.value;
+                            return `${label}: ${displayValue}`;
+                          })
+                          .join('\n')
+                      : lang === 'nl' ? 'Geen parameters' : 'No parameters'}
                   </Box>
                 ) : (
                   // Editable key-value pairs
                   <VStack spacing={2} align="stretch">
-                    {paramEntries.map((entry, idx) => (
+                    {paramEntries.map((entry, idx) => {
+                      // depends_on: hide entry if parent parameter is not set to true
+                      const entryDef = paramDefs.find(d => d.key === entry.key);
+                      if (entryDef?.depends_on) {
+                        const parentEntry = paramEntries.find(e => e.key === entryDef.depends_on);
+                        if (!parentEntry || parentEntry.value !== true) return null;
+                      }
+
+                      // Build filtered dropdown options: hide keys whose depends_on parent is not active
+                      const availableKeys = paramDefs.filter(d => {
+                        if (!d.depends_on) return true;
+                        const parent = paramEntries.find(e => e.key === d.depends_on);
+                        return parent && parent.value === true;
+                      });
+
+                      return (
                       <HStack key={idx} spacing={2}>
                         <Select
                           size="sm"
@@ -365,24 +412,25 @@ const AccountModal: React.FC<AccountModalProps> = ({
                           onChange={(e) => {
                             const newEntries = [...paramEntries];
                             const newKey = e.target.value;
+                            const def = paramDefs.find(d => d.key === newKey);
                             newEntries[idx] = {
                               key: newKey,
-                              value: KNOWN_PARAMS[newKey]?.type === 'boolean' ? false : ''
+                              value: def?.type === 'boolean' ? true : ''
                             };
                             setParamEntries(newEntries);
                           }}
                           flex={1}
                         >
                           <option value="">Select key...</option>
-                          {Object.keys(KNOWN_PARAMS).map(k => (
-                            <option key={k} value={k}>{k}</option>
+                          {availableKeys.map(d => (
+                            <option key={d.key} value={d.key}>{getParamLabel(d)}</option>
                           ))}
-                          {entry.key && !KNOWN_PARAMS[entry.key] && (
+                          {entry.key && !paramDefs.find(d => d.key === entry.key) && (
                             <option value={entry.key}>{entry.key}</option>
                           )}
                         </Select>
 
-                        {KNOWN_PARAMS[entry.key]?.type === 'boolean' ? (
+                        {paramDefs.find(d => d.key === entry.key)?.type === 'boolean' ? (
                           <Switch
                             isChecked={entry.value === true}
                             onChange={(e) => {
@@ -420,7 +468,8 @@ const AccountModal: React.FC<AccountModalProps> = ({
                           }}
                         />
                       </HStack>
-                    ))}
+                    );
+                    })}
 
                     <Button
                       size="sm"

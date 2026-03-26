@@ -52,9 +52,9 @@ This is why `ReferenceNumber` must never be overwritten — it's the primary gro
 | BTW aangifte             | `BTW`                        | `BTW aangifte {admin}` | `YYYY-Q{n}` (period)                                    | Payment instruction | —                |
 | Toeristenbelasting       | `Toeristenbelasting`         | Period reference       | —                                                       | —                   | —                |
 | Year-end closure         | `Jaarafsluiting YYYY`        | —                      | —                                                       | —                   | —                |
-| Asset depreciation       | `Asset-{id}`                 | `ASSET-{asset_id}`     | Period (e.g., `2026-Q1`)                                | —                   | —                |
+| Asset depreciation       | `Afschrijving YYYY`          | `ASSET-{asset_id}`     | Period (e.g., `2026-Q1`)                                | —                   | —                |
 | Asset purchase           | Invoice number               | `ASSET-{asset_id}`     | —                                                       | Google Drive URL    | Invoice filename |
-| Asset disposal           | `Disposal-{id}`              | `ASSET-{asset_id}`     | —                                                       | —                   | —                |
+| Asset disposal           | `Afboeking ASSET-{id}`       | `ASSET-{asset_id}`     | —                                                       | —                   | —                |
 
 ---
 

@@ -63,7 +63,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
     Parent: '',
     VW: '',
     Belastingaangifte: '',
-    purpose: ''
+    parameters: ''
   });
   
   const toast = useToast();
@@ -366,8 +366,8 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
           {
             type: 'search',
             label: 'Parameters',
-            value: searchFilters.purpose,
-            onChange: (value) => setSearchFilters(prev => ({...prev, purpose: value})),
+            value: searchFilters.parameters,
+            onChange: (value) => setSearchFilters(prev => ({...prev, parameters: value})),
             placeholder: 'Search by parameters...'
           } as SearchFilterConfig
         ]}
@@ -386,7 +386,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
             Parent: '',
             VW: '',
             Belastingaangifte: '',
-            purpose: ''
+            parameters: ''
           })}
           size="sm"
         >
@@ -457,7 +457,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
                   Parent: '',
                   VW: '',
                   Belastingaangifte: '',
-                  purpose: ''
+                  parameters: ''
                 })}
                 mt={2}
               >

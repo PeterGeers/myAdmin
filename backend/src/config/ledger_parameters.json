@@ -1,0 +1,59 @@
+[
+  {
+    "key": "bank_account",
+    "type": "boolean",
+    "label_en": "Bank Account",
+    "label_nl": "Bankrekening",
+    "description_en": "Account holds bank transactions",
+    "description_nl": "Rekening voor banktransacties",
+    "module": "FIN"
+  },
+  {
+    "key": "iban",
+    "type": "string",
+    "label_en": "IBAN",
+    "label_nl": "IBAN",
+    "description_en": "IBAN number for the bank account",
+    "description_nl": "IBAN nummer van de bankrekening",
+    "module": "FIN",
+    "depends_on": "bank_account"
+  },
+  {
+    "key": "asset_account",
+    "type": "boolean",
+    "label_en": "Asset Account",
+    "label_nl": "Activarekening",
+    "description_en": "Account holds depreciable assets",
+    "description_nl": "Rekening voor afschrijfbare activa",
+    "module": "FIN"
+  },
+  {
+    "key": "roles",
+    "type": "string[]",
+    "label_en": "Account Roles",
+    "label_nl": "Rekeningrollen",
+    "description_en": "Year-end closure roles",
+    "description_nl": "Jaarafsluiting rollen",
+    "module": "FIN",
+    "options": ["interim_opening_balance", "equity_result", "pl_closing"]
+  },
+  {
+    "key": "vat_netting",
+    "type": "boolean",
+    "label_en": "VAT Netting",
+    "label_nl": "BTW verrekening",
+    "description_en": "Include in VAT netting group",
+    "description_nl": "Opnemen in BTW verrekeningsgroep",
+    "module": "FIN"
+  },
+  {
+    "key": "vat_primary",
+    "type": "string",
+    "label_en": "VAT Primary Account",
+    "label_nl": "BTW hoofdrekening",
+    "description_en": "Primary account code for VAT net balance",
+    "description_nl": "Hoofdrekeningcode voor BTW netto saldo",
+    "module": "FIN",
+    "depends_on": "vat_netting"
+  }
+]

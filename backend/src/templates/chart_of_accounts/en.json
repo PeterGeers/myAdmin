@@ -132,6 +132,17 @@
     "parameters": null
   },
   {
+    "Account": "3051",
+    "AccountLookup": null,
+    "AccountName": "Investments",
+    "SubParent": "305",
+    "Parent": "3000",
+    "VW": "N",
+    "Belastingaangifte": "Tangible fixed assets",
+    "Pattern": false,
+    "parameters": { "asset_account": true }
+  },
+  {
     "Account": "3060",
     "AccountLookup": null,
     "AccountName": "Vehicles",
@@ -140,7 +151,7 @@
     "VW": "N",
     "Belastingaangifte": "Tangible fixed assets",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "asset_account": true }
   },
   {
     "Account": "3080",
