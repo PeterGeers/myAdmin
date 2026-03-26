@@ -84,8 +84,8 @@
 
 ## Phase 7: Testing & Validation
 
-- [ ] End-to-end test: create asset → generate depreciation → verify book value
-- [ ] Test: dispose asset → verify write-off transaction and remaining book value
+- [x] End-to-end test: create asset → generate depreciation → verify book value
+- [x] Test: dispose asset → verify write-off transaction and remaining book value
 - [ ] Test: idempotent depreciation generation (run twice, no duplicates)
 - [ ] Test: quarterly and monthly depreciation frequency
 - [ ] Test: asset with `depreciation_method = 'none'` is skipped

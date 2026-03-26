@@ -48,10 +48,10 @@ export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispos
     const purchase = a.purchase_amount;
     const residual = a.residual_value;
     const life = a.useful_life_years;
+    const method = a.depreciation_method;
+    const rate = a.depreciation_rate || 0;
     const freq = a.depreciation_frequency || 'annual';
     const periodsPerYear = freq === 'monthly' ? 12 : freq === 'quarterly' ? 4 : 1;
-    const annualAmount = (purchase - residual) / life;
-    const periodAmount = annualAmount / periodsPerYear;
 
     // Past entries from transactions
     const pastEntries = a.transactions
@@ -67,10 +67,10 @@ export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispos
     // Projected future entries
     const projected: Array<{ period: string; amount: number; status: 'projected' }> = [];
     const startYear = new Date(a.purchase_date).getFullYear();
-    let remaining = purchase - residual - totalPast;
+    let bookValue = purchase - totalPast;
 
-    for (let y = startYear; y < startYear + life + 1 && remaining > 0.01; y++) {
-      for (let p = 0; p < periodsPerYear && remaining > 0.01; p++) {
+    for (let y = startYear; y < startYear + life + 1 && bookValue > residual + 0.01; y++) {
+      for (let p = 0; p < periodsPerYear && bookValue > residual + 0.01; p++) {
         let periodLabel: string;
         if (freq === 'annual') periodLabel = String(y);
         else if (freq === 'quarterly') periodLabel = `${y}-Q${p + 1}`;
@@ -79,9 +79,23 @@ export default function AssetDetail({ isOpen, onClose, assetId, onEdit, onDispos
         // Skip if already booked
         if (pastEntries.some(e => e.period === periodLabel)) continue;
 
-        const amt = Math.min(periodAmount, remaining);
-        projected.push({ period: periodLabel, amount: Math.round(amt * 100) / 100, status: 'projected' });
-        remaining -= amt;
+        let amt: number;
+        if (method === 'declining_balance' && rate > 0) {
+          // Declining balance: rate% of current book value per year, divided by periods
+          amt = (bookValue * (rate / 100)) / periodsPerYear;
+        } else {
+          // Straight line
+          amt = ((purchase - residual) / life) / periodsPerYear;
+        }
+
+        // Cap at book_value - residual
+        amt = Math.min(amt, bookValue - residual);
+        amt = Math.round(amt * 100) / 100;
+
+        if (amt <= 0) break;
+
+        projected.push({ period: periodLabel, amount: amt, status: 'projected' });
+        bookValue -= amt;
       }
     }
 

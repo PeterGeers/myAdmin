@@ -7,7 +7,7 @@ import {
 } from '@chakra-ui/react';
 import { TriangleDownIcon, TriangleUpIcon, AddIcon } from '@chakra-ui/icons';
 import { useTenant } from '../../context/TenantContext';
-import { getAssets, Asset, generateDepreciation } from '../../services/assetService';
+import { getAssets, Asset, generateDepreciation, disposeAsset } from '../../services/assetService';
 import AssetForm from './AssetForm';
 import AssetDetail from './AssetDetail';
 
@@ -31,6 +31,10 @@ export default function AssetList() {
   const [depPeriod, setDepPeriod] = useState('annual');
   const [depRunning, setDepRunning] = useState(false);
   const [depResults, setDepResults] = useState<{ entries_created: number; entries_skipped: number; details: Array<{ asset_id: number; description: string; amount?: number; status: string; reason?: string }> } | null>(null);
+  const [disposeDate, setDisposeDate] = useState('');
+  const [disposeAmount, setDisposeAmount] = useState('0');
+  const [disposing, setDisposing] = useState(false);
+  const { isOpen: isDisposeOpen, onOpen: onDisposeOpen, onClose: onDisposeClose } = useDisclosure();
   const toast = useToast();
   const { currentTenant } = useTenant();
 
@@ -264,7 +268,12 @@ export default function AssetList() {
       onClose={onDetailClose}
       assetId={selectedAsset?.id || null}
       onEdit={openEdit}
-      onDispose={() => { onDetailClose(); toast({ title: 'Dispose not yet implemented', status: 'info', duration: 3000 }); }}
+      onDispose={() => {
+        onDetailClose();
+        setDisposeDate(new Date().toISOString().split('T')[0]);
+        setDisposeAmount('0');
+        onDisposeOpen();
+      }}
       onDeleted={loadAssets}
     />
 
@@ -339,6 +348,64 @@ export default function AssetList() {
             isDisabled={!!depResults?.entries_created}
           >
             {depResults ? 'Done' : 'Generate'}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+    {/* Dispose Modal */}
+    <Modal isOpen={isDisposeOpen} onClose={onDisposeClose} size="md">
+      <ModalOverlay />
+      <ModalContent bg="gray.800" color="white">
+        <ModalHeader color="red.400">Dispose Asset</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          <VStack spacing={4} align="stretch">
+            {selectedAsset && (
+              <Text>Disposing: <strong>{selectedAsset.description}</strong> (Book value: {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(selectedAsset.book_value)})</Text>
+            )}
+            <FormControl isRequired>
+              <FormLabel color="gray.300">Disposal Date</FormLabel>
+              <Input type="date" value={disposeDate}
+                onChange={e => setDisposeDate(e.target.value)}
+                bg="gray.700" color="white" borderColor="gray.600" />
+            </FormControl>
+            <FormControl>
+              <FormLabel color="gray.300">Sale Amount (€) — 0 if scrapped</FormLabel>
+              <Input type="number" step="0.01" value={disposeAmount}
+                onChange={e => setDisposeAmount(e.target.value)}
+                bg="gray.700" color="white" borderColor="gray.600" />
+            </FormControl>
+          </VStack>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="ghost" mr={3} onClick={onDisposeClose}>Cancel</Button>
+          <Button colorScheme="red" isLoading={disposing} isDisabled={!disposeDate}
+            onClick={async () => {
+              if (!selectedAsset) return;
+              setDisposing(true);
+              try {
+                const result = await disposeAsset(selectedAsset.id, {
+                  disposal_date: disposeDate,
+                  disposal_amount: parseFloat(disposeAmount || '0'),
+                });
+                toast({
+                  title: 'Asset disposed',
+                  description: `Write-off: ${new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(result.write_off)}`,
+                  status: 'success', duration: 5000, isClosable: true,
+                });
+                onDisposeClose();
+                loadAssets();
+              } catch (error) {
+                toast({
+                  title: 'Error disposing asset',
+                  description: error instanceof Error ? error.message : 'Unknown error',
+                  status: 'error', duration: 5000,
+                });
+              } finally {
+                setDisposing(false);
+              }
+            }}>
+            Dispose
           </Button>
         </ModalFooter>
       </ModalContent>

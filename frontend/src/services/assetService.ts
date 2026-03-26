@@ -33,6 +33,7 @@ export interface Asset {
   purchase_date: string;
   purchase_amount: number;
   depreciation_method: string;
+  depreciation_rate: number | null;
   depreciation_frequency: string;
   useful_life_years: number | null;
   residual_value: number;
