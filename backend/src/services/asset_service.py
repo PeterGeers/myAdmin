@@ -316,6 +316,7 @@ class AssetService:
                 credit=asset['ledger_account'],
                 reference_number=f"Afboeking ASSET-{asset_id}",
                 ref1=f'ASSET-{asset_id}',
+                asset_reference=asset.get('reference_number') or asset['description'],
             )
 
         # Create sale proceeds transaction if sold (not scrapped)
@@ -329,6 +330,7 @@ class AssetService:
                 credit=asset['ledger_account'],
                 reference_number=f"Afboeking ASSET-{asset_id}",
                 ref1=f'ASSET-{asset_id}',
+                asset_reference=asset.get('reference_number') or asset['description'],
             )
 
         logger.info(
@@ -381,7 +383,7 @@ class AssetService:
             """
             SELECT id, description, purchase_amount, residual_value,
                    useful_life_years, depreciation_method, depreciation_frequency,
-                   ledger_account, depreciation_account
+                   ledger_account, depreciation_account, reference_number
             FROM assets
             WHERE administration = %s
             AND status = 'active'
@@ -451,6 +453,7 @@ class AssetService:
                 reference_number=reference_number,
                 ref1=f'ASSET-{asset_id}',
                 ref2=ref2,
+                asset_reference=asset.get('reference_number') or asset['description'],
             )
 
             results['entries_created'] += 1
@@ -543,10 +546,11 @@ class AssetService:
         self, administration: str, date: str, description: str,
         amount: float, debet: str, credit: str,
         reference_number: str, ref1: str, ref2: str = '',
+        asset_reference: str = '',
     ):
         """Insert a transaction into mutaties."""
-        # TransactionNumber: use ref1 + date for readability (e.g., "ASSET-42 2026-Q1")
-        tx_number = f'{ref1} {ref2}'.strip() if ref2 else ref1
+        # TransactionNumber: "Asset" + asset's invoice reference or description
+        tx_number = f'Asset {asset_reference}' if asset_reference else f'Asset {reference_number}'
         self.db.execute_query(
             """
             INSERT INTO mutaties (
