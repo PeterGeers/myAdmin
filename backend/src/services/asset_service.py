@@ -36,8 +36,8 @@ class AssetService:
         Returns:
             {'success': True, 'asset_id': int, 'transaction_created': bool}
         """
-        # Insert asset record
-        self.db.execute_query(
+        # Insert asset record — returns lastrowid when commit=True
+        asset_id = self.db.execute_query(
             """
             INSERT INTO assets (
                 administration, description, category, ledger_account,
@@ -63,12 +63,6 @@ class AssetService:
             ),
             commit=True
         )
-
-        # Get the inserted asset ID
-        result = self.db.execute_query(
-            "SELECT LAST_INSERT_ID() as id", fetch=True
-        )
-        asset_id = result[0]['id'] if result else None
 
         if not asset_id:
             raise Exception("Failed to retrieve asset ID after insert")
