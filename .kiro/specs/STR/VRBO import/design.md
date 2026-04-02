@@ -244,8 +244,12 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 - [ ] Implement two-file merge on `Reservation ID` / `Boekingsnummer`
 - [ ] Add Dutch date parsing ("8 mei 2026" format)
 - [ ] Add Euro amount parsing ("€ 559,36" format)
-- [ ] Calculate financial fields from payout amount
-- [ ] Add 'vrbo' to platform options in STR routes
+- [ ] Calculate financial fields from payout amount (25% fee estimate)
+- [ ] Apply listing name normalization (`_normalize_listing_name`)
+- [ ] Detect country from phone number (`detect_country`)
+- [ ] Populate `addInfo` with all CSV fields concatenated
+- [ ] Add 'vrbo' to platform options in STR routes (`str_routes.py`)
+- [ ] Verify duplicate detection works for 'vrbo' channel (existing `reservationCode` check in `STRDatabase`)
 - [ ] Add unit tests for VRBO processing
 
 ### Phase 2: Frontend
@@ -258,9 +262,12 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 
 ### Phase 3: Testing
 
-- [ ] Test with sample data from requirements
+- [ ] Test with sample data from requirements (4 reservations, 4 payouts)
 - [ ] Test merge: reservation with payout → correct amounts
-- [ ] Test merge: reservation without payout → planned status
+- [ ] Test merge: reservation without payout → planned status, amountGross = 0
 - [ ] Test: cancelled booking skipped
 - [ ] Test: total row in payouts skipped
 - [ ] Test: multiple listing files merged correctly
+- [ ] Test: duplicate reservation codes not re-imported
+- [ ] Test: country detection from phone number
+- [ ] Test: edited amounts recalculate taxes correctly
