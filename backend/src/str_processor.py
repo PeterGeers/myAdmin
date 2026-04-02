@@ -222,6 +222,10 @@ class STRProcessor:
     
     def process_str_files(self, file_paths: List[str], platform: str) -> List[Dict]:
         """Process multiple STR files for a platform"""
+        # VRBO needs special handling: merge reservations + payouts
+        if platform.lower() == 'vrbo':
+            return self._process_vrbo(file_paths)
+
         all_bookings = []
         
         for file_path in file_paths:
@@ -248,6 +252,9 @@ class STRProcessor:
             return []
         elif platform == 'direct':
             return self._process_direct(file_path)
+        elif platform == 'vrbo':
+            # VRBO needs multiple files (reservations + payouts), handled in process_str_files
+            return self._process_vrbo_single(file_path)
         else:
             raise ValueError(f"Unsupported platform: {platform}")
     
@@ -929,6 +936,291 @@ class STRProcessor:
             results['summary']['error_count'] += 1
             return results
     
+    # =========================================================================
+    # VRBO Processing
+    # =========================================================================
+
+    def _process_vrbo(self, file_paths: List[str]) -> List[Dict]:
+        """
+        Process VRBO CSV exports — merges Reservations + Payouts files.
+
+        Auto-detects file type by header row:
+        - 'Reservation ID' → Reservations CSV (English)
+        - 'Naam gast' / 'Guest name' → Payouts CSV (multi-language)
+        """
+        reservation_files = []
+        payout_files = []
+
+        for fp in file_paths:
+            try:
+                header = pd.read_csv(fp, nrows=0).columns.tolist()
+                first_col = header[0].strip() if header else ''
+                if first_col == 'Reservation ID':
+                    reservation_files.append(fp)
+                elif first_col in ('Naam gast', 'Guest name', 'Name des Gastes', 'Nom du client'):
+                    payout_files.append(fp)
+                else:
+                    print(f"VRBO: Unknown file type (first column: '{first_col}'): {fp}")
+            except Exception as e:
+                print(f"VRBO: Error reading header of {fp}: {e}")
+
+        # Parse all reservations
+        reservations = {}
+        for fp in reservation_files:
+            for res in self._parse_vrbo_reservations(fp):
+                reservations[res['reservationCode']] = res
+
+        # Parse all payouts
+        payouts = {}
+        for fp in payout_files:
+            for code, amount in self._parse_vrbo_payouts(fp):
+                payouts[code] = amount
+
+        # Merge: enrich reservations with payout amounts
+        bookings = []
+        for code, res in reservations.items():
+            payout_amount = payouts.get(code)
+            booking = self._build_vrbo_booking(res, payout_amount)
+            bookings.append(booking)
+
+        # Log orphan payouts
+        for code in payouts:
+            if code not in reservations:
+                print(f"VRBO: Orphan payout for {code} (no matching reservation)")
+
+        print(f"VRBO: {len(bookings)} bookings from {len(reservation_files)} reservation file(s) "
+              f"and {len(payout_files)} payout file(s). "
+              f"{len(payouts)} payouts matched, "
+              f"{sum(1 for c in payouts if c not in reservations)} orphans.")
+
+        return bookings
+
+    def _process_vrbo_single(self, file_path: str) -> List[Dict]:
+        """Process a single VRBO file — delegates to _process_vrbo with one file."""
+        return self._process_vrbo([file_path])
+
+    def _parse_vrbo_reservations(self, file_path: str) -> List[Dict]:
+        """Parse a VRBO Reservations CSV (English headers)."""
+        try:
+            df = pd.read_csv(file_path)
+            results = []
+            for _, row in df.iterrows():
+                results.append({
+                    'reservationCode': str(row.get('Reservation ID', '')).strip(),
+                    'listingNumber': str(row.get('Listing Number', '')).strip(),
+                    'propertyName': str(row.get('Property Name', '')).strip(),
+                    'reservationDate': str(row.get('Created On', '')).strip(),
+                    'email': str(row.get('Email', '')).strip(),
+                    'guestName': str(row.get('Inquirer', '')).strip(),
+                    'phone': str(row.get('Phone', '')).strip(),
+                    'checkinDate': str(row.get('Check-in', '')).strip(),
+                    'checkoutDate': str(row.get('Check-out', '')).strip(),
+                    'nights': int(row.get('Nights Stay', 0) or 0),
+                    'adults': int(row.get('Adults', 0) or 0),
+                    'children': int(row.get('Children', 0) or 0),
+                    'csvStatus': str(row.get('Status', '')).strip(),
+                    'source': str(row.get('Source', 'VRBO')).strip(),
+                    'sourceFile': f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}",
+                })
+            return results
+        except Exception as e:
+            print(f"VRBO: Error parsing reservations {file_path}: {e}")
+            return []
+
+    def _parse_vrbo_payouts(self, file_path: str) -> List[tuple]:
+        """
+        Parse a VRBO Payouts CSV (multi-language headers).
+        Returns list of (reservation_code, payout_amount) tuples.
+        """
+        try:
+            df = pd.read_csv(file_path)
+            results = []
+            # Column mapping for different languages
+            code_col = None
+            amount_col = None
+            for col in df.columns:
+                col_lower = col.strip().lower()
+                if col_lower in ('boekingsnummer', 'booking number', 'buchungsnummer', 'numéro de réservation'):
+                    code_col = col
+                elif col_lower in ('bedrag', 'amount', 'betrag', 'montant'):
+                    amount_col = col
+
+            if not code_col or not amount_col:
+                print(f"VRBO: Could not identify columns in payouts file. Headers: {list(df.columns)}")
+                return []
+
+            for _, row in df.iterrows():
+                code = str(row.get(code_col, '')).strip()
+                if not code or code == 'nan':
+                    continue  # skip total row and empty rows
+
+                amount_str = str(row.get(amount_col, '0'))
+                amount = self._parse_amount(amount_str)
+                results.append((code, amount))
+
+            return results
+        except Exception as e:
+            print(f"VRBO: Error parsing payouts {file_path}: {e}")
+            return []
+
+    def _build_vrbo_booking(self, res: Dict, payout_amount: Optional[float]) -> Dict:
+        """Build a standard booking dict from VRBO reservation + payout data."""
+        today = date.today()
+
+        # Parse dates
+        checkin_date = self._parse_date(res['checkinDate'])
+        checkout_date = self._parse_date(res['checkoutDate'])
+        reservation_date = self._parse_date(res['reservationDate'])
+
+        # Determine status
+        try:
+            checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
+            if 'cancel' in res['csvStatus'].lower():
+                booking_status = 'cancelled'
+            elif checkin_dt > today:
+                booking_status = 'planned'
+            else:
+                booking_status = 'realised'
+        except Exception:
+            booking_status = 'realised'
+
+        # Skip cancelled with no payout
+        if booking_status == 'cancelled' and (not payout_amount or payout_amount == 0):
+            booking_status = 'cancelled'
+
+        # Financial calculation from payout amount
+        if payout_amount and payout_amount > 0:
+            paid_out = payout_amount
+            channel_fee_factor = 0.25
+            amount_gross = paid_out / (1 - channel_fee_factor)
+            amount_channel_fee = amount_gross - paid_out
+        else:
+            amount_gross = 0
+            amount_channel_fee = 0
+
+        # Tax calculation
+        tax_calc = self.calculate_str_taxes(amount_gross, checkin_date, amount_channel_fee)
+
+        # Dates and periods
+        try:
+            checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d')
+            reservation_dt = datetime.strptime(reservation_date, '%Y-%m-%d')
+            year = checkin_dt.year
+            quarter = (checkin_dt.month - 1) // 3 + 1
+            month = checkin_dt.month
+            days_before = (checkin_dt - reservation_dt).days
+        except Exception:
+            year = datetime.now().year
+            quarter = 1
+            month = 1
+            days_before = 0
+
+        nights = res['nights'] or 0
+        guests = res['adults'] + res['children']
+        price_per_night = tax_calc['amount_nett'] / nights if nights > 0 else 0
+
+        # Country detection
+        country = detect_country('vrbo', phone=res['phone'], addinfo=res.get('email', ''))
+
+        # Listing name normalization
+        listing = self._normalize_listing_name(res['propertyName'])
+
+        return {
+            'sourceFile': res['sourceFile'],
+            'channel': 'vrbo',
+            'listing': listing,
+            'checkinDate': checkin_date,
+            'checkoutDate': checkout_date,
+            'nights': nights,
+            'guests': guests,
+            'amountGross': round(amount_gross, 2),
+            'amountChannelFee': round(amount_channel_fee, 2),
+            'amountNett': tax_calc['amount_nett'],
+            'amountVat': tax_calc['amount_vat'],
+            'amountTouristTax': tax_calc['amount_tourist_tax'],
+            'guestName': res['guestName'],
+            'phone': res['phone'],
+            'reservationCode': res['reservationCode'],
+            'reservationDate': reservation_date,
+            'status': booking_status,
+            'pricePerNight': round(price_per_night, 2),
+            'daysBeforeReservation': days_before,
+            'addInfo': '|'.join(str(v) for v in res.values()),
+            'year': year,
+            'q': quarter,
+            'm': month,
+            'country': country,
+        }
+
+    def _parse_amount(self, amount_str: str) -> float:
+        """
+        Parse amount string, stripping currency symbols.
+        Handles European (€ 559,36) and US ($559.36) formats.
+        """
+        if not amount_str or pd.isna(amount_str):
+            return 0
+        clean = str(amount_str).replace('€', '').replace('$', '').replace('£', '').strip()
+        # European format: 1.234,56 → remove dots, replace comma with dot
+        if ',' in clean:
+            parts = clean.split(',')
+            if len(parts) == 2:
+                integer_part = parts[0].replace('.', '').replace(' ', '')
+                decimal_part = parts[1]
+                clean = f"{integer_part}.{decimal_part}"
+            else:
+                clean = clean.replace(',', '.')
+        try:
+            return float(clean)
+        except (ValueError, TypeError):
+            return 0
+
+    def _parse_multilang_date(self, date_str: str) -> str:
+        """
+        Parse multi-language date strings like '8 mei 2026', 'May 8, 2026', '8. Mai 2026'.
+        Falls back to _parse_date for standard formats.
+        """
+        if not date_str:
+            return datetime.now().strftime('%Y-%m-%d')
+
+        month_map = {
+            # Dutch
+            'jan': 1, 'feb': 2, 'mrt': 3, 'apr': 4, 'mei': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'okt': 10, 'nov': 11, 'dec': 12,
+            # English
+            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12,
+            # German
+            'januar': 1, 'februar': 2, 'märz': 3, 'mai': 5, 'juni': 6,
+            'juli': 7, 'oktober': 10, 'dezember': 12,
+            # French
+            'janvier': 1, 'février': 2, 'mars': 3, 'avril': 4, 'juin': 6,
+            'juillet': 7, 'août': 8, 'septembre': 9, 'octobre': 10, 'novembre': 11, 'décembre': 12,
+        }
+
+        # Clean up: remove dots, commas, extra spaces
+        clean = str(date_str).strip().replace('.', '').replace(',', '').lower()
+        parts = clean.split()
+
+        if len(parts) >= 3:
+            # Try "8 mei 2026" or "mei 8 2026" patterns
+            for i, part in enumerate(parts):
+                if part in month_map:
+                    month = month_map[part]
+                    remaining = [p for j, p in enumerate(parts) if j != i]
+                    try:
+                        nums = [int(p) for p in remaining if p.isdigit()]
+                        if len(nums) >= 2:
+                            day = min(nums)
+                            year = max(nums)
+                            if year < 100:
+                                year += 2000
+                            return f"{year}-{month:02d}-{day:02d}"
+                    except ValueError:
+                        pass
+
+        # Fallback to standard date parsing
+        return self._parse_date(date_str)
+
     def _parse_date(self, date_str: str) -> str:
         """Parse various date formats"""
         if not date_str:

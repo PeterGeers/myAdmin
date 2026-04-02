@@ -239,18 +239,18 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 
 ### Phase 1: Backend
 
-- [ ] Add `_process_vrbo()` method to `str_processor.py`
-- [ ] Add file type auto-detection (Reservations vs Payouts by header)
-- [ ] Implement two-file merge on `Reservation ID` / `Boekingsnummer`
-- [ ] Add multi-language date parsing (Dutch "8 mei 2026", English "May 8, 2026", German "8. Mai 2026")
-- [ ] Add amount parsing — strip currency symbols (€/$£), handle European (559,36) and US (559.36) decimal formats, store as numeric value. Currency is a tenant-level setting, not per transaction.
-- [ ] Calculate financial fields from payout amount (25% fee estimate)
-- [ ] Apply listing name normalization (`_normalize_listing_name`)
-- [ ] Detect country from phone number (`detect_country`)
-- [ ] Populate `addInfo` with all CSV fields concatenated
-- [ ] Add 'vrbo' to platform options in STR routes (`str_routes.py`)
-- [ ] Verify duplicate detection works for 'vrbo' channel (existing `reservationCode` check in `STRDatabase`)
-- [ ] Add unit tests for VRBO processing
+- [x] Add `_process_vrbo()` method to `str_processor.py`
+- [x] Add file type auto-detection (Reservations vs Payouts by header)
+- [x] Implement two-file merge on `Reservation ID` / `Boekingsnummer`
+- [x] Add multi-language date parsing (Dutch "8 mei 2026", English "May 8, 2026", German "8. Mai 2026")
+- [x] Add amount parsing — strip currency symbols (€/$£), handle European (559,36) and US (559.36) decimal formats, store as numeric value. Currency is a tenant-level setting, not per transaction.
+- [x] Calculate financial fields from payout amount (25% fee estimate)
+- [x] Apply listing name normalization (`_normalize_listing_name`)
+- [x] Detect country from phone number (`detect_country`)
+- [x] Populate `addInfo` with all CSV fields concatenated
+- [x] Add 'vrbo' to platform options in STR routes (`str_routes.py`) + multi-file upload support
+- [x] Verify duplicate detection works for 'vrbo' channel (existing `reservationCode` check in `STRDatabase` — already filters by channel, works out of the box)
+- [x] Add unit tests for VRBO processing (24 tests)
 
 ### Phase 2: Frontend
 
