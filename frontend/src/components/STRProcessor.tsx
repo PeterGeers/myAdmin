@@ -42,6 +42,7 @@ const STRProcessor: React.FC = () => {
   const [message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('airbnb');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
@@ -111,8 +112,17 @@ const STRProcessor: React.FC = () => {
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    if (selectedPlatform === 'vrbo') {
+      // VRBO: accept multiple files
+      const fileList = Array.from(files);
+      setSelectedFiles(fileList);
+      setSelectedFile(fileList[0]); // keep first for compatibility
+      setError('');
+    } else {
+      const file = files[0];
       // Validate Payout CSV filename if payout platform is selected
       if (selectedPlatform === 'payout') {
         if (!file.name.toLowerCase().startsWith('payout_from') || !file.name.toLowerCase().endsWith('.csv')) {
@@ -121,6 +131,7 @@ const STRProcessor: React.FC = () => {
         }
       }
       setSelectedFile(file);
+      setSelectedFiles([file]);
       setError('');
     }
   };
@@ -155,7 +166,10 @@ const STRProcessor: React.FC = () => {
         // Handle regular booking files
         console.log('Starting upload to backend...');
         const formData = new FormData();
-        formData.append('file', selectedFile);
+        // Support multi-file upload (VRBO needs reservations + payouts)
+        for (const f of selectedFiles) {
+          formData.append('file', f);
+        }
         formData.append('platform', selectedPlatform);
         
         console.log('Calling: /api/str/upload');
@@ -268,12 +282,14 @@ const STRProcessor: React.FC = () => {
                 >
                   <option value="airbnb">{t('processor.platforms.airbnb')}</option>
                   <option value="booking">{t('processor.platforms.booking')}</option>
+                  <option value="vrbo">{t('processor.platforms.vrbo', 'VRBO')}</option>
                   <option value="direct">{t('processor.platforms.direct')}</option>
                   <option value="payout">{t('processor.platforms.payout')}</option>
                 </Select>
                 <Input
                   type="file"
                   accept={selectedPlatform === 'payout' ? '.csv' : '.csv,.xlsx,.xls'}
+                  multiple={selectedPlatform === 'vrbo'}
                   onChange={handleFileUpload}
                   bg="gray.600"
                   color="white"
@@ -290,10 +306,19 @@ const STRProcessor: React.FC = () => {
                   {selectedPlatform === 'payout' ? t('processor.importPayout') : t('processor.processFile')}
                 </Button>
               </HStack>
-              {selectedFile && (
+              {selectedFiles.length > 0 && (
                 <Text color="green.300" fontSize="sm" mt={2}>
-                  ✓ {t('processor.selectedFile')}: {selectedFile.name}
+                  ✓ {t('processor.selectedFile')}: {selectedFiles.map(f => f.name).join(', ')}
                 </Text>
+              )}
+              {selectedPlatform === 'vrbo' && (
+                <Alert status="info" mt={3} bg="blue.900" borderRadius="md">
+                  <AlertIcon />
+                  <Box color="white" fontSize="xs">
+                    <Text fontWeight="bold">VRBO Import</Text>
+                    <Text>Select both Reservations CSV(s) and Payouts CSV. Files are auto-detected by header.</Text>
+                  </Box>
+                </Alert>
               )}
               {selectedPlatform === 'payout' && (
                 <Alert status="info" mt={3} bg="blue.900" borderRadius="md">
@@ -612,7 +637,38 @@ const STRProcessor: React.FC = () => {
                                 <Td color="white">{booking.checkoutDate}</Td>
                                 <Td color="white">{booking.nights}</Td>
                                 <Td color="white">{booking.guests || 0}</Td>
-                                <Td color="white">€{booking.amountGross ? booking.amountGross.toFixed(2) : '0.00'}</Td>
+                                <Td color="white">
+                                  {booking.channel === 'vrbo' ? (
+                                    <Input size="xs" type="number" step="0.01" w="90px"
+                                      defaultValue={booking.amountGross?.toFixed(2) || '0.00'}
+                                      bg="gray.600" color="white" borderColor="gray.500"
+                                      onBlur={async (e) => {
+                                        const newGross = parseFloat(e.target.value) || 0;
+                                        const channelFee = newGross * 0.25;
+                                        try {
+                                          const resp = await authenticatedPost('/api/str/calculate-taxes', {
+                                            amountGross: newGross,
+                                            checkinDate: booking.checkinDate,
+                                            channelFee: channelFee,
+                                          });
+                                          const tax = await resp.json();
+                                          if (tax.success) {
+                                            const updated = [...realisedBookings];
+                                            updated[index] = {
+                                              ...updated[index],
+                                              amountGross: Math.round(newGross * 100) / 100,
+                                              amountChannelFee: Math.round(channelFee * 100) / 100,
+                                              amountVat: tax.amountVat,
+                                              amountTouristTax: tax.amountTouristTax,
+                                              amountNett: tax.amountNett,
+                                            };
+                                            setRealisedBookings(updated);
+                                          }
+                                        } catch { /* keep current values */ }
+                                      }}
+                                    />
+                                  ) : <>€{booking.amountGross ? booking.amountGross.toFixed(2) : '0.00'}</>}
+                                </Td>
                                 <Td color="white">€{booking.amountChannelFee ? booking.amountChannelFee.toFixed(2) : '0.00'}</Td>
                                 <Td color="white">€{booking.amountNett ? booking.amountNett.toFixed(2) : '0.00'}</Td>
                                 <Td color="white">{booking.status}</Td>
