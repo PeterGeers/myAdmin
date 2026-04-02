@@ -223,15 +223,15 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 
 ### Other edge cases
 
-| Case                         | Handling                                                       |
-| ---------------------------- | -------------------------------------------------------------- |
-| Reservation without payout   | Include with `amountGross = 0`, status = 'planned'             |
-| Payout without reservation   | Log warning, skip (orphan payout)                              |
-| Cancelled booking            | Status = 'Cancelled' in Reservations CSV → skip if no earnings |
-| Multiple listings            | Multiple Reservations CSVs, one per listing — all merged       |
-| Total row in Payouts CSV     | Skip rows where `Boekingsnummer` is empty                      |
-| Dutch date format in Payouts | Parse "8 mei 2026" → `2026-05-08`                              |
-| Euro amount format           | Parse "€ 559,36" → 559.36                                      |
+| Case                       | Handling                                                                  |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Reservation without payout | Include with `amountGross = 0`, status = 'planned'                        |
+| Payout without reservation | Log warning, skip (orphan payout)                                         |
+| Cancelled booking          | Status = 'Cancelled' in Reservations CSV → skip if no earnings            |
+| Multiple listings          | Multiple Reservations CSVs, one per listing — all merged                  |
+| Total row in Payouts CSV   | Skip rows where `Boekingsnummer` is empty                                 |
+| Date format in Payouts     | Multi-language: "8 mei 2026" (NL), "May 8, 2026" (EN), "8. Mai 2026" (DE) |
+| Euro amount format         | Parse "€ 559,36" → 559.36                                                 |
 
 ---
 
@@ -242,8 +242,8 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 - [ ] Add `_process_vrbo()` method to `str_processor.py`
 - [ ] Add file type auto-detection (Reservations vs Payouts by header)
 - [ ] Implement two-file merge on `Reservation ID` / `Boekingsnummer`
-- [ ] Add Dutch date parsing ("8 mei 2026" format)
-- [ ] Add Euro amount parsing ("€ 559,36" format)
+- [ ] Add multi-language date parsing (Dutch "8 mei 2026", English "May 8, 2026", German "8. Mai 2026")
+- [ ] Add amount parsing — strip currency symbols (€/$£), handle European (559,36) and US (559.36) decimal formats, store as numeric value. Currency is a tenant-level setting, not per transaction.
 - [ ] Calculate financial fields from payout amount (25% fee estimate)
 - [ ] Apply listing name normalization (`_normalize_listing_name`)
 - [ ] Detect country from phone number (`detect_country`)
