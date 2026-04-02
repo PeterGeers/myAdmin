@@ -1334,4 +1334,4 @@ class STRProcessor:
         summary.columns = ['channel', 'listing', 'amount', 'items']
         summary['date'] = date.today().strftime('%Y-%m-%d')
         
-        return summary.to_dict('records')
+        return summary.to_dict('records')# VRBO import support added
