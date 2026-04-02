@@ -545,20 +545,7 @@ const STRProcessor: React.FC = () => {
                       _hover={{ bg: 'orange.500' }}
                       display="block"
                     >
-                      Red Studio — Reservations
-                    </Link>
-                    <Link
-                      href="https://www.vrbo.com/nl-nl/p/calendar/617.10027545.5775196/rail/downloadBookingDetails"
-                      isExternal
-                      w="full"
-                      p={2}
-                      bg="orange.600"
-                      borderRadius="md"
-                      textDecoration="none"
-                      _hover={{ bg: 'orange.500' }}
-                      display="block"
-                    >
-                      Garden House — Reservations
+                      VRBO Reservations
                     </Link>
                     <Link
                       href="https://www.vrbo.com/nl-nl/supply/financial-reporting?tab=upcoming-payouts"
@@ -571,7 +558,7 @@ const STRProcessor: React.FC = () => {
                       _hover={{ bg: 'orange.600' }}
                       display="block"
                     >
-                      VRBO Payouts (Upcoming)
+                      VRBO Payouts
                     </Link>
                   </VStack>
                 </Box>
