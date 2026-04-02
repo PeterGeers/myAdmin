@@ -53,19 +53,23 @@ def str_upload_authenticated(user_email, user_roles, tenant, user_tenants):
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file provided'}), 400
         
-        file = request.files['file']
         platform = request.form.get('platform', 'airbnb')
         
-        if file.filename == '':
+        # Support multi-file upload (VRBO needs reservations + payouts)
+        uploaded_files = request.files.getlist('file')
+        if not uploaded_files or uploaded_files[0].filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
         
-        filename = secure_filename(file.filename)
-        temp_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(temp_path)
+        temp_paths = []
+        for file in uploaded_files:
+            filename = secure_filename(file.filename)
+            temp_path = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(temp_path)
+            temp_paths.append(temp_path)
         
         str_processor = STRProcessor(test_mode=test_mode)
         
-        bookings = str_processor.process_str_files([temp_path], platform)
+        bookings = str_processor.process_str_files(temp_paths, platform)
         
         # Add administration (tenant) to all bookings
         if bookings:
@@ -79,7 +83,11 @@ def str_upload_authenticated(user_email, user_roles, tenant, user_tenants):
             separated = {'realised': [], 'planned': []}
             summary = {}
         
-        os.remove(temp_path)  # Clean up
+        for tp in temp_paths:
+            try:
+                os.remove(tp)
+            except OSError:
+                pass
         
         # Convert numpy types to native Python types for JSON serialization
         def convert_types(obj):
