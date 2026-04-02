@@ -86,7 +86,7 @@
 
 - [x] End-to-end test: create asset → generate depreciation → verify book value
 - [x] Test: dispose asset → verify write-off transaction and remaining book value
-- [ ] Test: idempotent depreciation generation (run twice, no duplicates)
-- [ ] Test: quarterly and monthly depreciation frequency
-- [ ] Test: asset with `depreciation_method = 'none'` is skipped
-- [ ] Test: `asset_account` parameter filters correctly in UI dropdown
+- [x] Test: idempotent depreciation generation (run twice, no duplicates)
+- [x] Test: quarterly and monthly depreciation frequency
+- [x] Test: asset with `depreciation_method = 'none'` is skipped
+- [x] Test: `asset_account` parameter filters correctly in UI dropdown
