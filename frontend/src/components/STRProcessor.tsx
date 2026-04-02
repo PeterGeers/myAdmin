@@ -19,6 +19,8 @@ interface STRBooking {
   amountGross: number;
   amountChannelFee?: number;
   amountNett?: number;
+  amountVat?: number;
+  amountTouristTax?: number;
   guestName: string;
   reservationCode: string;
   status: string;
