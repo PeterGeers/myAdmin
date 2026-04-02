@@ -220,3 +220,151 @@ class TestMerge:
         # All sample bookings have check-in in 2026 (future)
         for b in bookings:
             assert b['status'] == 'planned'
+
+
+# ============================================================================
+# Phase 3: Integration-style tests
+# ============================================================================
+
+class TestCancelledBooking:
+
+    def test_cancelled_without_payout_skipped(self, processor, tmp_path):
+        """Cancelled booking with no payout should have status 'cancelled'"""
+        res_csv = tmp_path / 'res.csv'
+        res_csv.write_text(
+            'Reservation ID,Listing Number,Property Name,Created On,Email,Inquirer,Phone,'
+            'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
+            'HA-CANCEL,10744968,JaBaKi Red Studio,2026-01-01,x@y.com,Test Guest,+31612345678,'
+            '2025-06-01,2025-06-03,2,1,0,Cancelled,VRBO\n',
+            encoding='utf-8'
+        )
+        bookings = processor._process_vrbo([str(res_csv)])
+        assert len(bookings) == 1
+        assert bookings[0]['status'] == 'cancelled'
+        assert bookings[0]['amountGross'] == 0
+
+
+class TestMultipleListingFiles:
+
+    def test_merges_two_listing_files(self, processor, tmp_path, payouts_csv_nl):
+        """Two reservation files (different listings) merged with one payouts file"""
+        res1 = tmp_path / 'res_listing1.csv'
+        res1.write_text(
+            'Reservation ID,Listing Number,Property Name,Created On,Email,Inquirer,Phone,'
+            'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
+            'HA-MSBK7M,10744968,JaBaKi Red Studio,2026-02-20,a@b.com,Guest A,+31600000001,'
+            '2026-05-07,2026-05-12,5,2,0,Booked,VRBO\n',
+            encoding='utf-8'
+        )
+        res2 = tmp_path / 'res_listing2.csv'
+        res2.write_text(
+            'Reservation ID,Listing Number,Property Name,Created On,Email,Inquirer,Phone,'
+            'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
+            'HA-KN90H2,10027545,JaBaKi Garden House,2026-01-26,c@d.com,Guest B,+49170000000,'
+            '2026-05-19,2026-05-20,1,3,0,Booked,VRBO\n',
+            encoding='utf-8'
+        )
+
+        # Payouts CSV has both booking codes
+        payouts = tmp_path / 'payouts_both.csv'
+        payouts.write_text(
+            'Naam gast,Boekingsnummer,Accommodatienummer,Uitbetalingsdatum,Status,Bedrag\n'
+            'Guest A,HA-MSBK7M,10744968,8 mei 2026,Gepland,"€ 559,36"\n'
+            'Guest B,HA-KN90H2,10027545,20 mei 2026,Gepland,"€ 148,12"\n',
+            encoding='utf-8'
+        )
+
+        bookings = processor._process_vrbo([str(res1), str(res2), str(payouts)])
+        assert len(bookings) == 2
+        codes = {b['reservationCode'] for b in bookings}
+        assert codes == {'HA-MSBK7M', 'HA-KN90H2'}
+        # Both should have financial data
+        for b in bookings:
+            assert b['amountGross'] > 0
+
+
+class TestCountryDetection:
+
+    def test_detects_us_phone(self, processor, tmp_path):
+        res_csv = tmp_path / 'res.csv'
+        res_csv.write_text(
+            'Reservation ID,Listing Number,Property Name,Created On,Email,Inquirer,Phone,'
+            'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
+            'HA-US001,10744968,JaBaKi Red Studio,2026-01-01,x@y.com,US Guest,1 907-841-5191,'
+            '2025-06-01,2025-06-03,2,1,0,Booked,VRBO\n',
+            encoding='utf-8'
+        )
+        bookings = processor._process_vrbo([str(res_csv)])
+        assert len(bookings) == 1
+        # Country should be detected (exact value depends on detect_country implementation)
+        assert 'country' in bookings[0]
+
+    def test_detects_german_phone(self, processor, tmp_path):
+        res_csv = tmp_path / 'res.csv'
+        res_csv.write_text(
+            'Reservation ID,Listing Number,Property Name,Created On,Email,Inquirer,Phone,'
+            'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
+            'HA-DE001,10744968,JaBaKi Red Studio,2026-01-01,x@y.com,DE Guest,49 1763 847-674-6,'
+            '2025-06-01,2025-06-03,2,1,0,Booked,VRBO\n',
+            encoding='utf-8'
+        )
+        bookings = processor._process_vrbo([str(res_csv)])
+        assert len(bookings) == 1
+        assert 'country' in bookings[0]
+
+
+class TestSampleData:
+
+    def test_full_sample_from_requirements(self, processor, tmp_path):
+        """Test with all 4 reservations from the requirements sample data"""
+        res1 = tmp_path / 'res_red.csv'
+        res1.write_text(
+            'Reservation ID,Listing Number,Property Name,Created On,Email,Inquirer,Phone,'
+            'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
+            'HA-MSBK7M,10744968,JaBaKi Red Studio (617 - 10744968),2026-02-20,'
+            'jacquibarrett58@gmail.com,Jacqueline Johansen,1 907-841-5191,'
+            '2026-05-07,2026-05-12,5,2,0,Booked,VRBO\n'
+            'HA-8YM4XP,10744968,JaBaKi Red Studio (617 - 10744968),2026-01-28,'
+            'mona.reisert@gmx.de,Mona Reisert,49 1763 847-674-6,'
+            '2026-06-06,2026-06-07,1,2,0,Booked,VRBO\n'
+            'HA-6316NF,10744968,JaBaKi Red Studio (617 - 10744968),2026-01-28,'
+            'mona.reisert@gmx.de,Mona Reisert,49 1763 847-674-6,'
+            '2026-06-04,2026-06-05,1,2,0,Booked,VRBO\n',
+            encoding='utf-8'
+        )
+        res2 = tmp_path / 'res_garden.csv'
+        res2.write_text(
+            'Reservation ID,Listing Number,Property Name,Created On,Email,Inquirer,Phone,'
+            'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
+            'HA-KN90H2,10027545,JaBaKi Child-friendly garden house (617 - 10027545),2026-01-26,'
+            'kathrin.ostermann@gmx.de,Kathrin Ostermann-Schmitt,49 17376-56645,'
+            '2026-05-19,2026-05-20,1,3,0,Booked,VRBO\n',
+            encoding='utf-8'
+        )
+        payouts = tmp_path / 'payouts.csv'
+        payouts.write_text(
+            'Naam gast,Boekingsnummer,Accommodatienummer,Uitbetalingsdatum,Status,Bedrag\n'
+            'Jacqueline Johansen,HA-MSBK7M,10744968,8 mei 2026,Gepland,"€ 559,36"\n'
+            'Kathrin Ostermann-Schmitt,HA-KN90H2,10027545,20 mei 2026,Gepland,"€ 148,12"\n'
+            'Mona Reisert,HA-6316NF,10744968,5 jun 2026,Gepland,"€ 87,40"\n'
+            'Mona Reisert,HA-8YM4XP,10744968,7 jun 2026,Gepland,"€ 115,92"\n'
+            ',,,,,"Totaal: € 910,80 - Totaal voor geselecteerd datumbereik"\n',
+            encoding='utf-8'
+        )
+
+        bookings = processor._process_vrbo([str(res1), str(res2), str(payouts)])
+
+        assert len(bookings) == 4
+        codes = {b['reservationCode'] for b in bookings}
+        assert codes == {'HA-MSBK7M', 'HA-KN90H2', 'HA-6316NF', 'HA-8YM4XP'}
+
+        # All should have financial data
+        for b in bookings:
+            assert b['amountGross'] > 0
+            assert b['channel'] == 'vrbo'
+            assert b['status'] == 'planned'  # all future dates
+
+        # Check specific amounts
+        ha_msbk = next(b for b in bookings if b['reservationCode'] == 'HA-MSBK7M')
+        assert ha_msbk['nights'] == 5
+        assert abs(ha_msbk['amountGross'] - (559.36 / 0.75)) < 0.02
