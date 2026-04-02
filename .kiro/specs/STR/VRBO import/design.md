@@ -123,7 +123,7 @@ amount_channel_fee = amount_gross - paid_out
 tax_calc = calculate_str_taxes(amount_gross, checkin_date, amount_channel_fee)
 ```
 
-Note: the 25% fee factor is an estimate. The actual fee varies per booking. If exact amounts are needed, they must be entered manually or scraped from the payment detail screen.
+Note: the 25% fee factor is an estimate. The actual fee varies per booking. Users can edit amounts per booking in the import preview before saving.
 
 ---
 
@@ -195,6 +195,10 @@ Add "VRBO" as a platform option alongside Airbnb and Booking.com:
 - File upload accepts multiple files (reservations + payouts)
 - Platform selector: Airbnb | Booking.com | VRBO
 - Preview shows merged results before saving
+- Editable amount columns in preview: `amountGross` and `amountChannelFee` per booking
+  - Default: estimated from payout amount (25% fee factor)
+  - User can correct with exact amounts from VRBO payment detail screen
+  - Editing recalculates VAT, tourist tax, and nett amount automatically
 
 ### No new pages needed
 
@@ -203,6 +207,21 @@ VRBO bookings go into the same `bnb` / `bnbplanned` tables and appear in all exi
 ---
 
 ## Edge cases
+
+### Realised vs Planned logic
+
+Same as Airbnb/Booking.com — determined by check-in date relative to today:
+
+| Condition                          | Status     | Saved to                                                 |
+| ---------------------------------- | ---------- | -------------------------------------------------------- |
+| Check-in ≤ today                   | `realised` | `bnb` table (append, skip duplicates by reservationCode) |
+| Check-in > today                   | `planned`  | `bnbplanned` table (cleared and replaced on each import) |
+| Status = "Cancelled" and no payout | skipped    | not saved                                                |
+| Status = "Cancelled" with payout   | `realised` | `bnb` table (cancellation fee was charged)               |
+
+The `separate_by_status()` method in `str_processor.py` handles this split — VRBO bookings use the same logic, no special handling needed.
+
+### Other edge cases
 
 | Case                         | Handling                                                       |
 | ---------------------------- | -------------------------------------------------------------- |
@@ -234,6 +253,8 @@ VRBO bookings go into the same `bnb` / `bnbplanned` tables and appear in all exi
 - [ ] Add 'VRBO' option to platform selector on STR import page
 - [ ] Support multi-file upload (reservations + payouts)
 - [ ] Show merge results in preview (matched/unmatched counts)
+- [ ] Add editable `amountGross` and `amountChannelFee` columns in preview table
+- [ ] Auto-recalculate VAT, tourist tax, nett when amounts are edited
 
 ### Phase 3: Testing
 

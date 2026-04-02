@@ -38,3 +38,5 @@ Betaald aan Vrbo
 
 Other amounts can be deducted
 
+
+amountGross = 
