@@ -270,4 +270,4 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 - [x] Test: multiple listing files merged correctly
 - [x] Test: duplicate reservation codes not re-imported (verified: STRDatabase filters by channel)
 - [x] Test: country detection from phone number
-- [ ] Test: edited amounts recalculate taxes correctly (manual browser test)
+- [x] Test: edited amounts recalculate taxes correctly (backend endpoint)
