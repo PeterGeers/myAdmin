@@ -562,3 +562,41 @@ def str_future_trend(user_email, user_roles):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@str_bp.route('/api/str/calculate-taxes', methods=['POST'])
+@cognito_required(required_permissions=['str_read'])
+def str_calculate_taxes(user_email, user_roles):
+    """
+    Recalculate taxes for a booking after amount edit.
+
+    Request body:
+    {
+        "amountGross": 745.81,
+        "checkinDate": "2026-05-07",
+        "channelFee": 186.45
+    }
+
+    Returns recalculated amounts using the correct tax rates for the check-in date.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'amountGross' not in data:
+            return jsonify({'error': 'amountGross is required'}), 400
+
+        processor = STRProcessor(test_mode=test_mode)
+        result = processor.calculate_str_taxes(
+            gross_amount=float(data['amountGross']),
+            checkin_date=data.get('checkinDate', ''),
+            channel_fee=float(data.get('channelFee', 0))
+        )
+
+        return jsonify({
+            'success': True,
+            'amountVat': result['amount_vat'],
+            'amountTouristTax': result['amount_tourist_tax'],
+            'amountNett': result['amount_nett'],
+            'taxRates': result.get('tax_rates_used', {}),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

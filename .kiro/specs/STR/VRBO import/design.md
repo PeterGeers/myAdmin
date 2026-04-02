@@ -254,11 +254,11 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 
 ### Phase 2: Frontend
 
-- [ ] Add 'VRBO' option to platform selector on STR import page
-- [ ] Support multi-file upload (reservations + payouts)
-- [ ] Show merge results in preview (matched/unmatched counts)
-- [ ] Add editable `amountGross` and `amountChannelFee` columns in preview table
-- [ ] Auto-recalculate VAT, tourist tax, nett when amounts are edited
+- [x] Add 'VRBO' option to platform selector on STR import page
+- [x] Support multi-file upload (reservations + payouts)
+- [x] Show merge results in preview (matched/unmatched counts)
+- [x] Add editable `amountGross` column in realised bookings preview for VRBO
+- [x] Auto-recalculate VAT, tourist tax, nett when amounts are edited
 
 ### Phase 3: Testing
 
