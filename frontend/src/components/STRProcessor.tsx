@@ -530,6 +530,51 @@ const STRProcessor: React.FC = () => {
                     {t('processor.importDataLinks.fileLocation')}
                   </Box>
                 </Box>
+
+                <Box>
+                  <Text fontWeight="bold" mb={2}>VRBO:</Text>
+                  <VStack spacing={2}>
+                    <Link
+                      href="https://www.vrbo.com/nl-nl/p/calendar/617.10744968.5775196/rail/downloadBookingDetails"
+                      isExternal
+                      w="full"
+                      p={2}
+                      bg="orange.600"
+                      borderRadius="md"
+                      textDecoration="none"
+                      _hover={{ bg: 'orange.500' }}
+                      display="block"
+                    >
+                      Red Studio — Reservations
+                    </Link>
+                    <Link
+                      href="https://www.vrbo.com/nl-nl/p/calendar/617.10027545.5775196/rail/downloadBookingDetails"
+                      isExternal
+                      w="full"
+                      p={2}
+                      bg="orange.600"
+                      borderRadius="md"
+                      textDecoration="none"
+                      _hover={{ bg: 'orange.500' }}
+                      display="block"
+                    >
+                      Garden House — Reservations
+                    </Link>
+                    <Link
+                      href="https://www.vrbo.com/nl-nl/supply/financial-reporting?tab=upcoming-payouts"
+                      isExternal
+                      w="full"
+                      p={2}
+                      bg="orange.700"
+                      borderRadius="md"
+                      textDecoration="none"
+                      _hover={{ bg: 'orange.600' }}
+                      display="block"
+                    >
+                      VRBO Payouts (Upcoming)
+                    </Link>
+                  </VStack>
+                </Box>
               </VStack>
             </Box>
           </Box>
