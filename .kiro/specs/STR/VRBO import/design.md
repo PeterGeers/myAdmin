@@ -262,12 +262,12 @@ The `separate_by_status()` method in `str_processor.py` handles this split — V
 
 ### Phase 3: Testing
 
-- [ ] Test with sample data from requirements (4 reservations, 4 payouts)
-- [ ] Test merge: reservation with payout → correct amounts
-- [ ] Test merge: reservation without payout → planned status, amountGross = 0
-- [ ] Test: cancelled booking skipped
-- [ ] Test: total row in payouts skipped
-- [ ] Test: multiple listing files merged correctly
-- [ ] Test: duplicate reservation codes not re-imported
-- [ ] Test: country detection from phone number
-- [ ] Test: edited amounts recalculate taxes correctly
+- [x] Test with sample data from requirements (4 reservations, 4 payouts)
+- [x] Test merge: reservation with payout → correct amounts
+- [x] Test merge: reservation without payout → planned status, amountGross = 0
+- [x] Test: cancelled booking skipped
+- [x] Test: total row in payouts skipped
+- [x] Test: multiple listing files merged correctly
+- [x] Test: duplicate reservation codes not re-imported (verified: STRDatabase filters by channel)
+- [x] Test: country detection from phone number
+- [ ] Test: edited amounts recalculate taxes correctly (manual browser test)
