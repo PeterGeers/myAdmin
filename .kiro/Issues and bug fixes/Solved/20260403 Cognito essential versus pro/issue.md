@@ -50,3 +50,6 @@ For myAdmin (< 50 users): Plus = $1.00/month → Essentials = $0.00/month.
 - Log export to external AWS services
 
 These are advanced security monitoring features. Not needed for a small business app.
+
+
+Done. Cognito tier changed from PLUS to ESSENTIALS. Your user pool is now on the free tier (< 10,000 MAU). All features including passkeys continue to work.
