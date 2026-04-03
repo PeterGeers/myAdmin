@@ -30,12 +30,16 @@ class MutatiesCache:
         self.lock = Lock()
         self._loading = False
         
-    def get_data(self, db_manager):
+    def get_data(self, db_manager, requested_years=None):
         """
-        Get cached data, refreshing if necessary
+        Get cached data, refreshing if necessary.
+        
+        If requested_years are specified, ensures those years are in the cache
+        by loading missing years on demand.
         
         Args:
             db_manager: DatabaseManager instance for loading data
+            requested_years: Optional list of year integers to ensure are loaded
             
         Returns:
             pandas.DataFrame: Cached mutation data
@@ -46,6 +50,10 @@ class MutatiesCache:
                 # Double-check after acquiring lock
                 if self._needs_refresh():
                     self._refresh(db_manager)
+        
+        # Load missing years on demand if specific years are requested
+        if requested_years and self.data is not None:
+            self._ensure_years_loaded(db_manager, requested_years)
         
         return self.data
     
@@ -58,6 +66,67 @@ class MutatiesCache:
         if (datetime.now() - self.last_loaded) > self.ttl:
             return True
         return False
+
+    def _ensure_years_loaded(self, db_manager, requested_years):
+        """
+        Load missing years into cache on demand.
+        
+        Checks which requested years are not yet in the cache and loads them
+        from the database, appending to the existing cached DataFrame.
+        
+        Args:
+            db_manager: DatabaseManager instance
+            requested_years: List of year integers to ensure are loaded
+        """
+        if self.data is None or self.data.empty:
+            return
+
+        # Find which years are already in cache
+        cached_years = set(self.data['jaar'].unique()) if 'jaar' in self.data.columns else set()
+        missing_years = [int(y) for y in requested_years if int(y) not in cached_years]
+
+        if not missing_years:
+            return
+
+        logger.info(f"On-demand loading missing years: {sorted(missing_years)} (cached: {sorted(cached_years)})")
+
+        with self.lock:
+            # Double-check after acquiring lock (another thread may have loaded them)
+            cached_years = set(self.data['jaar'].unique()) if 'jaar' in self.data.columns else set()
+            missing_years = [int(y) for y in requested_years if int(y) not in cached_years]
+
+            if not missing_years:
+                return
+
+            try:
+                conn = db_manager.get_connection()
+                year_filter = " OR ".join([f"jaar = {year}" for year in missing_years])
+
+                query = f"""
+                    SELECT 
+                        Aangifte, TransactionNumber, TransactionDate, TransactionDescription,
+                        Amount, Reknum, AccountName, Parent, VW,
+                        jaar, kwartaal, maand, week,
+                        ReferenceNumber, administration, Ref3, Ref4
+                    FROM vw_mutaties
+                    WHERE {year_filter}
+                """
+
+                new_data = pd.read_sql(query, conn)
+                conn.close()
+
+                if not new_data.empty:
+                    if 'TransactionDate' in new_data.columns:
+                        new_data['TransactionDate'] = pd.to_datetime(new_data['TransactionDate'])
+
+                    self.data = pd.concat([self.data, new_data], ignore_index=True)
+                    logger.info(f"Loaded {len(new_data):,} rows for years {sorted(missing_years)}. "
+                                f"Cache now has {len(self.data):,} total rows.")
+                else:
+                    logger.info(f"No data found for years {sorted(missing_years)}")
+
+            except Exception as e:
+                logger.error(f"Error loading missing years {missing_years}: {e}")
     
     def _get_years_to_load(self, db_manager):
         """

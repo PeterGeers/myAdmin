@@ -33,8 +33,9 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
         cache = get_cache()
         db = DatabaseManager(test_mode=test_mode)
         
-        # Get cached data
-        df = cache.get_data(db)
+        # Get cached data — ensure requested years are loaded
+        year_list = [int(y) for y in years]
+        df = cache.get_data(db, requested_years=year_list)
         
         # SECURITY: Filter by user's accessible tenants first
         df = df[df['administration'].isin(user_tenants)]
@@ -98,8 +99,9 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         cache = get_cache()
         db = DatabaseManager(test_mode=test_mode)
         
-        # Get cached data
-        df = cache.get_data(db)
+        # Get cached data — ensure requested years are loaded
+        year_list = [int(y) for y in years]
+        df = cache.get_data(db, requested_years=year_list)
         
         # SECURITY: Filter by user's accessible tenants first
         df = df[df['administration'].isin(user_tenants)]
