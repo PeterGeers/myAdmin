@@ -221,7 +221,9 @@ class TestGetBalanceData:
             'administration': ['GoodwinSolutions', 'GoodwinSolutions', 'GoodwinSolutions'],
             'Reknum': ['2010', '2020', '2010'],
             'AccountName': ['BTW te betalen', 'BTW ontvangen', 'BTW te betalen'],
-            'Amount': [1000.0, 500.0, 200.0]
+            'Amount': [1000.0, 500.0, 200.0],
+            'ReferenceNumber': ['INV-001', 'INV-002', 'INV-003'],
+            'TransactionNumber': ['T001', 'T002', 'T003'],
         })
         
         mock_cache.get_data.return_value = df

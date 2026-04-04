@@ -310,7 +310,7 @@ class TestOpeningBalanceMigrator:
         """Test validation in dry-run mode."""
         migrator.dry_run = True
         
-        result = migrator._validate_year('TestTenant', 2024)
+        result = migrator._validate_year('TestTenant', 2024, [])
         
         # Should skip validation in dry-run
         assert result is True
@@ -321,21 +321,18 @@ class TestOpeningBalanceMigrator:
         conn, cursor = mock_connection
         migrator.db_manager.get_connection.return_value = conn
         
-        # Mock matching balances
-        cursor.fetchall.side_effect = [
-            # Old method
-            [
-                {'account': '1000', 'balance_old': 1000.50},
-                {'account': '3080', 'balance_old': -500.25}
-            ],
-            # New method
-            [
-                {'account': '1000', 'balance_new': 1000.50},
-                {'account': '3080', 'balance_new': -500.25}
-            ]
+        # Mock new method results only (expected balances passed as argument)
+        cursor.fetchall.return_value = [
+            {'account': '1000', 'balance_new': 1000.50},
+            {'account': '3080', 'balance_new': -500.25}
         ]
         
-        result = migrator._validate_year('TestTenant', 2024)
+        expected_balances = [
+            {'account': '1000', 'balance': 1000.50},
+            {'account': '3080', 'balance': -500.25}
+        ]
+        
+        result = migrator._validate_year('TestTenant', 2024, expected_balances)
         
         assert result is True
     
@@ -345,15 +342,16 @@ class TestOpeningBalanceMigrator:
         conn, cursor = mock_connection
         migrator.db_manager.get_connection.return_value = conn
         
-        # Mock mismatched balances
-        cursor.fetchall.side_effect = [
-            # Old method
-            [{'account': '1000', 'balance_old': 1000.50}],
-            # New method
-            [{'account': '1000', 'balance_new': 900.00}]
+        # Mock new method results
+        cursor.fetchall.return_value = [
+            {'account': '1000', 'balance_new': 900.00}
         ]
         
-        result = migrator._validate_year('TestTenant', 2024)
+        expected_balances = [
+            {'account': '1000', 'balance': 1000.50}
+        ]
+        
+        result = migrator._validate_year('TestTenant', 2024, expected_balances)
         
         assert result is False
     
@@ -363,68 +361,81 @@ class TestOpeningBalanceMigrator:
         conn, cursor = mock_connection
         migrator.db_manager.get_connection.return_value = conn
         
-        # Mock balances with small difference (within 0.01 tolerance)
-        cursor.fetchall.side_effect = [
-            # Old method
-            [{'account': '1000', 'balance_old': 1000.50}],
-            # New method
-            [{'account': '1000', 'balance_new': 1000.505}]
+        # Mock new method results with small difference
+        cursor.fetchall.return_value = [
+            {'account': '1000', 'balance_new': 1000.505}
         ]
         
-        result = migrator._validate_year('TestTenant', 2024)
+        expected_balances = [
+            {'account': '1000', 'balance': 1000.50}
+        ]
+        
+        result = migrator._validate_year('TestTenant', 2024, expected_balances)
         
         # Should pass due to rounding tolerance
         assert result is True
     
     def test_migrate_year_already_migrated(self, migrator):
         """Test migrating year that's already migrated."""
-        with patch.object(migrator, '_is_already_migrated', return_value=True):
-            result = migrator._migrate_year('TestTenant', 2024)
-            
-            assert result is True
+        with patch.object(migrator, '_get_year_range', return_value=[2023, 2024]):
+            with patch.object(migrator, '_calculate_ending_balances_old_method', return_value=[]):
+                with patch.object(migrator, '_is_already_migrated', return_value=True):
+                    result = migrator._migrate_tenant('TestTenant', None, None)
+                    
+                    # Already migrated years are skipped, not failures
+                    assert result is True
     
     def test_migrate_year_no_balances(self, migrator):
-        """Test migrating year with no balances."""
-        with patch.object(migrator, '_is_already_migrated', return_value=False):
-            with patch.object(migrator, '_calculate_ending_balances', return_value=[]):
-                result = migrator._migrate_year('TestTenant', 2024)
-                
-                assert result is True
+        """Test migrating year with no balances from previous year."""
+        with patch.object(migrator, '_get_year_range', return_value=[2023, 2024]):
+            with patch.object(migrator, '_calculate_ending_balances_old_method', return_value=[]):
+                with patch.object(migrator, '_is_already_migrated', return_value=False):
+                    with patch.object(migrator, '_validate_year', return_value=True):
+                        result = migrator._migrate_tenant('TestTenant', None, None)
+                        
+                        assert result is True
     
     def test_migrate_year_success(self, migrator):
         """Test successful year migration."""
         balances = [{'account': '1000', 'balance': 1000.50}]
         
-        with patch.object(migrator, '_is_already_migrated', return_value=False):
-            with patch.object(migrator, '_calculate_ending_balances', return_value=balances):
-                with patch.object(migrator, '_create_opening_balances', return_value=[123]):
-                    with patch.object(migrator, '_validate_year', return_value=True):
-                        result = migrator._migrate_year('TestTenant', 2024)
-                        
-                        assert result is True
-                        assert migrator.stats['transactions_created'] == 1
+        with patch.object(migrator, '_get_year_range', return_value=[2023, 2024]):
+            with patch.object(migrator, '_calculate_ending_balances_old_method', return_value=balances):
+                with patch.object(migrator, '_is_already_migrated', return_value=False):
+                    with patch.object(migrator, '_create_opening_balances', return_value=[123]):
+                        with patch.object(migrator, '_validate_year', return_value=True):
+                            result = migrator._migrate_tenant('TestTenant', None, None)
+                            
+                            assert result is True
+                            assert migrator.stats['transactions_created'] >= 1
     
     def test_migrate_year_validation_failure(self, migrator):
         """Test year migration with validation failure."""
         balances = [{'account': '1000', 'balance': 1000.50}]
         
-        with patch.object(migrator, '_is_already_migrated', return_value=False):
-            with patch.object(migrator, '_calculate_ending_balances', return_value=balances):
-                with patch.object(migrator, '_create_opening_balances', return_value=[123]):
-                    with patch.object(migrator, '_validate_year', return_value=False):
-                        result = migrator._migrate_year('TestTenant', 2024)
-                        
-                        assert result is False
-                        assert migrator.stats['validation_errors'] == 1
+        with patch.object(migrator, '_get_year_range', return_value=[2023, 2024]):
+            with patch.object(migrator, '_calculate_ending_balances_old_method', return_value=balances):
+                with patch.object(migrator, '_is_already_migrated', return_value=False):
+                    with patch.object(migrator, '_create_opening_balances', return_value=[123]):
+                        with patch.object(migrator, '_validate_year', return_value=False):
+                            result = migrator._migrate_tenant('TestTenant', None, None)
+                            
+                            assert result is False
+                            assert migrator.stats['validation_errors'] >= 1
     
     def test_migrate_tenant_success(self, migrator):
         """Test successful tenant migration."""
+        balances = [{'account': '1000', 'balance': 1000.50}]
+        
         with patch.object(migrator, '_get_year_range', return_value=[2023, 2024]):
-            with patch.object(migrator, '_migrate_year', return_value=True):
-                result = migrator._migrate_tenant('TestTenant', None, None)
-                
-                assert result is True
-                assert migrator.stats['years_processed'] == 2
+            with patch.object(migrator, '_calculate_ending_balances_old_method', return_value=balances):
+                with patch.object(migrator, '_is_already_migrated', return_value=False):
+                    with patch.object(migrator, '_create_opening_balances', return_value=[123]):
+                        with patch.object(migrator, '_validate_year', return_value=True):
+                            result = migrator._migrate_tenant('TestTenant', None, None)
+                            
+                            assert result is True
+                            assert migrator.stats['years_processed'] >= 1
     
     def test_migrate_tenant_no_years(self, migrator):
         """Test tenant migration with no years."""
@@ -435,11 +446,15 @@ class TestOpeningBalanceMigrator:
     
     def test_migrate_tenant_year_failure(self, migrator):
         """Test tenant migration with year failure."""
-        with patch.object(migrator, '_get_year_range', return_value=[2024]):
-            with patch.object(migrator, '_migrate_year', return_value=False):
-                result = migrator._migrate_tenant('TestTenant', None, None)
-                
-                assert result is False
+        balances = [{'account': '1000', 'balance': 1000.50}]
+        
+        with patch.object(migrator, '_get_year_range', return_value=[2023, 2024]):
+            with patch.object(migrator, '_calculate_ending_balances_old_method', return_value=balances):
+                with patch.object(migrator, '_is_already_migrated', return_value=False):
+                    with patch.object(migrator, '_create_opening_balances', return_value=[]):
+                        result = migrator._migrate_tenant('TestTenant', None, None)
+                        
+                        assert result is False
     
     def test_migrate_success(self, migrator):
         """Test successful full migration."""

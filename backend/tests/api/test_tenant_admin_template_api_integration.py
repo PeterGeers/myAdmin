@@ -41,28 +41,17 @@ def client(app):
 @pytest.fixture
 def mock_auth():
     """Mock authentication to bypass Cognito"""
-    with patch('auth.cognito_utils.cognito_required') as mock:
-        # Make decorator pass through and inject user info
-        def decorator_passthrough(required_permissions=None, required_roles=None):
-            def wrapper(f):
-                def decorated(*args, **kwargs):
-                    # Inject mock user info
-                    kwargs['user_email'] = 'admin@goodwinsolutions.com'
-                    kwargs['user_roles'] = ['Tenant_Admin']
-                    return f(*args, **kwargs)
-                decorated.__name__ = f.__name__
-                return decorated
-            return wrapper
-        mock.side_effect = decorator_passthrough
+    with patch('auth.cognito_utils.extract_user_credentials') as mock:
+        mock.return_value = ('admin@goodwinsolutions.com', ['Tenant_Admin'], None)
         yield mock
 
 
 @pytest.fixture
 def mock_tenant_context():
     """Mock tenant context functions"""
-    with patch('auth.tenant_context.get_current_tenant') as mock_get_tenant, \
-         patch('auth.tenant_context.get_user_tenants') as mock_get_user_tenants, \
-         patch('auth.tenant_context.is_tenant_admin') as mock_is_admin:
+    with patch('tenant_admin_routes.get_current_tenant') as mock_get_tenant, \
+         patch('tenant_admin_routes.get_user_tenants') as mock_get_user_tenants, \
+         patch('tenant_admin_routes.is_tenant_admin') as mock_is_admin:
         
         mock_get_tenant.return_value = 'GoodwinSolutions'
         mock_get_user_tenants.return_value = ['GoodwinSolutions']
@@ -88,7 +77,7 @@ def mock_db():
 @pytest.fixture
 def mock_google_drive():
     """Mock Google Drive service"""
-    with patch('services.template_preview_service.GoogleDriveService') as mock:
+    with patch('google_drive_service.GoogleDriveService') as mock:
         drive_instance = MagicMock()
         drive_instance.service.files().create().execute.return_value = {'id': 'mock_file_id_123'}
         mock.return_value = drive_instance
@@ -385,9 +374,9 @@ class TestTenantIsolation:
     
     def test_tenant_isolation_single_tenant_user(self, client, mock_auth, mock_db):
         """Test that single-tenant users cannot access other tenants"""
-        with patch('auth.tenant_context.get_current_tenant') as mock_get_tenant, \
-             patch('auth.tenant_context.get_user_tenants') as mock_get_user_tenants, \
-             patch('auth.tenant_context.is_tenant_admin') as mock_is_admin:
+        with patch('tenant_admin_routes.get_current_tenant') as mock_get_tenant, \
+             patch('tenant_admin_routes.get_user_tenants') as mock_get_user_tenants, \
+             patch('tenant_admin_routes.is_tenant_admin') as mock_is_admin:
             
             # User belongs to GoodwinSolutions only
             mock_get_tenant.return_value = 'PeterPrive'  # Trying to access different tenant
@@ -410,9 +399,9 @@ class TestTenantIsolation:
     
     def test_multi_tenant_user_can_access_all_their_tenants(self, client, mock_auth, mock_db):
         """Test that multi-tenant users CAN access all their tenants (they share Google Drive)"""
-        with patch('auth.tenant_context.get_current_tenant') as mock_get_tenant, \
-             patch('auth.tenant_context.get_user_tenants') as mock_get_user_tenants, \
-             patch('auth.tenant_context.is_tenant_admin') as mock_is_admin, \
+        with patch('tenant_admin_routes.get_current_tenant') as mock_get_tenant, \
+             patch('tenant_admin_routes.get_user_tenants') as mock_get_user_tenants, \
+             patch('tenant_admin_routes.is_tenant_admin') as mock_is_admin, \
              patch('services.template_preview_service.TemplatePreviewService') as mock_service:
             
             # User belongs to BOTH GoodwinSolutions and PeterPrive (multi-tenant user)
@@ -442,9 +431,9 @@ class TestTenantIsolation:
     
     def test_tenant_can_access_own_templates(self, client, mock_auth, mock_db):
         """Test that users CAN access their own tenant's templates"""
-        with patch('auth.tenant_context.get_current_tenant') as mock_get_tenant, \
-             patch('auth.tenant_context.get_user_tenants') as mock_get_user_tenants, \
-             patch('auth.tenant_context.is_tenant_admin') as mock_is_admin, \
+        with patch('tenant_admin_routes.get_current_tenant') as mock_get_tenant, \
+             patch('tenant_admin_routes.get_user_tenants') as mock_get_user_tenants, \
+             patch('tenant_admin_routes.is_tenant_admin') as mock_is_admin, \
              patch('services.template_preview_service.TemplatePreviewService') as mock_service:
             
             # User belongs to and accesses GoodwinSolutions

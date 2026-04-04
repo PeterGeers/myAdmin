@@ -1,9 +1,14 @@
 """
 Test script for STR Invoice Generator search functionality
 Tests the /api/str-invoice/search-booking endpoint
+
+NOTE: This is a manual test script that requires a running server.
 """
+import pytest
 import requests
 import json
+
+pytestmark = pytest.mark.skip(reason="Manual test script - requires running server")
 
 # Test configuration
 BASE_URL = "http://127.0.0.1:5000"

@@ -8,6 +8,10 @@ import mysql.connector
 from contextlib import contextmanager
 from pathlib import Path
 
+# Load .env file so tests pick up environment variables
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / '.env')
+
 # Add src directory to Python path for imports
 backend_dir = Path(__file__).parent.parent
 src_dir = backend_dir / 'src'

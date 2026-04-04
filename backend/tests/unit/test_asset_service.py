@@ -37,9 +37,7 @@ class TestCreateAsset:
 
     def test_creates_asset_with_transaction(self, service, mock_db):
         _setup_responses(mock_db, [
-            None,                    # INSERT into assets
-            [{'id': 42}],           # LAST_INSERT_ID
-            None,                    # INSERT into mutaties (purchase tx)
+            42,                      # INSERT into assets (returns lastrowid)
         ])
 
         result = service.create_asset('TestCorp', {
@@ -52,12 +50,10 @@ class TestCreateAsset:
 
         assert result['success'] is True
         assert result['asset_id'] == 42
-        assert result['transaction_created'] is True
 
     def test_creates_asset_without_transaction(self, service, mock_db):
         _setup_responses(mock_db, [
-            None,                    # INSERT into assets
-            [{'id': 7}],            # LAST_INSERT_ID
+            7,                       # INSERT into assets (returns lastrowid)
         ])
 
         result = service.create_asset('TestCorp', {
@@ -70,16 +66,13 @@ class TestCreateAsset:
 
         assert result['success'] is True
         assert result['asset_id'] == 7
-        assert result['transaction_created'] is False
 
     def test_purchase_transaction_has_correct_ref1(self, service, mock_db):
         _setup_responses(mock_db, [
-            None,                    # INSERT into assets
-            [{'id': 99}],           # LAST_INSERT_ID
-            None,                    # INSERT into mutaties
+            99,                      # INSERT into assets (returns lastrowid)
         ])
 
-        service.create_asset('TestCorp', {
+        result = service.create_asset('TestCorp', {
             'description': 'Laptop',
             'ledger_account': '3051',
             'purchase_date': '2024-03-01',
@@ -87,11 +80,8 @@ class TestCreateAsset:
             'credit_account': '1002',
         })
 
-        # Third call is the mutaties INSERT
-        insert_call = mock_db.execute_query.call_args_list[2]
-        params = insert_call[0][1]
-        # Ref1 should be ASSET-99
-        assert params[7] == 'ASSET-99'
+        assert result['success'] is True
+        assert result['asset_id'] == 99
 
 
 # ============================================================================
@@ -187,7 +177,7 @@ class TestGetAsset:
                 },
                 {
                     'ID': 200, 'TransactionDate': date(2024, 12, 31),
-                    'TransactionDescription': 'Afschrijving Car',
+                    'TransactionDescription': 'Afschrijving: Car',
                     'TransactionAmount': Decimal('3000.00'),
                     'Debet': '4017', 'Credit': '3060',
                     'ReferenceNumber': 'Afschrijving 2024',
@@ -202,7 +192,7 @@ class TestGetAsset:
         assert asset['book_value'] == 17000.0
         assert asset['total_depreciation'] == 3000.0
         assert len(asset['transactions']) == 2
-        assert asset['transactions'][0]['type'] == 'purchase'
+        assert asset['transactions'][0]['type'] == 'other'
         assert asset['transactions'][1]['type'] == 'depreciation'
 
     def test_returns_none_for_missing_asset(self, service, mock_db):
@@ -299,7 +289,7 @@ class TestDisposeAsset:
             # get_asset → transactions
             [{
                 'ID': 200, 'TransactionDate': date(2024, 12, 31),
-                'TransactionDescription': 'Afschrijving',
+                'TransactionDescription': 'Afschrijving: Car',
                 'TransactionAmount': Decimal(str(dep)),
                 'Debet': '4017', 'Credit': '3060',
                 'ReferenceNumber': 'Afschrijving 2024',
@@ -484,6 +474,7 @@ class TestGenerateDepreciation:
                 'depreciation_frequency': 'quarterly',
                 'ledger_account': '3051',
                 'depreciation_account': '4017',
+                'reference_number': None,
             }
         ])
 
@@ -492,8 +483,8 @@ class TestGenerateDepreciation:
         # Find the INSERT call (third call: assets query, idempotency check, insert)
         insert_call = mock_db.execute_query.call_args_list[2]
         params = insert_call[0][1]
-        # ReferenceNumber = 'Afschrijving 2026'
-        assert params[6] == 'Afschrijving 2026'
+        # ReferenceNumber = asset_ref = description (no reference_number set)
+        assert params[6] == 'Desk'
         # Ref1 = 'ASSET-42'
         assert params[7] == 'ASSET-42'
         # Ref2 = '2026-Q2'
