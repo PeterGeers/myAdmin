@@ -18,7 +18,14 @@ import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import * as authService from '../services/authService';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+jest.mock('aws-amplify/auth', () => ({
+  getCurrentUser: jest.fn(),
+  signOut: jest.fn(),
+  fetchAuthSession: jest.fn(),
+  resetPassword: jest.fn(),
+  confirmResetPassword: jest.fn(),
+  confirmSignIn: jest.fn(),
+}));
 
 // Mock authService to prevent infinite loops in AuthContext
 jest.mock('../services/authService', () => ({
@@ -31,13 +38,23 @@ jest.mock('../services/authService', () => ({
   hasRole: jest.fn(),
   hasAnyRole: jest.fn(),
   hasAllRoles: jest.fn(),
+  signInWithPassword: jest.fn(),
+  signInWithPasskey: jest.fn(),
+  isPasskeySupported: jest.fn().mockReturnValue(true),
+}));
+
+// Mock react-i18next — t() returns the key as-is
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', changeLanguage: jest.fn() } }),
+  Trans: ({ children }: any) => children,
 }));
 
 // Mock Chakra UI components to avoid dependency issues
 jest.mock('@chakra-ui/react', () => ({
   ChakraProvider: ({ children }: any) => <div>{children}</div>,
-  Box: ({ children, ...props }: any) => {
-    const { bg, p, spacing, borderRadius, boxShadow, minH, alignItems, justifyContent, display, px, ...domProps } = props;
+  Box: ({ children, as: As, onSubmit, ...props }: any) => {
+    const { bg, p, spacing, borderRadius, boxShadow, minH, alignItems, justifyContent, display, px, maxW, ...domProps } = props;
+    if (As === 'form') return <form onSubmit={onSubmit} {...domProps}>{children}</form>;
     return <div {...domProps}>{children}</div>;
   },
   VStack: ({ children, ...props }: any) => {
@@ -53,38 +70,40 @@ jest.mock('@chakra-ui/react', () => ({
     return <h1 {...domProps}>{children}</h1>;
   },
   Text: ({ children, ...props }: any) => {
-    const { color, fontSize, textAlign, ...domProps } = props;
+    const { color, fontSize, textAlign, whiteSpace, ...domProps } = props;
     return <p {...domProps}>{children}</p>;
   },
-  Button: ({ children, onClick, ...props }: any) => {
-    const { colorScheme, isLoading, loadingText, w, ...domProps } = props;
-    return <button onClick={onClick} {...domProps}>{children}</button>;
+  Button: ({ children, onClick, type, isLoading, loadingText, isDisabled, ...props }: any) => {
+    const { colorScheme, w, variant, leftIcon, size, ...domProps } = props;
+    return <button onClick={onClick} type={type} disabled={isDisabled || isLoading} {...domProps}>{isLoading ? loadingText : children}</button>;
   },
   Image: ({ ...props }: any) => {
     const { maxW, mb, ...domProps } = props;
     return <img alt="" {...domProps} />;
   },
-  Container: ({ children }: any) => <div>{children}</div>,
-  Divider: () => <hr />,
+  Container: ({ children, ...props }: any) => {
+    const { maxW, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
+  Divider: ({ ...props }: any) => <hr />,
   Link: ({ children, onClick, ...props }: any) => {
     const { color, cursor, fontSize, _hover, ...domProps } = props;
     return <a onClick={onClick} {...domProps}>{children}</a>;
   },
-  Alert: ({ children }: any) => <div role="alert">{children}</div>,
-  AlertIcon: () => <span>ℹ️</span>,
+  Alert: ({ children, ...props }: any) => <div role="alert">{children}</div>,
+  AlertIcon: ({ ...props }: any) => <span>ℹ️</span>,
   AlertDescription: ({ children }: any) => <div>{children}</div>,
   Badge: ({ children }: any) => <span>{children}</span>,
   Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
   List: ({ children }: any) => <ul>{children}</ul>,
   ListItem: ({ children }: any) => <li>{children}</li>,
   ListIcon: () => <span>✓</span>,
+  FormControl: ({ children }: any) => <div>{children}</div>,
+  FormLabel: ({ children }: any) => <label>{children}</label>,
+  Input: ({ value, onChange, type, placeholder, disabled, ...props }: any) => (
+    <input type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} aria-label={placeholder} />
+  ),
   useToast: () => jest.fn(),
-}));
-
-jest.mock('@chakra-ui/icons', () => ({
-  WarningIcon: { name: 'WarningIcon' },
-  LockIcon: { name: 'LockIcon' },
-  CheckCircleIcon: { name: 'CheckCircleIcon' },
 }));
 
 // Mock user data
@@ -217,7 +236,7 @@ describe('Authentication Flow Tests', () => {
         </div>
       );
 
-      expect(screen.getByText(/Sign in with Cognito/i)).toBeInTheDocument();
+      expect(screen.getByText('auth:login.signInButton')).toBeInTheDocument();
     });
 
     it('should authenticate user after successful login', async () => {

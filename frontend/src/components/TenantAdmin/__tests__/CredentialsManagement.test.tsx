@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '../../../test-utils';
+import { render, screen, waitFor, fireEvent, act } from '../../../test-utils';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { CredentialsManagement } from '../CredentialsManagement';
 
@@ -45,7 +45,7 @@ describe('CredentialsManagement Component', () => {
 
     // Mock successful API responses
     global.fetch = jest.fn((url: string) => {
-      if (url.includes('/api/tenant-admin/credentials')) {
+      if (typeof url === 'string' && url.includes('/api/tenant-admin/credentials')) {
         return Promise.resolve({
           ok: true,
           json: async () => ({ credentials: mockCredentials }),
@@ -69,7 +69,8 @@ describe('CredentialsManagement Component', () => {
   describe('Rendering', () => {
     test('renders component with loading state', () => {
       render(<CredentialsManagement tenant={mockTenant} />);
-      expect(screen.getByText(/loading/i)).toBeInTheDocument();
+      // Component shows a Spinner while loading
+      expect(document.querySelector('.chakra-spinner')).toBeInTheDocument();
     });
 
     test('renders credentials list after loading', async () => {
@@ -85,7 +86,7 @@ describe('CredentialsManagement Component', () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /upload/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
       });
     });
 
@@ -93,23 +94,38 @@ describe('CredentialsManagement Component', () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /oauth/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /start google drive oauth/i })).toBeInTheDocument();
       });
     });
 
-    test('renders credential type selector', async () => {
+    test('renders credential type selector inside upload modal', async () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
+      // Wait for loading to finish
       await waitFor(() => {
-        expect(screen.getByLabelText(/credential type/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
+      });
+
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Credential Type').length).toBeGreaterThan(0);
       });
     });
 
-    test('renders file input', async () => {
+    test('renders file input inside upload modal', async () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/select file/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
+      });
+
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('JSON Credentials File')).toBeInTheDocument();
       });
     });
   });
@@ -135,7 +151,7 @@ describe('CredentialsManagement Component', () => {
 
       await waitFor(() => {
         const calls = (global.fetch as jest.Mock).mock.calls;
-        const credentialsCall = calls.find(call => call[0].includes('/api/tenant-admin/credentials'));
+        const credentialsCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/credentials'));
         expect(credentialsCall[1].headers['Authorization']).toBe(`Bearer ${mockToken}`);
       });
     });
@@ -145,7 +161,7 @@ describe('CredentialsManagement Component', () => {
 
       await waitFor(() => {
         const calls = (global.fetch as jest.Mock).mock.calls;
-        const credentialsCall = calls.find(call => call[0].includes('/api/tenant-admin/credentials'));
+        const credentialsCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/credentials'));
         expect(credentialsCall[1].headers['X-Tenant']).toBe(mockTenant);
       });
     });
@@ -166,20 +182,27 @@ describe('CredentialsManagement Component', () => {
   // ============================================================================
 
   describe('File Upload', () => {
-    test('accepts JSON file selection', async () => {
+    test('accepts JSON file selection in upload modal', async () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/select file/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
+      });
+
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('JSON Credentials File')).toBeInTheDocument();
       });
 
       const file = new File(['{"key": "value"}'], 'credentials.json', { type: 'application/json' });
-      const input = screen.getByLabelText(/select file/i) as HTMLInputElement;
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
       fireEvent.change(input, { target: { files: [file] } });
 
       await waitFor(() => {
-        expect(input.files?.[0]).toBe(file);
+        expect(screen.getByText(/Selected: credentials.json/)).toBeInTheDocument();
       });
     });
 
@@ -187,38 +210,42 @@ describe('CredentialsManagement Component', () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/select file/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
       });
 
-      const file = new File(['content'], 'credentials.txt', { type: 'text/plain' });
-      const input = screen.getByLabelText(/select file/i) as HTMLInputElement;
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
 
-      fireEvent.change(input, { target: { files: [file] } });
-
-      // Component should show error toast for invalid file type
       await waitFor(() => {
-        // Toast error should be triggered
+        expect(screen.getByText('JSON Credentials File')).toBeInTheDocument();
       });
+
+      // The file input has accept=".json" attribute
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(input.getAttribute('accept')).toBe('.json');
     });
 
     test('uploads file when upload button clicked', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      });
-
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/select file/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
+      });
+
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('JSON Credentials File')).toBeInTheDocument();
       });
 
       const file = new File(['{"key": "value"}'], 'credentials.json', { type: 'application/json' });
-      const input = screen.getByLabelText(/select file/i) as HTMLInputElement;
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
       fireEvent.change(input, { target: { files: [file] } });
 
-      const uploadButton = screen.getByRole('button', { name: /upload/i });
+      // Click the Upload button inside the modal footer
+      const uploadButton = screen.getByRole('button', { name: 'Upload' });
       fireEvent.click(uploadButton);
 
       await waitFor(() => {
@@ -231,30 +258,20 @@ describe('CredentialsManagement Component', () => {
       });
     });
 
-    test('shows loading state during upload', async () => {
-      (global.fetch as jest.Mock).mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({
-          ok: true,
-          json: async () => ({ success: true }),
-        }), 100))
-      );
-
+    test('shows disabled upload button when no file selected', async () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/select file/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
       });
 
-      const file = new File(['{"key": "value"}'], 'credentials.json', { type: 'application/json' });
-      const input = screen.getByLabelText(/select file/i) as HTMLInputElement;
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
 
-      fireEvent.change(input, { target: { files: [file] } });
-
-      const uploadButton = screen.getByRole('button', { name: /upload/i });
-      fireEvent.click(uploadButton);
-
-      // Should show loading indicator
-      expect(screen.getByText(/uploading/i)).toBeInTheDocument();
+      await waitFor(() => {
+        const uploadButton = screen.getByRole('button', { name: 'Upload' });
+        expect(uploadButton).toBeDisabled();
+      });
     });
   });
 
@@ -264,18 +281,27 @@ describe('CredentialsManagement Component', () => {
 
   describe('OAuth Flow', () => {
     test('starts OAuth flow when button clicked', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ auth_url: 'https://oauth.example.com', state: 'abc123' }),
-      });
+      // Mock window.open before rendering
+      const mockOpen = jest.fn().mockReturnValue(null);
+      window.open = mockOpen;
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ credentials: mockCredentials }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ oauth_url: 'https://oauth.example.com', state: 'abc123' }),
+        });
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /oauth/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /start google drive oauth/i })).toBeInTheDocument();
       });
 
-      const oauthButton = screen.getByRole('button', { name: /oauth/i });
+      const oauthButton = screen.getByRole('button', { name: /start google drive oauth/i });
       fireEvent.click(oauthButton);
 
       await waitFor(() => {
@@ -289,27 +315,32 @@ describe('CredentialsManagement Component', () => {
     });
 
     test('opens OAuth window with correct URL', async () => {
-      const mockOpen = jest.fn();
+      const mockOpen = jest.fn().mockReturnValue({ closed: false });
       window.open = mockOpen;
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ auth_url: 'https://oauth.example.com', state: 'abc123' }),
-      });
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ credentials: mockCredentials }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ oauth_url: 'https://oauth.example.com', state: 'abc123' }),
+        });
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /oauth/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /start google drive oauth/i })).toBeInTheDocument();
       });
 
-      const oauthButton = screen.getByRole('button', { name: /oauth/i });
+      const oauthButton = screen.getByRole('button', { name: /start google drive oauth/i });
       fireEvent.click(oauthButton);
 
       await waitFor(() => {
         expect(mockOpen).toHaveBeenCalledWith(
           'https://oauth.example.com',
-          expect.any(String),
+          '_blank',
           expect.any(String)
         );
       });
@@ -321,31 +352,32 @@ describe('CredentialsManagement Component', () => {
   // ============================================================================
 
   describe('Test Connection', () => {
-    test('shows test button for each credential', async () => {
+    test('shows test button for credentials', async () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        const testButtons = screen.getAllByRole('button', { name: /test/i });
-        expect(testButtons.length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: /test google drive connection/i })).toBeInTheDocument();
       });
     });
 
     test('tests connection when button clicked', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ credentials: mockCredentials }),
-      }).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, accessible: true }),
-      });
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ credentials: mockCredentials }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ test_result: { success: true, message: 'Connected' } }),
+        });
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: /test/i }).length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: /test google drive connection/i })).toBeInTheDocument();
       });
 
-      const testButton = screen.getAllByRole('button', { name: /test/i })[0];
+      const testButton = screen.getByRole('button', { name: /test google drive connection/i });
       fireEvent.click(testButton);
 
       await waitFor(() => {
@@ -359,27 +391,31 @@ describe('CredentialsManagement Component', () => {
     });
 
     test('shows loading state during connection test', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ credentials: mockCredentials }),
-      }).mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ success: true, accessible: true }),
-        }), 100))
-      );
+          json: async () => ({ credentials: mockCredentials }),
+        })
+        .mockImplementationOnce(() =>
+          new Promise(resolve => setTimeout(() => resolve({
+            ok: true,
+            json: async () => ({ test_result: { success: true, message: 'Connected' } }),
+          }), 5000))
+        );
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: /test/i }).length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: /test google drive connection/i })).toBeInTheDocument();
       });
 
-      const testButton = screen.getAllByRole('button', { name: /test/i })[0];
+      const testButton = screen.getByRole('button', { name: /test google drive connection/i });
       fireEvent.click(testButton);
 
-      // Should show loading indicator
-      expect(screen.getByText(/testing/i)).toBeInTheDocument();
+      // Button should show loading text
+      await waitFor(() => {
+        expect(screen.getByText(/testing/i)).toBeInTheDocument();
+      });
     });
   });
 
@@ -388,28 +424,51 @@ describe('CredentialsManagement Component', () => {
   // ============================================================================
 
   describe('Credential Type Selection', () => {
-    test('allows selecting credential type', async () => {
+    test('allows selecting credential type in modal', async () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/credential type/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
       });
 
-      const select = screen.getByLabelText(/credential type/i) as HTMLSelectElement;
-      fireEvent.change(select, { target: { value: 'google_drive_oauth' } });
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
 
-      expect(select.value).toBe('google_drive_oauth');
+      await waitFor(() => {
+        expect(screen.getAllByText('Credential Type').length).toBeGreaterThan(0);
+      });
+
+      // Find the select element for credential type
+      const selects = document.querySelectorAll('select');
+      const credTypeSelect = Array.from(selects).find(s =>
+        Array.from(s.options).some(o => o.value === 'google_drive')
+      ) as HTMLSelectElement;
+
+      expect(credTypeSelect).toBeTruthy();
+      fireEvent.change(credTypeSelect, { target: { value: 's3' } });
+      expect(credTypeSelect.value).toBe('s3');
     });
 
-    test('defaults to google_drive credential type', async () => {
+    test('defaults to google_drive credential type in modal', async () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/credential type/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
       });
 
-      const select = screen.getByLabelText(/credential type/i) as HTMLSelectElement;
-      expect(select.value).toBe('google_drive');
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Credential Type').length).toBeGreaterThan(0);
+      });
+
+      const selects = document.querySelectorAll('select');
+      const credTypeSelect = Array.from(selects).find(s =>
+        Array.from(s.options).some(o => o.value === 'google_drive')
+      ) as HTMLSelectElement;
+
+      expect(credTypeSelect.value).toBe('google_drive');
     });
   });
 
@@ -428,48 +487,73 @@ describe('CredentialsManagement Component', () => {
       });
     });
 
-    test('displays error message when upload fails', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ credentials: mockCredentials }),
-      }).mockRejectedValueOnce(new Error('Upload failed'));
+    test('displays error when upload fails', async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ credentials: mockCredentials }),
+        })
+        .mockRejectedValueOnce(new Error('Upload failed'));
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/select file/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /upload credentials/i })).toBeInTheDocument();
+      });
+
+      // Open the upload modal
+      fireEvent.click(screen.getByRole('button', { name: /upload credentials/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('JSON Credentials File')).toBeInTheDocument();
       });
 
       const file = new File(['{"key": "value"}'], 'credentials.json', { type: 'application/json' });
-      const input = screen.getByLabelText(/select file/i) as HTMLInputElement;
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
       fireEvent.change(input, { target: { files: [file] } });
 
-      const uploadButton = screen.getByRole('button', { name: /upload/i });
+      const uploadButton = screen.getByRole('button', { name: 'Upload' });
       fireEvent.click(uploadButton);
 
+      // Wait for the upload attempt to complete (error is shown via toast)
       await waitFor(() => {
-        // Error toast should be displayed
+        // Verify the POST was attempted
+        const calls = (global.fetch as jest.Mock).mock.calls;
+        const postCall = calls.find((call: any[]) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('/api/tenant-admin/credentials') &&
+          call[1]?.method === 'POST'
+        );
+        expect(postCall).toBeTruthy();
       });
     });
 
     test('displays error message when connection test fails', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ credentials: mockCredentials }),
-      }).mockRejectedValueOnce(new Error('Connection test failed'));
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ credentials: mockCredentials }),
+        })
+        .mockRejectedValueOnce(new Error('Connection test failed'));
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        expect(screen.getAllByRole('button', { name: /test/i }).length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: /test google drive connection/i })).toBeInTheDocument();
       });
 
-      const testButton = screen.getAllByRole('button', { name: /test/i })[0];
+      const testButton = screen.getByRole('button', { name: /test google drive connection/i });
       fireEvent.click(testButton);
 
+      // Wait for the test attempt to complete (error is shown via toast)
       await waitFor(() => {
-        // Error toast should be displayed
+        const calls = (global.fetch as jest.Mock).mock.calls;
+        const testCall = calls.find((call: any[]) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('/api/tenant-admin/credentials/test')
+        );
+        expect(testCall).toBeTruthy();
       });
     });
   });

@@ -13,7 +13,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { FilterPanel } from './FilterPanel';
-import { FilterConfig } from './types';
+import { FilterConfig, SearchFilterConfig } from './types';
 
 // Mock GenericFilter to simplify testing
 jest.mock('./GenericFilter', () => ({
@@ -36,8 +36,8 @@ jest.mock('./GenericFilter', () => ({
 
 // Mock Chakra UI components
 jest.mock('@chakra-ui/react', () => ({
-  Box: ({ children, ...props }: any) => <div data-box {...props}>{children}</div>,
-  SimpleGrid: ({ children, columns, spacing, minChildWidth, ...props }: any) => (
+  Box: ({ children, minW, ...props }: any) => <div data-box {...props}>{children}</div>,
+  SimpleGrid: ({ children, columns, spacing, minChildWidth, width, ...props }: any) => (
     <div 
       data-testid="simple-grid" 
       data-columns={JSON.stringify(columns)}
@@ -48,7 +48,7 @@ jest.mock('@chakra-ui/react', () => ({
       {children}
     </div>
   ),
-  HStack: ({ children, spacing, wrap, align, ...props }: any) => (
+  HStack: ({ children, spacing, wrap, align, width, ...props }: any) => (
     <div 
       data-testid="hstack" 
       data-spacing={spacing}
@@ -59,7 +59,7 @@ jest.mock('@chakra-ui/react', () => ({
       {children}
     </div>
   ),
-  VStack: ({ children, spacing, align, ...props }: any) => (
+  VStack: ({ children, spacing, align, width, ...props }: any) => (
     <div 
       data-testid="vstack" 
       data-spacing={spacing}
@@ -68,6 +68,22 @@ jest.mock('@chakra-ui/react', () => ({
     >
       {children}
     </div>
+  ),
+  FormControl: ({ children, isDisabled, size, ...props }: any) => (
+    <div data-testid="form-control" data-disabled={isDisabled} {...props}>{children}</div>
+  ),
+  FormLabel: ({ children, htmlFor, color, fontSize, ...props }: any) => (
+    <label htmlFor={htmlFor} {...props}>{children}</label>
+  ),
+  Input: ({ id, value, onChange, placeholder, size, bg, color, autoComplete, autoCorrect, autoCapitalize, spellCheck, ...props }: any) => (
+    <input
+      id={id}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      data-testid={`search-input-${id}`}
+      {...props}
+    />
   ),
 }));
 
@@ -88,12 +104,12 @@ describe('FilterPanel', () => {
     onChange: jest.fn(),
   };
 
-  const mockSearchFilter: FilterConfig<string> = {
+  const mockSearchFilter: SearchFilterConfig = {
     type: 'search',
     label: 'Reference',
-    options: [],
     value: '',
     onChange: jest.fn(),
+    placeholder: 'Search...',
   };
 
   beforeEach(() => {
@@ -230,7 +246,8 @@ describe('FilterPanel', () => {
 
       expect(screen.getByTestId('filter-Year')).toBeInTheDocument();
       expect(screen.getByTestId('filter-Listings')).toBeInTheDocument();
-      expect(screen.getByTestId('filter-Reference')).toBeInTheDocument();
+      // Search filter renders as FormControl, not GenericFilter
+      expect(screen.getByText('Reference')).toBeInTheDocument();
     });
 
     it('applies default grid columns of 2', () => {
@@ -360,10 +377,9 @@ describe('FilterPanel', () => {
         />
       );
 
-      const filter = screen.getByTestId('filter-Reference');
-      expect(filter).toHaveTextContent('Reference');
-      // Search filters are treated as single-select in the current implementation
-      expect(filter).toHaveTextContent('single');
+      // Search filters render as FormControl with label + input, not GenericFilter
+      expect(screen.getByText('Reference')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument();
     });
 
     it('renders three different filter types together', () => {
@@ -377,7 +393,8 @@ describe('FilterPanel', () => {
 
       expect(screen.getByTestId('filter-Year')).toBeInTheDocument();
       expect(screen.getByTestId('filter-Listings')).toBeInTheDocument();
-      expect(screen.getByTestId('filter-Reference')).toBeInTheDocument();
+      // Search filter renders as FormControl, not GenericFilter
+      expect(screen.getByText('Reference')).toBeInTheDocument();
     });
   });
 

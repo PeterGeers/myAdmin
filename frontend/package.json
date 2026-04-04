@@ -105,6 +105,10 @@
   "jest": {
     "transformIgnorePatterns": [
       "node_modules/(?!(fast-check|date-fns)/)"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^@chakra-ui/utils/context$": "<rootDir>/node_modules/@chakra-ui/utils/dist/cjs/context.cjs",
+      "^@chakra-ui/utils/(.*)$": "<rootDir>/node_modules/@chakra-ui/utils/dist/cjs/$1.cjs"
+    }
   }
 }
