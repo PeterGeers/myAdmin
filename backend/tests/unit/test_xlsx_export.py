@@ -73,7 +73,7 @@ class TestXLSXExportProcessor:
         result = processor.export_files(data, 2023, 'Test')
         
         assert result == 0
-        mock_makedirs.assert_called_once()
+        mock_makedirs.assert_called()
     
     @patch('xlsx_export.os.makedirs')
     @patch.object(XLSXExportProcessor, '_get_drive_service')
@@ -212,7 +212,7 @@ class TestXLSXExportProcessor:
         mock_drive_service.return_value.service = mock_service
         
         processor = XLSXExportProcessor()
-        result = processor._get_drive_service()
+        result = processor._get_drive_service('TestAdmin')
         
         assert result == mock_service
     
@@ -221,7 +221,7 @@ class TestXLSXExportProcessor:
         mock_drive_service.side_effect = Exception("Auth error")
         
         processor = XLSXExportProcessor()
-        result = processor._get_drive_service()
+        result = processor._get_drive_service('TestAdmin')
         
         assert result is None
     

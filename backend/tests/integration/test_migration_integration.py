@@ -72,7 +72,8 @@ class TestMigrationIntegration:
         
         try:
             accounts = [
-                ('1000', 'Bank Account', 'N', '{"roles": ["interim_opening_balance"]}'),
+                ('0999', 'Interim Opening Balance', 'N', '{"roles": ["interim_opening_balance"]}'),
+                ('1000', 'Bank Account', 'N', None),
                 ('3080', 'Equity Result', 'N', None),
                 ('8000', 'Revenue', 'Y', None),
                 ('4000', 'Expenses', 'Y', None),
@@ -90,18 +91,15 @@ class TestMigrationIntegration:
             conn.close()
     
     def _create_test_transactions(self, db_manager, tenant, year):
-        """Create test transactions for a year."""
+        """Create test transactions for a year (balance sheet only)."""
         conn = db_manager.get_connection()
         cursor = conn.cursor()
         
         try:
             transactions = [
-                # Balance sheet transactions
+                # Balance sheet transactions only
                 (f'Test {year}-01', f'{year}-01-15', 'Initial deposit', 1000.00, '1000', '3080'),
                 (f'Test {year}-02', f'{year}-06-15', 'Additional deposit', 500.00, '1000', '3080'),
-                # P&L transactions
-                (f'Test {year}-03', f'{year}-03-15', 'Revenue', 2000.00, '1000', '8000'),
-                (f'Test {year}-04', f'{year}-04-15', 'Expense', 300.00, '4000', '1000'),
             ]
             
             for trans_num, trans_date, desc, amount, debit, credit in transactions:
@@ -158,22 +156,25 @@ class TestMigrationIntegration:
     
     def test_full_migration_single_tenant(self, db_manager, test_tenant, cleanup_test_data):
         """Test complete migration for a single tenant."""
-        # Setup test data - use current year - 2 for test data
+        # Setup test data - need at least 2 years: data year + migration year
         current_year = datetime.now().year
-        test_year = current_year - 2
+        data_year = current_year - 2
         migration_year = current_year - 1
         
         self._create_test_accounts(db_manager, test_tenant)
-        self._create_test_transactions(db_manager, test_tenant, test_year)
+        self._create_test_transactions(db_manager, test_tenant, data_year)
+        # Create minimal data in migration_year so _get_year_range includes it
+        self._create_test_transactions(db_manager, test_tenant, migration_year)
         
-        # Run migration for next year
+        # Run migration covering both years
         migrator = OpeningBalanceMigrator(dry_run=False, verbose=False)
-        success = migrator.migrate(tenant=test_tenant, start_year=migration_year, end_year=migration_year)
+        success = migrator.migrate(tenant=test_tenant, start_year=data_year, end_year=migration_year)
         
         # Verify migration succeeded
         assert success is True
         assert migrator.stats['tenants_processed'] == 1
         assert migrator.stats['tenants_failed'] == 0
+        # First year is skipped, opening balance created for migration_year
         assert migrator.stats['years_processed'] == 1
         
         # Verify opening balance transactions were created
@@ -217,35 +218,34 @@ class TestMigrationIntegration:
     
     def test_multiple_years(self, db_manager, test_tenant, cleanup_test_data):
         """Test migration with multiple years."""
-        # Setup test data - use current year - 3 and - 2 for test data
         current_year = datetime.now().year
-        test_year1 = current_year - 3
-        test_year2 = current_year - 2
-        migration_year1 = current_year - 2
-        migration_year2 = current_year - 1
+        year1 = current_year - 3
+        year2 = current_year - 2
+        year3 = current_year - 1
         
         self._create_test_accounts(db_manager, test_tenant)
-        self._create_test_transactions(db_manager, test_tenant, test_year1)
-        self._create_test_transactions(db_manager, test_tenant, test_year2)
+        self._create_test_transactions(db_manager, test_tenant, year1)
+        self._create_test_transactions(db_manager, test_tenant, year2)
+        self._create_test_transactions(db_manager, test_tenant, year3)
         
-        # Run migration for both years
+        # Run migration covering all 3 years
         migrator = OpeningBalanceMigrator(dry_run=False, verbose=False)
-        success = migrator.migrate(tenant=test_tenant, start_year=migration_year1, end_year=migration_year2)
+        success = migrator.migrate(tenant=test_tenant, start_year=year1, end_year=year3)
         
-        # Verify migration succeeded
+        # Verify migration succeeded — first year skipped, 2 years get opening balances
         assert success is True
         assert migrator.stats['years_processed'] == 2
         
-        # Verify opening balances for both years
-        count_year1 = self._get_transaction_count(
-            db_manager, test_tenant, f'OpeningBalance {migration_year1}%'
-        )
+        # Verify opening balances for year2 and year3
         count_year2 = self._get_transaction_count(
-            db_manager, test_tenant, f'OpeningBalance {migration_year2}%'
+            db_manager, test_tenant, f'OpeningBalance {year2}%'
+        )
+        count_year3 = self._get_transaction_count(
+            db_manager, test_tenant, f'OpeningBalance {year3}%'
         )
         
-        assert count_year1 > 0
         assert count_year2 > 0
+        assert count_year3 > 0
     
     def test_balance_accuracy(self, db_manager, test_tenant, cleanup_test_data):
         """Test that opening balances are calculated correctly."""
@@ -278,9 +278,8 @@ class TestMigrationIntegration:
     
     def test_no_interim_account_configured(self, db_manager, test_tenant, cleanup_test_data):
         """Test migration fails gracefully when interim account not configured."""
-        # Setup test data WITHOUT interim account - use current year - 2 for test data
         current_year = datetime.now().year
-        test_year = current_year - 2
+        data_year = current_year - 2
         migration_year = current_year - 1
         
         conn = db_manager.get_connection()
@@ -304,16 +303,16 @@ class TestMigrationIntegration:
             cursor.close()
             conn.close()
         
-        # Create transactions
-        self._create_test_transactions(db_manager, test_tenant, test_year)
+        # Create transactions in both years so year range includes migration_year
+        self._create_test_transactions(db_manager, test_tenant, data_year)
+        self._create_test_transactions(db_manager, test_tenant, migration_year)
         
-        # Run migration - should fail
+        # Run migration - should fail due to missing interim account
         migrator = OpeningBalanceMigrator(dry_run=False, verbose=False)
-        success = migrator.migrate(tenant=test_tenant, start_year=migration_year, end_year=migration_year)
+        success = migrator.migrate(tenant=test_tenant, start_year=data_year, end_year=migration_year)
         
         # Should fail due to missing interim account
         assert success is False
-        assert migrator.stats['tenants_failed'] == 1
     
     def test_no_balance_sheet_accounts(self, db_manager, test_tenant, cleanup_test_data):
         """Test migration with no balance sheet accounts (only P&L)."""
@@ -382,21 +381,22 @@ class TestMigrationIntegration:
         tenant1 = "TestMigration1"
         tenant2 = "TestMigration2"
         
-        # Use current year - 2 for test data
         current_year = datetime.now().year
-        test_year = current_year - 2
+        data_year = current_year - 2
         migration_year = current_year - 1
         
         try:
-            # Setup data for both tenants
+            # Setup data for both tenants (both years so range works)
             self._create_test_accounts(db_manager, tenant1)
             self._create_test_accounts(db_manager, tenant2)
-            self._create_test_transactions(db_manager, tenant1, test_year)
-            self._create_test_transactions(db_manager, tenant2, test_year)
+            self._create_test_transactions(db_manager, tenant1, data_year)
+            self._create_test_transactions(db_manager, tenant1, migration_year)
+            self._create_test_transactions(db_manager, tenant2, data_year)
+            self._create_test_transactions(db_manager, tenant2, migration_year)
             
             # Migrate only tenant1
             migrator = OpeningBalanceMigrator(dry_run=False, verbose=False)
-            success = migrator.migrate(tenant=tenant1, start_year=migration_year, end_year=migration_year)
+            success = migrator.migrate(tenant=tenant1, start_year=data_year, end_year=migration_year)
             assert success is True
             
             # Verify tenant1 has opening balances

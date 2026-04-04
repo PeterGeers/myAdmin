@@ -477,7 +477,11 @@ class TestCreateOpeningBalances:
         """Test creating opening balances"""
         # Setup mocks
         mock_cursor = Mock()
-        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
+        mock_cursor.fetchone.side_effect = [
+            {'count': 0},  # No existing opening balance
+            {'vat_netting': None},  # VAT netting check for account 1000
+            {'vat_netting': None},  # VAT netting check for account 2000
+        ]
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00},
             {'account': '2000', 'account_name': 'Accounts Payable', 'balance': -3000.00}
@@ -491,14 +495,17 @@ class TestCreateOpeningBalances:
         # Verify transaction created
         assert transaction_number == 'OpeningBalance 2024'
         
-        # Verify four calls: 1 check query + 1 balance query + 2 inserts (one for each balance)
-        assert mock_cursor.execute.call_count == 4
+        # Verify calls: 1 check query + 1 balance query + 2 vat_netting checks + 2 inserts
+        assert mock_cursor.execute.call_count == 6
     
     def test_create_opening_balances_positive_balance(self, service, mock_config_service, test_administration):
         """Test opening balance for positive balance (asset)"""
         # Setup mocks
         mock_cursor = Mock()
-        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
+        mock_cursor.fetchone.side_effect = [
+            {'count': 0},  # No existing opening balance
+            {'vat_netting': None},  # VAT netting check for account 1000
+        ]
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00}
         ]
@@ -507,7 +514,7 @@ class TestCreateOpeningBalances:
         service._create_opening_balances(test_administration, 2024, mock_cursor)
         
         # Verify correct debit/credit for positive balance
-        # Get the last call (the INSERT, not the check query)
+        # Get the last execute call (the INSERT, not the check/balance/vat queries)
         call_args = mock_cursor.execute.call_args[0]
         params = call_args[1]
         assert params[4] == '1000'  # Debit: Account
@@ -519,7 +526,10 @@ class TestCreateOpeningBalances:
         """Test opening balance for negative balance (liability)"""
         # Setup mocks
         mock_cursor = Mock()
-        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
+        mock_cursor.fetchone.side_effect = [
+            {'count': 0},  # No existing opening balance
+            {'vat_netting': None},  # VAT netting check for account 2000
+        ]
         mock_cursor.fetchall.return_value = [
             {'account': '2000', 'account_name': 'Accounts Payable', 'balance': -3000.00}
         ]
@@ -620,7 +630,10 @@ class TestCloseYear:
         mock_conn = Mock()
         mock_cursor = Mock()
         mock_conn.cursor.return_value = mock_cursor
-        mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
+        mock_cursor.fetchone.side_effect = [
+            {'count': 0},  # _get_ending_balances: check if OpeningBalance 2024 exists
+            {'vat_netting': None},  # _is_vat_netting_account: VAT netting check for account 1000
+        ]
         mock_cursor.fetchall.return_value = [
             {'account': '1000', 'account_name': 'Cash', 'balance': 5000.00}
         ]

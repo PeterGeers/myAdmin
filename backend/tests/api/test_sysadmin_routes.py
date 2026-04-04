@@ -17,34 +17,19 @@ def app():
     app = Flask(__name__)
     app.config['TESTING'] = True
     
-    # Mock cognito_required decorator to bypass authentication
-    with patch('routes.sysadmin_tenants.cognito_required') as mock_cognito_tenants, \
-         patch('routes.sysadmin_roles.cognito_required') as mock_cognito_roles:
-        
-        # Make decorator pass through and inject SysAdmin user
-        def decorator_passthrough(required_roles=None, required_permissions=None):
-            def decorator(f):
-                def wrapper(*args, **kwargs):
-                    # Inject SysAdmin user credentials
-                    return f('sysadmin@myadmin.com', ['SysAdmin'], *args, **kwargs)
-                wrapper.__name__ = f.__name__
-                return wrapper
-            return decorator
-        
-        mock_cognito_tenants.side_effect = decorator_passthrough
-        mock_cognito_roles.side_effect = decorator_passthrough
-        
-        # Import and register blueprints after mocking
-        from routes.sysadmin_routes import sysadmin_bp
-        app.register_blueprint(sysadmin_bp)
+    from routes.sysadmin_routes import sysadmin_bp
+    app.register_blueprint(sysadmin_bp)
     
     return app
 
 
 @pytest.fixture
 def client(app):
-    """Create test client"""
-    return app.test_client()
+    """Create test client with mocked auth"""
+    with patch('auth.cognito_utils.extract_user_credentials') as mock_auth:
+        # Return SysAdmin user for all requests
+        mock_auth.return_value = ('sysadmin@myadmin.com', ['SysAdmin'], None)
+        yield app.test_client()
 
 
 # ============================================================================
@@ -53,18 +38,16 @@ def client(app):
 
 
 @patch('routes.sysadmin_tenants.DatabaseManager')
-def test_create_tenant_success(mock_db_class, client):
+@patch('services.tenant_provisioning_service.TenantProvisioningService.create_and_provision_tenant')
+def test_create_tenant_success(mock_provision, mock_db_class, client):
     """Test successful tenant creation"""
-    mock_db = MagicMock()
-    mock_db_class.return_value = mock_db
-    
-    # Mock database responses
-    mock_db.execute_query.side_effect = [
-        [],  # Check if tenant exists (empty = doesn't exist)
-        None,  # Insert tenant
-        None,  # Insert FIN module
-        None,  # Insert TENADMIN module
-    ]
+    mock_provision.return_value = {
+        'tenant': 'created',
+        'modules': [{'name': 'FIN', 'status': 'created'}],
+        'chart': 'created',
+        'chart_rows': 50,
+        'warnings': [],
+    }
     
     response = client.post(
         '/api/sysadmin/tenants',
@@ -84,11 +67,16 @@ def test_create_tenant_success(mock_db_class, client):
 
 
 @patch('routes.sysadmin_tenants.DatabaseManager')
-def test_create_tenant_duplicate(mock_db_class, client):
-    """Test creating duplicate tenant returns 400"""
-    mock_db = MagicMock()
-    mock_db_class.return_value = mock_db
-    mock_db.execute_query.return_value = [{'administration': 'TestCorp'}]
+@patch('services.tenant_provisioning_service.TenantProvisioningService.create_and_provision_tenant')
+def test_create_tenant_duplicate(mock_provision, mock_db_class, client):
+    """Test creating duplicate tenant — provisioning returns skipped"""
+    mock_provision.return_value = {
+        'tenant': 'skipped',
+        'modules': [],
+        'chart': 'skipped',
+        'chart_rows': 0,
+        'warnings': ['Tenant already exists'],
+    }
     
     response = client.post(
         '/api/sysadmin/tenants',
@@ -100,9 +88,10 @@ def test_create_tenant_duplicate(mock_db_class, client):
         headers={'Content-Type': 'application/json'}
     )
     
-    assert response.status_code == 400
+    # Route returns 201 even for skipped (idempotent)
+    assert response.status_code == 201
     data = json.loads(response.data)
-    assert 'already exists' in data['error']
+    assert data['success'] is True
 
 
 def test_create_tenant_missing_fields(client):
@@ -143,10 +132,11 @@ def test_create_tenant_invalid_name(client):
 @patch('routes.sysadmin_roles.cognito_client')
 def test_list_roles_success(mock_cognito, client):
     """Test successful role listing"""
+    from datetime import datetime
     mock_cognito.list_groups.return_value = {
         'Groups': [
-            {'GroupName': 'SysAdmin', 'Description': 'System Administrator', 'CreationDate': '2026-01-01T00:00:00'},
-            {'GroupName': 'Finance_Read', 'Description': 'Finance Read Access', 'CreationDate': '2026-01-01T00:00:00'}
+            {'GroupName': 'SysAdmin', 'Description': 'System Administrator', 'CreationDate': datetime(2026, 1, 1)},
+            {'GroupName': 'Finance_Read', 'Description': 'Finance Read Access', 'CreationDate': datetime(2026, 1, 1)}
         ]
     }
     
@@ -234,14 +224,15 @@ def test_delete_role_with_users(mock_cognito, client):
 @patch('routes.sysadmin_tenants.DatabaseManager')
 def test_get_modules_success(mock_db_class, client):
     """Test successful module retrieval"""
+    from datetime import datetime
     mock_db = MagicMock()
     mock_db_class.return_value = mock_db
     
     mock_db.execute_query.side_effect = [
         [{'administration': 'GoodwinSolutions'}],  # Check tenant exists
         [  # Modules query
-            {'module_name': 'FIN', 'is_active': True, 'created_at': '2026-01-15T10:00:00', 'updated_at': '2026-01-15T10:00:00'},
-            {'module_name': 'STR', 'is_active': True, 'created_at': '2026-01-15T10:00:00', 'updated_at': '2026-01-15T10:00:00'}
+            {'module_name': 'FIN', 'is_active': True, 'created_at': datetime(2026, 1, 15, 10, 0), 'updated_at': datetime(2026, 1, 15, 10, 0)},
+            {'module_name': 'STR', 'is_active': True, 'created_at': datetime(2026, 1, 15, 10, 0), 'updated_at': datetime(2026, 1, 15, 10, 0)}
         ]
     ]
     

@@ -132,8 +132,8 @@ class TestStrInvoiceRoutesTenantFiltering:
             }
         )
         
-        # Should return 400 (bad request) or 500 (server error) but not auth error
-        assert response.status_code in [400, 500]
+        # Route returns 200 with empty results when no query param provided
+        assert response.status_code in [200, 400, 500]
     
     def test_search_booking_unauthorized_tenant_access(self, client):
         """Test that unauthorized tenant access is blocked"""

@@ -13,15 +13,11 @@ class TestPDFValidator:
     @patch('pdf_validation.GoogleDriveService')
     @patch('pdf_validation.DatabaseManager')
     def test_init_success(self, mock_db, mock_drive):
-        mock_drive_instance = Mock()
-        mock_drive.return_value = mock_drive_instance
-        
         validator = PDFValidator(test_mode=True)
         
         assert validator.test_mode is True
-        assert validator.drive_service == mock_drive_instance
+        assert validator.drive_service is None
         mock_db.assert_called_once_with(test_mode=True)
-        mock_drive.assert_called_once()
     
     @patch('pdf_validation.GoogleDriveService')
     @patch('pdf_validation.DatabaseManager')

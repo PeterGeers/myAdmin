@@ -33,8 +33,10 @@ def signup_env():
 
 @pytest.fixture
 def app(signup_env):
-    """Create Flask app with signup blueprint, mocking out rate limiter"""
-    with patch.dict('os.environ', signup_env):
+    """Create Flask app with signup blueprint, mocking out rate limiter and SNS"""
+    with patch.dict('os.environ', signup_env), \
+         patch('aws_notifications.get_notification_service', return_value=None):
+
         # Reset the singleton so each test gets a fresh service
         import routes.signup_routes as sr
         sr._signup_service = None
@@ -49,7 +51,10 @@ def app(signup_env):
         from routes.signup_routes import signup_bp
         app.register_blueprint(signup_bp)
 
-    return app
+        yield app
+
+        # Reset singleton after test
+        sr._signup_service = None
 
 
 @pytest.fixture
