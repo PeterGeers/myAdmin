@@ -6,7 +6,8 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import AangifteIbReport from './AangifteIbReport';
 import { useTenant } from '../../context/TenantContext';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
@@ -14,49 +15,75 @@ import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/t
 // Mock dependencies
 jest.mock('../../context/TenantContext');
 jest.mock('../../services/tenantApiService');
+
+// Mock useTypedTranslation to return keys as-is (avoids needing full i18n setup)
+jest.mock('../../hooks/useTypedTranslation', () => ({
+  useTypedTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en', changeLanguage: jest.fn() }
+  })
+}));
+
 jest.mock('../../config', () => ({
   buildApiUrl: jest.fn((path: string, params?: URLSearchParams) => {
     return params ? `${path}?${params.toString()}` : path;
   })
 }));
 
-// Mock the entire Chakra UI module to avoid prop issues
-jest.mock('@chakra-ui/react', () => {
-  const React = require('react');
+// Mock Chakra UI components with proper prop destructuring (strip colorScheme, bg, etc.)
+jest.mock('@chakra-ui/react', () => ({
+  VStack: ({ children, ...props }: any) => <div data-testid="vstack" {...props}>{children}</div>,
+  Alert: ({ children, status, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,
+  AlertIcon: () => <span data-testid="alert-icon">!</span>,
+  Card: ({ children, bg, ...props }: any) => <div data-testid="card" {...props}>{children}</div>,
+  CardBody: ({ children, ...props }: any) => <div data-testid="card-body" {...props}>{children}</div>,
+  CardHeader: ({ children, ...props }: any) => <div data-testid="card-header" {...props}>{children}</div>,
+  Heading: ({ children, ...props }: any) => <h2 data-testid="heading" {...props}>{children}</h2>,
+  HStack: ({ children, ...props }: any) => <div data-testid="hstack" {...props}>{children}</div>,
+  Text: ({ children, ...props }: any) => <span data-testid="text" {...props}>{children}</span>,
+  Button: ({ children, onClick, isDisabled, isLoading, colorScheme, ...props }: any) => (
+    <button
+      data-testid="button"
+      onClick={onClick}
+      disabled={isDisabled || isLoading}
+      {...props}
+    >
+      {children}
+    </button>
+  ),
+  Box: ({ children, bg, ...props }: any) => <div data-testid="box" {...props}>{children}</div>,
+  Progress: ({ value, colorScheme, bg, ...props }: any) => <div data-testid="progress" data-value={value} {...props} />,
+  Table: ({ children, ...props }: any) => <table data-testid="table" {...props}>{children}</table>,
+  TableContainer: ({ children, ...props }: any) => <div data-testid="table-container" {...props}>{children}</div>,
+  Tbody: ({ children, ...props }: any) => <tbody data-testid="tbody" {...props}>{children}</tbody>,
+  Td: ({ children, isNumeric, ...props }: any) => <td data-testid="td" {...props}>{children}</td>,
+  Th: ({ children, isNumeric, ...props }: any) => <th data-testid="th" {...props}>{children}</th>,
+  Thead: ({ children, ...props }: any) => <thead data-testid="thead" {...props}>{children}</thead>,
+  Tr: ({ children, bg, _hover, ...props }: any) => <tr data-testid="tr" {...props}>{children}</tr>,
+  useToast: () => jest.fn(),
+}));
+
+// Mock FilterPanel
+jest.mock('../filters/FilterPanel', () => {
   return {
-    VStack: ({ children }: any) => React.createElement('div', { 'data-testid': 'vstack' }, children),
-    Alert: ({ children }: any) => React.createElement('div', { 'data-testid': 'alert' }, children),
-    AlertIcon: () => React.createElement('span', { 'data-testid': 'alert-icon' }, '!'),
-    Card: ({ children }: any) => React.createElement('div', { 'data-testid': 'card' }, children),
-    CardBody: ({ children }: any) => React.createElement('div', { 'data-testid': 'card-body' }, children),
-    CardHeader: ({ children }: any) => React.createElement('div', { 'data-testid': 'card-header' }, children),
-    Heading: ({ children }: any) => React.createElement('h2', { 'data-testid': 'heading' }, children),
-    HStack: ({ children }: any) => React.createElement('div', { 'data-testid': 'hstack' }, children),
-    Text: ({ children }: any) => React.createElement('span', { 'data-testid': 'text' }, children),
-    Button: ({ children, onClick, isDisabled, isLoading }: any) => 
-      React.createElement('button', { 
-        'data-testid': 'button', 
-        onClick, 
-        disabled: isDisabled || isLoading 
-      }, children),
-    Box: ({ children }: any) => React.createElement('div', { 'data-testid': 'box' }, children),
-    Progress: ({ value }: any) => React.createElement('div', { 'data-testid': 'progress', 'data-value': value }),
-    Table: ({ children }: any) => React.createElement('table', { 'data-testid': 'table' }, children),
-    TableContainer: ({ children }: any) => React.createElement('div', { 'data-testid': 'table-container' }, children),
-    Tbody: ({ children }: any) => React.createElement('tbody', { 'data-testid': 'tbody' }, children),
-    Td: ({ children }: any) => React.createElement('td', { 'data-testid': 'td' }, children),
-    Th: ({ children }: any) => React.createElement('th', { 'data-testid': 'th' }, children),
-    Thead: ({ children }: any) => React.createElement('thead', { 'data-testid': 'thead' }, children),
-    Tr: ({ children }: any) => React.createElement('tr', { 'data-testid': 'tr' }, children),
+    FilterPanel: function MockFilterPanel(props: any) {
+      return (
+        <div data-testid="filter-panel">
+          {props.filters.map((filter: any, index: number) => (
+            <div key={index} data-testid={`filter-${filter.label}`}>
+              <label>{filter.label}</label>
+            </div>
+          ))}
+        </div>
+      );
+    }
   };
 });
 
-jest.mock('../filters/FilterPanel', () => {
-  const React = require('react');
-  return {
-    FilterPanel: function MockFilterPanel() {
-      return React.createElement('div', { 'data-testid': 'filter-panel' }, 'Filter Panel');
-    }
+// Mock YearEndClosureSection to avoid its internal Chakra dependencies
+jest.mock('../YearEndClosureSection', () => {
+  return function MockYearEndClosureSection() {
+    return <div data-testid="year-end-closure-section">YearEndClosureSection</div>;
   };
 });
 
@@ -64,6 +91,15 @@ const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
 const mockTenantAwareGet = tenantAwareGet as jest.MockedFunction<typeof tenantAwareGet>;
 const mockTenantAwarePost = tenantAwarePost as jest.MockedFunction<typeof tenantAwarePost>;
 const mockRequireTenant = requireTenant as jest.MockedFunction<typeof requireTenant>;
+
+// Helper to render and wait for async mount effects (fetchAangifteIbData)
+async function renderAndSettle(ui: React.ReactElement) {
+  const result = render(ui);
+  await waitFor(() => {
+    expect(mockTenantAwareGet).toHaveBeenCalled();
+  });
+  return result;
+}
 
 describe('AangifteIbReport', () => {
   beforeEach(() => {
@@ -89,12 +125,12 @@ describe('AangifteIbReport', () => {
   });
 
   describe('Tenant Context Integration', () => {
-    it('uses useTenant hook for tenant context', () => {
-      render(<AangifteIbReport />);
+    it('uses useTenant hook for tenant context', async () => {
+      await renderAndSettle(<AangifteIbReport />);
       expect(mockUseTenant).toHaveBeenCalled();
     });
 
-    it('shows warning when no tenant is selected', () => {
+    it('shows warning when no tenant is selected', async () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['GoodwinSolutions'],
@@ -103,24 +139,30 @@ describe('AangifteIbReport', () => {
       });
 
       render(<AangifteIbReport />);
-      expect(screen.getByText(/no tenant selected/i)).toBeInTheDocument();
+      // With mocked t(), the key is returned as-is
+      await waitFor(() => {
+        expect(screen.getByText('common:messages.noTenantSelected')).toBeInTheDocument();
+      });
     });
   });
 
   describe('Component Structure', () => {
-    it('renders all required UI elements', () => {
-      render(<AangifteIbReport />);
+    it('renders all required UI elements', async () => {
+      await renderAndSettle(<AangifteIbReport />);
       
       expect(screen.getByTestId('filter-panel')).toBeInTheDocument();
-      expect(screen.getByText('Export HTML')).toBeInTheDocument();
-      expect(screen.getByText('Generate XLSX')).toBeInTheDocument();
-      expect(screen.getByText('Aangifte IB Summary')).toBeInTheDocument();
+      // t('actions.generateReport') returns the key
+      expect(screen.getByText('actions.generateReport')).toBeInTheDocument();
+      // t('export.exportToExcel') returns the key
+      expect(screen.getByText('export.exportToExcel')).toBeInTheDocument();
+      // t('titles.aangifteIb') returns the key
+      expect(screen.getByText('titles.aangifteIb')).toBeInTheDocument();
     });
   });
 
   describe('Security Requirements', () => {
-    it('follows tenant isolation principles', () => {
-      render(<AangifteIbReport />);
+    it('follows tenant isolation principles', async () => {
+      await renderAndSettle(<AangifteIbReport />);
       
       // Component should use tenant context
       expect(mockUseTenant).toHaveBeenCalled();
@@ -129,7 +171,7 @@ describe('AangifteIbReport', () => {
       expect(mockTenantAwareGet).toHaveBeenCalled();
     });
 
-    it('disables functionality when no tenant selected', () => {
+    it('disables functionality when no tenant selected', async () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['GoodwinSolutions'],
@@ -140,10 +182,9 @@ describe('AangifteIbReport', () => {
       render(<AangifteIbReport />);
       
       // Should show warning
-      expect(screen.getByTestId('alert')).toBeInTheDocument();
-      
-      // Buttons should be disabled (we can't easily test this with our simple mocks)
-      // but the implementation includes the proper disabled logic
+      await waitFor(() => {
+        expect(screen.getByTestId('alert')).toBeInTheDocument();
+      });
     });
   });
 });

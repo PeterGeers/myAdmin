@@ -61,7 +61,7 @@ describe('i18n Configuration', () => {
 
   test('interpolation works', () => {
     i18n.changeLanguage('en');
-    const translation = (i18n.t as any)('common:messages.itemsCount', { count: 5 });
+    const translation = (i18n.t as any)('common:validation.minLength', { min: 5 });
     expect(translation).toContain('5');
   });
 
@@ -80,15 +80,15 @@ describe('i18n Namespaces', () => {
   });
 
   test('common namespace has required keys', () => {
-    expect(i18n.exists('common:actions.save')).toBe(true);
-    expect(i18n.exists('common:actions.cancel')).toBe(true);
+    expect(i18n.exists('common:buttons.save')).toBe(true);
+    expect(i18n.exists('common:buttons.cancel')).toBe(true);
     expect(i18n.exists('common:status.loading')).toBe(true);
   });
 
   test('auth namespace has required keys', () => {
     expect(i18n.exists('auth:login.title')).toBe(true);
-    expect(i18n.exists('auth:login.email')).toBe(true);
-    expect(i18n.exists('auth:login.password')).toBe(true);
+    expect(i18n.exists('auth:login.emailLabel')).toBe(true);
+    expect(i18n.exists('auth:login.passwordLabel')).toBe(true);
   });
 
   test('errors namespace has required keys', () => {
