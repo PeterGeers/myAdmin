@@ -66,6 +66,9 @@ Als alle transacties correct zijn, klik je op **Opslaan**. Het systeem:
 !!! warning
 Controleer altijd de debet- en creditrekeningen voordat je opslaat. Verkeerde toewijzingen beïnvloeden je rapportages en belastingaangiften.
 
+!!! info
+Het systeem valideert debet- en creditrekeningen bij het opslaan. Als je een rekeningnummer invoert dat niet bestaat in het rekeningschema van je administratie, wordt de transactie geweigerd met een duidelijke foutmelding.
+
 ## Tips
 
 - Gebruik de **Tab**-toets om snel door de velden te navigeren

@@ -1,8 +1,8 @@
 /**
- * Reusable account selector with searchable datalist.
+ * Reusable account selector with searchable datalist and client-side validation.
  *
  * Renders an <Input> backed by a <datalist> of all accounts from rekeningschema.
- * User can type to filter by account number or name. Compact enough for table cells.
+ * Shows a red border and tooltip when the entered value doesn't match any account.
  *
  * Usage:
  *   <AccountSelect
@@ -14,17 +14,13 @@
  */
 
 import React, { useMemo } from 'react';
-import { Input, InputProps } from '@chakra-ui/react';
+import { Input, InputProps, Tooltip } from '@chakra-ui/react';
 import { AccountOption } from '../../hooks/useAccountLookup';
 
 interface AccountSelectProps extends Omit<InputProps, 'onChange'> {
-  /** Current account number */
   value: string;
-  /** Called with the new account number string */
   onChange: (value: string) => void;
-  /** Account list from useAccountLookup() */
   accounts: AccountOption[];
-  /** Unique id for the datalist (auto-generated if not provided) */
   listId?: string;
 }
 
@@ -36,6 +32,13 @@ const AccountSelect: React.FC<AccountSelectProps> = ({
   ...inputProps
 }) => {
   const id = listId || `account-list-${Math.random().toString(36).slice(2, 9)}`;
+
+  const accountSet = useMemo(
+    () => new Set(accounts.map((a) => a.Account)),
+    [accounts]
+  );
+
+  const isInvalid = value !== '' && accounts.length > 0 && !accountSet.has(value);
 
   const options = useMemo(
     () =>
@@ -49,13 +52,23 @@ const AccountSelect: React.FC<AccountSelectProps> = ({
 
   return (
     <>
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        list={id}
-        autoComplete="off"
-        {...inputProps}
-      />
+      <Tooltip
+        label={`Account "${value}" does not exist in the chart of accounts`}
+        isOpen={isInvalid ? undefined : false}
+        hasArrow
+        bg="red.600"
+        placement="top"
+      >
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          list={id}
+          autoComplete="off"
+          isInvalid={isInvalid}
+          borderColor={isInvalid ? 'red.400' : undefined}
+          {...inputProps}
+        />
+      </Tooltip>
       <datalist id={id}>{options}</datalist>
     </>
   );
