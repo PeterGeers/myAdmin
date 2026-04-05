@@ -481,7 +481,7 @@ const BankingProcessor: React.FC = () => {
       const params = new URLSearchParams({
         years: mutatiesFilters.years.join(','),
         administration: currentTenant || 'all',
-        limit: String(displayLimit)
+        limit: '99999'
       });
       const response = await authenticatedGet(`/api/banking/mutaties?${params}`);
       const data = await response.json();
@@ -489,7 +489,7 @@ const BankingProcessor: React.FC = () => {
     } catch (error) {
       console.error('Error fetching mutaties:', error);
     }
-  }, [mutatiesFilters, displayLimit]);
+  }, [mutatiesFilters]);
 
   const fetchFilterOptions = useCallback(async () => {
     try {
