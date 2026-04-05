@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Migration Safety Check",
+  "description": "Reviews SQL and migration file changes for destructive operations like DROP TABLE, DROP COLUMN, TRUNCATE, DELETE without WHERE, or ALTER TABLE dropping constraints.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "backend/**/*.sql",
+      "backend/**/migrations/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review this SQL or migration file for destructive operations. Flag any of the following:\\n- DROP TABLE or DROP COLUMN\\n- TRUNCATE\\n- DELETE without a WHERE clause\\n- ALTER TABLE dropping constraints or columns\\n- Any operation that could cause data loss\\nIf found, warn clearly and suggest a safer alternative (e.g., soft delete, backup first, add migration rollback)."
+  }
+}

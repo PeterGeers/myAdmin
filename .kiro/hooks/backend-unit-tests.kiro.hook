@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "Backend Unit Tests on Save",
+  "description": "Automatically runs pytest unit tests when a Python file in the backend is saved, so you get immediate feedback on broken tests.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "backend/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cd backend && python -m pytest tests/unit/ -x -q --tb=short 2>&1 | tail -n 30",
+    "timeout": 120
+  }
+}
