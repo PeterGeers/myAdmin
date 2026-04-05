@@ -1428,10 +1428,10 @@ const BankingProcessor: React.FC = () => {
                   {
                     type: 'single',
                     label: 'Records to show',
-                    options: [50, 100, 250, 500, 1000],
+                    options: [50, 100, 250, 500, 1000, 99999],
                     value: displayLimit,
                     onChange: (value) => setDisplayLimit(Number(value)),
-                    getOptionLabel: (val) => String(val),
+                    getOptionLabel: (val) => val === 99999 ? 'All' : String(val),
                     getOptionValue: (val) => String(val)
                   }
                 ]}

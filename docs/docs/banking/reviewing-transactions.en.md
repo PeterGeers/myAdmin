@@ -74,8 +74,9 @@ Always check the debit and credit accounts before saving. Incorrect assignments 
 
 ## Troubleshooting
 
-| Problem                 | Cause                     | Solution                                                                                |
-| ----------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
-| Can't save              | Required fields are empty | Check that Date, Description, Amount, and Debit/Credit are filled in                    |
-| No accounts in dropdown | Lookup data not loaded    | Refresh the page — accounts are loaded when opening the module                          |
-| Transaction is skipped  | Duplicate sequence number | The system skips transactions that already exist with the same sequence number and IBAN |
+| Problem                 | Cause                     | Solution                                                                                          |
+| ----------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
+| Can't save              | Required fields are empty | Check that Date, Description, Amount, and Debit/Credit are filled in                              |
+| No accounts in dropdown | Lookup data not loaded    | Refresh the page — accounts are loaded when opening the module                                    |
+| Transaction is skipped  | Duplicate sequence number | The system skips transactions that already exist with the same sequence number and IBAN           |
+| Account not accepted    | Account not in chart      | The account number must exist in your chart of accounts. Add it via Tenant Admin → Settings first |
