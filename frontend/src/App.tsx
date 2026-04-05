@@ -24,6 +24,7 @@ import { SysAdminDashboard } from './components/SysAdmin/SysAdminDashboard';
 import MigrationTool from './pages/MigrationTool';
 import PasskeySettings from './components/settings/PasskeySettings';
 import { listPasskeys, isPasskeySupported } from './services/authService';
+import { HelpButton } from './components/help';
 
 type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets';
 
@@ -99,6 +100,23 @@ function AppContent() {
     );
   }
 
+  const renderPageHeader = (title: string, options?: { hideTenant?: boolean; showLanguage?: boolean }) => (
+    <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
+      <HStack justify="space-between">
+        <HStack>
+          <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+          <Heading color="orange.400" size="lg">{title}</Heading>
+        </HStack>
+        <HStack spacing={3}>
+          {options?.showLanguage && <LanguageSelector />}
+          <TenantSelector size="sm" hide={options?.hideTenant} />
+          <HelpButton page={currentPage} />
+          <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
+        </HStack>
+      </HStack>
+    </Box>
+  );
+
   const renderPage = () => {
     switch (currentPage) {
       case 'pdf':
@@ -108,18 +126,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">📄 {t('common:navigation.modules.importInvoices')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`📄 ${t('common:navigation.modules.importInvoices')}`)}
               <PDFUploadForm />
             </Box>
           </ProtectedRoute>
@@ -132,18 +139,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">🏦 {t('common:navigation.modules.importBanking')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`🏦 ${t('common:navigation.modules.importBanking')}`)}
               <BankingProcessor />
             </Box>
           </ProtectedRoute>
@@ -155,18 +151,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">🏦 {t('common:navigation.modules.connectBank')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`🏦 ${t('common:navigation.modules.connectBank')}`)}
               <BankConnect />
             </Box>
           </ProtectedRoute>
@@ -178,18 +163,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">🏠 {t('common:navigation.modules.importSTRBookings')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`🏠 ${t('common:navigation.modules.importSTRBookings')}`)}
               <STRProcessor />
             </Box>
           </ProtectedRoute>
@@ -201,18 +175,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">🧾 {t('common:navigation.modules.strInvoiceGenerator')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`🧾 ${t('common:navigation.modules.strInvoiceGenerator')}`)}
               <STRInvoice />
             </Box>
           </ProtectedRoute>
@@ -225,18 +188,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">💰 {t('common:navigation.modules.strPricingModel')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`💰 ${t('common:navigation.modules.strPricingModel')}`)}
               <STRPricing />
             </Box>
           </ProtectedRoute>
@@ -249,18 +201,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">⚙️ {t('common:navigation.modules.systemAdministration')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" hide={true} />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`⚙️ ${t('common:navigation.modules.systemAdministration')}`, { hideTenant: true })}
               <SysAdminDashboard />
             </Box>
           </ProtectedRoute>
@@ -273,43 +214,20 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">🏢 {t('common:navigation.modules.tenantAdministration')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`🏢 ${t('common:navigation.modules.tenantAdministration')}`)}
               <TenantAdminDashboard />
             </Box>
           </ProtectedRoute>
         );
 
       case 'powerbi':
-        // Legacy route - redirect to fin-reports
         return (
           <ProtectedRoute 
             requiredRoles={['Finance_CRUD', 'Finance_Read', 'Finance_Export']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">📊 {t('common:navigation.modules.finReports')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`📊 ${t('common:navigation.modules.finReports')}`)}
               <FINReports />
             </Box>
           </ProtectedRoute>
@@ -322,18 +240,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">📊 {t('common:navigation.modules.finReports')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`📊 ${t('common:navigation.modules.finReports')}`)}
               <FINReports />
             </Box>
           </ProtectedRoute>
@@ -346,18 +253,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`🏗️ ${t('common:navigation.modules.assets', 'Asset Administration')}`)}
               <Box p={6}>
                 <AssetList />
               </Box>
@@ -372,18 +268,7 @@ function AppContent() {
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">📈 {t('common:navigation.modules.strReports')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <TenantSelector size="sm" />
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`📈 ${t('common:navigation.modules.strReports')}`)}
               <STRReports />
             </Box>
           </ProtectedRoute>
@@ -392,17 +277,7 @@ function AppContent() {
       case 'migration':
         return (
           <Box minH="100vh" bg="gray.900">
-            <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-              <HStack justify="space-between">
-                <HStack>
-                  <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                  <Heading color="orange.400" size="lg">🔄 Migration Tool</Heading>
-                </HStack>
-                <HStack spacing={3}>
-                  <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                </HStack>
-              </HStack>
-            </Box>
+            {renderPageHeader('🔄 Migration Tool')}
             <MigrationTool />
           </Box>
         );
@@ -411,17 +286,7 @@ function AppContent() {
         return (
           <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
             <Box minH="100vh" bg="gray.900">
-              <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <HStack>
-                    <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-                    <Heading color="orange.400" size="lg">⚙️ {t('common:navigation.modules.settings', 'Settings')}</Heading>
-                  </HStack>
-                  <HStack spacing={3}>
-                    <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
-                  </HStack>
-                </HStack>
-              </Box>
+              {renderPageHeader(`⚙️ ${t('common:navigation.modules.settings', 'Settings')}`)}
               <Box p={6} maxW="800px" mx="auto">
                 <PasskeySettings />
               </Box>
@@ -440,6 +305,7 @@ function AppContent() {
                   <HStack spacing={3}>
                     <LanguageSelector />
                     <TenantSelector size="sm" />
+                    <HelpButton page={currentPage} />
                     <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
                 </HStack>

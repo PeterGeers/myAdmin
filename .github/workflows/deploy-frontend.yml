@@ -50,6 +50,7 @@ jobs:
                   REACT_APP_AWS_REGION: eu-west-1
                   REACT_APP_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
                   REACT_APP_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
+                  REACT_APP_DOCS_URL: /docs
 
             - name: Setup Pages
               uses: actions/configure-pages@v4
