@@ -19,7 +19,8 @@ export function ProvisioningPanel() {
   const toast = useToast();
   const { t } = useTypedTranslation('admin');
 
-  useEffect(() => { loadSignups(); }, []);
+  useEffect(() => { loadSignups(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadSignups = async () => {
     setLoading(true);

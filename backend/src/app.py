@@ -181,6 +181,35 @@ app.register_blueprint(signup_bp)  # Public trial signup endpoints
 app.register_blueprint(config_bp)  # Public configuration endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
 
+# Serve documentation site (built by MkDocs)
+# Railway/Docker: /app/docs-site (copied into backend/ folder)
+# Local Docker: /app/docs-site (via volume mount ./docs/site:/app/docs-site)
+# Local dev: ../../docs/site (relative to backend/src/)
+_app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+docs_site_path = os.path.join(_app_root, 'docs-site')
+if not os.path.isdir(docs_site_path):
+    # Fallback for local development (docs/ at project root)
+    docs_site_path = os.path.join(_app_root, '..', 'docs', 'site')
+
+
+@app.route('/docs/')
+@app.route('/docs/<path:path>')
+def serve_docs(path='index.html'):
+    """Serve the MkDocs documentation site, embeddable in iframe."""
+    try:
+        abs_docs_path = os.path.abspath(docs_site_path)
+        # If path is a directory, serve its index.html
+        full_path = os.path.join(abs_docs_path, path)
+        if os.path.isdir(full_path):
+            path = os.path.join(path, 'index.html')
+        response = send_from_directory(abs_docs_path, path)
+        # Allow embedding in iframe from any origin (needed for help drawer)
+        response.headers['X-Frame-Options'] = 'ALLOWALL'
+        response.headers['Content-Security-Policy'] = ''
+        return response
+    except Exception:
+        return jsonify({'error': 'Documentation not found'}), 404
+
 # Set scalability manager reference for system_health_bp
 from routes.system_health_routes import set_scalability_manager
 set_scalability_manager(scalability_manager)

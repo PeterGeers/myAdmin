@@ -1,0 +1,103 @@
+site_name: myAdmin Documentatie
+site_description: Gebruikersdocumentatie voor myAdmin financieel beheer
+site_url: "https://invigorating-celebration-production.up.railway.app/docs/"
+
+theme:
+  name: material
+  language: nl
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - toc.integrate
+  palette:
+    - scheme: default
+      primary: red
+      accent: red
+
+plugins:
+  - search
+  - i18n:
+      languages:
+        - locale: nl
+          name: Nederlands
+          default: true
+          build: true
+        - locale: en
+          name: English
+          build: true
+  - print-site:
+      enabled: false
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Aan de slag:
+      - Overzicht: getting-started/overview.md
+      - Eerste login: getting-started/first-login.md
+      - Test vs Productie: getting-started/test-vs-production.md
+      - Veelgebruikte workflows: getting-started/common-workflows.md
+  - Bankzaken:
+      - Overzicht: banking/index.md
+      - Afschriften importeren: banking/importing-statements.md
+      - Transacties controleren: banking/reviewing-transactions.md
+      - Patronen herkenning: banking/pattern-matching.md
+      - Duplicaten afhandelen: banking/handling-duplicates.md
+  - Facturen:
+      - Overzicht: invoices/index.md
+      - Facturen uploaden: invoices/uploading-invoices.md
+      - AI extractie: invoices/ai-extraction.md
+      - Bewerken & goedkeuren: invoices/editing-approving.md
+      - Google Drive: invoices/google-drive.md
+  - STR:
+      - Overzicht: str/index.md
+      - Boekingen importeren: str/importing-bookings.md
+      - Gerealiseerd vs gepland: str/realized-vs-planned.md
+      - Omzet overzichten: str/revenue-summaries.md
+  - STR Prijzen:
+      - Overzicht: str-pricing/index.md
+      - Aanbevelingen: str-pricing/viewing-recommendations.md
+      - Evenement prijzen: str-pricing/event-pricing.md
+      - Suggesties toepassen: str-pricing/applying-suggestions.md
+  - Rapportages:
+      - Overzicht: reports/index.md
+      - Dashboards: reports/dashboards.md
+      - W&V & Balans: reports/pnl-balance-sheets.md
+      - Excel export: reports/exporting-excel.md
+  - Belastingen:
+      - Overzicht: tax/index.md
+      - BTW aangifte: tax/btw.md
+      - Inkomstenbelasting (IB): tax/income-tax-ib.md
+      - Toeristenbelasting: tax/toeristenbelasting.md
+  - PDF Validatie:
+      - Overzicht: pdf-validation/index.md
+      - Links controleren: pdf-validation/checking-fixing-links.md
+  - Beheer:
+      - Overzicht: admin/index.md
+      - Tenants: admin/tenant-management.md
+      - Docker: admin/docker-deployment.md
+      - Database: admin/database-admin.md
+      - Problemen oplossen: admin/troubleshooting.md
+  - Tenant Beheer:
+      - Overzicht: tenant-admin/index.md
+      - Instellingen: tenant-admin/tenant-settings.md
+      - Gebruikers: tenant-admin/user-management.md
+      - Audit logging: tenant-admin/audit-logging.md
+  - Changelog: changelog.md
+  - FAQ: faq.md
+  - Woordenlijst: glossary.md

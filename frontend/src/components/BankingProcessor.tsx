@@ -39,6 +39,7 @@ import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
 import FilterPanel from './filters/FilterPanel';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
+import { FieldHelp } from './help';
 
 interface Transaction {
   ID?: number;
@@ -1227,6 +1228,10 @@ const BankingProcessor: React.FC = () => {
                           >
                             {t('fileProcessing.applyPatterns')}
                           </Button>
+                          <FieldHelp
+                            tooltip="Automatically assigns debit/credit accounts based on your historical transaction patterns"
+                            docsSection="banking/pattern-matching"
+                          />
                           <Button
                             type="submit"
                             colorScheme="green"

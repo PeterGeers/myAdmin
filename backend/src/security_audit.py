@@ -610,9 +610,11 @@ class SecurityAudit:
 
         @app.after_request
         def add_security_headers(response):
+            # Skip frame restrictions for docs (embedded in help drawer iframe)
+            if not request.path.startswith('/docs/'):
+                response.headers['X-Frame-Options'] = 'SAMEORIGIN'
             # Add security headers to all responses
             response.headers['X-Content-Type-Options'] = 'nosniff'
-            response.headers['X-Frame-Options'] = 'SAMEORIGIN'
             response.headers['X-XSS-Protection'] = '1; mode=block'
             response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
             return response

@@ -19,6 +19,7 @@ import React, { useEffect, useState } from 'react';
 import * as Yup from 'yup';
 import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
+import { FieldHelp } from './help';
 import DuplicateWarningDialog from './DuplicateWarningDialog';
 import InvoiceGenerator from './InvoiceGenerator';
 import MissingInvoices from './MissingInvoices';
@@ -695,6 +696,10 @@ const PDFUploadForm: React.FC = () => {
               >
                 Upload & Process {filteredFolders.length !== 1 ? `(${filteredFolders.length} folders)` : ''}
               </Button>
+              <FieldHelp
+                tooltip="Uploads the invoice to Google Drive and uses AI to extract date, amount, VAT, and vendor details"
+                docsSection="invoices/ai-extraction"
+              />
 
               {loading && (
                 <>
