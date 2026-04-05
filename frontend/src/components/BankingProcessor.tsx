@@ -40,6 +40,8 @@ import { useTenant } from '../context/TenantContext';
 import FilterPanel from './filters/FilterPanel';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { FieldHelp } from './help';
+import AccountSelect from './common/AccountSelect';
+import { useAccountLookup } from '../hooks/useAccountLookup';
 
 interface Transaction {
   ID?: number;
@@ -267,6 +269,7 @@ const processRabobankTransaction = (columns: string[], index: number, lookupData
 const BankingProcessor: React.FC = () => {
   const { t } = useTypedTranslation('banking');
   const { currentTenant } = useTenant();
+  const { accounts: chartAccounts } = useAccountLookup();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [mutaties, setMutaties] = useState<Transaction[]>([]);
@@ -1324,20 +1327,15 @@ const BankingProcessor: React.FC = () => {
                                   </Td>
                                   <Td>
                                     <FormControl isInvalid={!transaction.Debet}>
-                                      <Input
+                                      <AccountSelect
                                         size="sm"
                                         value={transaction.Debet}
-                                        onChange={(e) => updateTransaction(transaction.row_id, 'Debet', e.target.value)}
+                                        onChange={(val) => updateTransaction(transaction.row_id, 'Debet', val)}
+                                        accounts={chartAccounts}
                                         onKeyDown={handleKeyDown}
                                         isInvalid={!transaction.Debet}
-                                        list={`debet-accounts-${transaction.row_id}`}
                                         {...getPatternFieldStyle(transaction, 'debet')}
                                       />
-                                      <datalist id={`debet-accounts-${transaction.row_id}`}>
-                                        {lookupData.accounts.map((account, idx) => (
-                                          <option key={idx} value={account} />
-                                        ))}
-                                      </datalist>
                                       {!transaction.Debet && (
                                         <FormErrorMessage fontSize="xs">Required</FormErrorMessage>
                                       )}
@@ -1345,20 +1343,15 @@ const BankingProcessor: React.FC = () => {
                                   </Td>
                                   <Td>
                                     <FormControl isInvalid={!transaction.Credit}>
-                                      <Input
+                                      <AccountSelect
                                         size="sm"
                                         value={transaction.Credit}
-                                        onChange={(e) => updateTransaction(transaction.row_id, 'Credit', e.target.value)}
+                                        onChange={(val) => updateTransaction(transaction.row_id, 'Credit', val)}
+                                        accounts={chartAccounts}
                                         onKeyDown={handleKeyDown}
                                         isInvalid={!transaction.Credit}
-                                        list={`credit-accounts-${transaction.row_id}`}
                                         {...getPatternFieldStyle(transaction, 'credit')}
                                       />
-                                      <datalist id={`credit-accounts-${transaction.row_id}`}>
-                                        {lookupData.accounts.map((account, idx) => (
-                                          <option key={idx} value={account} />
-                                        ))}
-                                      </datalist>
                                       {!transaction.Credit && (
                                         <FormErrorMessage fontSize="xs">Required</FormErrorMessage>
                                       )}
@@ -2066,11 +2059,11 @@ const BankingProcessor: React.FC = () => {
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">{t('table.debit')}</FormLabel>
-                  <Input value={editingRecord.Debet || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Debet: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
+                  <AccountSelect value={editingRecord.Debet || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Debet: val } : prev)} accounts={chartAccounts} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">{t('table.credit')}</FormLabel>
-                  <Input value={editingRecord.Credit || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Credit: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
+                  <AccountSelect value={editingRecord.Credit || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Credit: val } : prev)} accounts={chartAccounts} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
                 </FormControl>
                 <FormControl>
                   <FormLabel color="white">{t('table.referenceNumber')}</FormLabel>
