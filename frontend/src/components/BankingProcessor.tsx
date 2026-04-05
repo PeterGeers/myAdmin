@@ -480,7 +480,8 @@ const BankingProcessor: React.FC = () => {
       const currentTenant = localStorage.getItem('selectedTenant');
       const params = new URLSearchParams({
         years: mutatiesFilters.years.join(','),
-        administration: currentTenant || 'all'  // Use current tenant
+        administration: currentTenant || 'all',
+        limit: String(displayLimit)
       });
       const response = await authenticatedGet(`/api/banking/mutaties?${params}`);
       const data = await response.json();
@@ -488,7 +489,7 @@ const BankingProcessor: React.FC = () => {
     } catch (error) {
       console.error('Error fetching mutaties:', error);
     }
-  }, [mutatiesFilters]);
+  }, [mutatiesFilters, displayLimit]);
 
   const fetchFilterOptions = useCallback(async () => {
     try {
