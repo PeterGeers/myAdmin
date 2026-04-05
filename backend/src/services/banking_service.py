@@ -478,8 +478,8 @@ class BankingService:
             limit = int(filters.get('limit', 1000))  # Default limit: 1000 records
             offset = int(filters.get('offset', 0))   # Default offset: 0
             
-            # Cap limit at 5000 to prevent excessive memory usage
-            limit = min(limit, 5000)
+            # Cap limit at 100000 to prevent abuse, but allow "All" requests
+            limit = min(limit, 100000)
             
             conn = db.get_connection()
             cursor = conn.cursor(dictionary=True)

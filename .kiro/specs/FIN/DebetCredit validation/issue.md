@@ -163,7 +163,7 @@ Reusable `AccountSelect` dropdown that replaces free-text `<Input>` fields for D
 - [x] Replace Debet/Credit `<Input>` in `BankingProcessor.tsx` transaction table with `<AccountSelect>`
 - [x] Replace Debet/Credit `<Input>` in `BankingProcessor.tsx` edit modal with `<AccountSelect>`
 - [x] Replace Debet/Credit `<Input>` in `PDFUploadForm.tsx` invoice approval with `<AccountSelect>`
-- [ ] Test: verify dropdown loads accounts, search works, selection updates transaction
+- [x] Test: verify dropdown loads accounts, search works, selection updates transaction
 
 ### 📋 Phase 4: Docker Databases
 
