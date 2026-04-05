@@ -18,7 +18,7 @@ Based on spec: .kiro/specs/FIN/Chart of Accounts Management/
 
 from flask import Blueprint, request, jsonify, send_file
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin
+from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin, tenant_required
 from database import DatabaseManager
 import os
 import json as json_lib
@@ -122,6 +122,32 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
 # ============================================================================
 # API Endpoints
 # ============================================================================
+
+
+@chart_of_accounts_bp.route('/api/accounts/lookup', methods=['GET'])
+@cognito_required(required_permissions=[])
+@tenant_required()
+def lookup_accounts(user_email, user_roles, tenant, user_tenants):
+    """Lightweight account lookup for dropdowns and autocomplete.
+
+    Returns Account + AccountName for the current tenant, sorted by Account.
+    No pagination — typically < 200 rows per tenant.
+    """
+    try:
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+
+        accounts = db.execute_query(
+            "SELECT Account, AccountName FROM rekeningschema "
+            "WHERE administration = %s ORDER BY Account ASC",
+            (tenant,)
+        )
+
+        return jsonify({'success': True, 'accounts': accounts or []})
+
+    except Exception as e:
+        logger.error(f"Account lookup failed for tenant {tenant}: {e}")
+        return jsonify({'error': 'Failed to load accounts'}), 500
 
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts', methods=['GET'])

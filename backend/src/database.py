@@ -138,12 +138,32 @@ class DatabaseManager:
                 else:
                     pool_type = 'readonly'
         
-        with self.get_cursor(pool_type=pool_type) as (cursor, conn):
-            cursor.execute(query, params or ())
-            if commit:
-                conn.commit()
-                return cursor.lastrowid if cursor.lastrowid else cursor.rowcount
-            return cursor.fetchall() if fetch else None
+        try:
+            with self.get_cursor(pool_type=pool_type) as (cursor, conn):
+                cursor.execute(query, params or ())
+                if commit:
+                    conn.commit()
+                    return cursor.lastrowid if cursor.lastrowid else cursor.rowcount
+                return cursor.fetchall() if fetch else None
+        except mysql.connector.IntegrityError as e:
+            if e.errno == 1452:
+                # FK constraint violation — extract useful info for the caller
+                msg = str(e)
+                if 'fk_mutaties_debet' in msg:
+                    raise ValueError(
+                        "Debet account does not exist in the chart of accounts (rekeningschema) "
+                        "for this administration. Please check the account number."
+                    ) from e
+                elif 'fk_mutaties_credit' in msg:
+                    raise ValueError(
+                        "Credit account does not exist in the chart of accounts (rekeningschema) "
+                        "for this administration. Please check the account number."
+                    ) from e
+                else:
+                    raise ValueError(
+                        f"Foreign key constraint violation: {msg}"
+                    ) from e
+            raise
     
     def execute_batch_queries(self, queries_with_params, commit=True):
         """Execute multiple queries in batch for better performance"""

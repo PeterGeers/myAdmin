@@ -20,6 +20,8 @@ import * as Yup from 'yup';
 import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
 import { FieldHelp } from './help';
+import AccountSelect from './common/AccountSelect';
+import { useAccountLookup } from '../hooks/useAccountLookup';
 import DuplicateWarningDialog from './DuplicateWarningDialog';
 import InvoiceGenerator from './InvoiceGenerator';
 import MissingInvoices from './MissingInvoices';
@@ -48,6 +50,7 @@ const validationSchema = Yup.object({
 
 const PDFUploadForm: React.FC = () => {
   const { currentTenant } = useTenant();
+  const { accounts: chartAccounts } = useAccountLookup();
   const [loading, setLoading] = useState(false);
   const [tenantSwitching, setTenantSwitching] = useState(false);
   const [message, setMessage] = useState<string>('');
@@ -892,22 +895,24 @@ const PDFUploadForm: React.FC = () => {
                   </Box>
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Debet:</Text>
-                    <Input 
+                    <AccountSelect 
                       value={transaction.Debet || ''} 
-                      onChange={(e) => {
+                      accounts={chartAccounts}
+                      onChange={(val) => {
                         const updated = [...preparedTransactions];
-                        updated[index].Debet = e.target.value;
+                        updated[index].Debet = val;
                         setPreparedTransactions(updated);
                       }} 
                     />
                   </Box>
                   <Box flex={1}>
                     <Text fontSize="sm" color="black">Credit:</Text>
-                    <Input 
+                    <AccountSelect 
                       value={transaction.Credit || ''} 
-                      onChange={(e) => {
+                      accounts={chartAccounts}
+                      onChange={(val) => {
                         const updated = [...preparedTransactions];
-                        updated[index].Credit = e.target.value;
+                        updated[index].Credit = val;
                         setPreparedTransactions(updated);
                       }} 
                     />
