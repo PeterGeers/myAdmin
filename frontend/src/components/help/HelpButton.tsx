@@ -33,11 +33,11 @@ const HelpButton: React.FC<HelpButtonProps> = ({ page }) => {
     <>
       <IconButton
         aria-label="Help"
-        icon={<QuestionOutlineIcon />}
+        icon={<QuestionOutlineIcon boxSize={5} />}
         size="sm"
-        variant="ghost"
-        color="gray.300"
-        _hover={{ color: 'orange.400' }}
+        variant="solid"
+        colorScheme="orange"
+        borderRadius="full"
         onClick={handleClick}
       />
       {!isMobile && (
