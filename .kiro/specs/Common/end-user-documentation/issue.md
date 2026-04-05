@@ -16,7 +16,6 @@ Local Docker:
 Works correctly with the ./docs/site:/app/docs-site volume mount
 Drawer fetches content inline, "Open full docs" link points to the backend
 
-
 What about HELP for limited scope FIN only or READ only
 Here are the realistic options, from simplest to most complex:
 
@@ -49,3 +48,23 @@ My recommendation: Option 1 for now, Option 2 later if needed.
 Option 1 gives you role-based nav filtering locally with minimal effort. For production (GitHub Pages → Railway cross-origin), the CSS injection silently fails and users see the full nav — which is acceptable since the help button already opens the right page contextually.
 
 Want me to implement Option 1?
+
+When i am in the production site and press HELP i get this error message {"error":"Suspicious request detected"}
+
+### Root Cause
+
+The security middleware in `backend/src/security_audit.py` runs `is_suspicious_request()` on all non-API routes. The regex pattern `r'./'` (intended to catch directory traversal) uses `.` as a regex wildcard, matching any character followed by `/` — which matches virtually every URL path including `/docs/...`.
+
+The `/api/` routes were already excluded, but `/docs/` was not.
+
+### Fix Applied
+
+Added `/docs/` to the skip list in the `before_request` security middleware, alongside the existing `/api/` skip:
+
+```python
+# Skip security checks for documentation site (served by MkDocs, embedded in help drawer)
+if request.path.startswith('/docs/') or request.path == '/docs':
+    return None
+```
+
+File: `backend/src/security_audit.py` — `create_security_middleware()` method.

@@ -597,7 +597,11 @@ class SecurityAudit:
             # These are protected by Cognito authentication
             if request.path.startswith('/api/'):
                 return None
-                
+
+            # Skip security checks for documentation site (served by MkDocs, embedded in help drawer)
+            if request.path.startswith('/docs/') or request.path == '/docs':
+                return None
+
             # Check for suspicious request patterns (only for non-API routes)
             if self.is_suspicious_request(request):
                 self.logger.warning(f"Suspicious request detected: {request.path}")
