@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Frontend Lint & Test on Save",
+  "description": "Runs ESLint and Jest unit tests in a single pass when a TypeScript file is saved in the frontend, avoiding double-trigger overhead.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "frontend/**/*.ts",
+      "frontend/**/*.tsx"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cd frontend && npx eslint --max-warnings=0 --format=compact 2>&1 | tail -n 15 && echo \"--- Tests ---\" && npx react-scripts test --watchAll=false --ci 2>&1 | tail -n 20",
+    "timeout": 120
+  }
+}

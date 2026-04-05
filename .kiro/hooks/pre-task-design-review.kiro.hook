@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Pre-Task Design Review",
+  "description": "Reminds the agent to review the relevant spec's design.md and requirements.md before starting implementation of a spec task, ensuring the work aligns with the planned approach.",
+  "version": "1",
+  "when": {
+    "type": "preTaskExecution"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before starting this spec task, review the spec's design.md and requirements.md to ensure your implementation aligns with the planned approach. Check for:\\n- API contracts and endpoint specifications\\n- Database schema requirements\\n- Security considerations\\n- Error handling patterns\\n- Any dependencies on other tasks that should be completed first"
+  }
+}
