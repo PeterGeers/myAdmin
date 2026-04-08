@@ -228,7 +228,3 @@ These changes are local only, not pushed to production yet.
 ### Moved to separate spec
 
 - **Issue 4 — Per-tenant roles**: Architecture change, tracked at `.kiro/specs/Common/per-tenant-roles/ideas.md`
-
-
-A question 
-MessageRejected: Email address is not verified. The following identities failed the check in region EU-WEST-1: jose.polman@gmail.com

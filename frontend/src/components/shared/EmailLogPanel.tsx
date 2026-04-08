@@ -14,6 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
+import { useTenant } from '../../context/TenantContext';
 
 interface EmailLogEntry {
   id: number;
@@ -64,6 +65,7 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
   const [recipientFilter, setRecipientFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [limit, setLimit] = useState(100);
+  const { currentTenant } = useTenant();
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -71,6 +73,9 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
     try {
       const params = new URLSearchParams({ limit: String(limit) });
       if (recipientFilter) params.set('recipient', recipientFilter);
+      if (mode === 'tenant' && currentTenant) {
+        params.set('administration', currentTenant);
+      }
 
       const response = await authenticatedGet(
         buildEndpoint(`/api/email-log?${params.toString()}`)
@@ -91,7 +96,7 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [recipientFilter, statusFilter, limit]);
+  }, [recipientFilter, statusFilter, limit, mode, currentTenant]);
 
   useEffect(() => {
     fetchLogs();
