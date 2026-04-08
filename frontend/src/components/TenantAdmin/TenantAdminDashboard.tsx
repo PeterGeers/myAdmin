@@ -14,6 +14,7 @@ import TenantConfigManagement from './TenantConfigManagement';
 import TenantDetails from './TenantDetails';
 import ChartOfAccounts from './ChartOfAccounts';
 import YearEndSettings from './YearEndSettings';
+import EmailLogPanel from '../shared/EmailLogPanel';
 
 interface TenantInfo {
   name: string;
@@ -185,6 +186,9 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               {t('tenantAdmin.tabs.tenantDetails')}
             </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              📧 Email Log
+            </Tab>
           </TabList>
 
           <TabPanels>
@@ -212,6 +216,9 @@ export function TenantAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <TenantDetails tenant={currentTenant} />
+            </TabPanel>
+            <TabPanel>
+              <EmailLogPanel mode="tenant" />
             </TabPanel>
           </TabPanels>
         </Tabs>

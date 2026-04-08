@@ -9,6 +9,7 @@ import RoleManagement from './RoleManagement';
 import TenantManagement from './TenantManagement';
 import HealthCheck from './HealthCheck';
 import ProvisioningPanel from './ProvisioningPanel';
+import EmailLogPanel from '../shared/EmailLogPanel';
 
 export function SysAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,9 @@ export function SysAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               {t('sysAdmin.tabs.healthCheck')}
             </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              📧 Email Log
+            </Tab>
           </TabList>
 
           <TabPanels>
@@ -114,6 +118,9 @@ export function SysAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <HealthCheck />
+            </TabPanel>
+            <TabPanel>
+              <EmailLogPanel mode="sysadmin" />
             </TabPanel>
           </TabPanels>
         </Tabs>
