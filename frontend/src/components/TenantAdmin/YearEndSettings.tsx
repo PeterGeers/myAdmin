@@ -72,10 +72,25 @@ const YearEndSettings: React.FC<YearEndSettingsProps> = ({ tenant }) => {
         throw new Error('No authentication token available');
       }
 
-      // Decode JWT to get user's roles
+      // Get merged roles from API
+      try {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const tenantHeader = tenant || '';
+        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+        if (tenantHeader) headers['X-Tenant'] = tenantHeader;
+        const resp = await fetch(`${apiUrl}/api/auth/me`, { headers });
+        if (resp.ok) {
+          const data = await resp.json();
+          setUserRoles(data.roles || []);
+          return;
+        }
+      } catch {
+        // Fallback to JWT
+      }
+
+      // Fallback: read from JWT
       const payload = JSON.parse(atob(token.split('.')[1]));
       const roles = payload['cognito:groups'] || [];
-      
       setUserRoles(roles);
     } catch (error) {
       console.error('Error checking user roles:', error);

@@ -71,10 +71,26 @@ export function TenantAdminDashboard() {
         throw new Error('No authentication token available');
       }
 
-      // Decode JWT to get user's tenants and roles
+      // Decode JWT to get user's tenants
       const payload = JSON.parse(atob(token.split('.')[1]));
       const tenants = payload['custom:tenants'] ? JSON.parse(payload['custom:tenants']) : [];
-      const roles = payload['cognito:groups'] || [];
+
+      // Get merged roles (global + per-tenant) from API
+      let roles: string[] = [];
+      try {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const tenant = currentTenant || (tenants.length > 0 ? tenants[0] : '');
+        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+        if (tenant) headers['X-Tenant'] = tenant;
+        const resp = await fetch(`${apiUrl}/api/auth/me`, { headers });
+        if (resp.ok) {
+          const data = await resp.json();
+          roles = data.roles || [];
+        }
+      } catch {
+        // Fallback to JWT roles
+        roles = payload['cognito:groups'] || [];
+      }
 
       // Check if user has Tenant_Admin role
       if (!roles.includes('Tenant_Admin')) {

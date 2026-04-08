@@ -20,6 +20,7 @@ from flask import Blueprint, jsonify, request
 import boto3
 from botocore.exceptions import ClientError
 from database import DatabaseManager
+from auth.cognito_utils import cognito_required
 
 logger = logging.getLogger(__name__)
 
@@ -271,3 +272,16 @@ def confirm_reset_password():
     except Exception as e:
         logger.error(f"Error in confirm-reset: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@auth_bp.route('/me', methods=['GET'])
+@cognito_required()
+def get_current_user_info(user_email, user_roles):
+    """
+    Return the current user's merged roles (global from JWT + per-tenant from DB).
+    The @cognito_required decorator already does the merge, so user_roles is ready.
+    """
+    return jsonify({
+        'email': user_email,
+        'roles': user_roles
+    })
