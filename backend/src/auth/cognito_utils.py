@@ -389,6 +389,21 @@ def cognito_required(required_roles: Optional[List[str]] = None, required_permis
                 print(f"❌ Auth error for {f.__name__}: {auth_error}", flush=True)
                 return jsonify(json.loads(auth_error['body'])), auth_error['statusCode']
             
+            # Split: global roles from JWT, per-tenant roles from DB
+            from auth.tenant_context import get_current_tenant
+            from auth.role_cache import get_tenant_roles
+            from database import DatabaseManager
+
+            global_roles = [r for r in user_roles if r in ('SysAdmin', 'Administrators', 'System_CRUD')]
+            tenant = get_current_tenant(request)
+            if tenant:
+                test_mode = os.environ.get('TEST_MODE', 'false').lower() == 'true'
+                db = DatabaseManager(test_mode=test_mode)
+                tenant_roles = get_tenant_roles(user_email, tenant, db)
+            else:
+                tenant_roles = []
+            user_roles = list(set(global_roles + tenant_roles))
+            
             print(f"✅ Auth success for {f.__name__}: {user_email} with roles {user_roles}", flush=True)
             
             # Check required roles (if specified)
