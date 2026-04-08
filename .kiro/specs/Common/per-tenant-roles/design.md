@@ -1,6 +1,6 @@
 # Per-Tenant Roles — Technical Design
 
-**Status:** Ready for Implementation
+**Status:** Complete
 **Date:** 2026-04-08
 **Approach:** Option B1 — Database + In-Memory Cache
 **Branch:** `feature/per-tenant-roles`

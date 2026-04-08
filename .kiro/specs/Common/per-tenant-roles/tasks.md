@@ -55,18 +55,18 @@
 
 ## Phase 6: Migration & Cleanup (0.5-1 day)
 
-- [ ] 6.1 Create `backend/scripts/migrate_roles_to_db.py`:
+- [x] 6.1 Create `backend/scripts/migrate_roles_to_db.py`:
   - For each Cognito user, get their groups and tenants
   - For each non-global group × tenant combination, INSERT into `user_tenant_roles`
   - Skip global roles (`SysAdmin`, `Administrators`, `System_CRUD`)
   - Log all insertions for audit
   - Support dry-run mode (`--dry-run` flag)
-- [ ] 6.2 Test migration against test database with known users, verify correct row count
-- [ ] 6.3 Test idempotency — running migration twice should not fail (UNIQUE constraint handles duplicates)
-- [ ] 6.4 Run migration against production databases (Docker + Railway)
-- [ ] 6.5 Update design.md status to "Complete"
-- [ ] 6.6 Document the migration steps in `backend/docs/guides/` (how to run migration)
-- [ ] 6.7 Decide on Cognito group cleanup — leave per-tenant groups in place or remove (post-migration, non-blocking)
+- [x] 6.2 Test migration against test database with known users, verify correct row count
+- [x] 6.3 Test idempotency — running migration twice should not fail (UNIQUE constraint handles duplicates)
+- [x] 6.4 Run migration against production databases (Docker + Railway)
+- [x] 6.5 Update design.md status to "Complete"
+- [x] 6.6 Document the migration steps in `backend/docs/guides/` (how to run migration)
+- [x] 6.7 Decide on Cognito group cleanup — leave per-tenant groups in place (harmless, serve as fallback)
 - [ ] 6.8 Git commit: `feat(per-tenant-roles): Phase 6 — migration + cleanup`
 - [ ] 6.9 Merge `feature/per-tenant-roles` into `main`
 
