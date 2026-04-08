@@ -1,7 +1,5 @@
 # Per-Tenant Roles — Ideas & Analysis
 
-Origin: `.kiro/Issues and bug fixes/20260407 Onboarding/rca.md` — Issue 4
-
 ## Problem
 
 A user with access to multiple tenants has the same permissions (read, CRUD, export) across all of them. It's not possible to give a user read-only access to TenantA and full CRUD access to TenantB.
@@ -59,6 +57,28 @@ Backend checks this table instead of (or in addition to) Cognito groups. Cognito
 - Pro: fully flexible, easy to query, supports any role model, standard SQL
 - Con: requires changes to `@cognito_required` decorator and all permission checks, roles no longer in the JWT token (need DB lookup per request or cache)
 
+#### B1: In-memory cache on the backend
+
+After the first DB lookup, cache the user's per-tenant roles in a Python dict (keyed by `email:tenant`) with a short TTL (e.g., 5 minutes). The `@cognito_required` decorator checks the cache first, only hits the DB on cache miss or expiry. Invalidate the cache entry when a Tenant Admin changes roles.
+
+- Performance: one DB query per user per 5 minutes. Effectively zero overhead.
+- Role change delay: takes effect within 5 minutes (or immediately if cache is invalidated on role change).
+- Complexity: low — a simple dict with TTL, ~30 lines of code.
+- Trade-off: roles live in two places (DB + cache), but the cache is just a performance layer, not a source of truth.
+
+#### B2: Roles in the JWT token (via Cognito attribute)
+
+When a Tenant Admin changes roles, update a Cognito custom attribute (e.g., `custom:tenant_roles`) with the per-tenant role map. This attribute is included in the JWT token on next login or token refresh.
+
+- Performance: zero DB lookups — roles come from the JWT, same as today.
+- Role change delay: up to 60 minutes (current access token validity) for users who are already logged in. Immediate if the user logs out and back in, or if the frontend forces a token refresh after a role change notification.
+- Complexity: medium — need to update Cognito attributes on every role change, parse the JSON from the JWT, and handle the 2048-char limit (same constraint as Option C).
+- Trade-off: inherits Option C's character limit problem. Works at current scale but doesn't scale to many tenants/roles. Also, role changes are not instant for active sessions.
+
+#### Recommendation
+
+B1 (in-memory cache) is the better sub-option. It has no character limits, role changes propagate within minutes, and the implementation is simpler. B2 reintroduces the 2048-char constraint from Option C and adds the stale-token problem.
+
 ### Option C: Encode roles in custom:tenants attribute (no new infrastructure)
 
 Change `custom:tenants` from a simple list to a role map:
@@ -101,7 +121,17 @@ Existing users need their current global roles mapped to per-tenant roles. Since
 
 ## Recommendation
 
-Option C is the quickest path for current scale (3 tenants, ~5 roles each = ~200 chars, well within 2048 limit). If the system grows to many tenants or needs complex role hierarchies, migrate to Option B.
+Option B with sub-option B1 (database + in-memory cache) is the best path forward:
+
+- No character limits (unlike C and B2)
+- Role changes propagate within minutes without user action
+- Simple implementation (~30 lines for the cache, one new table, decorator update)
+- Scales to any number of tenants and roles
+- Standard SQL — easy to query, audit, and migrate
+
+Option C works at current scale (3 tenants) but is a dead end. Option B2 reintroduces the same 2048-char limit. Option A (tenant-prefixed groups) creates group explosion in Cognito.
+
+Only `SysAdmin` stays as a global Cognito group. `Tenant_Admin` moves to the DB alongside all other per-tenant roles — a user can be admin of TenantA but a regular user in TenantB.
 
 ## Decision Needed
 
