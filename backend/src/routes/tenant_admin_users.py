@@ -165,7 +165,7 @@ def list_tenant_users(user_email, user_roles):
                     'status': user.get('UserStatus'),
                     'enabled': user.get('Enabled'),
                     'groups': user_groups,
-                    'tenants': user_tenant_list,
+                    'tenants': [tenant],
                     'created': user.get('UserCreateDate').isoformat() if user.get('UserCreateDate') else None,
                     'modified': user.get('UserLastModifiedDate').isoformat() if user.get('UserLastModifiedDate') else None
                 })
