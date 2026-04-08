@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "name": "Code Standards Review",
+  "description": "Reviews code files against project standards when created or edited. Only fires on .py, .ts, .tsx, .js, .jsx files — never on .md, .json, .yaml, etc.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.py",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review this code file against project standards:\n- Python: PEP 8, type hints, docstrings for public functions, max 1000 lines\n- TypeScript: strict mode, no 'any', max 1000 lines\n- Proper error handling\n- Multi-tenant data isolation where applicable\nIf the file exceeds 500 lines, suggest splitting it."
+  }
+}

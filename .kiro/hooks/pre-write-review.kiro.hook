@@ -1,16 +1,14 @@
 {
   "enabled": false,
-  "name": "Pre-Write Standards Review",
-  "description": "Reviews agent write operations against project coding standards before they are applied, ensuring consistency with PEP 8, TypeScript strict mode, file size limits, and architectural patterns.",
-  "version": "1",
+  "name": "Pre-Write Standards Review (DEPRECATED)",
+  "description": "DEPRECATED: Replaced by code-standards-review. This preToolUse hook fires on ALL writes including .md files.",
+  "version": "2",
   "when": {
     "type": "preToolUse",
-    "toolTypes": [
-      "write"
-    ]
+    "toolTypes": ["write"]
   },
   "then": {
     "type": "askAgent",
-    "prompt": "SKIP this review if the file being written is NOT a code file (e.g., .md, .json, .yaml, .txt, .html, .hook, .cfg, .ini, .env, .example files — just proceed immediately).\n\nOnly for .py, .ts, .tsx, .js, .jsx files, verify the code follows these project standards:\n- Backend Python: PEP 8 style, type hints, docstrings for public functions, max 500 lines target / 1000 lines absolute limit per file\n- Frontend TypeScript: strict mode, proper typing (no 'any'), max 500 lines target / 1000 lines absolute limit per file\n- Follow existing patterns: Blueprint-based routing (backend), component composition (frontend)\n- Include proper error handling\n- Maintain multi-tenant data isolation where applicable\nIf the file will exceed 500 lines, suggest splitting it."
+    "prompt": "Deprecated — see code-standards-review hook."
   }
 }
