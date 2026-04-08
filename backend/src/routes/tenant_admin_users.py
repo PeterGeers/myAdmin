@@ -144,14 +144,18 @@ def list_tenant_users(user_email, user_roles):
             if user_tenant_list and tenant in user_tenant_list:
                 username = user.get('Username')
                 
-                # Get user's groups
+                # Get user's roles from DB (per-tenant)
+                user_email_addr = get_user_attribute(user.get('Attributes', []), 'email')
                 try:
-                    groups_response = cognito_client.admin_list_groups_for_user(
-                        Username=username,
-                        UserPoolId=USER_POOL_ID
+                    test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+                    db = DatabaseManager(test_mode=test_mode)
+                    role_rows = db.execute_query(
+                        "SELECT role FROM user_tenant_roles WHERE email = %s AND administration = %s",
+                        (user_email_addr, tenant),
+                        fetch=True
                     )
-                    user_groups = [g['GroupName'] for g in groups_response.get('Groups', [])]
-                except:
+                    user_groups = [r['role'] for r in (role_rows or [])]
+                except Exception:
                     user_groups = []
                 
                 tenant_users.append({
@@ -276,16 +280,22 @@ def create_tenant_user(user_email, user_roles):
                 ]
             )
             
-            # Add user to groups
+            # Add user roles to DB
+            test_mode_flag = os.getenv('TEST_MODE', 'false').lower() == 'true'
+            db = DatabaseManager(test_mode=test_mode_flag)
             for group_name in groups:
                 try:
-                    cognito_client.admin_add_user_to_group(
-                        UserPoolId=USER_POOL_ID,
-                        Username=username,
-                        GroupName=group_name
+                    db.execute_query(
+                        """INSERT INTO user_tenant_roles (email, administration, role, created_by)
+                           VALUES (%s, %s, %s, %s)""",
+                        (email, tenant, group_name, user_email),
+                        fetch=False, commit=True
                     )
-                except ClientError as e:
-                    print(f"Warning: Failed to add user to group {group_name}: {e}", flush=True)
+                except Exception as e:
+                    print(f"Warning: Failed to add role {group_name} for user in tenant: {e}", flush=True)
+
+            from auth.role_cache import invalidate_cache
+            invalidate_cache(email, tenant)
             
             print(f"AUDIT: Existing user {email} added to tenant {tenant} by {user_email}", flush=True)
             
@@ -417,16 +427,22 @@ def create_tenant_user(user_email, user_roles):
                 )
                 raise
             
-            # Add user to groups
+            # Add user roles to DB
+            test_mode_new = os.getenv('TEST_MODE', 'false').lower() == 'true'
+            db_new = DatabaseManager(test_mode=test_mode_new)
             for group_name in groups:
                 try:
-                    cognito_client.admin_add_user_to_group(
-                        UserPoolId=USER_POOL_ID,
-                        Username=username,
-                        GroupName=group_name
+                    db_new.execute_query(
+                        """INSERT INTO user_tenant_roles (email, administration, role, created_by)
+                           VALUES (%s, %s, %s, %s)""",
+                        (email, tenant, group_name, user_email),
+                        fetch=False, commit=True
                     )
-                except ClientError as e:
-                    print(f"Warning: Failed to add user to group {group_name}: {e}", flush=True)
+                except Exception as e:
+                    print(f"Warning: Failed to add role {group_name} for new user: {e}", flush=True)
+
+            from auth.role_cache import invalidate_cache as invalidate_new
+            invalidate_new(email, tenant)
             
             # Send invitation email
             try:
@@ -647,6 +663,18 @@ def delete_tenant_user(username, user_email, user_roles):
         
         # Delegate to CognitoService — single code path with safety guard
         success, user_deleted = cognito_service.remove_tenant_from_user(username, tenant)
+
+        # Clean up per-tenant roles from DB
+        target_email = username  # username is the email in Cognito
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        db.execute_query(
+            "DELETE FROM user_tenant_roles WHERE email = %s AND administration = %s",
+            (target_email, tenant),
+            fetch=False, commit=True
+        )
+        from auth.role_cache import invalidate_cache
+        invalidate_cache(target_email, tenant)
         
         if user_deleted:
             message = f'User {username} deleted (was only in this tenant)'
@@ -739,12 +767,27 @@ def assign_user_group(username, user_email, user_roles):
                 'available_roles': available_roles
             }), 403
         
-        # Assign role
-        cognito_client.admin_add_user_to_group(
-            UserPoolId=USER_POOL_ID,
-            Username=username,
-            GroupName=group_name
-        )
+        # Assign role — write to DB instead of Cognito group
+        target_email = get_user_attribute(user_response.get('UserAttributes', []), 'email') or username
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        try:
+            db.execute_query(
+                """INSERT INTO user_tenant_roles (email, administration, role, created_by)
+                   VALUES (%s, %s, %s, %s)""",
+                (target_email, tenant, group_name, user_email),
+                fetch=False, commit=True
+            )
+        except Exception as e:
+            if 'Duplicate entry' in str(e):
+                return jsonify({
+                    'success': False,
+                    'error': f'User {username} already has role {group_name} in tenant {tenant}'
+                }), 409
+            raise
+
+        from auth.role_cache import invalidate_cache
+        invalidate_cache(target_email, tenant)
         
         print(f"AUDIT: Role {group_name} assigned to {username} by {user_email} in tenant {tenant}", flush=True)
         
@@ -810,12 +853,18 @@ def remove_user_group(username, group_name, user_email, user_roles):
                 'available_roles': available_roles
             }), 403
         
-        # Remove role
-        cognito_client.admin_remove_user_from_group(
-            UserPoolId=USER_POOL_ID,
-            Username=username,
-            GroupName=group_name
+        # Remove role — delete from DB instead of Cognito group
+        target_email = get_user_attribute(user_response.get('UserAttributes', []), 'email') or username
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        db.execute_query(
+            "DELETE FROM user_tenant_roles WHERE email = %s AND administration = %s AND role = %s",
+            (target_email, tenant, group_name),
+            fetch=False, commit=True
         )
+
+        from auth.role_cache import invalidate_cache
+        invalidate_cache(target_email, tenant)
         
         print(f"AUDIT: Role {group_name} removed from {username} by {user_email} in tenant {tenant}", flush=True)
         
@@ -861,26 +910,8 @@ def get_available_roles(user_email, user_roles):
         # Get available roles for tenant
         available_roles = get_available_roles_for_tenant(tenant)
         
-        # Get role descriptions from Cognito
-        roles_with_details = []
-        for role_name in available_roles:
-            try:
-                group_response = cognito_client.get_group(
-                    GroupName=role_name,
-                    UserPoolId=USER_POOL_ID
-                )
-                roles_with_details.append({
-                    'name': role_name,
-                    'description': group_response['Group'].get('Description', ''),
-                    'precedence': group_response['Group'].get('Precedence')
-                })
-            except:
-                # Group might not exist yet
-                roles_with_details.append({
-                    'name': role_name,
-                    'description': '',
-                    'precedence': None
-                })
+        # Return roles with basic details (no Cognito group lookup needed)
+        roles_with_details = [{'name': role_name, 'description': '', 'precedence': None} for role_name in available_roles]
         
         return jsonify({
             'success': True,
