@@ -179,6 +179,29 @@ export async function getCurrentUserRoles(): Promise<string[]> {
       return [];
     }
 
+    // Try to get merged roles (global + per-tenant) from API
+    try {
+      const idToken = tokens.idToken;
+      if (idToken) {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const tenant = localStorage.getItem('selectedTenant') || '';
+        const headers: Record<string, string> = {
+          'Authorization': `Bearer ${idToken}`,
+        };
+        if (tenant) {
+          headers['X-Tenant'] = tenant;
+        }
+        const resp = await fetch(`${apiUrl}/api/auth/me`, { headers });
+        if (resp.ok) {
+          const data = await resp.json();
+          return data.roles || [];
+        }
+      }
+    } catch {
+      // API not available — fall back to JWT
+    }
+
+    // Fallback: read from JWT (only has global roles like SysAdmin)
     const payload = decodeJWTPayload(tokens.accessToken);
     if (!payload) {
       return [];
