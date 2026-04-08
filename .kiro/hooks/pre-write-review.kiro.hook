@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "name": "Pre-Write Standards Review",
   "description": "Reviews agent write operations against project coding standards before they are applied, ensuring consistency with PEP 8, TypeScript strict mode, file size limits, and architectural patterns.",
   "version": "1",

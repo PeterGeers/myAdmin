@@ -1,0 +1,90 @@
+[
+	{
+		"Field" : "id",
+		"Type" : "int",
+		"Null" : "NO",
+		"Key" : "PRI",
+		"Default" : null,
+		"Extra" : "auto_increment"
+	},
+	{
+		"Field" : "recipient",
+		"Type" : "varchar(255)",
+		"Null" : "NO",
+		"Key" : "MUL",
+		"Default" : null,
+		"Extra" : ""
+	},
+	{
+		"Field" : "email_type",
+		"Type" : "varchar(50)",
+		"Null" : "YES",
+		"Key" : "",
+		"Default" : null,
+		"Extra" : ""
+	},
+	{
+		"Field" : "administration",
+		"Type" : "varchar(50)",
+		"Null" : "YES",
+		"Key" : "MUL",
+		"Default" : null,
+		"Extra" : ""
+	},
+	{
+		"Field" : "status",
+		"Type" : "varchar(20)",
+		"Null" : "YES",
+		"Key" : "MUL",
+		"Default" : "sent",
+		"Extra" : ""
+	},
+	{
+		"Field" : "ses_message_id",
+		"Type" : "varchar(255)",
+		"Null" : "YES",
+		"Key" : "MUL",
+		"Default" : null,
+		"Extra" : ""
+	},
+	{
+		"Field" : "subject",
+		"Type" : "varchar(255)",
+		"Null" : "YES",
+		"Key" : "",
+		"Default" : null,
+		"Extra" : ""
+	},
+	{
+		"Field" : "sent_by",
+		"Type" : "varchar(255)",
+		"Null" : "YES",
+		"Key" : "",
+		"Default" : null,
+		"Extra" : ""
+	},
+	{
+		"Field" : "error_message",
+		"Type" : "text",
+		"Null" : "YES",
+		"Key" : "",
+		"Default" : null,
+		"Extra" : ""
+	},
+	{
+		"Field" : "created_at",
+		"Type" : "datetime",
+		"Null" : "YES",
+		"Key" : "MUL",
+		"Default" : "CURRENT_TIMESTAMP",
+		"Extra" : "DEFAULT_GENERATED"
+	},
+	{
+		"Field" : "updated_at",
+		"Type" : "datetime",
+		"Null" : "YES",
+		"Key" : "",
+		"Default" : "CURRENT_TIMESTAMP",
+		"Extra" : "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+	}
+]

@@ -23,6 +23,7 @@ from botocore.exceptions import ClientError
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
+from services.cognito_service import CognitoService
 from services.invitation_service import InvitationService
 from services.email_template_service import EmailTemplateService
 
@@ -33,6 +34,7 @@ tenant_admin_users_bp = Blueprint('tenant_admin_users', __name__, url_prefix='/a
 AWS_REGION = os.getenv('AWS_REGION', 'eu-west-1')
 USER_POOL_ID = os.getenv('COGNITO_USER_POOL_ID')
 cognito_client = boto3.client('cognito-idp', region_name=AWS_REGION)
+cognito_service = CognitoService()
 
 
 # ============================================================================
@@ -287,6 +289,60 @@ def create_tenant_user(user_email, user_roles):
             
             print(f"AUDIT: Existing user {email} added to tenant {tenant} by {user_email}", flush=True)
             
+            # Send notification email (no password — user already has credentials)
+            try:
+                from services.ses_email_service import SESEmailService
+                from utils.frontend_url import get_frontend_url
+                
+                email_service = EmailTemplateService(administration=tenant)
+                ses = SESEmailService()
+                login_url = get_frontend_url()
+                
+                # Get user's display name
+                user_name = email.split('@')[0]
+                for attr in user_response.get('UserAttributes', []):
+                    if attr['Name'] == 'name':
+                        user_name = attr['Value']
+                        break
+                
+                html_content = email_service.render_template(
+                    template_name='tenant_added',
+                    variables={
+                        'email': email,
+                        'tenant': tenant,
+                        'name': user_name,
+                        'login_url': login_url,
+                    },
+                    format='html'
+                )
+                
+                text_content = (
+                    f"Hi {user_name},\n\n"
+                    f"You have been added to the {tenant} tenant in myAdmin.\n\n"
+                    f"You can log in with your existing credentials at: {login_url}\n\n"
+                    f"Regards,\nmyAdmin"
+                )
+                
+                subject = f"You've been added to {tenant} in myAdmin"
+                
+                result = ses.send_invitation(
+                    to_email=email,
+                    subject=subject,
+                    html_body=html_content or text_content,
+                    text_body=text_content,
+                    administration=tenant,
+                    sent_by=user_email,
+                )
+                
+                if result['success']:
+                    print(f"AUDIT: Tenant-added notification sent to {email} for tenant {tenant}", flush=True)
+                else:
+                    print(f"WARNING: Failed to send tenant-added notification to {email}: {result.get('error')}", flush=True)
+                    
+            except Exception as e:
+                # Don't fail the operation if email fails
+                print(f"WARNING: Failed to send tenant-added notification to {email}: {e}", flush=True)
+            
             return jsonify({
                 'success': True,
                 'message': f'User {email} added to tenant {tenant}',
@@ -407,7 +463,9 @@ def create_tenant_user(user_email, user_roles):
                     to_email=email,
                     subject=subject,
                     html_body=html_content,
-                    text_body=text_content or f"Welcome to {tenant}! Your temporary password: {temp_password}"
+                    text_body=text_content or f"Welcome to {tenant}! Your temporary password: {temp_password}",
+                    administration=tenant,
+                    sent_by=user_email,
                 )
                 
                 if result['success']:
@@ -553,7 +611,8 @@ def update_tenant_user(username, user_email, user_roles):
 @cognito_required(required_roles=['Tenant_Admin'])
 def delete_tenant_user(username, user_email, user_roles):
     """
-    Delete user (only if they belong to this tenant)
+    Delete user from current tenant. Uses CognitoService.remove_tenant_from_user()
+    as the single code path for tenant removal / user deletion.
     """
     try:
         # Get current tenant from request header
@@ -574,48 +633,40 @@ def delete_tenant_user(username, user_email, user_roles):
                 'message': f'You do not have access to tenant: {tenant}'
             }), 403
         
-        # Get target user and verify they belong to this tenant
+        # Verify target user belongs to this tenant before proceeding
         try:
-            user_response = cognito_client.admin_get_user(
-                UserPoolId=USER_POOL_ID,
-                Username=username
-            )
-            target_user_tenants = get_user_attribute(user_response.get('UserAttributes', []), 'custom:tenants')
-        except ClientError:
+            target_tenants = cognito_service.get_user_tenants(username)
+        except Exception:
             return jsonify({'error': f'User not found: {username}'}), 404
         
-        if not target_user_tenants or tenant not in target_user_tenants:
+        if not target_tenants or tenant not in target_tenants:
             return jsonify({
                 'error': 'User not in this tenant',
                 'message': f'User {username} does not have access to tenant {tenant}'
             }), 403
         
-        # If user belongs to multiple tenants, only remove this tenant
-        if len(target_user_tenants) > 1:
-            updated_tenants = [t for t in target_user_tenants if t != tenant]
-            cognito_client.admin_update_user_attributes(
-                UserPoolId=USER_POOL_ID,
-                Username=username,
-                UserAttributes=[
-                    {'Name': 'custom:tenants', 'Value': json.dumps(updated_tenants)}
-                ]
-            )
-            message = f'User {username} removed from tenant {tenant}'
+        # Delegate to CognitoService — single code path with safety guard
+        success, user_deleted = cognito_service.remove_tenant_from_user(username, tenant)
+        
+        if user_deleted:
+            message = f'User {username} deleted (was only in this tenant)'
         else:
-            # User only belongs to this tenant, delete completely
-            cognito_client.admin_delete_user(
-                UserPoolId=USER_POOL_ID,
-                Username=username
-            )
-            message = f'User {username} deleted'
+            message = f'User {username} removed from tenant {tenant}'
         
         print(f"AUDIT: {message} by {user_email}", flush=True)
         
         return jsonify({
             'success': True,
-            'message': message
+            'message': message,
+            'user_deleted': user_deleted
         })
         
+    except ValueError as e:
+        # Safety guard triggered (malformed tenants) or user not found
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
     except ClientError as e:
         return jsonify({
             'success': False,

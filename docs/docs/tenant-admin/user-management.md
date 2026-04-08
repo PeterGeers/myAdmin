@@ -70,8 +70,32 @@ Beschikbare rollen zijn afhankelijk van de ingeschakelde modules:
 2. Klik op **Verwijderen**
 3. Bevestig de actie
 
-!!! danger
-Het verwijderen van een gebruiker is definitief. De gebruiker verliest alle toegang tot het platform.
+!!! warning
+Als de gebruiker toegang heeft tot meerdere tenants, wordt alleen de toegang tot jouw tenant verwijderd. De gebruiker behoudt toegang tot andere tenants. Alleen als de gebruiker uitsluitend aan jouw tenant is gekoppeld, wordt het account volledig verwijderd.
+
+### Uitnodiging opnieuw versturen
+
+Als een gebruiker de uitnodigingsmail niet heeft ontvangen of het tijdelijke wachtwoord is verlopen:
+
+1. Klik op de gebruiker in de lijst
+2. Klik op **Uitnodiging opnieuw versturen**
+3. Er wordt een nieuw tijdelijk wachtwoord gegenereerd en per e-mail verstuurd
+
+!!! info
+Als de e-mail niet kan worden verstuurd, wordt het tijdelijke wachtwoord getoond zodat je het handmatig kunt delen.
+
+## E-maillogboek
+
+Alle e-mails die vanuit het systeem worden verstuurd (uitnodigingen, wachtwoord-resets, tenant-toevoegingen) worden bijgehouden in het e-maillogboek. Als Tenant Admin zie je alleen de e-mails voor jouw tenant.
+
+Het logboek toont:
+
+| Kolom     | Beschrijving                                       |
+| --------- | -------------------------------------------------- |
+| Ontvanger | E-mailadres van de ontvanger                       |
+| Type      | Soort e-mail (uitnodiging, wachtwoord-reset, etc.) |
+| Status    | Verzonden, afgeleverd, gebounced of klacht         |
+| Datum     | Wanneer de e-mail is verstuurd                     |
 
 ## Tips
 
@@ -84,9 +108,9 @@ Wijs gebruikers alleen de rollen toe die ze nodig hebben. Een medewerker die all
 
 ## Problemen oplossen
 
-| Probleem                       | Oorzaak                                 | Oplossing                                                    |
-| ------------------------------ | --------------------------------------- | ------------------------------------------------------------ |
-| "Tenant admin access required" | Je hebt niet de Tenant_Admin rol        | Neem contact op met je SysAdmin                              |
-| Gebruiker ziet geen modules    | Geen rollen toegewezen                  | Wijs de juiste rollen toe                                    |
-| Rol niet beschikbaar           | Module niet ingeschakeld voor je tenant | Neem contact op met je SysAdmin om de module in te schakelen |
-| Gebruiker kan niet inloggen    | Account niet geactiveerd                | Controleer de gebruikersstatus                               |
+| Probleem                       | Oorzaak                                 | Oplossing                                                                                              |
+| ------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| "Tenant admin access required" | Je hebt niet de Tenant_Admin rol        | Neem contact op met je SysAdmin                                                                        |
+| Gebruiker ziet geen modules    | Geen rollen toegewezen                  | Wijs de juiste rollen toe                                                                              |
+| Rol niet beschikbaar           | Module niet ingeschakeld voor je tenant | Neem contact op met je SysAdmin om de module in te schakelen                                           |
+| Gebruiker kan niet inloggen    | Account niet geactiveerd                | Controleer de gebruikersstatus; gebruik "Uitnodiging opnieuw versturen" als het wachtwoord is verlopen |

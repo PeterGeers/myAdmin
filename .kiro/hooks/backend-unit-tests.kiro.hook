@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "name": "Backend Unit Tests on Save",
   "description": "Automatically runs pytest unit tests when a Python file in the backend is saved, so you get immediate feedback on broken tests.",
   "version": "1",

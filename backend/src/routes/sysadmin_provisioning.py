@@ -296,7 +296,10 @@ def _send_welcome_email(email: str, admin_name: str, first_name: str, locale: st
             </div>
             """
 
-        ses.send_email(to_email=email, subject=subject, html_body=html)
+        ses.send_email(
+            to_email=email, subject=subject, html_body=html,
+            email_type='invitation', administration=admin_name,
+        )
         logger.info(f"Welcome email sent to {email}")
     except Exception as e:
         logger.warning(f"Welcome email failed (non-critical): {e}")

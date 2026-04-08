@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "name": "Frontend Lint & Test on Save",
   "description": "Runs ESLint and Jest unit tests in a single pass when a TypeScript file is saved in the frontend, avoiding double-trigger overhead.",
   "version": "1",

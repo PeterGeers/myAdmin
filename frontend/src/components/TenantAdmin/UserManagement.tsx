@@ -512,6 +512,22 @@ export default function UserManagement({ tenant }: UserManagementProps) {
           duration: 5000,
         });
         loadData(); // Refresh user list
+      } else if (data.email_failed && data.temporary_password) {
+        const userEmail = selectedUser.email;
+        const tempPw = data.temporary_password;
+        const subject = encodeURIComponent('Your new myAdmin password');
+        const body = encodeURIComponent(
+          `Hi,\n\nYour password has been reset.\n\nTemporary password: ${tempPw}\n\nPlease log in and change your password.`
+        );
+        try { await navigator.clipboard.writeText(tempPw); } catch { /* ignore */ }
+        toast({
+          title: 'Email could not be sent automatically',
+          description: 'Password was reset and copied to clipboard. Your email client will open.',
+          status: 'warning',
+          duration: null,
+          isClosable: true,
+        });
+        window.open(`mailto:${userEmail}?subject=${subject}&body=${body}`, '_blank');
       } else {
         throw new Error(data.error || 'Failed to resend invitation');
       }
