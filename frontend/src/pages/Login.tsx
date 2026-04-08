@@ -32,7 +32,8 @@ import {
   signInWithPasskey,
   isPasskeySupported,
 } from '../services/authService';
-import { resetPassword, confirmResetPassword, confirmSignIn } from 'aws-amplify/auth';
+import { confirmSignIn } from 'aws-amplify/auth';
+import { buildApiUrl } from '../config';
 
 interface LoginProps {
   onLoginSuccess?: () => void;
@@ -67,9 +68,18 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     }
     try {
       setIsResetLoading(true);
-      await resetPassword({ username: email });
-      toast({ title: t('auth:forgotPassword.codeSent'), status: 'success', duration: 5000, isClosable: true });
-      setView('resetPassword');
+      const response = await fetch(buildApiUrl('/api/auth/forgot-password'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: t('auth:forgotPassword.codeSent'), status: 'success', duration: 5000, isClosable: true });
+        setView('resetPassword');
+      } else {
+        toast({ title: t('auth:forgotPassword.sendFailed'), description: data.error || '', status: 'error', duration: 5000, isClosable: true });
+      }
     } catch (error: any) {
       toast({ title: t('auth:forgotPassword.sendFailed'), description: error?.message || '', status: 'error', duration: 5000, isClosable: true });
     } finally {
@@ -85,11 +95,20 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     if (!email || !resetCode || !newPassword) return;
     try {
       setIsResetLoading(true);
-      await confirmResetPassword({ username: email, confirmationCode: resetCode, newPassword });
-      toast({ title: t('auth:forgotPassword.resetSuccess'), status: 'success', duration: 5000, isClosable: true });
-      setView('login');
-      setResetCode('');
-      setNewPassword('');
+      const response = await fetch(buildApiUrl('/api/auth/confirm-reset'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: resetCode, new_password: newPassword }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast({ title: t('auth:forgotPassword.resetSuccess'), status: 'success', duration: 5000, isClosable: true });
+        setView('login');
+        setResetCode('');
+        setNewPassword('');
+      } else {
+        toast({ title: t('auth:forgotPassword.resetFailed'), description: data.error || '', status: 'error', duration: 5000, isClosable: true });
+      }
     } catch (error: any) {
       toast({ title: t('auth:forgotPassword.resetFailed'), description: error?.message || '', status: 'error', duration: 5000, isClosable: true });
     } finally {

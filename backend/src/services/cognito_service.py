@@ -484,7 +484,11 @@ class CognitoService:
     
     def remove_tenant_from_user(self, username: str, tenant: str) -> Tuple[bool, bool]:
         """
-        Remove tenant from user's custom:tenants attribute
+        Remove tenant from user's custom:tenants attribute.
+        
+        Safety guard: validates the tenants list before deciding whether to
+        remove-tenant or delete the user entirely. Prevents accidental full
+        deletion when the custom:tenants attribute is malformed or empty.
         
         Args:
             username: Username (email)
@@ -507,26 +511,49 @@ class CognitoService:
                 'custom:tenants'
             )
             
-            # Remove tenant
-            if tenant in current_tenants:
-                current_tenants.remove(tenant)
-                
-                # If user has no more tenants, delete user
-                if not current_tenants:
-                    self.delete_user(username)
-                    logger.info(f"User {username} deleted (no remaining tenants)")
-                    return True, True
-                
-                # Otherwise, update tenants list
-                self.client.admin_update_user_attributes(
-                    UserPoolId=self.user_pool_id,
-                    Username=username,
-                    UserAttributes=[{
-                        'Name': 'custom:tenants',
-                        'Value': json.dumps(current_tenants)
-                    }]
+            # Safety guard: validate tenants list is a proper list
+            if not isinstance(current_tenants, list):
+                logger.error(
+                    f"SAFETY GUARD: custom:tenants for {username} is not a list "
+                    f"(type={type(current_tenants).__name__}, value={current_tenants!r}). "
+                    f"Refusing to delete. Manual intervention required."
                 )
-                logger.info(f"Tenant {tenant} removed from user {username}")
+                raise ValueError(
+                    f"Malformed tenants attribute for {username}. "
+                    f"Cannot safely remove tenant. Contact SysAdmin."
+                )
+            
+            logger.info(
+                f"Remove tenant '{tenant}' from user {username}. "
+                f"Current tenants: {current_tenants}"
+            )
+            
+            if tenant not in current_tenants:
+                logger.warning(f"Tenant {tenant} not in user {username}'s tenants list")
+                return True, False
+            
+            # Remove tenant
+            current_tenants.remove(tenant)
+            
+            # If user has no more tenants, delete user
+            if not current_tenants:
+                self.delete_user(username)
+                logger.info(f"User {username} deleted (no remaining tenants)")
+                return True, True
+            
+            # Otherwise, update tenants list
+            self.client.admin_update_user_attributes(
+                UserPoolId=self.user_pool_id,
+                Username=username,
+                UserAttributes=[{
+                    'Name': 'custom:tenants',
+                    'Value': json.dumps(current_tenants)
+                }]
+            )
+            logger.info(
+                f"Tenant {tenant} removed from user {username}. "
+                f"Remaining tenants: {current_tenants}"
+            )
             
             return True, False
             
@@ -624,7 +651,8 @@ Login URL: {self._get_frontend_url()}
                 to_email=email,
                 subject=subject,
                 html_body=html_content,
-                text_body=text_content
+                text_body=text_content,
+                administration=tenant,
             )
             
             if result['success']:

@@ -110,9 +110,13 @@ resource "aws_cognito_user_pool" "myadmin" {
     }
   }
 
-  # Email configuration
+  # Email configuration — use SES for better deliverability
+  # Sends password reset / verification emails from support@jabaki.nl
+  # instead of no-reply@verificationemail.com (which lands in spam)
   email_configuration {
-    email_sending_account = "COGNITO_DEFAULT"
+    email_sending_account = "DEVELOPER"
+    source_arn            = "arn:aws:ses:${var.aws_region}:344561557829:identity/support@jabaki.nl"
+    from_email_address    = "myAdmin <support@jabaki.nl>"
   }
 
   # MFA disabled to enable passkeys (Decision 1.1)

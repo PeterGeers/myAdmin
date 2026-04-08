@@ -36,6 +36,8 @@ from routes.tenant_admin_settings import tenant_admin_settings_bp
 from routes.tenant_admin_config import tenant_admin_config_bp
 from routes.tenant_admin_details import tenant_admin_details_bp
 from routes.tenant_admin_email import tenant_admin_email_bp
+from routes.email_log_routes import email_log_bp
+from routes.auth_routes import auth_bp
 from routes.static_routes import static_bp
 from routes.config_routes import config_bp
 from routes.system_health_routes import system_health_bp
@@ -161,6 +163,8 @@ app.register_blueprint(tenant_admin_settings_bp)
 app.register_blueprint(tenant_admin_config_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
+app.register_blueprint(email_log_bp)
+app.register_blueprint(auth_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')
 app.register_blueprint(system_health_bp)  # System health and status endpoints
 app.register_blueprint(cache_bp)  # Cache management endpoints

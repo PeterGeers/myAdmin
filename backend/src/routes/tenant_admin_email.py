@@ -138,7 +138,10 @@ def send_email_to_user(user_email, user_roles):
             to_email=recipient_email,
             subject=subject,
             html_body=html_content,
-            text_body=text_content or f"Email to {recipient_email} from {tenant}"
+            text_body=text_content or f"Email to {recipient_email} from {tenant}",
+            email_type=template_type,
+            administration=tenant,
+            sent_by=user_email,
         )
         
         if not result['success']:
@@ -344,7 +347,9 @@ def resend_invitation(user_email, user_roles):
             to_email=recipient_email,
             subject=subject,
             html_body=html_content,
-            text_body=text_content or f"Your new temporary password for {tenant}: {temp_password}"
+            text_body=text_content or f"Your new temporary password for {tenant}: {temp_password}",
+            administration=tenant,
+            sent_by=user_email,
         )
         
         if result['success']:
@@ -353,17 +358,27 @@ def resend_invitation(user_email, user_roles):
                 administration=tenant,
                 email=recipient_email
             )
+            logger.info(f"Invitation resent to {recipient_email} by {user_email} for tenant {tenant}")
+            return jsonify({
+                'success': True,
+                'message': f'Invitation resent successfully to {recipient_email}',
+                'expires_at': invitation_result.get('expires_at'),
+                'expiry_days': invitation_result.get('expiry_days')
+            })
         else:
             logger.warning(f"SES failed to resend invitation to {recipient_email}: {result.get('error')}")
-        
-        logger.info(f"Invitation resent to {recipient_email} by {user_email} for tenant {tenant}")
-        
-        return jsonify({
-            'success': True,
-            'message': f'Invitation resent successfully to {recipient_email}',
-            'expires_at': invitation_result.get('expires_at'),
-            'expiry_days': invitation_result.get('expiry_days')
-        })
+            invitation_service.mark_invitation_failed(
+                administration=tenant,
+                email=recipient_email,
+                error_message=f"SES send failed: {result.get('error')}"
+            )
+            return jsonify({
+                'success': False,
+                'error': f'Password was reset but the email to {recipient_email} could not be sent. Please share the credentials below manually.',
+                'message': result.get('error', 'SES send failed'),
+                'temporary_password': temp_password,
+                'email_failed': True
+            }), 500
         
     except Exception as e:
         logger.error(f"Error resending invitation: {e}")

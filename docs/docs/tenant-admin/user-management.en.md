@@ -70,8 +70,32 @@ Available roles depend on the enabled modules:
 2. Click **Delete**
 3. Confirm the action
 
-!!! danger
-Deleting a user is permanent. The user loses all access to the platform.
+!!! warning
+If the user has access to multiple tenants, only access to your tenant is removed. The user retains access to other tenants. Only if the user belongs exclusively to your tenant will the account be fully deleted.
+
+### Resend invitation
+
+If a user didn't receive the invitation email or the temporary password has expired:
+
+1. Click on the user in the list
+2. Click **Resend invitation**
+3. A new temporary password is generated and sent by email
+
+!!! info
+If the email cannot be sent, the temporary password is displayed so you can share it manually.
+
+## Email log
+
+All emails sent from the system (invitations, password resets, tenant additions) are tracked in the email log. As Tenant Admin, you only see emails for your own tenant.
+
+The log shows:
+
+| Column    | Description                                   |
+| --------- | --------------------------------------------- |
+| Recipient | Recipient email address                       |
+| Type      | Email type (invitation, password reset, etc.) |
+| Status    | Sent, delivered, bounced, or complained       |
+| Date      | When the email was sent                       |
 
 ## Tips
 
@@ -84,9 +108,9 @@ Only assign users the roles they need. A staff member who only views reports onl
 
 ## Troubleshooting
 
-| Problem                        | Cause                                | Solution                                   |
-| ------------------------------ | ------------------------------------ | ------------------------------------------ |
-| "Tenant admin access required" | You don't have the Tenant_Admin role | Contact your SysAdmin                      |
-| User sees no modules           | No roles assigned                    | Assign the correct roles                   |
-| Role not available             | Module not enabled for your tenant   | Contact your SysAdmin to enable the module |
-| User can't log in              | Account not activated                | Check the user status                      |
+| Problem                        | Cause                                | Solution                                                                   |
+| ------------------------------ | ------------------------------------ | -------------------------------------------------------------------------- |
+| "Tenant admin access required" | You don't have the Tenant_Admin role | Contact your SysAdmin                                                      |
+| User sees no modules           | No roles assigned                    | Assign the correct roles                                                   |
+| Role not available             | Module not enabled for your tenant   | Contact your SysAdmin to enable the module                                 |
+| User can't log in              | Account not activated                | Check the user status; use "Resend invitation" if the password has expired |
