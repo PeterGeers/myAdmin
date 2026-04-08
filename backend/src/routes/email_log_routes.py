@@ -27,7 +27,15 @@ def get_email_logs(user_email, user_roles):
     """
     try:
         is_sysadmin = 'SysAdmin' in user_roles
-        tenant = None if is_sysadmin else get_current_tenant(request)
+        # Use explicit administration param when provided (Tenant Admin panel)
+        explicit_tenant = request.args.get('administration')
+        if explicit_tenant:
+            tenant = explicit_tenant
+        elif is_sysadmin:
+            tenant = None  # SysAdmin sees all
+        else:
+            tenant = get_current_tenant(request)
+        
         recipient = request.args.get('recipient')
         limit = min(int(request.args.get('limit', 100)), 500)
 
