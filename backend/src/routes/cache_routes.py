@@ -114,7 +114,7 @@ def cache_refresh(user_email, user_roles, tenant, user_tenants):
 
 
 @cache_bp.route('/api/cache/invalidate', methods=['POST'])
-@cognito_required(required_roles=['SysAdmin'])
+@cognito_required(required_permissions=['actuals_read'])
 @tenant_required(allow_sysadmin=True)
 def cache_invalidate_endpoint(user_email, user_roles, tenant, user_tenants):
     """Invalidate the cache (will auto-refresh on next query)"""

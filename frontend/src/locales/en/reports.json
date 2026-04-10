@@ -228,7 +228,14 @@
     "errorLoadingData": "Error loading actuals data. Please check your connection and try again.",
     "errorLoadingYears": "Error loading available years. Please check your connection and try again.",
     "unknownError": "Unknown error",
-    "bijzondereNote": "* 8099 Bijzondere baten en lasten not included"
+    "bijzondereNote": "* 8099 Bijzondere baten en lasten not included",
+    "dataRefreshed": "Data refreshed",
+    "standardView": "Standard",
+    "pivotView": "Pivot",
+    "revenueChart": "Revenue (8000)",
+    "costChart": "Costs (4000)",
+    "refresh": "Refresh",
+    "period": "Period"
   },
   "bnb": {
     "revenueTrend": "Revenue Trend Over Time",

@@ -6,4 +6,4 @@ Different modules in scope
 -- Check function to validate if all transactions are loaded
 -- Check if all invouices are paid for and invoices are booked (Based on reference number and account)
 -- Dedicated function to book revenue from account 1600 in the mutaties table
-For each module independant code and sub folder where als compoments are together would be nice
+For each module independant code and sub folder where as compoments are together would be nice

@@ -228,7 +228,14 @@
     "errorLoadingData": "Fout bij laden van werkelijke cijfers. Controleer uw verbinding en probeer opnieuw.",
     "errorLoadingYears": "Fout bij laden van beschikbare jaren. Controleer uw verbinding en probeer opnieuw.",
     "unknownError": "Onbekende fout",
-    "bijzondereNote": "* 8099 Bijzondere baten en lasten niet inbegrepen"
+    "bijzondereNote": "* 8099 Bijzondere baten en lasten niet inbegrepen",
+    "dataRefreshed": "Gegevens vernieuwd",
+    "standardView": "Standaard",
+    "pivotView": "Draaitabel",
+    "revenueChart": "Omzet (8000)",
+    "costChart": "Kosten (4000)",
+    "refresh": "Vernieuwen",
+    "period": "Periode"
   },
   "bnb": {
     "revenueTrend": "Omzettrend in de Tijd",
