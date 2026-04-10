@@ -67,8 +67,8 @@
 - [x] 6.5 Update design.md status to "Complete"
 - [x] 6.6 Document the migration steps in `backend/docs/guides/` (how to run migration)
 - [x] 6.7 Decide on Cognito group cleanup — leave per-tenant groups in place (harmless, serve as fallback)
-- [ ] 6.8 Git commit: `feat(per-tenant-roles): Phase 6 — migration + cleanup`
-- [ ] 6.9 Merge `feature/per-tenant-roles` into `main`
+- [x] 6.8 Git commit: `feat(per-tenant-roles): Phase 6 — migration + cleanup`
+- [x] 6.9 Merge `feature/per-tenant-roles` into `main`
 
 ---
 

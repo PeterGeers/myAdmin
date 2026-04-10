@@ -1,7 +1,7 @@
 /**
  * FinancialReportsGroup Component Tests
  * 
- * Tests the Financial reports container that holds 5 individual report tabs.
+ * Tests the Financial reports container that holds 6 individual report tabs.
  * Verifies component structure and imports.
  */
 
@@ -17,15 +17,35 @@ jest.mock('@chakra-ui/react', () => ({
   TabPanel: ({ children, ...props }: any) => <div data-testid="tabpanel" {...props}>{children}</div>,
 }));
 
+// Mock hooks and services
+jest.mock('../../hooks/useTypedTranslation', () => ({
+  useTypedTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en', changeLanguage: jest.fn() },
+  }),
+}));
+jest.mock('../../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'TestTenant', availableTenants: ['TestTenant'], setCurrentTenant: jest.fn(), hasMultipleTenants: false }),
+}));
+jest.mock('../../services/apiService', () => ({
+  authenticatedGet: jest.fn().mockResolvedValue({ json: () => Promise.resolve({ success: true, years: [] }) }),
+  buildEndpoint: (e: string, p: any) => `${e}?${p}`,
+}));
+
 // Mock all individual report components
 jest.mock('./MutatiesReport', () => ({
   __esModule: true,
   default: () => <div data-testid="mutaties-report">Mutaties Report</div>
 }));
 
-jest.mock('./ActualsReport', () => ({
+jest.mock('./BalanceReport', () => ({
   __esModule: true,
-  default: () => <div data-testid="actuals-report">Actuals Report</div>
+  default: () => <div data-testid="balance-report">Balance Report</div>
+}));
+
+jest.mock('./ProfitLossReport', () => ({
+  __esModule: true,
+  default: () => <div data-testid="profitloss-report">P&L Report</div>
 }));
 
 jest.mock('./BtwReport', () => ({
@@ -55,9 +75,7 @@ describe('FinancialReportsGroup', () => {
     expect(element.type).toBe(FinancialReportsGroup);
   });
 
-  it('has all 5 Financial report components imported', () => {
-    // Verify the component can be instantiated without errors
-    // This ensures all imports are valid
+  it('has all 6 Financial report components imported', () => {
     expect(() => React.createElement(FinancialReportsGroup)).not.toThrow();
   });
 });
