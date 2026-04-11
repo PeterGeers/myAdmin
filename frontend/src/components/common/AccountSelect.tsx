@@ -34,11 +34,11 @@ const AccountSelect: React.FC<AccountSelectProps> = ({
   const id = listId || `account-list-${Math.random().toString(36).slice(2, 9)}`;
 
   const accountSet = useMemo(
-    () => new Set(accounts.map((a) => a.Account)),
+    () => new Set(accounts.map((a) => a.Account.trim())),
     [accounts]
   );
 
-  const isInvalid = value !== '' && accounts.length > 0 && !accountSet.has(value);
+  const isInvalid = value !== '' && accounts.length > 0 && !accountSet.has(value.trim());
 
   const options = useMemo(
     () =>
