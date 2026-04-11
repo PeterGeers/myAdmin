@@ -148,10 +148,16 @@ def approve_transactions(user_email, user_roles):
         
         saved_transactions = transaction_logic.save_approved_transactions(transactions)
         
+        skipped = len(transactions) - len(saved_transactions)
+        msg = f'Successfully saved {len(saved_transactions)} transactions'
+        if skipped > 0:
+            msg += f' ({skipped} zero-amount lines skipped)'
+        
         return jsonify({
             'success': True,
             'savedTransactions': saved_transactions,
-            'message': f'Successfully saved {len(saved_transactions)} transactions'
+            'skippedCount': skipped,
+            'message': msg
         })
     except Exception as e:
         print(f"Approval error: {e}", flush=True)

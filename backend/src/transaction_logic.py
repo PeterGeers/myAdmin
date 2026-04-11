@@ -123,7 +123,7 @@ class TransactionLogic:
             if transaction_number not in single_transaction_vendors:
                 # Duplicate first transaction and modify for credit entry
                 credit_transaction = results[0].copy()
-                credit_transaction['Debet'] = 2010  # Account 2010 as per R logic
+                credit_transaction['Debet'] = '2010'  # Account 2010 as per R logic
                 credit_transaction['Credit'] = results[0]['Debet']
                 
                 # Set vendor-specific account codes
@@ -233,16 +233,24 @@ class TransactionLogic:
         return new_transactions
     
     def save_approved_transactions(self, transactions):
-        """Save approved transactions to database"""
+        """Save approved transactions to database.
+        
+        Zero-amount transactions are silently skipped (e.g. VAT line when VAT = 0).
+        Returns only the transactions that were actually saved.
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
         
         saved_transactions = []
+        skipped_count = 0
         
         for transaction in transactions:
-            # Skip transactions with zero amount
-            if float(transaction.get('TransactionAmount', 0)) == 0:
-                print(f"Skipping transaction with zero amount: {transaction.get('TransactionDescription', 'Unknown')}", flush=True)
+            # Skip transactions with zero amount (e.g. zero-VAT invoice lines)
+            amount = float(transaction.get('TransactionAmount', 0))
+            if amount == 0:
+                print(f"Skipping zero-amount transaction: {transaction.get('TransactionDescription', 'Unknown')} "
+                      f"(Debet: {transaction.get('Debet')}, Credit: {transaction.get('Credit')})", flush=True)
+                skipped_count += 1
                 continue
             insert_query = f"""
                 INSERT INTO {self.table_name} 
@@ -272,5 +280,8 @@ class TransactionLogic:
         conn.commit()
         cursor.close()
         conn.close()
+        
+        if skipped_count > 0:
+            print(f"Skipped {skipped_count} zero-amount transaction(s)", flush=True)
         
         return saved_transactions
