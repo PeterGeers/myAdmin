@@ -51,9 +51,10 @@ export interface RoleValidation {
  * @returns Sign-in result from Amplify
  */
 export async function signInWithPasskey(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
   // Step 1: Initiate auth with USER_AUTH flow (preferring passkey)
   const result = await signIn({
-    username: email,
+    username: normalizedEmail,
     options: { authFlowType: 'USER_AUTH' },
   });
 
@@ -80,8 +81,9 @@ export async function signInWithPasskey(email: string) {
  * @returns Sign-in result from Amplify
  */
 export async function signInWithPassword(email: string, password: string) {
+  const normalizedEmail = email.trim().toLowerCase();
   const result = await signIn({
-    username: email,
+    username: normalizedEmail,
     password: password,
     options: { authFlowType: 'USER_SRP_AUTH' },
   });
