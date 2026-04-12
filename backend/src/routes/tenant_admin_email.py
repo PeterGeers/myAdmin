@@ -273,12 +273,13 @@ def resend_invitation(user_email, user_roles):
             cognito_client = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
             user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
             
-            # Set new temporary password
+            # Set new permanent password — moves user from
+            # FORCE_CHANGE_PASSWORD to CONFIRMED status
             cognito_client.admin_set_user_password(
                 UserPoolId=user_pool_id,
                 Username=username or recipient_email,
                 Password=temp_password,
-                Permanent=False
+                Permanent=True
             )
             
         except ClientError as e:
