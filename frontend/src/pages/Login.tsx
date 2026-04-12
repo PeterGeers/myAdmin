@@ -22,11 +22,14 @@ import {
   AlertIcon,
   AlertDescription,
   Input,
+  InputGroup,
+  InputRightElement,
+  IconButton,
   FormControl,
   FormLabel,
 } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
-import { LockIcon } from '@chakra-ui/icons';
+import { LockIcon, ViewIcon, ViewOffIcon } from '@chakra-ui/icons';
 import {
   signInWithPassword,
   signInWithPasskey,
@@ -55,6 +58,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isResetLoading, setIsResetLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const isLoading = isPasswordLoading || isPasskeyLoading;
 
@@ -298,9 +302,22 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             </FormControl>
             <FormControl isRequired>
               <FormLabel color="gray.300">{t('auth:forgotPassword.newPasswordLabel')}</FormLabel>
-              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
-                _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+              <InputGroup>
+                <Input type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
+                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+                <InputRightElement>
+                  <IconButton
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                    onClick={() => setShowPassword(!showPassword)}
+                    variant="ghost"
+                    color="gray.400"
+                    _hover={{ color: 'orange.400' }}
+                    size="sm"
+                  />
+                </InputRightElement>
+              </InputGroup>
             </FormControl>
             <Button type="submit" size="lg" w="full" colorScheme="orange" isLoading={isResetLoading}
               loadingText={t('auth:forgotPassword.resetting')}>{t('auth:forgotPassword.resetButton')}</Button>
@@ -325,15 +342,41 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <VStack spacing={4}>
             <FormControl isRequired>
               <FormLabel color="gray.300">{t('auth:newPassword.newPasswordLabel')}</FormLabel>
-              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
-                _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+              <InputGroup>
+                <Input type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
+                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+                <InputRightElement>
+                  <IconButton
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                    onClick={() => setShowPassword(!showPassword)}
+                    variant="ghost"
+                    color="gray.400"
+                    _hover={{ color: 'orange.400' }}
+                    size="sm"
+                  />
+                </InputRightElement>
+              </InputGroup>
             </FormControl>
             <FormControl isRequired>
               <FormLabel color="gray.300">{t('auth:newPassword.confirmPasswordLabel')}</FormLabel>
-              <Input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)}
-                bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
-                _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+              <InputGroup>
+                <Input type={showPassword ? 'text' : 'password'} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
+                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isResetLoading} />
+                <InputRightElement>
+                  <IconButton
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                    onClick={() => setShowPassword(!showPassword)}
+                    variant="ghost"
+                    color="gray.400"
+                    _hover={{ color: 'orange.400' }}
+                    size="sm"
+                  />
+                </InputRightElement>
+              </InputGroup>
             </FormControl>
             <Alert status="info" borderRadius="md" bg="blue.900" borderColor="blue.500" borderWidth="1px">
               <AlertIcon color="blue.400" />
@@ -367,9 +410,22 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           </FormControl>
           <FormControl isRequired>
             <FormLabel color="gray.300">{t('auth:login.passwordLabel')}</FormLabel>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
-              _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isLoading} />
+            <InputGroup>
+              <Input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                bg="gray.700" color="white" borderColor="gray.600" _hover={{ borderColor: 'gray.500' }}
+                _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }} disabled={isLoading} />
+              <InputRightElement>
+                <IconButton
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                  onClick={() => setShowPassword(!showPassword)}
+                  variant="ghost"
+                  color="gray.400"
+                  _hover={{ color: 'orange.400' }}
+                  size="sm"
+                />
+              </InputRightElement>
+            </InputGroup>
           </FormControl>
           <Button type="submit" size="lg" w="full" colorScheme="orange" isLoading={isPasswordLoading}
             loadingText={t('auth:login.signingIn')} isDisabled={isPasskeyLoading}>
