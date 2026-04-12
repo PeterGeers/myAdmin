@@ -232,6 +232,9 @@ def create_tenant_user(user_email, user_roles):
                 'error': 'Email is required'
             }), 400
         
+        # Normalize email to lowercase for Cognito case-sensitivity
+        email = email.strip().lower()
+        
         # Validate groups are allowed for this tenant
         available_roles = get_available_roles_for_tenant(tenant)
         invalid_groups = [g for g in groups if g not in available_roles and g != 'SysAdmin']

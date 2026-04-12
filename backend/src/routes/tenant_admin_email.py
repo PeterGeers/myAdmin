@@ -60,6 +60,9 @@ def send_email_to_user(user_email, user_roles):
         if not recipient_email:
             return jsonify({'error': 'Email is required'}), 400
         
+        # Normalize email to lowercase for Cognito case-sensitivity
+        recipient_email = recipient_email.strip().lower()
+        
         # Validate template type
         valid_templates = ['user_invitation', 'password_reset', 'account_update']
         if template_type not in valid_templates:
@@ -244,6 +247,9 @@ def resend_invitation(user_email, user_roles):
         
         if not recipient_email:
             return jsonify({'error': 'Email is required'}), 400
+        
+        # Normalize email to lowercase for Cognito case-sensitivity
+        recipient_email = recipient_email.strip().lower()
         
         # Initialize services
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'

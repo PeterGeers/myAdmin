@@ -58,6 +58,9 @@ class CognitoService:
             ClientError: If user creation fails
         """
         try:
+            # Normalize email to lowercase for Cognito case-sensitivity
+            email = email.strip().lower()
+            
             # Build user attributes
             user_attributes = [
                 {'Name': 'email', 'Value': email},
