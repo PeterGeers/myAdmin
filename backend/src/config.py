@@ -5,7 +5,7 @@ class Config:
         self.test_mode = test_mode
         self.base_folder = os.path.join(os.getcwd(), 'storage')
         
-        # Vendor folder mapping
+        # Vendor folder mapping (application-level config, not per-tenant)
         self.vendor_folders = {
             'avance': 'Avance',
             'booking': 'Booking.com',

@@ -8,7 +8,8 @@
       "tenantManagement": "Tenantbeheer",
       "provisioning": "Inrichting",
       "roleManagement": "Rollenbeheer",
-      "healthCheck": "Systeemstatus"
+      "healthCheck": "Systeemstatus",
+      "systemTaxRates": "Systeem Belastingtarieven"
     }
   },
   "tenantAdmin": {
@@ -25,7 +26,72 @@
       "templateManagement": "Sjabloonbeheer",
       "credentials": "Inloggegevens",
       "configuration": "Configuratie",
-      "tenantDetails": "Tenantgegevens"
+      "parameters": "Parameters",
+      "taxRates": "Belastingtarieven",
+      "settings": "Instellingen",
+      "tenantDetails": "Tenantgegevens",
+      "users": "Gebruikers",
+      "financial": "Financieel",
+      "storage": "Opslag",
+      "templates": "Sjablonen",
+      "tenantInfo": "Tenantinfo",
+      "advanced": "Geavanceerd",
+      "emailLog": "E-maillog"
+    },
+    "parameters": {
+      "title": "Parameters",
+      "loading": "Parameters laden...",
+      "addParameter": "Parameter toevoegen",
+      "editParameter": "Parameter bewerken",
+      "deleteParameter": "Parameter verwijderen",
+      "deleteConfirm": "Deze parameter verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "namespace": "Namespace",
+      "key": "Sleutel",
+      "value": "Waarde",
+      "valueType": "Waardetype",
+      "scope": "Bereik",
+      "secret": "Geheim",
+      "allNamespaces": "Alle namespaces",
+      "noParameters": "Geen parameters gevonden",
+      "created": "Parameter aangemaakt",
+      "updated": "Parameter bijgewerkt",
+      "deleted": "Parameter verwijderd"
+    },
+    "taxRates": {
+      "title": "Belastingtarieven",
+      "loading": "Belastingtarieven laden...",
+      "addTaxRate": "Tarief toevoegen",
+      "editTaxRate": "Tarief bewerken",
+      "deleteTaxRate": "Tarief verwijderen",
+      "deleteConfirm": "Dit belastingtarief verwijderen?",
+      "taxType": "Belastingtype",
+      "taxCode": "Belastingcode",
+      "rate": "Tarief (%)",
+      "ledgerAccount": "Grootboekrekening",
+      "effectiveFrom": "Geldig vanaf",
+      "effectiveTo": "Geldig tot",
+      "description": "Omschrijving",
+      "calcMethod": "Berekeningsmethode",
+      "source": "Bron",
+      "status": "Status",
+      "active": "actief",
+      "future": "toekomstig",
+      "expired": "verlopen",
+      "allTaxTypes": "Alle belastingtypes",
+      "noTaxRates": "Geen belastingtarieven gevonden",
+      "created": "Belastingtarief aangemaakt",
+      "updated": "Belastingtarief bijgewerkt",
+      "deleted": "Belastingtarief verwijderd",
+      "systemRatesInfo": "Beheer systeem belastingtarieven (BTW standaarden). Deze gelden voor alle tenants tenzij overschreven."
+    },
+    "settings": {
+      "loading": "Instellingen laden...",
+      "loadFailed": "Instellingen laden mislukt",
+      "saveFailed": "Opslaan mislukt",
+      "save": "Opslaan",
+      "select": "-- selecteer --",
+      "missing": "ontbreekt",
+      "error": "Fout"
     }
   },
   "tenantManagement": {

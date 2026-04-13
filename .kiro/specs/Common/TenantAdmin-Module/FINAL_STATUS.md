@@ -379,3 +379,50 @@ The Tenant Admin Module implementation is **COMPLETE** with excellent quality an
 **Date**: February 10, 2026
 **Team**: Development Team
 **Quality**: Excellent
+
+---
+
+## Refactor: 11 Tabs → 6 Tabs (April 13, 2026)
+
+**Status**: ✅ COMPLETE
+**Spec**: `refactor.md`
+
+### Summary
+
+Consolidated the Tenant Admin dashboard from 11 tabs to 6 tabs, eliminating scattered configuration and duplicate UI.
+
+### New Tab Structure
+
+| #   | Tab         | Contents                                                         |
+| --- | ----------- | ---------------------------------------------------------------- |
+| 1   | Users       | User management, roles, invitations (unchanged)                  |
+| 2   | Financial   | Chart of Accounts + Tax Rates (FIN gated, Accordion)             |
+| 3   | Storage     | Provider-driven: pick provider → configure credentials + folders |
+| 4   | Templates   | Template management (unchanged)                                  |
+| 5   | Tenant Info | Company details + Email Log (Accordion)                          |
+| 6   | Advanced    | Raw parameters (SysAdmin only)                                   |
+
+### Components Created
+
+- `FinancialTab.tsx` — Accordion: ChartOfAccounts + TaxRateManagement
+- `StorageTab.tsx` — Provider-driven: Google Drive / S3 config
+- `TenantInfoTab.tsx` — Accordion: TenantDetails + EmailLogPanel
+- `AdvancedTab.tsx` — ParameterManagement (SysAdmin only)
+
+### Components Removed
+
+- `YearEndSettings.tsx` — purpose assignment via ledger parameters
+- `TenantSettings.tsx` — F9 prototype replaced by StorageTab
+- `TenantConfigManagement.tsx` — data migrated to parameters table
+
+### Backend Migration
+
+- `tenant_config` table data migrated to `parameters` table
+- `get_tenant_config()` / `set_tenant_config()` now delegate to ParameterService
+- `tenant_config` table dropped on all 3 MySQL instances
+- New `branding` namespace added to PARAMETER_SCHEMA
+
+### Tests
+
+- Frontend: 859/859 passing (no regressions)
+- Backend STR invoice route tests fixed (missing DB mock)

@@ -290,7 +290,9 @@ def _get_financial_data(
     cache: Any,
     db: Any,
     year: int,
-    bnb_data: Dict[str, List[Dict[str, Any]]]
+    bnb_data: Dict[str, List[Dict[str, Any]]],
+    tax_rate_service=None,
+    tenant: str = None
 ) -> Dict[str, float]:
     """
     Get financial data for the report.
@@ -312,8 +314,10 @@ def _get_financial_data(
             'no_show_omzet': No-show revenue
         }
     """
-    # Get tourist tax from account 8003: (sum / 106.2) * 6.2
-    saldo_toeristenbelasting = abs(_get_tourist_tax_from_account(cache, db, year))
+    # Get tourist tax from account 8003 using rate from TaxRateService
+    saldo_toeristenbelasting = abs(_get_tourist_tax_from_account(
+        cache, db, year, tax_rate_service=tax_rate_service, tenant=tenant
+    ))
     
     # Get total revenue from account 8003
     total_revenue_8003 = abs(_get_total_revenue_8003(cache, db, year))
@@ -345,19 +349,24 @@ def _get_financial_data(
     }
 
 
-def _get_tourist_tax_from_account(cache: Any, db: Any, year: int) -> float:
+def _get_tourist_tax_from_account(cache: Any, db: Any, year: int,
+                                  tax_rate_service=None, tenant: str = None) -> float:
     """
-    Calculate tourist tax from account 8003: (sum / 106.2) * 6.2
+    Calculate tourist tax from account 8003 using rate from TaxRateService.
     
     Args:
         cache: Cache instance
         db: Database instance
         year: Report year
+        tax_rate_service: Optional TaxRateService for rate lookup
+        tenant: Tenant administration name
     
     Returns:
         Tourist tax amount
     """
     try:
+        from datetime import date as date_type
+
         df = cache.get_data(db)
         
         # Filter by year and account 8003
@@ -367,8 +376,18 @@ def _get_tourist_tax_from_account(cache: Any, db: Any, year: int) -> float:
         
         total_8003 = df_filtered['Amount'].sum()
         
-        # Calculate tourist tax: (sum / 106.2) * 6.2
-        tourist_tax = (total_8003 / 106.2) * 6.2
+        # Get tourist tax rate from service or use default
+        tourist_rate = 6.02
+        if tax_rate_service and tenant:
+            ref_date = date_type(int(year), 7, 1)  # mid-year as reference
+            rate_info = tax_rate_service.get_tax_rate(
+                tenant, 'tourist_tax', 'standard', ref_date
+            )
+            if rate_info:
+                tourist_rate = rate_info['rate']
+
+        tourist_base = 100 + tourist_rate
+        tourist_tax = (total_8003 / tourist_base) * tourist_rate
         
         return tourist_tax
         

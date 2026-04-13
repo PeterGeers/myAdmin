@@ -44,7 +44,10 @@ class ToeristenbelastingProcessor:
             # Try to get template metadata from database
             # Note: Toeristenbelasting is typically tenant-specific
             # For now, we'll use a default administration or get it from raw_data
-            administration = raw_data.get('administration', 'GoodwinSolutions')
+            administration = raw_data.get('administration')
+            if not administration:
+                logger.warning("No administration provided in raw_data for toeristenbelasting")
+                return None
             template_type = 'toeristenbelasting_html'
             metadata = None
             

@@ -252,40 +252,42 @@ def add_tenant_filter(query: str, params: List[Any], tenant: str, table_alias: O
     return query, params
 
 
+def _map_config_key_to_param(config_key: str) -> tuple:
+    """Map a tenant_config key to (namespace, key) in parameters table."""
+    if config_key.startswith('google_drive_'):
+        return ('storage', config_key)
+    if config_key.startswith('storage_'):
+        return ('storage', config_key[len('storage_'):])
+    if config_key.startswith('company_logo'):
+        return ('branding', config_key)
+    return ('config', config_key)
+
+
 def get_tenant_config(db, tenant: str, config_key: str, is_secret: bool = False) -> Optional[str]:
     """
-    Get tenant configuration value
+    Get tenant configuration value.
     
-    Args:
-        db: DatabaseManager instance
-        tenant: Tenant name
-        config_key: Configuration key
-        is_secret: Whether to decrypt secret values
-        
-    Returns:
-        str: Configuration value or None
+    Reads from parameters table via ParameterService (primary),
+    falls back to tenant_config table (legacy) during migration.
     """
     try:
+        from services.parameter_service import ParameterService
+        ps = ParameterService(db)
+        namespace, key = _map_config_key_to_param(config_key)
+        value = ps.get_param(namespace, key, tenant=tenant)
+        if value is not None:
+            return str(value) if not isinstance(value, str) else value
+
+        # Fallback: read from legacy tenant_config table
         query = """
             SELECT config_value, is_secret 
             FROM tenant_config 
             WHERE administration = %s AND config_key = %s
         """
         result = db.execute_query(query, [tenant, config_key], fetch=True)
-        
         if result and len(result) > 0:
-            config_value = result[0].get('config_value')
-            is_secret_flag = result[0].get('is_secret', False)
-            
-            # TODO: Implement decryption for secrets
-            if is_secret_flag and is_secret:
-                # Decrypt value (placeholder for now)
-                return config_value
-            
-            return config_value
-        
+            return result[0].get('config_value')
         return None
-        
     except Exception as e:
         print(f"Error getting tenant config: {e}", flush=True)
         return None
@@ -294,25 +296,22 @@ def get_tenant_config(db, tenant: str, config_key: str, is_secret: bool = False)
 def set_tenant_config(db, tenant: str, config_key: str, config_value: str, 
                      is_secret: bool = False, created_by: str = None) -> bool:
     """
-    Set tenant configuration value
+    Set tenant configuration value.
     
-    Args:
-        db: DatabaseManager instance
-        tenant: Tenant name
-        config_key: Configuration key
-        config_value: Configuration value
-        is_secret: Whether to encrypt the value
-        created_by: User email who created/updated the config
-        
-    Returns:
-        bool: True if successful
+    Writes to both parameters table (primary) and tenant_config (legacy)
+    for backward compatibility during migration.
     """
     try:
-        # TODO: Implement encryption for secrets
-        if is_secret:
-            # Encrypt value (placeholder for now)
-            pass
-        
+        from services.parameter_service import ParameterService
+        ps = ParameterService(db)
+        namespace, key = _map_config_key_to_param(config_key)
+        ps.set_param(
+            scope='tenant', scope_id=tenant, namespace=namespace, key=key,
+            value=config_value, value_type='string', is_secret=is_secret,
+            created_by=created_by,
+        )
+
+        # Also write to legacy table for backward compat
         query = """
             INSERT INTO tenant_config (administration, config_key, config_value, is_secret, created_by)
             VALUES (%s, %s, %s, %s, %s)
@@ -320,10 +319,9 @@ def set_tenant_config(db, tenant: str, config_key: str, config_value: str,
                 config_value = VALUES(config_value),
                 updated_at = CURRENT_TIMESTAMP
         """
-        
-        db.execute_query(query, [tenant, config_key, config_value, is_secret, created_by])
+        db.execute_query(query, [tenant, config_key, config_value, is_secret, created_by],
+                        fetch=False, commit=True)
         return True
-        
     except Exception as e:
         print(f"Error setting tenant config: {e}", flush=True)
         return False

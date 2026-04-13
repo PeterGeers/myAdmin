@@ -56,6 +56,8 @@ from routes.year_end_routes import year_end_bp
 from routes.migration_routes import migration_bp
 from routes.user_routes import user_bp
 from routes.signup_routes import signup_bp
+from routes.parameter_admin_routes import parameter_admin_bp
+from routes.tax_rate_admin_routes import tax_rate_admin_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -163,6 +165,8 @@ app.register_blueprint(tenant_admin_settings_bp)
 app.register_blueprint(tenant_admin_config_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
+app.register_blueprint(parameter_admin_bp)  # Parameter-driven config admin
+app.register_blueprint(tax_rate_admin_bp)  # Tax rate admin
 app.register_blueprint(email_log_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')

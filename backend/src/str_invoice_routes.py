@@ -361,8 +361,18 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
         drive_service = GoogleDriveService(tenant)
         
         # Use tenant-specific folder structure
-        # Base template folder ID - this should be configurable per tenant in the future
-        base_template_folder_id = "12FJAYbX5MI3wpGxwahcHykRQfUCRZob1"
+        # Read base template folder ID from tenant_config
+        from auth.tenant_context import get_tenant_config
+        base_template_folder_id = get_tenant_config(
+            DatabaseManager(test_mode=os.getenv('TEST_MODE', 'false').lower() == 'true'),
+            tenant, 'google_drive_templates_folder_id'
+        )
+        if not base_template_folder_id:
+            return jsonify({
+                'success': False,
+                'error': 'Google Drive templates folder not configured for this tenant. '
+                         'Set google_drive_templates_folder_id in tenant config.'
+            }), 400
         
         # Create or find tenant-specific subfolder
         tenant_folder_name = f"templates_{tenant}"

@@ -9,12 +9,10 @@ import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import UserManagement from './UserManagement';
 import TemplateManagement from './TemplateManagement/TemplateManagement';
-import CredentialsManagement from './CredentialsManagement';
-import TenantConfigManagement from './TenantConfigManagement';
-import TenantDetails from './TenantDetails';
-import ChartOfAccounts from './ChartOfAccounts';
-import YearEndSettings from './YearEndSettings';
-import EmailLogPanel from '../shared/EmailLogPanel';
+import StorageTab from './StorageTab';
+import FinancialTab from './FinancialTab';
+import TenantInfoTab from './TenantInfoTab';
+import AdvancedTab from './AdvancedTab';
 
 interface TenantInfo {
   name: string;
@@ -170,6 +168,7 @@ export function TenantAdminDashboard() {
   }
 
   const hasFIN = tenantModules.includes('FIN');
+  const isSysAdmin = userRoles.includes('SysAdmin');
 
   return (
     <Box minH="100vh" bg="gray.900" p={6}>
@@ -178,33 +177,27 @@ export function TenantAdminDashboard() {
         <Tabs key={currentTenant} colorScheme="orange" variant="enclosed" isLazy>
           <TabList>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              {t('tenantAdmin.tabs.userManagement')}
+              {t('tenantAdmin.tabs.users')}
             </Tab>
             {hasFIN && (
               <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                {t('tenantAdmin.tabs.chartOfAccounts')}
+                💰 {t('tenantAdmin.tabs.financial')}
               </Tab>
             )}
-            {hasFIN && (
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              📁 {t('tenantAdmin.tabs.storage')}
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              {t('tenantAdmin.tabs.templates')}
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              🏢 {t('tenantAdmin.tabs.tenantInfo')}
+            </Tab>
+            {isSysAdmin && (
               <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                {t('tenantAdmin.tabs.yearEndSettings')}
+                🔧 {t('tenantAdmin.tabs.advanced')}
               </Tab>
             )}
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              {t('tenantAdmin.tabs.templateManagement')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              {t('tenantAdmin.tabs.credentials')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              {t('tenantAdmin.tabs.configuration')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              {t('tenantAdmin.tabs.tenantDetails')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              📧 Email Log
-            </Tab>
           </TabList>
 
           <TabPanels>
@@ -213,29 +206,23 @@ export function TenantAdminDashboard() {
             </TabPanel>
             {hasFIN && (
               <TabPanel>
-                <ChartOfAccounts tenant={currentTenant} />
+                <FinancialTab tenant={currentTenant} />
               </TabPanel>
             )}
-            {hasFIN && (
-              <TabPanel>
-                <YearEndSettings tenant={currentTenant} />
-              </TabPanel>
-            )}
+            <TabPanel>
+              <StorageTab tenant={currentTenant} />
+            </TabPanel>
             <TabPanel>
               <TemplateManagement />
             </TabPanel>
             <TabPanel>
-              <CredentialsManagement tenant={currentTenant} />
+              <TenantInfoTab tenant={currentTenant} />
             </TabPanel>
-            <TabPanel>
-              <TenantConfigManagement tenant={currentTenant} />
-            </TabPanel>
-            <TabPanel>
-              <TenantDetails tenant={currentTenant} />
-            </TabPanel>
-            <TabPanel>
-              <EmailLogPanel mode="tenant" />
-            </TabPanel>
+            {isSysAdmin && (
+              <TabPanel>
+                <AdvancedTab tenant={currentTenant} />
+              </TabPanel>
+            )}
           </TabPanels>
         </Tabs>
       </VStack>

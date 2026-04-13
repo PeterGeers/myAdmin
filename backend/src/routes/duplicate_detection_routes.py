@@ -228,6 +228,7 @@ def handle_duplicate_decision(user_email, user_roles):
                 
                 # Insert transactions into database
                 inserted_count = 0
+                administration = data.get('administration') or data.get('tenant')
                 for transaction in result['transactions']:
                     # Format transaction for database insertion
                     db_transaction = {
@@ -241,7 +242,7 @@ def handle_duplicate_decision(user_email, user_roles):
                         'Ref2': transaction.get('ref2'),
                         'Ref3': transaction.get('ref3'),
                         'Ref4': transaction.get('ref4'),
-                        'Administration': 'GoodwinSolutions2024'  # Default administration
+                        'Administration': administration,
                     }
                     
                     # Insert transaction

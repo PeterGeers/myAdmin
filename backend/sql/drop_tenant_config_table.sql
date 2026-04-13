@@ -1,0 +1,12 @@
+-- R21: Drop tenant_config table
+-- Run ONLY after verifying all reads/writes use parameters table
+-- and migration has been verified on both local and Railway
+--
+-- Pre-check: confirm no rows exist that aren't in parameters
+-- SELECT tc.administration, tc.config_key 
+-- FROM tenant_config tc
+-- LEFT JOIN parameters p ON p.scope = 'tenant' AND p.scope_id = tc.administration 
+--   AND p.`key` = tc.config_key AND p.namespace = 'storage'
+-- WHERE p.id IS NULL;
+-- (should return 0 rows)
+DROP TABLE IF EXISTS tenant_config;

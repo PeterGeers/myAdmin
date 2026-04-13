@@ -6,10 +6,17 @@ import os
 from country_detector import detect_country
 
 class STRProcessor:
-    def __init__(self, test_mode: bool = False):
+    def __init__(self, test_mode: bool = False,
+                 tax_rate_service=None, tenant: str = None):
         self.test_mode = test_mode
         self.platforms = ['airbnb', 'booking', 'direct']
-        self.download_folder = "C:\\Users\\peter\\Downloads"
+        self.tax_rate_service = tax_rate_service
+        self.tenant = tenant
+        # Download folder from environment or working directory
+        if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
+            self.download_folder = '/app/downloads'
+        else:
+            self.download_folder = os.path.join(os.getcwd(), 'downloads')
         
         # Property mappings from config
         self.property_mappings = {
@@ -19,38 +26,50 @@ class STRProcessor:
         }
     
     def get_tax_rates(self, checkin_date: str) -> dict:
-        """Get VAT and tourist tax rates based on check-in date"""
+        """Get VAT and tourist tax rates based on check-in date from TaxRateService."""
         try:
             # Parse check-in date
             if isinstance(checkin_date, str):
                 checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
             else:
                 checkin_dt = checkin_date
-            
-            # 2026 rate changes effective from January 1, 2026
-            rate_change_date = date(2026, 1, 1)
-            
-            if checkin_dt >= rate_change_date:
-                # 2026 rates and later
-                return {
-                    'vat_rate': 21.0,  # Changed from 9% to 21%
-                    'vat_base': 121.0,  # Base for VAT calculation (100 + VAT rate)
-                    'tourist_tax_rate': 6.9,  # Changed from 6.02% to 6.9%
-                    'tourist_tax_base': 106.9,  # Base for tourist tax calculation
-                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
-                }
+
+            if self.tax_rate_service and self.tenant:
+                # Look up btw_accommodation rate for this date
+                btw_rate_info = self.tax_rate_service.get_tax_rate(
+                    self.tenant, 'btw_accommodation', 'low', checkin_dt
+                )
+                if not btw_rate_info:
+                    btw_rate_info = self.tax_rate_service.get_tax_rate(
+                        self.tenant, 'btw_accommodation', 'high', checkin_dt
+                    )
+
+                # Look up tourist_tax rate for this date
+                tourist_info = self.tax_rate_service.get_tax_rate(
+                    self.tenant, 'tourist_tax', 'standard', checkin_dt
+                )
+
+                vat_rate = btw_rate_info['rate'] if btw_rate_info else 9.0
+                tourist_rate = tourist_info['rate'] if tourist_info else 6.02
             else:
-                # Pre-2026 rates
-                return {
-                    'vat_rate': 9.0,  # Original 9% VAT
-                    'vat_base': 109.0,  # Base for VAT calculation (100 + VAT rate)
-                    'tourist_tax_rate': 6.02,  # Original 6.02% tourist tax
-                    'tourist_tax_base': 106.02,  # Base for tourist tax calculation
-                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
-                }
+                # Fallback: hardcoded rates when no service available
+                rate_change_date = date(2026, 1, 1)
+                if checkin_dt >= rate_change_date:
+                    vat_rate = 21.0
+                    tourist_rate = 6.9
+                else:
+                    vat_rate = 9.0
+                    tourist_rate = 6.02
+
+            return {
+                'vat_rate': vat_rate,
+                'vat_base': 100 + vat_rate,
+                'tourist_tax_rate': tourist_rate,
+                'tourist_tax_base': 100 + tourist_rate,
+                'price_uplift': 0.054409
+            }
         except Exception as e:
-            print(f"Error parsing check-in date {checkin_date}: {e}")
-            # Default to current rates if date parsing fails
+            print(f"Error getting tax rates for {checkin_date}: {e}")
             return {
                 'vat_rate': 9.0,
                 'vat_base': 109.0,
