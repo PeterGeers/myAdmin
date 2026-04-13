@@ -1,5 +1,6 @@
 ---
-inclusion: auto
+inclusion: fileMatch
+fileMatchPattern: "backend/src/**/*.py"
 ---
 
 # API Conventions
