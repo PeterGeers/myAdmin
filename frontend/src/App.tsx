@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ChakraProvider, Box, VStack, Heading, Button, HStack, Text, Alert, AlertIcon, AlertDescription, CloseButton, Link as ChakraLink } from '@chakra-ui/react';
+import { ChakraProvider, Box, VStack, Heading, Button, HStack, Flex, Text, Alert, AlertIcon, AlertDescription, CloseButton, Link as ChakraLink } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import PDFUploadForm from './components/PDFUploadForm';
 import BankConnect from './components/BankConnect';
@@ -102,18 +102,18 @@ function AppContent() {
 
   const renderPageHeader = (title: string, options?: { hideTenant?: boolean; showLanguage?: boolean }) => (
     <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-      <HStack justify="space-between">
-        <HStack>
-          <Button size="sm" colorScheme="orange" onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
-          <Heading color="orange.400" size="lg">{title}</Heading>
+      <Flex wrap="wrap" justify="space-between" align="center" gap={2}>
+        <HStack minW="0" flex="1">
+          <Button size="sm" colorScheme="orange" flexShrink={0} onClick={() => setCurrentPage('menu')}>← {t('common:navigation.back')}</Button>
+          <Heading color="orange.400" size={{ base: 'sm', md: 'lg' }} noOfLines={2}>{title}</Heading>
         </HStack>
-        <HStack spacing={3}>
+        <HStack spacing={2} flexShrink={0}>
           {options?.showLanguage && <LanguageSelector />}
           <TenantSelector size="sm" hide={options?.hideTenant} />
           <HelpButton page={currentPage} />
           <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
         </HStack>
-      </HStack>
+      </Flex>
     </Box>
   );
 
@@ -300,15 +300,15 @@ function AppContent() {
             <Box minH="100vh" bg="gray.900">
               {/* Top Header Bar */}
               <Box bg="gray.800" p={4} borderBottom="2px" borderColor="orange.500">
-                <HStack justify="space-between">
-                  <Heading color="orange.400" size="lg">{t('common:navigation.myAdminDashboard')}</Heading>
-                  <HStack spacing={3}>
+                <Flex wrap="wrap" justify="space-between" align="center" gap={2}>
+                  <Heading color="orange.400" size={{ base: 'sm', md: 'lg' }} noOfLines={2}>{t('common:navigation.myAdminDashboard')}</Heading>
+                  <HStack spacing={2} flexShrink={0}>
                     <LanguageSelector />
                     <TenantSelector size="sm" />
                     <HelpButton page={currentPage} />
                     <UserMenu onLogout={logout} onSettings={() => setCurrentPage('settings')} mode={status.mode} />
                   </HStack>
-                </HStack>
+                </Flex>
               </Box>
 
               {/* Main Content */}

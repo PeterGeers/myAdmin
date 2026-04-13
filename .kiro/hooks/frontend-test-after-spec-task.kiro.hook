@@ -1,8 +1,8 @@
 {
   "enabled": true,
   "name": "Run Frontend Tests After Spec Task",
-  "description": "Runs frontend unit tests after a spec task is marked complete.",
-  "version": "1",
+  "description": "Runs frontend jest tests after a spec task is marked complete.",
+  "version": "2",
   "when": {
     "type": "postTaskExecution"
   },

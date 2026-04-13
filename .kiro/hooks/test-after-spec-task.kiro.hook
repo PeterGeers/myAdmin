@@ -1,14 +1,14 @@
 {
   "enabled": true,
-  "name": "Run Tests After Spec Task",
-  "description": "Runs backend unit tests after a spec task is marked complete, ensuring the implementation doesn't break existing functionality.",
-  "version": "1",
+  "name": "Run Backend Tests After Spec Task",
+  "description": "Runs backend pytest unit tests after a spec task is marked complete.",
+  "version": "3",
   "when": {
     "type": "postTaskExecution"
   },
   "then": {
     "type": "runCommand",
     "command": "python -m pytest tests/unit/ -x -q --tb=short",
-    "timeout": 180
+    "timeout": 120
   }
 }

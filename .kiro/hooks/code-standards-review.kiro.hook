@@ -1,7 +1,7 @@
 {
-  "enabled": true,
+  "enabled": false,
   "name": "Code Standards Review",
-  "description": "Reviews code files against project standards when created or edited. Only fires on .py, .ts, .tsx, .js, .jsx files — never on .md, .json, .yaml, etc.",
+  "description": "DISABLED: Too noisy on every save. Standards are enforced via steering files (tech.md, testing-standards.md). Use commit-guard for manual checks.",
   "version": "1",
   "when": {
     "type": "fileEdited",
