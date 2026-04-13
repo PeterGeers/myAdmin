@@ -51,6 +51,28 @@ mysql -u peter -p             # Connect to MySQL
 python scripts/database/fix_database_views.py  # Run migrations
 ```
 
+## Railway (Production)
+
+All scripts in `backend/powershell/`. Run from the `backend/` directory.
+
+```powershell
+# Run SQL queries against Railway MySQL
+.\powershell\railway-sql.ps1 -Query "SELECT COUNT(*) FROM mutaties"
+.\powershell\railway-sql.ps1 -File "sql/migration.sql"
+.\powershell\railway-sql.ps1 -TestDb -Query "SHOW TABLES"
+
+# Run Python scripts against Railway MySQL (migrations, data fixes, ad-hoc testing)
+.\powershell\railway-run.ps1 -Script "scripts/database/fix_database_views.py"
+.\powershell\railway-run.ps1 -Script "src/app.py"        # Local backend, Railway DB
+.\powershell\railway-run.ps1 -TestDb -Script "my_fix.py"  # Against testfinance
+
+# Local frontend pointing at Railway backend
+.\powershell\connect-railway-backend.ps1
+```
+
+Railway MySQL proxy: `shinkansen.proxy.rlwy.net:42375`
+Railway backend: `https://invigorating-celebration-production.up.railway.app`
+
 ## Environment Configuration
 
 Both frontend and backend use `.env` files. Copy `.env.example` to `.env`.
