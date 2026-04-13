@@ -8,7 +8,8 @@
       "tenantManagement": "Tenant Management",
       "provisioning": "Provisioning",
       "roleManagement": "Role Management",
-      "healthCheck": "Health Check"
+      "healthCheck": "Health Check",
+      "systemTaxRates": "System Tax Rates"
     }
   },
   "tenantAdmin": {
@@ -25,7 +26,72 @@
       "templateManagement": "Template Management",
       "credentials": "Credentials",
       "configuration": "Configuration",
-      "tenantDetails": "Tenant Details"
+      "parameters": "Parameters",
+      "taxRates": "Tax Rates",
+      "settings": "Settings",
+      "tenantDetails": "Tenant Details",
+      "users": "Users",
+      "financial": "Financial",
+      "storage": "Storage",
+      "templates": "Templates",
+      "tenantInfo": "Tenant Info",
+      "advanced": "Advanced",
+      "emailLog": "Email Log"
+    },
+    "parameters": {
+      "title": "Parameters",
+      "loading": "Loading parameters...",
+      "addParameter": "Add Parameter",
+      "editParameter": "Edit Parameter",
+      "deleteParameter": "Delete Parameter",
+      "deleteConfirm": "Delete this parameter? This cannot be undone.",
+      "namespace": "Namespace",
+      "key": "Key",
+      "value": "Value",
+      "valueType": "Value Type",
+      "scope": "Scope",
+      "secret": "Secret",
+      "allNamespaces": "All namespaces",
+      "noParameters": "No parameters found",
+      "created": "Parameter created",
+      "updated": "Parameter updated",
+      "deleted": "Parameter deleted"
+    },
+    "taxRates": {
+      "title": "Tax Rates",
+      "loading": "Loading tax rates...",
+      "addTaxRate": "Add Tax Rate",
+      "editTaxRate": "Edit Tax Rate",
+      "deleteTaxRate": "Delete Tax Rate",
+      "deleteConfirm": "Delete this tax rate?",
+      "taxType": "Tax Type",
+      "taxCode": "Tax Code",
+      "rate": "Rate (%)",
+      "ledgerAccount": "Ledger Account",
+      "effectiveFrom": "Effective From",
+      "effectiveTo": "Effective To",
+      "description": "Description",
+      "calcMethod": "Calculation Method",
+      "source": "Source",
+      "status": "Status",
+      "active": "active",
+      "future": "future",
+      "expired": "expired",
+      "allTaxTypes": "All tax types",
+      "noTaxRates": "No tax rates found",
+      "created": "Tax rate created",
+      "updated": "Tax rate updated",
+      "deleted": "Tax rate deleted",
+      "systemRatesInfo": "Manage system-level tax rates (BTW defaults). These apply to all tenants unless overridden."
+    },
+    "settings": {
+      "loading": "Loading settings...",
+      "loadFailed": "Failed to load settings",
+      "saveFailed": "Save failed",
+      "save": "Save",
+      "select": "-- select --",
+      "missing": "missing",
+      "error": "Error"
     }
   },
   "tenantManagement": {

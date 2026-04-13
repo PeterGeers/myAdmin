@@ -1,8 +1,15 @@
+/**
+ * Tenant Details Component - Redesigned
+ * 
+ * Grid layout: 2 columns wide, 1 column small screen.
+ * Sections: General Info, Contact, Address, Bank Details, Metadata.
+ * Matches BankingProcessor form style.
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, HStack, Heading, FormControl, FormLabel, Input,
-  Button, useToast, Spinner, Text, Card, CardBody, CardHeader,
-  Divider, SimpleGrid
+  Box, VStack, HStack, FormControl, FormLabel, Input,
+  Button, useToast, Spinner, Text, SimpleGrid, Divider,
 } from '@chakra-ui/react';
 import { getTenantDetails, updateTenantDetails, TenantDetails as TenantDetailsType } from '../../services/tenantAdminApi';
 
@@ -29,21 +36,13 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
       setDetails(response.tenant);
       setFormData(response.tenant);
     } catch (error) {
-      toast({
-        title: 'Error loading tenant details',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        status: 'error',
-        duration: 5000,
-      });
-    } finally {
-      setLoading(false);
-    }
+      toast({ title: 'Error loading tenant details', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 5000 });
+    } finally { setLoading(false); }
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Only send fields that can be updated
       const updateData = {
         display_name: formData.display_name,
         contact_email: formData.contact_email,
@@ -55,291 +54,142 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
         bank_account_number: formData.bank_account_number,
         bank_name: formData.bank_name,
       };
-
       const response = await updateTenantDetails(updateData);
-      
       setDetails(response.tenant);
       setFormData(response.tenant);
-      
-      toast({
-        title: 'Success',
-        description: 'Tenant details updated successfully',
-        status: 'success',
-        duration: 3000,
-      });
+      toast({ title: 'Tenant details updated', status: 'success', duration: 3000 });
     } catch (error) {
-      toast({
-        title: 'Error updating tenant details',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        status: 'error',
-        duration: 5000,
-      });
-    } finally {
-      setSaving(false);
-    }
+      toast({ title: 'Error updating tenant details', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 5000 });
+    } finally { setSaving(false); }
   };
 
   const handleChange = (field: keyof TenantDetailsType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const hasChanges = () => {
-    if (!details) return false;
-    return JSON.stringify(formData) !== JSON.stringify(details);
+  const hasChanges = () => details ? JSON.stringify(formData) !== JSON.stringify(details) : false;
+
+  const inputProps = {
+    bg: 'gray.700', color: 'gray.100', borderColor: 'gray.600',
+    _hover: { borderColor: 'gray.500' },
+    _focus: { borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' },
+    size: 'sm' as const,
   };
+
+  const readOnlyProps = { ...inputProps, color: 'gray.400', bg: 'gray.700', isReadOnly: true };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minH="400px">
-        <VStack spacing={4}>
-          <Spinner size="xl" color="orange.400" />
-          <Text color="gray.400">Loading tenant details...</Text>
-        </VStack>
+      <Box display="flex" justifyContent="center" alignItems="center" minH="200px">
+        <Spinner size="xl" color="orange.400" />
       </Box>
     );
   }
 
   return (
-    <Box>
-      <VStack spacing={6} align="stretch">
-        {/* Header */}
-        <HStack justify="space-between">
-          <Heading size="lg" color="gray.100">Tenant Details</Heading>
-          <Button
-            colorScheme="orange"
-            onClick={handleSave}
-            isLoading={saving}
-            isDisabled={!hasChanges()}
-          >
-            Save Changes
-          </Button>
-        </HStack>
+    <VStack spacing={5} align="stretch">
+      {/* Save button */}
+      <HStack justify="flex-end">
+        <Button colorScheme="orange" onClick={handleSave} isLoading={saving} isDisabled={!hasChanges()} size="sm">
+          Save Changes
+        </Button>
+      </HStack>
 
-        {/* General Information */}
-        <Card bg="gray.800" borderColor="gray.700">
-          <CardHeader>
-            <Heading size="md" color="gray.100">General Information</Heading>
-          </CardHeader>
+      {/* Company Info */}
+      <Box>
+        <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>Company Info</Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Administration Code</FormLabel>
+            <Input value={details?.administration || ''} {...readOnlyProps} />
+          </FormControl>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Display Name</FormLabel>
+            <Input value={formData.display_name || ''} onChange={e => handleChange('display_name', e.target.value)} placeholder="Company Name" {...inputProps} />
+          </FormControl>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Status</FormLabel>
+            <Input value={details?.status || ''} {...readOnlyProps} />
+          </FormControl>
+        </SimpleGrid>
+      </Box>
+
+      <Divider borderColor="gray.700" />
+
+      {/* Contact */}
+      <Box>
+        <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>Contact</Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Email</FormLabel>
+            <Input type="email" value={formData.contact_email || ''} onChange={e => handleChange('contact_email', e.target.value)} placeholder="contact@example.com" {...inputProps} />
+          </FormControl>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Phone</FormLabel>
+            <Input type="tel" value={formData.phone_number || ''} onChange={e => handleChange('phone_number', e.target.value)} placeholder="+31 6 12345678" {...inputProps} />
+          </FormControl>
+        </SimpleGrid>
+      </Box>
+
+      <Divider borderColor="gray.700" />
+
+      {/* Address */}
+      <Box>
+        <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>Address</Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+          <FormControl gridColumn={{ md: 'span 2' }}>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Street</FormLabel>
+            <Input value={formData.street || ''} onChange={e => handleChange('street', e.target.value)} placeholder="Main Street 123" {...inputProps} />
+          </FormControl>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>City</FormLabel>
+            <Input value={formData.city || ''} onChange={e => handleChange('city', e.target.value)} placeholder="Amsterdam" {...inputProps} />
+          </FormControl>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Zipcode</FormLabel>
+            <Input value={formData.zipcode || ''} onChange={e => handleChange('zipcode', e.target.value)} placeholder="1012 AB" {...inputProps} />
+          </FormControl>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Country</FormLabel>
+            <Input value={formData.country || ''} onChange={e => handleChange('country', e.target.value)} placeholder="Netherlands" {...inputProps} />
+          </FormControl>
+        </SimpleGrid>
+      </Box>
+
+      <Divider borderColor="gray.700" />
+
+      {/* Bank Details */}
+      <Box>
+        <Text color="gray.400" fontSize="sm" fontWeight="bold" mb={2}>Bank Details</Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Account Number</FormLabel>
+            <Input value={formData.bank_account_number || ''} onChange={e => handleChange('bank_account_number', e.target.value)} placeholder="NL12ABCD0123456789" {...inputProps} />
+          </FormControl>
+          <FormControl>
+            <FormLabel color="gray.300" fontSize="sm" mb={0}>Bank Name</FormLabel>
+            <Input value={formData.bank_name || ''} onChange={e => handleChange('bank_name', e.target.value)} placeholder="ING Bank" {...inputProps} />
+          </FormControl>
+        </SimpleGrid>
+      </Box>
+
+      {/* Metadata */}
+      {details && (
+        <>
           <Divider borderColor="gray.700" />
-          <CardBody>
-            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-              <FormControl>
-                <FormLabel color="gray.300">Administration Code</FormLabel>
-                <Input
-                  value={details?.administration || ''}
-                  isReadOnly
-                  bg="gray.700"
-                  color="gray.400"
-                  borderColor="gray.600"
-                />
-                <Text fontSize="xs" color="gray.500" mt={1}>
-                  This field cannot be changed
-                </Text>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel color="gray.300">Display Name</FormLabel>
-                <Input
-                  value={formData.display_name || ''}
-                  onChange={(e) => handleChange('display_name', e.target.value)}
-                  placeholder="Company Name"
-                  bg="gray.700"
-                  color="gray.100"
-                  borderColor="gray.600"
-                  _hover={{ borderColor: 'gray.500' }}
-                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel color="gray.300">Status</FormLabel>
-                <Input
-                  value={details?.status || ''}
-                  isReadOnly
-                  bg="gray.700"
-                  color="gray.400"
-                  borderColor="gray.600"
-                />
-                <Text fontSize="xs" color="gray.500" mt={1}>
-                  Contact system administrator to change status
-                </Text>
-              </FormControl>
-            </SimpleGrid>
-          </CardBody>
-        </Card>
-
-        {/* Contact Information */}
-        <Card bg="gray.800" borderColor="gray.700">
-          <CardHeader>
-            <Heading size="md" color="gray.100">Contact Information</Heading>
-          </CardHeader>
-          <Divider borderColor="gray.700" />
-          <CardBody>
-            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-              <FormControl>
-                <FormLabel color="gray.300">Contact Email</FormLabel>
-                <Input
-                  type="email"
-                  value={formData.contact_email || ''}
-                  onChange={(e) => handleChange('contact_email', e.target.value)}
-                  placeholder="contact@example.com"
-                  bg="gray.700"
-                  color="gray.100"
-                  borderColor="gray.600"
-                  _hover={{ borderColor: 'gray.500' }}
-                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel color="gray.300">Phone Number</FormLabel>
-                <Input
-                  type="tel"
-                  value={formData.phone_number || ''}
-                  onChange={(e) => handleChange('phone_number', e.target.value)}
-                  placeholder="+31 6 12345678"
-                  bg="gray.700"
-                  color="gray.100"
-                  borderColor="gray.600"
-                  _hover={{ borderColor: 'gray.500' }}
-                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                />
-              </FormControl>
-            </SimpleGrid>
-          </CardBody>
-        </Card>
-
-        {/* Address */}
-        <Card bg="gray.800" borderColor="gray.700">
-          <CardHeader>
-            <Heading size="md" color="gray.100">Address</Heading>
-          </CardHeader>
-          <Divider borderColor="gray.700" />
-          <CardBody>
-            <VStack spacing={4} align="stretch">
-              <FormControl>
-                <FormLabel color="gray.300">Street</FormLabel>
-                <Input
-                  value={formData.street || ''}
-                  onChange={(e) => handleChange('street', e.target.value)}
-                  placeholder="Main Street 123"
-                  bg="gray.700"
-                  color="gray.100"
-                  borderColor="gray.600"
-                  _hover={{ borderColor: 'gray.500' }}
-                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                />
-              </FormControl>
-
-              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-                <FormControl>
-                  <FormLabel color="gray.300">City</FormLabel>
-                  <Input
-                    value={formData.city || ''}
-                    onChange={(e) => handleChange('city', e.target.value)}
-                    placeholder="Amsterdam"
-                    bg="gray.700"
-                    color="gray.100"
-                    borderColor="gray.600"
-                    _hover={{ borderColor: 'gray.500' }}
-                    _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel color="gray.300">Zipcode</FormLabel>
-                  <Input
-                    value={formData.zipcode || ''}
-                    onChange={(e) => handleChange('zipcode', e.target.value)}
-                    placeholder="1012 AB"
-                    bg="gray.700"
-                    color="gray.100"
-                    borderColor="gray.600"
-                    _hover={{ borderColor: 'gray.500' }}
-                    _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel color="gray.300">Country</FormLabel>
-                  <Input
-                    value={formData.country || ''}
-                    onChange={(e) => handleChange('country', e.target.value)}
-                    placeholder="Netherlands"
-                    bg="gray.700"
-                    color="gray.100"
-                    borderColor="gray.600"
-                    _hover={{ borderColor: 'gray.500' }}
-                    _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                  />
-                </FormControl>
-              </SimpleGrid>
-            </VStack>
-          </CardBody>
-        </Card>
-
-        {/* Bank Details */}
-        <Card bg="gray.800" borderColor="gray.700">
-          <CardHeader>
-            <Heading size="md" color="gray.100">Bank Details</Heading>
-          </CardHeader>
-          <Divider borderColor="gray.700" />
-          <CardBody>
-            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-              <FormControl>
-                <FormLabel color="gray.300">Bank Account Number</FormLabel>
-                <Input
-                  value={formData.bank_account_number || ''}
-                  onChange={(e) => handleChange('bank_account_number', e.target.value)}
-                  placeholder="NL12ABCD0123456789"
-                  bg="gray.700"
-                  color="gray.100"
-                  borderColor="gray.600"
-                  _hover={{ borderColor: 'gray.500' }}
-                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel color="gray.300">Bank Name</FormLabel>
-                <Input
-                  value={formData.bank_name || ''}
-                  onChange={(e) => handleChange('bank_name', e.target.value)}
-                  placeholder="ING Bank"
-                  bg="gray.700"
-                  color="gray.100"
-                  borderColor="gray.600"
-                  _hover={{ borderColor: 'gray.500' }}
-                  _focus={{ borderColor: 'orange.400', boxShadow: '0 0 0 1px var(--chakra-colors-orange-400)' }}
-                />
-              </FormControl>
-            </SimpleGrid>
-          </CardBody>
-        </Card>
-
-        {/* Metadata */}
-        {details && (
-          <Card bg="gray.800" borderColor="gray.700">
-            <CardHeader>
-              <Heading size="md" color="gray.100">Metadata</Heading>
-            </CardHeader>
-            <Divider borderColor="gray.700" />
-            <CardBody>
-              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                <Box>
-                  <Text color="gray.400" fontSize="sm">Created At</Text>
-                  <Text color="gray.200">{details.created_at ? new Date(details.created_at).toLocaleString() : 'N/A'}</Text>
-                </Box>
-                <Box>
-                  <Text color="gray.400" fontSize="sm">Updated At</Text>
-                  <Text color="gray.200">{details.updated_at ? new Date(details.updated_at).toLocaleString() : 'N/A'}</Text>
-                </Box>
-              </SimpleGrid>
-            </CardBody>
-          </Card>
-        )}
-      </VStack>
-    </Box>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+            <Box>
+              <Text color="gray.500" fontSize="xs">Created</Text>
+              <Text color="gray.300" fontSize="sm">{details.created_at ? new Date(details.created_at).toLocaleString() : 'N/A'}</Text>
+            </Box>
+            <Box>
+              <Text color="gray.500" fontSize="xs">Updated</Text>
+              <Text color="gray.300" fontSize="sm">{details.updated_at ? new Date(details.updated_at).toLocaleString() : 'N/A'}</Text>
+            </Box>
+          </SimpleGrid>
+        </>
+      )}
+    </VStack>
   );
 }
 

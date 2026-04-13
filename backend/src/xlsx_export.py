@@ -15,18 +15,25 @@ import logging
 logger = logging.getLogger(__name__)
 
 class XLSXExportProcessor:
-    def __init__(self, test_mode=False):
+    def __init__(self, test_mode=False, parameter_service=None, tenant: str = None):
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
         self.template_service = TemplateService(self.db)
         # Default template path (fallback)
         self.default_template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'xlsx', 'template.xlsx')
-        # Default output path (fallback)
-        if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
-            self.default_output_base_path = '/app/reports'
-            os.makedirs(self.default_output_base_path, exist_ok=True)
+        # Output path from parameter service or environment-based default
+        if parameter_service and tenant:
+            self.default_output_base_path = parameter_service.get_param(
+                'storage', 'report_output_path', tenant=tenant
+            )
         else:
-            self.default_output_base_path = r'C:\Users\peter\OneDrive\Admin\reports'
+            self.default_output_base_path = None
+        if not self.default_output_base_path:
+            if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
+                self.default_output_base_path = '/app/reports'
+            else:
+                self.default_output_base_path = os.path.join(os.getcwd(), 'reports')
+        os.makedirs(self.default_output_base_path, exist_ok=True)
         self.folder_search_log = []
         logger.info("XLSXExportProcessor initialized with TemplateService")
     

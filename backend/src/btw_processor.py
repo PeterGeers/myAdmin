@@ -7,9 +7,51 @@ import tempfile
 import html
 
 class BTWProcessor:
-    def __init__(self, test_mode=False):
+    def __init__(self, test_mode=False, tax_rate_service=None):
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
+        self.tax_rate_service = tax_rate_service
+
+    def _get_vat_accounts(self, administration, reference_date=None):
+        """Get VAT ledger accounts from TaxRateService or use defaults."""
+        if self.tax_rate_service and reference_date:
+            from datetime import date as date_type
+            if isinstance(reference_date, str):
+                ref_date = date_type.fromisoformat(reference_date)
+            else:
+                ref_date = reference_date
+            codes = self.tax_rate_service.get_all_vat_codes(administration, ref_date)
+            if codes:
+                return [c['ledger_account'] for c in codes if c.get('ledger_account')]
+        return ['2010', '2020', '2021']
+
+    def _get_received_vat_accounts(self, administration, reference_date=None):
+        """Get received VAT accounts (high + low rate) from TaxRateService or defaults."""
+        if self.tax_rate_service and reference_date:
+            from datetime import date as date_type
+            if isinstance(reference_date, str):
+                ref_date = date_type.fromisoformat(reference_date)
+            else:
+                ref_date = reference_date
+            codes = self.tax_rate_service.get_all_vat_codes(administration, ref_date)
+            if codes:
+                return [c['ledger_account'] for c in codes
+                        if c.get('ledger_account') and c['ledger_account'] != '2010']
+        return ['2020', '2021']
+
+    def _get_primary_vat_account(self, administration, reference_date=None):
+        """Get the primary VAT settlement account (2010) from TaxRateService or default."""
+        if self.tax_rate_service and reference_date:
+            from datetime import date as date_type
+            if isinstance(reference_date, str):
+                ref_date = date_type.fromisoformat(reference_date)
+            else:
+                ref_date = reference_date
+            codes = self.tax_rate_service.get_all_vat_codes(administration, ref_date)
+            for c in (codes or []):
+                if c.get('code') == 'zero' and c.get('ledger_account'):
+                    return c['ledger_account']
+        return '2010'
     
     def generate_btw_report(self, administration, year, quarter):
         """Generate BTW declaration report based on R script logic"""
@@ -33,7 +75,10 @@ class BTWProcessor:
             quarter_data = self._get_quarter_data(administration, year, quarter)
             
             # Calculate BTW amounts
-            calculations = self._calculate_btw_amounts(balance_data, quarter_data)
+            calculations = self._calculate_btw_amounts(
+                balance_data, quarter_data,
+                administration=administration, reference_date=quarter_end_date
+            )
             
             # Generate HTML report
             html_report = self._generate_html_report(
@@ -113,12 +158,13 @@ class BTWProcessor:
             cache = get_cache()
             df = cache.get_data(self.db)
             
+            vat_accounts = self._get_vat_accounts(administration, f'{year}-01-01')
             # Filter for opening balance transactions in the specified year
             df_filtered = df[
                 (df['ReferenceNumber'] == 'Opening Balance') &
                 (df['TransactionDate'] == f'{year}-01-01') &
                 (df['administration'].str.startswith(administration)) &
-                (df['Reknum'].isin(['2010', '2020', '2021']))
+                (df['Reknum'].isin(vat_accounts))
             ].copy()
             
             if df_filtered.empty:
@@ -148,13 +194,14 @@ class BTWProcessor:
             cache = get_cache()
             df = cache.get_data(self.db)
             
+            vat_accounts = self._get_vat_accounts(administration, end_date)
             # Filter by date range (current year up to end_date, excluding opening balance)
             df_filtered = df[
                 (df['TransactionDate'] >= f'{year}-01-01') &
                 (df['TransactionDate'] <= end_date) &
                 (df['ReferenceNumber'] != 'Opening Balance') &
                 (df['administration'].str.startswith(administration)) &
-                (df['Reknum'].isin(['2010', '2020', '2021']))
+                (df['Reknum'].isin(vat_accounts))
             ].copy()
             
             # Group by account
@@ -187,7 +234,9 @@ class BTWProcessor:
             df_filtered = df_filtered[df_filtered['administration'].str.startswith(administration)]
             
             # Filter by BTW and revenue accounts
-            df_filtered = df_filtered[df_filtered['Reknum'].isin(['2010', '2020', '2021', '8001', '8002', '8003'])]
+            vat_accounts = self._get_vat_accounts(administration, f'{year}-{int(quarter)*3:02d}-01')
+            all_accounts = vat_accounts + ['8001', '8002', '8003']
+            df_filtered = df_filtered[df_filtered['Reknum'].isin(all_accounts)]
             
             # Group by account
             grouped = df_filtered.groupby(['Reknum', 'AccountName'], as_index=False).agg({
@@ -205,16 +254,17 @@ class BTWProcessor:
             print(f"Error getting quarter data: {e}", flush=True)
             return []
     
-    def _calculate_btw_amounts(self, balance_data, quarter_data):
+    def _calculate_btw_amounts(self, balance_data, quarter_data, administration=None, reference_date=None):
         """Calculate BTW amounts based on R script logic"""
         try:
             # Calculate total balance (te betalen/ontvangen)
             total_balance = sum(row['amount'] for row in balance_data)
             
-            # Calculate received BTW (accounts 2020, 2021)
+            # Calculate received BTW (high + low rate accounts)
+            received_accounts = self._get_received_vat_accounts(administration, reference_date)
             received_btw = sum(
                 row['amount'] for row in quarter_data 
-                if row['Reknum'] in ['2020', '2021']
+                if row['Reknum'] in received_accounts
             )
             
             # Calculate prepaid BTW
@@ -344,12 +394,13 @@ class BTWProcessor:
         transaction_date = datetime.now().strftime('%Y-%m-%d')
         
         # Determine debet/credit based on amount
+        primary_vat = self._get_primary_vat_account(administration, transaction_date)
         if total_balance < 0:  # Te betalen
-            debet = '2010'
+            debet = primary_vat
             credit = '1300'
         else:  # Te ontvangen
             debet = '1300'
-            credit = '2010'
+            credit = primary_vat
         
         transaction = {
             'TransactionNumber': 'BTW',

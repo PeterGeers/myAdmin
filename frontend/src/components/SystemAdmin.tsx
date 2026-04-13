@@ -9,6 +9,7 @@ import {
 import { EditIcon, AddIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { buildApiUrl } from '../config';
+import SystemTaxRates from './SysAdmin/SystemTaxRates';
 
 interface User {
   username: string;
@@ -438,6 +439,9 @@ export default function SystemAdmin() {
             <Tab _selected={{ color: 'orange.400', borderColor: 'orange.400', borderBottomColor: 'gray.800' }}>
               Roles ({groups.length})
             </Tab>
+            <Tab _selected={{ color: 'orange.400', borderColor: 'orange.400', borderBottomColor: 'gray.800' }}>
+              💰 System Tax Rates
+            </Tab>
           </TabList>
 
           <TabPanels>
@@ -633,6 +637,11 @@ export default function SystemAdmin() {
                   </VStack>
                 </Box>
               </VStack>
+            </TabPanel>
+
+            {/* System Tax Rates Tab */}
+            <TabPanel px={0}>
+              <SystemTaxRates />
             </TabPanel>
           </TabPanels>
         </Tabs>

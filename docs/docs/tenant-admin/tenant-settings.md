@@ -1,76 +1,89 @@
 # Instellingen
 
-> Tenant configuratie, sjablonen en rekeningschema beheren.
+> Beheer je organisatie via 6 overzichtelijke tabbladen.
 
 ## Overzicht
 
-Als Tenant Admin kun je de instellingen van je organisatie beheren. Dit omvat configuratiesleutels, rapportagesjablonen en het rekeningschema (grootboekrekeningen).
+Het Tenant Beheer dashboard is opgebouwd uit 6 tabbladen. Welke tabbladen je ziet hangt af van je modules en rol.
 
-## Configuratie
+| Tabblad     | Inhoud                                                   | Zichtbaar voor     |
+| ----------- | -------------------------------------------------------- | ------------------ |
+| Gebruikers  | Gebruikers toevoegen, rollen toewijzen                   | Tenant Admin       |
+| Financieel  | Rekeningschema + Belastingtarieven                       | Tenant Admin (FIN) |
+| Opslag      | Opslagprovider kiezen, Google Drive credentials & mappen | Tenant Admin       |
+| Sjablonen   | Rapportagesjablonen uploaden, bewerken en goedkeuren     | Tenant Admin       |
+| Tenantinfo  | Bedrijfsgegevens, contactinfo, bankgegevens + E-maillog  | Tenant Admin       |
+| Geavanceerd | Ruwe parameters tabel                                    | Alleen SysAdmin    |
 
-### Configuratie bekijken
+## Financieel tabblad
 
-1. Ga naar **Tenant Beheer** → **Instellingen**
-2. Je ziet twee secties:
-   - **Configuratie** — Niet-geheime instellingen met hun waarden
-   - **Geheimen** — Geheime sleutels (alleen de sleutelnaam is zichtbaar, niet de waarde)
+Het Financieel tabblad (alleen zichtbaar als de FIN-module actief is) bevat twee secties:
 
-### Configuratie toevoegen of wijzigen
+### Rekeningschema
 
-1. Klik op **Instelling toevoegen**
-2. Vul in:
+Alle grootboekrekeningen voor je administratie. Klik op een rij om te bewerken.
 
-| Veld    | Beschrijving                                            |
-| ------- | ------------------------------------------------------- |
-| Sleutel | Naam van de instelling (bijv. `google_drive_folder_id`) |
-| Waarde  | De waarde van de instelling                             |
-| Geheim  | Vink aan als de waarde verborgen moet blijven           |
-
-3. Klik op **Opslaan**
-
-### Configuratie verwijderen
-
-1. Klik op het verwijdericoon naast de instelling
-2. Bevestig de actie
-
-!!! warning
-Geheime configuraties (zoals API-sleutels en wachtwoorden) tonen alleen de sleutelnaam. De waarde is versleuteld opgeslagen en niet zichtbaar in de interface.
-
-## Sjablonen
-
-Sjablonen bepalen hoe factuurverwerking en rapportages werken voor je organisatie. Je kunt sjablonen bekijken, aanpassen en goedkeuren.
-
-### Sjabloon bekijken
-
-1. Ga naar **Tenant Beheer** → **Sjablonen**
-2. Selecteer het sjabloontype (bijv. `financial_report_xlsx`)
-3. Je ziet het huidige sjabloon met de veldmappings
-
-### Sjabloon aanpassen
-
-1. Pas de velden aan in het bewerkingsformulier
-2. Klik op **Preview** om het resultaat te bekijken
-3. Klik op **Valideren** om te controleren op fouten
-4. Klik op **Goedkeuren** om het sjabloon te activeren
-
-Als er validatiefouten zijn, kun je **AI Help** gebruiken om suggesties te krijgen voor het oplossen van de fouten.
-
-### Sjabloon afwijzen
-
-Als een sjabloonwijziging niet correct is, klik je op **Afwijzen** om terug te keren naar de vorige versie.
-
-## Rekeningschema
-
-Het rekeningschema bevat alle grootboekrekeningen die beschikbaar zijn voor je administratie. Deze worden gebruikt bij het boeken van transacties.
+- **Exporteren** — Download als Excel
+- **Importeren** — Upload een Excel-bestand
+- **Toevoegen** — Nieuwe rekening aanmaken
+- **Parameters** — Per rekening kun je parameters instellen (bijv. BTW saldering, jaarafsluiting doel)
 
 !!! info
-Rekeningen die al in transacties worden gebruikt, kunnen niet worden verwijderd. Het systeem controleert dit automatisch.
+Rekeningen die al in transacties worden gebruikt, kunnen niet worden verwijderd.
+
+### Belastingtarieven
+
+Beheer BTW-tarieven en andere belastingtarieven. Klik op een rij om te bewerken. Systeemtarieven (bron: system) kunnen alleen door de SysAdmin worden gewijzigd.
+
+## Opslag tabblad
+
+Configureer waar je bestanden worden opgeslagen.
+
+### Stap 1: Provider kiezen
+
+Kies je opslagprovider:
+
+- **Google Drive** — OAuth-authenticatie + mappenstructuur
+- **S3 Shared Bucket** — Gedeelde AWS S3 bucket (platformniveau)
+- **S3 Tenant Bucket** — Eigen AWS S3 bucket per tenant
+
+### Stap 2: Provider configureren
+
+**Google Drive:**
+
+1. Upload je credentials JSON-bestand, of start de OAuth-flow
+2. Controleer de verbinding met **Test Connection**
+3. Vul de Root Folder ID in
+4. Bekijk de geconfigureerde mappen (facturen, sjablonen, rapporten)
+
+## Sjablonen tabblad
+
+Sjablonen bepalen hoe factuurverwerking en rapportages werken.
+
+1. Selecteer het sjabloontype
+2. Pas velden aan in het bewerkingsformulier
+3. Klik op **Preview** om het resultaat te bekijken
+4. Klik op **Valideren** om te controleren op fouten
+5. Klik op **Goedkeuren** om het sjabloon te activeren
+
+Bij validatiefouten kun je **AI Help** gebruiken voor suggesties.
+
+## Tenantinfo tabblad
+
+Beheer je bedrijfsgegevens in de volgende secties:
+
+- **Bedrijfsinfo** — Administratiecode, weergavenaam, status
+- **Contact** — E-mail en telefoonnummer
+- **Adres** — Straat, stad, postcode, land
+- **Bankgegevens** — Rekeningnummer en banknaam
+- **E-maillog** — Overzicht van verzonden e-mails (uitnodigingen, wachtwoord resets)
 
 ## Problemen oplossen
 
-| Probleem                            | Oorzaak                                | Oplossing                                               |
-| ----------------------------------- | -------------------------------------- | ------------------------------------------------------- |
-| "Tenant admin access required"      | Je hebt niet de Tenant_Admin rol       | Neem contact op met je SysAdmin                         |
-| Configuratie niet opgeslagen        | Verplichte velden ontbreken            | Controleer of sleutel en waarde zijn ingevuld           |
-| Sjabloon validatie mislukt          | Ontbrekende verplichte velden          | Gebruik AI Help voor suggesties                         |
-| Rekening kan niet verwijderd worden | Rekening wordt gebruikt in transacties | De rekening is in gebruik en kan niet worden verwijderd |
+| Probleem                            | Oorzaak                                | Oplossing                                     |
+| ----------------------------------- | -------------------------------------- | --------------------------------------------- |
+| "Tenant admin access required"      | Je hebt niet de Tenant_Admin rol       | Neem contact op met je SysAdmin               |
+| Financieel tabblad niet zichtbaar   | FIN-module niet ingeschakeld           | Vraag de SysAdmin om FIN in te schakelen      |
+| Geavanceerd tabblad niet zichtbaar  | Je bent geen SysAdmin                  | Alleen SysAdmin ziet dit tabblad              |
+| Google Drive verbinding mislukt     | Credentials verlopen of ongeldig       | Upload nieuwe credentials of start OAuth flow |
+| Rekening kan niet verwijderd worden | Rekening wordt gebruikt in transacties | De rekening is in gebruik                     |

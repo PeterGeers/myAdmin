@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Run Frontend Tests After Spec Task",
+  "description": "Runs frontend unit tests after a spec task is marked complete.",
+  "version": "1",
+  "when": {
+    "type": "postTaskExecution"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "npx react-scripts test --watchAll=false --ci",
+    "timeout": 180
+  }
+}

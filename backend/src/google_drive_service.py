@@ -38,14 +38,16 @@ class GoogleDriveAuthenticationError(Exception):
 
 
 class GoogleDriveService:
-    def __init__(self, administration: str):
+    def __init__(self, administration: str, parameter_service=None):
         """
         Initialize GoogleDriveService for a specific administration/tenant.
         
         Args:
             administration: The tenant/administration identifier (e.g., 'GoodwinSolutions', 'PeterPrive')
+            parameter_service: Optional ParameterService for resolving folder IDs from config
         """
         self.administration = administration
+        self.parameter_service = parameter_service
         self.service = self._authenticate()
     
     def _authenticate(self):
@@ -161,9 +163,15 @@ class GoogleDriveService:
             raise
     
     def list_subfolders(self):
-        # Use test or production folder based on TEST_MODE
-        use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
-        facturen_folder_id = os.getenv('TEST_FACTUREN_FOLDER_ID') if use_test else os.getenv('FACTUREN_FOLDER_ID', '0B9OBNkcEDqv1YWQzZDkyM2YtMTE4Yy00ODUzLWIzZmEtMTQ1NzEzMDQ1N2Ix')
+        # Resolve folder ID from parameter service, then env vars
+        facturen_folder_id = None
+        if self.parameter_service:
+            facturen_folder_id = self.parameter_service.get_param(
+                'storage', 'google_drive_folder_id', tenant=self.administration
+            )
+        if not facturen_folder_id:
+            use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
+            facturen_folder_id = os.getenv('TEST_FACTUREN_FOLDER_ID') if use_test else os.getenv('FACTUREN_FOLDER_ID', '')
         
         try:
             all_subfolders = []

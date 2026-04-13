@@ -120,6 +120,14 @@ def create_config(user_email, user_roles):
             commit=True
         )
         
+        # Also write to parameters table (migration dual-write)
+        from auth.tenant_context import _map_config_key_to_param
+        from services.parameter_service import ParameterService
+        ps = ParameterService(db)
+        namespace, pkey = _map_config_key_to_param(config_key)
+        ps.set_param('tenant', tenant, namespace, pkey, config_value,
+                     value_type='string', is_secret=is_secret, created_by=user_email)
+        
         logger.info(f"Created config {config_key} for tenant {tenant} by {user_email}")
         
         return jsonify({
@@ -161,7 +169,7 @@ def update_config(user_email, user_roles, config_id):
         
         # Verify config belongs to tenant
         verify_query = """
-            SELECT id FROM tenant_config
+            SELECT id, config_key FROM tenant_config
             WHERE id = %s AND administration = %s
         """
         
@@ -169,6 +177,8 @@ def update_config(user_email, user_roles, config_id):
         
         if not results:
             return jsonify({'error': 'Configuration not found'}), 404
+        
+        config_key = results[0]['config_key']
         
         # Update config
         query = """
@@ -183,6 +193,14 @@ def update_config(user_email, user_roles, config_id):
             fetch=False,
             commit=True
         )
+        
+        # Also update parameters table (migration dual-write)
+        from auth.tenant_context import _map_config_key_to_param
+        from services.parameter_service import ParameterService
+        ps = ParameterService(db)
+        namespace, pkey = _map_config_key_to_param(config_key)
+        ps.set_param('tenant', tenant, namespace, pkey, config_value,
+                     value_type='string', is_secret=is_secret, created_by=user_email)
         
         logger.info(f"Updated config {config_id} for tenant {tenant} by {user_email}")
         
@@ -238,6 +256,13 @@ def delete_config(user_email, user_roles, config_id):
             fetch=False,
             commit=True
         )
+        
+        # Also delete from parameters table (migration dual-write)
+        from auth.tenant_context import _map_config_key_to_param
+        from services.parameter_service import ParameterService
+        ps = ParameterService(db)
+        namespace, pkey = _map_config_key_to_param(config_key)
+        ps.delete_param('tenant', tenant, namespace, pkey)
         
         logger.info(f"Deleted config {config_key} (id={config_id}) for tenant {tenant} by {user_email}")
         
