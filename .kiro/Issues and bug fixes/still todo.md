@@ -1,7 +1,8 @@
-# Clean up hooks. Reduce overlap and what is deprecated means
+
 # Improve instructions to use table and modals for userinteraction 
 Including generuic filters, action buttons
 Including translation
+
 # Header line is not working on mobiles (much too long)
 The length is fixed
 
