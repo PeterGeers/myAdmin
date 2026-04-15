@@ -194,6 +194,22 @@ def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str,
             'contact_email': 'peter@jabaki.nl'
         }
         
+        # Resolve company logo from tenant parameters
+        company_logo = ''
+        try:
+            from services.parameter_service import ParameterService
+            from database import DatabaseManager
+            db = DatabaseManager(test_mode=False)
+            param_service = ParameterService(db)
+            tenant = booking_data.get('administration', '')
+            logo_file_id = param_service.get_param('branding', 'company_logo_file_id', tenant=tenant)
+            if logo_file_id:
+                company_logo = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
+        except Exception as e:
+            logger.warning(f"Could not resolve company logo: {e}")
+        
+        company_info['company_logo'] = company_logo
+        
         # Billing information
         billing_name = booking_data.get('guestName', '')
         billing_address = f"Via {booking_data.get('channel', '')}"
