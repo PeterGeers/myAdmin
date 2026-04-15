@@ -1,14 +1,13 @@
 {
   "enabled": true,
-  "name": "Run Backend Tests After Spec Task",
-  "description": "Runs backend pytest unit tests after a spec task is marked complete.",
-  "version": "3",
+  "name": "Smart Test Runner After Spec Task",
+  "description": "After a spec task completes, checks which files were changed, creates missing tests for new source files, then runs only the relevant test suite.",
+  "version": "7",
   "when": {
     "type": "postTaskExecution"
   },
   "then": {
-    "type": "runCommand",
-    "command": "python -m pytest tests/unit/ -x -q --tb=short",
-    "timeout": 120
+    "type": "askAgent",
+    "prompt": "Check the git diff (staged and unstaged) to determine which files were changed in this task.\n\n1. COVERAGE CHECK: For every new source file created (frontend/src/pages/*.tsx, frontend/src/components/**/*.tsx, backend/src/services/*.py, backend/src/routes/*.py), check if a corresponding test file exists. If no test file exists, create one with basic service-level or unit tests following the project's existing test patterns. Frontend tests go in frontend/src/__tests__/, backend tests go in backend/tests/unit/.\n\n2. RUN TESTS: If only frontend/ files changed, run: cd frontend && npx react-scripts test --watchAll=false --ci --testPathPattern matching the changed/new test files. If only backend/ files changed, run: .venv/Scripts/python -m pytest backend/tests/unit/ -x -q --tb=short scoped to relevant test files. If both changed, run both. If only non-code files changed (like .md or .json config), skip tests entirely.\n\nReport the results."
   }
 }

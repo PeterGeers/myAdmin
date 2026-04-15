@@ -64,6 +64,7 @@ export function useTenantModules() {
     hasModule: (moduleName: string) => modules.includes(moduleName),
     hasFIN: modules.includes('FIN'),
     hasSTR: modules.includes('STR'),
+    hasZZP: modules.includes('ZZP'),
   };
 }
 

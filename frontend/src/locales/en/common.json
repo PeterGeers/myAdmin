@@ -182,6 +182,12 @@
       "tenantAdministration": "Tenant Administration",
       "connectBank": "Connect Bank (Salt Edge)",
       "assets": "Asset Administration"
+    },
+    "moduleGroups": {
+      "fin": "Financial",
+      "str": "Short-Term Rental",
+      "zzp": "Freelance Admin",
+      "admin": "Administration"
     }
   },
   "time": {

@@ -182,6 +182,12 @@
       "tenantAdministration": "Tenant Beheer",
       "connectBank": "Bank Verbinden (Salt Edge)",
       "assets": "Activabeheer"
+    },
+    "moduleGroups": {
+      "fin": "Financieel",
+      "str": "Vakantieverhuur",
+      "zzp": "Freelance Administratie",
+      "admin": "Beheer"
     }
   },
   "time": {

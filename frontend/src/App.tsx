@@ -9,6 +9,11 @@ import STRInvoice from './components/STRInvoice';
 import STRPricing from './components/STRPricing';
 import FINReports from './components/FINReports';
 import AssetList from './components/Assets/AssetList';
+import ZZPContacts from './pages/ZZPContacts';
+import ZZPProducts from './pages/ZZPProducts';
+import ZZPInvoices from './pages/ZZPInvoices';
+import ZZPTimeTracking from './pages/ZZPTimeTracking';
+import ZZPDebtors from './pages/ZZPDebtors';
 import STRReports from './components/STRReports';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -26,14 +31,14 @@ import PasskeySettings from './components/settings/PasskeySettings';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 import { HelpButton } from './components/help';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors';
 
 function AppContent() {
   const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState<PageType>('menu');
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout, refreshUserRoles } = useAuth();
-  const { hasFIN, hasSTR, loading: modulesLoading } = useTenantModules();
+  const { hasFIN, hasSTR, hasZZP, loading: modulesLoading } = useTenantModules();
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
   // Check if user should be prompted to register a passkey
@@ -80,8 +85,12 @@ function AppContent() {
       if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'bank-connect' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets') && !hasFIN) {
         setCurrentPage('menu');
       }
+      // If on ZZP page but no ZZP access, redirect to menu
+      if ((currentPage === 'zzp-invoices' || currentPage === 'zzp-contacts' || currentPage === 'zzp-products' || currentPage === 'zzp-time-tracking' || currentPage === 'zzp-debtors') && !hasZZP) {
+        setCurrentPage('menu');
+      }
     }
-  }, [hasSTR, hasFIN, modulesLoading, currentPage]);
+  }, [hasSTR, hasFIN, hasZZP, modulesLoading, currentPage]);
 
   // Show login page if not authenticated
   if (!isAuthenticated && !loading) {
@@ -282,6 +291,71 @@ function AppContent() {
           </Box>
         );
 
+      case 'zzp-invoices':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`🧾 ${t('zzp:invoices.title')}`)}
+              <ZZPInvoices />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'zzp-contacts':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`👥 ${t('zzp:contacts.title')}`)}
+              <ZZPContacts />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'zzp-products':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`📦 ${t('zzp:products.title')}`)}
+              <ZZPProducts />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'zzp-time-tracking':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`⏱️ ${t('zzp:timeTracking.title')}`)}
+              <ZZPTimeTracking />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'zzp-debtors':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`💰 ${t('zzp:debtors.title')}`)}
+              <ZZPDebtors />
+            </Box>
+          </ProtectedRoute>
+        );
+
       case 'settings':
         return (
           <ProtectedRoute onLoginSuccess={() => setCurrentPage('menu')}>
@@ -331,60 +405,79 @@ function AppContent() {
                   <Text color="gray.300" fontSize="lg">{t('common:navigation.selectComponent')}</Text>
                 
                 <VStack spacing={4} w="400px">
-                  {/* Invoice Management - Finance module permissions */}
-                  {hasFIN && (user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
-                      📄 {t('common:navigation.modules.importInvoices')}
-                    </Button>
-                  )}
-
-                  {/* Banking - Finance CRUD only (requires write access) */}
-                  {hasFIN && (user?.roles?.some(role => ['Finance_CRUD'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
-                      🏦 {t('common:navigation.modules.importBanking')}
-                    </Button>
-                  )}
-
-                  {/* STR Bookings - STR module permissions */}
-                  {hasSTR && (user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
-                      🏠 {t('common:navigation.modules.importSTRBookings')}
-                    </Button>
-                  )}
-
-                  {/* STR Invoice - STR module permissions */}
-                  {hasSTR && (user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
-                      🧾 {t('common:navigation.modules.strInvoiceGenerator')}
-                    </Button>
-                  )}
-
-                  {/* STR Pricing - STR CRUD only (requires write access) */}
-                  {hasSTR && (user?.roles?.some(role => ['STR_CRUD'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
-                      💰 {t('common:navigation.modules.strPricingModel')}
-                    </Button>
-                  )}
-
-                  {/* FIN Reports - Finance module users */}
+                  {/* ── FIN Module ──────────────────────────── */}
                   {hasFIN && (user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read', 'Finance_Export'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('fin-reports')}>
-                      📊 {t('common:navigation.modules.finReports')}
-                    </Button>
+                    <>
+                      <Text color="orange.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>📁 {t('common:navigation.moduleGroups.fin')}</Text>
+                      {user?.roles?.some(role => ['Finance_CRUD'].includes(role)) && (
+                        <Button size="lg" w="full" colorScheme="orange" onClick={() => setCurrentPage('pdf')}>
+                          📄 {t('common:navigation.modules.importInvoices')}
+                        </Button>
+                      )}
+                      {user?.roles?.some(role => ['Finance_CRUD'].includes(role)) && (
+                        <Button size="lg" w="full" colorScheme="red" onClick={() => setCurrentPage('banking')}>
+                          🏦 {t('common:navigation.modules.importBanking')}
+                        </Button>
+                      )}
+                      <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('fin-reports')}>
+                        📊 {t('common:navigation.modules.finReports')}
+                      </Button>
+                      {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && (
+                        <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('assets')}>
+                          🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}
+                        </Button>
+                      )}
+                    </>
                   )}
 
-                  {/* Asset Administration - Finance module users */}
-                  {hasFIN && (user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('assets')}>
-                      🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}
-                    </Button>
-                  )}
-
-                  {/* STR Reports - STR module users */}
+                  {/* ── STR Module ──────────────────────────── */}
                   {hasSTR && (user?.roles?.some(role => ['STR_CRUD', 'STR_Read', 'STR_Export'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="cyan" onClick={() => setCurrentPage('str-reports')}>
-                      📈 {t('common:navigation.modules.strReports')}
-                    </Button>
+                    <>
+                      <Text color="blue.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>🏠 {t('common:navigation.moduleGroups.str')}</Text>
+                      {user?.roles?.some(role => ['STR_CRUD'].includes(role)) && (
+                        <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('str')}>
+                          🏠 {t('common:navigation.modules.importSTRBookings')}
+                        </Button>
+                      )}
+                      <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('str-invoice')}>
+                        🧾 {t('common:navigation.modules.strInvoiceGenerator')}
+                      </Button>
+                      {user?.roles?.some(role => ['STR_CRUD'].includes(role)) && (
+                        <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('str-pricing')}>
+                          💰 {t('common:navigation.modules.strPricingModel')}
+                        </Button>
+                      )}
+                      <Button size="lg" w="full" colorScheme="cyan" onClick={() => setCurrentPage('str-reports')}>
+                        📈 {t('common:navigation.modules.strReports')}
+                      </Button>
+                    </>
+                  )}
+
+                  {/* ── ZZP Module ──────────────────────────── */}
+                  {hasZZP && (user?.roles?.some(role => ['ZZP_Read', 'ZZP_Write'].includes(role))) && (
+                    <>
+                      <Text color="teal.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>💼 {t('common:navigation.moduleGroups.zzp')}</Text>
+                      <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('zzp-invoices')}>
+                        🧾 {t('zzp:invoices.title')}
+                      </Button>
+                      <Button size="lg" w="full" colorScheme="cyan" onClick={() => setCurrentPage('zzp-contacts')}>
+                        👥 {t('zzp:contacts.title')}
+                      </Button>
+                      <Button size="lg" w="full" colorScheme="blue" onClick={() => setCurrentPage('zzp-products')}>
+                        📦 {t('zzp:products.title')}
+                      </Button>
+                      <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('zzp-time-tracking')}>
+                        ⏱️ {t('zzp:timeTracking.title')}
+                      </Button>
+                      <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('zzp-debtors')}>
+                        💰 {t('zzp:debtors.title')}
+                      </Button>
+                    </>
+                  )}
+
+                  {/* ── Admin ───────────────────────────────── */}
+                  {(user?.roles?.some(role => ['SysAdmin', 'Tenant_Admin'].includes(role))) && (
+                    <Text color="gray.400" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>⚙️ {t('common:navigation.moduleGroups.admin')}</Text>
                   )}
 
                   {/* System Administration - SysAdmin only */}
