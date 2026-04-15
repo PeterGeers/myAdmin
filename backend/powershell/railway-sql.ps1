@@ -18,7 +18,7 @@ param(
 
 $RAILWAY_MYSQL_HOST = "shinkansen.proxy.rlwy.net"
 $RAILWAY_MYSQL_PORT = 42375
-$RAILWAY_MYSQL_USER = "peter"
+$RAILWAY_MYSQL_USER = "root"
 $DB_NAME = if ($TestDb) { "testfinance" } else { "finance" }
 
 if (-not $Query -and -not $File) {
@@ -47,7 +47,7 @@ if ($File) {
         exit 1
     }
     Write-Host "Executing file: $File" -ForegroundColor Yellow
-    mysql -h $RAILWAY_MYSQL_HOST -P $RAILWAY_MYSQL_PORT -u $RAILWAY_MYSQL_USER -p"$password" $DB_NAME < $File
+    Get-Content $File -Raw | mysql -h $RAILWAY_MYSQL_HOST -P $RAILWAY_MYSQL_PORT -u $RAILWAY_MYSQL_USER -p"$password" $DB_NAME
 }
 else {
     Write-Host "Executing: $Query" -ForegroundColor Yellow

@@ -85,6 +85,48 @@ PARAMETER_SCHEMA = {
                 'type': 'string',
                 'description': 'Google Drive file ID for company logo',
             },
+            'company_name': {
+                'label': 'Company Name',
+                'label_nl': 'Bedrijfsnaam',
+                'type': 'string',
+                'description': 'Legal company name for invoices and documents',
+            },
+            'company_address': {
+                'label': 'Company Address',
+                'label_nl': 'Bedrijfsadres',
+                'type': 'string',
+                'description': 'Street address',
+            },
+            'company_postal_city': {
+                'label': 'Postal Code & City',
+                'label_nl': 'Postcode & Plaats',
+                'type': 'string',
+                'description': 'Postal code and city (e.g. 2131 ZA Hoofddorp)',
+            },
+            'company_country': {
+                'label': 'Country',
+                'label_nl': 'Land',
+                'type': 'string',
+                'description': 'Country name',
+            },
+            'company_vat': {
+                'label': 'VAT Number',
+                'label_nl': 'BTW-nummer',
+                'type': 'string',
+                'description': 'VAT registration number',
+            },
+            'company_coc': {
+                'label': 'Chamber of Commerce Number',
+                'label_nl': 'KvK-nummer',
+                'type': 'string',
+                'description': 'Chamber of Commerce registration number',
+            },
+            'contact_email': {
+                'label': 'Contact Email',
+                'label_nl': 'Contact E-mail',
+                'type': 'string',
+                'description': 'Contact email shown on invoices',
+            },
         },
     },
     'fin': {

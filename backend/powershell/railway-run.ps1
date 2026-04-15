@@ -18,7 +18,7 @@ param(
 
 $RAILWAY_MYSQL_HOST = "shinkansen.proxy.rlwy.net"
 $RAILWAY_MYSQL_PORT = 42375
-$RAILWAY_MYSQL_USER = "peter"
+$RAILWAY_MYSQL_USER = "root"
 $DB_NAME = if ($TestDb) { "testfinance" } else { "finance" }
 
 if (-not (Test-Path $Script)) {

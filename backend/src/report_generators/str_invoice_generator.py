@@ -183,32 +183,51 @@ def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str,
         checkin_formatted = checkin_dt.strftime('%d-%m-%Y')
         checkout_formatted = checkout_dt.strftime('%d-%m-%Y') if checkout_date else ''
         
-        # Company information (default - should be configurable per tenant)
-        company_info = {
-            'company_name': 'Jabaki a Goodwin Solutions Company',
-            'company_address': 'Beemsterstraat 3',
-            'company_postal_city': '2131 ZA Hoofddorp',
-            'company_country': 'Nederland',
-            'company_vat': 'NL812613764B02',
-            'company_coc': '24352408',
-            'contact_email': 'peter@jabaki.nl'
-        }
-        
-        # Resolve company logo from tenant parameters
-        company_logo = ''
+        # Company information — read from tenant branding parameters
+        company_info = {}
         try:
-            from services.parameter_service import ParameterService
+            from auth.tenant_context import get_tenant_config
             from database import DatabaseManager
             db = DatabaseManager(test_mode=False)
-            param_service = ParameterService(db)
             tenant = booking_data.get('administration', '')
-            logo_file_id = param_service.get_param('branding', 'company_logo_file_id', tenant=tenant)
+
+            company_info = {
+                'company_name': get_tenant_config(db, tenant, 'company_name') or '',
+                'company_address': get_tenant_config(db, tenant, 'company_address') or '',
+                'company_postal_city': get_tenant_config(db, tenant, 'company_postal_city') or '',
+                'company_country': get_tenant_config(db, tenant, 'company_country') or '',
+                'company_vat': get_tenant_config(db, tenant, 'company_vat') or '',
+                'company_coc': get_tenant_config(db, tenant, 'company_coc') or '',
+                'contact_email': get_tenant_config(db, tenant, 'contact_email') or '',
+            }
+
+            # Resolve company logo as base64 data URI for reliable embedding
+            logo_file_id = get_tenant_config(db, tenant, 'company_logo_file_id')
+            company_logo = ''
             if logo_file_id:
-                company_logo = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
+                try:
+                    import requests
+                    import base64
+                    logo_url = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
+                    resp = requests.get(logo_url, timeout=10)
+                    if resp.status_code == 200:
+                        content_type = resp.headers.get('Content-Type', 'image/png')
+                        b64 = base64.b64encode(resp.content).decode('utf-8')
+                        company_logo = f'data:{content_type};base64,{b64}'
+                    else:
+                        logger.warning(f"Logo fetch returned {resp.status_code}, falling back to URL")
+                        company_logo = logo_url
+                except Exception as logo_err:
+                    logger.warning(f"Could not fetch logo as base64: {logo_err}, falling back to URL")
+                    company_logo = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
+            company_info['company_logo'] = company_logo
         except Exception as e:
-            logger.warning(f"Could not resolve company logo: {e}")
-        
-        company_info['company_logo'] = company_logo
+            logger.warning(f"Could not resolve tenant company info: {e}")
+            company_info = {
+                'company_name': '', 'company_address': '', 'company_postal_city': '',
+                'company_country': '', 'company_vat': '', 'company_coc': '',
+                'contact_email': '', 'company_logo': '',
+            }
         
         # Billing information
         billing_name = booking_data.get('guestName', '')
