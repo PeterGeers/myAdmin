@@ -1,0 +1,210 @@
+"""
+PDFGeneratorService: HTML-to-PDF conversion for invoices using weasyprint.
+
+Renders an HTML template with invoice data, injects tenant logo,
+and converts to PDF. Falls back to a default template if no
+tenant-specific template is configured.
+
+Reference: .kiro/specs/zzp-module/design.md §5.6
+"""
+
+import logging
+from io import BytesIO
+from datetime import date
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+
+class PDFGeneratorService:
+    """Generate invoice PDFs from HTML templates via weasyprint."""
+
+    def __init__(self, db, template_service=None, parameter_service=None):
+        self.db = db
+        self.template_service = template_service
+        self.parameter_service = parameter_service
+
+    def generate_invoice_pdf(self, tenant: str, invoice: dict) -> BytesIO:
+        """Generate a PDF for an invoice or credit note."""
+        html = self._render_html(tenant, invoice, is_copy=False)
+        return self._html_to_pdf(html)
+
+    def generate_copy_invoice_pdf(self, tenant: str, invoice: dict) -> BytesIO:
+        """Generate a PDF marked as COPY."""
+        html = self._render_html(tenant, invoice, is_copy=True)
+        return self._html_to_pdf(html)
+
+    def _render_html(self, tenant: str, invoice: dict,
+                     is_copy: bool = False) -> str:
+        """Render the invoice HTML from template + data."""
+        template_html = self._load_template(tenant)
+        logo_url = self._get_tenant_logo(tenant)
+
+        contact = invoice.get('contact', {})
+        lines = invoice.get('lines', [])
+        vat_summary = invoice.get('vat_summary', [])
+
+        # Build lines HTML
+        lines_html = ''
+        for line in lines:
+            lines_html += (
+                f'<tr>'
+                f'<td>{line.get("description", "")}</td>'
+                f'<td class="right">{line.get("quantity", 0)}</td>'
+                f'<td class="right">&euro; {line.get("unit_price", 0):.2f}</td>'
+                f'<td class="right">{line.get("vat_rate", 0):.0f}%</td>'
+                f'<td class="right">&euro; {line.get("line_total", 0):.2f}</td>'
+                f'</tr>'
+            )
+
+        # Build VAT summary HTML
+        vat_html = ''
+        for v in vat_summary:
+            vat_html += (
+                f'<tr>'
+                f'<td>{v.get("vat_code", "")} ({v.get("vat_rate", 0):.0f}%)</td>'
+                f'<td class="right">&euro; {v.get("base_amount", 0):.2f}</td>'
+                f'<td class="right">&euro; {v.get("vat_amount", 0):.2f}</td>'
+                f'</tr>'
+            )
+
+        logo_tag = f'<img src="{logo_url}" class="logo" />' if logo_url else ''
+        copy_watermark = '<div class="watermark">COPY</div>' if is_copy else ''
+
+        replacements = {
+            '{{logo}}': logo_tag,
+            '{{copy_watermark}}': copy_watermark,
+            '{{invoice_number}}': invoice.get('invoice_number', ''),
+            '{{invoice_date}}': str(invoice.get('invoice_date', '')),
+            '{{due_date}}': str(invoice.get('due_date', '')),
+            '{{currency}}': invoice.get('currency', 'EUR'),
+            '{{payment_terms}}': str(invoice.get('payment_terms_days', 30)),
+            '{{notes}}': invoice.get('notes', '') or '',
+            '{{company_name}}': contact.get('company_name', ''),
+            '{{client_id}}': contact.get('client_id', ''),
+            '{{contact_person}}': contact.get('contact_person', '') or '',
+            '{{street_address}}': contact.get('street_address', '') or '',
+            '{{postal_code}}': contact.get('postal_code', '') or '',
+            '{{city}}': contact.get('city', '') or '',
+            '{{country}}': contact.get('country', '') or '',
+            '{{lines}}': lines_html,
+            '{{vat_summary}}': vat_html,
+            '{{subtotal}}': f"{invoice.get('subtotal', 0):.2f}",
+            '{{vat_total}}': f"{invoice.get('vat_total', 0):.2f}",
+            '{{grand_total}}': f"{invoice.get('grand_total', 0):.2f}",
+        }
+
+        html = template_html
+        for key, value in replacements.items():
+            html = html.replace(key, value)
+
+        return html
+
+    def _html_to_pdf(self, html: str) -> BytesIO:
+        """Convert HTML string to PDF bytes via weasyprint."""
+        try:
+            import weasyprint
+        except ImportError:
+            logger.error("weasyprint not installed — cannot generate PDF")
+            raise RuntimeError(
+                "PDF generation requires weasyprint. "
+                "Install with: pip install weasyprint>=60.0"
+            )
+
+        pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+        output = BytesIO(pdf_bytes)
+        output.seek(0)
+        return output
+
+    def _load_template(self, tenant: str) -> str:
+        """Load HTML template: tenant-specific via TemplateService, or default."""
+        if self.template_service:
+            try:
+                meta = self.template_service.get_template_metadata(
+                    tenant, 'zzp_invoice'
+                )
+                if meta and meta.get('local_path'):
+                    import os
+                    path = meta['local_path']
+                    if os.path.exists(path):
+                        with open(path, 'r', encoding='utf-8') as f:
+                            return f.read()
+            except Exception as e:
+                logger.warning("Failed to load tenant template, using default: %s", e)
+
+        return self._default_template()
+
+    def _get_tenant_logo(self, tenant: str) -> Optional[str]:
+        """Get logo URL from tenant parameters. Returns None if not set."""
+        if self.parameter_service:
+            logo = self.parameter_service.get_param(
+                'zzp', 'company_logo_url', tenant=tenant
+            )
+            if logo:
+                return logo
+        return None
+
+    @staticmethod
+    def _default_template() -> str:
+        """Return the built-in default invoice HTML template."""
+        import os
+        template_path = os.path.join(
+            os.path.dirname(__file__), '..', 'templates', 'zzp_invoice_default.html'
+        )
+        if os.path.exists(template_path):
+            with open(template_path, 'r', encoding='utf-8') as f:
+                return f.read()
+
+        # Inline fallback if file doesn't exist yet
+        return _INLINE_DEFAULT_TEMPLATE
+
+
+_INLINE_DEFAULT_TEMPLATE = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"/>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #333; }
+  .logo { max-height: 60px; margin-bottom: 10px; }
+  .watermark { position: fixed; top: 40%; left: 20%; font-size: 80pt;
+    color: rgba(200,200,200,0.3); transform: rotate(-30deg); z-index: -1; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
+  .right { text-align: right; }
+  .totals td { font-weight: bold; border-top: 2px solid #333; }
+  .header { display: flex; justify-content: space-between; }
+  .meta { margin: 15px 0; }
+  .meta td { border: none; padding: 2px 8px; }
+  .payment-info { margin-top: 20px; padding: 10px; background: #f5f5f5; }
+</style></head><body>
+{{copy_watermark}}
+<div class="header">
+  <div>{{logo}}</div>
+  <div><h2>{{invoice_number}}</h2></div>
+</div>
+<table class="meta"><tr>
+  <td>Datum:</td><td>{{invoice_date}}</td>
+  <td>Vervaldatum:</td><td>{{due_date}}</td>
+</tr><tr>
+  <td>Betalingstermijn:</td><td>{{payment_terms}} dagen</td>
+  <td>Valuta:</td><td>{{currency}}</td>
+</tr></table>
+<h3>{{company_name}}</h3>
+<p>{{contact_person}}<br/>{{street_address}}<br/>{{postal_code}} {{city}}<br/>{{country}}</p>
+<table>
+<thead><tr><th>Omschrijving</th><th class="right">Aantal</th>
+<th class="right">Prijs</th><th class="right">BTW</th>
+<th class="right">Totaal</th></tr></thead>
+<tbody>{{lines}}</tbody>
+</table>
+<table style="width:50%;margin-left:auto;margin-top:15px;">
+<tr><td>Subtotaal</td><td class="right">&euro; {{subtotal}}</td></tr>
+{{vat_summary}}
+<tr class="totals"><td>Totaal</td><td class="right">&euro; {{grand_total}}</td></tr>
+</table>
+<div class="payment-info">
+<strong>Betalingsgegevens</strong><br/>
+Referentie: {{client_id}}<br/>
+Factuurnummer: {{invoice_number}}
+</div>
+<p>{{notes}}</p>
+</body></html>"""

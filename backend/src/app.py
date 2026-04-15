@@ -58,6 +58,9 @@ from routes.user_routes import user_bp
 from routes.signup_routes import signup_bp
 from routes.parameter_admin_routes import parameter_admin_bp
 from routes.tax_rate_admin_routes import tax_rate_admin_bp
+from routes.contact_routes import contact_bp
+from routes.product_routes import product_bp
+from routes.zzp_routes import zzp_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -167,6 +170,9 @@ app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
 app.register_blueprint(parameter_admin_bp)  # Parameter-driven config admin
 app.register_blueprint(tax_rate_admin_bp)  # Tax rate admin
+app.register_blueprint(contact_bp)  # Shared contact registry (ZZP)
+app.register_blueprint(product_bp)  # Shared product registry (ZZP)
+app.register_blueprint(zzp_bp)  # ZZP module routes
 app.register_blueprint(email_log_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')

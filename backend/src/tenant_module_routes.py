@@ -77,6 +77,8 @@ def get_user_module_roles(user_roles):
             modules.add('FIN')
         elif role.startswith('STR_'):
             modules.add('STR')
+        elif role.startswith('ZZP_'):
+            modules.add('ZZP')
     
     return list(modules)
 
@@ -201,7 +203,7 @@ def update_tenant_module(user_email, user_roles):
     
     Request body:
         {
-            "module_name": "FIN" or "STR",
+            "module_name": "FIN", "STR", "ZZP", etc.,
             "is_active": true or false
         }
     """
@@ -224,19 +226,28 @@ def update_tenant_module(user_email, user_roles):
         is_active = data.get('is_active', True)
         
         # Validate module name
-        if module_name not in ['FIN', 'STR']:
-            return jsonify({'error': 'Invalid module name. Must be FIN or STR'}), 400
+        from services.module_registry import MODULE_REGISTRY, activate_module
+        if module_name not in MODULE_REGISTRY:
+            valid = ', '.join(MODULE_REGISTRY.keys())
+            return jsonify({'error': f'Invalid module name. Must be one of: {valid}'}), 400
         
-        # Update or insert module
-        with db_manager.get_cursor() as (cursor, conn):
-            cursor.execute("""
-                INSERT INTO tenant_modules (administration, module_name, is_active, created_by)
-                VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
-                    is_active = %s,
-                    updated_at = CURRENT_TIMESTAMP
-            """, (tenant, module_name, is_active, user_email, is_active))
-            conn.commit()
+        if is_active:
+            # Use activate_module for dependency enforcement
+            try:
+                activate_module(db_manager, tenant, module_name, activated_by=user_email)
+            except ValueError as ve:
+                return jsonify({'error': str(ve)}), 400
+        else:
+            # Deactivation — no dependency check needed
+            with db_manager.get_cursor() as (cursor, conn):
+                cursor.execute("""
+                    INSERT INTO tenant_modules (administration, module_name, is_active, created_by)
+                    VALUES (%s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                        is_active = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (tenant, module_name, is_active, user_email, is_active))
+                conn.commit()
         
         logger.info(f"Tenant module updated: {tenant}.{module_name} = {is_active} by {user_email}")
         
