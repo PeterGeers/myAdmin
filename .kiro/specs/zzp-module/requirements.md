@@ -9,9 +9,9 @@ The ZZP module requires the FIN module to be active and registers as 'ZZP' in th
 ## Glossary
 
 - **ZZP_Module**: The ZZP administration module registered in `MODULE_REGISTRY` as 'ZZP', requiring FIN to be active
-- **Contact_Registry**: Shared multi-tenant table storing business contact details (client ID, name, address, VAT number, KvK number, contact email, invoice email), reusable by future modules
+- **Contact_Registry**: Shared multi-tenant table storing business contact details (client ID, name, address, VAT number, KvK number, multiple email addresses with type indicator), reusable by future modules
 - **Client_ID**: A short unique reference code per contact per tenant (e.g., "ACME", "KPN") used as the `ReferenceNumber` in `mutaties` and included in payment details for automatic matching
-- **Product_Registry**: Shared multi-tenant table storing products/services with a `type` field (service, digital, physical); ZZP uses service and digital types only
+- **Product_Registry**: Shared multi-tenant table storing products/services with a configurable `type` parameter set and VAT codes limited to high, low, and zero rates
 - **Invoice_Engine**: The set of services responsible for creating, numbering, tracking, and managing invoices (both outgoing and incoming)
 - **Invoice_Booking_Helper**: Shared helper function that creates `mutaties` entries using double-entry bookkeeping for both incoming and outgoing invoices
 - **Payment_Check_Helper**: Shared helper function that leverages existing reference matching from banking import to determine if invoices are paid
@@ -36,7 +36,7 @@ The ZZP module requires the FIN module to be active and registers as 'ZZP' in th
 
 1. THE ZZP_Module SHALL be registered in `MODULE_REGISTRY` as 'ZZP' with required dependency on the FIN_Module
 2. WHEN a user accesses a ZZP route without the ZZP_Module enabled for the Tenant, THE ZZP_Module SHALL return HTTP 403 with an error message indicating the module is not enabled
-3. THE ZZP_Module SHALL enforce permissions using the format `zzp_read`, `zzp_write`, and `zzp_manage`
+3. THE ZZP_Module SHALL enforce permissions using the format `zzp_crud`, `zzp_read`, `zzp_export`, and `zzp_tenant`
 4. THE ZZP_Module SHALL use the decorator chain `@cognito_required()` then `@tenant_required()` then `@module_required('ZZP')` on all ZZP routes
 5. WHEN the FIN_Module is not active for a Tenant, THE ZZP_Module SHALL not be activatable for that Tenant
 
@@ -46,10 +46,10 @@ The ZZP module requires the FIN module to be active and registers as 'ZZP' in th
 
 #### Acceptance Criteria
 
-1. THE Contact_Registry SHALL store the following attributes per contact: client ID (short unique reference code per tenant, e.g., "ACME", "KPN"), company name, contact person name, street address, postal code, city, country, VAT number, KvK number (Chamber of Commerce), contact email, invoice email, phone number, and IBAN
+1. THE Contact_Registry SHALL store the following attributes per contact: client ID (short unique reference code per tenant, e.g., "ACME", "KPN"), company name, contact person name, street address, postal code, city, country, VAT number, KvK number (Chamber of Commerce), phone number, IBAN, and multiple email addresses with a type indicator (general, invoice, other)
 2. THE Contact_Registry SHALL include an `administration` field for multi-tenant isolation, filtering all queries by Tenant
-3. WHEN a contact is created without a VAT number or KvK number, THE Contact_Registry SHALL accept the record without requiring those fields
-4. THE Contact_Registry SHALL store a separate invoice email address distinct from the general contact email address
+3. WHEN a contact is created, THE Contact_Registry SHALL only require the client ID and company name; all other fields SHALL be optional
+4. THE Contact_Registry SHALL support multiple email addresses per contact, with at least one flagged as the invoice email address
 5. WHEN a contact is retrieved, THE Contact_Registry SHALL return the contact data scoped to the requesting Tenant only
 6. THE Contact_Registry SHALL support create, read, update, and soft-delete operations via a `ContactService`
 7. WHEN a contact is referenced by an existing invoice, THE Contact_Registry SHALL prevent hard deletion of that contact
@@ -61,11 +61,11 @@ The ZZP module requires the FIN module to be active and registers as 'ZZP' in th
 
 #### Acceptance Criteria
 
-1. THE Product_Registry SHALL store the following attributes per product: name, description, type (service, digital, physical), unit price, VAT code reference, unit of measure, and active status
+1. THE Product_Registry SHALL store the following attributes per product: name, description, type, unit price, VAT code reference (high, low, or zero only), unit of measure, and active status
 2. THE Product_Registry SHALL include an `administration` field for multi-tenant isolation
-3. THE Product_Registry SHALL reference VAT codes from the existing `tax_rates` table via the `TaxRateService`
-4. WHILE the ZZP_Module is the only consumer, THE Product_Registry SHALL only allow type values of 'service' and 'digital'
-5. WHEN a future module requires physical products, THE Product_Registry SHALL accept type value 'physical' without schema changes
+3. THE Product_Registry SHALL reference VAT codes from the existing `tax_rates` table via the `TaxRateService`, limited to high, low, and zero rate codes
+4. THE Product_Registry SHALL define product types as a configurable parameter set (via the parameter system), not hardcoded values
+5. WHEN a future module requires additional product types, THE Product_Registry SHALL accept new type values by updating the parameter set without schema changes
 6. WHEN a product is referenced by an existing invoice line, THE Product_Registry SHALL prevent hard deletion of that product
 
 ### Requirement 4: Invoice Creation and Management
@@ -76,9 +76,9 @@ The ZZP module requires the FIN module to be active and registers as 'ZZP' in th
 
 1. THE Invoice_Engine SHALL create invoices with the following data: invoice number, contact reference, invoice date, due date, payment terms (days), currency, status, and optional notes
 2. THE Invoice_Engine SHALL support invoice line items with: product/service reference, description override, quantity, unit price, VAT code, VAT amount, and line total
-3. THE Invoice_Engine SHALL calculate line totals as quantity multiplied by unit price
+3. THE Invoice_Engine SHALL calculate line totals as quantity multiplied by unit price (excluding VAT)
 4. THE Invoice_Engine SHALL calculate VAT amounts per line using the rate from the `TaxRateService` for the invoice date
-5. THE Invoice_Engine SHALL calculate invoice totals as the sum of all line totals (subtotal), sum of all VAT amounts (total VAT), and subtotal plus total VAT (grand total)
+5. THE Invoice_Engine SHALL calculate invoice totals as: subtotal (sum of all line totals excluding VAT), VAT summary grouped per VAT code (sum of VAT amounts per code), and grand total (subtotal plus total VAT)
 6. THE Invoice_Engine SHALL track Invoice_Status through the lifecycle: draft, sent, paid, overdue, cancelled, credited
 7. WHEN an invoice is in draft status, THE Invoice_Engine SHALL allow editing of all invoice fields
 8. WHEN an invoice has been sent, THE Invoice_Engine SHALL prevent modification of financial fields (amounts, VAT, line items)
@@ -234,7 +234,7 @@ The ZZP module requires the FIN module to be active and registers as 'ZZP' in th
 
 ### Requirement 15: Invoice Archival and Document Storage
 
-**User Story:** As a ZZP user, I want generated invoices to be archived and accessible, so that I can retrieve them for at least 7 years as required by Dutch tax law.
+**User Story:** As a ZZP user, I want generated invoices to be archived and accessible, so that I can retrieve them for the retention period defined in the tenant parameters.
 
 #### Acceptance Criteria
 
@@ -242,3 +242,4 @@ The ZZP module requires the FIN module to be active and registers as 'ZZP' in th
 2. THE Invoice_Engine SHALL store the storage URL in `Ref3` and the document filename in `Ref4` on the corresponding `mutaties` entry using the existing FIN transaction logic, maintaining the link between the invoice and the stored PDF document
 3. WHEN a user requests a previously generated invoice, THE Invoice_Engine SHALL retrieve the stored document via the storage URL in `Ref3` of the `mutaties` entry
 4. IF the stored document is unavailable, THE Invoice_Engine SHALL support generating a copy invoice marked as "COPY" based on available data in the invoice tables and `mutaties` entries
+5. THE Invoice_Engine SHALL retain invoice documents for the retention period defined in the tenant parameters, defaulting to 7 years if not configured
