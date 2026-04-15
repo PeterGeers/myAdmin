@@ -1,0 +1,93 @@
+-- Seed branding parameters for GoodwinSolutions
+INSERT INTO parameters (
+        scope,
+        scope_id,
+        namespace,
+        `key`,
+        value,
+        value_type,
+        is_secret,
+        created_by
+    )
+VALUES (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'company_name',
+        '"Jabaki a Goodwin Solutions Company"',
+        'string',
+        0,
+        'seed_branding'
+    ),
+    (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'company_address',
+        '"Beemsterstraat 3"',
+        'string',
+        0,
+        'seed_branding'
+    ),
+    (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'company_postal_city',
+        '"2131 ZA Hoofddorp"',
+        'string',
+        0,
+        'seed_branding'
+    ),
+    (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'company_country',
+        '"Nederland"',
+        'string',
+        0,
+        'seed_branding'
+    ),
+    (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'company_vat',
+        '"NL812613764B02"',
+        'string',
+        0,
+        'seed_branding'
+    ),
+    (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'company_coc',
+        '"24352408"',
+        'string',
+        0,
+        'seed_branding'
+    ),
+    (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'contact_email',
+        '"peter@jabaki.nl"',
+        'string',
+        0,
+        'seed_branding'
+    ),
+    (
+        'tenant',
+        'GoodwinSolutions',
+        'branding',
+        'company_logo_file_id',
+        '"1EJ1wo3qCWUzdUOoW5AYhZM1Fhz0vGJyW"',
+        'string',
+        0,
+        'seed_branding'
+    ) ON DUPLICATE KEY
+UPDATE value =
+VALUES(value);
