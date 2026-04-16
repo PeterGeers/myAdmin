@@ -18,7 +18,7 @@ def _passthrough_cognito(required_permissions=None):
         @wraps(f)
         def wrapper(*args, **kwargs):
             kwargs['user_email'] = 'test@example.com'
-            kwargs['user_roles'] = ['ZZP_Read', 'ZZP_Write']
+            kwargs['user_roles'] = ['ZZP_Read', 'ZZP_CRUD']
             return f(*args, **kwargs)
         return wrapper
     return decorator

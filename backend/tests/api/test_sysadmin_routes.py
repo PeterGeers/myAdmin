@@ -223,7 +223,7 @@ def test_delete_role_with_users(mock_cognito, client):
 
 @patch('routes.sysadmin_tenants.DatabaseManager')
 def test_get_modules_success(mock_db_class, client):
-    """Test successful module retrieval"""
+    """Test successful module retrieval including registered_modules from registry"""
     from datetime import datetime
     mock_db = MagicMock()
     mock_db_class.return_value = mock_db
@@ -242,6 +242,28 @@ def test_get_modules_success(mock_db_class, client):
     data = json.loads(response.data)
     assert data['success'] is True
     assert len(data['modules']) == 2
+
+    # Verify registered_modules is returned from MODULE_REGISTRY
+    assert 'registered_modules' in data
+    reg_names = [m['name'] for m in data['registered_modules']]
+    assert 'FIN' in reg_names
+    assert 'ZZP' in reg_names
+    assert 'TENADMIN' in reg_names
+
+    # Verify each registered module has required fields
+    for reg in data['registered_modules']:
+        assert 'name' in reg
+        assert 'description' in reg
+        assert 'depends_on' in reg
+        assert 'readonly' in reg
+
+    # Verify ZZP depends on FIN
+    zzp_reg = next(m for m in data['registered_modules'] if m['name'] == 'ZZP')
+    assert 'FIN' in zzp_reg['depends_on']
+
+    # Verify TENADMIN is readonly
+    tenadmin_reg = next(m for m in data['registered_modules'] if m['name'] == 'TENADMIN')
+    assert tenadmin_reg['readonly'] is True
 
 
 @patch('routes.sysadmin_tenants.DatabaseManager')

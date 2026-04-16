@@ -282,7 +282,17 @@ export async function deleteRole(roleName: string): Promise<{ success: boolean; 
 // Module Management
 // ============================================================================
 
-export async function getTenantModules(administration: string): Promise<{ modules: TenantModule[] }> {
+export interface RegisteredModule {
+  name: string;
+  description: string;
+  depends_on: string[];
+  readonly: boolean;
+}
+
+export async function getTenantModules(administration: string): Promise<{
+  modules: TenantModule[];
+  registered_modules?: RegisteredModule[];
+}> {
   const headers = await getAuthHeaders();
   const url = buildApiUrl(`/api/sysadmin/tenants/${administration}/modules`);
   const response = await fetch(url, { headers });

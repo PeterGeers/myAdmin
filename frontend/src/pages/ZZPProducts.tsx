@@ -70,7 +70,7 @@ const ZZPProducts: React.FC = () => {
                   <Td>{p.product_code}</Td>
                   <Td>{p.name}</Td>
                   <Td><Badge variant="subtle">{p.product_type}</Badge></Td>
-                  <Td isNumeric>&euro; {p.unit_price.toFixed(2)}</Td>
+                  <Td isNumeric>&euro; {Number(p.unit_price).toFixed(2)}</Td>
                   <Td>{p.vat_code}</Td>
                   <Td display={{ base: 'none', md: 'table-cell' }}>{p.unit_of_measure}</Td>
                   <Td display={{ base: 'none', lg: 'table-cell' }}>{p.external_reference || '-'}</Td>
