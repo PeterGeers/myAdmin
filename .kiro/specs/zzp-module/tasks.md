@@ -541,15 +541,15 @@
   - Test booking account validation rejects unflagged accounts
   - _Requirements: 17.1–17.4, 18.3–18.6, 19.1–19.6_
 
-- [ ] 12.10 Write property tests for booking helper
+- [x] 12.10 Write property tests for booking helper
   - **Property 2: Booking entries use invoice-level revenue account**
   - **Validates: Requirements 18.4, 18.5, 18.6**
   - **Property 3: Missing required booking parameters raise descriptive errors**
   - **Validates: Requirements 19.2, 19.3, 19.5**
 
-- [-] 12.11 Git commit and push Phase 12 to `feature/zzp-module`
+- [x] 12.11 Git commit and push Phase 12 to `feature/zzp-module`
 
-- [ ] 12. Checkpoint — Ensure all tests pass
+- [x] 12. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
@@ -560,16 +560,18 @@
 
 ### 13.1 Rename Branding Namespace and Add ZZP Branding
 
-- [ ] 13.1 Update `backend/src/services/parameter_schema.py` to rename `branding` to `str_branding` and add `zzp_branding`
+- [x] 13.1 Update `backend/src/services/parameter_schema.py` to rename `branding` to `str_branding` and add `zzp_branding`
   - Rename the `'branding'` key to `'str_branding'` with `'module': 'STR'`, `'label': 'STR Branding'`, `'label_nl': 'STR Huisstijl'`; keep all existing params unchanged
   - Add new `'zzp_branding'` namespace with `'module': 'ZZP'`, `'label': 'ZZP Branding'`, `'label_nl': 'ZZP Huisstijl'`
   - Include all keys from old branding plus two new keys: `company_iban` (IBAN shown on invoices) and `company_phone` (phone number)
   - _Requirements: 20.1, 20.2_
   - _Design: §14.5_
 
+The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Bank Account: ✓) and is also used for import transactions from the bank if can add the Invoice IBAN to it
+
 ### 13.2 Update STR Invoice Generator to Read from str_branding
 
-- [ ] 13.2 Update `backend/src/report_generators/str_invoice_generator.py` and `backend/src/auth/tenant_context.py` to use `str_branding` instead of `branding`
+- [x] 13.2 Update `backend/src/report_generators/str_invoice_generator.py` and `backend/src/auth/tenant_context.py` to use `str_branding` instead of `branding`
   - In `tenant_context.py` `_map_config_key_to_param()`: change the mapping for `company_*` and `contact_email` keys from `('branding', config_key)` to `('str_branding', config_key)` — or make it context-aware if both ZZP and STR need different branding
   - Alternatively, update `str_invoice_generator.py` to use `ParameterService` directly with `str_branding` namespace instead of `get_tenant_config()`
   - Verify STR invoice generation still works after the rename
@@ -578,17 +580,18 @@
 
 ### 13.3 Update PDF Generator to Read from zzp_branding
 
-- [ ] 13.3 Update `backend/src/services/pdf_generator_service.py` to read from `zzp_branding` namespace
+- [x] 13.3 Update `backend/src/services/pdf_generator_service.py` to read from `zzp_branding` namespace
   - In `_get_branding()`: change `get_param('branding', key, ...)` to `get_param('zzp_branding', key, ...)` and add `company_iban` and `company_phone` to the keys list
   - In `_get_tenant_logo()`: change `get_param('branding', 'company_logo_file_id', ...)` to `get_param('zzp_branding', 'company_logo_file_id', ...)`
   - In `_render_html()`: add `'{{tenant_iban}}'` and `'{{tenant_phone}}'` to the replacements dict, sourced from branding
   - Ensure missing fields render as empty strings (no placeholder text)
   - _Requirements: 20.3, 20.5_
   - _Design: §14.5_
+  - The PDF generator (task 13.3) will need to query rekeningschema where invoice_bank_account = true and read the iban from that account's parameters JSON.
 
 ### 13.4 Update Default Invoice Template with Full Header
 
-- [ ] 13.4 Update `backend/src/templates/zzp_invoice_default.html` with sender/recipient header layout
+- [x] 13.4 Update `backend/src/templates/zzp_invoice_default.html` with sender/recipient header layout
   - Add sender (tenant) section: logo, company name, address, postal/city, country, BTW, KvK, IBAN, phone, email
   - Add recipient (client) section: company name, contact person, street address, postal code + city, country, client VAT
   - Add CSS to collapse empty `<p>` and `<br/>` elements when fields are not configured
@@ -598,7 +601,7 @@
 
 ### 13.5 Register zzp_invoice Template Type
 
-- [ ] 13.5 Register `zzp_invoice` as a template type in Template Management
+- [x] 13.5 Register `zzp_invoice` as a template type in Template Management
   - Add `'zzp_invoice'` entry to `TEMPLATE_TYPES` in the template service with label, label_nl, default_file, and module
   - Ensure the template is editable via the existing Template Management tab
   - _Requirements: 20.7_
@@ -606,7 +609,7 @@
 
 ### 13.6 Data Migration for Branding Parameters
 
-- [ ] 13.6 Create SQL migration script for branding parameter migration
+- [x] 13.6 Create SQL migration script for branding parameter migration
   - Create `backend/sql/phase_zzp_branding_migration.sql`
   - Copy `branding.*` parameters to `zzp_branding.*` for tenants with ZZP module active
   - Copy `branding.*` parameters to `str_branding.*` for tenants with STR module active
@@ -614,7 +617,7 @@
   - _Requirements: 20.1, 20.2_
   - _Design: §14.11_
 
-- [ ] 13.7 Write unit tests for branding changes
+- [x] 13.7 Write unit tests for branding changes
   - Test `parameter_schema.py` contains `zzp_branding` namespace with all required keys
   - Test `parameter_schema.py` has `str_branding` (not `branding`) with module STR
   - Test PDF generator reads from `zzp_branding` namespace
@@ -622,7 +625,7 @@
   - Test `zzp_invoice` is registered as a template type
   - _Requirements: 20.1–20.7_
 
-- [ ] 13.8 Git commit and push Phase 13 to `feature/zzp-module`
+- [-] 13.8 Git commit and push Phase 13 to `feature/zzp-module`
 
 ---
 

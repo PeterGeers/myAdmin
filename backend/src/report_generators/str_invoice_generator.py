@@ -183,26 +183,25 @@ def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str,
         checkin_formatted = checkin_dt.strftime('%d-%m-%Y')
         checkout_formatted = checkout_dt.strftime('%d-%m-%Y') if checkout_date else ''
         
-        # Company information — read from tenant branding parameters
+        # Company information — read from str_branding parameters
         company_info = {}
         try:
-            from auth.tenant_context import get_tenant_config
             from database import DatabaseManager
+            from services.parameter_service import ParameterService
             db = DatabaseManager(test_mode=False)
+            ps = ParameterService(db)
             tenant = booking_data.get('administration', '')
 
-            company_info = {
-                'company_name': get_tenant_config(db, tenant, 'company_name') or '',
-                'company_address': get_tenant_config(db, tenant, 'company_address') or '',
-                'company_postal_city': get_tenant_config(db, tenant, 'company_postal_city') or '',
-                'company_country': get_tenant_config(db, tenant, 'company_country') or '',
-                'company_vat': get_tenant_config(db, tenant, 'company_vat') or '',
-                'company_coc': get_tenant_config(db, tenant, 'company_coc') or '',
-                'contact_email': get_tenant_config(db, tenant, 'contact_email') or '',
-            }
+            branding_keys = [
+                'company_name', 'company_address', 'company_postal_city',
+                'company_country', 'company_vat', 'company_coc', 'contact_email',
+            ]
+            for key in branding_keys:
+                val = ps.get_param('str_branding', key, tenant=tenant)
+                company_info[key] = str(val) if val else ''
 
             # Resolve company logo as base64 data URI for reliable embedding
-            logo_file_id = get_tenant_config(db, tenant, 'company_logo_file_id')
+            logo_file_id = ps.get_param('str_branding', 'company_logo_file_id', tenant=tenant)
             company_logo = ''
             if logo_file_id:
                 try:

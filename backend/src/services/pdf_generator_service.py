@@ -114,6 +114,8 @@ class PDFGeneratorService:
             '{{tenant_vat}}': branding.get('company_vat', ''),
             '{{tenant_coc}}': branding.get('company_coc', ''),
             '{{tenant_email}}': branding.get('contact_email', ''),
+            '{{tenant_iban}}': branding.get('company_iban', ''),
+            '{{tenant_phone}}': branding.get('company_phone', ''),
             # Client (recipient) contact
             '{{company_name}}': contact.get('company_name', ''),
             '{{client_id}}': contact.get('client_id', ''),
@@ -138,17 +140,50 @@ class PDFGeneratorService:
         return html
 
     def _get_branding(self, tenant: str) -> dict:
-        """Load tenant branding parameters (company name, address, VAT, etc.)."""
+        """Load tenant branding from zzp_branding namespace."""
         branding = {}
         if not self.parameter_service:
             return branding
         keys = ['company_name', 'company_address', 'company_postal_city',
-                'company_country', 'company_vat', 'company_coc', 'contact_email']
+                'company_country', 'company_vat', 'company_coc',
+                'company_iban', 'company_phone', 'contact_email']
         for key in keys:
-            val = self.parameter_service.get_param('branding', key, tenant=tenant)
+            val = self.parameter_service.get_param('zzp_branding', key, tenant=tenant)
             if val:
                 branding[key] = val
+
+        # If company_iban not set via branding, try rekeningschema
+        if not branding.get('company_iban'):
+            iban = self._get_invoice_iban(tenant)
+            if iban:
+                branding['company_iban'] = iban
+
         return branding
+
+    def _get_invoice_iban(self, tenant: str) -> Optional[str]:
+        """Query rekeningschema for the IBAN of the account flagged as invoice_bank_account.
+
+        Returns the IBAN string or None if no account is flagged or has no IBAN.
+        """
+        if not self.db:
+            return None
+        try:
+            rows = self.db.execute_query(
+                """SELECT JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) AS iban
+                   FROM rekeningschema
+                   WHERE administration = %s
+                     AND JSON_EXTRACT(parameters, '$.invoice_bank_account') = true
+                   LIMIT 1""",
+                (tenant,),
+            )
+            if rows and isinstance(rows, list) and len(rows) > 0:
+                iban = rows[0].get('iban') if isinstance(rows[0], dict) else None
+                if iban and isinstance(iban, str) and iban != 'null':
+                    return iban
+            return None
+        except Exception as e:
+            logger.warning("Could not fetch invoice IBAN from rekeningschema: %s", e)
+            return None
 
     def _load_full_contact(self, tenant: str, contact_id) -> Optional[dict]:
         """Load full contact record for PDF rendering."""
@@ -206,10 +241,10 @@ class PDFGeneratorService:
         """
         logo_file_id = None
 
-        # Try branding parameter first
+        # Try zzp_branding parameter first
         if self.parameter_service:
             logo_file_id = self.parameter_service.get_param(
-                'branding', 'company_logo_file_id', tenant=tenant
+                'zzp_branding', 'company_logo_file_id', tenant=tenant
             )
 
         if not logo_file_id:
@@ -251,48 +286,90 @@ _INLINE_DEFAULT_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"/>
 <style>
   @page { size: A4; margin: 2cm; }
-  body { font-family: Arial, sans-serif; font-size: 10pt; color: #333; }
-  .logo { max-height: 60px; margin-bottom: 10px; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #333; margin: 0; }
+  .logo { max-height: 70px; margin-bottom: 5px; }
   .watermark { position: fixed; top: 40%; left: 20%; font-size: 80pt;
     color: rgba(200,200,200,0.3); transform: rotate(-30deg); z-index: -1; }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 20px; }
+  .header h2 { margin: 0; color: #333; font-size: 16pt; }
+  .addresses { display: flex; justify-content: space-between; margin-bottom: 25px; }
+  .sender, .recipient { width: 48%; }
+  .sender { font-size: 8pt; color: #666; }
+  .sender h3 { font-size: 10pt; font-weight: bold; color: #333; margin: 0 0 4px 0; }
+  .recipient { text-align: right; }
+  .recipient h3 { font-size: 11pt; font-weight: bold; color: #333; margin: 0 0 4px 0; }
+  .recipient .label { font-size: 8pt; color: #999; margin-bottom: 3px; }
+  .sender p:empty, .recipient p:empty { display: none; margin: 0; padding: 0; }
+  .sender br:only-child, .recipient br:only-child { display: none; }
+  .meta-table { width: 100%; margin-bottom: 20px; }
+  .meta-table td { border: none; padding: 3px 8px; font-size: 9pt; }
+  .meta-table .label { color: #888; width: 120px; }
+  table.lines { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  table.lines th { background: #f5f5f5; padding: 6px 8px; text-align: left;
+    border-bottom: 2px solid #ddd; font-size: 9pt; color: #555; }
+  table.lines td { padding: 5px 8px; border-bottom: 1px solid #eee; }
   .right { text-align: right; }
-  .totals td { font-weight: bold; border-top: 2px solid #333; }
-  .header { display: flex; justify-content: space-between; }
-  .meta { margin: 15px 0; }
-  .meta td { border: none; padding: 2px 8px; }
-  .payment-info { margin-top: 20px; padding: 10px; background: #f5f5f5; }
+  table.totals { width: 50%; margin-left: auto; margin-top: 15px; }
+  table.totals td { padding: 3px 8px; }
+  table.totals .grand td { font-weight: bold; border-top: 2px solid #333;
+    padding-top: 6px; font-size: 11pt; }
+  .payment-info { margin-top: 25px; padding: 12px; background: #f8f8f8;
+    border: 1px solid #e0e0e0; border-radius: 4px; font-size: 9pt; }
+  .payment-info strong { font-size: 10pt; }
+  .notes { margin-top: 15px; font-size: 9pt; color: #555; }
+  .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd;
+    font-size: 7pt; color: #999; text-align: center; }
 </style></head><body>
 {{copy_watermark}}
 <div class="header">
   <div>{{logo}}</div>
   <div><h2>{{invoice_number}}</h2></div>
 </div>
-<table class="meta"><tr>
-  <td>Datum:</td><td>{{invoice_date}}</td>
-  <td>Vervaldatum:</td><td>{{due_date}}</td>
+<div class="addresses">
+  <div class="sender">
+    {{logo}}
+    <h3>{{tenant_name}}</h3>
+    <p>{{tenant_address}}<br/>{{tenant_postal_city}}<br/>{{tenant_country}}</p>
+    <p>BTW: {{tenant_vat}}<br/>KvK: {{tenant_coc}}<br/>IBAN: {{tenant_iban}}<br/>Tel: {{tenant_phone}}<br/>Email: {{tenant_email}}</p>
+  </div>
+  <div class="recipient">
+    <div class="label">Factuur aan:</div>
+    <h3>{{company_name}}</h3>
+    <p>{{contact_person}}<br/>{{street_address}}<br/>{{postal_code}} {{city}}<br/>{{country}}</p>
+    <p>BTW: {{client_vat}}</p>
+  </div>
+</div>
+<table class="meta-table"><tr>
+  <td class="label">Factuurdatum:</td><td>{{invoice_date}}</td>
+  <td class="label">Vervaldatum:</td><td>{{due_date}}</td>
 </tr><tr>
-  <td>Betalingstermijn:</td><td>{{payment_terms}} dagen</td>
-  <td>Valuta:</td><td>{{currency}}</td>
+  <td class="label">Betalingstermijn:</td><td>{{payment_terms}} dagen</td>
+  <td class="label">Valuta:</td><td>{{currency}}</td>
 </tr></table>
-<h3>{{company_name}}</h3>
-<p>{{contact_person}}<br/>{{street_address}}<br/>{{postal_code}} {{city}}<br/>{{country}}</p>
-<table>
-<thead><tr><th>Omschrijving</th><th class="right">Aantal</th>
-<th class="right">Prijs</th><th class="right">BTW</th>
-<th class="right">Totaal</th></tr></thead>
+<table class="lines">
+<thead><tr>
+  <th>Omschrijving</th>
+  <th class="right">Aantal</th>
+  <th class="right">Prijs</th>
+  <th class="right">BTW</th>
+  <th class="right">Totaal</th>
+</tr></thead>
 <tbody>{{lines}}</tbody>
 </table>
-<table style="width:50%;margin-left:auto;margin-top:15px;">
+<table class="totals">
 <tr><td>Subtotaal</td><td class="right">&euro; {{subtotal}}</td></tr>
 {{vat_summary}}
-<tr class="totals"><td>Totaal</td><td class="right">&euro; {{grand_total}}</td></tr>
+<tr class="grand"><td>Totaal</td><td class="right">&euro; {{grand_total}}</td></tr>
 </table>
 <div class="payment-info">
 <strong>Betalingsgegevens</strong><br/>
 Referentie: {{client_id}}<br/>
 Factuurnummer: {{invoice_number}}
 </div>
-<p>{{notes}}</p>
+<div class="notes">{{notes}}</div>
+<div class="footer">
+  {{tenant_name}} &bull; {{tenant_address}}, {{tenant_postal_city}} &bull;
+  BTW {{tenant_vat}} &bull; KvK {{tenant_coc}}
+</div>
 </body></html>"""
