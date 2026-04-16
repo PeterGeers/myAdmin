@@ -340,7 +340,7 @@ class ZZPInvoiceService(FieldConfigMixin):
         query += " LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
-        return self.db.execute_query(query, tuple(params)) or []
+        return [self._format_dates(r) for r in (self.db.execute_query(query, tuple(params)) or [])]
 
     # ── Private helpers ─────────────────────────────────────
 
@@ -350,7 +350,16 @@ class ZZPInvoiceService(FieldConfigMixin):
             "SELECT * FROM invoices WHERE id = %s AND administration = %s",
             (invoice_id, tenant),
         )
-        return rows[0] if rows else None
+        return self._format_dates(rows[0]) if rows else None
+
+    @staticmethod
+    def _format_dates(row: dict) -> dict:
+        """Convert date/datetime objects to ISO strings for JSON serialization."""
+        for key in ('invoice_date', 'due_date', 'sent_at', 'created_at', 'updated_at'):
+            val = row.get(key)
+            if val is not None and hasattr(val, 'isoformat'):
+                row[key] = val.isoformat() if not isinstance(val, str) else val
+        return row
 
     def _default_payment_terms(self, tenant: str) -> int:
         """Return tenant-configured payment terms or 30 days."""

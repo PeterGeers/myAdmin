@@ -147,8 +147,39 @@ def _get_invoice_service() -> ZZPInvoiceService:
     db = DatabaseManager(test_mode=_test_mode)
     tax_svc = TaxRateService(db)
     param_svc = ParameterService(db)
+
+    # Import send-flow dependencies (booking, PDF, email)
+    try:
+        from services.invoice_booking_helper import InvoiceBookingHelper
+        from transaction_logic import TransactionLogic
+        txn_logic = TransactionLogic(test_mode=_test_mode)
+        booking_helper = InvoiceBookingHelper(db, txn_logic, tax_svc, param_svc)
+    except Exception as e:
+        logger.warning("Could not initialize InvoiceBookingHelper: %s", e)
+        booking_helper = None
+
+    try:
+        from services.pdf_generator_service import PDFGeneratorService
+        pdf_generator = PDFGeneratorService(db, parameter_service=param_svc)
+    except Exception as e:
+        logger.warning("Could not initialize PDFGeneratorService: %s", e)
+        pdf_generator = None
+
+    try:
+        from services.invoice_email_service import InvoiceEmailService
+        from services.ses_email_service import SESEmailService
+        from services.contact_service import ContactService
+        ses_svc = SESEmailService()
+        contact_svc = ContactService(db, param_svc)
+        email_service = InvoiceEmailService(ses_svc, contact_svc, param_svc)
+    except Exception as e:
+        logger.warning("Could not initialize InvoiceEmailService: %s", e)
+        email_service = None
+
     return ZZPInvoiceService(
         db=db, tax_rate_service=tax_svc, parameter_service=param_svc,
+        booking_helper=booking_helper, pdf_generator=pdf_generator,
+        email_service=email_service,
     )
 
 

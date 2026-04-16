@@ -6,9 +6,14 @@ ENV DEBCONF_NONINTERACTIVE_SEEN=true
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (includes weasyprint requirements for PDF generation)
 RUN apt-get update && apt-get install -y \
   curl \
+  libpango-1.0-0 \
+  libpangocairo-1.0-0 \
+  libgdk-pixbuf-2.0-0 \
+  libffi-dev \
+  libcairo2 \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies

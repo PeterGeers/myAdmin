@@ -111,11 +111,39 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
     }
   }, [isNew, lines.length]);
 
-  // Computed totals from lines
-  const subtotal = lines.reduce((sum, l) => sum + (l.line_total || 0), 0);
-  const vatSummary: VatSummaryLine[] = invoice?.vat_summary || [];
-  const vatTotal = invoice ? invoice.vat_total : 0;
-  const grandTotal = invoice ? invoice.grand_total : subtotal;
+  // ── Live totals calculation ──────────────────────────────
+  // Estimate VAT rates client-side for live preview.
+  // Server recalculates exact rates on save using TaxRateService.
+  const VAT_RATE_ESTIMATE: Record<string, number> = { high: 21, low: 9, zero: 0 };
+
+  const liveLines = lines.map(l => {
+    const qty = Number(l.quantity) || 0;
+    const price = Number(l.unit_price) || 0;
+    const lineTotal = Math.round(qty * price * 100) / 100;
+    const rate = VAT_RATE_ESTIMATE[l.vat_code || 'high'] ?? 21;
+    const vatAmount = Math.round(lineTotal * rate / 100 * 100) / 100;
+    return { ...l, line_total: lineTotal, vat_amount: vatAmount, vat_rate: rate };
+  });
+
+  const liveSubtotal = liveLines.reduce((s, l) => s + (l.line_total || 0), 0);
+  const liveVatTotal = liveLines.reduce((s, l) => s + (l.vat_amount || 0), 0);
+  const liveGrandTotal = Math.round((liveSubtotal + liveVatTotal) * 100) / 100;
+
+  // Use server values when available (saved invoice), live values when editing
+  const displaySubtotal = isEditable ? liveSubtotal : (invoice?.subtotal ?? 0);
+  const displayVatTotal = isEditable ? liveVatTotal : (invoice?.vat_total ?? 0);
+  const displayGrandTotal = isEditable ? liveGrandTotal : (invoice?.grand_total ?? 0);
+  const displayVatSummary: VatSummaryLine[] = isEditable
+    ? Object.values(
+        liveLines.reduce((acc, l) => {
+          const code = l.vat_code || 'high';
+          if (!acc[code]) acc[code] = { vat_code: code, vat_rate: l.vat_rate || 0, base_amount: 0, vat_amount: 0 };
+          acc[code].base_amount += l.line_total || 0;
+          acc[code].vat_amount += l.vat_amount || 0;
+          return acc;
+        }, {} as Record<string, VatSummaryLine>)
+      )
+    : (invoice?.vat_summary || []);
 
   const handleSave = async () => {
     if (!contactId) {
@@ -374,7 +402,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       {/* VAT summary + totals */}
       <Flex wrap="wrap" gap={6} justify="flex-end">
         {/* VAT breakdown */}
-        {(vatSummary.length > 0 || !isNew) && (
+        {(displayVatSummary.length > 0 || !isNew) && (
           <Box minW="280px">
             <Text fontSize="sm" fontWeight="bold" color="gray.300" mb={2}>
               {t('invoices.vatSummary', 'VAT Summary')}
@@ -389,7 +417,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
                 </Tr>
               </Thead>
               <Tbody>
-                {vatSummary.map((vs, idx) => (
+                {displayVatSummary.map((vs, idx) => (
                   <Tr key={idx}>
                     <Td color="white" fontSize="sm">{vs.vat_code}</Td>
                     <Td color="white" fontSize="sm" isNumeric>{vs.vat_rate}%</Td>
@@ -397,7 +425,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
                     <Td color="white" fontSize="sm" isNumeric>{formatCurrency(vs.vat_amount, currency)}</Td>
                   </Tr>
                 ))}
-                {vatSummary.length === 0 && (
+                {displayVatSummary.length === 0 && (
                   <Tr><Td colSpan={4}><Text color="gray.500" fontSize="sm">—</Text></Td></Tr>
                 )}
               </Tbody>
@@ -410,20 +438,20 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
           <HStack justify="space-between" w="full">
             <Text color="gray.400" fontSize="sm">{t('invoices.subtotal', 'Subtotal')}</Text>
             <Text color="white" fontSize="sm" fontWeight="medium">
-              {formatCurrency(invoice?.subtotal ?? subtotal, currency)}
+              {formatCurrency(displaySubtotal, currency)}
             </Text>
           </HStack>
           <HStack justify="space-between" w="full">
             <Text color="gray.400" fontSize="sm">{t('invoices.vatTotal', 'VAT')}</Text>
             <Text color="white" fontSize="sm" fontWeight="medium">
-              {formatCurrency(vatTotal, currency)}
+              {formatCurrency(displayVatTotal, currency)}
             </Text>
           </HStack>
           <Divider borderColor="gray.500" />
           <HStack justify="space-between" w="full">
             <Text color="gray.300" fontSize="md" fontWeight="bold">{t('invoices.grandTotal', 'Total')}</Text>
             <Text color="orange.300" fontSize="md" fontWeight="bold">
-              {formatCurrency(grandTotal, currency)}
+              {formatCurrency(displayGrandTotal, currency)}
             </Text>
           </HStack>
         </VStack>

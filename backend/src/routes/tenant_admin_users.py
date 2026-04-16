@@ -90,13 +90,21 @@ def get_available_roles_for_tenant(tenant):
 
     enabled_modules = get_tenant_enabled_modules(tenant)
 
-    available_roles = ['Tenant_Admin']  # Always available
+    roles = ['Tenant_Admin']  # Always available
 
     # Add module-specific roles dynamically from MODULE_REGISTRY
     for module_name in enabled_modules:
         module_def = MODULE_REGISTRY.get(module_name)
         if module_def:
-            available_roles.extend(module_def.get('required_roles', []))
+            roles.extend(module_def.get('required_roles', []))
+
+    # Deduplicate while preserving order
+    seen = set()
+    available_roles = []
+    for r in roles:
+        if r not in seen:
+            seen.add(r)
+            available_roles.append(r)
 
     return available_roles
 
