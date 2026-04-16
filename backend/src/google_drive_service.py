@@ -236,12 +236,17 @@ class GoogleDriveService:
         }
     
     def upload_text_file(self, content, filename, folder_id, mime_type='text/html'):
-        """Upload text content directly to Google Drive"""
+        """Upload content directly to Google Drive. Supports both str and bytes."""
         from googleapiclient.http import MediaIoBaseUpload
         import io
         
+        if isinstance(content, bytes):
+            stream = io.BytesIO(content)
+        else:
+            stream = io.BytesIO(content.encode('utf-8'))
+        
         media = MediaIoBaseUpload(
-            io.BytesIO(content.encode('utf-8')),
+            stream,
             mimetype=mime_type,
             resumable=True
         )

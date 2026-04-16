@@ -150,17 +150,27 @@ class TestOutputService:
         # Should not call _get_or_create_reports_folder when folder_id is provided
         mock_drive.upload_text_file.assert_called_once()
     
-    def test_handle_s3_upload_not_implemented(self, output_service):
-        """Test handling S3 upload raises NotImplementedError"""
-        with pytest.raises(NotImplementedError) as exc_info:
-            output_service.handle_output(
-                content="test",
-                filename="test.html",
-                destination='s3',
-                administration='TestAdmin'
-            )
-        
-        assert 'not yet implemented' in str(exc_info.value).lower()
+    @patch('services.parameter_service.ParameterService')
+    @patch('storage.storage_provider.get_storage_provider')
+    def test_handle_s3_upload_success(self, mock_get_provider, mock_param_cls, output_service):
+        """Test handling S3 upload via StorageProvider"""
+        mock_provider = Mock()
+        mock_provider.bucket = 'test-bucket'
+        mock_provider.upload.return_value = 'TestAdmin/general/abc123_test.pdf'
+        mock_get_provider.return_value = mock_provider
+
+        result = output_service.handle_output(
+            content=b'%PDF-fake',
+            filename="test.pdf",
+            destination='s3',
+            administration='TestAdmin',
+            content_type='application/pdf'
+        )
+
+        assert result['success'] is True
+        assert result['destination'] == 's3'
+        assert 'test-bucket' in result['url']
+        mock_provider.upload.assert_called_once()
     
     @patch('google_drive_service.GoogleDriveService')
     @patch('services.output_service.os.getenv')

@@ -55,7 +55,12 @@ INV-2026-0002 not found in gdrive
  Debet account for the invoice should be a FIN parameter Debtor 1300
  Credit account 8001 shoud be a drop down list of defined parameters (invoice ledgers to use) to be selected by the user in the invoice default to 8001
  VAT Account is parameter for High and parameter for low
-
- We have to add the generic filters on the advanced parameters table
+## Parameter issues to solve
+- We have to add the generic filters on the advanced parameters table
+- Add a parameter drop down to the invoice creator with ZZP invoice ledgers from the ledger parameter table
+To the finance ledger parameter column
+- Add possible ZZP invoice ledger to parameter column to select from
+- Add debtor ledger 
+- Add creditor ledger
 
 
