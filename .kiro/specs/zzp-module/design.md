@@ -1744,3 +1744,11 @@ frontend/src/
 - Tenant modules SQL: `backend/sql/phase5_tenant_modules.sql`
 - UI patterns (tables, modals, action buttons, filters, i18n): `.kiro/steering/ui-patterns.md`
 - testing standards: .kiro\steering\testing-standards.md
+
+---
+
+## 14. Parameter Enhancement Design (Reqs 16–22)
+
+> **This section has been moved to a separate document for readability.**
+> See: [design-parameter-enhancements.md](./design-parameter-enhancements.md)
+
