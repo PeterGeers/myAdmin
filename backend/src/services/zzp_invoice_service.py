@@ -531,36 +531,46 @@ class ZZPInvoiceService(FieldConfigMixin):
 
     def _store_pdf(self, tenant: str, invoice: dict, pdf_bytes, destination: str,
                    output_service=None) -> dict:
-        """Store PDF via tenant's configured storage provider, return url + filename."""
+        """Store PDF via OutputService using tenant's configured storage provider.
+
+        If no explicit destination is given, reads storage.invoice_provider
+        from tenant parameters and maps it to the OutputService destination:
+          google_drive → gdrive
+          s3_shared / s3_tenant → s3
+        """
         filename = f"{invoice['invoice_number']}.pdf"
 
-        # Try tenant's configured storage provider first
-        try:
-            from storage.storage_provider import get_storage_provider
-            if self.parameter_service:
-                provider = get_storage_provider(tenant, self.parameter_service)
-                doc_path = f"zzp/invoices/{filename}"
-                url = provider.upload(pdf_bytes.getvalue(), doc_path, metadata={
-                    'administration': tenant,
-                    'content_type': 'application/pdf',
-                })
-                return {'url': url, 'filename': filename}
-        except Exception as e:
-            logger.warning("StorageProvider failed, falling back to OutputService: %s", e)
+        # Resolve destination from tenant config if not explicitly provided
+        if not destination and self.parameter_service:
+            provider = self.parameter_service.get_param(
+                'storage', 'invoice_provider', tenant=tenant
+            ) or 'google_drive'
+            destination = {'google_drive': 'gdrive', 's3_shared': 's3', 's3_tenant': 's3'}.get(
+                provider, 'gdrive'
+            )
+        destination = destination or 'gdrive'
 
-        # Fallback to OutputService if provided
+        if not output_service:
+            try:
+                from services.output_service import OutputService
+                output_service = OutputService(self.db)
+            except Exception as e:
+                logger.warning("Could not create OutputService: %s", e)
+
         if output_service:
             try:
                 result = output_service.handle_output(
-                    content=pdf_bytes.getvalue().decode('latin-1'),
+                    content=pdf_bytes.getvalue(),
                     filename=filename,
                     destination=destination,
                     administration=tenant,
                     content_type='application/pdf',
                 )
-                return {'url': result.get('url', ''), 'filename': filename}
+                url = result.get('url', '')
+                logger.info("PDF stored: %s → %s (%s)", filename, url, destination)
+                return {'url': url, 'filename': filename}
             except Exception as e:
-                logger.warning("OutputService also failed: %s", e)
+                logger.warning("OutputService storage failed: %s", e)
 
         return {'url': '', 'filename': filename}
 

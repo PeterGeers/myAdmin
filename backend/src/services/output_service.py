@@ -37,7 +37,7 @@ class OutputService:
     
     def handle_output(
         self,
-        content: str,
+        content,
         filename: str,
         destination: str,
         administration: str,
@@ -48,7 +48,7 @@ class OutputService:
         Handle output based on destination type.
         
         Args:
-            content: Generated report content (HTML, XML, etc.)
+            content: Generated content (str or bytes)
             filename: Output filename
             destination: Output destination ('download', 'gdrive', 's3')
             administration: Tenant/administration identifier
@@ -203,31 +203,79 @@ class OutputService:
     
     def _handle_s3_upload(
         self,
-        content: str,
+        content,
         filename: str,
         administration: str,
         content_type: str
     ) -> Dict[str, Any]:
         """
-        Handle S3 upload destination (future implementation).
+        Handle S3 upload destination using StorageProvider.
+        
+        Uses the tenant's configured S3 provider (s3_shared or s3_tenant)
+        via the StorageProvider factory.
         
         Args:
-            content: Report content
+            content: File content (str or bytes)
             filename: Output filename
             administration: Tenant identifier
             content_type: MIME type
             
         Returns:
-            Dictionary with S3 URL
-            
-        Raises:
-            NotImplementedError: S3 upload not yet implemented
+            Dictionary with S3 reference and URL
         """
-        logger.warning("S3 upload not yet implemented")
-        raise NotImplementedError(
-            "S3 upload destination is not yet implemented. "
-            "Please use 'download' or 'gdrive' destinations."
-        )
+        try:
+            from services.parameter_service import ParameterService
+            from storage.storage_provider import get_storage_provider
+
+            logger.info(
+                f"Uploading to S3 for administration '{administration}': {filename}"
+            )
+
+            param_svc = ParameterService(self.db)
+
+            # Resolve provider — will be s3_shared or s3_tenant based on config
+            provider = get_storage_provider(administration, param_svc)
+
+            # Ensure content is bytes
+            if isinstance(content, str):
+                file_data = content.encode('utf-8')
+            else:
+                file_data = content
+
+            # Upload via StorageProvider
+            reference = provider.upload(
+                file_data=file_data,
+                path=filename,
+                metadata={
+                    'administration': administration,
+                    'mime_type': content_type,
+                }
+            )
+
+            # Build a URL from the reference
+            # For S3 shared: reference is the S3 key
+            bucket = getattr(provider, 'bucket', '')
+            if bucket:
+                url = f"s3://{bucket}/{reference}"
+            else:
+                url = reference
+
+            logger.info(
+                f"Successfully uploaded to S3: {filename} (ref: {reference})"
+            )
+
+            return {
+                'success': True,
+                'destination': 's3',
+                'url': url,
+                'reference': reference,
+                'filename': filename,
+                'message': f'File uploaded to S3: {filename}'
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to upload to S3: {e}")
+            raise Exception(f"Failed to upload to S3: {str(e)}")
     
     def _get_or_create_reports_folder(
         self,

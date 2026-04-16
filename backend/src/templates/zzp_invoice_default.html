@@ -2,48 +2,126 @@
 <html><head><meta charset="utf-8"/>
 <style>
   @page { size: A4; margin: 2cm; }
-  body { font-family: Arial, sans-serif; font-size: 10pt; color: #333; }
-  .logo { max-height: 60px; margin-bottom: 10px; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #333; margin: 0; }
+  .logo { max-height: 70px; margin-bottom: 5px; }
   .watermark { position: fixed; top: 40%; left: 20%; font-size: 80pt;
     color: rgba(200,200,200,0.3); transform: rotate(-30deg); z-index: -1; }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
+
+  /* Header: logo left, invoice number right */
+  .header { display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 20px; }
+  .header h2 { margin: 0; color: #333; font-size: 16pt; }
+
+  /* Address blocks: sender left, recipient right */
+  .addresses { display: flex; justify-content: space-between; margin-bottom: 25px; }
+  .sender, .recipient { width: 48%; }
+  .sender { font-size: 8pt; color: #666; }
+  .sender .name { font-size: 10pt; font-weight: bold; color: #333; }
+  .recipient { text-align: right; }
+  .recipient .name { font-size: 11pt; font-weight: bold; color: #333; }
+  .recipient .label { font-size: 8pt; color: #999; margin-bottom: 3px; }
+
+  /* Invoice meta */
+  .meta-table { width: 100%; margin-bottom: 20px; }
+  .meta-table td { border: none; padding: 3px 8px; font-size: 9pt; }
+  .meta-table .label { color: #888; width: 120px; }
+
+  /* Line items */
+  table.lines { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  table.lines th { background: #f5f5f5; padding: 6px 8px; text-align: left;
+    border-bottom: 2px solid #ddd; font-size: 9pt; color: #555; }
+  table.lines td { padding: 5px 8px; border-bottom: 1px solid #eee; }
   .right { text-align: right; }
-  .totals td { font-weight: bold; border-top: 2px solid #333; }
-  .header { display: flex; justify-content: space-between; }
-  .meta { margin: 15px 0; }
-  .meta td { border: none; padding: 2px 8px; }
-  .payment-info { margin-top: 20px; padding: 10px; background: #f5f5f5; }
+
+  /* Totals */
+  table.totals { width: 50%; margin-left: auto; margin-top: 15px; }
+  table.totals td { padding: 3px 8px; }
+  table.totals .grand td { font-weight: bold; border-top: 2px solid #333;
+    padding-top: 6px; font-size: 11pt; }
+
+  /* Payment info */
+  .payment-info { margin-top: 25px; padding: 12px; background: #f8f8f8;
+    border: 1px solid #e0e0e0; border-radius: 4px; font-size: 9pt; }
+  .payment-info strong { font-size: 10pt; }
+
+  /* Notes */
+  .notes { margin-top: 15px; font-size: 9pt; color: #555; }
+
+  /* Footer */
+  .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd;
+    font-size: 7pt; color: #999; text-align: center; }
 </style></head><body>
 {{copy_watermark}}
+
+<!-- Header: logo + invoice number -->
 <div class="header">
   <div>{{logo}}</div>
   <div><h2>{{invoice_number}}</h2></div>
 </div>
-<table class="meta"><tr>
-  <td>Datum:</td><td>{{invoice_date}}</td>
-  <td>Vervaldatum:</td><td>{{due_date}}</td>
+
+<!-- Address blocks: sender (left) + recipient (right) -->
+<div class="addresses">
+  <div class="sender">
+    <div class="name">{{tenant_name}}</div>
+    {{tenant_address}}<br/>
+    {{tenant_postal_city}}<br/>
+    {{tenant_country}}<br/>
+    BTW: {{tenant_vat}}<br/>
+    KvK: {{tenant_coc}}<br/>
+    {{tenant_email}}
+  </div>
+  <div class="recipient">
+    <div class="label">Factuur aan:</div>
+    <div class="name">{{company_name}}</div>
+    {{contact_person}}<br/>
+    {{street_address}}<br/>
+    {{postal_code}} {{city}}<br/>
+    {{country}}
+  </div>
+</div>
+
+<!-- Invoice meta -->
+<table class="meta-table"><tr>
+  <td class="label">Factuurdatum:</td><td>{{invoice_date}}</td>
+  <td class="label">Vervaldatum:</td><td>{{due_date}}</td>
 </tr><tr>
-  <td>Betalingstermijn:</td><td>{{payment_terms}} dagen</td>
-  <td>Valuta:</td><td>{{currency}}</td>
+  <td class="label">Betalingstermijn:</td><td>{{payment_terms}} dagen</td>
+  <td class="label">Valuta:</td><td>{{currency}}</td>
 </tr></table>
-<h3>{{company_name}}</h3>
-<p>{{contact_person}}<br/>{{street_address}}<br/>{{postal_code}} {{city}}<br/>{{country}}</p>
-<table>
-<thead><tr><th>Omschrijving</th><th class="right">Aantal</th>
-<th class="right">Prijs</th><th class="right">BTW</th>
-<th class="right">Totaal</th></tr></thead>
+
+<!-- Line items -->
+<table class="lines">
+<thead><tr>
+  <th>Omschrijving</th>
+  <th class="right">Aantal</th>
+  <th class="right">Prijs</th>
+  <th class="right">BTW</th>
+  <th class="right">Totaal</th>
+</tr></thead>
 <tbody>{{lines}}</tbody>
 </table>
-<table style="width:50%;margin-left:auto;margin-top:15px;">
+
+<!-- VAT summary + totals -->
+<table class="totals">
 <tr><td>Subtotaal</td><td class="right">&euro; {{subtotal}}</td></tr>
 {{vat_summary}}
-<tr class="totals"><td>Totaal</td><td class="right">&euro; {{grand_total}}</td></tr>
+<tr class="grand"><td>Totaal</td><td class="right">&euro; {{grand_total}}</td></tr>
 </table>
+
+<!-- Payment details -->
 <div class="payment-info">
 <strong>Betalingsgegevens</strong><br/>
 Referentie: {{client_id}}<br/>
 Factuurnummer: {{invoice_number}}
 </div>
-<p>{{notes}}</p>
+
+<!-- Notes -->
+<div class="notes">{{notes}}</div>
+
+<!-- Footer -->
+<div class="footer">
+  {{tenant_name}} &bull; {{tenant_address}}, {{tenant_postal_city}} &bull;
+  BTW {{tenant_vat}} &bull; KvK {{tenant_coc}}
+</div>
+
 </body></html>

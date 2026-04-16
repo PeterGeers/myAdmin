@@ -39,8 +39,15 @@ class PDFGeneratorService:
         """Render the invoice HTML from template + data."""
         template_html = self._load_template(tenant)
         logo_url = self._get_tenant_logo(tenant)
+        branding = self._get_branding(tenant)
 
         contact = invoice.get('contact', {})
+        # If contact only has summary fields, try to load full contact
+        if contact and not contact.get('street_address'):
+            full = self._load_full_contact(tenant, contact.get('id'))
+            if full:
+                contact = full
+
         lines = invoice.get('lines', [])
         vat_summary = invoice.get('vat_summary', [])
 
@@ -48,7 +55,6 @@ class PDFGeneratorService:
             """Format amount in Dutch locale: 1.250,00"""
             n = float(val or 0)
             formatted = f"{n:,.2f}"
-            # Swap . and , for Dutch: 1,250.00 → 1.250,00
             formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
             return formatted
 
@@ -100,6 +106,15 @@ class PDFGeneratorService:
             '{{currency}}': invoice.get('currency', 'EUR'),
             '{{payment_terms}}': str(invoice.get('payment_terms_days', 30)),
             '{{notes}}': invoice.get('notes', '') or '',
+            # Tenant (sender) branding
+            '{{tenant_name}}': branding.get('company_name', ''),
+            '{{tenant_address}}': branding.get('company_address', ''),
+            '{{tenant_postal_city}}': branding.get('company_postal_city', ''),
+            '{{tenant_country}}': branding.get('company_country', ''),
+            '{{tenant_vat}}': branding.get('company_vat', ''),
+            '{{tenant_coc}}': branding.get('company_coc', ''),
+            '{{tenant_email}}': branding.get('contact_email', ''),
+            # Client (recipient) contact
             '{{company_name}}': contact.get('company_name', ''),
             '{{client_id}}': contact.get('client_id', ''),
             '{{contact_person}}': contact.get('contact_person', '') or '',
@@ -107,6 +122,8 @@ class PDFGeneratorService:
             '{{postal_code}}': contact.get('postal_code', '') or '',
             '{{city}}': contact.get('city', '') or '',
             '{{country}}': contact.get('country', '') or '',
+            '{{client_vat}}': contact.get('vat_number', '') or '',
+            # Line items and totals
             '{{lines}}': lines_html,
             '{{vat_summary}}': vat_html,
             '{{subtotal}}': _nl_amount(invoice.get('subtotal', 0)),
@@ -119,6 +136,32 @@ class PDFGeneratorService:
             html = html.replace(key, value)
 
         return html
+
+    def _get_branding(self, tenant: str) -> dict:
+        """Load tenant branding parameters (company name, address, VAT, etc.)."""
+        branding = {}
+        if not self.parameter_service:
+            return branding
+        keys = ['company_name', 'company_address', 'company_postal_city',
+                'company_country', 'company_vat', 'company_coc', 'contact_email']
+        for key in keys:
+            val = self.parameter_service.get_param('branding', key, tenant=tenant)
+            if val:
+                branding[key] = val
+        return branding
+
+    def _load_full_contact(self, tenant: str, contact_id) -> Optional[dict]:
+        """Load full contact record for PDF rendering."""
+        if not contact_id or not self.db:
+            return None
+        try:
+            rows = self.db.execute_query(
+                "SELECT * FROM contacts WHERE id = %s AND administration = %s",
+                (contact_id, tenant),
+            )
+            return rows[0] if rows else None
+        except Exception:
+            return None
 
     def _html_to_pdf(self, html: str) -> BytesIO:
         """Convert HTML string to PDF bytes via weasyprint."""
