@@ -76,6 +76,7 @@ export interface InvoiceInput {
   payment_terms_days: number;
   currency?: string;
   exchange_rate?: number;
+  revenue_account?: string;
   notes?: string;
   lines: InvoiceLineInput[];
 }
@@ -97,6 +98,7 @@ export interface Invoice {
   payment_terms_days: number;
   currency: string;
   exchange_rate: number;
+  revenue_account?: string;
   status: InvoiceStatus;
   lines: InvoiceLine[];
   subtotal: number;

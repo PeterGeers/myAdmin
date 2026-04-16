@@ -12,6 +12,8 @@
     "dueDate": "Vervaldatum",
     "paymentTerms": "Betalingstermijn",
     "currency": "Valuta",
+    "exchangeRate": "Wisselkoers",
+    "revenueAccount": "Omzetrekening",
     "notes": "Opmerkingen",
     "subtotal": "Subtotaal",
     "vatTotal": "BTW totaal",

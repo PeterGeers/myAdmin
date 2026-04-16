@@ -790,3 +790,147 @@ def copy_last_invoice(user_email, user_roles, tenant, user_tenants, contact_id):
     except Exception as e:
         logger.error("copy_last_invoice error for %s/contact %s: %s", tenant, contact_id, e)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Booking Account Validation (Req 19.6, Design §14.4) ────
+
+# Maps ZZP parameter keys to the ledger flag in rekeningschema.parameters
+_BOOKING_ACCOUNT_FLAG_MAP = {
+    'debtor_account': 'zzp_debtor_account',
+    'creditor_account': 'zzp_creditor_account',
+    'revenue_account': 'zzp_invoice_ledger',
+}
+
+
+def _validate_booking_account(tenant: str, key: str, account_code: str) -> None:
+    """Validate that an account exists in rekeningschema with the required ledger flag.
+
+    Called when saving zzp.debtor_account, zzp.creditor_account, or
+    zzp.revenue_account parameters to ensure the chosen account has been
+    flagged with the corresponding toggle in the chart of accounts.
+
+    Args:
+        tenant: The administration identifier.
+        key: The parameter key without namespace (e.g. 'debtor_account').
+        account_code: The account number to validate.
+
+    Raises:
+        ValueError: If the account is not found or not flagged.
+    """
+    flag = _BOOKING_ACCOUNT_FLAG_MAP.get(key)
+    if not flag:
+        return  # No validation for unknown keys
+
+    db = DatabaseManager(test_mode=_test_mode)
+    rows = db.execute_query(
+        """SELECT nummer FROM rekeningschema
+           WHERE administration = %s AND nummer = %s
+             AND JSON_EXTRACT(parameters, %s) = true""",
+        (tenant, account_code, f'$.{flag}'),
+    )
+    if not rows:
+        raise ValueError(
+            f"Account {account_code} is not flagged as '{flag}' in the chart of accounts. "
+            f"Enable the '{flag}' toggle on this account first."
+        )
+
+
+@zzp_bp.route('/api/zzp/accounts/validate-booking-param', methods=['POST'])
+@cognito_required(required_permissions=['zzp_tenant'])
+@tenant_required()
+@module_required('ZZP')
+def validate_booking_param(user_email, user_roles, tenant, user_tenants):
+    """Validate and save a ZZP booking account parameter.
+
+    Ensures the account code exists in rekeningschema with the required
+    ledger flag before persisting the parameter value.
+
+    Request body:
+        { "key": "debtor_account", "value": "1300" }
+
+    Valid keys: debtor_account, creditor_account, revenue_account
+
+    Reference: .kiro/specs/zzp-module/design-parameter-enhancements.md §14.4
+    """
+    try:
+        data = request.get_json()
+        key = data.get('key')
+        value = data.get('value')
+
+        if not key or not value:
+            return jsonify({'success': False, 'error': 'key and value are required'}), 400
+
+        if key not in _BOOKING_ACCOUNT_FLAG_MAP:
+            return jsonify({
+                'success': False,
+                'error': f"Invalid key '{key}'. Must be one of: {', '.join(_BOOKING_ACCOUNT_FLAG_MAP.keys())}"
+            }), 400
+
+        _validate_booking_account(tenant, key, value)
+
+        # Validation passed — save the parameter
+        param_svc = _get_param_service()
+        param_svc.set_param(
+            'tenant', tenant, 'zzp', key, value,
+            value_type='string', created_by=user_email
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f'Parameter zzp.{key} set to {value}'
+        })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error("validate_booking_param error for %s: %s", tenant, e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Account Endpoints (Req 17) ─────────────────────────────
+
+
+@zzp_bp.route('/api/zzp/accounts/invoice-ledgers', methods=['GET'])
+@cognito_required(required_permissions=['zzp_read'])
+@tenant_required()
+def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants):
+    """List accounts flagged as ZZP invoice ledger for the tenant.
+
+    Returns accounts from rekeningschema where zzp_invoice_ledger = true.
+    Falls back to the zzp.revenue_account parameter if no accounts are flagged.
+
+    Reference: .kiro/specs/zzp-module/design-parameter-enhancements.md §14.2
+    """
+    try:
+        db = DatabaseManager(test_mode=_test_mode)
+        rows = db.execute_query(
+            """SELECT nummer, naam
+               FROM rekeningschema
+               WHERE administration = %s
+                 AND JSON_EXTRACT(parameters, '$.zzp_invoice_ledger') = true
+               ORDER BY nummer""",
+            (tenant,),
+        )
+        accounts = [
+            {'account_code': r['nummer'], 'account_name': r['naam']}
+            for r in (rows or [])
+        ]
+
+        # Fallback: if no flagged accounts, return the default revenue account
+        if not accounts:
+            param_svc = _get_param_service()
+            default_acct = param_svc.get_param(
+                'zzp', 'revenue_account', tenant=tenant
+            ) or '8001'
+            fallback = db.execute_query(
+                "SELECT nummer, naam FROM rekeningschema WHERE administration = %s AND nummer = %s",
+                (tenant, default_acct),
+            )
+            if fallback:
+                accounts = [
+                    {'account_code': fallback[0]['nummer'], 'account_name': fallback[0]['naam']}
+                ]
+
+        return jsonify({'success': True, 'data': accounts})
+    except Exception as e:
+        logger.error("get_invoice_ledger_accounts error for %s: %s", tenant, e)
+        return jsonify({'success': False, 'error': str(e)}), 500

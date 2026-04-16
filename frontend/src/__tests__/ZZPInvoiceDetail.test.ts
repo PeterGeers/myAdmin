@@ -17,7 +17,7 @@ function isEditable(invoiceStatus: string | null): boolean {
 function buildPayload(
   contactId: number, invoiceDate: string, paymentTermsDays: number,
   currency: string, exchangeRate: number, notes: string,
-  lines: Partial<InvoiceLine>[],
+  lines: Partial<InvoiceLine>[], revenueAccount?: string,
 ): InvoiceInput {
   return {
     contact_id: contactId,
@@ -25,6 +25,7 @@ function buildPayload(
     payment_terms_days: paymentTermsDays,
     currency,
     exchange_rate: exchangeRate,
+    revenue_account: revenueAccount || undefined,
     notes: notes || undefined,
     lines: lines.map((l, idx) => ({
       product_id: l.product_id || undefined,
@@ -129,6 +130,22 @@ describe('ZZPInvoiceDetail logic', () => {
       const lines: Partial<InvoiceLine>[] = [{ description: 'Custom', quantity: 1, unit_price: 50, vat_code: 'high' }];
       const payload = buildPayload(1, '2026-04-15', 30, 'EUR', 1, '', lines);
       expect(payload.lines[0].product_id).toBeUndefined();
+    });
+
+    it('includes revenue_account when provided', () => {
+      const lines: Partial<InvoiceLine>[] = [
+        { description: 'Dev work', quantity: 160, unit_price: 95, vat_code: 'high' },
+      ];
+      const payload = buildPayload(1, '2026-04-15', 30, 'EUR', 1, '', lines, '8010');
+      expect(payload.revenue_account).toBe('8010');
+    });
+
+    it('omits revenue_account when empty', () => {
+      const lines: Partial<InvoiceLine>[] = [
+        { description: 'Dev work', quantity: 160, unit_price: 95, vat_code: 'high' },
+      ];
+      const payload = buildPayload(1, '2026-04-15', 30, 'EUR', 1, '', lines, '');
+      expect(payload.revenue_account).toBeUndefined();
     });
   });
 });

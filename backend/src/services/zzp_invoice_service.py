@@ -210,16 +210,20 @@ class ZZPInvoiceService(FieldConfigMixin):
         currency = data.get('currency', self._default_currency(tenant))
         exchange_rate = data.get('exchange_rate', 1.0) if currency != 'EUR' else 1.0
 
+        revenue_account = data.get('revenue_account')
+        if not revenue_account:
+            revenue_account = self._get_default_revenue_account(tenant)
+
         invoice_id = self.db.execute_query(
             """INSERT INTO invoices
                (administration, invoice_number, invoice_type, contact_id,
                 invoice_date, due_date, payment_terms_days, currency,
-                exchange_rate, status, notes, created_by)
-               VALUES (%s,%s,'invoice',%s,%s,%s,%s,%s,%s,'draft',%s,%s)""",
+                exchange_rate, revenue_account, status, notes, created_by)
+               VALUES (%s,%s,'invoice',%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s)""",
             (
                 tenant, invoice_number, data['contact_id'],
                 invoice_date, due_date, payment_terms,
-                currency, exchange_rate,
+                currency, exchange_rate, revenue_account,
                 data.get('notes'), created_by,
             ),
             fetch=False, commit=True,
@@ -243,7 +247,7 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         # Update header fields
         header_fields = ['invoice_date', 'payment_terms_days', 'currency',
-                         'exchange_rate', 'notes']
+                         'exchange_rate', 'notes', 'revenue_account']
         sets = []
         params = []
         for f in header_fields:
@@ -381,6 +385,16 @@ class ZZPInvoiceService(FieldConfigMixin):
                 return p
         return 'EUR'
 
+    def _get_default_revenue_account(self, tenant: str) -> Optional[str]:
+        """Return tenant-configured default revenue account from zzp.revenue_account parameter."""
+        if self.parameter_service:
+            p = self.parameter_service.get_param(
+                'zzp', 'revenue_account', tenant=tenant
+            )
+            if p:
+                return str(p)
+        return None
+
     # ── Credit Notes (Req 10) ──────────────────────────────
 
     def create_credit_note(self, tenant: str, original_invoice_id: int,
@@ -406,13 +420,14 @@ class ZZPInvoiceService(FieldConfigMixin):
             """INSERT INTO invoices
                (administration, invoice_number, invoice_type, contact_id,
                 invoice_date, due_date, payment_terms_days, currency,
-                exchange_rate, status, notes, original_invoice_id, created_by)
-               VALUES (%s,%s,'credit_note',%s,%s,%s,%s,%s,%s,'draft',%s,%s,%s)""",
+                exchange_rate, revenue_account, status, notes, original_invoice_id, created_by)
+               VALUES (%s,%s,'credit_note',%s,%s,%s,%s,%s,%s,%s,'draft',%s,%s,%s)""",
             (
                 tenant, cn_number, original['contact_id'],
                 invoice_date, due_date, payment_terms,
                 original.get('currency', 'EUR'),
                 original.get('exchange_rate', 1.0),
+                original.get('revenue_account'),
                 f"Creditnota voor {original['invoice_number']}",
                 original_invoice_id, created_by,
             ),
@@ -714,6 +729,7 @@ class ZZPInvoiceService(FieldConfigMixin):
             'invoice_date': new_date.isoformat(),
             'payment_terms_days': payment_terms,
             'currency': last_invoice.get('currency', 'EUR'),
+            'revenue_account': last_invoice.get('revenue_account'),
             'notes': last_invoice.get('notes'),
             'lines': lines,
         }

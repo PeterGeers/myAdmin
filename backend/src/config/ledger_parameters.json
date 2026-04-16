@@ -55,5 +55,32 @@
     "description_nl": "Hoofdrekeningcode voor BTW netto saldo",
     "module": "FIN",
     "depends_on": "vat_netting"
+  },
+  {
+    "key": "zzp_invoice_ledger",
+    "type": "boolean",
+    "label_en": "ZZP Invoice Ledger",
+    "label_nl": "ZZP Factuur Grootboek",
+    "description_en": "Account available as revenue ledger for ZZP invoices",
+    "description_nl": "Rekening beschikbaar als omzetrekening voor ZZP facturen",
+    "module": "ZZP"
+  },
+  {
+    "key": "zzp_debtor_account",
+    "type": "boolean",
+    "label_en": "ZZP Debtor Account",
+    "label_nl": "ZZP Debiteurenrekening",
+    "description_en": "Account used as debtor ledger for ZZP invoices",
+    "description_nl": "Rekening gebruikt als debiteurenrekening voor ZZP facturen",
+    "module": "ZZP"
+  },
+  {
+    "key": "zzp_creditor_account",
+    "type": "boolean",
+    "label_en": "ZZP Creditor Account",
+    "label_nl": "ZZP Crediteurenrekening",
+    "description_en": "Account used as creditor ledger for ZZP invoices",
+    "description_nl": "Rekening gebruikt als crediteurenrekening voor ZZP facturen",
+    "module": "ZZP"
   }
 ]
