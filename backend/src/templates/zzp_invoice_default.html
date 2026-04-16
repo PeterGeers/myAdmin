@@ -16,10 +16,14 @@
   .addresses { display: flex; justify-content: space-between; margin-bottom: 25px; }
   .sender, .recipient { width: 48%; }
   .sender { font-size: 8pt; color: #666; }
-  .sender .name { font-size: 10pt; font-weight: bold; color: #333; }
+  .sender h3 { font-size: 10pt; font-weight: bold; color: #333; margin: 0 0 4px 0; }
   .recipient { text-align: right; }
-  .recipient .name { font-size: 11pt; font-weight: bold; color: #333; }
+  .recipient h3 { font-size: 11pt; font-weight: bold; color: #333; margin: 0 0 4px 0; }
   .recipient .label { font-size: 8pt; color: #999; margin-bottom: 3px; }
+
+  /* Collapse empty paragraphs and line breaks when fields are not configured */
+  .sender p:empty, .recipient p:empty { display: none; margin: 0; padding: 0; }
+  .sender br:only-child, .recipient br:only-child { display: none; }
 
   /* Invoice meta */
   .meta-table { width: 100%; margin-bottom: 20px; }
@@ -62,21 +66,16 @@
 <!-- Address blocks: sender (left) + recipient (right) -->
 <div class="addresses">
   <div class="sender">
-    <div class="name">{{tenant_name}}</div>
-    {{tenant_address}}<br/>
-    {{tenant_postal_city}}<br/>
-    {{tenant_country}}<br/>
-    BTW: {{tenant_vat}}<br/>
-    KvK: {{tenant_coc}}<br/>
-    {{tenant_email}}
+    {{logo}}
+    <h3>{{tenant_name}}</h3>
+    <p>{{tenant_address}}<br/>{{tenant_postal_city}}<br/>{{tenant_country}}</p>
+    <p>BTW: {{tenant_vat}}<br/>KvK: {{tenant_coc}}<br/>IBAN: {{tenant_iban}}<br/>Tel: {{tenant_phone}}<br/>Email: {{tenant_email}}</p>
   </div>
   <div class="recipient">
     <div class="label">Factuur aan:</div>
-    <div class="name">{{company_name}}</div>
-    {{contact_person}}<br/>
-    {{street_address}}<br/>
-    {{postal_code}} {{city}}<br/>
-    {{country}}
+    <h3>{{company_name}}</h3>
+    <p>{{contact_person}}<br/>{{street_address}}<br/>{{postal_code}} {{city}}<br/>{{country}}</p>
+    <p>BTW: {{client_vat}}</p>
   </div>
 </div>
 
