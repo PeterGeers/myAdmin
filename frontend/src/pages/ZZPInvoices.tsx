@@ -90,7 +90,7 @@ const ZZPInvoices: React.FC = () => {
       ['Invoice Number', 'Contact', 'Date', 'Due Date', 'Status', 'Total'].join(','),
       ...invoices.map(inv =>
         [inv.invoice_number, inv.contact?.company_name || '', inv.invoice_date,
-         inv.due_date, inv.status, inv.grand_total.toFixed(2)].join(',')
+         inv.due_date, inv.status, Number(inv.grand_total).toFixed(2)].join(',')
       ),
     ];
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });

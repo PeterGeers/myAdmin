@@ -94,7 +94,7 @@ export const InvoiceLineEditor: React.FC<InvoiceLineEditorProps> = ({
                 )}
               </Td>
               <Td isNumeric>
-                {readOnly ? <Text fontSize="sm">&euro; {(line.unit_price || 0).toFixed(2)}</Text> : (
+                {readOnly ? <Text fontSize="sm">&euro; {Number(line.unit_price || 0).toFixed(2)}</Text> : (
                   <Input size="sm" type="number" step="0.01" w="100px" value={line.unit_price || ''}
                     onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value))} />
                 )}
@@ -108,7 +108,7 @@ export const InvoiceLineEditor: React.FC<InvoiceLineEditorProps> = ({
                 )}
               </Td>
               <Td isNumeric>
-                <Text fontSize="sm">&euro; {(line.line_total || 0).toFixed(2)}</Text>
+                <Text fontSize="sm">&euro; {Number(line.line_total || 0).toFixed(2)}</Text>
               </Td>
               {!readOnly && (
                 <Td>
@@ -123,7 +123,7 @@ export const InvoiceLineEditor: React.FC<InvoiceLineEditorProps> = ({
       {!readOnly && (
         <HStack mt={2}>
           <IconButton aria-label="Add line" icon={<AddIcon />} size="sm"
-            variant="outline" onClick={addLine} />
+            variant="outline" colorScheme="orange" color="orange.300" onClick={addLine} />
         </HStack>
       )}
     </>

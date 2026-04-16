@@ -28,7 +28,12 @@ class InvoiceBookingHelper:
 
     def book_outgoing_invoice(self, tenant: str, invoice: dict,
                               storage_result: dict = None) -> List[dict]:
-        """Book an outgoing invoice: debit debtor, credit revenue + VAT entries."""
+        """Book an outgoing invoice: debit debtor, credit revenue + VAT entries.
+
+        VAT entries: debit revenue account, credit received-BTW ledger account
+        (e.g. 2021 for high, 2020 for low — driven by TaxRateService).
+        Account 2010 (Betaalde BTW) is only used for incoming invoices.
+        """
         contact = invoice.get('contact', {})
         client_id = contact.get('client_id', '')
         inv_number = invoice['invoice_number']
@@ -37,7 +42,6 @@ class InvoiceBookingHelper:
 
         debtor_acct = self._get_param(tenant, 'debtor_account', '1300')
         revenue_acct = self._get_param(tenant, 'revenue_account', '8001')
-        btw_debit_acct = self._get_param(tenant, 'btw_debit_account', '2010')
 
         pdf_url = (storage_result or {}).get('url', '')
         pdf_filename = (storage_result or {}).get('filename', '')
@@ -61,6 +65,7 @@ class InvoiceBookingHelper:
         ))
 
         # 2. VAT entries per rate bucket
+        # Outgoing: debit revenue, credit received-BTW ledger (2021/2020)
         vat_summary = invoice.get('vat_summary', [])
         for vat_line in vat_summary:
             vat_amount = round(float(vat_line['vat_amount']) * exchange_rate, 2)
@@ -69,20 +74,21 @@ class InvoiceBookingHelper:
 
             vat_code = vat_line['vat_code']
             vat_rate = vat_line['vat_rate']
-            credit_acct = self._get_vat_ledger_account(
-                tenant, vat_code, inv_date, btw_debit_acct
+            # Get the received-BTW ledger account (e.g. 2021 high, 2020 low)
+            received_btw_acct = self._get_vat_ledger_account(
+                tenant, vat_code, inv_date, '2021'
             )
 
             transactions.append(self._build_entry(
                 tenant=tenant,
-                description=f"BTW {vat_code.capitalize()} {vat_rate}% {inv_number}",
+                description=f"Factuur {inv_number} {client_id} BTW {vat_rate:.0f}%",
                 amount=vat_amount,
-                debet=btw_debit_acct,
-                credit=credit_acct,
+                debet=revenue_acct,
+                credit=received_btw_acct,
                 reference_number=client_id,
                 ref2=inv_number,
-                ref3='',
-                ref4='',
+                ref3=pdf_url,
+                ref4=pdf_filename,
                 txn_date=inv_date,
             ))
 

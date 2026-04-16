@@ -44,16 +44,36 @@ class PDFGeneratorService:
         lines = invoice.get('lines', [])
         vat_summary = invoice.get('vat_summary', [])
 
+        def _nl_amount(val) -> str:
+            """Format amount in Dutch locale: 1.250,00"""
+            n = float(val or 0)
+            formatted = f"{n:,.2f}"
+            # Swap . and , for Dutch: 1,250.00 → 1.250,00
+            formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+            return formatted
+
+        def _nl_qty(val) -> str:
+            """Format quantity: integer if whole, otherwise 2 decimals."""
+            n = float(val or 0)
+            return str(int(n)) if n == int(n) else f"{n:.2f}".replace('.', ',')
+
+        def _nl_date(val) -> str:
+            """Format date as dd-mm-yyyy (Dutch)."""
+            s = str(val or '')
+            if len(s) >= 10 and s[4] == '-':
+                return f"{s[8:10]}-{s[5:7]}-{s[0:4]}"
+            return s
+
         # Build lines HTML
         lines_html = ''
         for line in lines:
             lines_html += (
                 f'<tr>'
                 f'<td>{line.get("description", "")}</td>'
-                f'<td class="right">{line.get("quantity", 0)}</td>'
-                f'<td class="right">&euro; {line.get("unit_price", 0):.2f}</td>'
-                f'<td class="right">{line.get("vat_rate", 0):.0f}%</td>'
-                f'<td class="right">&euro; {line.get("line_total", 0):.2f}</td>'
+                f'<td class="right">{_nl_qty(line.get("quantity", 0))}</td>'
+                f'<td class="right">&euro; {_nl_amount(line.get("unit_price", 0))}</td>'
+                f'<td class="right">{float(line.get("vat_rate", 0)):.0f}%</td>'
+                f'<td class="right">&euro; {_nl_amount(line.get("line_total", 0))}</td>'
                 f'</tr>'
             )
 
@@ -62,9 +82,9 @@ class PDFGeneratorService:
         for v in vat_summary:
             vat_html += (
                 f'<tr>'
-                f'<td>{v.get("vat_code", "")} ({v.get("vat_rate", 0):.0f}%)</td>'
-                f'<td class="right">&euro; {v.get("base_amount", 0):.2f}</td>'
-                f'<td class="right">&euro; {v.get("vat_amount", 0):.2f}</td>'
+                f'<td>{v.get("vat_code", "")} ({float(v.get("vat_rate", 0)):.0f}%)</td>'
+                f'<td class="right">&euro; {_nl_amount(v.get("base_amount", 0))}</td>'
+                f'<td class="right">&euro; {_nl_amount(v.get("vat_amount", 0))}</td>'
                 f'</tr>'
             )
 
@@ -75,8 +95,8 @@ class PDFGeneratorService:
             '{{logo}}': logo_tag,
             '{{copy_watermark}}': copy_watermark,
             '{{invoice_number}}': invoice.get('invoice_number', ''),
-            '{{invoice_date}}': str(invoice.get('invoice_date', '')),
-            '{{due_date}}': str(invoice.get('due_date', '')),
+            '{{invoice_date}}': _nl_date(invoice.get('invoice_date', '')),
+            '{{due_date}}': _nl_date(invoice.get('due_date', '')),
             '{{currency}}': invoice.get('currency', 'EUR'),
             '{{payment_terms}}': str(invoice.get('payment_terms_days', 30)),
             '{{notes}}': invoice.get('notes', '') or '',
@@ -89,9 +109,9 @@ class PDFGeneratorService:
             '{{country}}': contact.get('country', '') or '',
             '{{lines}}': lines_html,
             '{{vat_summary}}': vat_html,
-            '{{subtotal}}': f"{invoice.get('subtotal', 0):.2f}",
-            '{{vat_total}}': f"{invoice.get('vat_total', 0):.2f}",
-            '{{grand_total}}': f"{invoice.get('grand_total', 0):.2f}",
+            '{{subtotal}}': _nl_amount(invoice.get('subtotal', 0)),
+            '{{vat_total}}': _nl_amount(invoice.get('vat_total', 0)),
+            '{{grand_total}}': _nl_amount(invoice.get('grand_total', 0)),
         }
 
         html = template_html
@@ -135,14 +155,39 @@ class PDFGeneratorService:
         return self._default_template()
 
     def _get_tenant_logo(self, tenant: str) -> Optional[str]:
-        """Get logo URL from tenant parameters. Returns None if not set."""
+        """Get logo as base64 data URI from tenant's branding config.
+
+        Reads company_logo_file_id from branding parameters (same as STR invoices),
+        fetches the image from Google, and returns a data URI for reliable PDF embedding.
+        Returns None if no logo is configured.
+        """
+        logo_file_id = None
+
+        # Try branding parameter first
         if self.parameter_service:
-            logo = self.parameter_service.get_param(
-                'zzp', 'company_logo_url', tenant=tenant
+            logo_file_id = self.parameter_service.get_param(
+                'branding', 'company_logo_file_id', tenant=tenant
             )
-            if logo:
-                return logo
-        return None
+
+        if not logo_file_id:
+            return None
+
+        # Fetch logo and convert to base64 data URI (same approach as STR invoices)
+        try:
+            import requests as http_requests
+            import base64
+            logo_url = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
+            resp = http_requests.get(logo_url, timeout=10)
+            if resp.status_code == 200:
+                content_type = resp.headers.get('Content-Type', 'image/png')
+                b64 = base64.b64encode(resp.content).decode('utf-8')
+                return f'data:{content_type};base64,{b64}'
+            else:
+                logger.warning("Logo fetch returned %s, using URL fallback", resp.status_code)
+                return logo_url
+        except Exception as e:
+            logger.warning("Could not fetch logo as base64: %s, using URL fallback", e)
+            return f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
 
     @staticmethod
     def _default_template() -> str:
