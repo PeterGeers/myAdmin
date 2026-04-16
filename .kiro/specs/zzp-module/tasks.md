@@ -444,7 +444,7 @@
   - Test that `filteredParams` AND logic correctly filters `allParams` by namespace + key simultaneously (the framework handles rendering/debounce — only test the integration)
   - _Requirements: 16.1, 16.3_
 
-- [-] 11.3 Git commit and push Phase 11 to `feature/zzp-module`
+- [x] 11.3 Git commit and push Phase 11 to `feature/zzp-module`
 
 ---
 
@@ -454,7 +454,7 @@
 
 ### 12.1 Add ZZP Ledger Parameters to Registry
 
-- [ ] 12.1 Add three new entries to `backend/src/config/ledger_parameters.json` (the registry that drives the Account Modal toggles — actual values are stored in `rekeningschema.parameters` JSON column per account)
+- [x] 12.1 Add three new entries to `backend/src/config/ledger_parameters.json` (the registry that drives the Account Modal toggles — actual values are stored in `rekeningschema.parameters` JSON column per account)
   - Add `zzp_invoice_ledger` entry: `{ "key": "zzp_invoice_ledger", "type": "boolean", "label_en": "ZZP Invoice Ledger", "label_nl": "ZZP Factuur Grootboek", "description_en": "Account available as revenue ledger for ZZP invoices", "description_nl": "Rekening beschikbaar als omzetrekening voor ZZP facturen", "module": "ZZP" }`
   - Add `zzp_debtor_account` entry: `{ "key": "zzp_debtor_account", "type": "boolean", "label_en": "ZZP Debtor Account", "label_nl": "ZZP Debiteurenrekening", "description_en": "Account used as debtor ledger for ZZP invoices", "description_nl": "Rekening gebruikt als debiteurenrekening voor ZZP facturen", "module": "ZZP" }`
   - Add `zzp_creditor_account` entry: `{ "key": "zzp_creditor_account", "type": "boolean", "label_en": "ZZP Creditor Account", "label_nl": "ZZP Crediteurenrekening", "description_en": "Account used as creditor ledger for ZZP invoices", "description_nl": "Rekening gebruikt als crediteurenrekening voor ZZP facturen", "module": "ZZP" }`
@@ -464,7 +464,7 @@
 
 ### 12.2 Invoice Ledger API Endpoint
 
-- [ ] 12.2 Add `GET /api/zzp/accounts/invoice-ledgers` endpoint to `backend/src/routes/zzp_routes.py`
+- [x] 12.2 Add `GET /api/zzp/accounts/invoice-ledgers` endpoint to `backend/src/routes/zzp_routes.py`
   - Apply decorator chain: `@cognito_required(required_permissions=['zzp_read'])` → `@tenant_required()`
   - Query `rekeningschema` where `JSON_EXTRACT(parameters, '$.zzp_invoice_ledger') = true` for the tenant, ordered by `nummer`
   - Return `{ success: true, data: [{ account_code, account_name }] }`
@@ -474,14 +474,14 @@
 
 ### 12.3 Database Migration for Revenue Account Column
 
-- [ ] 12.3 Create SQL migration to add `revenue_account` column to `invoices` table
+- [x] 12.3 Create SQL migration to add `revenue_account` column to `invoices` table
   - Create `backend/sql/phase_zzp_revenue_account.sql` with: `ALTER TABLE invoices ADD COLUMN revenue_account VARCHAR(10) DEFAULT NULL AFTER exchange_rate;`
   - _Requirements: 18.3_
   - _Design: §14.3, §14.11_
 
 ### 12.4 Invoice Service — Revenue Account Support
 
-- [ ] 12.4 Update `backend/src/services/zzp_invoice_service.py` to support `revenue_account` on invoices
+- [x] 12.4 Update `backend/src/services/zzp_invoice_service.py` to support `revenue_account` on invoices
   - In `create_invoice()`: read `revenue_account` from request data, default to `zzp.revenue_account` parameter if not provided, include in INSERT statement
   - In `update_invoice()`: allow updating `revenue_account` on draft invoices
   - Ensure `get_invoice()` returns `revenue_account` in the response dict
@@ -490,7 +490,7 @@
 
 ### 12.5 Remove Hardcoded Fallbacks from Booking Helper
 
-- [ ] 12.5 Refactor `backend/src/services/invoice_booking_helper.py` to remove all hardcoded account fallbacks
+- [x] 12.5 Refactor `backend/src/services/invoice_booking_helper.py` to remove all hardcoded account fallbacks
   - Add `REQUIRED_BOOKING_PARAMS` class constant mapping param keys to display names
   - Change `_get_param(self, tenant, key, default)` signature to `_get_param(self, tenant, key)` — remove the `default` parameter
   - Raise `ValueError` with descriptive message naming the missing parameter when not configured
@@ -502,7 +502,7 @@
 
 ### 12.6 Booking Helper — Use Invoice-Level Revenue Account
 
-- [ ] 12.6 Update `book_outgoing_invoice()` and `book_credit_note()` in `invoice_booking_helper.py` to use invoice-level revenue account
+- [x] 12.6 Update `book_outgoing_invoice()` and `book_credit_note()` in `invoice_booking_helper.py` to use invoice-level revenue account
   - In `book_outgoing_invoice()`: read `revenue_account` from `invoice.get('revenue_account')`, fall back to `_get_param(tenant, 'revenue_account')` only if not set
   - In `book_credit_note()`: read `revenue_account` from `original_invoice.get('revenue_account')`, fall back to `_get_param(tenant, 'revenue_account')` only if not set
   - Use the resolved `revenue_acct` for both the main entry credit account and VAT entry debit account
@@ -511,7 +511,7 @@
 
 ### 12.7 Frontend — Revenue Account Dropdown
 
-- [ ] 12.7 Add revenue account dropdown to the invoice creation/edit form in the frontend
+- [x] 12.7 Add revenue account dropdown to the invoice creation/edit form in the frontend
   - Add `revenue_account?: string` to the `Invoice` interface in `frontend/src/types/zzp.ts`
   - Add `getInvoiceLedgerAccounts()` method to `frontend/src/services/zzpInvoiceService.ts` calling `GET /api/zzp/accounts/invoice-ledgers`
   - Add a `<Select>` dropdown in the invoice detail/modal component (e.g., `ZZPInvoiceDetail.tsx` or `InvoiceDetailModal.tsx`) listing accounts from the API
@@ -523,17 +523,14 @@
 
 ### 12.8 Booking Account Validation
 
-- [ ] 12.8 Add validation when saving `zzp.debtor_account` or `zzp.creditor_account` parameters
+- [x] 12.8 Add validation when saving `zzp.debtor_account` or `zzp.creditor_account` parameters
   - Add `_validate_booking_account()` helper in `zzp_routes.py` or `zzp_invoice_service.py`
   - Validate that the account code exists in `rekeningschema` with the corresponding ledger flag (`zzp_debtor_account`, `zzp_creditor_account`, or `zzp_invoice_ledger`) set to true
   - Raise `ValueError` if the account is not flagged
   - _Requirements: 19.6_
   - _Design: §14.4_
 
-- [ ] 13. Checkpoint — Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [ ] 12.9 Write unit tests for ledger parameters and booking helper changes
+- [x] 12.9 Write unit tests for ledger parameters and booking helper changes
   - Test `ledger_parameters.json` contains all three new ZZP entries
   - Test invoice ledger API returns flagged accounts
   - Test invoice ledger API fallback when no accounts flagged
@@ -550,7 +547,10 @@
   - **Property 3: Missing required booking parameters raise descriptive errors**
   - **Validates: Requirements 19.2, 19.3, 19.5**
 
-- [ ] 12.11 Git commit and push Phase 12 to `feature/zzp-module`
+- [-] 12.11 Git commit and push Phase 12 to `feature/zzp-module`
+
+- [ ] 12. Checkpoint — Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
 
 ---
 

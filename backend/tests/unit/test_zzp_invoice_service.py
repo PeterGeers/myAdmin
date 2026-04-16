@@ -264,7 +264,7 @@ def _mock_db_for_create():
                      'exchange_rate': 1.0, 'status': 'draft', 'subtotal': 15200.0,
                      'vat_total': 3192.0, 'grand_total': 18392.0, 'notes': None,
                      'original_invoice_id': None, 'sent_at': None, 'created_by': 'test',
-                     'created_at': None, 'updated_at': None}]
+                     'created_at': None, 'updated_at': None, 'revenue_account': None}]
         if 'SELECT' in q and 'contacts' in query.lower() and 'client_id' in query.lower():
             return [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}]
         if 'SELECT' in q and 'invoice_lines' in query.lower():
@@ -693,3 +693,157 @@ def test_advance_date_one_invoice_defaults_plus_one_month():
     svc = _make_service(db=db)
     result = svc._advance_date('T1', 1, date(2026, 3, 15))
     assert result == date(2026, 4, 15)
+
+
+# ── revenue_account support (Req 18) ───────────────────────
+
+
+def test_create_invoice_with_revenue_account_includes_in_insert():
+    """When revenue_account is provided, it should be included in the INSERT."""
+    db, conn, cursor = _mock_db_for_create()
+    tax_svc = Mock(get_tax_rate=Mock(return_value={'rate': 21.0}))
+    svc = ZZPInvoiceService(db=db, tax_rate_service=tax_svc,
+                            parameter_service=Mock(get_param=Mock(return_value=None)))
+    result = svc.create_invoice('T1', {
+        'contact_id': 1,
+        'invoice_date': '2026-04-15',
+        'revenue_account': '8010',
+        'lines': [{'product_id': 1, 'description': 'Dev', 'quantity': 160.0,
+                    'unit_price': 95.0, 'vat_code': 'high'}],
+    }, created_by='test')
+
+    # Find the INSERT INTO invoices call
+    insert_calls = [c for c in db.execute_query.call_args_list
+                    if 'INSERT INTO invoices' in str(c)]
+    assert len(insert_calls) >= 1
+    insert_call = insert_calls[0]
+    query = insert_call[0][0]
+    params = insert_call[0][1]
+    assert 'revenue_account' in query
+    assert '8010' in params
+
+
+def test_create_invoice_without_revenue_account_uses_parameter_default():
+    """When revenue_account is not provided, it should fall back to zzp.revenue_account param."""
+    db, conn, cursor = _mock_db_for_create()
+    tax_svc = Mock(get_tax_rate=Mock(return_value={'rate': 21.0}))
+    param_svc = Mock()
+    param_svc.get_param = Mock(side_effect=lambda ns, key, tenant=None: '8001' if key == 'revenue_account' else None)
+    svc = ZZPInvoiceService(db=db, tax_rate_service=tax_svc,
+                            parameter_service=param_svc)
+    svc.create_invoice('T1', {
+        'contact_id': 1,
+        'invoice_date': '2026-04-15',
+        'lines': [{'product_id': 1, 'description': 'Dev', 'quantity': 160.0,
+                    'unit_price': 95.0, 'vat_code': 'high'}],
+    }, created_by='test')
+
+    # Verify zzp.revenue_account was looked up
+    param_calls = [c for c in param_svc.get_param.call_args_list
+                   if c[0] == ('zzp', 'revenue_account')]
+    assert len(param_calls) >= 1
+
+    # Verify the default was used in the INSERT
+    insert_calls = [c for c in db.execute_query.call_args_list
+                    if 'INSERT INTO invoices' in str(c)]
+    assert len(insert_calls) >= 1
+    params = insert_calls[0][0][1]
+    assert '8001' in params
+
+
+def test_create_invoice_no_revenue_account_and_no_param_inserts_none():
+    """When no revenue_account provided and no parameter configured, NULL is stored."""
+    db, conn, cursor = _mock_db_for_create()
+    tax_svc = Mock(get_tax_rate=Mock(return_value={'rate': 21.0}))
+    param_svc = Mock(get_param=Mock(return_value=None))
+    svc = ZZPInvoiceService(db=db, tax_rate_service=tax_svc,
+                            parameter_service=param_svc)
+    svc.create_invoice('T1', {
+        'contact_id': 1,
+        'invoice_date': '2026-04-15',
+        'lines': [{'product_id': 1, 'description': 'Dev', 'quantity': 160.0,
+                    'unit_price': 95.0, 'vat_code': 'high'}],
+    }, created_by='test')
+
+    insert_calls = [c for c in db.execute_query.call_args_list
+                    if 'INSERT INTO invoices' in str(c)]
+    assert len(insert_calls) >= 1
+    params = insert_calls[0][0][1]
+    # revenue_account should be None (NULL in DB)
+    assert None in params
+
+
+def test_update_invoice_revenue_account_on_draft():
+    """Updating revenue_account on a draft invoice should be allowed."""
+    db = Mock()
+    db.execute_query = Mock(side_effect=[
+        [{'id': 1, 'status': 'draft', 'invoice_date': date(2026, 4, 15),
+          'payment_terms_days': 30}],  # _get_invoice_raw
+        None,  # UPDATE header
+        # get_invoice chain:
+        [{'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
+          'invoice_type': 'invoice', 'contact_id': 1, 'invoice_date': '2026-04-15',
+          'due_date': '2026-05-15', 'payment_terms_days': 30, 'currency': 'EUR',
+          'exchange_rate': 1.0, 'status': 'draft', 'subtotal': 0, 'vat_total': 0,
+          'grand_total': 0, 'notes': None, 'original_invoice_id': None,
+          'sent_at': None, 'created_by': 'test', 'created_at': None,
+          'updated_at': None, 'revenue_account': '8010'}],
+        [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
+        [],  # lines
+        [],  # vat_summary
+    ])
+    svc = _make_service(db=db)
+    result = svc.update_invoice('T1', 1, {'revenue_account': '8010'})
+
+    # Verify the UPDATE query included revenue_account
+    update_calls = [c for c in db.execute_query.call_args_list
+                    if 'UPDATE invoices SET' in str(c)]
+    assert len(update_calls) >= 1
+    update_query = update_calls[0][0][0]
+    assert 'revenue_account' in update_query
+    assert result['revenue_account'] == '8010'
+
+
+def test_get_invoice_returns_revenue_account():
+    """get_invoice should include revenue_account in the response."""
+    db = Mock()
+    db.execute_query = Mock(side_effect=[
+        # _get_invoice_raw (SELECT *)
+        [{'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
+          'invoice_type': 'invoice', 'contact_id': 1, 'invoice_date': '2026-04-15',
+          'due_date': '2026-05-15', 'payment_terms_days': 30, 'currency': 'EUR',
+          'exchange_rate': 1.0, 'status': 'draft', 'subtotal': 15200.0,
+          'vat_total': 3192.0, 'grand_total': 18392.0, 'notes': None,
+          'original_invoice_id': None, 'sent_at': None, 'created_by': 'test',
+          'created_at': None, 'updated_at': None, 'revenue_account': '8010'}],
+        # contact
+        [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
+        # lines
+        [{'id': 1, 'product_id': 1, 'description': 'Dev', 'quantity': 160.0,
+          'unit_price': 95.0, 'vat_code': 'high', 'vat_rate': 21.0,
+          'vat_amount': 3192.0, 'line_total': 15200.0, 'sort_order': 0}],
+        # vat_summary
+        [{'vat_code': 'high', 'vat_rate': 21.0, 'base_amount': 15200.0, 'vat_amount': 3192.0}],
+    ])
+    svc = _make_service(db=db)
+    result = svc.get_invoice('T1', 1)
+    assert result is not None
+    assert result['revenue_account'] == '8010'
+
+
+def test_get_default_revenue_account_returns_param_value():
+    """_get_default_revenue_account should return the zzp.revenue_account parameter."""
+    param_svc = Mock()
+    param_svc.get_param = Mock(return_value='8001')
+    svc = _make_service(param_svc=param_svc)
+    result = svc._get_default_revenue_account('T1')
+    assert result == '8001'
+    param_svc.get_param.assert_called_with('zzp', 'revenue_account', tenant='T1')
+
+
+def test_get_default_revenue_account_returns_none_when_not_configured():
+    """_get_default_revenue_account should return None when no parameter is set."""
+    param_svc = Mock(get_param=Mock(return_value=None))
+    svc = _make_service(param_svc=param_svc)
+    result = svc._get_default_revenue_account('T1')
+    assert result is None

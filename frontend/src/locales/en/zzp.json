@@ -12,6 +12,8 @@
     "dueDate": "Due Date",
     "paymentTerms": "Payment Terms",
     "currency": "Currency",
+    "exchangeRate": "Exchange Rate",
+    "revenueAccount": "Revenue Account",
     "notes": "Notes",
     "subtotal": "Subtotal",
     "vatTotal": "VAT Total",

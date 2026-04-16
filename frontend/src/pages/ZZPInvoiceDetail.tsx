@@ -17,6 +17,7 @@ import { useFieldConfig } from '../hooks/useFieldConfig';
 import { Invoice, InvoiceLine, InvoiceInput, VatSummaryLine, Product, Contact } from '../types/zzp';
 import {
   getInvoice, createInvoice, updateInvoice, sendInvoice, createCreditNote,
+  getInvoiceLedgerAccounts,
 } from '../services/zzpInvoiceService';
 import { getProducts } from '../services/productService';
 import { getContacts } from '../services/contactService';
@@ -43,6 +44,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   const [crediting, setCrediting] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [ledgerAccounts, setLedgerAccounts] = useState<{ account_code: string; account_name: string }[]>([]);
 
   // Editable form state (draft mode)
   const [contactId, setContactId] = useState<number | string>('');
@@ -51,6 +53,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   const [currency, setCurrency] = useState('EUR');
   const [exchangeRate, setExchangeRate] = useState(1);
   const [notes, setNotes] = useState('');
+  const [revenueAccount, setRevenueAccount] = useState('');
   const [lines, setLines] = useState<Partial<InvoiceLine>[]>([]);
 
   // Send confirmation dialog
@@ -66,15 +69,22 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
 
   const loadReferenceData = useCallback(async () => {
     try {
-      const [prodResp, contResp] = await Promise.all([
-        getProducts(), getContacts(),
+      const [prodResp, contResp, ledgerResp] = await Promise.all([
+        getProducts(), getContacts(), getInvoiceLedgerAccounts(),
       ]);
       if (prodResp.success) setProducts(prodResp.data);
       if (contResp.success) setContacts(contResp.data);
+      if (ledgerResp.success) {
+        setLedgerAccounts(ledgerResp.data);
+        // Default to first account for new invoices
+        if (!invoiceId && ledgerResp.data.length > 0) {
+          setRevenueAccount(ledgerResp.data[0].account_code);
+        }
+      }
     } catch {
       toast({ title: t('common.errorLoading', 'Error loading data'), status: 'error' });
     }
-  }, [toast, t]);
+  }, [toast, t, invoiceId]);
 
   const loadInvoice = useCallback(async () => {
     if (!invoiceId) return;
@@ -90,6 +100,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         setCurrency(inv.currency);
         setExchangeRate(inv.exchange_rate);
         setNotes(inv.notes || '');
+        setRevenueAccount(inv.revenue_account || '');
         setLines(inv.lines || []);
       } else {
         toast({ title: resp.error || 'Error loading invoice', status: 'error' });
@@ -163,6 +174,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         payment_terms_days: paymentTermsDays,
         currency,
         exchange_rate: exchangeRate,
+        revenue_account: revenueAccount || undefined,
         notes: notes || undefined,
         lines: lines.map((l, idx) => ({
           product_id: l.product_id || undefined,
@@ -364,6 +376,29 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
                 onChange={e => setExchangeRate(parseFloat(e.target.value))} />
             ) : (
               <Text color="white" fontSize="sm">{invoice?.exchange_rate}</Text>
+            )}
+          </FormControl>
+        )}
+
+        {/* Revenue account */}
+        {ledgerAccounts.length > 0 && (
+          <FormControl w={{ base: '100%', md: '280px' }}>
+            <FormLabel color="gray.300" fontSize="sm">{t('invoices.revenueAccount', 'Revenue Account')}</FormLabel>
+            {isEditable ? (
+              <Select size="sm" bg="gray.700" color="white" borderColor="gray.600"
+                value={revenueAccount}
+                onChange={e => setRevenueAccount(e.target.value)}
+                isDisabled={!isDraft}>
+                {ledgerAccounts.map(a => (
+                  <option key={a.account_code} value={a.account_code}>
+                    {a.account_code} - {a.account_name}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Text color="white" fontSize="sm">
+                {revenueAccount ? `${revenueAccount} - ${ledgerAccounts.find(a => a.account_code === revenueAccount)?.account_name || ''}` : '—'}
+              </Text>
             )}
           </FormControl>
         )}

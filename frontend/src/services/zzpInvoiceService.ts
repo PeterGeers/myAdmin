@@ -54,6 +54,15 @@ export async function copyLastInvoice(contactId: number): Promise<any> {
 }
 
 /**
+ * Fetch accounts flagged as ZZP invoice ledger for the revenue account dropdown.
+ * GET /api/zzp/accounts/invoice-ledgers
+ */
+export async function getInvoiceLedgerAccounts(): Promise<any> {
+  const resp = await authenticatedGet(buildEndpoint('/api/zzp/accounts/invoice-ledgers'));
+  return resp.json();
+}
+
+/**
  * Create an invoice from selected time entries.
  * POST /api/zzp/invoices/from-time-entries
  */

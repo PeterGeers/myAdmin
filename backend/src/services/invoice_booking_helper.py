@@ -17,6 +17,15 @@ logger = logging.getLogger(__name__)
 class InvoiceBookingHelper:
     """Double-entry booking of invoices into mutaties."""
 
+    # Required parameters that must be configured per tenant — no hardcoded defaults.
+    REQUIRED_BOOKING_PARAMS = {
+        'debtor_account': 'zzp.debtor_account',
+        'creditor_account': 'zzp.creditor_account',
+        'revenue_account': 'zzp.revenue_account',
+        'expense_account': 'zzp.expense_account',
+        'btw_debit_account': 'zzp.btw_debit_account',
+    }
+
     def __init__(self, db, transaction_logic, tax_rate_service,
                  parameter_service):
         self.db = db
@@ -40,8 +49,12 @@ class InvoiceBookingHelper:
         inv_date = invoice['invoice_date']
         grand_total = float(invoice['grand_total'])
 
-        debtor_acct = self._get_param(tenant, 'debtor_account', '1300')
-        revenue_acct = self._get_param(tenant, 'revenue_account', '8001')
+        debtor_acct = self._get_param(tenant, 'debtor_account')
+
+        # Use invoice-level revenue account, fall back to tenant parameter
+        revenue_acct = invoice.get('revenue_account')
+        if not revenue_acct:
+            revenue_acct = self._get_param(tenant, 'revenue_account')
 
         pdf_url = (storage_result or {}).get('url', '')
         pdf_filename = (storage_result or {}).get('filename', '')
@@ -106,9 +119,9 @@ class InvoiceBookingHelper:
         grand_total = float(invoice['grand_total'])
         vat_total = float(invoice.get('vat_total', 0))
 
-        creditor_acct = self._get_param(tenant, 'creditor_account', '1600')
-        expense_acct = self._get_param(tenant, 'expense_account', '4000')
-        btw_debit_acct = self._get_param(tenant, 'btw_debit_account', '2010')
+        creditor_acct = self._get_param(tenant, 'creditor_account')
+        expense_acct = self._get_param(tenant, 'expense_account')
+        btw_debit_acct = self._get_param(tenant, 'btw_debit_account')
 
         pdf_url = (storage_result or {}).get('url', '')
         pdf_filename = (storage_result or {}).get('filename', '')
@@ -161,9 +174,13 @@ class InvoiceBookingHelper:
         cn_date = credit_note['invoice_date']
         grand_total = abs(float(credit_note['grand_total']))
 
-        debtor_acct = self._get_param(tenant, 'debtor_account', '1300')
-        revenue_acct = self._get_param(tenant, 'revenue_account', '8001')
-        btw_debit_acct = self._get_param(tenant, 'btw_debit_account', '2010')
+        debtor_acct = self._get_param(tenant, 'debtor_account')
+        btw_debit_acct = self._get_param(tenant, 'btw_debit_account')
+
+        # Use original invoice's revenue account, fall back to tenant parameter
+        revenue_acct = original_invoice.get('revenue_account')
+        if not revenue_acct:
+            revenue_acct = self._get_param(tenant, 'revenue_account')
 
         pdf_url = (storage_result or {}).get('url', '')
         pdf_filename = (storage_result or {}).get('filename', '')
@@ -234,12 +251,17 @@ class InvoiceBookingHelper:
             'Administration': tenant,
         }
 
-    def _get_param(self, tenant: str, key: str, default: str) -> str:
+    def _get_param(self, tenant: str, key: str) -> str:
+        """Get a required booking parameter. Raises ValueError if not configured."""
         if self.parameter_service:
             val = self.parameter_service.get_param('zzp', key, tenant=tenant)
             if val:
                 return str(val)
-        return default
+        param_name = self.REQUIRED_BOOKING_PARAMS.get(key, f'zzp.{key}')
+        raise ValueError(
+            f"Required booking parameter '{param_name}' is not configured for tenant '{tenant}'. "
+            f"Please set this parameter in Tenant Administration → Parameters."
+        )
 
     def _get_vat_ledger_account(self, tenant: str, vat_code: str,
                                 inv_date, fallback: str) -> str:
