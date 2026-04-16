@@ -27,7 +27,7 @@ MODULE_REGISTRY: Dict[str, dict] = {
             'fin.locale': {'type': 'string', 'default': 'nl'},
         },
         'required_tax_rates': ['btw'],
-        'required_roles': ['Finance_Read', 'Finance_Write'],
+        'required_roles': ['Finance_CRUD', 'Finance_Read', 'Finance_Export'],
     },
     'STR': {
         'description': 'Short-Term Rental Management',
@@ -37,7 +37,7 @@ MODULE_REGISTRY: Dict[str, dict] = {
             'str.platforms': {'type': 'json', 'default': ['airbnb', 'booking']},
         },
         'required_tax_rates': ['tourist_tax', 'btw_accommodation'],
-        'required_roles': ['STR_Read', 'STR_Write'],
+        'required_roles': ['STR_CRUD', 'STR_Read', 'STR_Export'],
     },
     'TENADMIN': {
         'description': 'Tenant Administration',
@@ -122,7 +122,7 @@ MODULE_REGISTRY: Dict[str, dict] = {
             },
         },
         'required_tax_rates': ['btw'],
-        'required_roles': ['ZZP_Read', 'ZZP_Write'],
+        'required_roles': ['ZZP_CRUD', 'ZZP_Read', 'ZZP_Export'],
     },
 }
 

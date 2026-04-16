@@ -294,7 +294,7 @@ function AppContent() {
       case 'zzp-invoices':
         return (
           <ProtectedRoute
-            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -307,7 +307,7 @@ function AppContent() {
       case 'zzp-contacts':
         return (
           <ProtectedRoute
-            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -320,7 +320,7 @@ function AppContent() {
       case 'zzp-products':
         return (
           <ProtectedRoute
-            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -333,7 +333,7 @@ function AppContent() {
       case 'zzp-time-tracking':
         return (
           <ProtectedRoute
-            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -346,7 +346,7 @@ function AppContent() {
       case 'zzp-debtors':
         return (
           <ProtectedRoute
-            requiredRoles={['ZZP_Read', 'ZZP_Write']}
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
             onLoginSuccess={() => setCurrentPage('menu')}
           >
             <Box minH="100vh" bg="gray.900">
@@ -454,7 +454,7 @@ function AppContent() {
                   )}
 
                   {/* ── ZZP Module ──────────────────────────── */}
-                  {hasZZP && (user?.roles?.some(role => ['ZZP_Read', 'ZZP_Write'].includes(role))) && (
+                  {hasZZP && (user?.roles?.some(role => ['ZZP_Read', 'ZZP_CRUD'].includes(role))) && (
                     <>
                       <Text color="teal.300" fontSize="sm" fontWeight="bold" alignSelf="flex-start" mt={2}>💼 {t('common:navigation.moduleGroups.zzp')}</Text>
                       <Button size="lg" w="full" colorScheme="teal" onClick={() => setCurrentPage('zzp-invoices')}>

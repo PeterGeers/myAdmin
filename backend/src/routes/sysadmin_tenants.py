@@ -470,11 +470,18 @@ def delete_tenant(user_email, user_roles, administration):
 @cognito_required(required_roles=['SysAdmin'])
 def get_tenant_modules(user_email, user_roles, administration):
     """
-    Get enabled modules for a tenant
+    Get enabled modules for a tenant, plus the full registry of available modules.
     
     Authorization: SysAdmin role required
+    
+    Returns:
+        - modules: list of tenant_modules rows (what the tenant currently has)
+        - registered_modules: list of all modules from MODULE_REGISTRY with
+          name, description, depends_on, and readonly flag
     """
     try:
+        from services.module_registry import MODULE_REGISTRY
+
         # Get database connection
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
@@ -505,11 +512,23 @@ def get_tenant_modules(user_email, user_roles, administration):
                 module['created_at'] = module['created_at'].isoformat()
             if module.get('updated_at'):
                 module['updated_at'] = module['updated_at'].isoformat()
+
+        # Build registered modules list from MODULE_REGISTRY
+        registered_modules = [
+            {
+                'name': name,
+                'description': defn.get('description', ''),
+                'depends_on': defn.get('depends_on', []),
+                'readonly': name == 'TENADMIN',
+            }
+            for name, defn in MODULE_REGISTRY.items()
+        ]
         
         return jsonify({
             'success': True,
             'administration': administration,
-            'modules': modules
+            'modules': modules,
+            'registered_modules': registered_modules,
         })
         
     except Exception as e:
