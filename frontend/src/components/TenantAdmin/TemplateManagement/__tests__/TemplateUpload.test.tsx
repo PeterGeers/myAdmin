@@ -13,6 +13,8 @@ import * as templateApi from '../../../../services/templateApi';
 // Mock the template API
 jest.mock('../../../../services/templateApi', () => ({
   getCurrentTemplate: jest.fn(),
+  downloadDefaultTemplate: jest.fn(),
+  deleteTenantTemplate: jest.fn(),
   TemplateType: {
     STR_INVOICE_NL: 'str_invoice_nl',
     STR_INVOICE_EN: 'str_invoice_en',
@@ -106,6 +108,18 @@ jest.mock('@chakra-ui/react', () => ({
     return <div {...domProps}>{children}</div>;
   },
   Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
+  AlertDialog: ({ children, isOpen, onClose, leastDestructiveRef, ...props }: any) => {
+    if (!isOpen) return null;
+    return <div role="alertdialog" data-testid="delete-confirm-dialog">{children}</div>;
+  },
+  AlertDialogOverlay: ({ children }: any) => <div>{children}</div>,
+  AlertDialogContent: ({ children }: any) => <div>{children}</div>,
+  AlertDialogHeader: ({ children, ...props }: any) => {
+    const { fontSize, fontWeight, ...domProps } = props;
+    return <div {...domProps}>{children}</div>;
+  },
+  AlertDialogBody: ({ children }: any) => <div>{children}</div>,
+  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
   useDisclosure: () => ({
     isOpen: true,  // Always open in tests
     onOpen: jest.fn(),
@@ -521,6 +535,173 @@ describe('TemplateUpload', () => {
       render(<TemplateUpload onUpload={mockOnUpload} loading={true} />);
       
       expect(screen.getByText(/uploading/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('Download Default Template Button', () => {
+    it('shows "Download Default Template" button when no tenant template exists', async () => {
+      // getCurrentTemplate rejects → no tenant template
+      mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
+
+      render(<TemplateUpload onUpload={mockOnUpload} />);
+
+      // Select a template type to trigger the useEffect
+      const select = screen.getByRole('combobox', { name: /template type/i });
+      fireEvent.change(select, { target: { value: 'str_invoice_nl' } });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /download default template/i })).toBeInTheDocument();
+      });
+    });
+
+    it('hides "Download Default Template" button when tenant template exists', async () => {
+      mockGetCurrentTemplate.mockResolvedValue({
+        success: true,
+        template_type: 'str_invoice_nl',
+        template_content: '<html>tenant</html>',
+        field_mappings: {},
+        metadata: {
+          version: 1,
+          approved_at: '2025-01-01T00:00:00Z',
+          approved_by: 'admin@test.com',
+        },
+      } as any);
+
+      render(<TemplateUpload onUpload={mockOnUpload} />);
+
+      const select = screen.getByRole('combobox', { name: /template type/i });
+      fireEvent.change(select, { target: { value: 'str_invoice_nl' } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/current active template/i)).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /download default template/i })).not.toBeInTheDocument();
+    });
+
+    it('calls downloadDefaultTemplate on click', async () => {
+      const mockDownload = templateApi.downloadDefaultTemplate as jest.MockedFunction<any>;
+      mockDownload.mockResolvedValue({
+        success: true,
+        template_type: 'str_invoice_nl',
+        template_content: '<html>default</html>',
+        filename: 'str_invoice_nl_default.html',
+        message: 'Default template retrieved successfully',
+      });
+
+      mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
+
+      // Mock URL.createObjectURL and URL.revokeObjectURL
+      const mockCreateObjectURL = jest.fn(() => 'blob:mock-url');
+      const mockRevokeObjectURL = jest.fn();
+      global.URL.createObjectURL = mockCreateObjectURL;
+      global.URL.revokeObjectURL = mockRevokeObjectURL;
+
+      render(<TemplateUpload onUpload={mockOnUpload} />);
+
+      const select = screen.getByRole('combobox', { name: /template type/i });
+      fireEvent.change(select, { target: { value: 'str_invoice_nl' } });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /download default template/i })).toBeInTheDocument();
+      });
+
+      const downloadBtn = screen.getByRole('button', { name: /download default template/i });
+      fireEvent.click(downloadBtn);
+
+      await waitFor(() => {
+        expect(mockDownload).toHaveBeenCalledWith('str_invoice_nl');
+      });
+    });
+  });
+
+  describe('Delete Template Button', () => {
+    const templateWithMetadata = {
+      success: true,
+      template_type: 'str_invoice_nl',
+      template_content: '<html>tenant</html>',
+      field_mappings: {},
+      metadata: {
+        version: 1,
+        approved_at: '2025-01-01T00:00:00Z',
+        approved_by: 'admin@test.com',
+      },
+    } as any;
+
+    it('shows "Delete Template" button when tenant template exists', async () => {
+      mockGetCurrentTemplate.mockResolvedValue(templateWithMetadata);
+
+      render(<TemplateUpload onUpload={mockOnUpload} />);
+
+      const select = screen.getByRole('combobox', { name: /template type/i });
+      fireEvent.change(select, { target: { value: 'str_invoice_nl' } });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /delete template/i })).toBeInTheDocument();
+      });
+    });
+
+    it('hides "Delete Template" button when no tenant template exists', async () => {
+      mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
+
+      render(<TemplateUpload onUpload={mockOnUpload} />);
+
+      const select = screen.getByRole('combobox', { name: /template type/i });
+      fireEvent.change(select, { target: { value: 'str_invoice_nl' } });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /download default template/i })).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /^delete template$/i })).not.toBeInTheDocument();
+    });
+
+    it('shows confirmation dialog when "Delete Template" is clicked', async () => {
+      mockGetCurrentTemplate.mockResolvedValue(templateWithMetadata);
+
+      render(<TemplateUpload onUpload={mockOnUpload} />);
+
+      const select = screen.getByRole('combobox', { name: /template type/i });
+      fireEvent.change(select, { target: { value: 'str_invoice_nl' } });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /delete template/i })).toBeInTheDocument();
+      });
+
+      // The AlertDialog mock renders when isOpen is true (useDisclosure mock always returns isOpen: true)
+      // So the dialog content should be visible
+      expect(screen.getByText(/are you sure you want to delete/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument();
+    });
+
+    it('calls deleteTenantTemplate on confirm and resets state', async () => {
+      const mockDelete = templateApi.deleteTenantTemplate as jest.MockedFunction<any>;
+      mockDelete.mockResolvedValue({
+        success: true,
+        message: 'Template deactivated successfully.',
+        template_type: 'str_invoice_nl',
+        deactivated_file_id: 'file123',
+      });
+
+      mockGetCurrentTemplate.mockResolvedValue(templateWithMetadata);
+
+      render(<TemplateUpload onUpload={mockOnUpload} />);
+
+      const select = screen.getByRole('combobox', { name: /template type/i });
+      fireEvent.change(select, { target: { value: 'str_invoice_nl' } });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /delete template/i })).toBeInTheDocument();
+      });
+
+      // Click the confirm "Delete" button in the dialog
+      const confirmBtn = screen.getByRole('button', { name: /^delete$/i });
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(mockDelete).toHaveBeenCalledWith('str_invoice_nl');
+      });
     });
   });
 });

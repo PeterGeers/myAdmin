@@ -12,3 +12,8 @@ Alles verwijderen button and code as they no longer provded the expected functio
 refactor /retest of unit, integrationand e2e tests to solve broken tests
 # Tempalate management
 .kiro\specs\template-management-defaults
+# Improve consistency of tables and table filters
+- Inventarise all tables used in the code and check how table filters are implemented
+- Generic Filter framework
+- Filters in the column headers (Not seperate)
+- Improve instructions in .kiro\steering\ui-patterns.md if needed

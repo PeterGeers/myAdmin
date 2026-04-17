@@ -11,11 +11,12 @@ Je bent Tenant Admin geworden doordat de SysAdmin je heeft uitgenodigd als eerst
 
 ## Wat kun je hier doen?
 
-| Taak                                   | Beschrijving                                             |
-| -------------------------------------- | -------------------------------------------------------- |
-| [Instellingen](tenant-settings.md)     | Tenant configuratie, sjablonen en rekeningschema beheren |
-| [Gebruikersbeheer](user-management.md) | Gebruikers toevoegen, rollen toewijzen en verwijderen    |
-| [Audit logging](audit-logging.md)      | Activiteiten bijhouden en compliance rapporten           |
+| Taak                                     | Beschrijving                                             |
+| ---------------------------------------- | -------------------------------------------------------- |
+| [Instellingen](tenant-settings.md)       | Tenant configuratie, sjablonen en rekeningschema beheren |
+| [Sjabloonbeheer](template-management.md) | Sjablonen downloaden, uploaden, bewerken en verwijderen  |
+| [Gebruikersbeheer](user-management.md)   | Gebruikers toevoegen, rollen toewijzen en verwijderen    |
+| [Audit logging](audit-logging.md)        | Activiteiten bijhouden en compliance rapporten           |
 
 ## Jouw rol vs SysAdmin
 
