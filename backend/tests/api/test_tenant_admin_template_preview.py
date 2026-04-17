@@ -135,7 +135,7 @@ class TestTemplatePreviewEndpoint:
             data=json.dumps(valid_template_request), content_type='application/json',
             headers={'Authorization': 'Bearer mock.jwt.token'})
 
-        assert response.status_code == 400
+        assert response.status_code == 200
         data = json.loads(response.data)
         assert data['success'] is False
         assert data['validation']['is_valid'] is False

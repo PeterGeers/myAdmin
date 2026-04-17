@@ -58,32 +58,32 @@ Add two new API endpoints (download default template, delete tenant template) an
 - [x] 4. Checkpoint - Backend complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Add frontend API functions
-  - [ ] 5.1 Add `DefaultTemplateResponse` and `DeleteTemplateResponse` interfaces to `frontend/src/services/templateApi.ts`
+- [x] 5. Add frontend API functions
+  - 5.1 Add `DefaultTemplateResponse` and `DeleteTemplateResponse` interfaces to `frontend/src/services/templateApi.ts`
     - _Requirements: 5.1, 5.2_
-  - [ ] 5.2 Add `downloadDefaultTemplate()` function to `frontend/src/services/templateApi.ts`
+  - 5.2 Add `downloadDefaultTemplate()` function to `frontend/src/services/templateApi.ts`
     - Call `GET /api/tenant-admin/templates/{type}/default` via `authenticatedRequest`
     - Throw Error with server message on non-OK response
     - _Requirements: 5.1, 5.3_
-  - [ ] 5.3 Add `deleteTenantTemplate()` function to `frontend/src/services/templateApi.ts`
+  - 5.3 Add `deleteTenantTemplate()` function to `frontend/src/services/templateApi.ts`
     - Call `DELETE /api/tenant-admin/templates/{type}` via `authenticatedRequest`
     - Throw Error with server message on non-OK response
     - _Requirements: 5.2, 5.4_
 
-- [ ] 6. Add UI buttons to TemplateUpload component
-  - [ ] 6.1 Add "Download Default Template" button in `frontend/src/components/TenantAdmin/TemplateManagement/TemplateUpload.tsx`
+- [x] 6. Add UI buttons to TemplateUpload component
+  - 6.1 Add "Download Default Template" button in `frontend/src/components/TenantAdmin/TemplateManagement/TemplateUpload.tsx`
     - Show in the warning alert block when no tenant template exists
     - On click: call `downloadDefaultTemplate()`, create Blob, trigger browser download with `{type}_default.html` filename
     - Hide when a tenant template exists
     - _Requirements: 1.1, 1.2, 1.4, 1.7_
-  - [ ] 6.2 Add "Delete Template" button with confirmation dialog in `TemplateUpload.tsx`
+  - 6.2 Add "Delete Template" button with confirmation dialog in `TemplateUpload.tsx`
     - Show alongside existing template info when a tenant template exists
     - Use Chakra `AlertDialog` for confirmation before deletion
     - On confirm: call `deleteTenantTemplate()`, show success toast, reset `currentTemplate` to `null` to refresh status
     - On cancel: close dialog without API call
     - Use red/destructive color scheme for the button
     - _Requirements: 2.1, 2.2, 2.3, 2.6, 4.4_
-  - [ ] 6.3 Write frontend unit tests for new API functions and UI buttons
+  - 6.3 Write frontend unit tests for new API functions and UI buttons
     - Test `downloadDefaultTemplate()` calls correct endpoint and returns response
     - Test `deleteTenantTemplate()` calls correct endpoint and returns response
     - Test both functions throw Error on non-OK responses
@@ -93,7 +93,7 @@ Add two new API endpoints (download default template, delete tenant template) an
     - _Requirements: 1.1, 1.7, 2.1, 2.2, 5.1, 5.2, 5.3, 5.4_
 
 - [ ] 6.4 Update user documentation
-  - Update/review all user documentaion in mkdocs related to template management in NL and UK
+- Update/review all user documentaion in mkdocs related to template management in NL and UK
 - [ ] 7. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 

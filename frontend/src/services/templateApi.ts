@@ -36,6 +36,28 @@ export type {
 } from '../types/template';
 
 /**
+ * Response from the download default template endpoint
+ */
+export interface DefaultTemplateResponse {
+  success: boolean;
+  template_type: TemplateType;
+  template_content: string;
+  filename: string;
+  field_mappings?: FieldMappings;
+  message: string;
+}
+
+/**
+ * Response from the delete tenant template endpoint
+ */
+export interface DeleteTemplateResponse {
+  success: boolean;
+  message: string;
+  template_type: TemplateType;
+  deactivated_file_id?: string;
+}
+
+/**
  * Preview a template with sample data
  * 
  * @param templateType - Type of template
@@ -58,8 +80,13 @@ export async function previewTemplate(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to preview template');
+    const body = await response.json();
+    // A 400 with validation data is a valid preview result (template is invalid,
+    // but the request itself succeeded). Return it so the UI can show details.
+    if (response.status === 400 && body.validation) {
+      return body as PreviewResponse;
+    }
+    throw new Error(body.error || body.message || 'Failed to preview template');
   }
 
   return response.json();
@@ -228,6 +255,54 @@ export async function getCurrentTemplate(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Failed to get current template');
+  }
+
+  return response.json();
+}
+
+
+/**
+ * Download the built-in default template for a template type
+ *
+ * @param templateType - Type of template to download the default for
+ * @returns Default template content, filename, and field mappings
+ */
+export async function downloadDefaultTemplate(
+  templateType: TemplateType
+): Promise<DefaultTemplateResponse> {
+  const response = await authenticatedRequest(
+    `/api/tenant-admin/templates/${templateType}/default`,
+    { method: 'GET' }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || error.message || 'Failed to download default template');
+  }
+
+  return response.json();
+}
+
+/**
+ * Delete (deactivate) the tenant-specific template for a template type
+ *
+ * The template record is soft-deleted (is_active set to FALSE) so that
+ * the system reverts to using the built-in default template.
+ *
+ * @param templateType - Type of template to delete
+ * @returns Success response with deactivated file ID
+ */
+export async function deleteTenantTemplate(
+  templateType: TemplateType
+): Promise<DeleteTemplateResponse> {
+  const response = await authenticatedRequest(
+    `/api/tenant-admin/templates/${templateType}`,
+    { method: 'DELETE' }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || error.message || 'Failed to delete tenant template');
   }
 
   return response.json();

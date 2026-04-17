@@ -987,8 +987,11 @@ def preview_template_endpoint(user_email, user_roles):
         if result.get('success'):
             return jsonify(result), 200
         else:
-            # Validation failed or preview generation failed
-            return jsonify(result), 400
+            # Validation failed or preview generation failed — return 200
+            # because the request itself succeeded; the template is just
+            # invalid.  The frontend reads the validation details from the
+            # response body to show actionable feedback.
+            return jsonify(result), 200
         
     except Exception as e:
         logger.error(f"Error generating template preview: {e}")

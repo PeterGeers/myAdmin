@@ -58,15 +58,17 @@ Kies je opslagprovider:
 
 ## Sjablonen tabblad
 
-Sjablonen bepalen hoe factuurverwerking en rapportages werken.
+Sjablonen bepalen hoe factuurverwerking en rapportages eruitzien. Op dit tabblad kun je:
 
-1. Selecteer het sjabloontype
-2. Pas velden aan in het bewerkingsformulier
-3. Klik op **Preview** om het resultaat te bekijken
-4. Klik op **Valideren** om te controleren op fouten
-5. Klik op **Goedkeuren** om het sjabloon te activeren
+- **Standaardsjabloon downloaden** — Download het ingebouwde sjabloon als startpunt voor aanpassingen
+- **Sjabloon uploaden** — Upload een eigen HTML-sjabloon
+- **Sjabloon bewerken** — Laad een bestaand sjabloon, bewerk het en upload opnieuw
+- **Sjabloon verwijderen** — Verwijder je tenant-specifieke sjabloon en val terug op het standaardsjabloon
+- **Valideren en goedkeuren** — Controleer op fouten en activeer het sjabloon
 
 Bij validatiefouten kun je **AI Help** gebruiken voor suggesties.
+
+Zie [Sjabloonbeheer](template-management.md) voor een uitgebreide handleiding.
 
 ## Tenantinfo tabblad
 
