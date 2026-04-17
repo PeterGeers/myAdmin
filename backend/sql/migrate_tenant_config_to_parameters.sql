@@ -5,7 +5,7 @@
 -- Maps tenant_config keys to parameters namespaces:
 --   google_drive_*  → storage namespace
 --   storage_*       → storage namespace (strip prefix)
---   company_logo_*  → branding namespace
+--   company_logo_*  → str_branding namespace
 --   all others      → config namespace
 -- Google Drive keys → storage namespace
 INSERT INTO parameters (
@@ -65,7 +65,7 @@ VALUES(value_type),
 VALUES(is_secret),
     created_by =
 VALUES(created_by);
--- company_logo_* keys → branding namespace
+-- company_logo_* keys → str_branding namespace
 INSERT INTO parameters (
         scope,
         scope_id,
@@ -78,7 +78,7 @@ INSERT INTO parameters (
     )
 SELECT 'tenant' AS scope,
     tc.administration AS scope_id,
-    'branding' AS namespace,
+    'str_branding' AS namespace,
     tc.config_key AS `key`,
     CONCAT('"', REPLACE(tc.config_value, '"', '\\"'), '"') AS value,
     'string' AS value_type,

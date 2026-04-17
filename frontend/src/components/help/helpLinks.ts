@@ -26,6 +26,11 @@ export const helpLinks: Record<string, string> = {
   'tenant-admin': 'tenant-admin/',
   'settings':     'tenant-admin/tenant-settings/',
   'migration':    'admin/',
+  'zzp-invoices': 'zzp/',
+  'zzp-contacts': 'zzp/contacts/',
+  'zzp-products': 'zzp/products/',
+  'zzp-time':     'zzp/time-tracking/',
+  'zzp-debtors':  'zzp/debtors/',
   'menu':         '',
 };
 

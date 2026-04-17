@@ -2,632 +2,758 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/changelog/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/changelog/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/changelog/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/faq/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/faq/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/faq/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/glossary/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/glossary/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/glossary/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/admin/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/admin/database-admin/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/database-admin/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/database-admin/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/admin/docker-deployment/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/docker-deployment/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/docker-deployment/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/admin/tenant-management/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/tenant-management/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/tenant-management/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/admin/troubleshooting/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/troubleshooting/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/troubleshooting/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/banking/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/banking/handling-duplicates/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/handling-duplicates/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/handling-duplicates/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/banking/importing-statements/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/importing-statements/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/importing-statements/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/banking/pattern-matching/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/pattern-matching/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/pattern-matching/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/banking/reviewing-transactions/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/reviewing-transactions/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/reviewing-transactions/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/getting-started/common-workflows/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/common-workflows/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/common-workflows/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/getting-started/first-login/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/first-login/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/first-login/"/>
     </url>
     <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/getting-started/onboarding/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/onboarding/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/onboarding/"/>
+    </url>
+    <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/getting-started/overview/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/overview/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/overview/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/getting-started/test-vs-production/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/test-vs-production/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/test-vs-production/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/invoices/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/invoices/ai-extraction/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/ai-extraction/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/ai-extraction/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/invoices/editing-approving/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/editing-approving/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/editing-approving/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/invoices/google-drive/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/google-drive/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/google-drive/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/invoices/uploading-invoices/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/uploading-invoices/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/uploading-invoices/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/pdf-validation/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/pdf-validation/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/pdf-validation/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/pdf-validation/checking-fixing-links/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/pdf-validation/checking-fixing-links/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/pdf-validation/checking-fixing-links/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/reports/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/reports/dashboards/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/dashboards/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/dashboards/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/reports/exporting-excel/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/exporting-excel/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/exporting-excel/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/reports/pnl-balance-sheets/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/pnl-balance-sheets/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/pnl-balance-sheets/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str/importing-bookings/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/importing-bookings/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/importing-bookings/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str/realized-vs-planned/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/realized-vs-planned/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/realized-vs-planned/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str/revenue-summaries/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/revenue-summaries/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/revenue-summaries/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str-pricing/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str-pricing/applying-suggestions/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/applying-suggestions/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/applying-suggestions/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str-pricing/event-pricing/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/event-pricing/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/event-pricing/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/str-pricing/viewing-recommendations/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/viewing-recommendations/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/viewing-recommendations/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tax/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tax/btw/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/btw/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/btw/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tax/income-tax-ib/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/income-tax-ib/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/income-tax-ib/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tax/toeristenbelasting/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/toeristenbelasting/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/toeristenbelasting/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/audit-logging/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/audit-logging/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/audit-logging/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/tenant-settings/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/tenant-settings/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/tenant-settings/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/user-management/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/user-management/"/>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/user-management/"/>
     </url>
     <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/contacts/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/contacts/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/contacts/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/creating-invoices/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/creating-invoices/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/creating-invoices/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/credit-notes/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/credit-notes/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/credit-notes/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/debtors/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/debtors/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/debtors/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/products/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/products/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/products/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/sending-invoices/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/sending-invoices/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/sending-invoices/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/zzp/time-tracking/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/time-tracking/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/time-tracking/"/>
+    </url>
+    <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/changelog/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/changelog/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/changelog/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/faq/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/faq/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/faq/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/glossary/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/glossary/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/glossary/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/admin/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/admin/database-admin/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/database-admin/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/database-admin/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/admin/docker-deployment/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/docker-deployment/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/docker-deployment/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/admin/tenant-management/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/tenant-management/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/tenant-management/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/admin/troubleshooting/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/admin/troubleshooting/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/admin/troubleshooting/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/banking/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/banking/handling-duplicates/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/handling-duplicates/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/handling-duplicates/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/banking/importing-statements/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/importing-statements/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/importing-statements/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/banking/pattern-matching/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/pattern-matching/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/pattern-matching/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/banking/reviewing-transactions/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/banking/reviewing-transactions/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/banking/reviewing-transactions/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/common-workflows/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/common-workflows/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/common-workflows/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/first-login/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/first-login/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/first-login/"/>
     </url>
     <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/onboarding/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/onboarding/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/onboarding/"/>
+    </url>
+    <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/overview/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/overview/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/overview/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/test-vs-production/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/getting-started/test-vs-production/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/getting-started/test-vs-production/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/invoices/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/invoices/ai-extraction/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/ai-extraction/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/ai-extraction/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/invoices/editing-approving/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/editing-approving/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/editing-approving/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/invoices/google-drive/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/google-drive/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/google-drive/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/invoices/uploading-invoices/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/invoices/uploading-invoices/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/invoices/uploading-invoices/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/pdf-validation/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/pdf-validation/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/pdf-validation/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/pdf-validation/checking-fixing-links/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/pdf-validation/checking-fixing-links/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/pdf-validation/checking-fixing-links/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/reports/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/reports/dashboards/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/dashboards/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/dashboards/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/reports/exporting-excel/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/exporting-excel/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/exporting-excel/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/reports/pnl-balance-sheets/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/reports/pnl-balance-sheets/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/reports/pnl-balance-sheets/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str/importing-bookings/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/importing-bookings/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/importing-bookings/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str/realized-vs-planned/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/realized-vs-planned/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/realized-vs-planned/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str/revenue-summaries/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str/revenue-summaries/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str/revenue-summaries/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/applying-suggestions/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/applying-suggestions/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/applying-suggestions/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/event-pricing/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/event-pricing/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/event-pricing/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/viewing-recommendations/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/str-pricing/viewing-recommendations/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/str-pricing/viewing-recommendations/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tax/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tax/btw/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/btw/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/btw/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tax/income-tax-ib/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/income-tax-ib/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/income-tax-ib/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tax/toeristenbelasting/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tax/toeristenbelasting/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tax/toeristenbelasting/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/audit-logging/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/audit-logging/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/audit-logging/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/tenant-settings/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/tenant-settings/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/tenant-settings/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/user-management/</loc>
-        <lastmod>2026-04-05</lastmod>
+        <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/user-management/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/user-management/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/contacts/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/contacts/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/contacts/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/creating-invoices/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/creating-invoices/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/creating-invoices/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/credit-notes/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/credit-notes/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/credit-notes/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/debtors/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/debtors/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/debtors/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/products/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/products/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/products/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/sending-invoices/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/sending-invoices/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/sending-invoices/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/zzp/time-tracking/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/zzp/time-tracking/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/zzp/time-tracking/"/>
     </url>
 </urlset>

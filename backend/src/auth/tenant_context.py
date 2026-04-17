@@ -259,7 +259,7 @@ def _map_config_key_to_param(config_key: str) -> tuple:
     if config_key.startswith('storage_'):
         return ('storage', config_key[len('storage_'):])
     if config_key.startswith('company_') or config_key == 'contact_email':
-        return ('branding', config_key)
+        return ('str_branding', config_key)
     return ('config', config_key)
 
 

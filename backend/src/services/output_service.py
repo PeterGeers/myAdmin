@@ -37,7 +37,7 @@ class OutputService:
     
     def handle_output(
         self,
-        content: str,
+        content,
         filename: str,
         destination: str,
         administration: str,
@@ -48,7 +48,7 @@ class OutputService:
         Handle output based on destination type.
         
         Args:
-            content: Generated report content (HTML, XML, etc.)
+            content: Generated content (str or bytes)
             filename: Output filename
             destination: Output destination ('download', 'gdrive', 's3')
             administration: Tenant/administration identifier
@@ -203,32 +203,154 @@ class OutputService:
     
     def _handle_s3_upload(
         self,
-        content: str,
+        content,
         filename: str,
         administration: str,
         content_type: str
     ) -> Dict[str, Any]:
         """
-        Handle S3 upload destination (future implementation).
+        Handle S3 upload destination using StorageProvider.
+        
+        Uses the tenant's configured S3 provider (s3_shared or s3_tenant)
+        via the StorageProvider factory.
         
         Args:
-            content: Report content
+            content: File content (str or bytes)
             filename: Output filename
             administration: Tenant identifier
             content_type: MIME type
             
         Returns:
-            Dictionary with S3 URL
-            
-        Raises:
-            NotImplementedError: S3 upload not yet implemented
+            Dictionary with S3 reference and URL
         """
-        logger.warning("S3 upload not yet implemented")
-        raise NotImplementedError(
-            "S3 upload destination is not yet implemented. "
-            "Please use 'download' or 'gdrive' destinations."
-        )
+        try:
+            from services.parameter_service import ParameterService
+            from storage.storage_provider import get_storage_provider
+
+            logger.info(
+                f"Uploading to S3 for administration '{administration}': {filename}"
+            )
+
+            param_svc = ParameterService(self.db)
+
+            # Resolve provider — will be s3_shared or s3_tenant based on config
+            provider = get_storage_provider(administration, param_svc)
+
+            # Ensure content is bytes
+            if isinstance(content, str):
+                file_data = content.encode('utf-8')
+            else:
+                file_data = content
+
+            # Upload via StorageProvider
+            reference = provider.upload(
+                file_data=file_data,
+                path=filename,
+                metadata={
+                    'administration': administration,
+                    'mime_type': content_type,
+                }
+            )
+
+            # Build a URL from the reference
+            # For S3 shared: reference is the S3 key
+            bucket = getattr(provider, 'bucket', '')
+            if bucket:
+                url = f"s3://{bucket}/{reference}"
+            else:
+                url = reference
+
+            logger.info(
+                f"Successfully uploaded to S3: {filename} (ref: {reference})"
+            )
+
+            return {
+                'success': True,
+                'destination': 's3',
+                'url': url,
+                'reference': reference,
+                'filename': filename,
+                'message': f'File uploaded to S3: {filename}'
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to upload to S3: {e}")
+            raise Exception(f"Failed to upload to S3: {str(e)}")
     
+    def check_health(
+        self,
+        destination: str,
+        administration: str
+    ) -> Dict[str, Any]:
+        """
+        Lightweight connectivity test for the configured storage provider.
+
+        Used as a pre-flight check before the invoice send flow to catch
+        storage issues early (Req 22.7).
+
+        Args:
+            destination: Storage destination to check ('download', 'gdrive', 's3')
+            administration: Tenant/administration identifier
+
+        Returns:
+            Dictionary with health status:
+            {
+                'healthy': bool,
+                'reason': str
+            }
+        """
+        destination = destination.lower()
+
+        if destination == 'download':
+            # Download is always available — no external dependency
+            return {'healthy': True, 'reason': 'Download destination is always available'}
+
+        if destination == 'gdrive':
+            return self._check_gdrive_health(administration)
+
+        if destination == 's3':
+            return self._check_s3_health(administration)
+
+        return {'healthy': False, 'reason': f"Unknown destination: {destination}"}
+
+    def _check_gdrive_health(self, administration: str) -> Dict[str, Any]:
+        """Check Google Drive connectivity by listing the root folder."""
+        try:
+            from google_drive_service import GoogleDriveService
+
+            drive_service = GoogleDriveService(administration)
+            # Lightweight call: list 1 file to verify API access
+            drive_service.service.files().list(
+                pageSize=1, fields='files(id)'
+            ).execute()
+            return {'healthy': True, 'reason': 'Google Drive is accessible'}
+        except Exception as e:
+            logger.warning(f"Google Drive health check failed for '{administration}': {e}")
+            return {'healthy': False, 'reason': f"Google Drive unavailable: {str(e)}"}
+
+    def _check_s3_health(self, administration: str) -> Dict[str, Any]:
+        """Check S3 connectivity by calling HeadBucket on the configured bucket."""
+        try:
+            from services.parameter_service import ParameterService
+            from storage.storage_provider import get_storage_provider
+
+            param_svc = ParameterService(self.db)
+            provider = get_storage_provider(administration, param_svc)
+
+            bucket = getattr(provider, 'bucket', None)
+            if not bucket:
+                return {'healthy': False, 'reason': 'S3 bucket not configured'}
+
+            client = getattr(provider, '_client', None)
+            if not client:
+                return {'healthy': False, 'reason': 'S3 client not initialized'}
+
+            client.head_bucket(Bucket=bucket)
+            return {'healthy': True, 'reason': f"S3 bucket '{bucket}' is accessible"}
+        except Exception as e:
+            logger.warning(f"S3 health check failed for '{administration}': {e}")
+            return {'healthy': False, 'reason': f"S3 unavailable: {str(e)}"}
+
     def _get_or_create_reports_folder(
         self,
         drive_service,

@@ -14,7 +14,8 @@ export type TemplateType =
   | 'btw_aangifte'        // VAT declaration
   | 'aangifte_ib'         // Income tax declaration
   | 'toeristenbelasting'  // Tourist tax report
-  | 'financial_report';   // General financial report
+  | 'financial_report'    // General financial report
+  | 'zzp_invoice';        // ZZP freelancer invoice
 
 /**
  * Validation error structure
@@ -395,6 +396,7 @@ export const TEMPLATE_TYPE_LABELS: Record<TemplateType, string> = {
   aangifte_ib: 'Aangifte IB',
   toeristenbelasting: 'Toeristenbelasting',
   financial_report: 'Financial Report',
+  zzp_invoice: 'ZZP Invoice',
 };
 
 /**
@@ -409,6 +411,7 @@ export const TEMPLATE_TYPE_DESCRIPTIONS: Record<TemplateType, string> = {
   aangifte_ib: 'Income tax declaration report',
   toeristenbelasting: 'Tourist tax report',
   financial_report: 'General financial report',
+  zzp_invoice: 'ZZP freelancer invoice template',
 };
 
 /**
@@ -423,6 +426,7 @@ export const REQUIRED_PLACEHOLDERS: Record<TemplateType, string[]> = {
   aangifte_ib: ['year', 'administration', 'total_income', 'total_expenses'],
   toeristenbelasting: ['year', 'accommodation_name', 'total_nights', 'tourist_tax'],
   financial_report: ['year', 'administration', 'report_type'],
+  zzp_invoice: ['invoice_number', 'invoice_date', 'company_name', 'grand_total', 'subtotal', 'lines'],
 };
 
 /**
@@ -439,6 +443,7 @@ export function isTemplateType(value: string): value is TemplateType {
     'aangifte_ib',
     'toeristenbelasting',
     'financial_report',
+    'zzp_invoice',
   ].includes(value);
 }
 

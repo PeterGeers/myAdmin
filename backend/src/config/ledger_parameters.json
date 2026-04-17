@@ -55,5 +55,52 @@
     "description_nl": "Hoofdrekeningcode voor BTW netto saldo",
     "module": "FIN",
     "depends_on": "vat_netting"
+  },
+  {
+    "key": "zzp_invoice_ledger",
+    "type": "boolean",
+    "label_en": "ZZP Invoice Bank Account",
+    "label_nl": "ZZP Factuur Bankrekening",
+    "description_en": "Bank account whose IBAN is shown on ZZP invoices for client payment",
+    "description_nl": "Bankrekening waarvan het IBAN op ZZP facturen wordt getoond voor betaling",
+    "module": "ZZP",
+    "depends_on": "bank_account"
+  },
+  {
+    "key": "zzp_revenue_ledger",
+    "type": "boolean",
+    "label_en": "ZZP Revenue Ledger",
+    "label_nl": "ZZP Omzetrekening",
+    "description_en": "Account available as revenue ledger for ZZP invoice booking",
+    "description_nl": "Rekening beschikbaar als omzetrekening voor ZZP factuurboekingen",
+    "module": "ZZP"
+  },
+  {
+    "key": "zzp_debtor_account",
+    "type": "boolean",
+    "label_en": "ZZP Debtor Account",
+    "label_nl": "ZZP Debiteurenrekening",
+    "description_en": "Account used as debtor ledger for ZZP invoices",
+    "description_nl": "Rekening gebruikt als debiteurenrekening voor ZZP facturen",
+    "module": "ZZP"
+  },
+  {
+    "key": "zzp_creditor_account",
+    "type": "boolean",
+    "label_en": "ZZP Creditor Account",
+    "label_nl": "ZZP Crediteurenrekening",
+    "description_en": "Account used as creditor ledger for ZZP invoices",
+    "description_nl": "Rekening gebruikt als crediteurenrekening voor ZZP facturen",
+    "module": "ZZP"
+  },
+  {
+    "key": "invoice_bank_account",
+    "type": "boolean",
+    "label_en": "Invoice Bank Account",
+    "label_nl": "Factuur Bankrekening",
+    "description_en": "Bank account whose IBAN is shown on invoices",
+    "description_nl": "Bankrekening waarvan het IBAN op facturen wordt getoond",
+    "module": "ZZP",
+    "depends_on": "bank_account"
   }
 ]

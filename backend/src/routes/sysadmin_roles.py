@@ -6,6 +6,7 @@ API endpoints for managing Cognito groups (roles)
 
 from flask import Blueprint, request, jsonify
 from auth.cognito_utils import cognito_required
+from services.module_registry import MODULE_REGISTRY
 import os
 import boto3
 import logging
@@ -16,6 +17,15 @@ logger = logging.getLogger(__name__)
 # Initialize Cognito client
 cognito_client = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
 USER_POOL_ID = os.getenv('COGNITO_USER_POOL_ID')
+
+# Build module role prefixes dynamically from MODULE_REGISTRY
+# e.g. ['Finance', 'STR', 'ZZP'] derived from required_roles like 'Finance_Read', 'STR_CRUD'
+_MODULE_ROLE_PREFIXES = list({
+    role.rsplit('_', 1)[0]
+    for defn in MODULE_REGISTRY.values()
+    for role in defn.get('required_roles', [])
+    if '_' in role
+})
 
 # Create blueprint
 sysadmin_roles_bp = Blueprint('sysadmin_roles', __name__)

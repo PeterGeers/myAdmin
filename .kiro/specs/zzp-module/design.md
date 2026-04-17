@@ -411,7 +411,6 @@ CREATE TABLE invoices (
     grand_total DECIMAL(12,2) DEFAULT 0.00,
     notes TEXT DEFAULT NULL,
     original_invoice_id INT DEFAULT NULL COMMENT 'For credit notes: link to original',
-    recurring_config_id INT DEFAULT NULL COMMENT 'If generated from recurring config',
     sent_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1091,8 +1090,10 @@ def _calculate_totals(self, invoice_id, lines):
 
 ```python
 def send_invoice(self, tenant, invoice_id, options):
+    """Send invoice or credit note — same flow for both types."""
     invoice = self.get_invoice(tenant, invoice_id)
     assert invoice['status'] == 'draft'
+    is_credit_note = invoice['invoice_type'] == 'credit_note'
 
     # 1. Generate PDF
     pdf_bytes = self.pdf_generator.generate_invoice_pdf(tenant, invoice)
@@ -1100,8 +1101,14 @@ def send_invoice(self, tenant, invoice_id, options):
     # 2. Store PDF via OutputService (returns url + filename)
     storage_result = self._store_pdf(tenant, invoice, pdf_bytes, options.get('output_destination', 'gdrive'))
 
-    # 3. Book in FIN (double-entry) — passes storage_result so Ref3/Ref4 are set on mutaties
-    self.booking_helper.book_outgoing_invoice(tenant, invoice, storage_result)
+    # 3. Book in FIN (double-entry) — credit notes create reversal entries
+    if is_credit_note:
+        original = self.get_invoice(tenant, invoice['original_invoice_id'])
+        self.booking_helper.book_credit_note(tenant, invoice, original, storage_result)
+        # Update original invoice status to 'credited'
+        self._update_status(tenant, invoice['original_invoice_id'], 'credited')
+    else:
+        self.booking_helper.book_outgoing_invoice(tenant, invoice, storage_result)
 
     # 4. Send email (optional)
     if options.get('send_email', True):
@@ -1109,7 +1116,7 @@ def send_invoice(self, tenant, invoice_id, options):
             {'filename': f"{invoice['invoice_number']}.pdf", 'content': pdf_bytes.getvalue(), 'content_type': 'application/pdf'}
         ])
 
-    # 5. Update invoice status (PDF url/filename live on mutaties.Ref3/Ref4, not here)
+    # 5. Update invoice/credit note status to 'sent'
     self._update_status(tenant, invoice_id, 'sent', sent_at=datetime.utcnow())
 
     return {'success': True, 'invoice_number': invoice['invoice_number']}
@@ -1129,7 +1136,7 @@ class InvoiceBookingHelper:
 
     def book_outgoing_invoice(self, tenant: str, invoice: dict, storage_result: dict = None) -> list[dict]
     def book_incoming_invoice(self, tenant: str, invoice: dict, storage_result: dict = None) -> list[dict]
-    def book_credit_note(self, tenant: str, credit_note: dict, original_invoice: dict) -> list[dict]
+    def book_credit_note(self, tenant: str, credit_note: dict, original_invoice: dict, storage_result: dict = None) -> list[dict]
 ```
 
 #### Outgoing Invoice Booking (Req 6.3)
@@ -1550,7 +1557,7 @@ zzp.debtors.aging
 zzp.debtors.sendReminder
 ```
 
-All UI labels use `t()` with these keys — no hardcoded strings in any language. Following conventions in `.kiro/specs/Common/Internationalization/TRANSLATION_KEY_CONVENTIONS.md`.
+All UI labels use `t()` with these keys — no hardcoded strings in any language. Following conventions in `.kiro/steering/ui-patterns.md`.
 
 ## 7. Security
 
@@ -1710,7 +1717,6 @@ frontend/src/
   │   ├── ContactModal.tsx
   │   ├── ProductModal.tsx
   │   ├── TimeEntryModal.tsx
-  │   ├── RecurringConfigModal.tsx
   │   ├── InvoiceStatusBadge.tsx
   │   └── AgingChart.tsx
   ├── hooks/
@@ -1736,6 +1742,13 @@ frontend/src/
 - Output/storage: `backend/src/services/output_service.py`
 - Email delivery: `backend/src/services/ses_email_service.py`
 - Tenant modules SQL: `backend/sql/phase5_tenant_modules.sql`
-- i18n conventions: `.kiro/specs/Common/Internationalization/TRANSLATION_KEY_CONVENTIONS.md`
-- Filter framework: `.kiro/specs/Common/Filters a generic approach/`
-- Action button pattern: `.kiro/specs/Common/parameter-driven-config/frontend-tasks.md`
+- UI patterns (tables, modals, action buttons, filters, i18n): `.kiro/steering/ui-patterns.md`
+- testing standards: .kiro\steering\testing-standards.md
+
+---
+
+## 14. Parameter Enhancement Design (Reqs 16–22)
+
+> **This section has been moved to a separate document for readability.**
+> See: [design-parameter-enhancements.md](./design-parameter-enhancements.md)
+

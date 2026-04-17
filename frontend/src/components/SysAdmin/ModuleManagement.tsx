@@ -19,14 +19,8 @@ interface ModuleState {
   is_active: boolean;
   description: string;
   readonly: boolean;
+  depends_on: string[];
 }
-
-const MODULE_DESCRIPTIONS: Record<string, string> = {
-  'TENADMIN': 'Tenant Administration - Manage users and settings within tenant',
-  'FIN': 'Financial Management - Invoice processing, banking, and reports',
-  'STR': 'Short-Term Rental - Booking management, pricing, and analytics',
-  'ADMIN': 'Platform Administration - System-wide management (reserved)'
-};
 
 export function ModuleManagement({ administration, isOpen, onClose }: ModuleManagementProps) {
   const [modules, setModules] = useState<ModuleState[]>([]);
@@ -56,15 +50,20 @@ export function ModuleManagement({ administration, isOpen, onClose }: ModuleMana
     setLoading(true);
     try {
       const data = await getTenantModules(administration);
-      
-      // Convert to ModuleState format
-      const moduleStates: ModuleState[] = ['TENADMIN', 'FIN', 'STR'].map(moduleName => {
-        const existing = data.modules.find(m => m.module_name === moduleName);
+
+      // Build module list from backend registry (registered_modules)
+      // Fall back to tenant's existing modules if registry not available
+      const registry: Array<{ name: string; description: string; depends_on: string[]; readonly: boolean }> =
+        data.registered_modules ?? [];
+
+      const moduleStates: ModuleState[] = registry.map(reg => {
+        const existing = data.modules.find((m: any) => m.module_name === reg.name);
         return {
-          name: moduleName,
+          name: reg.name,
           is_active: existing?.is_active ?? false,
-          description: MODULE_DESCRIPTIONS[moduleName] || '',
-          readonly: moduleName === 'TENADMIN' // TENADMIN is always enabled
+          description: reg.description || '',
+          readonly: reg.readonly ?? false,
+          depends_on: reg.depends_on ?? [],
         };
       });
       
@@ -180,6 +179,11 @@ export function ModuleManagement({ administration, isOpen, onClose }: ModuleMana
                         <Text color="gray.400" fontSize="sm">
                           {module.description}
                         </Text>
+                        {module.depends_on.length > 0 && (
+                          <Text color="gray.500" fontSize="xs">
+                            Requires: {module.depends_on.join(', ')}
+                          </Text>
+                        )}
                       </VStack>
                       <FormControl display="flex" alignItems="center" width="auto">
                         <FormLabel htmlFor={`module-${module.name}`} mb="0" mr={2} color="gray.300">
