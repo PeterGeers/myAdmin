@@ -145,6 +145,18 @@ export const chakraMock = {
       </label>
     );
   },
+  AlertDialog: ({ children, ...props }: any) => {
+    const { isOpen, onClose, leastDestructiveRef, ...domProps } = props;
+    return isOpen ? <div role="alertdialog" {...domProps}>{children}</div> : null;
+  },
+  AlertDialogOverlay: () => <div />,
+  AlertDialogContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  AlertDialogHeader: ({ children, ...props }: any) => {
+    const { fontSize, fontWeight, ...domProps } = props;
+    return <h2 {...domProps}>{children}</h2>;
+  },
+  AlertDialogBody: ({ children }: any) => <div>{children}</div>,
+  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
   Spinner: ({ ...props }: any) => {
     const { size, color, mb, ...domProps } = props;
     return <div role="status" {...domProps}>Loading...</div>;

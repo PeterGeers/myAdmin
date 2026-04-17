@@ -58,15 +58,17 @@ Select your storage provider:
 
 ## Templates tab
 
-Templates determine how invoice processing and reports work.
+Templates determine how invoice processing and reports look. On this tab you can:
 
-1. Select the template type
-2. Adjust fields in the editing form
-3. Click **Preview** to see the result
-4. Click **Validate** to check for errors
-5. Click **Approve** to activate the template
+- **Download default template** — Download the built-in template as a starting point for customizations
+- **Upload template** — Upload your own HTML template
+- **Edit template** — Load an existing template, edit it, and re-upload
+- **Delete template** — Remove your tenant-specific template and fall back to the default
+- **Validate and approve** — Check for errors and activate the template
 
 If there are validation errors, use **AI Help** for suggestions.
+
+See [Template Management](template-management.md) for a detailed guide.
 
 ## Tenant Info tab
 

@@ -699,9 +699,13 @@ class TestInputSanitization:
             }
         )
         
-        # Should reject or handle gracefully
-        assert response.status_code in [400, 413, 500], \
+        # Should reject or handle gracefully — validation returns 200 with
+        # success=false when the template exceeds the size limit
+        assert response.status_code in [200, 413, 500], \
             f"Should handle large templates appropriately, got {response.status_code}"
+        if response.status_code == 200:
+            data = response.get_json()
+            assert data['success'] is False
     
     def test_preview_handles_special_characters(self, mock_auth_and_tenant, client, auth_headers):
         """Test that special characters are handled correctly"""

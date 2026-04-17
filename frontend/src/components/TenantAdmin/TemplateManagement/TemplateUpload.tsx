@@ -25,11 +25,17 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
   Spinner,
   Badge,
   useToast,
 } from '@chakra-ui/react';
-import { TemplateType, getCurrentTemplate, CurrentTemplateResponse } from '../../../services/templateApi';
+import { TemplateType, getCurrentTemplate, CurrentTemplateResponse, downloadDefaultTemplate, deleteTenantTemplate } from '../../../services/templateApi';
 
 /**
  * Component props
@@ -76,9 +82,13 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
   }>({});
   const [currentTemplate, setCurrentTemplate] = useState<CurrentTemplateResponse | null>(null);
   const [loadingCurrent, setLoadingCurrent] = useState(false);
+  const [downloadingDefault, setDownloadingDefault] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const { isOpen: showMappings, onToggle: toggleMappings } = useDisclosure();
+  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const toast = useToast();
 
   /**
@@ -211,6 +221,73 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  /**
+   * Download the built-in default template for the selected type
+   */
+  const handleDownloadDefault = async () => {
+    if (!templateType) return;
+
+    setDownloadingDefault(true);
+    try {
+      const response = await downloadDefaultTemplate(templateType as TemplateType);
+      const blob = new Blob([response.template_content], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = response.filename || `${templateType}_default.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Default template downloaded',
+        description: `Downloaded ${response.filename}`,
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to download default template',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setDownloadingDefault(false);
+    }
+  };
+
+  /**
+   * Delete the tenant-specific template (soft-delete) and revert to default
+   */
+  const handleDeleteTemplate = async () => {
+    if (!templateType) return;
+
+    setDeleting(true);
+    try {
+      await deleteTenantTemplate(templateType as TemplateType);
+      onDeleteClose();
+      setCurrentTemplate(null);
+
+      toast({
+        title: 'Template deleted',
+        description: 'Tenant template removed. The system will use the default template.',
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to delete template',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   /**
@@ -400,15 +477,36 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
                   >
                     Load & Modify
                   </Button>
+                  <Button
+                    size="xs"
+                    colorScheme="red"
+                    onClick={onDeleteOpen}
+                    isDisabled={disabled || loading}
+                  >
+                    Delete Template
+                  </Button>
                 </HStack>
               </Box>
             </Alert>
           ) : (
             <Alert status="warning" variant="left-accent" bg="yellow.900" borderColor="yellow.500">
               <AlertIcon />
-              <AlertDescription fontSize="xs">
-                No active template found for this type. You'll be creating the first one.
-              </AlertDescription>
+              <Box flex="1">
+                <AlertDescription fontSize="xs">
+                  No active template found for this type. You'll be creating the first one.
+                </AlertDescription>
+                <Button
+                  size="xs"
+                  colorScheme="orange"
+                  mt={2}
+                  onClick={handleDownloadDefault}
+                  isLoading={downloadingDefault}
+                  isDisabled={disabled || loading}
+                  loadingText="Downloading..."
+                >
+                  Download Default Template
+                </Button>
+              </Box>
             </Alert>
           )}
         </Box>
@@ -544,6 +642,42 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
           <Text>4. Click "Upload & Preview Template" to validate</Text>
         </VStack>
       </Box>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef as React.RefObject<HTMLButtonElement>}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Template
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete the tenant template for{' '}
+              <strong>{TEMPLATE_TYPES.find((t) => t.value === templateType)?.label ?? templateType}</strong>?
+              The system will revert to using the built-in default template.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose} isDisabled={deleting}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleDeleteTemplate}
+                isLoading={deleting}
+                loadingText="Deleting..."
+                ml={3}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </VStack>
   );
 };

@@ -13,6 +13,8 @@ import * as templateApi from '../services/templateApi';
 // Mock the template API
 jest.mock('../services/templateApi', () => ({
   getCurrentTemplate: jest.fn(),
+  downloadDefaultTemplate: jest.fn(),
+  deleteTenantTemplate: jest.fn(),
   TemplateType: {
     STR_INVOICE_NL: 'str_invoice_nl',
     STR_INVOICE_EN: 'str_invoice_en',
@@ -88,6 +90,18 @@ jest.mock('@chakra-ui/react', () => ({
     const { fontSize, color, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
   },
+  AlertDialog: ({ children, ...props }: any) => {
+    const { isOpen, onClose, leastDestructiveRef, ...domProps } = props;
+    return isOpen ? <div role="alertdialog" {...domProps}>{children}</div> : null;
+  },
+  AlertDialogOverlay: () => <div />,
+  AlertDialogContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  AlertDialogHeader: ({ children, ...props }: any) => {
+    const { fontSize, fontWeight, ...domProps } = props;
+    return <h2 {...domProps}>{children}</h2>;
+  },
+  AlertDialogBody: ({ children }: any) => <div>{children}</div>,
+  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
   Spinner: ({ ...props }: any) => {
     const { size, ...domProps } = props;
     return <div role="status" {...domProps}>Loading...</div>;

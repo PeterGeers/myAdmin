@@ -109,6 +109,7 @@ nav:
   - Tenant Beheer:
       - Overzicht: tenant-admin/index.md
       - Instellingen: tenant-admin/tenant-settings.md
+      - Sjabloonbeheer: tenant-admin/template-management.md
       - Gebruikers: tenant-admin/user-management.md
       - Audit logging: tenant-admin/audit-logging.md
   - Changelog: changelog.md

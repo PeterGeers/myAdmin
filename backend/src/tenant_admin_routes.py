@@ -40,6 +40,20 @@ USER_POOL_ID = os.getenv('COGNITO_USER_POOL_ID')
 
 
 # ============================================================================
+# Shared Constants
+# ============================================================================
+
+# Canonical list of valid template types used across all template endpoints.
+# Any new template type must be added here (Requirements 3.1, 3.2).
+VALID_TEMPLATE_TYPES = [
+    'str_invoice_nl', 'str_invoice_en',
+    'btw_aangifte', 'aangifte_ib',
+    'toeristenbelasting', 'financial_report',
+    'zzp_invoice',
+]
+
+
+# ============================================================================
 # Security: Content Security Policy Headers
 # ============================================================================
 
@@ -692,16 +706,10 @@ def get_current_template_endpoint(template_type, user_email, user_roles):
             return jsonify({'error': 'Tenant admin access required'}), 403
         
         # Validate template type
-        valid_types = [
-            'str_invoice_nl', 'str_invoice_en', 
-            'btw_aangifte', 'aangifte_ib', 
-            'toeristenbelasting', 'financial_report',
-            'user_invitation'  # Email template for user invitations
-        ]
-        if template_type not in valid_types:
+        if template_type not in VALID_TEMPLATE_TYPES:
             return jsonify({
                 'error': 'Invalid template type',
-                'valid_types': valid_types
+                'valid_types': VALID_TEMPLATE_TYPES
             }), 400
         
         # Get database connection
@@ -775,6 +783,119 @@ def get_current_template_endpoint(template_type, user_email, user_roles):
         
     except Exception as e:
         logger.error(f"Error getting current template: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+# ============================================================================
+# Download Default Template Route
+# ============================================================================
+
+# Mapping from VALID_TEMPLATE_TYPES keys to TemplateService._LOCAL_DEFAULTS keys.
+# These differ because _LOCAL_DEFAULTS uses format-specific suffixes (e.g. _html, _xlsx).
+_TEMPLATE_TYPE_TO_LOCAL_KEY = {
+    'str_invoice_nl': 'str_invoice_nl',
+    'str_invoice_en': 'str_invoice_en',
+    'btw_aangifte': 'btw_aangifte_html',
+    'aangifte_ib': 'aangifte_ib_html_report',
+    'toeristenbelasting': 'toeristenbelasting_html',
+    'financial_report': 'financial_report_xlsx',
+    'zzp_invoice': 'zzp_invoice',
+}
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/<template_type>/default', methods=['GET'])
+@cognito_required(required_permissions=[])
+def get_default_template_endpoint(template_type, user_email, user_roles):
+    """
+    Download the built-in default template for a template type (Tenant_Admin only).
+
+    Reads the local default template file from backend/templates/ via the
+    TemplateService._LOCAL_DEFAULTS mapping and returns its content.
+
+    Path parameters:
+        template_type: Type of template (str_invoice_nl, btw_aangifte, etc.)
+
+    Returns:
+    {
+        "success": true,
+        "template_type": "str_invoice_nl",
+        "template_content": "<html>...</html>",
+        "filename": "str_invoice_nl_default.html",
+        "field_mappings": { ... },
+        "message": "Default template retrieved successfully"
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        # Validate template type
+        if template_type not in VALID_TEMPLATE_TYPES:
+            return jsonify({
+                'error': 'Invalid template type',
+                'valid_types': VALID_TEMPLATE_TYPES
+            }), 400
+
+        # Map VALID_TEMPLATE_TYPES key to _LOCAL_DEFAULTS key
+        local_key = _TEMPLATE_TYPE_TO_LOCAL_KEY.get(template_type)
+        if not local_key:
+            return jsonify({
+                'success': False,
+                'error': f'No default template available for type: {template_type}'
+            }), 404
+
+        # Create TemplateService and get local default metadata
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+        from services.template_service import TemplateService
+        template_service = TemplateService(db)
+        metadata = template_service._get_local_default_metadata(local_key)
+
+        if metadata is None:
+            return jsonify({
+                'success': False,
+                'error': f'No default template available for type: {template_type}'
+            }), 404
+
+        # Read file content from disk
+        local_path = metadata['local_path']
+        with open(local_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+
+        filename = f'{template_type}_default.html'
+
+        # Audit log
+        logger.info(
+            f"AUDIT: Default template downloaded by {user_email} for {tenant}, "
+            f"type={template_type}"
+        )
+
+        return jsonify({
+            'success': True,
+            'template_type': template_type,
+            'template_content': template_content,
+            'filename': filename,
+            'field_mappings': metadata.get('field_mappings', {}),
+            'message': 'Default template retrieved successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting default template: {e}")
         return jsonify({
             'error': 'Internal server error',
             'details': str(e)
@@ -866,8 +987,11 @@ def preview_template_endpoint(user_email, user_roles):
         if result.get('success'):
             return jsonify(result), 200
         else:
-            # Validation failed or preview generation failed
-            return jsonify(result), 400
+            # Validation failed or preview generation failed — return 200
+            # because the request itself succeeded; the template is just
+            # invalid.  The frontend reads the validation details from the
+            # response body to show actionable feedback.
+            return jsonify(result), 200
         
     except Exception as e:
         logger.error(f"Error generating template preview: {e}")
@@ -1437,6 +1561,110 @@ def apply_ai_fixes_endpoint(user_email, user_roles):
         
     except Exception as e:
         logger.error(f"Error applying AI fixes: {e}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+# ============================================================================
+# Delete Tenant Template Route
+# ============================================================================
+
+
+@tenant_admin_bp.route('/api/tenant-admin/templates/<template_type>', methods=['DELETE'])
+@cognito_required(required_permissions=[])
+def delete_tenant_template_endpoint(template_type, user_email, user_roles):
+    """
+    Delete (deactivate) a tenant-specific template (Tenant_Admin only).
+
+    Soft-deletes the active tenant template by setting is_active = FALSE and
+    status = 'archived'. The system will then fall back to the built-in default.
+
+    Path parameters:
+        template_type: Type of template (str_invoice_nl, btw_aangifte, etc.)
+
+    Returns 200:
+    {
+        "success": true,
+        "message": "Template deactivated successfully. System will use default template.",
+        "template_type": "str_invoice_nl",
+        "deactivated_file_id": "1abc...xyz"
+    }
+
+    Returns 404:
+    {
+        "success": false,
+        "error": "No active tenant template found for type: {template_type}"
+    }
+    """
+    try:
+        # Get tenant from request
+        tenant = get_current_tenant(request)
+
+        # Extract user tenants from JWT
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        # Check if user is tenant admin
+        if not is_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        # Validate template type
+        if template_type not in VALID_TEMPLATE_TYPES:
+            return jsonify({
+                'error': 'Invalid template type',
+                'valid_types': VALID_TEMPLATE_TYPES
+            }), 400
+
+        # Get database connection
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+
+        # First, SELECT the active template to get the file_id
+        select_query = """
+            SELECT template_file_id
+            FROM tenant_template_config
+            WHERE administration = %s AND template_type = %s AND is_active = TRUE
+            LIMIT 1
+        """
+        result = db.execute_query(select_query, (tenant, template_type), fetch=True)
+
+        if not result or len(result) == 0:
+            return jsonify({
+                'success': False,
+                'error': f'No active tenant template found for type: {template_type}'
+            }), 404
+
+        deactivated_file_id = result[0].get('template_file_id')
+
+        # Deactivate the template (soft-delete)
+        update_query = """
+            UPDATE tenant_template_config
+            SET is_active = FALSE, status = 'archived', updated_at = NOW()
+            WHERE administration = %s AND template_type = %s AND is_active = TRUE
+        """
+        db.execute_query(update_query, (tenant, template_type), fetch=False, commit=True)
+
+        # Audit log
+        logger.info(
+            f"AUDIT: Template deactivated by {user_email} for {tenant}, "
+            f"type={template_type}, file_id={deactivated_file_id}"
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Template deactivated successfully. System will use default template.',
+            'template_type': template_type,
+            'deactivated_file_id': deactivated_file_id
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error deleting tenant template: {e}")
         return jsonify({
             'error': 'Internal server error',
             'details': str(e)
