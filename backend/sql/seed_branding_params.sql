@@ -1,4 +1,4 @@
--- Seed branding parameters for GoodwinSolutions
+-- Seed STR branding parameters for GoodwinSolutions
 INSERT INTO parameters (
         scope,
         scope_id,
@@ -12,7 +12,7 @@ INSERT INTO parameters (
 VALUES (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'company_name',
         '"Jabaki a Goodwin Solutions Company"',
         'string',
@@ -22,7 +22,7 @@ VALUES (
     (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'company_address',
         '"Beemsterstraat 3"',
         'string',
@@ -32,7 +32,7 @@ VALUES (
     (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'company_postal_city',
         '"2131 ZA Hoofddorp"',
         'string',
@@ -42,7 +42,7 @@ VALUES (
     (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'company_country',
         '"Nederland"',
         'string',
@@ -52,7 +52,7 @@ VALUES (
     (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'company_vat',
         '"NL812613764B02"',
         'string',
@@ -62,7 +62,7 @@ VALUES (
     (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'company_coc',
         '"24352408"',
         'string',
@@ -72,7 +72,7 @@ VALUES (
     (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'contact_email',
         '"peter@jabaki.nl"',
         'string',
@@ -82,7 +82,7 @@ VALUES (
     (
         'tenant',
         'GoodwinSolutions',
-        'branding',
+        'str_branding',
         'company_logo_file_id',
         '"1EJ1wo3qCWUzdUOoW5AYhZM1Fhz0vGJyW"',
         'string',

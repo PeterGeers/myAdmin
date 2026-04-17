@@ -798,7 +798,7 @@ def copy_last_invoice(user_email, user_roles, tenant, user_tenants, contact_id):
 _BOOKING_ACCOUNT_FLAG_MAP = {
     'debtor_account': 'zzp_debtor_account',
     'creditor_account': 'zzp_creditor_account',
-    'revenue_account': 'zzp_invoice_ledger',
+    'revenue_account': 'zzp_revenue_ledger',
 }
 
 
@@ -823,8 +823,8 @@ def _validate_booking_account(tenant: str, key: str, account_code: str) -> None:
 
     db = DatabaseManager(test_mode=_test_mode)
     rows = db.execute_query(
-        """SELECT nummer FROM rekeningschema
-           WHERE administration = %s AND nummer = %s
+        """SELECT Account FROM rekeningschema
+           WHERE administration = %s AND Account = %s
              AND JSON_EXTRACT(parameters, %s) = true""",
         (tenant, account_code, f'$.{flag}'),
     )
@@ -893,9 +893,9 @@ def validate_booking_param(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants):
-    """List accounts flagged as ZZP invoice ledger for the tenant.
+    """List accounts flagged as ZZP revenue ledger for the tenant.
 
-    Returns accounts from rekeningschema where zzp_invoice_ledger = true.
+    Returns accounts from rekeningschema where zzp_revenue_ledger = true.
     Falls back to the zzp.revenue_account parameter if no accounts are flagged.
 
     Reference: .kiro/specs/zzp-module/design-parameter-enhancements.md §14.2
@@ -903,11 +903,11 @@ def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants):
     try:
         db = DatabaseManager(test_mode=_test_mode)
         rows = db.execute_query(
-            """SELECT nummer, naam
+            """SELECT Account AS nummer, AccountName AS naam
                FROM rekeningschema
                WHERE administration = %s
-                 AND JSON_EXTRACT(parameters, '$.zzp_invoice_ledger') = true
-               ORDER BY nummer""",
+                 AND JSON_EXTRACT(parameters, '$.zzp_revenue_ledger') = true
+               ORDER BY Account""",
             (tenant,),
         )
         accounts = [
@@ -922,7 +922,7 @@ def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants):
                 'zzp', 'revenue_account', tenant=tenant
             ) or '8001'
             fallback = db.execute_query(
-                "SELECT nummer, naam FROM rekeningschema WHERE administration = %s AND nummer = %s",
+                "SELECT Account AS nummer, AccountName AS naam FROM rekeningschema WHERE administration = %s AND Account = %s",
                 (tenant, default_acct),
             )
             if fallback:

@@ -48,7 +48,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
 
   // Editable form state (draft mode)
   const [contactId, setContactId] = useState<number | string>('');
-  const [invoiceDate, setInvoiceDate] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentTermsDays, setPaymentTermsDays] = useState(30);
   const [currency, setCurrency] = useState('EUR');
   const [exchangeRate, setExchangeRate] = useState(1);
@@ -64,8 +64,12 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   const isDraft = !invoice || invoice.status === 'draft';
   const isEditable = isNew || isDraft;
 
-  const formatCurrency = (amount: number, cur = 'EUR') =>
-    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: cur }).format(amount);
+  const formatCurrency = (amount: number, cur = 'EUR') => {
+    const code = (cur || 'EUR').trim().toUpperCase();
+    // Only use typed code if it's a valid 3-letter ISO currency; otherwise fall back to EUR
+    const safeCur = /^[A-Z]{3}$/.test(code) ? code : 'EUR';
+    return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: safeCur }).format(amount);
+  };
 
   const loadReferenceData = useCallback(async () => {
     try {
@@ -193,17 +197,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       if (resp.success) {
         toast({ title: isNew ? t('invoices.created', 'Invoice created') : t('invoices.updated', 'Invoice updated'), status: 'success' });
         onSaved?.();
-        if (isNew && resp.data?.id) {
-          // Reload the newly created invoice
-          const reloaded = await getInvoice(resp.data.id);
-          if (reloaded.success) {
-            const inv = reloaded.data;
-            setInvoice(inv);
-            setLines(inv.lines || []);
-          }
-        } else {
-          await loadInvoice();
-        }
+        onClose();
       } else {
         toast({ title: resp.error || 'Error saving invoice', status: 'error' });
       }
@@ -294,7 +288,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
             </Button>
           )}
           <Button variant="ghost" size="sm" color="gray.400" onClick={onClose}>
-            {t('common.close', 'Close')}
+            {t('common.cancel', 'Cancel')}
           </Button>
         </HStack>
       </Flex>

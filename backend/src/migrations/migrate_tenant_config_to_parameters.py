@@ -37,7 +37,7 @@ def map_key_to_namespace(config_key: str) -> tuple:
     if config_key.startswith('storage_'):
         return ('storage', config_key[len('storage_'):])
     if config_key.startswith('company_logo'):
-        return ('branding', config_key)
+        return ('str_branding', config_key)
     return ('config', config_key)
 
 

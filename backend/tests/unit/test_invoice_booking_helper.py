@@ -33,6 +33,9 @@ def _make_param_svc(overrides: dict = None):
 
 def _make_helper(txn_logic=None, tax_svc=None, param_svc=None):
     db = Mock()
+    # Return empty list for rekeningschema flag lookups so _get_param
+    # falls through to ParameterService (the existing test behavior).
+    db.execute_query = Mock(return_value=[])
     txn_logic = txn_logic or Mock(save_approved_transactions=Mock(side_effect=lambda t: t))
     tax_svc = tax_svc or Mock(get_tax_rate=Mock(return_value={
         'rate': 21.0, 'ledger_account': '2021',

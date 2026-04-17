@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 class InvoiceBookingHelper:
     """Double-entry booking of invoices into mutaties."""
 
+    # Mapping from booking param key to the rekeningschema.parameters JSON flag.
+    # The flag marks which account in the chart of accounts serves this role.
+    LEDGER_FLAG_MAP = {
+        'debtor_account': 'zzp_debtor_account',
+        'creditor_account': 'zzp_creditor_account',
+        'revenue_account': 'zzp_revenue_ledger',
+    }
+
     # Required parameters that must be configured per tenant — no hardcoded defaults.
     REQUIRED_BOOKING_PARAMS = {
         'debtor_account': 'zzp.debtor_account',
@@ -252,11 +260,38 @@ class InvoiceBookingHelper:
         }
 
     def _get_param(self, tenant: str, key: str) -> str:
-        """Get a required booking parameter. Raises ValueError if not configured."""
+        """Get a required booking parameter.
+
+        Resolution order:
+        1. ParameterService (zzp namespace) — always checked first for
+           backward compatibility with existing tenant configurations.
+        2. For accounts with a ledger flag (debtor, creditor, revenue):
+           query rekeningschema where the JSON flag is true.
+        3. Raise ValueError if not found anywhere.
+        """
+        # 1. Try ParameterService first (backward compatible)
         if self.parameter_service:
             val = self.parameter_service.get_param('zzp', key, tenant=tenant)
             if val:
                 return str(val)
+
+        # 2. Try rekeningschema flag lookup as fallback
+        flag = self.LEDGER_FLAG_MAP.get(key)
+        if flag and self.db:
+            try:
+                rows = self.db.execute_query(
+                    """SELECT Account FROM rekeningschema
+                       WHERE administration = %s
+                         AND JSON_EXTRACT(parameters, %s) = true
+                       ORDER BY Account
+                       LIMIT 1""",
+                    (tenant, f'$.{flag}'),
+                )
+                if rows and rows[0].get('Account'):
+                    return str(rows[0]['Account'])
+            except Exception as e:
+                logger.warning("Ledger flag lookup failed for %s/%s: %s", tenant, key, e)
+
         param_name = self.REQUIRED_BOOKING_PARAMS.get(key, f'zzp.{key}')
         raise ValueError(
             f"Required booking parameter '{param_name}' is not configured for tenant '{tenant}'. "

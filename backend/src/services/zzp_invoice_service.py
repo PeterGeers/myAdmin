@@ -197,7 +197,9 @@ class ZZPInvoiceService(FieldConfigMixin):
         if not contact:
             raise ValueError(f"Contact {data['contact_id']} not found for tenant {tenant}")
 
-        invoice_date_str = data['invoice_date']
+        invoice_date_str = data.get('invoice_date', '')
+        if not invoice_date_str:
+            raise ValueError("invoice_date is required")
         invoice_date = (date.fromisoformat(invoice_date_str)
                         if isinstance(invoice_date_str, str) else invoice_date_str)
 
@@ -246,7 +248,7 @@ class ZZPInvoiceService(FieldConfigMixin):
             raise ValueError(f"Only draft invoices can be edited (current status: {existing['status']})")
 
         # Update header fields
-        header_fields = ['invoice_date', 'payment_terms_days', 'currency',
+        header_fields = ['contact_id', 'invoice_date', 'payment_terms_days', 'currency',
                          'exchange_rate', 'notes', 'revenue_account']
         sets = []
         params = []
@@ -257,8 +259,10 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         # Recalculate due_date if invoice_date or payment_terms changed
         inv_date = data.get('invoice_date', existing['invoice_date'])
-        if isinstance(inv_date, str):
+        if isinstance(inv_date, str) and inv_date:
             inv_date = date.fromisoformat(inv_date)
+        elif isinstance(inv_date, str) and not inv_date:
+            inv_date = existing['invoice_date']
         terms = data.get('payment_terms_days', existing['payment_terms_days'])
         new_due = inv_date + timedelta(days=terms)
         sets.append("due_date = %s")
@@ -344,7 +348,19 @@ class ZZPInvoiceService(FieldConfigMixin):
         query += " LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
-        return [self._format_dates(r) for r in (self.db.execute_query(query, tuple(params)) or [])]
+        rows = self.db.execute_query(query, tuple(params)) or []
+        results = []
+        for r in rows:
+            r = self._format_dates(r)
+            # Nest contact fields for frontend consistency with get_invoice
+            if 'client_id' in r or 'company_name' in r:
+                r['contact'] = {
+                    'id': r.get('contact_id'),
+                    'client_id': r.pop('client_id', None),
+                    'company_name': r.pop('company_name', None),
+                }
+            results.append(r)
+        return results
 
     # ── Private helpers ─────────────────────────────────────
 
