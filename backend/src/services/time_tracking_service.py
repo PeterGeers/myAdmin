@@ -8,6 +8,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.8
 """
 
 import logging
+from decimal import Decimal
 from typing import Dict, List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
@@ -99,7 +100,7 @@ class TimeTrackingService(FieldConfigMixin):
         rows = self.db.execute_query(
             "SELECT * FROM time_entries WHERE id = %s AND administration = %s",
             (entry_id, tenant))
-        return rows[0] if rows else None
+        return self._format_entry(rows[0]) if rows else None
 
     def list_entries(self, tenant: str, filters: dict = None) -> list:
         filters = filters or {}
@@ -128,15 +129,17 @@ class TimeTrackingService(FieldConfigMixin):
         offset = filters.get('offset', 0)
         query += " LIMIT %s OFFSET %s"
         params.extend([limit, offset])
-        return self.db.execute_query(query, tuple(params)) or []
+        rows = self.db.execute_query(query, tuple(params)) or []
+        return [self._format_entry(r) for r in rows]
 
     def get_unbilled_entries(self, tenant: str, contact_id: int) -> list:
-        return self.db.execute_query(
+        rows = self.db.execute_query(
             """SELECT * FROM time_entries
                WHERE administration = %s AND contact_id = %s
                  AND is_billable = TRUE AND is_billed = FALSE
                ORDER BY entry_date""",
             (tenant, contact_id)) or []
+        return [self._format_entry(r) for r in rows]
 
     def mark_as_billed(self, tenant: str, entry_ids: list,
                        invoice_id: int) -> int:
@@ -184,6 +187,36 @@ class TimeTrackingService(FieldConfigMixin):
         return self.db.execute_query(query, (tenant,)) or []
 
     # ── Private helpers ─────────────────────────────────────
+
+    @staticmethod
+    def _format_entry(row: dict) -> dict:
+        """Convert date/datetime objects to ISO strings and Decimal to float."""
+        row = dict(row)
+        for key in ('entry_date', 'created_at', 'updated_at'):
+            val = row.get(key)
+            if val is not None and hasattr(val, 'isoformat') and not isinstance(val, str):
+                row[key] = val.isoformat()
+        for key in ('hours', 'hourly_rate'):
+            if isinstance(row.get(key), Decimal):
+                row[key] = float(row[key])
+        return row
+
+    def enrich_with_contacts(self, tenant: str, entries: list) -> list:
+        """Add contact info (id, client_id, company_name) to each entry."""
+        if not entries:
+            return entries
+        contact_ids = list({e['contact_id'] for e in entries})
+        placeholders = ','.join(['%s'] * len(contact_ids))
+        rows = self.db.execute_query(
+            f"""SELECT id, client_id, company_name FROM contacts
+                WHERE administration = %s AND id IN ({placeholders})""",
+            (tenant, *contact_ids),
+        ) or []
+        contact_map = {r['id']: {'id': r['id'], 'client_id': r['client_id'],
+                                  'company_name': r['company_name']} for r in rows}
+        for entry in entries:
+            entry['contact'] = contact_map.get(entry['contact_id'])
+        return entries
 
     def _validate_contact(self, tenant, contact_id):
         rows = self.db.execute_query(

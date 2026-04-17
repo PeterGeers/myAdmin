@@ -119,7 +119,7 @@ def test_send_flow_executes_in_order_health_generate_store_book_email():
     svc, mocks = _make_service_with_mocks()
 
     # Instrument each mock to record call order
-    mocks['output_svc'].check_health.side_effect = lambda t: (
+    mocks['output_svc'].check_health.side_effect = lambda dest, admin: (
         call_order.append('health_check'),
         {'healthy': True},
     )[-1]
@@ -208,7 +208,7 @@ def test_check_health_called_before_any_pdf_generation():
 
     svc, mocks = _make_service_with_mocks()
 
-    mocks['output_svc'].check_health.side_effect = lambda t: (
+    mocks['output_svc'].check_health.side_effect = lambda dest, admin: (
         call_order.append('health'),
         {'healthy': True},
     )[-1]

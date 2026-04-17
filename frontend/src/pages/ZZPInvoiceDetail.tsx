@@ -19,6 +19,7 @@ import {
   getInvoice, createInvoice, updateInvoice, sendInvoice, createCreditNote,
   getInvoiceLedgerAccounts,
 } from '../services/zzpInvoiceService';
+import { sendReminder } from '../services/debtorService';
 import { getProducts } from '../services/productService';
 import { getContacts } from '../services/contactService';
 import { InvoiceLineEditor } from '../components/zzp/InvoiceLineEditor';
@@ -42,6 +43,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [crediting, setCrediting] = useState(false);
+  const [reminding, setReminding] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [ledgerAccounts, setLedgerAccounts] = useState<{ account_code: string; account_name: string }[]>([]);
@@ -250,6 +252,25 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
     }
   };
 
+  const handleSendReminder = async () => {
+    if (!invoice?.id) return;
+    try {
+      setReminding(true);
+      const resp = await sendReminder(invoice.id);
+      if (resp.success) {
+        toast({ title: t('debtors.reminderSent', 'Reminder sent'), status: 'success' });
+        onSaved?.();
+        await loadInvoice();
+      } else {
+        toast({ title: resp.error || 'Error sending reminder', status: 'error' });
+      }
+    } catch (err: any) {
+      toast({ title: err.message || 'Error sending reminder', status: 'error' });
+    } finally {
+      setReminding(false);
+    }
+  };
+
   if (loading || configLoading) {
     return (
       <Box p={6} textAlign="center">
@@ -288,6 +309,12 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
             <Button colorScheme="purple" size="sm" variant="outline"
               onClick={handleCreditNote} isLoading={crediting}>
               {t('invoices.createCreditNote', 'Credit Note')}
+            </Button>
+          )}
+          {invoice && (invoice.status === 'sent' || invoice.status === 'overdue') && (
+            <Button colorScheme="red" size="sm" variant="outline"
+              onClick={handleSendReminder} isLoading={reminding}>
+              {t('debtors.sendReminder', 'Send Reminder')}
             </Button>
           )}
           <Button variant="ghost" size="sm" color="gray.400" onClick={onClose}>

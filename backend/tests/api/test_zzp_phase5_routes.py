@@ -72,11 +72,17 @@ def zzp_client(mock_time_service):
 
 def test_list_time_entries_returns_data(zzp_client, mock_time_service):
     mock_time_service.list_entries.return_value = [
-        {'id': 1, 'hours': 8.0, 'entry_date': '2026-04-15'},
+        {'id': 1, 'hours': 8.0, 'entry_date': '2026-04-15', 'contact_id': 1},
+    ]
+    mock_time_service.enrich_with_contacts.return_value = [
+        {'id': 1, 'hours': 8.0, 'entry_date': '2026-04-15', 'contact_id': 1,
+         'contact': {'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}},
     ]
     resp = zzp_client.get('/api/zzp/time-entries')
     assert resp.status_code == 200
-    assert len(resp.get_json()['data']) == 1
+    data = resp.get_json()['data']
+    assert len(data) == 1
+    assert data[0]['contact']['company_name'] == 'Acme Corp'
 
 
 def test_list_time_entries_disabled_returns_404(zzp_client, mock_time_service):
@@ -155,3 +161,78 @@ def test_get_time_summary_disabled_returns_404(zzp_client, mock_time_service):
     mock_time_service.is_enabled.return_value = False
     resp = zzp_client.get('/api/zzp/time-entries/summary')
     assert resp.status_code == 404
+
+
+# ── POST /api/zzp/invoices/from-time-entries ────────────────
+
+
+@pytest.fixture
+def mock_invoice_service():
+    return Mock()
+
+
+@pytest.fixture
+def zzp_client_with_invoice(mock_time_service, mock_invoice_service):
+    with patch('auth.cognito_utils.cognito_required', side_effect=_passthrough_cognito), \
+         patch('auth.tenant_context.tenant_required', side_effect=_passthrough_tenant), \
+         patch('services.module_registry.module_required', side_effect=_passthrough_module), \
+         patch('database.DatabaseManager'):
+        import importlib
+        import routes.zzp_routes as zr
+        importlib.reload(zr)
+        zr._get_time_service = lambda: mock_time_service
+        zr._get_invoice_service = lambda: mock_invoice_service
+        app = Flask(__name__)
+        app.config['TESTING'] = True
+        app.register_blueprint(zr.zzp_bp)
+        yield app.test_client()
+
+
+def test_create_invoice_from_time_entries_success(zzp_client_with_invoice, mock_invoice_service):
+    mock_invoice_service.create_invoice_from_time_entries.return_value = {
+        'id': 10, 'invoice_number': 'INV-2026-0001', 'status': 'draft',
+    }
+    resp = zzp_client_with_invoice.post(
+        '/api/zzp/invoices/from-time-entries',
+        data=json.dumps({'contact_id': 1, 'entry_ids': [10, 11], 'data': {}}),
+        content_type='application/json',
+    )
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body['success'] is True
+    assert body['data']['invoice_number'] == 'INV-2026-0001'
+
+
+def test_create_invoice_from_time_entries_missing_contact_returns_400(zzp_client_with_invoice):
+    resp = zzp_client_with_invoice.post(
+        '/api/zzp/invoices/from-time-entries',
+        data=json.dumps({'entry_ids': [10]}),
+        content_type='application/json',
+    )
+    assert resp.status_code == 400
+    assert 'contact_id' in resp.get_json()['error']
+
+
+def test_create_invoice_from_time_entries_missing_entries_returns_400(zzp_client_with_invoice):
+    resp = zzp_client_with_invoice.post(
+        '/api/zzp/invoices/from-time-entries',
+        data=json.dumps({'contact_id': 1}),
+        content_type='application/json',
+    )
+    assert resp.status_code == 400
+    assert 'entry_ids' in resp.get_json()['error']
+
+
+def test_create_invoice_from_time_entries_validation_error_returns_400(
+    zzp_client_with_invoice, mock_invoice_service
+):
+    mock_invoice_service.create_invoice_from_time_entries.side_effect = ValueError(
+        "Time entry 10 is already billed"
+    )
+    resp = zzp_client_with_invoice.post(
+        '/api/zzp/invoices/from-time-entries',
+        data=json.dumps({'contact_id': 1, 'entry_ids': [10], 'data': {}}),
+        content_type='application/json',
+    )
+    assert resp.status_code == 400
+    assert 'already billed' in resp.get_json()['error']

@@ -37,6 +37,37 @@ This is a quick reference for the most common tasks. Each workflow links to deta
 
 → More: [Importing bookings](../str/importing-bookings.md)
 
+## ZZP tasks
+
+### Create and send an invoice
+
+1. Go to **ZZP** → **Invoices**
+2. Click **New invoice** and select the contact
+3. Add line items from your product catalog
+4. Review the totals and click **Save**
+5. Open the draft and click **Send**
+
+→ More: [Creating invoices](../zzp/creating-invoices.md) | [Sending invoices](../zzp/sending-invoices.md)
+
+### Log time entries
+
+1. Go to **ZZP** → **Time Tracking**
+2. Click **New entry**
+3. Select the contact, enter the hours and rate
+4. Click **Save**
+5. Create an invoice from the logged hours
+
+→ More: [Time tracking](../zzp/time-tracking.md)
+
+### Check payments
+
+1. Import your bank statements via **Banking**
+2. Go to **ZZP** → **Debtors**
+3. Click **Check payments**
+4. The system automatically matches payments with outstanding invoices
+
+→ More: [Debtors & creditors](../zzp/debtors.md)
+
 ## Periodic tasks
 
 ### Prepare VAT declaration
