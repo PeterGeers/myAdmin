@@ -474,7 +474,14 @@ class ZZPInvoiceService(FieldConfigMixin):
 
     def send_invoice(self, tenant: str, invoice_id: int, options: dict,
                      output_service=None) -> dict:
-        """Send invoice or credit note: PDF → store → book → email → update status."""
+        """Send invoice or credit note with strict ordering guarantees.
+
+        Flow: health check → generate PDF → store PDF → book mutaties → send email
+        Storage failure = hard stop (invoice stays draft, no mutaties created)
+        Email failure = soft failure (invoice booked as sent, user resends manually)
+
+        Reference: .kiro/specs/zzp-module/design-parameter-enhancements.md §14.7
+        """
         invoice = self.get_invoice(tenant, invoice_id)
         if not invoice:
             raise ValueError(f"Invoice {invoice_id} not found")
@@ -483,19 +490,53 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         is_credit_note = invoice.get('invoice_type') == 'credit_note'
 
+        # Resolve output service
+        if not output_service:
+            try:
+                from services.output_service import OutputService
+                output_service = OutputService(self.db)
+            except Exception as e:
+                raise RuntimeError(f"OutputService unavailable: {e}")
+
+        # 0. Pre-flight storage health check
+        try:
+            health = output_service.check_health(tenant)
+            if not health.get('healthy', False):
+                return {
+                    'success': False,
+                    'error': f"Storage unavailable: {health.get('reason', 'health check failed')}. Invoice not sent.",
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Storage health check failed: {e}. Invoice not sent.",
+            }
+
         # 1. Generate PDF
         if not self.pdf_generator:
             raise RuntimeError("PDFGeneratorService not configured")
         pdf_bytes = self.pdf_generator.generate_invoice_pdf(tenant, invoice)
 
-        # 2. Store PDF via OutputService
-        storage_result = self._store_pdf(
-            tenant, invoice, pdf_bytes,
-            options.get('output_destination', 'gdrive'),
-            output_service,
-        )
+        # 2. Store PDF — HARD STOP on failure (no mutaties, stay draft)
+        try:
+            storage_result = self._store_pdf(
+                tenant, invoice, pdf_bytes,
+                options.get('output_destination'),
+                output_service,
+            )
+            if not storage_result.get('url'):
+                return {
+                    'success': False,
+                    'error': 'Storage failed — no URL returned. Invoice not sent.',
+                }
+        except Exception as e:
+            logger.error("PDF storage failed for %s: %s", invoice['invoice_number'], e)
+            return {
+                'success': False,
+                'error': f"Storage unavailable — invoice not sent: {e}",
+            }
 
-        # 3. Book in FIN
+        # 3. Book in FIN (with storage_result containing url + filename)
         if self.booking_helper:
             if is_credit_note:
                 original = self.get_invoice(tenant, invoice.get('original_invoice_id'))
@@ -504,30 +545,41 @@ class ZZPInvoiceService(FieldConfigMixin):
             else:
                 self.booking_helper.book_outgoing_invoice(tenant, invoice, storage_result)
 
-        # 4. Send email (optional)
-        if options.get('send_email', True) and self.email_service:
-            pdf_content = pdf_bytes.getvalue()
-            attachments = [{
-                'filename': f"{invoice['invoice_number']}.pdf",
-                'content': pdf_content,
-                'content_type': 'application/pdf',
-            }]
-            email_result = self.email_service.send_invoice_email(
-                tenant, invoice, attachments,
-            )
-            if not email_result.get('success'):
-                logger.error("Email send failed for invoice %s: %s",
-                             invoice['invoice_number'], email_result.get('error'))
-                return {
-                    'success': False,
-                    'error': f"Invoice booked but email failed: {email_result.get('error')}",
-                    'invoice_number': invoice['invoice_number'],
-                }
-
-        # 5. Update status to sent
+        # 4. Update status to sent (financial records are now complete)
         self._update_status(tenant, invoice_id, 'sent', sent_at=datetime.utcnow())
 
-        return {'success': True, 'invoice_number': invoice['invoice_number']}
+        # 5. Send email — SOFT FAILURE (invoice already booked and marked sent)
+        email_warning = None
+        if options.get('send_email', True) and self.email_service:
+            try:
+                pdf_content = pdf_bytes.getvalue()
+                attachments = [{
+                    'filename': f"{invoice['invoice_number']}.pdf",
+                    'content': pdf_content,
+                    'content_type': 'application/pdf',
+                }]
+                email_result = self.email_service.send_invoice_email(
+                    tenant, invoice, attachments,
+                )
+                if not email_result.get('success'):
+                    email_warning = (
+                        f"Invoice booked successfully, but email failed: "
+                        f"{email_result.get('error')}. Please resend manually."
+                    )
+                    logger.error("Email failed for %s: %s",
+                                 invoice['invoice_number'], email_result.get('error'))
+            except Exception as e:
+                email_warning = (
+                    f"Invoice booked successfully, but email failed: {e}. "
+                    f"Please resend manually."
+                )
+                logger.error("Email exception for %s: %s",
+                             invoice['invoice_number'], e)
+
+        result = {'success': True, 'invoice_number': invoice['invoice_number']}
+        if email_warning:
+            result['warning'] = email_warning
+        return result
 
     def get_invoice_pdf(self, tenant: str, invoice_id: int) -> Optional[dict]:
         """Retrieve stored PDF or regenerate as copy."""
@@ -568,6 +620,8 @@ class ZZPInvoiceService(FieldConfigMixin):
         from tenant parameters and maps it to the OutputService destination:
           google_drive → gdrive
           s3_shared / s3_tenant → s3
+
+        Raises on failure — caller (send_invoice) handles the error.
         """
         filename = f"{invoice['invoice_number']}.pdf"
 
@@ -582,28 +636,18 @@ class ZZPInvoiceService(FieldConfigMixin):
         destination = destination or 'gdrive'
 
         if not output_service:
-            try:
-                from services.output_service import OutputService
-                output_service = OutputService(self.db)
-            except Exception as e:
-                logger.warning("Could not create OutputService: %s", e)
+            raise RuntimeError("OutputService not available for PDF storage")
 
-        if output_service:
-            try:
-                result = output_service.handle_output(
-                    content=pdf_bytes.getvalue(),
-                    filename=filename,
-                    destination=destination,
-                    administration=tenant,
-                    content_type='application/pdf',
-                )
-                url = result.get('url', '')
-                logger.info("PDF stored: %s → %s (%s)", filename, url, destination)
-                return {'url': url, 'filename': filename}
-            except Exception as e:
-                logger.warning("OutputService storage failed: %s", e)
-
-        return {'url': '', 'filename': filename}
+        result = output_service.handle_output(
+            content=pdf_bytes.getvalue(),
+            filename=filename,
+            destination=destination,
+            administration=tenant,
+            content_type='application/pdf',
+        )
+        url = result.get('url', '')
+        logger.info("PDF stored: %s → %s (%s)", filename, url, destination)
+        return {'url': url, 'filename': filename}
 
     def _update_status(self, tenant, invoice_id, status, sent_at=None):
         """Update invoice status and optionally sent_at timestamp."""

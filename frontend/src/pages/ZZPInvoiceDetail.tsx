@@ -216,6 +216,9 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       const resp = await sendInvoice(invoice.id, { output_destination: 'gdrive', send_email: true });
       if (resp.success) {
         toast({ title: t('invoices.sent', 'Invoice sent'), status: 'success' });
+        if (resp.warning) {
+          toast({ title: resp.warning, status: 'warning', duration: 9000, isClosable: true });
+        }
         onSaved?.();
         await loadInvoice();
       } else {

@@ -277,6 +277,80 @@ class OutputService:
             logger.error(f"Failed to upload to S3: {e}")
             raise Exception(f"Failed to upload to S3: {str(e)}")
     
+    def check_health(
+        self,
+        destination: str,
+        administration: str
+    ) -> Dict[str, Any]:
+        """
+        Lightweight connectivity test for the configured storage provider.
+
+        Used as a pre-flight check before the invoice send flow to catch
+        storage issues early (Req 22.7).
+
+        Args:
+            destination: Storage destination to check ('download', 'gdrive', 's3')
+            administration: Tenant/administration identifier
+
+        Returns:
+            Dictionary with health status:
+            {
+                'healthy': bool,
+                'reason': str
+            }
+        """
+        destination = destination.lower()
+
+        if destination == 'download':
+            # Download is always available — no external dependency
+            return {'healthy': True, 'reason': 'Download destination is always available'}
+
+        if destination == 'gdrive':
+            return self._check_gdrive_health(administration)
+
+        if destination == 's3':
+            return self._check_s3_health(administration)
+
+        return {'healthy': False, 'reason': f"Unknown destination: {destination}"}
+
+    def _check_gdrive_health(self, administration: str) -> Dict[str, Any]:
+        """Check Google Drive connectivity by listing the root folder."""
+        try:
+            from google_drive_service import GoogleDriveService
+
+            drive_service = GoogleDriveService(administration)
+            # Lightweight call: list 1 file to verify API access
+            drive_service.service.files().list(
+                pageSize=1, fields='files(id)'
+            ).execute()
+            return {'healthy': True, 'reason': 'Google Drive is accessible'}
+        except Exception as e:
+            logger.warning(f"Google Drive health check failed for '{administration}': {e}")
+            return {'healthy': False, 'reason': f"Google Drive unavailable: {str(e)}"}
+
+    def _check_s3_health(self, administration: str) -> Dict[str, Any]:
+        """Check S3 connectivity by calling HeadBucket on the configured bucket."""
+        try:
+            from services.parameter_service import ParameterService
+            from storage.storage_provider import get_storage_provider
+
+            param_svc = ParameterService(self.db)
+            provider = get_storage_provider(administration, param_svc)
+
+            bucket = getattr(provider, 'bucket', None)
+            if not bucket:
+                return {'healthy': False, 'reason': 'S3 bucket not configured'}
+
+            client = getattr(provider, '_client', None)
+            if not client:
+                return {'healthy': False, 'reason': 'S3 client not initialized'}
+
+            client.head_bucket(Bucket=bucket)
+            return {'healthy': True, 'reason': f"S3 bucket '{bucket}' is accessible"}
+        except Exception as e:
+            logger.warning(f"S3 health check failed for '{administration}': {e}")
+            return {'healthy': False, 'reason': f"S3 unavailable: {str(e)}"}
+
     def _get_or_create_reports_folder(
         self,
         drive_service,

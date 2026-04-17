@@ -33,7 +33,16 @@ export async function updateInvoice(id: number, data: InvoiceInput): Promise<any
   return resp.json();
 }
 
-export async function sendInvoice(id: number, options?: { output_destination?: string; send_email?: boolean }): Promise<any> {
+/** Response from the send invoice endpoint. */
+export interface SendInvoiceResponse {
+  success: boolean;
+  invoice_number?: string;
+  error?: string;
+  /** Present when the invoice was booked successfully but email sending failed. */
+  warning?: string;
+}
+
+export async function sendInvoice(id: number, options?: { output_destination?: string; send_email?: boolean }): Promise<SendInvoiceResponse> {
   const resp = await authenticatedPost(buildEndpoint(`${BASE}/${id}/send`), options || {});
   return resp.json();
 }

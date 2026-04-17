@@ -249,3 +249,94 @@ class TestOutputService:
             assert result['success'] is True
             assert result['content_type'] == content_type
             assert result['filename'] == filename
+
+
+    # --- check_health tests ---
+
+    def test_check_health_download_always_healthy(self, output_service):
+        """Download destination requires no external service — always healthy."""
+        result = output_service.check_health('download', 'TestAdmin')
+        assert result['healthy'] is True
+        assert 'always available' in result['reason'].lower()
+
+    def test_check_health_unknown_destination(self, output_service):
+        """Unknown destination should return unhealthy with descriptive reason."""
+        result = output_service.check_health('ftp', 'TestAdmin')
+        assert result['healthy'] is False
+        assert 'Unknown destination' in result['reason']
+
+    @patch('google_drive_service.GoogleDriveService')
+    def test_check_health_gdrive_success(self, mock_drive_class, output_service):
+        """Google Drive health check succeeds when API responds."""
+        mock_drive = Mock()
+        mock_drive_class.return_value = mock_drive
+        mock_files = Mock()
+        mock_drive.service.files.return_value = mock_files
+        mock_files.list.return_value = mock_files
+        mock_files.execute.return_value = {'files': []}
+
+        result = output_service.check_health('gdrive', 'TestAdmin')
+
+        assert result['healthy'] is True
+        assert 'accessible' in result['reason'].lower()
+        mock_files.list.assert_called_once_with(pageSize=1, fields='files(id)')
+
+    @patch('google_drive_service.GoogleDriveService')
+    def test_check_health_gdrive_failure(self, mock_drive_class, output_service):
+        """Google Drive health check fails when API raises an exception."""
+        mock_drive_class.side_effect = Exception('Auth failed')
+
+        result = output_service.check_health('gdrive', 'TestAdmin')
+
+        assert result['healthy'] is False
+        assert 'unavailable' in result['reason'].lower()
+
+    @patch('storage.storage_provider.get_storage_provider')
+    @patch('services.parameter_service.ParameterService')
+    def test_check_health_s3_success(self, mock_param_cls, mock_get_provider, output_service):
+        """S3 health check succeeds when HeadBucket responds."""
+        mock_provider = Mock()
+        mock_provider.bucket = 'test-bucket'
+        mock_provider._client = Mock()
+        mock_get_provider.return_value = mock_provider
+
+        result = output_service.check_health('s3', 'TestAdmin')
+
+        assert result['healthy'] is True
+        assert 'test-bucket' in result['reason']
+        mock_provider._client.head_bucket.assert_called_once_with(Bucket='test-bucket')
+
+    @patch('storage.storage_provider.get_storage_provider')
+    @patch('services.parameter_service.ParameterService')
+    def test_check_health_s3_failure(self, mock_param_cls, mock_get_provider, output_service):
+        """S3 health check fails when HeadBucket raises an exception."""
+        mock_provider = Mock()
+        mock_provider.bucket = 'test-bucket'
+        mock_provider._client = Mock()
+        mock_provider._client.head_bucket.side_effect = Exception('Access Denied')
+        mock_get_provider.return_value = mock_provider
+
+        result = output_service.check_health('s3', 'TestAdmin')
+
+        assert result['healthy'] is False
+        assert 'unavailable' in result['reason'].lower()
+
+    @patch('storage.storage_provider.get_storage_provider')
+    @patch('services.parameter_service.ParameterService')
+    def test_check_health_s3_no_bucket(self, mock_param_cls, mock_get_provider, output_service):
+        """S3 health check fails when bucket is not configured."""
+        mock_provider = Mock(spec=[])  # no bucket attribute
+        mock_get_provider.return_value = mock_provider
+
+        result = output_service.check_health('s3', 'TestAdmin')
+
+        assert result['healthy'] is False
+        assert 'not configured' in result['reason'].lower()
+
+    def test_check_health_case_insensitive(self, output_service):
+        """Destination parameter should be case-insensitive."""
+        result = output_service.check_health('DOWNLOAD', 'TestAdmin')
+        assert result['healthy'] is True
+
+        result = output_service.check_health('Download', 'TestAdmin')
+        assert result['healthy'] is True

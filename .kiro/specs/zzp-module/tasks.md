@@ -682,7 +682,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - **Property 5: Currency symbol from invoice currency code**
   - **Validates: Requirements 21.5**
 
-- [-] 14.7 Git commit and push Phase 14 to `feature/zzp-module`
+- [x] 14.7 Git commit and push Phase 14 to `feature/zzp-module`
 
 ---
 
@@ -692,7 +692,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 15.1 Add Storage Health Check
 
-- [ ] 15.1 Add `check_health()` method to `OutputService` if not already present
+- [x] 15.1 Add `check_health()` method to `OutputService` if not already present
   - Implement a lightweight connectivity test to the configured storage provider (Google Drive API ping, S3 HeadBucket, etc.)
   - Return `{ 'healthy': True/False, 'reason': '...' }`
   - _Requirements: 22.7_
@@ -700,7 +700,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 15.2 Refactor Send Flow with Strict Ordering
 
-- [ ] 15.2 Refactor `send_invoice()` in `backend/src/services/zzp_invoice_service.py` to enforce strict send flow
+- [x] 15.2 Refactor `send_invoice()` in `backend/src/services/zzp_invoice_service.py` to enforce strict send flow
   - Add pre-flight storage health check at the start: call `output_service.check_health(tenant)`, abort with descriptive error if unhealthy
   - Wrap PDF storage in try/except: on failure, return `{ success: False, error: "Storage unavailable — invoice not sent: {error}" }` — do NOT create mutaties, keep status as draft
   - Check that `storage_result` contains a URL; if not, abort with error
@@ -712,13 +712,13 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 15.3 Frontend — Handle Warning in Send Response
 
-- [ ] 15.3 Update `frontend/src/services/zzpInvoiceService.ts` and the invoice send UI to handle the `warning` field
+- [x] 15.3 Update `frontend/src/services/zzpInvoiceService.ts` and the invoice send UI to handle the `warning` field
   - Update the `sendInvoice()` response type to include optional `warning` field
   - In the send invoice UI handler: if response has `success: true` but also `warning`, show a warning toast with the message (not an error toast)
   - _Requirements: 22.6_
   - _Design: §14.7_
 
-- [ ] 15.4 Write unit tests for strict send flow
+- [x] 15.4 Write unit tests for strict send flow
   - Test send flow executes in order: health check → generate → store → book → email
   - Test storage health check failure aborts send (invoice stays draft, no mutaties)
   - Test storage failure (exception) aborts send (invoice stays draft, no mutaties)
@@ -728,7 +728,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - Test `check_health()` is called before any PDF generation
   - _Requirements: 22.1–22.7_
 
-- [ ] 15.5 Write property tests for send flow
+- [x] 15.5 Write property tests for send flow
   - **Property 6: Storage result flows to Ref3/Ref4 on mutaties**
   - **Validates: Requirements 22.2, 22.3, 22.4**
   - **Property 7: Storage failure aborts send flow**
@@ -736,7 +736,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - **Property 8: Email failure is soft failure**
   - **Validates: Requirements 22.6**
 
-- [ ] 15.6 Git commit and push Phase 15 to `feature/zzp-module`
+- [ ] 15.6 Git commit and push Phase 15 and all other remainders to `feature/zzp-module`
 
 ---
 
@@ -768,7 +768,12 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - Verify no regressions in existing Phase 1–10 functionality
   - Verify STR invoice generation still works after branding namespace rename
 
-- [ ] 16.4 Git commit and push Phase 16 to `feature/zzp-module`
+- [ ] 16.4 Update user documenation
+  - ad ZZP Module to manual in anglish and dutch using the standard user documentation
+  - ad Onboarding for all modules
+  - ad / improve template management
+
+- [ ] 16.5 Git commit and push Phase 16 to `feature/zzp-module`
 
 ## Notes
 
