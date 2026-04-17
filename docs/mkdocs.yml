@@ -20,7 +20,10 @@ theme:
       accent: red
 
 plugins:
-  - search
+  - search:
+      lang:
+        - nl
+        - en
   - i18n:
       languages:
         - locale: nl
