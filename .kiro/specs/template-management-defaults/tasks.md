@@ -91,6 +91,8 @@ Add two new API endpoints (download default template, delete tenant template) an
     - Test confirmation dialog flow
     - _Requirements: 1.1, 1.7, 2.1, 2.2, 5.1, 5.2, 5.3, 5.4_
 
+- [ ] 6.4 Update user documentation
+   - Update/review all user documentaion in mkdocs related to template management in NL and UK 
 - [ ] 7. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 

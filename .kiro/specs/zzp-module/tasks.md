@@ -736,7 +736,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - **Property 8: Email failure is soft failure**
   - **Validates: Requirements 22.6**
 
-- [ ] 15.6 Git commit and push Phase 15 and all other remainders to `feature/zzp-module`
+- [x] 15.6 Git commit and push Phase 15 and all other remainders to `feature/zzp-module`
 
 ---
 
