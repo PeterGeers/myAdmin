@@ -2,7 +2,7 @@
 API tests for ZZP Phase 12: Invoice ledger account endpoint.
 
 Tests the GET /api/zzp/accounts/invoice-ledgers endpoint which returns
-accounts flagged with zzp_invoice_ledger in the chart of accounts,
+accounts flagged with zzp_revenue_ledger in the chart of accounts,
 with fallback to the zzp.revenue_account parameter.
 
 Reference: .kiro/specs/zzp-module/design-parameter-enhancements.md §14.2
@@ -85,7 +85,7 @@ def zzp_client(mock_db, mock_param_service):
 
 
 def test_get_invoice_ledgers_returns_flagged_accounts(zzp_client, mock_db):
-    """Accounts flagged with zzp_invoice_ledger should be returned."""
+    """Accounts flagged with zzp_revenue_ledger should be returned."""
     mock_db.execute_query.return_value = [
         {'nummer': '8001', 'naam': 'Omzet dienstverlening'},
         {'nummer': '8002', 'naam': 'Omzet producten'},
@@ -110,7 +110,7 @@ def test_get_invoice_ledgers_ordered_by_nummer(zzp_client, mock_db):
     # Verify the SQL query includes ORDER BY nummer
     call_args = mock_db.execute_query.call_args
     query = call_args[0][0]
-    assert 'ORDER BY nummer' in query
+    assert 'ORDER BY' in query  # Orders by Account (aliased as nummer)
 
 
 def test_get_invoice_ledgers_filters_by_tenant(zzp_client, mock_db):
@@ -125,14 +125,14 @@ def test_get_invoice_ledgers_filters_by_tenant(zzp_client, mock_db):
 
 
 def test_get_invoice_ledgers_uses_json_extract(zzp_client, mock_db):
-    """Verify the query uses JSON_EXTRACT for zzp_invoice_ledger flag."""
+    """Verify the query uses JSON_EXTRACT for zzp_revenue_ledger flag."""
     mock_db.execute_query.return_value = [
         {'nummer': '8001', 'naam': 'Omzet'},
     ]
     zzp_client.get('/api/zzp/accounts/invoice-ledgers')
     first_call = mock_db.execute_query.call_args_list[0]
     query = first_call[0][0]
-    assert "JSON_EXTRACT(parameters, '$.zzp_invoice_ledger')" in query
+    assert "JSON_EXTRACT(parameters, '$.zzp_revenue_ledger')" in query
 
 
 def test_get_invoice_ledgers_fallback_to_revenue_account_param(
@@ -275,7 +275,7 @@ def test_validate_booking_param_creditor_account_valid(zzp_client, mock_db, mock
 
 
 def test_validate_booking_param_revenue_account_valid(zzp_client, mock_db, mock_param_service):
-    """Valid revenue account with zzp_invoice_ledger flag should succeed."""
+    """Valid revenue account with zzp_revenue_ledger flag should succeed."""
     mock_db.execute_query.return_value = [{'nummer': '8001'}]
     mock_param_service.set_param.return_value = None
 

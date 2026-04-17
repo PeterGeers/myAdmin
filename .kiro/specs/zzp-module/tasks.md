@@ -625,7 +625,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - Test `zzp_invoice` is registered as a template type
   - _Requirements: 20.1–20.7_
 
-- [-] 13.8 Git commit and push Phase 13 to `feature/zzp-module`
+- [x] 13.8 Git commit and push Phase 13 to `feature/zzp-module`
 
 ---
 
@@ -635,13 +635,13 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 14.1 Add Babel Dependency
 
-- [ ] 14.1 Add `babel>=2.14.0` to `backend/requirements.txt`
+- [x] 14.1 Add `babel>=2.14.0` to `backend/requirements.txt`
   - _Requirements: 21.1_
   - _Design: §14.6_
 
 ### 14.2 Implement Locale-Aware Formatting in PDF Generator
 
-- [ ] 14.2 Add locale resolution and formatting methods to `backend/src/services/pdf_generator_service.py`
+- [x] 14.2 Add locale resolution and formatting methods to `backend/src/services/pdf_generator_service.py`
   - Add `COUNTRY_LOCALE_MAP` dict mapping country codes/names (NL, DE, US, GB, FR, BE + Dutch/English names) to Babel locale identifiers
   - Add `DEFAULT_LOCALE = 'nl_NL'`
   - Add `_resolve_locale(self, contact)` method: resolve locale from contact's country field, try exact/uppercase/title case match, default to `nl_NL`
@@ -653,7 +653,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 14.3 Integrate Locale Formatting into \_render_html()
 
-- [ ] 14.3 Update `_render_html()` in `pdf_generator_service.py` to use locale-aware formatters
+- [x] 14.3 Update `_render_html()` in `pdf_generator_service.py` to use locale-aware formatters
   - Resolve locale from `invoice.get('contact', {})` via `_resolve_locale()`
   - Read currency from `invoice.get('currency', 'EUR')`
   - Replace hardcoded `_nl_amount()`, `_nl_qty()`, `_nl_date()` with locale-aware `_format_amount()`, `_format_qty()`, `_format_date()`
@@ -663,10 +663,10 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - _Requirements: 21.1, 21.2, 21.3_
   - _Design: §14.6_
 
-- [ ] 14.4 Checkpoint — Ensure all tests pass
+- [x] 14.4 Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14.5 Write unit tests for locale formatting
+- [x] 14.5 Write unit tests for locale formatting
   - Test `_resolve_locale()` returns `nl_NL` for 'NL', 'Nederland', 'Netherlands'
   - Test `_resolve_locale()` returns `en_US` for 'US', 'United States'
   - Test `_resolve_locale()` returns `nl_NL` for empty/unknown country
@@ -676,13 +676,13 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - Test `_format_qty()` returns integer for whole numbers, locale-formatted decimal otherwise
   - _Requirements: 21.1–21.5_
 
-- [ ] 14.6 Write property tests for locale formatting
+- [x] 14.6 Write property tests for locale formatting
   - **Property 4: Locale-aware formatting matches client country**
   - **Validates: Requirements 21.1, 21.2, 21.3, 21.4**
   - **Property 5: Currency symbol from invoice currency code**
   - **Validates: Requirements 21.5**
 
-- [ ] 14.7 Git commit and push Phase 14 to `feature/zzp-module`
+- [-] 14.7 Git commit and push Phase 14 to `feature/zzp-module`
 
 ---
 

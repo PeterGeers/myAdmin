@@ -66,7 +66,6 @@
 <!-- Address blocks: sender (left) + recipient (right) -->
 <div class="addresses">
   <div class="sender">
-    {{logo}}
     <h3>{{tenant_name}}</h3>
     <p>{{tenant_address}}<br/>{{tenant_postal_city}}<br/>{{tenant_country}}</p>
     <p>BTW: {{tenant_vat}}<br/>KvK: {{tenant_coc}}<br/>IBAN: {{tenant_iban}}<br/>Tel: {{tenant_phone}}<br/>Email: {{tenant_email}}</p>
@@ -102,14 +101,15 @@
 
 <!-- VAT summary + totals -->
 <table class="totals">
-<tr><td>Subtotaal</td><td class="right">&euro; {{subtotal}}</td></tr>
+<tr><td>Subtotaal</td><td class="right">{{subtotal}}</td></tr>
 {{vat_summary}}
-<tr class="grand"><td>Totaal</td><td class="right">&euro; {{grand_total}}</td></tr>
+<tr class="grand"><td>Totaal</td><td class="right">{{grand_total}}</td></tr>
 </table>
 
 <!-- Payment details -->
 <div class="payment-info">
 <strong>Betalingsgegevens</strong><br/>
+IBAN: {{tenant_iban}}<br/>
 Referentie: {{client_id}}<br/>
 Factuurnummer: {{invoice_number}}
 </div>

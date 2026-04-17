@@ -13,7 +13,21 @@ from io import BytesIO
 from datetime import date
 from typing import Optional
 
+from babel.numbers import format_currency, format_decimal
+from babel.dates import format_date as babel_format_date
+
 logger = logging.getLogger(__name__)
+
+# Map ISO 3166-1 country codes/names to Babel locale identifiers
+COUNTRY_LOCALE_MAP = {
+    'NL': 'nl_NL', 'Nederland': 'nl_NL', 'Netherlands': 'nl_NL',
+    'DE': 'de_DE', 'Duitsland': 'de_DE', 'Germany': 'de_DE',
+    'US': 'en_US', 'Verenigde Staten': 'en_US', 'United States': 'en_US',
+    'GB': 'en_GB', 'Verenigd Koninkrijk': 'en_GB', 'United Kingdom': 'en_GB',
+    'FR': 'fr_FR', 'Frankrijk': 'fr_FR', 'France': 'fr_FR',
+    'BE': 'nl_BE', 'Belgie': 'nl_BE', 'Belgium': 'nl_BE',
+}
+DEFAULT_LOCALE = 'nl_NL'
 
 
 class PDFGeneratorService:
@@ -51,24 +65,18 @@ class PDFGeneratorService:
         lines = invoice.get('lines', [])
         vat_summary = invoice.get('vat_summary', [])
 
-        def _nl_amount(val) -> str:
-            """Format amount in Dutch locale: 1.250,00"""
-            n = float(val or 0)
-            formatted = f"{n:,.2f}"
-            formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
-            return formatted
+        # Resolve locale from client's country for formatting
+        locale = self._resolve_locale(contact)
+        currency = invoice.get('currency', 'EUR')
 
-        def _nl_qty(val) -> str:
-            """Format quantity: integer if whole, otherwise 2 decimals."""
-            n = float(val or 0)
-            return str(int(n)) if n == int(n) else f"{n:.2f}".replace('.', ',')
+        def fmt_amount(val):
+            return self._format_amount(val, currency, locale)
 
-        def _nl_date(val) -> str:
-            """Format date as dd-mm-yyyy (Dutch)."""
-            s = str(val or '')
-            if len(s) >= 10 and s[4] == '-':
-                return f"{s[8:10]}-{s[5:7]}-{s[0:4]}"
-            return s
+        def fmt_qty(val):
+            return self._format_qty(val, locale)
+
+        def fmt_date(val):
+            return self._format_date(val, locale)
 
         # Build lines HTML
         lines_html = ''
@@ -76,10 +84,10 @@ class PDFGeneratorService:
             lines_html += (
                 f'<tr>'
                 f'<td>{line.get("description", "")}</td>'
-                f'<td class="right">{_nl_qty(line.get("quantity", 0))}</td>'
-                f'<td class="right">&euro; {_nl_amount(line.get("unit_price", 0))}</td>'
+                f'<td class="right">{fmt_qty(line.get("quantity", 0))}</td>'
+                f'<td class="right">{fmt_amount(line.get("unit_price", 0))}</td>'
                 f'<td class="right">{float(line.get("vat_rate", 0)):.0f}%</td>'
-                f'<td class="right">&euro; {_nl_amount(line.get("line_total", 0))}</td>'
+                f'<td class="right">{fmt_amount(line.get("line_total", 0))}</td>'
                 f'</tr>'
             )
 
@@ -89,8 +97,8 @@ class PDFGeneratorService:
             vat_html += (
                 f'<tr>'
                 f'<td>{v.get("vat_code", "")} ({float(v.get("vat_rate", 0)):.0f}%)</td>'
-                f'<td class="right">&euro; {_nl_amount(v.get("base_amount", 0))}</td>'
-                f'<td class="right">&euro; {_nl_amount(v.get("vat_amount", 0))}</td>'
+                f'<td class="right">{fmt_amount(v.get("base_amount", 0))}</td>'
+                f'<td class="right">{fmt_amount(v.get("vat_amount", 0))}</td>'
                 f'</tr>'
             )
 
@@ -101,8 +109,8 @@ class PDFGeneratorService:
             '{{logo}}': logo_tag,
             '{{copy_watermark}}': copy_watermark,
             '{{invoice_number}}': invoice.get('invoice_number', ''),
-            '{{invoice_date}}': _nl_date(invoice.get('invoice_date', '')),
-            '{{due_date}}': _nl_date(invoice.get('due_date', '')),
+            '{{invoice_date}}': fmt_date(invoice.get('invoice_date', '')),
+            '{{due_date}}': fmt_date(invoice.get('due_date', '')),
             '{{currency}}': invoice.get('currency', 'EUR'),
             '{{payment_terms}}': str(invoice.get('payment_terms_days', 30)),
             '{{notes}}': invoice.get('notes', '') or '',
@@ -128,9 +136,9 @@ class PDFGeneratorService:
             # Line items and totals
             '{{lines}}': lines_html,
             '{{vat_summary}}': vat_html,
-            '{{subtotal}}': _nl_amount(invoice.get('subtotal', 0)),
-            '{{vat_total}}': _nl_amount(invoice.get('vat_total', 0)),
-            '{{grand_total}}': _nl_amount(invoice.get('grand_total', 0)),
+            '{{subtotal}}': fmt_amount(invoice.get('subtotal', 0)),
+            '{{vat_total}}': fmt_amount(invoice.get('vat_total', 0)),
+            '{{grand_total}}': fmt_amount(invoice.get('grand_total', 0)),
         }
 
         html = template_html
@@ -160,26 +168,67 @@ class PDFGeneratorService:
 
         return branding
 
-    def _get_invoice_iban(self, tenant: str) -> Optional[str]:
-        """Query rekeningschema for the IBAN of the account flagged as invoice_bank_account.
+    def _resolve_locale(self, contact: dict) -> str:
+        """Resolve Babel locale from contact's country. Default: nl_NL."""
+        country = (contact.get('country') or '').strip()
+        if not country:
+            return DEFAULT_LOCALE
+        # Try exact match, then uppercase, then title case
+        return (COUNTRY_LOCALE_MAP.get(country)
+                or COUNTRY_LOCALE_MAP.get(country.upper())
+                or COUNTRY_LOCALE_MAP.get(country.title())
+                or DEFAULT_LOCALE)
 
+    def _format_amount(self, val, currency_code: str, locale: str) -> str:
+        """Format currency amount using locale conventions with invoice currency symbol."""
+        n = float(val or 0)
+        return format_currency(n, currency_code, locale=locale)
+
+    def _format_qty(self, val, locale: str) -> str:
+        """Format quantity: integer if whole, otherwise 2 decimals."""
+        n = float(val or 0)
+        if n == int(n):
+            return str(int(n))
+        return format_decimal(n, format='#,##0.##', locale=locale)
+
+    def _format_date(self, val, locale: str) -> str:
+        """Format date according to locale conventions."""
+        s = str(val or '')
+        try:
+            if isinstance(val, date):
+                d = val
+            elif len(s) >= 10 and s[4] == '-':
+                d = date.fromisoformat(s[:10])
+            else:
+                return s
+            return babel_format_date(d, format='short', locale=locale)
+        except Exception:
+            return s
+
+    def _get_invoice_iban(self, tenant: str) -> Optional[str]:
+        """Query rekeningschema for the IBAN of the ZZP invoice bank account.
+
+        Looks for accounts flagged with zzp_invoice_ledger first (ZZP-specific),
+        then falls back to the generic invoice_bank_account flag.
         Returns the IBAN string or None if no account is flagged or has no IBAN.
         """
         if not self.db:
             return None
         try:
-            rows = self.db.execute_query(
-                """SELECT JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) AS iban
-                   FROM rekeningschema
-                   WHERE administration = %s
-                     AND JSON_EXTRACT(parameters, '$.invoice_bank_account') = true
-                   LIMIT 1""",
-                (tenant,),
-            )
-            if rows and isinstance(rows, list) and len(rows) > 0:
-                iban = rows[0].get('iban') if isinstance(rows[0], dict) else None
-                if iban and isinstance(iban, str) and iban != 'null':
-                    return iban
+            # Try ZZP-specific flag first, then generic fallback
+            for flag in ('zzp_invoice_ledger', 'invoice_bank_account'):
+                rows = self.db.execute_query(
+                    """SELECT JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) AS iban
+                       FROM rekeningschema
+                       WHERE administration = %s
+                         AND JSON_EXTRACT(parameters, %s) = true
+                       LIMIT 1""",
+                    (tenant, f'$.{flag}'),
+                )
+                if rows and isinstance(rows, list) and len(rows) > 0:
+                    iban = rows[0].get('iban') if isinstance(rows[0], dict) else None
+                    if iban and isinstance(iban, str) and iban != 'null':
+                        return iban
             return None
         except Exception as e:
             logger.warning("Could not fetch invoice IBAN from rekeningschema: %s", e)
@@ -328,7 +377,6 @@ _INLINE_DEFAULT_TEMPLATE = """<!DOCTYPE html>
 </div>
 <div class="addresses">
   <div class="sender">
-    {{logo}}
     <h3>{{tenant_name}}</h3>
     <p>{{tenant_address}}<br/>{{tenant_postal_city}}<br/>{{tenant_country}}</p>
     <p>BTW: {{tenant_vat}}<br/>KvK: {{tenant_coc}}<br/>IBAN: {{tenant_iban}}<br/>Tel: {{tenant_phone}}<br/>Email: {{tenant_email}}</p>
@@ -358,12 +406,13 @@ _INLINE_DEFAULT_TEMPLATE = """<!DOCTYPE html>
 <tbody>{{lines}}</tbody>
 </table>
 <table class="totals">
-<tr><td>Subtotaal</td><td class="right">&euro; {{subtotal}}</td></tr>
+<tr><td>Subtotaal</td><td class="right">{{subtotal}}</td></tr>
 {{vat_summary}}
-<tr class="grand"><td>Totaal</td><td class="right">&euro; {{grand_total}}</td></tr>
+<tr class="grand"><td>Totaal</td><td class="right">{{grand_total}}</td></tr>
 </table>
 <div class="payment-info">
 <strong>Betalingsgegevens</strong><br/>
+IBAN: {{tenant_iban}}<br/>
 Referentie: {{client_id}}<br/>
 Factuurnummer: {{invoice_number}}
 </div>

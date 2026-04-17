@@ -595,6 +595,7 @@ function getRequiredPlaceholders(templateType: TemplateType): string[] {
     aangifte_ib: ['year', 'administration', 'total_income', 'total_expenses'],
     toeristenbelasting: ['year', 'accommodation_name', 'total_nights', 'tourist_tax'],
     financial_report: ['year', 'administration', 'report_type'],
+    zzp_invoice: ['invoice_number', 'invoice_date', 'company_name', 'grand_total', 'subtotal', 'lines'],
   };
 
   return placeholders[templateType] || [];

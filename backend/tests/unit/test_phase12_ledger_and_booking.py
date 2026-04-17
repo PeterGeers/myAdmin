@@ -58,6 +58,9 @@ def _make_param_svc(overrides: dict = None):
 
 def _make_helper(txn_logic=None, tax_svc=None, param_svc=None):
     db = Mock()
+    # Return empty list for rekeningschema flag lookups so _get_param
+    # falls through to ParameterService (the existing test behavior).
+    db.execute_query = Mock(return_value=[])
     txn_logic = txn_logic or Mock(
         save_approved_transactions=Mock(side_effect=lambda t: t)
     )
@@ -119,7 +122,7 @@ class TestLedgerParametersJson:
         """Req 19.1: zzp_creditor_account must be in the registry."""
         assert 'zzp_creditor_account' in self.keys
 
-    # ── zzp_invoice_ledger structure ────────────────────────
+    # ── zzp_invoice_ledger structure (invoice bank account) ──
 
     def test_zzp_invoice_ledger_type_is_boolean(self):
         assert self.keys['zzp_invoice_ledger']['type'] == 'boolean'
@@ -146,6 +149,32 @@ class TestLedgerParametersJson:
         entry = self.keys['zzp_invoice_ledger']
         assert 'description_nl' in entry
         assert len(entry['description_nl']) > 0
+
+    def test_zzp_invoice_ledger_depends_on_bank_account(self):
+        entry = self.keys['zzp_invoice_ledger']
+        assert entry.get('depends_on') == 'bank_account'
+
+    # ── zzp_revenue_ledger structure (revenue booking account) ──
+
+    def test_zzp_revenue_ledger_entry_exists(self):
+        """zzp_revenue_ledger must be in the registry."""
+        assert 'zzp_revenue_ledger' in self.keys
+
+    def test_zzp_revenue_ledger_type_is_boolean(self):
+        assert self.keys['zzp_revenue_ledger']['type'] == 'boolean'
+
+    def test_zzp_revenue_ledger_module_is_zzp(self):
+        assert self.keys['zzp_revenue_ledger']['module'] == 'ZZP'
+
+    def test_zzp_revenue_ledger_has_english_label(self):
+        entry = self.keys['zzp_revenue_ledger']
+        assert 'label_en' in entry
+        assert len(entry['label_en']) > 0
+
+    def test_zzp_revenue_ledger_has_dutch_label(self):
+        entry = self.keys['zzp_revenue_ledger']
+        assert 'label_nl' in entry
+        assert len(entry['label_nl']) > 0
 
     # ── zzp_debtor_account structure ────────────────────────
 
@@ -191,7 +220,7 @@ class TestLedgerParametersJson:
         if not bank:
             pytest.skip("bank_account entry not found for comparison")
         required_fields = {'key', 'type', 'label_en', 'label_nl', 'module'}
-        for zzp_key in ('zzp_invoice_ledger', 'zzp_debtor_account', 'zzp_creditor_account'):
+        for zzp_key in ('zzp_invoice_ledger', 'zzp_revenue_ledger', 'zzp_debtor_account', 'zzp_creditor_account'):
             entry = self.keys[zzp_key]
             missing = required_fields - set(entry.keys())
             assert not missing, f"{zzp_key} missing fields: {missing}"
@@ -442,7 +471,7 @@ class TestValidateBookingAccount:
 
     def test_flag_map_contains_revenue_account(self):
         assert 'revenue_account' in self.flag_map
-        assert self.flag_map['revenue_account'] == 'zzp_invoice_ledger'
+        assert self.flag_map['revenue_account'] == 'zzp_revenue_ledger'
 
     def test_rejects_unflagged_debtor_account(self):
         """Account without zzp_debtor_account flag raises ValueError."""
@@ -456,7 +485,7 @@ class TestValidateBookingAccount:
                 self.validate('TestTenant', 'creditor_account', '1600')
 
     def test_rejects_unflagged_revenue_account(self):
-        with pytest.raises(ValueError, match="zzp_invoice_ledger"):
+        with pytest.raises(ValueError, match="zzp_revenue_ledger"):
             with unittest_mock_db([]):
                 self.validate('TestTenant', 'revenue_account', '8001')
 

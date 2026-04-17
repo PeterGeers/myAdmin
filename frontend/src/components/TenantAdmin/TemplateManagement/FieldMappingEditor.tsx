@@ -72,6 +72,12 @@ const EXAMPLE_MAPPINGS: Record<TemplateType, Record<string, any>> = {
     currency: 'EUR',
     date_format: 'DD-MM-YYYY',
   },
+  zzp_invoice: {
+    tenant_name: 'Mijn ZZP Bedrijf',
+    tenant_address: 'Keizersgracht 100',
+    tenant_postal_city: '1015 AA Amsterdam',
+    tenant_vat: 'NL123456789B01',
+  },
 };
 
 /**
