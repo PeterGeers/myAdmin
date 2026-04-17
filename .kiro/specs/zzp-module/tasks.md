@@ -777,19 +777,53 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
   - ad ZZP Module to manual in english and dutch using the standard user documentation in MKDocs
   - ad Onboarding for all modules
 
-- [-] 16.5 Git commit and push Phase 16 to `feature/zzp-module`
+- [x] 16.5 Git commit and push Phase 16 to `feature/zzp-module`
 
-- [ ] 17.1 Railway Deployment
-  - Verify what changes have to be applied in Railway mysql
-  - Run `backend/sql/phase_zzp_tables.sql` against Railway production database after merging to main
-  - If more has too be done
-  - Verify all tables, views, indexes, and ZZP module seed on Railway
-  - Smoke test ZZP endpoints on production
-  - Merge feature to main
+## 17 Merge & Railway Deployment
+
+### 17.1 Pre-Merge: Build Documentation Site
+
+- [x] 17.1.1 Run `mkdocs build` in `docs/` to generate static site with new ZZP pages + onboarding
+- [x] 17.1.2 Verify `docs/site/zzp/` contains all 8 page directories (index, contacts, products, creating-invoices, sending-invoices, credit-notes, time-tracking, debtors) in both NL and EN
+- [x] 17.1.3 Verify `docs/site/getting-started/onboarding/` exists in both NL and EN
+- [x] 17.1.4 Commit built docs: `git add docs/site/ && git commit -m "build: regenerate docs site with ZZP pages"`
+- [-] 17.1.5 Push to `feature/zzp-module`
+
+### 17.2 Merge to Main
+
+- [ ] 17.2.1 Ensure `feature/zzp-module` is up to date with `main` (rebase or merge main into feature)
+- [ ] 17.2.2 Create PR from `feature/zzp-module` → `main`
+- [ ] 17.2.3 Merge PR
+
+### 17.3 Railway Database Migrations (run in order)
+
+Run these SQL scripts against Railway MySQL **in order** after merging to main:
+
+- [ ] 17.3.1 Run `backend/sql/phase_zzp_tables.sql` — creates 7 tables (contacts, contact_emails, products, invoices, invoice_lines, invoice_number_sequences, time_entries), 1 view (vw_invoice_vat_summary), and seeds ZZP module for InterimManagement tenant
+- [ ] 17.3.2 Run `backend/sql/phase_zzp_revenue_account.sql` — adds `revenue_account` column to `invoices` table
+- [ ] 17.3.3 Run `backend/sql/phase_zzp_revenue_ledger_rename.sql` — migrates `zzp_invoice_ledger` flags on revenue accounts (8xxx) to `zzp_revenue_ledger`, cleans up incorrect flags
+- [ ] 17.3.4 Run `backend/sql/phase_zzp_branding_migration.sql` — copies `branding` namespace params to `zzp_branding` and `str_branding` namespaces (safe to rerun: uses INSERT IGNORE)
+- [ ] 17.3.5 After verifying branding migration: uncomment and run the `DELETE FROM parameters WHERE namespace = 'branding'` cleanup in `phase_zzp_branding_migration.sql`
+
+### 17.4 Railway Verification
+
+- [ ] 17.4.1 Verify all 7 tables + 1 view exist: `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('contacts','contact_emails','products','invoices','invoice_lines','invoice_number_sequences','time_entries')`
+- [ ] 17.4.2 Verify `revenue_account` column on invoices: `SHOW COLUMNS FROM invoices LIKE 'revenue_account'`
+- [ ] 17.4.3 Verify ZZP module seed: `SELECT * FROM tenant_modules WHERE module_name = 'ZZP'`
+- [ ] 17.4.4 Verify branding migration: `SELECT namespace, COUNT(*) FROM parameters WHERE namespace IN ('zzp_branding','str_branding') GROUP BY namespace`
+- [ ] 17.4.5 Verify ledger parameters: `SELECT Account, parameters FROM rekeningschema WHERE JSON_EXTRACT(parameters, '$.zzp_revenue_ledger') = true`
+
+### 17.5 Production Smoke Test
+
+- [ ] 17.5.1 Smoke test: ZZP module visible in navigation when enabled
+- [ ] 17.5.2 Smoke test: Create contact → create product → create invoice → send flow
+- [ ] 17.5.3 Smoke test: ZZP docs accessible at `/docs/zzp/` (NL) and `/docs/en/zzp/` (EN)
+- [ ] 17.5.4 Smoke test: Onboarding page accessible at `/docs/getting-started/onboarding/`
+- [ ] 17.5.5 Smoke test: Existing STR invoice generation still works (branding namespace rename)
 
 ### 18.1 Documentation
 
-- [ ] Update spec .kiro\specs\zzp-module\README.md with final status and change log
+- [ ] Update spec `.kiro/specs/zzp-module/README.md` with final status and change log
 
 ---
 
