@@ -388,20 +388,26 @@ def test_send_invoice_draft_success_returns_invoice_number():
           'unit_price': 100, 'vat_code': 'high', 'vat_rate': 21, 'vat_amount': 21,
           'line_total': 100, 'sort_order': 0}],  # lines
         [{'vat_code': 'high', 'vat_rate': 21, 'base_amount': 100, 'vat_amount': 21}],  # vat_summary
-        None,  # _update_status
+        None,  # _update_status (sent)
     ])
 
     pdf_gen = Mock(generate_invoice_pdf=Mock(return_value=BytesIO(b'%PDF')))
     booking = Mock(book_outgoing_invoice=Mock(return_value=[]))
     email_svc = Mock(send_invoice_email=Mock(return_value={'success': True, 'message_id': 'x'}))
+    output_svc = Mock(
+        check_health=Mock(return_value={'healthy': True}),
+        handle_output=Mock(return_value={'url': 'https://drive.google.com/file/123'}),
+    )
 
     svc = ZZPInvoiceService(
         db=db, pdf_generator=pdf_gen, booking_helper=booking,
         email_service=email_svc, parameter_service=Mock(get_param=Mock(return_value=None)),
     )
-    result = svc.send_invoice('T1', 1, {'send_email': True})
+    result = svc.send_invoice('T1', 1, {'send_email': True}, output_service=output_svc)
     assert result['success'] is True
     assert result['invoice_number'] == 'INV-2026-0001'
+    assert 'warning' not in result
+    output_svc.check_health.assert_called_once_with('T1')
     pdf_gen.generate_invoice_pdf.assert_called_once()
     booking.book_outgoing_invoice.assert_called_once()
     email_svc.send_invoice_email.assert_called_once()
@@ -425,7 +431,8 @@ def test_send_invoice_not_draft_raises_valueerror():
         svc.send_invoice('T1', 1, {})
 
 
-def test_send_invoice_email_failure_keeps_booked_returns_error():
+def test_send_invoice_email_failure_keeps_booked_returns_warning():
+    """Email failure is a soft failure: invoice stays sent, warning returned."""
     db = Mock()
     invoice_data = {
         'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
@@ -440,6 +447,7 @@ def test_send_invoice_email_failure_keeps_booked_returns_error():
         [invoice_data],
         [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
         [], [],  # lines, vat_summary
+        None,  # _update_status (sent)
     ])
 
     pdf_gen = Mock(generate_invoice_pdf=Mock(return_value=BytesIO(b'%PDF')))
@@ -447,14 +455,21 @@ def test_send_invoice_email_failure_keeps_booked_returns_error():
     email_svc = Mock(send_invoice_email=Mock(
         return_value={'success': False, 'error': 'SES rejected'}
     ))
+    output_svc = Mock(
+        check_health=Mock(return_value={'healthy': True}),
+        handle_output=Mock(return_value={'url': 'https://drive.google.com/file/123'}),
+    )
 
     svc = ZZPInvoiceService(
         db=db, pdf_generator=pdf_gen, booking_helper=booking,
         email_service=email_svc, parameter_service=Mock(get_param=Mock(return_value=None)),
     )
-    result = svc.send_invoice('T1', 1, {'send_email': True})
-    assert result['success'] is False
-    assert 'email failed' in result['error']
+    result = svc.send_invoice('T1', 1, {'send_email': True}, output_service=output_svc)
+    assert result['success'] is True
+    assert 'warning' in result
+    assert 'email failed' in result['warning']
+    assert result['invoice_number'] == 'INV-2026-0001'
+    booking.book_outgoing_invoice.assert_called_once()
 
 
 # ── create_credit_note ──────────────────────────────────────
