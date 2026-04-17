@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"/>
+<html><head><meta charset="utf-8">
 <style>
   @page { size: A4; margin: 2cm; }
   body { font-family: Arial, sans-serif; font-size: 10pt; color: #333; margin: 0; }
@@ -68,13 +68,13 @@
   <div class="sender">
     {{logo}}
     <h3>{{tenant_name}}</h3>
-    <p>{{tenant_address}}<br/>{{tenant_postal_city}}<br/>{{tenant_country}}</p>
-    <p>BTW: {{tenant_vat}}<br/>KvK: {{tenant_coc}}<br/>IBAN: {{tenant_iban}}<br/>Tel: {{tenant_phone}}<br/>Email: {{tenant_email}}</p>
+    <p>{{tenant_address}}<br>{{tenant_postal_city}}<br>{{tenant_country}}</p>
+    <p>BTW: {{tenant_vat}}<br>KvK: {{tenant_coc}}<br>IBAN: {{tenant_iban}}<br>Tel: {{tenant_phone}}<br>Email: {{tenant_email}}</p>
   </div>
   <div class="recipient">
     <div class="label">Factuur aan:</div>
     <h3>{{company_name}}</h3>
-    <p>{{contact_person}}<br/>{{street_address}}<br/>{{postal_code}} {{city}}<br/>{{country}}</p>
+    <p>{{contact_person}}<br>{{street_address}}<br>{{postal_code}} {{city}}<br>{{country}}</p>
     <p>BTW: {{client_vat}}</p>
   </div>
 </div>
@@ -109,8 +109,8 @@
 
 <!-- Payment details -->
 <div class="payment-info">
-<strong>Betalingsgegevens</strong><br/>
-Referentie: {{client_id}}<br/>
+<strong>Betalingsgegevens</strong><br>
+Referentie: {{client_id}}<br>
 Factuurnummer: {{invoice_number}}
 </div>
 

@@ -309,6 +309,13 @@
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/audit-logging/"/>
     </url>
     <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/template-management/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/template-management/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/template-management/"/>
+    </url>
+    <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/tenant-settings/</loc>
         <lastmod>2026-04-17</lastmod>
         <changefreq>daily</changefreq>
@@ -685,6 +692,13 @@
         <changefreq>daily</changefreq>
         <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/audit-logging/"/>
         <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/audit-logging/"/>
+    </url>
+    <url>
+        <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/template-management/</loc>
+        <lastmod>2026-04-17</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/template-management/"/>
+        <xhtml:link rel="alternate" hreflang="nl" href="https://invigorating-celebration-production.up.railway.app/docs/tenant-admin/template-management/"/>
     </url>
     <url>
         <loc>https://invigorating-celebration-production.up.railway.app/docs/en/tenant-admin/tenant-settings/</loc>
