@@ -407,7 +407,7 @@ def test_send_invoice_draft_success_returns_invoice_number():
     assert result['success'] is True
     assert result['invoice_number'] == 'INV-2026-0001'
     assert 'warning' not in result
-    output_svc.check_health.assert_called_once_with('T1')
+    output_svc.check_health.assert_called_once_with('gdrive', 'T1')
     pdf_gen.generate_invoice_pdf.assert_called_once()
     booking.book_outgoing_invoice.assert_called_once()
     email_svc.send_invoice_email.assert_called_once()

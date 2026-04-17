@@ -139,7 +139,7 @@ const SummaryTabs: React.FC<SummaryTabsProps> = ({ t }) => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" />
                   <XAxis dataKey="name" tick={{ fill: '#A0AEC0', fontSize: 12 }} />
                   <YAxis tick={{ fill: '#A0AEC0', fontSize: 12 }} />
-                  <Tooltip formatter={(v: number) => `€ ${v.toFixed(2)}`}
+                  <Tooltip formatter={(v) => `€ ${Number(v).toFixed(2)}`}
                     contentStyle={{ backgroundColor: '#2D3748', border: 'none', color: '#fff' }} />
                   <Bar dataKey="amount" name={t('timeTracking.amount')} fill="#ED8936" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -154,7 +154,7 @@ const SummaryTabs: React.FC<SummaryTabsProps> = ({ t }) => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" />
                   <XAxis dataKey="name" tick={{ fill: '#A0AEC0', fontSize: 12 }} />
                   <YAxis tick={{ fill: '#A0AEC0', fontSize: 12 }} />
-                  <Tooltip formatter={(v: number) => `€ ${v.toFixed(2)}`}
+                  <Tooltip formatter={(v) => `€ ${Number(v).toFixed(2)}`}
                     contentStyle={{ backgroundColor: '#2D3748', border: 'none', color: '#fff' }} />
                   <Bar dataKey="hours" name={t('timeTracking.hours')} fill="#3182CE" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -178,7 +178,7 @@ const SummaryTabs: React.FC<SummaryTabsProps> = ({ t }) => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" />
                   <XAxis dataKey="name" tick={{ fill: '#A0AEC0', fontSize: 12 }} />
                   <YAxis tick={{ fill: '#A0AEC0', fontSize: 12 }} />
-                  <Tooltip formatter={(v: number) => `€ ${v.toFixed(2)}`}
+                  <Tooltip formatter={(v) => `€ ${Number(v).toFixed(2)}`}
                     contentStyle={{ backgroundColor: '#2D3748', border: 'none', color: '#fff' }} />
                   <Bar dataKey="amount" name={t('timeTracking.amount')} fill="#ED8936" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="hours" name={t('timeTracking.hours')} fill="#3182CE" radius={[4, 4, 0, 0]} />

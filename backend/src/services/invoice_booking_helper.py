@@ -175,7 +175,16 @@ class InvoiceBookingHelper:
     def book_credit_note(self, tenant: str, credit_note: dict,
                          original_invoice: dict,
                          storage_result: dict = None) -> List[dict]:
-        """Book a credit note: reversal entries offsetting the original booking."""
+        """Book a credit note: reversal entries offsetting the original booking.
+
+        A credit note reverses an outgoing invoice. The outgoing invoice entries were:
+        - Main: debit debtor, credit revenue
+        - VAT: debit revenue, credit received-BTW (e.g. 2021)
+
+        The credit note reversal swaps these:
+        - Main: debit revenue, credit debtor
+        - VAT: debit received-BTW (e.g. 2021), credit revenue
+        """
         contact = credit_note.get('contact', {})
         client_id = contact.get('client_id', '')
         cn_number = credit_note['invoice_number']
@@ -183,7 +192,6 @@ class InvoiceBookingHelper:
         grand_total = abs(float(credit_note['grand_total']))
 
         debtor_acct = self._get_param(tenant, 'debtor_account')
-        btw_debit_acct = self._get_param(tenant, 'btw_debit_account')
 
         # Use original invoice's revenue account, fall back to tenant parameter
         revenue_acct = original_invoice.get('revenue_account')
@@ -212,6 +220,8 @@ class InvoiceBookingHelper:
         ))
 
         # 2. VAT reversal entries per rate bucket
+        # Outgoing invoice had: debit revenue, credit received-BTW (e.g. 2021)
+        # Credit note reversal: debit received-BTW, credit revenue
         vat_summary = credit_note.get('vat_summary', [])
         for vat_line in vat_summary:
             vat_amount = round(abs(float(vat_line['vat_amount'])) * exchange_rate, 2)
@@ -220,17 +230,18 @@ class InvoiceBookingHelper:
 
             vat_code = vat_line['vat_code']
             vat_rate = vat_line['vat_rate']
-            credit_acct = self._get_vat_ledger_account(
-                tenant, vat_code, cn_date, btw_debit_acct
+            # Get the received-BTW ledger account (same as outgoing invoice)
+            received_btw_acct = self._get_vat_ledger_account(
+                tenant, vat_code, cn_date, '2021'
             )
 
-            # Reversed: credit btw_debit, debit vat ledger
+            # Reversed from outgoing: debit received-BTW, credit revenue
             transactions.append(self._build_entry(
                 tenant=tenant,
                 description=f"BTW Creditnota {vat_code.capitalize()} {vat_rate}% {cn_number}",
                 amount=vat_amount,
-                debet=credit_acct,
-                credit=btw_debit_acct,
+                debet=received_btw_acct,
+                credit=revenue_acct,
                 reference_number=client_id,
                 ref2=cn_number,
                 ref3='',

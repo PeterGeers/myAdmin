@@ -25,6 +25,11 @@ export async function sendReminder(invoiceId: number): Promise<any> {
   return resp.json();
 }
 
+export async function markOverdue(): Promise<any> {
+  const resp = await authenticatedPost(buildEndpoint('/api/zzp/invoices/mark-overdue'), {});
+  return resp.json();
+}
+
 export async function runPaymentCheck(): Promise<any> {
   const resp = await authenticatedPost(buildEndpoint('/api/zzp/payment-check/run'), {});
   return resp.json();

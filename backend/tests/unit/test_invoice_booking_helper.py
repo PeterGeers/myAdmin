@@ -199,9 +199,10 @@ def test_book_credit_note_vat_reversal_swaps_debit_credit():
     )
     result = helper.book_credit_note('T1', cn, _outgoing_invoice())
     vat = result[1]
-    # Reversed: debit vat_ledger, credit btw_debit
+    # Reversed from outgoing (debit revenue, credit received-BTW):
+    # Credit note: debit received-BTW (2021), credit revenue (8001)
     assert vat['Debet'] == '2021'
-    assert vat['Credit'] == '2010'
+    assert vat['Credit'] == '8001'
 
 
 # ── _get_param raises ValueError when not configured ────────

@@ -269,6 +269,49 @@ def update_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ── Invoice from Time Entries (Req 11.5–11.6) ──────────────
+
+
+@zzp_bp.route('/api/zzp/invoices/from-time-entries', methods=['POST'])
+@cognito_required(required_permissions=['zzp_crud'])
+@tenant_required()
+@module_required('ZZP')
+def create_invoice_from_time_entries(user_email, user_roles, tenant, user_tenants):
+    """Create a draft invoice from selected time entries.
+
+    Request body:
+        { "contact_id": 1, "entry_ids": [10, 11], "data": { "invoice_date": "2026-04-30" } }
+    """
+    try:
+        body = request.get_json()
+        if not body:
+            return jsonify({'success': False, 'error': 'Request body required'}), 400
+
+        contact_id = body.get('contact_id')
+        entry_ids = body.get('entry_ids')
+        extra_data = body.get('data', {})
+
+        if not contact_id:
+            return jsonify({'success': False, 'error': 'contact_id is required'}), 400
+        if not entry_ids or not isinstance(entry_ids, list):
+            return jsonify({'success': False, 'error': 'entry_ids must be a non-empty list'}), 400
+
+        svc = _get_invoice_service()
+        time_svc = _get_time_service()
+
+        invoice = svc.create_invoice_from_time_entries(
+            tenant, contact_id=int(contact_id), entry_ids=entry_ids,
+            data=extra_data, created_by=user_email,
+            time_tracking_service=time_svc,
+        )
+        return jsonify({'success': True, 'data': invoice}), 201
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve)}), 400
+    except Exception as e:
+        logger.error("create_invoice_from_time_entries error for %s: %s", tenant, e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ── Send & PDF Endpoints (Req 6, 8, 9) ─────────────────────
 
 
@@ -390,6 +433,28 @@ def get_payment_check_status(user_email, user_roles, tenant, user_tenants):
         })
     except Exception as e:
         logger.error("get_payment_check_status error for %s: %s", tenant, e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ── Overdue Detection (Req 12.3) ───────────────────────────
+
+
+@zzp_bp.route('/api/zzp/invoices/mark-overdue', methods=['POST'])
+@cognito_required(required_permissions=['zzp_crud'])
+@tenant_required()
+@module_required('ZZP')
+def mark_overdue_invoices(user_email, user_roles, tenant, user_tenants):
+    """Batch-update all sent invoices past due date to overdue."""
+    try:
+        svc = _get_invoice_service()
+        count = svc.mark_overdue(tenant)
+        return jsonify({
+            'success': True,
+            'updated': count,
+            'message': f'{count} invoice(s) marked as overdue',
+        })
+    except Exception as e:
+        logger.error("mark_overdue error for %s: %s", tenant, e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -630,6 +695,7 @@ def list_time_entries(user_email, user_roles, tenant, user_tenants):
             filters['is_billed'] = request.args.get('is_billed').lower() == 'true'
         filters = {k: v for k, v in filters.items() if v is not None}
         entries = svc.list_entries(tenant, filters)
+        entries = svc.enrich_with_contacts(tenant, entries)
         return jsonify({'success': True, 'data': entries})
     except Exception as e:
         logger.error("list_time_entries error for %s: %s", tenant, e)

@@ -498,9 +498,20 @@ class ZZPInvoiceService(FieldConfigMixin):
             except Exception as e:
                 raise RuntimeError(f"OutputService unavailable: {e}")
 
+        # Resolve output destination before health check
+        destination = options.get('output_destination')
+        if not destination and self.parameter_service:
+            provider = self.parameter_service.get_param(
+                'storage', 'invoice_provider', tenant=tenant
+            ) or 'google_drive'
+            destination = {'google_drive': 'gdrive', 's3_shared': 's3', 's3_tenant': 's3'}.get(
+                provider, 'gdrive'
+            )
+        destination = destination or 'gdrive'
+
         # 0. Pre-flight storage health check
         try:
-            health = output_service.check_health(tenant)
+            health = output_service.check_health(destination, tenant)
             if not health.get('healthy', False):
                 return {
                     'success': False,
@@ -521,7 +532,7 @@ class ZZPInvoiceService(FieldConfigMixin):
         try:
             storage_result = self._store_pdf(
                 tenant, invoice, pdf_bytes,
-                options.get('output_destination'),
+                destination,
                 output_service,
             )
             if not storage_result.get('url'):

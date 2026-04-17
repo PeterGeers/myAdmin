@@ -355,7 +355,7 @@
 
 ### Phase 8 Testing
 
-- [ ] ### Phase 8 Testing
+- [x] ### Phase 8 Testing
 - Manual smoke test: full CRUD flow for contacts, products, invoices
 - Verify field config visibility/required behavior in forms
 - Verify mobile responsiveness on time tracking page
@@ -369,37 +369,30 @@
 
 ### 9.1 End-to-End Integration
 
-- [ ] Full flow test: create contact → create product → create invoice → send (PDF + book + email) → payment check → paid
-- [ ] Full flow test: create invoice → send → create credit note → send credit note → original marked credited
-- [ ] Full flow test: time entries → create invoice from entries → entries marked billed
-- [ ] Full flow test: copy last invoice → edit draft → send
-- [ ] Verify multi-tenant isolation: tenant A cannot see tenant B's data
+- [x] Full flow test: create contact → create product → create invoice → send (PDF + book + email) → payment check → paid
+- [x] Full flow test: create invoice → send → create credit note → send credit note → original marked credited
+
+- [x] Full flow test: time entries → create invoice from entries → entries marked billed
+
+- [x] Full flow test: copy last invoice → edit draft → send
+- [x] Verify multi-tenant isolation: tenant A cannot see tenant B's data
 
 ### 9.2 Overdue & Reminder Flow
 
-- [ ] Verify overdue detection: sent invoice past due date → status updated to overdue
-- [ ] Verify reminder email sending for overdue invoices
+- [x] ### 9.2 Overdue & Reminder Flow
+  - Verify overdue detection: sent invoice past due date → status updated to overdue
+  - Verify reminder email sending for overdue invoices
 
 ### 9.3 Edge Cases & Error Handling
 
-- [ ] Verify soft-delete protection: cannot delete contact/product referenced by invoice
-- [ ] Verify sent invoice immutability: financial fields locked after send
-- [ ] Verify concurrent invoice numbering: no duplicates under load
-- [ ] Verify missing logo handling: PDF generates without logo placeholder
-- [ ] Verify email failure handling: status stays draft, error returned
+- [x] Edge Cases & Error Handling
+  - Verify soft-delete protection: cannot delete contact/product referenced by invoice
+  - Verify sent invoice immutability: financial fields locked after send
+  - Verify concurrent invoice numbering: no duplicates under load
+  - Verify missing logo handling: PDF generates without logo placeholder
+  - Verify email failure handling: status stays draft, error returned
 
-### 9.4 Railway Deployment
-
-- [ ] Run `backend/sql/phase_zzp_tables.sql` against Railway production database after merging to main
-- [ ] Verify all tables, views, indexes, and ZZP module seed on Railway
-- [ ] Smoke test ZZP endpoints on production
-
-### 9.5 Documentation
-
-- [ ] Update spec README.md with final status and change log
-- [ ] Create end-user documentation section per `.kiro/specs/Common/end-user-documentation/` pattern
-
----
+## Phase 9 railway deplyment moved to the end
 
 ## Phase 10 (Future): Advanced Time Tracking Input Methods
 
@@ -746,7 +739,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 16.1 Integration Tests
 
-- [ ] 16.1 Write integration tests covering cross-requirement flows
+- [x] 16.1 Write integration tests covering cross-requirement flows
   - Test full send flow with real OutputService mock: store → book (with Ref3/Ref4) → email
   - Test end-to-end invoice creation with revenue account selection → send → verify mutaties use correct revenue account
   - Test VAT accounts from TaxRateService in booking entries (no hardcoded VAT accounts)
@@ -755,7 +748,7 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 16.2 Run Database Migrations
 
-- [ ] 16.2 Run all new SQL migrations against dev database
+- [x] 16.2 Run all new SQL migrations against dev database
   - Run `backend/sql/phase_zzp_revenue_account.sql` (add `revenue_account` column)
   - Run `backend/sql/phase_zzp_branding_migration.sql` (copy branding params to zzp_branding/str_branding)
   - Verify column exists and data migrated correctly
@@ -763,17 +756,42 @@ The preferred iban number is in the ledger account (IBAN: NL80RABO0107936917 Ban
 
 ### 16.3 Final Checkpoint
 
-- [ ] 16.3 Final checkpoint — Ensure all tests pass
+- [x] 16.3 Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
+  - **Results (2026-04-17):**
+    - Backend: 1,703 passed, 5 failed (all pre-existing, unrelated to ZZP)
+      - `test_storage_provider::test_defaults_to_google_drive` — S3 bucket env config missing
+      - `test_toeristenbelasting_generator::test_get_tourist_tax_from_account` — precision drift in tax calc
+      - `test_toeristenbelasting_generator::test_get_financial_data` — same precision issue
+      - `test_transaction_logic::test_get_last_transactions_single_duplication` — string vs int type mismatch
+      - `test_xlsx_export::test_init` — local path differs from expected OneDrive path
+    - Frontend: 1,052 passed, 12 failed (all pre-existing, unrelated to ZZP)
+      - `authentication-flow.test.tsx` (1 test) — Login component import undefined
+      - `authentication.integration.test.tsx` (11 tests) — same Login component import issue
+    - STR invoice generation: 21 passed, 0 failed — no regressions from branding namespace rename
+    - All ZZP tests (unit, API, integration, property-based): 611 passed, 0 failed
   - Verify no regressions in existing Phase 1–10 functionality
   - Verify STR invoice generation still works after branding namespace rename
 
-- [ ] 16.4 Update user documenation
-  - ad ZZP Module to manual in anglish and dutch using the standard user documentation
+- [x] 16.4 Update user documenation
+  - ad ZZP Module to manual in english and dutch using the standard user documentation in MKDocs
   - ad Onboarding for all modules
-  - ad / improve template management
 
-- [ ] 16.5 Git commit and push Phase 16 to `feature/zzp-module`
+- [-] 16.5 Git commit and push Phase 16 to `feature/zzp-module`
+
+- [ ] 17.1 Railway Deployment
+  - Verify what changes have to be applied in Railway mysql
+  - Run `backend/sql/phase_zzp_tables.sql` against Railway production database after merging to main
+  - If more has too be done
+  - Verify all tables, views, indexes, and ZZP module seed on Railway
+  - Smoke test ZZP endpoints on production
+  - Merge feature to main
+
+### 18.1 Documentation
+
+- [ ] Update spec .kiro\specs\zzp-module\README.md with final status and change log
+
+---
 
 ## Notes
 

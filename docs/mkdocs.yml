@@ -52,6 +52,7 @@ nav:
       - Eerste login: getting-started/first-login.md
       - Test vs Productie: getting-started/test-vs-production.md
       - Veelgebruikte workflows: getting-started/common-workflows.md
+      - Modules instellen: getting-started/onboarding.md
   - Bankzaken:
       - Overzicht: banking/index.md
       - Afschriften importeren: banking/importing-statements.md
@@ -64,6 +65,15 @@ nav:
       - AI extractie: invoices/ai-extraction.md
       - Bewerken & goedkeuren: invoices/editing-approving.md
       - Google Drive: invoices/google-drive.md
+  - ZZP Facturatie:
+      - Overzicht: zzp/index.md
+      - Contacten: zzp/contacts.md
+      - Producten & diensten: zzp/products.md
+      - Facturen aanmaken: zzp/creating-invoices.md
+      - Facturen versturen: zzp/sending-invoices.md
+      - Creditnota's: zzp/credit-notes.md
+      - Urenregistratie: zzp/time-tracking.md
+      - Debiteuren & crediteuren: zzp/debtors.md
   - STR:
       - Overzicht: str/index.md
       - Boekingen importeren: str/importing-bookings.md

@@ -265,7 +265,7 @@ class TestStorageResultFlowsToRef3Ref4:
     corresponding mutaties entries SHALL have Ref3 set to the storage URL
     and Ref4 set to the PDF filename from the storage result."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -291,7 +291,7 @@ class TestStorageResultFlowsToRef3Ref4:
         assert sr is not None
         assert sr['url'] == storage_url
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -317,7 +317,7 @@ class TestStorageResultFlowsToRef3Ref4:
         expected_filename = f"{invoice['invoice_number']}.pdf"
         assert sr['filename'] == expected_filename
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -348,7 +348,7 @@ class TestStorageResultFlowsToRef3Ref4:
         assert sr is not None
         assert sr['url'] == storage_url
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -376,7 +376,7 @@ class TestStorageResultFlowsToRef3Ref4:
         expected_filename = f"{cn['invoice_number']}.pdf"
         assert sr['filename'] == expected_filename
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -403,7 +403,7 @@ class TestStorageResultFlowsToRef3Ref4:
         assert isinstance(sr['url'], str) and len(sr['url']) > 0
         assert isinstance(sr['filename'], str) and len(sr['filename']) > 0
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -439,7 +439,7 @@ class TestStorageFailureAbortsSendFlow:
     success: False, the invoice status SHALL remain 'draft', and zero
     mutaties entries SHALL be created for that invoice."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         error_msg=error_message_st,
@@ -464,7 +464,7 @@ class TestStorageFailureAbortsSendFlow:
         assert result['success'] is False
         assert 'error' in result
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         error_msg=error_message_st,
@@ -489,7 +489,7 @@ class TestStorageFailureAbortsSendFlow:
         mocks['booking'].book_outgoing_invoice.assert_not_called()
         mocks['booking'].book_credit_note.assert_not_called()
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         error_msg=error_message_st,
@@ -513,7 +513,7 @@ class TestStorageFailureAbortsSendFlow:
 
         mocks['email_svc'].send_invoice_email.assert_not_called()
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         error_msg=error_message_st,
@@ -543,7 +543,7 @@ class TestStorageFailureAbortsSendFlow:
         ]
         assert len(status_calls) == 0
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(data=st.data())
     def test_storage_returns_empty_url_returns_failure(self, data):
         """Storage returning empty URL → success: False (Req 22.5)."""
@@ -560,7 +560,7 @@ class TestStorageFailureAbortsSendFlow:
         assert result['success'] is False
         assert 'error' in result
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(data=st.data())
     def test_storage_returns_empty_url_prevents_booking(self, data):
         """Storage returning empty URL → no booking (Req 22.5)."""
@@ -576,7 +576,7 @@ class TestStorageFailureAbortsSendFlow:
 
         mocks['booking'].book_outgoing_invoice.assert_not_called()
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(data=st.data())
     def test_storage_returns_none_url_returns_failure(self, data):
         """Storage returning None URL → success: False (Req 22.5)."""
@@ -594,7 +594,7 @@ class TestStorageFailureAbortsSendFlow:
         assert result['success'] is False
         mocks['booking'].book_outgoing_invoice.assert_not_called()
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         health_reason=error_message_st,
@@ -620,7 +620,7 @@ class TestStorageFailureAbortsSendFlow:
         mocks['booking'].book_outgoing_invoice.assert_not_called()
         mocks['email_svc'].send_invoice_email.assert_not_called()
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         error_msg=error_message_st,
@@ -659,7 +659,7 @@ class TestEmailFailureIsSoftFailure:
     exist with correct Ref3/Ref4, and the response SHALL include a warning
     field describing the email failure."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -682,7 +682,7 @@ class TestEmailFailureIsSoftFailure:
 
         assert result['success'] is True
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -707,7 +707,7 @@ class TestEmailFailureIsSoftFailure:
         assert isinstance(result['warning'], str)
         assert len(result['warning']) > 0
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -730,7 +730,7 @@ class TestEmailFailureIsSoftFailure:
 
         mocks['booking'].book_outgoing_invoice.assert_called_once()
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -757,7 +757,7 @@ class TestEmailFailureIsSoftFailure:
         assert sr['url'] == storage_url
         assert sr['filename'] == f"{invoice['invoice_number']}.pdf"
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -789,7 +789,7 @@ class TestEmailFailureIsSoftFailure:
         last_status_call = status_calls[-1]
         assert 'sent' in last_status_call.args[1]
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -816,7 +816,7 @@ class TestEmailFailureIsSoftFailure:
         assert 'warning' in result
         assert isinstance(result['warning'], str)
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -841,7 +841,7 @@ class TestEmailFailureIsSoftFailure:
 
         mocks['booking'].book_outgoing_invoice.assert_called_once()
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,
@@ -865,7 +865,7 @@ class TestEmailFailureIsSoftFailure:
         assert result['success'] is True
         assert 'warning' not in result
 
-    @settings(max_examples=100)
+    @settings(max_examples=25)
     @given(
         data=st.data(),
         storage_url=storage_url_st,

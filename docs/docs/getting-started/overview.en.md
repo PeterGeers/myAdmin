@@ -16,6 +16,10 @@ Import CSV bank statements (Rabobank format), let the system automatically assig
 
 Upload PDF invoices and let AI extract the details. Review the results, adjust where needed, and store everything in Google Drive.
 
+### ZZP invoicing
+
+Create and send invoices to your clients, track hours per project, and manage your debtors and creditors. Designed specifically for freelancers and self-employed professionals.
+
 ### Short-term rental (STR)
 
 Process revenue files from Airbnb and Booking.com. View realized and planned bookings and future revenue summaries.
@@ -40,6 +44,7 @@ Check whether Google Drive links in your transactions still work and fix broken 
 
 - **Property managers** managing multiple rental properties
 - **Financial staff** processing bank transactions and invoices
+- **Freelancers and self-employed professionals** managing their own invoicing and time tracking
 - **Administrators** managing the platform for multiple tenants
 
 ## How is it built?

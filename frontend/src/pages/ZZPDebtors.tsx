@@ -7,16 +7,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Text, Spinner, useToast,
+  Box, Flex, Text, Spinner, useToast,
   Tabs, TabList, TabPanels, Tab, TabPanel,
   Table, Thead, Tbody, Tr, Th, Td,
   Badge, Button, Stat, StatLabel, StatNumber, StatGroup,
   Collapse, IconButton, HStack,
 } from '@chakra-ui/react';
-import { ChevronDownIcon, ChevronUpIcon, EmailIcon } from '@chakra-ui/icons';
+import { ChevronDownIcon, ChevronUpIcon, EmailIcon, RepeatClockIcon, CheckCircleIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { AgingData, InvoiceStatus } from '../types/zzp';
-import { getReceivables, getPayables, getAging, sendReminder } from '../services/debtorService';
+import { getReceivables, getPayables, getAging, sendReminder, markOverdue, runPaymentCheck } from '../services/debtorService';
 import { InvoiceStatusBadge } from '../components/zzp/InvoiceStatusBadge';
 import { AgingChart } from '../components/zzp/AgingChart';
 
@@ -48,10 +48,14 @@ const ZZPDebtors: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [expandedContact, setExpandedContact] = useState<number | null>(null);
   const [reminderLoading, setReminderLoading] = useState<number | null>(null);
+  const [overdueLoading, setOverdueLoading] = useState(false);
+  const [paymentCheckLoading, setPaymentCheckLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      // Silently run overdue detection before loading data so statuses are fresh
+      await markOverdue().catch(() => {});
       const [recvResp, payResp, agingResp] = await Promise.all([
         getReceivables(),
         getPayables(),
@@ -87,6 +91,54 @@ const ZZPDebtors: React.FC = () => {
       toast({ title: 'Error sending reminder', status: 'error' });
     } finally {
       setReminderLoading(null);
+    }
+  };
+
+  const handleCheckOverdue = async () => {
+    try {
+      setOverdueLoading(true);
+      const resp = await markOverdue();
+      if (resp.success) {
+        const count = resp.updated || 0;
+        toast({
+          title: count > 0
+            ? t('debtors.overdueMarked', '{{count}} invoice(s) marked as overdue').replace('{{count}}', String(count))
+            : t('debtors.noOverdue', 'No new overdue invoices found'),
+          status: count > 0 ? 'warning' : 'info',
+        });
+        loadData();
+      } else {
+        toast({ title: resp.error || 'Error checking overdue', status: 'error' });
+      }
+    } catch {
+      toast({ title: 'Error checking overdue invoices', status: 'error' });
+    } finally {
+      setOverdueLoading(false);
+    }
+  };
+
+  const handleRunPaymentCheck = async () => {
+    try {
+      setPaymentCheckLoading(true);
+      const resp = await runPaymentCheck();
+      if (resp.success) {
+        const { matched = 0, partial = 0, unmatched = 0 } = resp;
+        toast({
+          title: t('debtors.paymentCheckResult', 'Payment check: {{matched}} matched, {{partial}} partial, {{unmatched}} unmatched')
+            .replace('{{matched}}', String(matched))
+            .replace('{{partial}}', String(partial))
+            .replace('{{unmatched}}', String(unmatched)),
+          status: matched > 0 ? 'success' : 'info',
+          duration: 6000,
+        });
+        loadData();
+      } else {
+        toast({ title: resp.error || 'Error running payment check', status: 'error' });
+      }
+    } catch {
+      toast({ title: 'Error running payment check', status: 'error' });
+    } finally {
+      setPaymentCheckLoading(false);
     }
   };
 
@@ -164,11 +216,11 @@ const ZZPDebtors: React.FC = () => {
                                   <Td isNumeric>{formatCurrency(inv.grand_total)}</Td>
                                   {showReminder && (
                                     <Td>
-                                      {inv.status === 'overdue' && (
+                                      {(inv.status === 'overdue' || inv.status === 'sent') && (
                                         <Button
                                           size="xs"
                                           leftIcon={<EmailIcon />}
-                                          colorScheme="red"
+                                          colorScheme={inv.status === 'overdue' ? 'red' : 'orange'}
                                           variant="outline"
                                           isLoading={reminderLoading === inv.id}
                                           onClick={e => {
@@ -218,6 +270,37 @@ const ZZPDebtors: React.FC = () => {
 
   return (
     <Box p={6}>
+      {/* Header: title + actions */}
+      <Flex wrap="wrap" justify="space-between" align="center" mb={4} gap={2}>
+        <Text fontSize="xl" fontWeight="bold" color="white">
+          {t('debtors.title', 'Debtors & Creditors')}
+        </Text>
+        <HStack spacing={2}>
+          <Button
+            leftIcon={<RepeatClockIcon />}
+            size="sm"
+            variant="outline"
+            colorScheme="orange"
+            color="white"
+            isLoading={overdueLoading}
+            onClick={handleCheckOverdue}
+          >
+            {t('debtors.checkOverdue', 'Check Overdue')}
+          </Button>
+          <Button
+            leftIcon={<CheckCircleIcon />}
+            size="sm"
+            variant="outline"
+            colorScheme="green"
+            color="white"
+            isLoading={paymentCheckLoading}
+            onClick={handleRunPaymentCheck}
+          >
+            {t('debtors.runPaymentCheck', 'Payment Check')}
+          </Button>
+        </HStack>
+      </Flex>
+
       {/* Summary stats */}
       <StatGroup mb={6}>
         <Stat bg="gray.800" p={4} borderRadius="md" mr={4}>
