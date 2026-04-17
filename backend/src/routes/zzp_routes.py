@@ -89,7 +89,7 @@ def get_field_config(user_email, user_roles, tenant, user_tenants, entity):
 
     except Exception as e:
         logger.error("get_field_config error for %s/%s: %s", tenant, entity, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/field-config/<entity>', methods=['PUT'])
@@ -137,7 +137,7 @@ def update_field_config(user_email, user_roles, tenant, user_tenants, entity):
 
     except Exception as e:
         logger.error("update_field_config error for %s/%s: %s", tenant, entity, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Invoice service factory ─────────────────────────────────
@@ -209,7 +209,7 @@ def list_invoices(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': invoices})
     except Exception as e:
         logger.error("list_invoices error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/invoices/<int:invoice_id>', methods=['GET'])
@@ -226,7 +226,7 @@ def get_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
         return jsonify({'success': True, 'data': invoice})
     except Exception as e:
         logger.error("get_invoice error for %s/%s: %s", tenant, invoice_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/invoices', methods=['POST'])
@@ -246,7 +246,7 @@ def create_invoice(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("create_invoice error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/invoices/<int:invoice_id>', methods=['PUT'])
@@ -266,7 +266,7 @@ def update_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("update_invoice error for %s/%s: %s", tenant, invoice_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Invoice from Time Entries (Req 11.5–11.6) ──────────────
@@ -309,7 +309,7 @@ def create_invoice_from_time_entries(user_email, user_roles, tenant, user_tenant
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("create_invoice_from_time_entries error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Send & PDF Endpoints (Req 6, 8, 9) ─────────────────────
@@ -332,7 +332,7 @@ def send_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("send_invoice error for %s/%s: %s", tenant, invoice_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/invoices/<int:invoice_id>/pdf', methods=['GET'])
@@ -363,7 +363,7 @@ def get_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id):
         return jsonify({'success': False, 'error': 'PDF not available'}), 404
     except Exception as e:
         logger.error("get_invoice_pdf error for %s/%s: %s", tenant, invoice_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Credit Note Endpoint (Req 10) ──────────────────────────
@@ -383,7 +383,7 @@ def create_credit_note(user_email, user_roles, tenant, user_tenants, invoice_id)
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("create_credit_note error for %s/%s: %s", tenant, invoice_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Payment Check Endpoints (Req 7) ────────────────────────
@@ -403,7 +403,7 @@ def run_payment_check(user_email, user_roles, tenant, user_tenants):
         return jsonify(result)
     except Exception as e:
         logger.error("run_payment_check error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/payment-check/status', methods=['GET'])
@@ -433,7 +433,7 @@ def get_payment_check_status(user_email, user_roles, tenant, user_tenants):
         })
     except Exception as e:
         logger.error("get_payment_check_status error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Overdue Detection (Req 12.3) ───────────────────────────
@@ -455,7 +455,7 @@ def mark_overdue_invoices(user_email, user_roles, tenant, user_tenants):
         })
     except Exception as e:
         logger.error("mark_overdue error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Debtor/Creditor Endpoints (Req 12) ─────────────────────
@@ -504,7 +504,7 @@ def get_receivables(user_email, user_roles, tenant, user_tenants):
         })
     except Exception as e:
         logger.error("get_receivables error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/debtors/payables', methods=['GET'])
@@ -550,7 +550,7 @@ def get_payables(user_email, user_roles, tenant, user_tenants):
         })
     except Exception as e:
         logger.error("get_payables error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/debtors/aging', methods=['GET'])
@@ -625,7 +625,7 @@ def get_aging(user_email, user_roles, tenant, user_tenants):
         })
     except Exception as e:
         logger.error("get_aging error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/debtors/send-reminder/<int:invoice_id>', methods=['POST'])
@@ -658,7 +658,7 @@ def send_reminder(user_email, user_roles, tenant, user_tenants, invoice_id):
         return jsonify(result), 400
     except Exception as e:
         logger.error("send_reminder error for %s/%s: %s", tenant, invoice_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Time Tracking Endpoints (Req 11) ───────────────────────
@@ -699,7 +699,7 @@ def list_time_entries(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': entries})
     except Exception as e:
         logger.error("list_time_entries error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/time-entries', methods=['POST'])
@@ -721,7 +721,7 @@ def create_time_entry(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("create_time_entry error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/time-entries/<int:entry_id>', methods=['PUT'])
@@ -741,7 +741,7 @@ def update_time_entry(user_email, user_roles, tenant, user_tenants, entry_id):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("update_time_entry error for %s/%s: %s", tenant, entry_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/time-entries/<int:entry_id>', methods=['DELETE'])
@@ -758,7 +758,7 @@ def delete_time_entry(user_email, user_roles, tenant, user_tenants, entry_id):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("delete_time_entry error for %s/%s: %s", tenant, entry_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @zzp_bp.route('/api/zzp/time-entries/summary', methods=['GET'])
@@ -777,7 +777,7 @@ def get_time_summary(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': summary})
     except Exception as e:
         logger.error("get_time_summary error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Supporting Document Upload (Req 11.8–11.10) ────────────
@@ -835,7 +835,7 @@ def upload_supporting_document(user_email, user_roles, tenant, user_tenants, inv
     except Exception as e:
         logger.error("upload_supporting_document error for %s/%s: %s",
                      tenant, invoice_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Copy Last Invoice Endpoint (Req 13) ────────────────────
@@ -855,7 +855,7 @@ def copy_last_invoice(user_email, user_roles, tenant, user_tenants, contact_id):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("copy_last_invoice error for %s/contact %s: %s", tenant, contact_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Booking Account Validation (Req 19.6, Design §14.4) ────
@@ -949,7 +949,7 @@ def validate_booking_param(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         logger.error("validate_booking_param error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 # ── Account Endpoints (Req 17) ─────────────────────────────
@@ -999,4 +999,4 @@ def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': accounts})
     except Exception as e:
         logger.error("get_invoice_ledger_accounts error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500

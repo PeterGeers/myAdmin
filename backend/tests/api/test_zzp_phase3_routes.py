@@ -120,7 +120,7 @@ def test_get_invoice_pdf_stored_returns_url(zzp_client, mock_invoice_service):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['success'] is True
-    assert 'drive.google.com' in data['data']['url']
+    assert data['data']['url'].startswith('https://drive.google.com/')
 
 
 def test_get_invoice_pdf_regenerated_returns_file(zzp_client, mock_invoice_service):

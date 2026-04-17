@@ -217,7 +217,7 @@ def test_get_invoice_ledgers_db_error_returns_500(zzp_client, mock_db):
     assert resp.status_code == 500
     data = resp.get_json()
     assert data['success'] is False
-    assert 'DB connection failed' in data['error']
+    assert data['error'] == 'An internal error occurred'
 
 
 def test_get_invoice_ledgers_none_result_treated_as_empty(zzp_client, mock_db, mock_param_service):

@@ -53,7 +53,7 @@ def list_contacts(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': contacts})
     except Exception as e:
         logger.error("list_contacts error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @contact_bp.route('/api/contacts/<int:contact_id>', methods=['GET'])
@@ -70,7 +70,7 @@ def get_contact(user_email, user_roles, tenant, user_tenants, contact_id):
         return jsonify({'success': True, 'data': contact})
     except Exception as e:
         logger.error("get_contact error for %s/%s: %s", tenant, contact_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @contact_bp.route('/api/contacts', methods=['POST'])
@@ -90,7 +90,7 @@ def create_contact(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("create_contact error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @contact_bp.route('/api/contacts/<int:contact_id>', methods=['PUT'])
@@ -110,7 +110,7 @@ def update_contact(user_email, user_roles, tenant, user_tenants, contact_id):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("update_contact error for %s/%s: %s", tenant, contact_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @contact_bp.route('/api/contacts/<int:contact_id>', methods=['DELETE'])
@@ -127,7 +127,7 @@ def delete_contact(user_email, user_roles, tenant, user_tenants, contact_id):
         return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         logger.error("delete_contact error for %s/%s: %s", tenant, contact_id, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 
 @contact_bp.route('/api/contacts/types', methods=['GET'])
@@ -142,4 +142,4 @@ def get_contact_types(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': True, 'data': types})
     except Exception as e:
         logger.error("get_contact_types error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
