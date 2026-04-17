@@ -75,9 +75,10 @@ PARAMETER_SCHEMA = {
             },
         },
     },
-    'branding': {
-        'label': 'Branding',
-        'label_nl': 'Huisstijl',
+    'str_branding': {
+        'label': 'STR Branding',
+        'label_nl': 'STR Huisstijl',
+        'module': 'STR',
         'params': {
             'company_logo_file_id': {
                 'label': 'Company Logo (Google Drive File ID)',
@@ -120,6 +121,67 @@ PARAMETER_SCHEMA = {
                 'label_nl': 'KvK-nummer',
                 'type': 'string',
                 'description': 'Chamber of Commerce registration number',
+            },
+            'contact_email': {
+                'label': 'Contact Email',
+                'label_nl': 'Contact E-mail',
+                'type': 'string',
+                'description': 'Contact email shown on invoices',
+            },
+        },
+    },
+    'zzp_branding': {
+        'label': 'ZZP Branding',
+        'label_nl': 'ZZP Huisstijl',
+        'module': 'ZZP',
+        'params': {
+            'company_logo_file_id': {
+                'label': 'Company Logo (Google Drive File ID)',
+                'label_nl': 'Bedrijfslogo (Google Drive Bestands-ID)',
+                'type': 'string',
+                'description': 'Google Drive file ID for company logo',
+            },
+            'company_name': {
+                'label': 'Company Name',
+                'label_nl': 'Bedrijfsnaam',
+                'type': 'string',
+                'description': 'Legal company name for ZZP invoices',
+            },
+            'company_address': {
+                'label': 'Company Address',
+                'label_nl': 'Bedrijfsadres',
+                'type': 'string',
+                'description': 'Street address',
+            },
+            'company_postal_city': {
+                'label': 'Postal Code & City',
+                'label_nl': 'Postcode & Plaats',
+                'type': 'string',
+                'description': 'Postal code and city (e.g. 2131 ZA Hoofddorp)',
+            },
+            'company_country': {
+                'label': 'Country',
+                'label_nl': 'Land',
+                'type': 'string',
+                'description': 'Country name',
+            },
+            'company_vat': {
+                'label': 'VAT Number',
+                'label_nl': 'BTW-nummer',
+                'type': 'string',
+                'description': 'VAT registration number',
+            },
+            'company_coc': {
+                'label': 'Chamber of Commerce Number',
+                'label_nl': 'KvK-nummer',
+                'type': 'string',
+                'description': 'Chamber of Commerce registration number',
+            },
+            'company_phone': {
+                'label': 'Phone Number',
+                'label_nl': 'Telefoonnummer',
+                'type': 'string',
+                'description': 'Phone number shown on invoices',
             },
             'contact_email': {
                 'label': 'Contact Email',

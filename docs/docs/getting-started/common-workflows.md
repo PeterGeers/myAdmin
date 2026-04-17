@@ -37,6 +37,37 @@ Dit is een snelle referentie voor de meest voorkomende taken. Elke workflow verw
 
 → Meer: [Boekingen importeren](../str/importing-bookings.md)
 
+## ZZP taken
+
+### Factuur aanmaken en versturen
+
+1. Ga naar **ZZP** → **Facturen**
+2. Klik op **Nieuwe factuur** en selecteer het contact
+3. Voeg regelitems toe vanuit je productcatalogus
+4. Controleer de totalen en klik op **Opslaan**
+5. Open het concept en klik op **Versturen**
+
+→ Meer: [Facturen aanmaken](../zzp/creating-invoices.md) | [Facturen versturen](../zzp/sending-invoices.md)
+
+### Uren registreren
+
+1. Ga naar **ZZP** → **Urenregistratie**
+2. Klik op **Nieuwe registratie**
+3. Selecteer het contact, vul de uren en het tarief in
+4. Klik op **Opslaan**
+5. Maak een factuur aan vanuit de geregistreerde uren
+
+→ Meer: [Urenregistratie](../zzp/time-tracking.md)
+
+### Betalingen controleren
+
+1. Importeer je bankafschriften via **Bankzaken**
+2. Ga naar **ZZP** → **Debiteuren**
+3. Klik op **Betalingen controleren**
+4. Het systeem matcht betalingen automatisch met openstaande facturen
+
+→ Meer: [Debiteuren & crediteuren](../zzp/debtors.md)
+
 ## Periodieke taken
 
 ### BTW-aangifte voorbereiden

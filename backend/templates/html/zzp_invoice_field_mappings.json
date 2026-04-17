@@ -1,0 +1,182 @@
+{
+  "fields": {
+    "invoice_number": {
+      "source": "database",
+      "path": "invoice_number",
+      "format": "text",
+      "default": ""
+    },
+    "invoice_date": {
+      "source": "database",
+      "path": "invoice_date",
+      "format": "date",
+      "default": ""
+    },
+    "due_date": {
+      "source": "database",
+      "path": "due_date",
+      "format": "date",
+      "default": ""
+    },
+    "payment_terms": {
+      "source": "database",
+      "path": "payment_terms_days",
+      "format": "number",
+      "default": 30
+    },
+    "currency": {
+      "source": "database",
+      "path": "currency",
+      "format": "text",
+      "default": "EUR"
+    },
+    "company_name": {
+      "source": "database",
+      "path": "contact.company_name",
+      "format": "text",
+      "default": ""
+    },
+    "contact_person": {
+      "source": "database",
+      "path": "contact.contact_person",
+      "format": "text",
+      "default": ""
+    },
+    "street_address": {
+      "source": "database",
+      "path": "contact.street_address",
+      "format": "text",
+      "default": ""
+    },
+    "postal_code": {
+      "source": "database",
+      "path": "contact.postal_code",
+      "format": "text",
+      "default": ""
+    },
+    "city": {
+      "source": "database",
+      "path": "contact.city",
+      "format": "text",
+      "default": ""
+    },
+    "country": {
+      "source": "database",
+      "path": "contact.country",
+      "format": "text",
+      "default": ""
+    },
+    "client_vat": {
+      "source": "database",
+      "path": "contact.vat_number",
+      "format": "text",
+      "default": ""
+    },
+    "client_id": {
+      "source": "database",
+      "path": "contact.client_id",
+      "format": "text",
+      "default": ""
+    },
+    "subtotal": {
+      "source": "database",
+      "path": "subtotal",
+      "format": "currency",
+      "transform": "round",
+      "default": 0
+    },
+    "grand_total": {
+      "source": "database",
+      "path": "grand_total",
+      "format": "currency",
+      "transform": "round",
+      "default": 0
+    },
+    "notes": {
+      "source": "database",
+      "path": "notes",
+      "format": "text",
+      "default": ""
+    },
+    "lines": {
+      "source": "calculation",
+      "path": "lines",
+      "format": "text",
+      "default": ""
+    },
+    "vat_summary": {
+      "source": "calculation",
+      "path": "vat_summary",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_name": {
+      "source": "static",
+      "path": "tenant_name",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_address": {
+      "source": "static",
+      "path": "tenant_address",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_postal_city": {
+      "source": "static",
+      "path": "tenant_postal_city",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_country": {
+      "source": "static",
+      "path": "tenant_country",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_vat": {
+      "source": "static",
+      "path": "tenant_vat",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_coc": {
+      "source": "static",
+      "path": "tenant_coc",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_iban": {
+      "source": "static",
+      "path": "tenant_iban",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_phone": {
+      "source": "static",
+      "path": "tenant_phone",
+      "format": "text",
+      "default": ""
+    },
+    "tenant_email": {
+      "source": "static",
+      "path": "tenant_email",
+      "format": "text",
+      "default": ""
+    }
+  },
+  "conditionals": [
+    {
+      "field": "notes",
+      "operator": "ne",
+      "value": "",
+      "action": "show"
+    }
+  ],
+  "formatting": {
+    "locale": "nl_NL",
+    "currency": "EUR",
+    "date_format": "DD-MM-YYYY",
+    "number_decimals": 2
+  }
+}

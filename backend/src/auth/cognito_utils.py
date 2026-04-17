@@ -82,6 +82,17 @@ ROLE_PERMISSIONS = {
         'bookings_export',
         'reports_read', 'reports_export'
     ],
+
+    # ZZP Module - Freelancer administration (invoicing, contacts, time tracking, debtors)
+    'ZZP_Read': [
+        'zzp_read', 'zzp_list',
+    ],
+    'ZZP_CRUD': [
+        'zzp_read', 'zzp_list', 'zzp_crud', 'zzp_export', 'zzp_tenant',
+    ],
+    'ZZP_Export': [
+        'zzp_read', 'zzp_list', 'zzp_export',
+    ],
 }
 
 

@@ -81,18 +81,31 @@ def get_tenant_enabled_modules(tenant):
 
 
 def get_available_roles_for_tenant(tenant):
-    """Get list of roles available for tenant based on enabled modules"""
+    """Get list of roles available for tenant based on enabled modules.
+
+    Reads required_roles from MODULE_REGISTRY so new modules are picked up
+    automatically without changing this function.
+    """
+    from services.module_registry import MODULE_REGISTRY
+
     enabled_modules = get_tenant_enabled_modules(tenant)
-    
-    available_roles = ['Tenant_Admin']  # Always available
-    
-    # Add module-specific roles based on enabled modules
-    if 'FIN' in enabled_modules:
-        available_roles.extend(['Finance_CRUD', 'Finance_Read', 'Finance_Export'])
-    
-    if 'STR' in enabled_modules:
-        available_roles.extend(['STR_CRUD', 'STR_Read', 'STR_Export'])
-    
+
+    roles = ['Tenant_Admin']  # Always available
+
+    # Add module-specific roles dynamically from MODULE_REGISTRY
+    for module_name in enabled_modules:
+        module_def = MODULE_REGISTRY.get(module_name)
+        if module_def:
+            roles.extend(module_def.get('required_roles', []))
+
+    # Deduplicate while preserving order
+    seen = set()
+    available_roles = []
+    for r in roles:
+        if r not in seen:
+            seen.add(r)
+            available_roles.append(r)
+
     return available_roles
 
 

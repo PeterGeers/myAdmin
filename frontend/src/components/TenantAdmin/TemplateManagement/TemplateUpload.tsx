@@ -50,6 +50,7 @@ const TEMPLATE_TYPES: Array<{ value: TemplateType; label: string; description: s
   { value: 'aangifte_ib', label: 'Aangifte IB', description: 'Income tax declaration report' },
   { value: 'toeristenbelasting', label: 'Toeristenbelasting', description: 'Tourist tax report' },
   { value: 'financial_report', label: 'Financial Report', description: 'General financial report' },
+  { value: 'zzp_invoice', label: 'ZZP Invoice', description: 'ZZP freelancer invoice template' },
 ];
 
 /**

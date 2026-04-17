@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Box, Table, Thead, Tbody, Tr, Th, Td, Badge, Button, Grid,
-  useToast, useDisclosure, Spinner, Text, HStack, Select,
+  useToast, useDisclosure, Spinner, Text, HStack,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
-  FormControl, FormLabel, Input, Textarea, Switch,
+  FormControl, FormLabel, Input, Textarea, Switch, Select,
   AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader,
   AlertDialogBody, AlertDialogFooter,
 } from '@chakra-ui/react';
@@ -11,6 +11,8 @@ import { AddIcon } from '@chakra-ui/icons';
 import { Parameter, ParameterCreateRequest } from '../../types/parameterTypes';
 import { getParameters, createParameter, updateParameter, deleteParameter } from '../../services/parameterService';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import { FilterPanel } from '../../components/filters/FilterPanel';
+import { SearchFilterConfig } from '../../components/filters/types';
 
 interface Props { tenant: string; }
 
@@ -18,7 +20,7 @@ export default function ParameterManagement({ tenant }: Props) {
   const { t } = useTypedTranslation('admin');
   const [params, setParams] = useState<Record<string, Parameter[]>>({});
   const [loading, setLoading] = useState(true);
-  const [nsFilter, setNsFilter] = useState('');
+  const [filters, setFilters] = useState({ namespace: '', key: '', value: '', value_type: '', scope_origin: '' });
   const [editing, setEditing] = useState<Parameter | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,17 +37,36 @@ export default function ParameterManagement({ tenant }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getParameters(nsFilter || undefined);
+      const data = await getParameters();
       setParams(data.parameters || {});
     } catch (e: any) {
       toast({ title: t('tenantAdmin.parameters.loading'), description: e.message, status: 'error', duration: 5000 });
     } finally { setLoading(false); }
-  }, [tenant, nsFilter, toast]);
+  }, [tenant, toast]);
 
   useEffect(() => { load(); }, [load]);
 
   const namespaces = Object.keys(params).sort();
   const allParams: Parameter[] = namespaces.flatMap(ns => params[ns] || []);
+
+  const filteredParams = useMemo(() => allParams.filter(p => {
+    const pValue = p.is_secret ? '********' : typeof p.value === 'object' ? JSON.stringify(p.value) : String(p.value ?? '');
+    return (
+      (!filters.namespace || p.namespace.toLowerCase().includes(filters.namespace.toLowerCase())) &&
+      (!filters.key || p.key.toLowerCase().includes(filters.key.toLowerCase())) &&
+      (!filters.value || pValue.toLowerCase().includes(filters.value.toLowerCase())) &&
+      (!filters.value_type || p.value_type.toLowerCase().includes(filters.value_type.toLowerCase())) &&
+      (!filters.scope_origin || (p.scope_origin || '').toLowerCase().includes(filters.scope_origin.toLowerCase()))
+    );
+  }), [allParams, filters]);
+
+  const searchFilters: SearchFilterConfig[] = [
+    { type: 'search', label: t('tenantAdmin.parameters.namespace'), value: filters.namespace, onChange: (v) => setFilters(prev => ({ ...prev, namespace: v })), placeholder: 'Filter...', size: 'sm' },
+    { type: 'search', label: t('tenantAdmin.parameters.key'), value: filters.key, onChange: (v) => setFilters(prev => ({ ...prev, key: v })), placeholder: 'Filter...', size: 'sm' },
+    { type: 'search', label: t('tenantAdmin.parameters.value'), value: filters.value, onChange: (v) => setFilters(prev => ({ ...prev, value: v })), placeholder: 'Filter...', size: 'sm' },
+    { type: 'search', label: t('tenantAdmin.parameters.valueType'), value: filters.value_type, onChange: (v) => setFilters(prev => ({ ...prev, value_type: v })), placeholder: 'Filter...', size: 'sm' },
+    { type: 'search', label: t('tenantAdmin.parameters.scope'), value: filters.scope_origin, onChange: (v) => setFilters(prev => ({ ...prev, scope_origin: v })), placeholder: 'Filter...', size: 'sm' },
+  ];
 
   const handleAdd = () => {
     setIsNew(true); setEditing(null);
@@ -100,16 +121,16 @@ export default function ParameterManagement({ tenant }: Props) {
 
   return (
     <Box>
-      <HStack mb={4} justify="space-between">
-        <Select placeholder="All namespaces" value={nsFilter} onChange={e => setNsFilter(e.target.value)} bg="gray.700" color="gray.200" borderColor="gray.600" w="200px" size="sm">
-          {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
-        </Select>
+      <HStack mb={4} justify="flex-end">
         <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={handleAdd}>{t('tenantAdmin.parameters.addParameter')}</Button>
       </HStack>
+      <Box mb={4}>
+        <FilterPanel filters={searchFilters} layout="horizontal" size="sm" spacing={2} />
+      </Box>
       <Table variant="simple" size="sm">
         <Thead><Tr><Th color="gray.400">{t('tenantAdmin.parameters.namespace')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.key')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.value')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.valueType')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.scope')}</Th></Tr></Thead>
         <Tbody>
-          {allParams.map((p, i) => (
+          {filteredParams.map((p, i) => (
             <Tr key={`${p.namespace}-${p.key}-${i}`} cursor={p.scope_origin !== 'system' ? 'pointer' : 'default'} _hover={p.scope_origin !== 'system' ? { bg: 'gray.600' } : {}} onClick={() => handleRowClick(p)}>
               <Td color="white" fontSize="sm">{p.namespace}</Td>
               <Td color="white" fontSize="sm">{p.key}</Td>
@@ -118,7 +139,7 @@ export default function ParameterManagement({ tenant }: Props) {
               <Td><Badge colorScheme={p.scope_origin === 'tenant' ? 'orange' : 'gray'} fontSize="xs">{p.scope_origin}</Badge></Td>
             </Tr>
           ))}
-          {allParams.length === 0 && <Tr><Td colSpan={5} color="gray.500" textAlign="center">{t('tenantAdmin.parameters.noParameters')}</Td></Tr>}
+          {filteredParams.length === 0 && <Tr><Td colSpan={5} color="gray.500" textAlign="center">{t('tenantAdmin.parameters.noParameters')}</Td></Tr>}
         </Tbody>
       </Table>
 

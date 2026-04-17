@@ -26,3 +26,6 @@ phonenumbers==9.0.22
 PyJWT==2.10.1
 python-jose==3.5.0
 cryptography==41.0.7
+
+babel>=2.14.0
+weasyprint>=60.0

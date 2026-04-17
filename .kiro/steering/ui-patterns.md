@@ -41,8 +41,19 @@ Follow the BankingProcessor pattern:
 
 ## Translation (i18n)
 
-- All user-facing text uses `useTranslation()` with namespaced keys
+- Use `useTypedTranslation(namespace)` from `hooks/useTypedTranslation.ts` — NOT `useTranslation` directly (CRA TypeScript workaround)
+- All user-facing text uses namespaced keys
 - Key pattern: `{namespace}:{category}.{key}` (e.g., `common:buttons.save`)
 - Categories: `buttons` (actions), `labels` (form fields), `messages` (feedback), `titles` (headings)
 - Never hardcode user-visible strings
 - Conventions: `.kiro/specs/Common/Internationalization/TRANSLATION_KEY_CONVENTIONS.md`
+
+## Filters
+
+Use the generic filter framework for consistent filtering across all list views.
+
+- Filter bar sits between page header and table
+- Filters are dropdowns, date pickers, or text inputs — never inline in the table
+- Filter state managed via URL query params for shareable/bookmarkable views
+- Clear all / reset button to return to default view
+- Reference: `.kiro/specs/Common/Filters a generic approach/`

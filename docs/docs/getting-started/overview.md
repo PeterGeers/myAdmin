@@ -16,6 +16,10 @@ Importeer CSV-bankafschriften (Rabobank-formaat), laat het systeem automatisch r
 
 Upload PDF-facturen en laat AI de gegevens uitlezen. Controleer het resultaat, pas aan waar nodig en sla alles op in Google Drive.
 
+### ZZP facturatie
+
+Maak en verstuur facturen aan je klanten, registreer uren per project en beheer je debiteuren en crediteuren. Speciaal ontworpen voor zzp'ers en freelancers.
+
 ### Kortetermijnverhuur (STR)
 
 Verwerk omzetbestanden van Airbnb en Booking.com. Bekijk gerealiseerde en geplande boekingen en toekomstige omzetoverzichten.
@@ -40,6 +44,7 @@ Controleer of Google Drive-links in je transacties nog werken en repareer verbro
 
 - **Vastgoedbeheerders** die meerdere verhuurobjecten beheren
 - **Financieel medewerkers** die banktransacties en facturen verwerken
+- **ZZP'ers en freelancers** die hun eigen facturatie en urenregistratie beheren
 - **Administrateurs** die het platform beheren voor meerdere tenants
 
 ## Hoe is het opgebouwd?

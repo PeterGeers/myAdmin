@@ -56,6 +56,10 @@ class TemplateService:
             'template': 'xlsx/template.xlsx',
             'field_mappings': 'xlsx/financial_report_field_mappings.json',
         },
+        'zzp_invoice': {
+            'template': 'html/zzp_invoice_template.html',
+            'field_mappings': 'html/zzp_invoice_field_mappings.json',
+        },
     }
     
     def __init__(self, db_manager):
