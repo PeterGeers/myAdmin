@@ -3,9 +3,14 @@
  * 
  * Allows tenant admins to view, create, edit, delete, import, and export
  * accounts from the chart of accounts (rekeningschema).
+ *
+ * Uses the table-filter-framework-v2 hybrid approach:
+ * - useTableConfig('chart_of_accounts') for parameter-driven column/filter config
+ * - useFilterableTable for combined filtering + sorting
+ * - FilterableHeader for inline column text filters with sort indicators
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -15,7 +20,6 @@ import {
   Thead,
   Tbody,
   Tr,
-  Th,
   Td,
   Spinner,
   Text,
@@ -35,38 +39,70 @@ import {
 } from '../../services/chartOfAccountsService';
 import { Account, AccountFormData } from '../../types/chartOfAccounts';
 import AccountModal from './AccountModal';
-import { FilterPanel } from '../filters/FilterPanel';
-import { SearchFilterConfig } from '../filters/types';
+import { FilterableHeader } from '../filters/FilterableHeader';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
+import { useTableConfig } from '../../hooks/useTableConfig';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 
 interface ChartOfAccountsProps {
   tenant: string;
 }
 
+/**
+ * Map column keys (from useTableConfig) to translation-based display labels.
+ * Falls back to the raw key if no label is defined.
+ */
+function useColumnLabels() {
+  const { t } = useTypedTranslation('admin');
+  return useMemo<Record<string, string>>(() => ({
+    Account: t('chartOfAccounts.table.account'),
+    AccountName: t('chartOfAccounts.table.name'),
+    AccountLookup: t('chartOfAccounts.table.lookup'),
+    SubParent: t('chartOfAccounts.table.subParent'),
+    Parent: t('chartOfAccounts.table.parent'),
+    VW: t('chartOfAccounts.table.vw'),
+    Belastingaangifte: t('chartOfAccounts.table.taxCategory'),
+    parameters: 'Parameters',
+  }), [t]);
+}
+
 const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
   const { t } = useTypedTranslation('admin');
+  const columnLabels = useColumnLabels();
+
   // State
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [hasFIN, setHasFIN] = useState(true);
-  
-  // Search filters - separate field for each column
-  const [searchFilters, setSearchFilters] = useState({
-    Account: '',
-    AccountName: '',
-    AccountLookup: '',
-    SubParent: '',
-    Parent: '',
-    VW: '',
-    Belastingaangifte: '',
-    parameters: ''
-  });
-  
+
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+
+  // Parameter-driven table configuration
+  const tableConfig = useTableConfig('chart_of_accounts');
+
+  // Build initial filters from configured filterable columns
+  const initialFilters = useMemo(
+    () => Object.fromEntries(tableConfig.filterableColumns.map((col) => [col, ''])),
+    [tableConfig.filterableColumns],
+  );
+
+  // Combined filtering + sorting via framework hook
+  const {
+    filters,
+    setFilter,
+    resetFilters,
+    hasActiveFilters,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<Account>(accounts, {
+    initialFilters,
+    defaultSort: tableConfig.defaultSort,
+  });
 
   // Load accounts
   const loadAccounts = async () => {
@@ -75,7 +111,6 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       // Request all accounts (limit=1000 is the max allowed by backend)
       const response = await listAccounts({ limit: 1000 });
       setAccounts(response.accounts);
-      setFilteredAccounts(response.accounts);
     } catch (error) {
       // Check if it's a FIN module error
       if (error instanceof Error && error.message.includes('FIN module')) {
@@ -99,18 +134,6 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant]);
-
-  // Filter accounts when search filters change
-  useEffect(() => {
-    const filtered = accounts.filter((acc) => {
-      return Object.entries(searchFilters).every(([key, value]) => {
-        if (!value) return true;
-        const fieldValue = acc[key as keyof Account]?.toString().toLowerCase() || '';
-        return fieldValue.includes(value.toLowerCase());
-      });
-    });
-    setFilteredAccounts(filtered);
-  }, [searchFilters, accounts]);
 
   // Handlers
   const handleAddClick = () => {
@@ -243,6 +266,33 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
     event.target.value = '';
   };
 
+  // Render cell value with column-specific styling
+  const renderCellValue = (account: Account, col: string) => {
+    const value = account[col as keyof Account];
+    switch (col) {
+      case 'Account':
+        return (
+          <Td color="orange.400" fontWeight="medium">
+            {value}
+          </Td>
+        );
+      case 'AccountName':
+        return <Td color="white">{value}</Td>;
+      case 'parameters':
+        return (
+          <Td color="gray.300" fontSize="xs" maxW="200px" title={String(value || '')}>
+            {value
+              ? (String(value).length > 30
+                  ? String(value).substring(0, 30) + '...'
+                  : String(value))
+              : '-'}
+          </Td>
+        );
+      default:
+        return <Td color="gray.300">{value || '-'}</Td>;
+    }
+  };
+
   // Show alert if FIN module not enabled
   if (!hasFIN) {
     return (
@@ -267,7 +317,7 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       {/* Header with actions and results summary */}
       <HStack justify="space-between" wrap="wrap">
         <Text color="gray.400" fontSize="sm">
-          {t('chartOfAccounts.showingResults', { filtered: filteredAccounts.length, total: accounts.length })}
+          {t('chartOfAccounts.showingResults', { filtered: processedData.length, total: accounts.length })}
         </Text>
         <HStack spacing={2}>
           <Button
@@ -304,89 +354,12 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
         </HStack>
       </HStack>
 
-      {/* Search Filters using FilterPanel framework */}
-      <FilterPanel
-        layout="horizontal"
-        size="sm"
-        spacing={2}
-        labelColor="gray.300"
-        bg="gray.800"
-        color="white"
-        filters={[
-          {
-            type: 'search',
-            label: t('chartOfAccounts.filters.accountNumber'),
-            value: searchFilters.Account,
-            onChange: (value) => setSearchFilters(prev => ({...prev, Account: value})),
-            placeholder: t('chartOfAccounts.filters.accountNumberPlaceholder')
-          } as SearchFilterConfig,
-          {
-            type: 'search',
-            label: t('chartOfAccounts.filters.accountName'),
-            value: searchFilters.AccountName,
-            onChange: (value) => setSearchFilters(prev => ({...prev, AccountName: value})),
-            placeholder: t('chartOfAccounts.filters.accountNamePlaceholder')
-          } as SearchFilterConfig,
-          {
-            type: 'search',
-            label: t('chartOfAccounts.filters.lookupCode'),
-            value: searchFilters.AccountLookup,
-            onChange: (value) => setSearchFilters(prev => ({...prev, AccountLookup: value})),
-            placeholder: t('chartOfAccounts.filters.lookupCodePlaceholder')
-          } as SearchFilterConfig,
-          {
-            type: 'search',
-            label: t('chartOfAccounts.filters.subParent'),
-            value: searchFilters.SubParent,
-            onChange: (value) => setSearchFilters(prev => ({...prev, SubParent: value})),
-            placeholder: t('chartOfAccounts.filters.subParentPlaceholder')
-          } as SearchFilterConfig,
-          {
-            type: 'search',
-            label: t('chartOfAccounts.filters.parent'),
-            value: searchFilters.Parent,
-            onChange: (value) => setSearchFilters(prev => ({...prev, Parent: value})),
-            placeholder: t('chartOfAccounts.filters.parentPlaceholder')
-          } as SearchFilterConfig,
-          {
-            type: 'search',
-            label: t('chartOfAccounts.filters.vw'),
-            value: searchFilters.VW,
-            onChange: (value) => setSearchFilters(prev => ({...prev, VW: value})),
-            placeholder: t('chartOfAccounts.filters.vwPlaceholder')
-          } as SearchFilterConfig,
-          {
-            type: 'search',
-            label: t('chartOfAccounts.filters.taxCategory'),
-            value: searchFilters.Belastingaangifte,
-            onChange: (value) => setSearchFilters(prev => ({...prev, Belastingaangifte: value})),
-            placeholder: t('chartOfAccounts.filters.taxCategoryPlaceholder')
-          } as SearchFilterConfig,
-          {
-            type: 'search',
-            label: 'Parameters',
-            value: searchFilters.parameters,
-            onChange: (value) => setSearchFilters(prev => ({...prev, parameters: value})),
-            placeholder: 'Search by parameters...'
-          } as SearchFilterConfig
-        ]}
-      />
-      
       {/* Clear filters button */}
-      {Object.values(searchFilters).some(v => v) && (
+      {hasActiveFilters && (
         <Button
           variant="link"
           colorScheme="orange"
-          onClick={() => setSearchFilters({
-            Account: '',
-            AccountName: '',
-            AccountLookup: '',
-            SubParent: '',
-            Parent: '',
-            VW: '',
-            Belastingaangifte: '',
-            parameters: ''
-          })}
+          onClick={resetFilters}
           size="sm"
         >
           {t('chartOfAccounts.clearAllFilters')}
@@ -396,20 +369,26 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
       {/* Accounts table */}
       <Box overflowX="auto" bg="gray.800" borderRadius="md" border="1px" borderColor="gray.700">
         <Table variant="simple" size="sm">
-          <Thead bg="gray.700">
+          <Thead>
             <Tr>
-              <Th color="gray.300">{t('chartOfAccounts.table.account')}</Th>
-              <Th color="gray.300">{t('chartOfAccounts.table.name')}</Th>
-              <Th color="gray.300">{t('chartOfAccounts.table.lookup')}</Th>
-              <Th color="gray.300">{t('chartOfAccounts.table.subParent')}</Th>
-              <Th color="gray.300">{t('chartOfAccounts.table.parent')}</Th>
-              <Th color="gray.300">{t('chartOfAccounts.table.vw')}</Th>
-              <Th color="gray.300">{t('chartOfAccounts.table.taxCategory')}</Th>
-              <Th color="gray.300">Parameters</Th>
+              {tableConfig.columns.map((col) => {
+                const isFilterable = tableConfig.filterableColumns.includes(col);
+                return (
+                  <FilterableHeader
+                    key={col}
+                    label={columnLabels[col] || col}
+                    filterValue={isFilterable ? filters[col] : undefined}
+                    onFilterChange={isFilterable ? (v) => setFilter(col, v) : undefined}
+                    sortable
+                    sortDirection={sortField === col ? sortDirection : null}
+                    onSort={() => handleSort(col)}
+                  />
+                );
+              })}
             </Tr>
           </Thead>
           <Tbody>
-            {filteredAccounts.map((account) => (
+            {processedData.map((account) => (
               <Tr
                 key={account.Account}
                 onClick={() => handleRowClick(account)}
@@ -417,47 +396,27 @@ const ChartOfAccounts: React.FC<ChartOfAccountsProps> = ({ tenant }) => {
                 _hover={{ bg: 'gray.700' }}
                 transition="background 0.2s"
               >
-                <Td color="orange.400" fontWeight="medium">
-                  {account.Account}
-                </Td>
-                <Td color="white">{account.AccountName}</Td>
-                <Td color="gray.300">{account.AccountLookup}</Td>
-                <Td color="gray.300">{account.SubParent || '-'}</Td>
-                <Td color="gray.300">{account.Parent || '-'}</Td>
-                <Td color="gray.300">{account.VW || '-'}</Td>
-                <Td color="gray.300">{account.Belastingaangifte}</Td>
-                <Td color="gray.300" fontSize="xs" maxW="200px" title={account.parameters || ''}>
-                  {account.parameters 
-                    ? (account.parameters.length > 30 
-                        ? account.parameters.substring(0, 30) + '...' 
-                        : account.parameters)
-                    : '-'}
-                </Td>
+                {tableConfig.columns.map((col) => (
+                  <React.Fragment key={col}>
+                    {renderCellValue(account, col)}
+                  </React.Fragment>
+                ))}
               </Tr>
             ))}
           </Tbody>
         </Table>
 
         {/* Empty state */}
-        {filteredAccounts.length === 0 && (
+        {processedData.length === 0 && (
           <Box textAlign="center" py={8}>
             <Text color="gray.400">
-              {Object.values(searchFilters).some(v => v) ? t('chartOfAccounts.emptyState.noMatches') : t('chartOfAccounts.emptyState.noAccounts')}
+              {hasActiveFilters ? t('chartOfAccounts.emptyState.noMatches') : t('chartOfAccounts.emptyState.noAccounts')}
             </Text>
-            {Object.values(searchFilters).some(v => v) && (
+            {hasActiveFilters && (
               <Button
                 variant="link"
                 colorScheme="orange"
-                onClick={() => setSearchFilters({
-                  Account: '',
-                  AccountName: '',
-                  AccountLookup: '',
-                  SubParent: '',
-                  Parent: '',
-                  VW: '',
-                  Belastingaangifte: '',
-                  parameters: ''
-                })}
+                onClick={resetFilters}
                 mt={2}
               >
                 {t('chartOfAccounts.clearFilters')}
