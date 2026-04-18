@@ -249,78 +249,84 @@ Phased implementation of the table filter framework v2: new hooks (`useColumnFil
     - Preserve provision functionality via modal
     - _Requirements: 7.4, 7.5_
 
-- [-] 12. Checkpoint — High-priority migrations complete
+- [x] 12. Checkpoint — High-priority migrations complete
   - Ensure MutatiesReport, ProfitLoss, ClosedYearsTable, ProvisioningPanel compile without errors
   - Verify all migrated components preserve existing functionality
   - Ensure all tests pass, ask the user if questions arise.
   - Push to github main
 
-- [ ] 13. Medium-priority component migrations (FilterPanel swaps)
-  - [ ] 13.1 Migrate ZZPContacts (Pattern A: FilterPanel swap)
+- [x] 13. Medium-priority component migrations (FilterPanel swaps)
+  - [x] 13.1 Migrate ZZPContacts (Pattern A: FilterPanel swap)
     - Replace standalone `Select` for type filter with `FilterPanel` + `GenericFilter`
     - Preserve row-click modal and all existing functionality
     - _Requirements: 8.1, 8.9_
 
-  - [ ] 13.2 Migrate ZZPInvoices (Pattern A: FilterPanel swap)
+  - [x] 13.2 Migrate ZZPInvoices (Pattern A: FilterPanel swap)
     - Replace standalone `Input` + `Select` with `FilterPanel` + `GenericFilter` + `SearchFilterConfig`
-    - Preserve row-click navigation and all existing functionality
+    - Adjust to the standard table handlingight
     - _Requirements: 8.2, 8.9_
 
-  - [ ] 13.3 Migrate ZZPTimeTracking (Pattern A: FilterPanel swap)
+  - [x] 13.3 Migrate ZZPTimeTracking (Pattern A: FilterPanel swap)
     - Replace standalone `Select` + `Input` with `FilterPanel` + `GenericFilter` + `SearchFilterConfig`
     - Preserve row-click and card/table view toggle and all existing functionality
     - _Requirements: 8.3, 8.9_
 
-  - [ ] 13.4 Migrate TaxRateManagement (Pattern A: FilterPanel swap)
+  - [x] 13.4 Migrate TaxRateManagement (Pattern A: FilterPanel swap)
     - Replace standalone `Select` for type filter with `FilterPanel` + `GenericFilter`
     - Preserve row-click modal and all existing functionality
     - _Requirements: 8.4, 8.9_
 
-  - [ ] 13.5 Migrate AssetList (Pattern A+B: FilterPanel swap + hook)
+  - [x] 13.5 Migrate AssetList (Pattern A+B: FilterPanel swap + hook)
     - Replace standalone `Input` + `Select` with `FilterPanel` + `GenericFilter` + `SearchFilterConfig`
     - Add `useTableSort` if sort boilerplate exists
     - Preserve row-click detail modal and all existing functionality
     - _Requirements: 8.5, 8.9_
 
-- [ ] 14. Medium-priority component migrations (row-click fixes)
-  - [ ] 14.1 Migrate UserManagement (Pattern A+D: FilterPanel swap + row-click fix)
+- [x] 14. Medium-priority component migrations (row-click fixes)
+  - [x] 14.1 Migrate UserManagement (Pattern A+D: FilterPanel swap + row-click fix)
     - Replace standalone filters with `FilterPanel`
     - Move `onClick` from email cell `<Td>` to parent `<Tr>` for full row-click
     - Add `_hover={{ bg: 'gray.700', cursor: 'pointer' }}` to `<Tr>`
     - Remove `cursor="pointer"` and underline styling from individual cells
     - Preserve modal behavior and all existing functionality
+    - Use the generic table headers with sort and filter options
     - _Requirements: 8.6, 8.9_
 
-  - [ ] 14.2 Migrate TenantManagement (Pattern D: row-click fix)
+  - [x] 14.2 Migrate TenantManagement (Pattern D: row-click fix)
     - Move `onClick` from admin name cell `<Td>` to parent `<Tr>` for full row-click
     - Add `_hover={{ bg: 'gray.700', cursor: 'pointer' }}` to `<Tr>`
     - Remove `cursor="pointer"` and underline styling from individual cells
     - Preserve modal behavior and existing `FilterPanel` usage
+    - Use the generic table headers with sort and filter options
     - _Requirements: 8.7, 8.9_
 
-  - [ ] 14.3 Migrate RoleManagement (Pattern D: row-click fix)
+  - [x] 14.3 Migrate RoleManagement (Pattern D: row-click fix)
     - Move `onClick` from role name cell `<Td>` to parent `<Tr>` for full row-click
     - Add `_hover={{ bg: 'gray.700', cursor: 'pointer' }}` to `<Tr>`
     - Remove `cursor="pointer"` and underline styling from individual cells
     - Preserve modal behavior and all existing functionality
+    - Use the generic table style and headers with sort and filter options
     - _Requirements: 8.8, 8.9_
 
-- [ ] 15. Checkpoint — Medium-priority migrations complete
+- [x] 15. Checkpoint — Medium-priority migrations complete
   - Ensure all 8 medium-priority components compile without errors
   - Verify all migrated components preserve existing functionality
   - Ensure all tests pass, ask the user if questions arise.
+  - Push it to main
 
 - [ ] 16. Low-priority migration and documentation
-  - [ ] 16.1 Migrate BnbFutureReport (Pattern A: FilterPanel swap)
+  - [x] 16.1 Migrate BnbFutureReport (Pattern A: FilterPanel swap)
     - Replace standalone `Select` for listing filter with `FilterPanel` + `GenericFilter`
     - Preserve read-only report behavior
+      - Use the generic table style and headers with sort and filter options
     - _Requirements: 9.1_
 
-  - [ ] 16.2 Create framework reference document
+  - [x] 16.2 Create framework reference document
     - Create `.kiro/specs/Common/Filters a generic approach/TABLE_FILTER_FRAMEWORK_V2.md`
     - Include: architecture overview (three layers), all hooks and components with interfaces and usage examples
     - Include: hybrid approach explained with code snippets
     - Include: when to use `useTableConfig` vs hardcoded config
+      - Use the generic table style and headers with sort and filter options
     - Include: default dark theme styling values
     - Include: accepted exceptions (wizard UIs, monitoring dashboards, editable line-item tables, small config tables)
     - Include: reference implementations (ZZPProducts, ChartOfAccounts, ProfitLossReport)
@@ -328,38 +334,38 @@ Phased implementation of the table filter framework v2: new hooks (`useColumnFil
     - Regular markdown file without steering front-matter
     - _Requirements: 11.4, 11.5_
 
-  - [ ] 16.3 Update steering file `.kiro/steering/ui-patterns.md`
+  - [x] 16.3 Update steering file `.kiro/steering/ui-patterns.md`
     - Keep approximately the same size as current version — no significant expansion
     - Add reference to `TABLE_FILTER_FRAMEWORK_V2.md` in the Filters section
     - Briefly mention hybrid approach and name key components (`FilterPanel`, `FilterableHeader`, `useColumnFilters`, `useTableSort`, `useTableConfig`)
     - Add explicit instruction: "When implementing or modifying tables or filters, read the full framework guide at `.kiro/specs/Common/Filters a generic approach/TABLE_FILTER_FRAMEWORK_V2.md`"
     - _Requirements: 11.1, 11.2, 11.3, 11.6_
 
-- [ ] 17. Cleanup deprecated patterns and leftover code
-  - [ ] 17.1 Remove stale coverage reports for deleted files
+- [x] 17. Cleanup deprecated patterns and leftover code
+  - [x] 17.1 Remove stale coverage reports for deleted files
     - Delete `frontend/coverage/lcov-report/UnifiedAdminYearFilter.tsx.html`
     - Delete `frontend/coverage/lcov-report/UnifiedAdminYearFilterAdapters.ts.html`
     - Delete `frontend/coverage/lcov-report/src/components/UnifiedAdminYearFilter.tsx.html`
     - Delete `frontend/coverage/lcov-report/src/components/UnifiedAdminYearFilterAdapters.ts.html`
 
-  - [ ] 17.2 Verify no remaining standalone filter patterns
+  - [x] 17.2 Verify no remaining standalone filter patterns
     - Search for standalone `<Select>` used as table filters (outside `FilterPanel` or `FilterableHeader`)
     - Search for standalone `<Input>` used as table filters in `<Th>` elements (outside `FilterableHeader`)
     - Search for manual `useState` + `useEffect` debounce patterns for column filtering
     - Search for manual `handleSort` / `setSortField` / `setSortDirection` boilerplate
     - Fix any remaining instances found
 
-  - [ ] 17.3 Verify no remaining cell-click patterns
+  - [x] 17.3 Verify no remaining cell-click patterns
     - Search for `onClick` on `<Td>` elements in CRUD tables (should be on `<Tr>` instead)
     - Search for `cursor="pointer"` on `<Td>` elements (should be in `_hover` on `<Tr>`)
     - Fix any remaining instances found (excluding accepted exceptions: BankConnect, HealthCheck, InvoiceLineEditor)
 
-  - [ ] 17.4 Remove unused imports in migrated components
+  - [x] 17.4 Remove unused imports in migrated components
     - After migrations, some components may still import `SearchFilterConfig` or `FilterPanel` that are no longer used (e.g., ChartOfAccounts, ParameterManagement after moving to `FilterableHeader`)
     - Run TypeScript compiler to detect unused imports
     - Clean up any unused imports
 
-  - [ ] 17.5 Archive old spec documents
+  - [x] 17.5 Archive old spec documents
     - Move `.kiro/specs/Common/Filters a generic approach/archive/UnifiedAdminYearFilter-fix-strategy.md` to confirm it's archived
     - Update `.kiro/specs/Common/Filters a generic approach/findings 20260417/table-filter-audit.md` with a note that the migration is complete
 

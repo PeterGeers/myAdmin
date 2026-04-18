@@ -229,8 +229,8 @@ describe('UserManagement Component', () => {
         expect(screen.getByText('user1@example.com')).toBeInTheDocument();
       });
 
-      // The placeholder is a translation key
-      const searchInput = screen.getByPlaceholderText('userManagement.filters.searchEmailPlaceholder');
+      // FilterableHeader renders inputs with aria-label "Filter by <column label>"
+      const searchInput = screen.getByLabelText('Filter by userManagement.table.email');
       fireEvent.change(searchInput, { target: { value: 'user1' } });
 
       await waitFor(() => {
@@ -246,7 +246,7 @@ describe('UserManagement Component', () => {
         expect(screen.getByText('User One')).toBeInTheDocument();
       });
 
-      const searchInput = screen.getByPlaceholderText('userManagement.filters.searchNamePlaceholder');
+      const searchInput = screen.getByLabelText('Filter by userManagement.table.name');
       fireEvent.change(searchInput, { target: { value: 'One' } });
 
       await waitFor(() => {
@@ -261,14 +261,9 @@ describe('UserManagement Component', () => {
         expect(screen.getByText('CONFIRMED')).toBeInTheDocument();
       });
 
-      // Find the status filter select — it contains the translation key options
-      const selects = document.querySelectorAll('select');
-      const statusSelect = Array.from(selects).find(s =>
-        Array.from(s.options).some(o => o.value === 'CONFIRMED')
-      ) as HTMLSelectElement;
-
-      expect(statusSelect).toBeTruthy();
-      fireEvent.change(statusSelect, { target: { value: 'CONFIRMED' } });
+      // Status filter is now a column header text input
+      const statusInput = screen.getByLabelText('Filter by userManagement.table.status');
+      fireEvent.change(statusInput, { target: { value: 'CONFIRMED' } });
 
       await waitFor(() => {
         expect(screen.getByText('CONFIRMED')).toBeInTheDocument();
@@ -283,14 +278,9 @@ describe('UserManagement Component', () => {
         expect(screen.getByText('user1@example.com')).toBeInTheDocument();
       });
 
-      // Find the role filter select — it contains role names as options
-      const selects = document.querySelectorAll('select');
-      const roleSelect = Array.from(selects).find(s =>
-        Array.from(s.options).some(o => o.value === 'Tenant_Admin')
-      ) as HTMLSelectElement;
-
-      expect(roleSelect).toBeTruthy();
-      fireEvent.change(roleSelect, { target: { value: 'Tenant_Admin' } });
+      // Role filter is now a column header text input filtering the groups array
+      const roleInput = screen.getByLabelText('Filter by userManagement.table.roles');
+      fireEvent.change(roleInput, { target: { value: 'Tenant_Admin' } });
 
       await waitFor(() => {
         expect(screen.getByText('user1@example.com')).toBeInTheDocument();

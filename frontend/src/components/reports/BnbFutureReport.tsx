@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Button,
   Card,
@@ -6,13 +6,11 @@ import {
   CardHeader,
   Heading,
   HStack,
-  Select,
   Table,
   TableContainer,
   Tbody,
   Td,
   Text,
-  Th,
   Thead,
   Tr,
   VStack
@@ -29,6 +27,10 @@ import {
   YAxis
 } from 'recharts';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
+import { FilterPanel } from '../filters/FilterPanel';
+import { FilterableHeader } from '../filters/FilterableHeader';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
+import { FilterConfig } from '../filters/types';
 
 interface BnbFutureRecord {
   date: string;
@@ -37,6 +39,14 @@ interface BnbFutureRecord {
   amount: number;
   items: number;
 }
+
+const INITIAL_TABLE_FILTERS: Record<string, string> = {
+  date: '',
+  channel: '',
+  listing: '',
+  amount: '',
+  items: '',
+};
 
 const BnbFutureReport: React.FC = () => {
   const { t } = useTypedTranslation('reports');
@@ -54,7 +64,7 @@ const BnbFutureReport: React.FC = () => {
     try {
       const response = await authenticatedGet(buildEndpoint('/api/str/future-trend'));
       const data = await response.json();
-      
+
       if (data.success) {
         setBnbFutureData(data.data);
       }
@@ -65,21 +75,55 @@ const BnbFutureReport: React.FC = () => {
     }
   };
 
-  // Filter data based on current filters
-  const filteredData = bnbFutureData.filter(row => {
-    const rowYear = new Date(row.date).getFullYear();
-    const yearFromMatch = bnbFutureFilters.yearFrom === 'all' || rowYear >= parseInt(bnbFutureFilters.yearFrom);
-    const yearToMatch = bnbFutureFilters.yearTo === 'all' || rowYear <= parseInt(bnbFutureFilters.yearTo);
-    return (
-      yearFromMatch && yearToMatch &&
-      (bnbFutureFilters.channel === 'all' || row.channel === bnbFutureFilters.channel) &&
-      (bnbFutureFilters.listing === 'all' || row.listing === bnbFutureFilters.listing)
-    );
+  // Get unique values for dropdown filters
+  const uniqueYears = useMemo(() =>
+    Array.from(new Set(bnbFutureData.map(row => new Date(row.date).getFullYear())))
+      .sort((a, b) => a - b)
+      .map(String),
+    [bnbFutureData]
+  );
+
+  const uniqueChannels = useMemo(() =>
+    Array.from(new Set(bnbFutureData.map(row => row.channel))).sort(),
+    [bnbFutureData]
+  );
+
+  const uniqueListings = useMemo(() =>
+    Array.from(new Set(bnbFutureData.map(row => row.listing))).sort(),
+    [bnbFutureData]
+  );
+
+  // Apply dropdown filters (server-side style: channel, listing, year range)
+  const dropdownFilteredData = useMemo(() =>
+    bnbFutureData.filter(row => {
+      const rowYear = new Date(row.date).getFullYear();
+      const yearFromMatch = bnbFutureFilters.yearFrom === 'all' || rowYear >= parseInt(bnbFutureFilters.yearFrom);
+      const yearToMatch = bnbFutureFilters.yearTo === 'all' || rowYear <= parseInt(bnbFutureFilters.yearTo);
+      return (
+        yearFromMatch && yearToMatch &&
+        (bnbFutureFilters.channel === 'all' || row.channel === bnbFutureFilters.channel) &&
+        (bnbFutureFilters.listing === 'all' || row.listing === bnbFutureFilters.listing)
+      );
+    }),
+    [bnbFutureData, bnbFutureFilters]
+  );
+
+  // Column text filters + sort via framework hook (operates on dropdown-filtered data)
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<BnbFutureRecord>(dropdownFilteredData, {
+    initialFilters: INITIAL_TABLE_FILTERS,
+    defaultSort: { field: 'date', direction: 'asc' },
   });
 
-  // Prepare chart data - group by date and listing
-  const chartData = (() => {
-    const grouped = filteredData.reduce((acc, row) => {
+  // Prepare chart data - group by date and listing (uses dropdown-filtered data for chart)
+  const chartData = useMemo(() => {
+    const grouped = dropdownFilteredData.reduce((acc, row) => {
       if (!acc[row.date]) {
         acc[row.date] = { date: row.date };
       }
@@ -89,89 +133,73 @@ const BnbFutureReport: React.FC = () => {
       acc[row.date][row.listing] += row.amount || 0;
       return acc;
     }, {} as any);
-    return Object.values(grouped).sort((a: any, b: any) => 
+    return Object.values(grouped).sort((a: any, b: any) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-  })();
+  }, [dropdownFilteredData]);
 
-  // Get unique listings for chart areas
-  const uniqueListings = Array.from(new Set(filteredData.map(row => row.listing))).sort();
+  // Get unique listings for chart areas (from dropdown-filtered data)
+  const chartListings = useMemo(() =>
+    Array.from(new Set(dropdownFilteredData.map(row => row.listing))).sort(),
+    [dropdownFilteredData]
+  );
 
-  // Get unique years for filters
-  const uniqueYears = Array.from(new Set(bnbFutureData.map(row => new Date(row.date).getFullYear()))).sort((a, b) => a - b);
+  // FilterPanel configuration for dropdown filters
+  const panelFilters: FilterConfig<string>[] = [
+    {
+      type: 'single',
+      label: t('bnb.yearFrom'),
+      options: ['all', ...uniqueYears],
+      value: bnbFutureFilters.yearFrom,
+      onChange: (v) => setBnbFutureFilters(prev => ({ ...prev, yearFrom: v as string })),
+      getOptionLabel: (opt) => opt === 'all' ? t('bnb.allYears') : opt,
+      size: 'sm',
+    },
+    {
+      type: 'single',
+      label: t('bnb.yearTo'),
+      options: ['all', ...uniqueYears],
+      value: bnbFutureFilters.yearTo,
+      onChange: (v) => setBnbFutureFilters(prev => ({ ...prev, yearTo: v as string })),
+      getOptionLabel: (opt) => opt === 'all' ? t('bnb.allYears') : opt,
+      size: 'sm',
+    },
+    {
+      type: 'single',
+      label: t('filters.channel'),
+      options: ['all', ...uniqueChannels],
+      value: bnbFutureFilters.channel,
+      onChange: (v) => setBnbFutureFilters(prev => ({ ...prev, channel: v as string })),
+      getOptionLabel: (opt) => opt === 'all' ? t('filters.allChannels') : opt,
+      size: 'sm',
+    },
+    {
+      type: 'single',
+      label: t('filters.listing'),
+      options: ['all', ...uniqueListings],
+      value: bnbFutureFilters.listing,
+      onChange: (v) => setBnbFutureFilters(prev => ({ ...prev, listing: v as string })),
+      getOptionLabel: (opt) => opt === 'all' ? t('filters.allListings') : opt,
+      size: 'sm',
+    },
+  ];
+
+  const columnSortDirection = (field: string): 'asc' | 'desc' | null =>
+    sortField === field ? sortDirection : null;
 
   return (
     <VStack spacing={4} align="stretch">
       <Card bg="gray.700">
         <CardBody>
-          <HStack spacing={4} wrap="wrap">
-            <VStack spacing={1}>
-              <Text color="white" fontSize="sm">{t('bnb.yearFrom')}</Text>
-              <Select
-                value={bnbFutureFilters.yearFrom}
-                onChange={(e) => setBnbFutureFilters(prev => ({...prev, yearFrom: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-                w="150px"
-              >
-                <option value="all">{t('bnb.allYears')}</option>
-                {uniqueYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </Select>
-            </VStack>
-            <VStack spacing={1}>
-              <Text color="white" fontSize="sm">{t('bnb.yearTo')}</Text>
-              <Select
-                value={bnbFutureFilters.yearTo}
-                onChange={(e) => setBnbFutureFilters(prev => ({...prev, yearTo: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-                w="150px"
-              >
-                <option value="all">{t('bnb.allYears')}</option>
-                {uniqueYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </Select>
-            </VStack>
-            <VStack spacing={1}>
-              <Text color="white" fontSize="sm">{t('filters.channel')}</Text>
-              <Select
-                value={bnbFutureFilters.channel}
-                onChange={(e) => setBnbFutureFilters(prev => ({...prev, channel: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-                w="150px"
-              >
-                <option value="all">{t('filters.allChannels')}</option>
-                {Array.from(new Set(bnbFutureData.map(row => row.channel))).sort().map(channel => (
-                  <option key={channel} value={channel}>{channel}</option>
-                ))}
-              </Select>
-            </VStack>
-            <VStack spacing={1}>
-              <Text color="white" fontSize="sm">{t('filters.listing')}</Text>
-              <Select
-                value={bnbFutureFilters.listing}
-                onChange={(e) => setBnbFutureFilters(prev => ({...prev, listing: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-                w="200px"
-              >
-                <option value="all">{t('filters.allListings')}</option>
-                {Array.from(new Set(bnbFutureData.map(row => row.listing))).sort().map(listing => (
-                  <option key={listing} value={listing}>{listing}</option>
-                ))}
-              </Select>
-            </VStack>
-            <Button 
-              colorScheme="orange" 
-              onClick={fetchBnbFutureData} 
+          <HStack spacing={4} wrap="wrap" align="flex-end">
+            <FilterPanel
+              filters={panelFilters}
+              layout="horizontal"
+              size="sm"
+            />
+            <Button
+              colorScheme="orange"
+              onClick={fetchBnbFutureData}
               isLoading={bnbFutureLoading}
               size="sm"
             >
@@ -193,25 +221,25 @@ const BnbFutureReport: React.FC = () => {
                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{fill: 'white'}} 
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: 'white' }}
                   tickFormatter={(value) => new Date(value).toLocaleDateString('nl-NL', { month: 'short', year: 'numeric' })}
                 />
-                <YAxis tick={{fill: 'white'}} />
-                <Tooltip 
-                  formatter={(value) => [`€${Number(value).toLocaleString('nl-NL', {minimumFractionDigits: 2})}`]}
+                <YAxis tick={{ fill: 'white' }} />
+                <Tooltip
+                  formatter={(value) => [`€${Number(value).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`]}
                   labelFormatter={(label) => new Date(label).toLocaleDateString('nl-NL')}
                 />
-                <Legend wrapperStyle={{color: 'white'}} />
-                {uniqueListings.map((listing, index) => (
+                <Legend wrapperStyle={{ color: 'white' }} />
+                {chartListings.map((listing, index) => (
                   <Area
                     key={listing}
                     type="monotone"
                     dataKey={listing}
                     stackId="1"
-                    stroke={`hsl(${index * (360 / uniqueListings.length)}, 70%, 60%)`}
-                    fill={`hsl(${index * (360 / uniqueListings.length)}, 70%, 60%)`}
+                    stroke={`hsl(${index * (360 / chartListings.length)}, 70%, 60%)`}
+                    fill={`hsl(${index * (360 / chartListings.length)}, 70%, 60%)`}
                     name={listing}
                   />
                 ))}
@@ -235,15 +263,52 @@ const BnbFutureReport: React.FC = () => {
               <Table size="sm" variant="simple">
                 <Thead>
                   <Tr>
-                    <Th color="white">{t('tables.date')}</Th>
-                    <Th color="white">{t('filters.channel')}</Th>
-                    <Th color="white">{t('filters.listing')}</Th>
-                    <Th color="white" isNumeric>{t('tables.amount')}</Th>
-                    <Th color="white" isNumeric>{t('bnb.items')}</Th>
+                    <FilterableHeader
+                      label={t('tables.date')}
+                      filterValue={filters.date}
+                      onFilterChange={(v) => setFilter('date', v)}
+                      sortable
+                      sortDirection={columnSortDirection('date')}
+                      onSort={() => handleSort('date')}
+                    />
+                    <FilterableHeader
+                      label={t('filters.channel')}
+                      filterValue={filters.channel}
+                      onFilterChange={(v) => setFilter('channel', v)}
+                      sortable
+                      sortDirection={columnSortDirection('channel')}
+                      onSort={() => handleSort('channel')}
+                    />
+                    <FilterableHeader
+                      label={t('filters.listing')}
+                      filterValue={filters.listing}
+                      onFilterChange={(v) => setFilter('listing', v)}
+                      sortable
+                      sortDirection={columnSortDirection('listing')}
+                      onSort={() => handleSort('listing')}
+                    />
+                    <FilterableHeader
+                      label={t('tables.amount')}
+                      filterValue={filters.amount}
+                      onFilterChange={(v) => setFilter('amount', v)}
+                      sortable
+                      sortDirection={columnSortDirection('amount')}
+                      onSort={() => handleSort('amount')}
+                      isNumeric
+                    />
+                    <FilterableHeader
+                      label={t('bnb.items')}
+                      filterValue={filters.items}
+                      onFilterChange={(v) => setFilter('items', v)}
+                      sortable
+                      sortDirection={columnSortDirection('items')}
+                      onSort={() => handleSort('items')}
+                      isNumeric
+                    />
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {filteredData.map((row, index) => (
+                  {processedData.map((row, index) => (
                     <Tr key={index}>
                       <Td color="white" fontSize="sm">
                         {new Date(row.date).toLocaleDateString('nl-NL')}
@@ -251,7 +316,7 @@ const BnbFutureReport: React.FC = () => {
                       <Td color="white" fontSize="sm">{row.channel}</Td>
                       <Td color="white" fontSize="sm">{row.listing}</Td>
                       <Td color="white" fontSize="sm" isNumeric>
-                        €{Number(row.amount || 0).toLocaleString('nl-NL', {minimumFractionDigits: 2})}
+                        €{Number(row.amount || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
                       </Td>
                       <Td color="white" fontSize="sm" isNumeric>{row.items}</Td>
                     </Tr>

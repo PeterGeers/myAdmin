@@ -305,6 +305,13 @@
       "moduleRoles": "Module Roles",
       "otherRoles": "Other Roles"
     },
+    "table": {
+      "name": "Name",
+      "description": "Description",
+      "category": "Category",
+      "precedence": "Precedence",
+      "users": "Users"
+    },
     "labels": {
       "user": "user",
       "users": "users",

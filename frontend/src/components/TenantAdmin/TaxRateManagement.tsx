@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Box, Table, Thead, Tbody, Tr, Th, Td, Badge, Button, Grid,
+  Box, Table, Thead, Tbody, Tr, Td, Badge, Button, Grid,
   useToast, useDisclosure, Spinner, Text, HStack, Select,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   FormControl, FormLabel, Input,
@@ -11,6 +11,8 @@ import { AddIcon } from '@chakra-ui/icons';
 import { TaxRate, TaxRateCreateRequest } from '../../types/taxRateTypes';
 import { getTaxRates, createTaxRate, updateTaxRate, deleteTaxRate } from '../../services/taxRateService';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import { FilterableHeader } from '../filters/FilterableHeader';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
 
 interface Props { tenant: string; isSysAdmin?: boolean; }
 
@@ -26,7 +28,6 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
   const { t } = useTypedTranslation('admin');
   const [rates, setRates] = useState<TaxRate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [typeFilter, setTypeFilter] = useState('');
   const [editing, setEditing] = useState<TaxRate | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,12 +49,40 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
     try { const data = await getTaxRates(); setRates(data.tax_rates || []); }
     catch (e: any) { toast({ title: t('tenantAdmin.taxRates.loading'), description: e.message, status: 'error', duration: 5000 }); }
     finally { setLoading(false); }
-  }, [tenant, toast]);
+  }, [tenant, toast, t]);
 
   useEffect(() => { load(); }, [load]);
 
-  const taxTypes = Array.from(new Set(rates.map(r => r.tax_type))).sort();
-  const filtered = typeFilter ? rates.filter(r => r.tax_type === typeFilter) : rates;
+  const taxRateRows = useMemo(() => rates.map(r => ({
+    ...r,
+    status_text: getDateStatus(r.effective_from, r.effective_to),
+    effective_to_display: r.effective_to === '9999-12-31' ? '∞' : r.effective_to || '-',
+    ledger_display: r.ledger_account || '-',
+    description_display: r.description || '-',
+  })), [rates]);
+
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable(taxRateRows, {
+    initialFilters: {
+      tax_type: '',
+      tax_code: '',
+      rate: '',
+      ledger_display: '',
+      effective_from: '',
+      effective_to_display: '',
+      status_text: '',
+      source: '',
+      description_display: '',
+    },
+    defaultSort: { field: 'tax_type', direction: 'asc' as const },
+  });
+
   const canEdit = (r: TaxRate) => r.source === 'tenant' || isSysAdmin;
 
   const handleAdd = () => {
@@ -115,31 +144,104 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
 
   return (
     <Box>
-      <HStack mb={4} justify="space-between">
-        <Select placeholder="All tax types" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} bg="gray.700" color="gray.200" borderColor="gray.600" w="220px" size="sm">
-          {taxTypes.map(t => <option key={t} value={t}>{t}</option>)}
-        </Select>
+      <HStack mb={4} justify="flex-end">
         <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={handleAdd}>{t('tenantAdmin.taxRates.addTaxRate')}</Button>
       </HStack>
       <Table variant="simple" size="sm">
-        <Thead><Tr><Th color="gray.400">{t('tenantAdmin.taxRates.taxType')}</Th><Th color="gray.400">{t('tenantAdmin.taxRates.taxCode')}</Th><Th color="gray.400" isNumeric>{t('tenantAdmin.taxRates.rate')}</Th><Th color="gray.400">{t('tenantAdmin.taxRates.ledgerAccount')}</Th><Th color="gray.400">{t('tenantAdmin.taxRates.effectiveFrom')}</Th><Th color="gray.400">{t('tenantAdmin.taxRates.effectiveTo')}</Th><Th color="gray.400">{t('tenantAdmin.taxRates.status')}</Th><Th color="gray.400">{t('tenantAdmin.taxRates.source')}</Th><Th color="gray.400">{t('tenantAdmin.taxRates.description')}</Th></Tr></Thead>
+        <Thead>
+          <Tr>
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.taxType')}
+              filterValue={filters.tax_type}
+              onFilterChange={(v) => setFilter('tax_type', v)}
+              sortable
+              sortDirection={sortField === 'tax_type' ? sortDirection : null}
+              onSort={() => handleSort('tax_type')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.taxCode')}
+              filterValue={filters.tax_code}
+              onFilterChange={(v) => setFilter('tax_code', v)}
+              sortable
+              sortDirection={sortField === 'tax_code' ? sortDirection : null}
+              onSort={() => handleSort('tax_code')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.rate')}
+              filterValue={filters.rate}
+              onFilterChange={(v) => setFilter('rate', v)}
+              isNumeric
+              sortable
+              sortDirection={sortField === 'rate' ? sortDirection : null}
+              onSort={() => handleSort('rate')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.ledgerAccount')}
+              filterValue={filters.ledger_display}
+              onFilterChange={(v) => setFilter('ledger_display', v)}
+              sortable
+              sortDirection={sortField === 'ledger_display' ? sortDirection : null}
+              onSort={() => handleSort('ledger_display')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.effectiveFrom')}
+              filterValue={filters.effective_from}
+              onFilterChange={(v) => setFilter('effective_from', v)}
+              sortable
+              sortDirection={sortField === 'effective_from' ? sortDirection : null}
+              onSort={() => handleSort('effective_from')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.effectiveTo')}
+              filterValue={filters.effective_to_display}
+              onFilterChange={(v) => setFilter('effective_to_display', v)}
+              sortable
+              sortDirection={sortField === 'effective_to_display' ? sortDirection : null}
+              onSort={() => handleSort('effective_to_display')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.status')}
+              filterValue={filters.status_text}
+              onFilterChange={(v) => setFilter('status_text', v)}
+              sortable
+              sortDirection={sortField === 'status_text' ? sortDirection : null}
+              onSort={() => handleSort('status_text')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.source')}
+              filterValue={filters.source}
+              onFilterChange={(v) => setFilter('source', v)}
+              sortable
+              sortDirection={sortField === 'source' ? sortDirection : null}
+              onSort={() => handleSort('source')}
+            />
+            <FilterableHeader
+              label={t('tenantAdmin.taxRates.description')}
+              filterValue={filters.description_display}
+              onFilterChange={(v) => setFilter('description_display', v)}
+              sortable
+              sortDirection={sortField === 'description_display' ? sortDirection : null}
+              onSort={() => handleSort('description_display')}
+            />
+          </Tr>
+        </Thead>
         <Tbody>
-          {filtered.map(r => {
-            const status = getDateStatus(r.effective_from, r.effective_to);
+          {processedData.map(r => {
+            const status = r.status_text;
             return (
               <Tr key={r.id} cursor={canEdit(r) ? 'pointer' : 'default'} _hover={canEdit(r) ? { bg: 'gray.600' } : {}} onClick={() => handleRowClick(r)}>
                 <Td color="white" fontSize="sm">{r.tax_type}</Td>
                 <Td color="white" fontSize="sm">{r.tax_code}</Td>
                 <Td color="white" fontSize="sm" isNumeric>{r.rate}</Td>
-                <Td color="white" fontSize="sm">{r.ledger_account || '-'}</Td>
+                <Td color="white" fontSize="sm">{r.ledger_display}</Td>
                 <Td color="white" fontSize="sm">{r.effective_from}</Td>
-                <Td color="white" fontSize="sm">{r.effective_to === '9999-12-31' ? '∞' : r.effective_to || '-'}</Td>
+                <Td color="white" fontSize="sm">{r.effective_to_display}</Td>
                 <Td><Badge colorScheme={statusColors[status]} fontSize="xs">{status}</Badge></Td>
                 <Td><Badge colorScheme={r.source === 'tenant' ? 'orange' : 'gray'} fontSize="xs">{r.source}</Badge></Td>
-                <Td color="white" fontSize="sm" maxW="200px" isTruncated>{r.description || '-'}</Td>
+                <Td color="white" fontSize="sm" maxW="200px" isTruncated>{r.description_display}</Td>
               </Tr>);
           })}
-          {filtered.length === 0 && <Tr><Td colSpan={9} color="gray.500" textAlign="center">{t('tenantAdmin.taxRates.noTaxRates')}</Td></Tr>}
+          {processedData.length === 0 && <Tr><Td colSpan={9} color="gray.500" textAlign="center">{t('tenantAdmin.taxRates.noTaxRates')}</Td></Tr>}
         </Tbody>
       </Table>
 

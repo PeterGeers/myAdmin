@@ -50,10 +50,11 @@ Follow the BankingProcessor pattern:
 
 ## Filters
 
-Use the generic filter framework for consistent filtering across all list views.
+Use the Table Filter Framework v2 — a hybrid approach: text search filters in column headers (`FilterableHeader`), dropdowns/multi-select above the table (`FilterPanel`).
 
-- Filter bar sits between page header and table
-- Filters are dropdowns, date pickers, or text inputs — never inline in the table
-- Filter state managed via URL query params for shareable/bookmarkable views
+- Key hooks: `useColumnFilters`, `useTableSort`, `useFilterableTable`
+- Parameter-driven config for complex tables: `useTableConfig`
+- Components: `FilterPanel` (above table), `FilterableHeader` (in `<Th>`)
 - Clear all / reset button to return to default view
-- Reference: `.kiro/specs/Common/Filters a generic approach/`
+
+When implementing or modifying tables or filters, read the full framework guide at `.kiro/specs/Common/Filters a generic approach/TABLE_FILTER_FRAMEWORK_V2.md`

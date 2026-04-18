@@ -1,25 +1,43 @@
 /**
  * ZZP Invoices page — Chakra Table with filters and header actions.
  * Follows BankingProcessor pattern: row-click opens detail, no inline buttons.
+ *
+ * Uses the table-filter-framework-v2 hybrid approach:
+ * - useFilterableTable + FilterableHeader for inline column text filters + sort
  * Reference: .kiro/specs/zzp-module/design.md §4.3, §6.2
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Box, Flex, Button, Text, useToast, Spinner, Input,
-  Table, Thead, Tbody, Tr, Th, Td, HStack, useDisclosure,
+  Box, Flex, Button, Text, useToast, Spinner,
+  Table, Thead, Tbody, Tr, Td, HStack, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalCloseButton, ModalFooter, VStack, Select,
 } from '@chakra-ui/react';
 import { AddIcon, DownloadIcon, CopyIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
-import { Invoice, InvoiceStatus, InvoiceFilters, Contact } from '../types/zzp';
+import { Invoice, Contact } from '../types/zzp';
 import { getInvoices, copyLastInvoice } from '../services/zzpInvoiceService';
 import { getContacts } from '../services/contactService';
 import { InvoiceStatusBadge } from '../components/zzp/InvoiceStatusBadge';
 import { InvoiceDetailModal } from '../components/zzp/InvoiceDetailModal';
+import { FilterableHeader } from '../components/filters/FilterableHeader';
+import { useFilterableTable } from '../hooks/useFilterableTable';
 
-const STATUSES: InvoiceStatus[] = ['draft', 'sent', 'paid', 'overdue', 'cancelled', 'credited'];
+/** Flat row for filtering — nested contact.client_id promoted to top-level */
+interface InvoiceRow extends Invoice {
+  client_id: string;
+  formatted_total: string;
+}
+
+const INITIAL_FILTERS: Record<string, string> = {
+  invoice_number: '',
+  client_id: '',
+  invoice_date: '',
+  due_date: '',
+  status: '',
+  formatted_total: '',
+};
 
 const ZZPInvoices: React.FC = () => {
   const { t } = useTypedTranslation('zzp');
@@ -32,14 +50,6 @@ const ZZPInvoices: React.FC = () => {
   // Invoice detail modal
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
-
-  // Filters — client-side, one search input per table column
-  const [fInvoiceNumber, setFInvoiceNumber] = useState('');
-  const [fClientId, setFClientId] = useState('');
-  const [fInvoiceDate, setFInvoiceDate] = useState('');
-  const [fDueDate, setFDueDate] = useState('');
-  const [fStatus, setFStatus] = useState('');
-  const [fTotal, setFTotal] = useState('');
 
   // Copy-last modal
   const { isOpen: isCopyOpen, onOpen: onCopyOpen, onClose: onCopyClose } = useDisclosure();
@@ -69,18 +79,28 @@ const ZZPInvoices: React.FC = () => {
     return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: safeCur }).format(amount);
   };
 
-  // Client-side filtered invoices — case-insensitive substring match per column
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      if (fInvoiceNumber && !inv.invoice_number.toLowerCase().includes(fInvoiceNumber.toLowerCase())) return false;
-      if (fClientId && !(inv.contact?.client_id || '').toLowerCase().includes(fClientId.toLowerCase())) return false;
-      if (fInvoiceDate && !(inv.invoice_date || '').includes(fInvoiceDate)) return false;
-      if (fDueDate && !(inv.due_date || '').includes(fDueDate)) return false;
-      if (fStatus && !inv.status.toLowerCase().includes(fStatus.toLowerCase())) return false;
-      if (fTotal && !formatCurrency(inv.grand_total, inv.currency).toLowerCase().includes(fTotal.toLowerCase())) return false;
-      return true;
-    });
-  }, [invoices, fInvoiceNumber, fClientId, fInvoiceDate, fDueDate, fStatus, fTotal]);
+  // Build flat rows with promoted nested fields for filtering
+  const invoiceRows: InvoiceRow[] = useMemo(
+    () => invoices.map(inv => ({
+      ...inv,
+      client_id: inv.contact?.client_id || '',
+      formatted_total: formatCurrency(inv.grand_total, inv.currency),
+    })),
+    [invoices],
+  );
+
+  // Combined column filtering + sorting via framework hook
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<InvoiceRow>(invoiceRows, {
+    initialFilters: INITIAL_FILTERS,
+    defaultSort: { field: 'invoice_date', direction: 'desc' },
+  });
 
   const handleRowClick = (inv: Invoice) => {
     setSelectedInvoiceId(inv.id);
@@ -128,7 +148,6 @@ const ZZPInvoices: React.FC = () => {
         onCopyClose();
         setCopyContactId('');
         loadInvoices();
-        // Open the newly created draft in the detail modal
         if (resp.data?.id) {
           setSelectedInvoiceId(resp.data.id);
           onDetailOpen();
@@ -143,18 +162,21 @@ const ZZPInvoices: React.FC = () => {
     }
   };
 
+  const columnSortDirection = (field: string): 'asc' | 'desc' | null =>
+    sortField === field ? sortDirection : null;
+
   return (
     <Box p={6}>
       {/* Header: title + primary actions */}
       <Flex wrap="wrap" justify="space-between" align="center" mb={4} gap={2}>
         <Text fontSize="xl" fontWeight="bold" color="white">{t('invoices.title')}</Text>
         <HStack spacing={2}>
-          <Button leftIcon={<CopyIcon />} size="sm" variant="outline" colorScheme="gray"
-            color="white" onClick={onCopyOpen}>
+          <Button leftIcon={<CopyIcon />} size="sm" colorScheme="orange"
+            onClick={onCopyOpen}>
             {t('invoices.copyLast')}
           </Button>
-          <Button leftIcon={<DownloadIcon />} size="sm" variant="outline" colorScheme="gray"
-            color="white" onClick={handleExport} isDisabled={invoices.length === 0}>
+          <Button leftIcon={<DownloadIcon />} size="sm" colorScheme="orange"
+            onClick={handleExport} isDisabled={invoices.length === 0}>
             {t('invoices.export')}
           </Button>
           <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={handleNew}>
@@ -163,41 +185,76 @@ const ZZPInvoices: React.FC = () => {
         </HStack>
       </Flex>
 
-      {/* Table with column-aligned filter inputs in header */}
+      {/* Table with FilterableHeader columns */}
       {loading ? <Spinner color="white" /> : (
         <Box overflowX="auto">
           <Table variant="simple" size="sm" bg="gray.800" color="white">
             <Thead>
               <Tr>
-                <Th color="gray.400" pb={1}>{t('invoices.invoiceNumber')}</Th>
-                <Th color="gray.400" pb={1}>{t('contacts.clientId', 'Client ID')}</Th>
-                <Th color="gray.400" pb={1}>{t('invoices.invoiceDate')}</Th>
-                <Th color="gray.400" pb={1} display={{ base: 'none', md: 'table-cell' }}>{t('invoices.dueDate')}</Th>
-                <Th color="gray.400" pb={1}>Status</Th>
-                <Th color="gray.400" pb={1} isNumeric>{t('invoices.grandTotal')}</Th>
-              </Tr>
-              <Tr>
-                <Th pt={0} pb={2}><Input size="xs" bg="gray.700" color="white" borderColor="gray.600" placeholder="Filter..." value={fInvoiceNumber} onChange={e => setFInvoiceNumber(e.target.value)} /></Th>
-                <Th pt={0} pb={2}><Input size="xs" bg="gray.700" color="white" borderColor="gray.600" placeholder="Filter..." value={fClientId} onChange={e => setFClientId(e.target.value)} /></Th>
-                <Th pt={0} pb={2}><Input size="xs" bg="gray.700" color="white" borderColor="gray.600" placeholder="Filter..." value={fInvoiceDate} onChange={e => setFInvoiceDate(e.target.value)} /></Th>
-                <Th pt={0} pb={2} display={{ base: 'none', md: 'table-cell' }}><Input size="xs" bg="gray.700" color="white" borderColor="gray.600" placeholder="Filter..." value={fDueDate} onChange={e => setFDueDate(e.target.value)} /></Th>
-                <Th pt={0} pb={2}><Input size="xs" bg="gray.700" color="white" borderColor="gray.600" placeholder="Filter..." value={fStatus} onChange={e => setFStatus(e.target.value)} /></Th>
-                <Th pt={0} pb={2}><Input size="xs" bg="gray.700" color="white" borderColor="gray.600" placeholder="Filter..." value={fTotal} onChange={e => setFTotal(e.target.value)} /></Th>
+                <FilterableHeader
+                  label={t('invoices.invoiceNumber')}
+                  filterValue={filters.invoice_number}
+                  onFilterChange={(v) => setFilter('invoice_number', v)}
+                  sortable
+                  sortDirection={columnSortDirection('invoice_number')}
+                  onSort={() => handleSort('invoice_number')}
+                />
+                <FilterableHeader
+                  label={t('contacts.clientId', 'Client ID')}
+                  filterValue={filters.client_id}
+                  onFilterChange={(v) => setFilter('client_id', v)}
+                  sortable
+                  sortDirection={columnSortDirection('client_id')}
+                  onSort={() => handleSort('client_id')}
+                />
+                <FilterableHeader
+                  label={t('invoices.invoiceDate')}
+                  filterValue={filters.invoice_date}
+                  onFilterChange={(v) => setFilter('invoice_date', v)}
+                  sortable
+                  sortDirection={columnSortDirection('invoice_date')}
+                  onSort={() => handleSort('invoice_date')}
+                />
+                <FilterableHeader
+                  label={t('invoices.dueDate')}
+                  filterValue={filters.due_date}
+                  onFilterChange={(v) => setFilter('due_date', v)}
+                  sortable
+                  sortDirection={columnSortDirection('due_date')}
+                  onSort={() => handleSort('due_date')}
+                />
+                <FilterableHeader
+                  label="Status"
+                  filterValue={filters.status}
+                  onFilterChange={(v) => setFilter('status', v)}
+                  sortable
+                  sortDirection={columnSortDirection('status')}
+                  onSort={() => handleSort('status')}
+                />
+                <FilterableHeader
+                  label={t('invoices.grandTotal')}
+                  filterValue={filters.formatted_total}
+                  onFilterChange={(v) => setFilter('formatted_total', v)}
+                  isNumeric
+                  sortable
+                  sortDirection={columnSortDirection('grand_total')}
+                  onSort={() => handleSort('grand_total')}
+                />
               </Tr>
             </Thead>
             <Tbody>
-              {filteredInvoices.map(inv => (
+              {processedData.map(inv => (
                 <Tr key={inv.id} _hover={{ bg: 'gray.700', cursor: 'pointer' }}
                   onClick={() => handleRowClick(inv)}>
                   <Td>{inv.invoice_number}</Td>
-                  <Td>{inv.contact?.client_id || '-'}</Td>
+                  <Td>{inv.client_id || '-'}</Td>
                   <Td>{inv.invoice_date}</Td>
-                  <Td display={{ base: 'none', md: 'table-cell' }}>{inv.due_date}</Td>
+                  <Td>{inv.due_date}</Td>
                   <Td><InvoiceStatusBadge status={inv.status} /></Td>
-                  <Td isNumeric>{formatCurrency(inv.grand_total, inv.currency)}</Td>
+                  <Td isNumeric>{inv.formatted_total}</Td>
                 </Tr>
               ))}
-              {filteredInvoices.length === 0 && (
+              {processedData.length === 0 && (
                 <Tr><Td colSpan={6}><Text color="gray.500">{t('common.noData')}</Text></Td></Tr>
               )}
             </Tbody>
