@@ -12,10 +12,13 @@ jest.mock('../../../services/taxRateService', () => ({
   deleteTaxRate: jest.fn(),
 }));
 
+const mockT = (key: string) => key;
+const mockI18n = { language: 'en', changeLanguage: jest.fn() };
+
 jest.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
-    t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: jest.fn() }
+    t: mockT,
+    i18n: mockI18n
   })
 }));
 
@@ -75,23 +78,32 @@ describe('TaxRateManagement', () => {
 
   describe('Row Click', () => {
     test('clicking tenant row opens edit modal', async () => {
-      render(<TaxRateManagement tenant="T1" />);
+      const { container } = render(<TaxRateManagement tenant="T1" />);
       await waitFor(() => expect(screen.getByText('Toeristenbelasting')).toBeInTheDocument());
-      fireEvent.click(screen.getByText('Toeristenbelasting'));
+      const rows = container.querySelectorAll('tbody tr');
+      const tenantRow = Array.from(rows).find(row => row.textContent?.includes('Toeristenbelasting'));
+      expect(tenantRow).toBeTruthy();
+      fireEvent.click(tenantRow!);
       await waitFor(() => expect(screen.getByText(/tenantAdmin.taxRates.editTaxRate/)).toBeInTheDocument());
     });
 
     test('clicking system row does not open modal for non-sysadmin', async () => {
-      render(<TaxRateManagement tenant="T1" isSysAdmin={false} />);
+      const { container } = render(<TaxRateManagement tenant="T1" isSysAdmin={false} />);
       await waitFor(() => expect(screen.getByText('BTW Hoog')).toBeInTheDocument());
-      fireEvent.click(screen.getByText('BTW Hoog'));
+      const rows = container.querySelectorAll('tbody tr');
+      const systemRow = Array.from(rows).find(row => row.textContent?.includes('BTW Hoog'));
+      expect(systemRow).toBeTruthy();
+      fireEvent.click(systemRow!);
       expect(screen.queryByText(/tenantAdmin.taxRates.editTaxRate/)).not.toBeInTheDocument();
     });
 
     test('clicking system row opens modal for sysadmin', async () => {
-      render(<TaxRateManagement tenant="T1" isSysAdmin={true} />);
+      const { container } = render(<TaxRateManagement tenant="T1" isSysAdmin={true} />);
       await waitFor(() => expect(screen.getByText('BTW Hoog')).toBeInTheDocument());
-      fireEvent.click(screen.getByText('BTW Hoog'));
+      const rows = container.querySelectorAll('tbody tr');
+      const systemRow = Array.from(rows).find(row => row.textContent?.includes('BTW Hoog'));
+      expect(systemRow).toBeTruthy();
+      fireEvent.click(systemRow!);
       await waitFor(() => expect(screen.getByText(/tenantAdmin.taxRates.editTaxRate/)).toBeInTheDocument());
     });
   });
