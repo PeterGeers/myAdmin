@@ -6,6 +6,8 @@ import {
   Tabs, TabList, TabPanels, Tab, TabPanel, Badge
 } from '@chakra-ui/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { useFilterableTable } from '../hooks/useFilterableTable';
+import { FilterableHeader } from './filters/FilterableHeader';
 
 interface MutatiesRecord {
   TransactionDate: string;
@@ -36,38 +38,60 @@ interface BalanceRecord {
   total_amount: number;
 }
 
+const MUTATIES_INITIAL_FILTERS: Record<string, string> = {
+  TransactionDescription: '',
+  Reknum: '',
+  AccountName: '',
+  Administration: '',
+  ReferenceNumber: ''
+};
+
+const BNB_INITIAL_FILTERS: Record<string, string> = {
+  channel: '',
+  listing: '',
+  guestName: '',
+  reservationCode: ''
+};
+
 const ProfitLoss: React.FC = () => {
   const [mutatiesData, setMutatiesData] = useState<MutatiesRecord[]>([]);
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [balanceData, setBalanceData] = useState<BalanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sortField, setSortField] = useState<string>('');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [bnbSortField, setBnbSortField] = useState<string>('');
-  const [bnbSortDirection, setBnbSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [searchFilters, setSearchFilters] = useState({
-    TransactionDescription: '',
-    Reknum: '',
-    AccountName: '',
-    Administration: '',
-    ReferenceNumber: ''
+
+  // Mutaties column filters + sort via useFilterableTable
+  const {
+    filters: mutatiesFiltersSearch,
+    setFilter: setMutatiesFilter,
+    handleSort: handleMutatiesSort,
+    sortField: mutatiesSortField,
+    sortDirection: mutatiesSortDirection,
+    processedData: filteredMutatiesData
+  } = useFilterableTable<MutatiesRecord>(mutatiesData, {
+    initialFilters: MUTATIES_INITIAL_FILTERS,
   });
-  const [bnbSearchFilters, setBnbSearchFilters] = useState({
-    channel: '',
-    listing: '',
-    guestName: '',
-    reservationCode: ''
+
+  // BNB column filters + sort via useFilterableTable
+  const {
+    filters: bnbFiltersSearch,
+    setFilter: setBnbFilter,
+    handleSort: handleBnbSort,
+    sortField: bnbSortField,
+    sortDirection: bnbSortDirection,
+    processedData: filteredBnbData
+  } = useFilterableTable<BnbRecord>(bnbData, {
+    initialFilters: BNB_INITIAL_FILTERS,
   });
   
-  // Mutaties Filters
+  // Mutaties above-table filters (date range, administration, profit/loss)
   const [mutatiesFilters, setMutatiesFilters] = useState({
     dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
     dateTo: new Date().toISOString().split('T')[0],
     administration: 'all',
-    profitLoss: 'all' // all, Y, N
+    profitLoss: 'all'
   });
 
-  // BNB Filters  
+  // BNB above-table filters (date range, channel, listing)
   const [bnbFilters, setBnbFilters] = useState({
     dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
     dateTo: new Date().toISOString().split('T')[0],
@@ -75,75 +99,12 @@ const ProfitLoss: React.FC = () => {
     listing: 'all'
   });
 
-  // Balance Filters - Added dateFrom
+  // Balance Filters
   const [balanceFilters, setBalanceFilters] = useState({
     dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
     dateTo: new Date().toISOString().split('T')[0],
     administration: 'all',
     profitLoss: 'all'
-  });
-
-  const handleSort = (field: string) => {
-    const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
-    setSortField(field);
-    setSortDirection(newDirection);
-    
-    const sortedData = [...mutatiesData].sort((a, b) => {
-      let aVal = a[field as keyof MutatiesRecord];
-      let bVal = b[field as keyof MutatiesRecord];
-      
-      if (field === 'Amount') {
-        aVal = Number(aVal) || 0;
-        bVal = Number(bVal) || 0;
-      }
-      
-      if (aVal < bVal) return newDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return newDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-    
-    setMutatiesData(sortedData);
-  };
-
-  const handleBnbSort = (field: string) => {
-    const newDirection = bnbSortField === field && bnbSortDirection === 'asc' ? 'desc' : 'asc';
-    setBnbSortField(field);
-    setBnbSortDirection(newDirection);
-    
-    const sortedData = [...bnbData].sort((a, b) => {
-      let aVal = a[field as keyof BnbRecord];
-      let bVal = b[field as keyof BnbRecord];
-      
-      if (field === 'checkinDate' || field === 'checkoutDate') {
-        aVal = new Date(aVal as string).getTime();
-        bVal = new Date(bVal as string).getTime();
-      } else if (field === 'nights' || field === 'guests' || field === 'amountGross' || field === 'amountNett') {
-        aVal = Number(aVal) || 0;
-        bVal = Number(bVal) || 0;
-      }
-      
-      if (aVal < bVal) return newDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return newDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-    
-    setBnbData(sortedData);
-  };
-
-  const filteredMutatiesData = mutatiesData.filter(row => {
-    return Object.entries(searchFilters).every(([key, value]) => {
-      if (!value) return true;
-      const fieldValue = row[key as keyof MutatiesRecord]?.toString().toLowerCase() || '';
-      return fieldValue.includes(value.toLowerCase());
-    });
-  });
-
-  const filteredBnbData = bnbData.filter(row => {
-    return Object.entries(bnbSearchFilters).every(([key, value]) => {
-      if (!value) return true;
-      const fieldValue = row[key as keyof BnbRecord]?.toString().toLowerCase() || '';
-      return fieldValue.includes(value.toLowerCase());
-    });
   });
 
   const fetchMutatiesData = async () => {
@@ -184,7 +145,6 @@ const ProfitLoss: React.FC = () => {
       const data = await response.json();
       
       if (data.success) {
-        // Filter out zero amounts
         const filteredData = data.data.filter((row: BalanceRecord) => 
           Math.abs(Number(row.total_amount || 0)) > 0.01
         );
@@ -272,6 +232,15 @@ const ProfitLoss: React.FC = () => {
     a.href = url;
     a.download = `bnb-${bnbFilters.dateFrom}-${bnbFilters.dateTo}.csv`;
     a.click();
+  };
+
+  /** Helper to derive sortDirection prop for FilterableHeader */
+  const mutatiesColumnSort = (field: string): 'asc' | 'desc' | null => {
+    return mutatiesSortField === field ? mutatiesSortDirection : null;
+  };
+
+  const bnbColumnSort = (field: string): 'asc' | 'desc' | null => {
+    return bnbSortField === field ? bnbSortDirection : null;
   };
 
   return (
@@ -392,22 +361,59 @@ const ProfitLoss: React.FC = () => {
                       <Table size="sm" variant="simple">
                         <Thead position="sticky" top={0} bg="gray.600">
                           <Tr>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDate')}>Date {sortField === 'TransactionDate' && (sortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('ReferenceNumber')} maxW="60px" w="60px">Reference {sortField === 'ReferenceNumber' && (sortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('TransactionDescription')}>Description {sortField === 'TransactionDescription' && (sortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('Amount')}>Amount {sortField === 'Amount' && (sortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('Reknum')} w="80px">Account {sortField === 'Reknum' && (sortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('AccountName')} w="150px">Account Name {sortField === 'AccountName' && (sortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleSort('Administration')}>Administration {sortField === 'Administration' && (sortDirection === 'asc' ? '↑' : '↓')}</Th>
-                          </Tr>
-                          <Tr>
-                            <Th></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={searchFilters.ReferenceNumber} onChange={(e) => setSearchFilters(prev => ({...prev, ReferenceNumber: e.target.value}))} bg="gray.500" color="white" /></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={searchFilters.TransactionDescription} onChange={(e) => setSearchFilters(prev => ({...prev, TransactionDescription: e.target.value}))} bg="gray.500" color="white" /></Th>
-                            <Th></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={searchFilters.Reknum} onChange={(e) => setSearchFilters(prev => ({...prev, Reknum: e.target.value}))} bg="gray.500" color="white" /></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={searchFilters.AccountName} onChange={(e) => setSearchFilters(prev => ({...prev, AccountName: e.target.value}))} bg="gray.500" color="white" /></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={searchFilters.Administration} onChange={(e) => setSearchFilters(prev => ({...prev, Administration: e.target.value}))} bg="gray.500" color="white" /></Th>
+                            <FilterableHeader
+                              label="Date"
+                              sortable
+                              sortDirection={mutatiesColumnSort('TransactionDate')}
+                              onSort={() => handleMutatiesSort('TransactionDate')}
+                            />
+                            <FilterableHeader
+                              label="Reference"
+                              filterValue={mutatiesFiltersSearch.ReferenceNumber}
+                              onFilterChange={(v) => setMutatiesFilter('ReferenceNumber', v)}
+                              sortable
+                              sortDirection={mutatiesColumnSort('ReferenceNumber')}
+                              onSort={() => handleMutatiesSort('ReferenceNumber')}
+                            />
+                            <FilterableHeader
+                              label="Description"
+                              filterValue={mutatiesFiltersSearch.TransactionDescription}
+                              onFilterChange={(v) => setMutatiesFilter('TransactionDescription', v)}
+                              sortable
+                              sortDirection={mutatiesColumnSort('TransactionDescription')}
+                              onSort={() => handleMutatiesSort('TransactionDescription')}
+                            />
+                            <FilterableHeader
+                              label="Amount"
+                              isNumeric
+                              sortable
+                              sortDirection={mutatiesColumnSort('Amount')}
+                              onSort={() => handleMutatiesSort('Amount')}
+                            />
+                            <FilterableHeader
+                              label="Account"
+                              filterValue={mutatiesFiltersSearch.Reknum}
+                              onFilterChange={(v) => setMutatiesFilter('Reknum', v)}
+                              sortable
+                              sortDirection={mutatiesColumnSort('Reknum')}
+                              onSort={() => handleMutatiesSort('Reknum')}
+                            />
+                            <FilterableHeader
+                              label="Account Name"
+                              filterValue={mutatiesFiltersSearch.AccountName}
+                              onFilterChange={(v) => setMutatiesFilter('AccountName', v)}
+                              sortable
+                              sortDirection={mutatiesColumnSort('AccountName')}
+                              onSort={() => handleMutatiesSort('AccountName')}
+                            />
+                            <FilterableHeader
+                              label="Administration"
+                              filterValue={mutatiesFiltersSearch.Administration}
+                              onFilterChange={(v) => setMutatiesFilter('Administration', v)}
+                              sortable
+                              sortDirection={mutatiesColumnSort('Administration')}
+                              onSort={() => handleMutatiesSort('Administration')}
+                            />
                           </Tr>
                         </Thead>
                         <Tbody>
@@ -512,28 +518,78 @@ const ProfitLoss: React.FC = () => {
                       <Table size="sm" variant="simple">
                         <Thead position="sticky" top={0} bg="gray.600">
                           <Tr>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('checkinDate')}>Check-in {bnbSortField === 'checkinDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('checkoutDate')}>Check-out {bnbSortField === 'checkoutDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('channel')}>Channel {bnbSortField === 'channel' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('listing')}>Listing {bnbSortField === 'listing' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('nights')} w="60px">Nights {bnbSortField === 'nights' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('guests')} w="60px">Guests {bnbSortField === 'guests' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountGross')} w="80px">Gross {bnbSortField === 'amountGross' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountNett')} w="80px">Net {bnbSortField === 'amountNett' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('guestName')}>Guest {bnbSortField === 'guestName' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                            <Th color="white" cursor="pointer" onClick={() => handleBnbSort('reservationCode')}>Reservation {bnbSortField === 'reservationCode' && (bnbSortDirection === 'asc' ? '↑' : '↓')}</Th>
-                          </Tr>
-                          <Tr>
-                            <Th></Th>
-                            <Th></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={bnbSearchFilters.channel} onChange={(e) => setBnbSearchFilters(prev => ({...prev, channel: e.target.value}))} bg="gray.500" color="white" /></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={bnbSearchFilters.listing} onChange={(e) => setBnbSearchFilters(prev => ({...prev, listing: e.target.value}))} bg="gray.500" color="white" /></Th>
-                            <Th></Th>
-                            <Th></Th>
-                            <Th></Th>
-                            <Th></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={bnbSearchFilters.guestName} onChange={(e) => setBnbSearchFilters(prev => ({...prev, guestName: e.target.value}))} bg="gray.500" color="white" /></Th>
-                            <Th><Input size="xs" placeholder="Search..." value={bnbSearchFilters.reservationCode} onChange={(e) => setBnbSearchFilters(prev => ({...prev, reservationCode: e.target.value}))} bg="gray.500" color="white" /></Th>
+                            <FilterableHeader
+                              label="Check-in"
+                              sortable
+                              sortDirection={bnbColumnSort('checkinDate')}
+                              onSort={() => handleBnbSort('checkinDate')}
+                            />
+                            <FilterableHeader
+                              label="Check-out"
+                              sortable
+                              sortDirection={bnbColumnSort('checkoutDate')}
+                              onSort={() => handleBnbSort('checkoutDate')}
+                            />
+                            <FilterableHeader
+                              label="Channel"
+                              filterValue={bnbFiltersSearch.channel}
+                              onFilterChange={(v) => setBnbFilter('channel', v)}
+                              sortable
+                              sortDirection={bnbColumnSort('channel')}
+                              onSort={() => handleBnbSort('channel')}
+                            />
+                            <FilterableHeader
+                              label="Listing"
+                              filterValue={bnbFiltersSearch.listing}
+                              onFilterChange={(v) => setBnbFilter('listing', v)}
+                              sortable
+                              sortDirection={bnbColumnSort('listing')}
+                              onSort={() => handleBnbSort('listing')}
+                            />
+                            <FilterableHeader
+                              label="Nights"
+                              isNumeric
+                              sortable
+                              sortDirection={bnbColumnSort('nights')}
+                              onSort={() => handleBnbSort('nights')}
+                            />
+                            <FilterableHeader
+                              label="Guests"
+                              isNumeric
+                              sortable
+                              sortDirection={bnbColumnSort('guests')}
+                              onSort={() => handleBnbSort('guests')}
+                            />
+                            <FilterableHeader
+                              label="Gross"
+                              isNumeric
+                              sortable
+                              sortDirection={bnbColumnSort('amountGross')}
+                              onSort={() => handleBnbSort('amountGross')}
+                            />
+                            <FilterableHeader
+                              label="Net"
+                              isNumeric
+                              sortable
+                              sortDirection={bnbColumnSort('amountNett')}
+                              onSort={() => handleBnbSort('amountNett')}
+                            />
+                            <FilterableHeader
+                              label="Guest"
+                              filterValue={bnbFiltersSearch.guestName}
+                              onFilterChange={(v) => setBnbFilter('guestName', v)}
+                              sortable
+                              sortDirection={bnbColumnSort('guestName')}
+                              onSort={() => handleBnbSort('guestName')}
+                            />
+                            <FilterableHeader
+                              label="Reservation"
+                              filterValue={bnbFiltersSearch.reservationCode}
+                              onFilterChange={(v) => setBnbFilter('reservationCode', v)}
+                              sortable
+                              sortDirection={bnbColumnSort('reservationCode')}
+                              onSort={() => handleBnbSort('reservationCode')}
+                            />
                           </Tr>
                         </Thead>
                         <Tbody>
@@ -620,10 +676,10 @@ const ProfitLoss: React.FC = () => {
                           <option value="N">N</option>
                         </Select>
                       </VStack>
-                      <Button colorScheme="orange" onClick={fetchBalanceData} isLoading={loading} size="sm">
+                      <Button colorScheme="orange" onClick={fetchBalanceData} isLoading={loading} size="sm" alignSelf="flex-end">
                         Update Profit/Loss
                       </Button>
-                      <Badge colorScheme="purple">{balanceData.length} records</Badge>
+                      <Badge colorScheme="purple" alignSelf="flex-end">{balanceData.length} records</Badge>
                     </HStack>
                   </CardBody>
                 </Card>

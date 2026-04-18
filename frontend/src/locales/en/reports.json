@@ -230,6 +230,7 @@
     "unknownError": "Unknown error",
     "bijzondereNote": "* 8099 Bijzondere baten en lasten not included",
     "dataRefreshed": "Data refreshed",
+    "viewMode": "View",
     "standardView": "Standard",
     "pivotView": "Pivot",
     "revenueChart": "Revenue (8000)",

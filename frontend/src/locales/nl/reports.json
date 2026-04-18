@@ -230,6 +230,7 @@
     "unknownError": "Onbekende fout",
     "bijzondereNote": "* 8099 Bijzondere baten en lasten niet inbegrepen",
     "dataRefreshed": "Gegevens vernieuwd",
+    "viewMode": "Weergave",
     "standardView": "Standaard",
     "pivotView": "Draaitabel",
     "revenueChart": "Omzet (8000)",

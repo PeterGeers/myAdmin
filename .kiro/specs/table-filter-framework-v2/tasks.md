@@ -224,32 +224,32 @@ Phased implementation of the table filter framework v2: new hooks (`useColumnFil
   - Push to main
 
 - [ ] 11. High-priority component migrations
-  - [ ] 11.1 Migrate MutatiesReport (Pattern B: hook replacement)
+  - [x] 11.1 Migrate MutatiesReport (Pattern B: hook replacement)
     - Replace `useState`/`useEffect` filter + sort boilerplate with `useFilterableTable`
     - Replace `<Th><Input .../>` patterns with `FilterableHeader`
     - Preserve all existing functionality and identical user-visible behavior
     - _Requirements: 7.1, 7.5_
 
-  - [ ] 11.2 Migrate ProfitLoss (Pattern B: hook replacement)
-    - Replace inline column filters and sort logic with `useFilterableTable` + `FilterableHeader`
-    - Preserve all existing functionality and identical user-visible behavior
-    - _Requirements: 7.2, 7.5_
+  - [x] 11.2 Migrate ProfitLoss (Pattern B: hook replacement)
+  - Replace inline column filters and sort logic with `useFilterableTable` + `FilterableHeader`
+  - Preserve all existing functionality and identical user-visible behavior
+  - _Requirements: 7.2, 7.5_
 
-  - [ ] 11.3 Migrate ClosedYearsTable (Pattern E: row-click modal)
-    - Remove per-row "Reopen" action button and Actions column
-    - Add `onClick` to `<Tr>` that opens confirmation modal
-    - Add `_hover={{ bg: 'gray.700', cursor: 'pointer' }}` to `<Tr>`
-    - Preserve reopen functionality via modal
-    - _Requirements: 7.3, 7.5_
+  - [x] 11.3 Remove dead code: ClosedYearsTable and related unused components
+    - Investigation revealed `ClosedYearsTable.tsx` is dead code — never rendered in the running app
+    - The live year-end closure UI is `YearEndClosureSection.tsx` (embedded in AangifteIbReport), which already has a reopen button with sequential validation
+    - Deleted 4 unreachable files: `ClosedYearsTable.tsx`, `YearClosureWizard.tsx`, `YearEndClosure.tsx` (page), `YearEndClosureReport.tsx`
+    - No dangling imports — these files only referenced each other
+    - _Requirements: 7.3, 7.5 — N/A (component was dead code)_
 
-  - [ ] 11.4 Migrate ProvisioningPanel (Pattern E: row-click modal)
+  - [x] 11.4 Migrate ProvisioningPanel (Pattern E: row-click modal)
     - Remove per-row "Provision" action button and Actions column
     - Add `onClick` to `<Tr>` that opens confirmation/action modal
     - Add `_hover={{ bg: 'gray.700', cursor: 'pointer' }}` to `<Tr>`
     - Preserve provision functionality via modal
     - _Requirements: 7.4, 7.5_
 
-- [ ] 12. Checkpoint — High-priority migrations complete
+- [-] 12. Checkpoint — High-priority migrations complete
   - Ensure MutatiesReport, ProfitLoss, ClosedYearsTable, ProvisioningPanel compile without errors
   - Verify all migrated components preserve existing functionality
   - Ensure all tests pass, ask the user if questions arise.
