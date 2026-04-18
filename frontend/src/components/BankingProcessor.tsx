@@ -34,14 +34,14 @@ import {
     useDisclosure
 } from '@chakra-ui/react';
 import { Form, Formik } from 'formik';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
-import FilterPanel from './filters/FilterPanel';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { FieldHelp } from './help';
 import AccountSelect from './common/AccountSelect';
 import { useAccountLookup } from '../hooks/useAccountLookup';
+import BankingMutatiesTab from './banking/BankingMutatiesTab';
 
 interface Transaction {
   ID?: number;
@@ -283,23 +283,7 @@ const BankingProcessor: React.FC = () => {
   const [mutatiesFilters, setMutatiesFilters] = useState({
     years: [new Date().getFullYear().toString()]
   });
-  const [columnFilters, setColumnFilters] = useState({
-    ID: '',
-    TransactionNumber: '',
-    TransactionDate: '',
-    TransactionDescription: '',
-    TransactionAmount: '',
-    Debet: '',
-    Credit: '',
-    ReferenceNumber: '',
-    Ref1: '',
-    Ref2: '',
-    Ref3: '',
-    Ref4: '',
-    Administration: ''
-  });
-  const [debouncedFilters, setDebouncedFilters] = useState(columnFilters);
-  const [displayLimit, setDisplayLimit] = useState(100);
+  // Column filters and display limit moved to BankingMutatiesTab component
   const [bankingBalances, setBankingBalances] = useState<BankingBalance[]>([]);
   const [checkingAccounts, setCheckingAccounts] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -347,12 +331,6 @@ const BankingProcessor: React.FC = () => {
     setExpandedRows(newExpanded);
   };
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedFilters(columnFilters);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [columnFilters]);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [editingRecord, setEditingRecord] = useState<Transaction | null>(null);
   const [isInsertMode, setIsInsertMode] = useState(false);
@@ -371,22 +349,6 @@ const BankingProcessor: React.FC = () => {
       copyToClipboard(ref3);
     }
   };
-
-  const filteredMutaties = useMemo(() => {
-    const filtered = mutaties.filter(mutatie => {
-      return Object.entries(debouncedFilters).every(([key, filterValue]) => {
-        if (!filterValue) return true;
-        try {
-          const regex = new RegExp(filterValue, 'i');
-          const fieldValue = String(mutatie[key as keyof Transaction] || '');
-          return regex.test(fieldValue);
-        } catch {
-          return String(mutatie[key as keyof Transaction] || '').toLowerCase().includes(filterValue.toLowerCase());
-        }
-      });
-    });
-    return filtered.slice(0, displayLimit);
-  }, [mutaties, debouncedFilters, displayLimit]);
 
   const openEditModal = (record: Transaction) => {
     setEditingRecord({ ...record });
@@ -1414,101 +1376,16 @@ const BankingProcessor: React.FC = () => {
           </TabPanel>
 
           <TabPanel>
-            <VStack align="stretch" spacing={4}>
-              {/* Filters using generic FilterPanel */}
-              <FilterPanel
-                layout="horizontal"
-                filters={[
-                  {
-                    type: 'multi',
-                    label: 'Year',
-                    options: filterOptions.years,
-                    value: mutatiesFilters.years,
-                    onChange: (years) => setMutatiesFilters(prev => ({ ...prev, years }))
-                  },
-                  {
-                    type: 'single',
-                    label: 'Records to show',
-                    options: [50, 100, 250, 500, 1000, 99999],
-                    value: displayLimit,
-                    onChange: (value) => setDisplayLimit(Number(value)),
-                    getOptionLabel: (val) => val === 99999 ? 'All' : String(val),
-                    getOptionValue: (val) => String(val)
-                  }
-                ]}
-                labelColor="white"
-                bg="gray.600"
-                color="white"
-              />
-
-              <HStack justify="space-between" align="center">
-                <Heading size="md">Mutaties ({filteredMutaties.length} of {mutaties.length})</Heading>
-                <Button 
-                  colorScheme="green" 
-                  size="sm" 
-                  leftIcon={<span>+</span>}
-                  onClick={openInsertModal}
-                >
-                  {t('mutaties.addNewRecord')}
-                </Button>
-              </HStack>
-
-              <TableContainer maxH="600px" overflowY="auto" overflowX="auto">
-                <Table size="sm" variant="simple">
-                  <Thead position="sticky" top={0} bg="gray.700" zIndex={1}>
-                    <Tr>
-                      <Th color="white">{t('table.id')}</Th>
-                      <Th color="white">{t('table.transactionNumber')}</Th>
-                      <Th color="white">{t('table.transactionDate')}</Th>
-                      <Th color="white" maxW="225px">{t('table.description')}</Th>
-                      <Th color="white">{t('table.amount')}</Th>
-                      <Th color="white">{t('table.debit')}</Th>
-                      <Th color="white">{t('table.credit')}</Th>
-                      <Th color="white" maxW="100px">{t('table.referenceNumber')}</Th>
-                      <Th color="white" maxW="100px">{t('table.ref1')}</Th>
-                      <Th color="white" maxW="100px">{t('table.ref2')}</Th>
-                      <Th color="white" maxW="100px">{t('table.ref3')}</Th>
-                      <Th color="white" maxW="100px">{t('table.ref4')}</Th>
-                      <Th color="white">{t('table.administration')}</Th>
-                    </Tr>
-                    <Tr>
-                      <Th p={1}><Input size="xs" placeholder={t('placeholders.id')} value={columnFilters.ID} onChange={(e) => setColumnFilters(prev => ({ ...prev, ID: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder={t('placeholders.trxNumber')} value={columnFilters.TransactionNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder={t('placeholders.date')} value={columnFilters.TransactionDate} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDate: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="225px"><Input size="xs" placeholder={t('placeholders.description')} value={columnFilters.TransactionDescription} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionDescription: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder={t('placeholders.amount')} value={columnFilters.TransactionAmount} onChange={(e) => setColumnFilters(prev => ({ ...prev, TransactionAmount: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder={t('placeholders.debit')} value={columnFilters.Debet} onChange={(e) => setColumnFilters(prev => ({ ...prev, Debet: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder={t('placeholders.credit')} value={columnFilters.Credit} onChange={(e) => setColumnFilters(prev => ({ ...prev, Credit: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.reference')} value={columnFilters.ReferenceNumber} onChange={(e) => setColumnFilters(prev => ({ ...prev, ReferenceNumber: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref1')} value={columnFilters.Ref1} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref1: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref2')} value={columnFilters.Ref2} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref2: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref3')} value={columnFilters.Ref3} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref3: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1} maxW="100px"><Input size="xs" placeholder={t('placeholders.ref4')} value={columnFilters.Ref4} onChange={(e) => setColumnFilters(prev => ({ ...prev, Ref4: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                      <Th p={1}><Input size="xs" placeholder={t('placeholders.admin')} value={columnFilters.Administration} onChange={(e) => setColumnFilters(prev => ({ ...prev, Administration: e.target.value }))} onKeyDown={handleKeyDown} bg="gray.600" color="white" /></Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {filteredMutaties.map((mutatie, index) => (
-                      <Tr key={mutatie.ID}>
-                        <Td color="white" fontSize="sm" cursor="pointer" _hover={{ bg: "gray.600" }} onClick={() => openEditModal(mutatie)}>{mutatie.ID}</Td>
-                        <Td color="white" fontSize="sm">{mutatie.TransactionNumber}</Td>
-                        <Td color="white" fontSize="sm">{new Date(mutatie.TransactionDate).toLocaleDateString('nl-NL')}</Td>
-                        <Td color="white" fontSize="sm" maxW="225px" isTruncated title={mutatie.TransactionDescription} cursor="pointer" onClick={() => copyToClipboard(mutatie.TransactionDescription)}>{mutatie.TransactionDescription}</Td>
-                        <Td color="white" fontSize="sm">€{Number(mutatie.TransactionAmount).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</Td>
-                        <Td color="white" fontSize="sm">{mutatie.Debet}</Td>
-                        <Td color="white" fontSize="sm">{mutatie.Credit}</Td>
-                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.ReferenceNumber} cursor="pointer" onClick={() => copyToClipboard(mutatie.ReferenceNumber)}>{mutatie.ReferenceNumber}</Td>
-                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref1} cursor="pointer" onClick={() => copyToClipboard(mutatie.Ref1)}>{mutatie.Ref1}</Td>
-                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref2} cursor="pointer" onClick={() => copyToClipboard(mutatie.Ref2)}>{mutatie.Ref2}</Td>
-                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref3} cursor="pointer" onClick={() => handleRef3Click(mutatie.Ref3)}>{mutatie.Ref3}</Td>
-                        <Td color="white" fontSize="sm" maxW="100px" isTruncated title={mutatie.Ref4} cursor="pointer" onClick={() => copyToClipboard(mutatie.Ref4)}>{mutatie.Ref4}</Td>
-                        <Td color="white" fontSize="sm">{mutatie.Administration}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </TableContainer>
-            </VStack>
+            <BankingMutatiesTab
+              mutaties={mutaties}
+              filterOptions={filterOptions}
+              mutatiesFilters={mutatiesFilters}
+              setMutatiesFilters={setMutatiesFilters}
+              openEditModal={openEditModal}
+              openInsertModal={openInsertModal}
+              copyToClipboard={copyToClipboard}
+              handleRef3Click={handleRef3Click}
+            />
           </TabPanel>
 
           <TabPanel>
