@@ -1,6 +1,18 @@
+/**
+ * Parameter Management Component
+ *
+ * Allows tenant admins to view, create, edit, and delete parameters.
+ * System-scope parameters are read-only (row-click disabled).
+ *
+ * Uses the table-filter-framework-v2 hybrid approach:
+ * - useTableConfig('parameters') for parameter-driven column/filter config
+ * - useFilterableTable for combined filtering + sorting
+ * - FilterableHeader for inline column text filters with sort indicators
+ */
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Box, Table, Thead, Tbody, Tr, Th, Td, Badge, Button, Grid,
+  Box, Table, Thead, Tbody, Tr, Td, Badge, Button, Grid,
   useToast, useDisclosure, Spinner, Text, HStack,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   FormControl, FormLabel, Input, Textarea, Switch, Select,
@@ -11,16 +23,47 @@ import { AddIcon } from '@chakra-ui/icons';
 import { Parameter, ParameterCreateRequest } from '../../types/parameterTypes';
 import { getParameters, createParameter, updateParameter, deleteParameter } from '../../services/parameterService';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
-import { FilterPanel } from '../../components/filters/FilterPanel';
-import { SearchFilterConfig } from '../../components/filters/types';
+import { FilterableHeader } from '../filters/FilterableHeader';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
+import { useTableConfig } from '../../hooks/useTableConfig';
 
 interface Props { tenant: string; }
 
+/**
+ * Extended parameter with a display-friendly value string for filtering.
+ * Secrets show '********', objects are JSON-stringified.
+ */
+interface ParameterRow extends Parameter {
+  displayValue: string;
+}
+
+/**
+ * Map column keys (from useTableConfig) to translation-based display labels.
+ */
+function useColumnLabels() {
+  const { t } = useTypedTranslation('admin');
+  return useMemo<Record<string, string>>(() => ({
+    namespace: t('tenantAdmin.parameters.namespace'),
+    key: t('tenantAdmin.parameters.key'),
+    value: t('tenantAdmin.parameters.value'),
+    value_type: t('tenantAdmin.parameters.valueType'),
+    scope_origin: t('tenantAdmin.parameters.scope'),
+  }), [t]);
+}
+
+/** Convert a Parameter's value to a display string */
+function toDisplayValue(p: Parameter): string {
+  if (p.is_secret) return '********';
+  if (typeof p.value === 'object') return JSON.stringify(p.value);
+  return String(p.value ?? '');
+}
+
 export default function ParameterManagement({ tenant }: Props) {
   const { t } = useTypedTranslation('admin');
+  const columnLabels = useColumnLabels();
+
   const [params, setParams] = useState<Record<string, Parameter[]>>({});
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ namespace: '', key: '', value: '', value_type: '', scope_origin: '' });
   const [editing, setEditing] = useState<Parameter | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -34,6 +77,9 @@ export default function ParameterManagement({ tenant }: Props) {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
+  // Parameter-driven table configuration
+  const tableConfig = useTableConfig('parameters');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -42,31 +88,59 @@ export default function ParameterManagement({ tenant }: Props) {
     } catch (e: any) {
       toast({ title: t('tenantAdmin.parameters.loading'), description: e.message, status: 'error', duration: 5000 });
     } finally { setLoading(false); }
-  }, [tenant, toast]);
+  }, [toast, t]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, tenant]);
 
-  const namespaces = Object.keys(params).sort();
-  const allParams: Parameter[] = namespaces.flatMap(ns => params[ns] || []);
-
-  const filteredParams = useMemo(() => allParams.filter(p => {
-    const pValue = p.is_secret ? '********' : typeof p.value === 'object' ? JSON.stringify(p.value) : String(p.value ?? '');
-    return (
-      (!filters.namespace || p.namespace.toLowerCase().includes(filters.namespace.toLowerCase())) &&
-      (!filters.key || p.key.toLowerCase().includes(filters.key.toLowerCase())) &&
-      (!filters.value || pValue.toLowerCase().includes(filters.value.toLowerCase())) &&
-      (!filters.value_type || p.value_type.toLowerCase().includes(filters.value_type.toLowerCase())) &&
-      (!filters.scope_origin || (p.scope_origin || '').toLowerCase().includes(filters.scope_origin.toLowerCase()))
+  // Build flat parameter array with pre-computed display value
+  const allParams: ParameterRow[] = useMemo(() => {
+    const namespaces = Object.keys(params).sort();
+    return namespaces.flatMap(ns =>
+      (params[ns] || []).map(p => ({
+        ...p,
+        displayValue: toDisplayValue(p),
+      }))
     );
-  }), [allParams, filters]);
+  }, [params]);
 
-  const searchFilters: SearchFilterConfig[] = [
-    { type: 'search', label: t('tenantAdmin.parameters.namespace'), value: filters.namespace, onChange: (v) => setFilters(prev => ({ ...prev, namespace: v })), placeholder: 'Filter...', size: 'sm' },
-    { type: 'search', label: t('tenantAdmin.parameters.key'), value: filters.key, onChange: (v) => setFilters(prev => ({ ...prev, key: v })), placeholder: 'Filter...', size: 'sm' },
-    { type: 'search', label: t('tenantAdmin.parameters.value'), value: filters.value, onChange: (v) => setFilters(prev => ({ ...prev, value: v })), placeholder: 'Filter...', size: 'sm' },
-    { type: 'search', label: t('tenantAdmin.parameters.valueType'), value: filters.value_type, onChange: (v) => setFilters(prev => ({ ...prev, value_type: v })), placeholder: 'Filter...', size: 'sm' },
-    { type: 'search', label: t('tenantAdmin.parameters.scope'), value: filters.scope_origin, onChange: (v) => setFilters(prev => ({ ...prev, scope_origin: v })), placeholder: 'Filter...', size: 'sm' },
-  ];
+  // Build initial filters from configured filterable columns
+  const initialFilters = useMemo(
+    () => Object.fromEntries(tableConfig.filterableColumns.map((col) => [col, ''])),
+    [tableConfig.filterableColumns],
+  );
+
+  // For filtering, we need the 'value' column to match against the display
+  // string (secrets masked, objects stringified). Create a filterable view
+  // where the 'value' field is the display string.
+  const filterableData = useMemo(
+    () => allParams.map(p => ({ ...p, value: p.displayValue })),
+    [allParams],
+  );
+
+  // Combined filtering + sorting via framework hook
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<ParameterRow>(filterableData as ParameterRow[], {
+    initialFilters,
+    defaultSort: tableConfig.defaultSort,
+  });
+
+  // Map processed rows back to original ParameterRow objects (with real value)
+  // so that row-click opens the modal with the actual value, not the display string.
+  const displayRows = useMemo(
+    () => processedData.map(row => {
+      const original = allParams.find(
+        p => p.namespace === row.namespace && p.key === row.key && p.scope_origin === row.scope_origin
+      );
+      return original || row;
+    }),
+    [processedData, allParams],
+  );
 
   const handleAdd = () => {
     setIsNew(true); setEditing(null);
@@ -117,61 +191,130 @@ export default function ParameterManagement({ tenant }: Props) {
     finally { onDeleteClose(); }
   };
 
+  /** Render a table cell with column-specific styling */
+  const renderCellValue = (p: ParameterRow, col: string) => {
+    switch (col) {
+      case 'value':
+        return (
+          <Td color="white" fontSize="sm" maxW="300px" isTruncated>
+            {p.displayValue}
+          </Td>
+        );
+      case 'value_type':
+        return <Td><Badge colorScheme="blue" fontSize="xs">{p.value_type}</Badge></Td>;
+      case 'scope_origin':
+        return (
+          <Td>
+            <Badge colorScheme={p.scope_origin === 'tenant' ? 'orange' : 'gray'} fontSize="xs">
+              {p.scope_origin}
+            </Badge>
+          </Td>
+        );
+      default:
+        return <Td color="white" fontSize="sm">{(p as any)[col]}</Td>;
+    }
+  };
+
   if (loading) return <Box p={4}><Spinner color="orange.400" /><Text color="gray.400" display="inline" ml={2}>Loading parameters...</Text></Box>;
 
   return (
     <Box>
       <HStack mb={4} justify="flex-end">
-        <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={handleAdd}>{t('tenantAdmin.parameters.addParameter')}</Button>
+        <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={handleAdd}>
+          {t('tenantAdmin.parameters.addParameter')}
+        </Button>
       </HStack>
-      <Box mb={4}>
-        <FilterPanel filters={searchFilters} layout="horizontal" size="sm" spacing={2} />
-      </Box>
       <Table variant="simple" size="sm">
-        <Thead><Tr><Th color="gray.400">{t('tenantAdmin.parameters.namespace')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.key')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.value')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.valueType')}</Th><Th color="gray.400">{t('tenantAdmin.parameters.scope')}</Th></Tr></Thead>
+        <Thead>
+          <Tr>
+            {tableConfig.columns.map((col) => {
+              const isFilterable = tableConfig.filterableColumns.includes(col);
+              return (
+                <FilterableHeader
+                  key={col}
+                  label={columnLabels[col] || col}
+                  filterValue={isFilterable ? filters[col] : undefined}
+                  onFilterChange={isFilterable ? (v) => setFilter(col, v) : undefined}
+                  sortable
+                  sortDirection={sortField === col ? sortDirection : null}
+                  onSort={() => handleSort(col)}
+                />
+              );
+            })}
+          </Tr>
+        </Thead>
         <Tbody>
-          {filteredParams.map((p, i) => (
-            <Tr key={`${p.namespace}-${p.key}-${i}`} cursor={p.scope_origin !== 'system' ? 'pointer' : 'default'} _hover={p.scope_origin !== 'system' ? { bg: 'gray.600' } : {}} onClick={() => handleRowClick(p)}>
-              <Td color="white" fontSize="sm">{p.namespace}</Td>
-              <Td color="white" fontSize="sm">{p.key}</Td>
-              <Td color="white" fontSize="sm" maxW="300px" isTruncated>{p.is_secret ? '********' : typeof p.value === 'object' ? JSON.stringify(p.value) : String(p.value ?? '')}</Td>
-              <Td><Badge colorScheme="blue" fontSize="xs">{p.value_type}</Badge></Td>
-              <Td><Badge colorScheme={p.scope_origin === 'tenant' ? 'orange' : 'gray'} fontSize="xs">{p.scope_origin}</Badge></Td>
+          {displayRows.map((p, i) => (
+            <Tr
+              key={`${p.namespace}-${p.key}-${i}`}
+              cursor={p.scope_origin !== 'system' ? 'pointer' : 'default'}
+              _hover={p.scope_origin !== 'system' ? { bg: 'gray.600' } : {}}
+              onClick={() => handleRowClick(p)}
+            >
+              {tableConfig.columns.map((col) => (
+                <React.Fragment key={col}>
+                  {renderCellValue(p, col)}
+                </React.Fragment>
+              ))}
             </Tr>
           ))}
-          {filteredParams.length === 0 && <Tr><Td colSpan={5} color="gray.500" textAlign="center">{t('tenantAdmin.parameters.noParameters')}</Td></Tr>}
+          {displayRows.length === 0 && (
+            <Tr>
+              <Td colSpan={tableConfig.columns.length} color="gray.500" textAlign="center">
+                {t('tenantAdmin.parameters.noParameters')}
+              </Td>
+            </Tr>
+          )}
         </Tbody>
       </Table>
 
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent bg="gray.700">
-          <ModalHeader color="white">{isNew ? t('tenantAdmin.parameters.addParameter') : `${t('tenantAdmin.parameters.editParameter')} - ${editing?.namespace}.${editing?.key}`}</ModalHeader>
+          <ModalHeader color="white">
+            {isNew
+              ? t('tenantAdmin.parameters.addParameter')
+              : `${t('tenantAdmin.parameters.editParameter')} - ${editing?.namespace}.${editing?.key}`}
+          </ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody>
             <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-              <FormControl><FormLabel color="white">{t('tenantAdmin.parameters.namespace')}</FormLabel>
-                <Input value={formNs} onChange={e => setFormNs(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white" /></FormControl>
-              <FormControl><FormLabel color="white">{t('tenantAdmin.parameters.key')}</FormLabel>
-                <Input value={formKey} onChange={e => setFormKey(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white" /></FormControl>
-              <FormControl><FormLabel color="white">{t('tenantAdmin.parameters.valueType')}</FormLabel>
+              <FormControl>
+                <FormLabel color="white">{t('tenantAdmin.parameters.namespace')}</FormLabel>
+                <Input value={formNs} onChange={e => setFormNs(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white" />
+              </FormControl>
+              <FormControl>
+                <FormLabel color="white">{t('tenantAdmin.parameters.key')}</FormLabel>
+                <Input value={formKey} onChange={e => setFormKey(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white" />
+              </FormControl>
+              <FormControl>
+                <FormLabel color="white">{t('tenantAdmin.parameters.valueType')}</FormLabel>
                 <Select value={formType} onChange={e => setFormType(e.target.value)} bg="gray.600" color="white">
-                  <option value="string">string</option><option value="number">number</option>
-                  <option value="boolean">boolean</option><option value="json">json</option>
-                </Select></FormControl>
-              {isNew && (<FormControl display="flex" alignItems="flex-end">
-                <FormLabel color="white" mb={0} mr={3}>{t('tenantAdmin.parameters.secret')}</FormLabel>
-                <Switch isChecked={formSecret} onChange={e => setFormSecret(e.target.checked)} colorScheme="orange" />
-              </FormControl>)}
-              <FormControl gridColumn="span 2"><FormLabel color="white">{t('tenantAdmin.parameters.value')}</FormLabel>
+                  <option value="string">string</option>
+                  <option value="number">number</option>
+                  <option value="boolean">boolean</option>
+                  <option value="json">json</option>
+                </Select>
+              </FormControl>
+              {isNew && (
+                <FormControl display="flex" alignItems="flex-end">
+                  <FormLabel color="white" mb={0} mr={3}>{t('tenantAdmin.parameters.secret')}</FormLabel>
+                  <Switch isChecked={formSecret} onChange={e => setFormSecret(e.target.checked)} colorScheme="orange" />
+                </FormControl>
+              )}
+              <FormControl gridColumn="span 2">
+                <FormLabel color="white">{t('tenantAdmin.parameters.value')}</FormLabel>
                 {formType === 'boolean' ? (
                   <Select value={formValue} onChange={e => setFormValue(e.target.value)} bg="gray.600" color="white">
-                    <option value="true">true</option><option value="false">false</option></Select>
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </Select>
                 ) : formType === 'json' ? (
                   <Textarea value={formValue} onChange={e => setFormValue(e.target.value)} rows={5} bg="gray.600" color="white" fontFamily="mono" />
                 ) : (
                   <Input value={formValue} onChange={e => setFormValue(e.target.value)} type={formType === 'number' ? 'number' : 'text'} bg="gray.600" color="white" />
-                )}</FormControl>
+                )}
+              </FormControl>
             </Grid>
           </ModalBody>
           <ModalFooter>
@@ -183,14 +326,18 @@ export default function ParameterManagement({ tenant }: Props) {
       </Modal>
 
       <AlertDialog isOpen={isDeleteOpen} leastDestructiveRef={cancelRef as any} onClose={onDeleteClose}>
-        <AlertDialogOverlay><AlertDialogContent bg="gray.700">
-          <AlertDialogHeader color="white">Delete Parameter</AlertDialogHeader>
-          <AlertDialogBody color="gray.300">Delete <strong>{editing?.namespace}.{editing?.key}</strong>? This cannot be undone.</AlertDialogBody>
-          <AlertDialogFooter>
-            <Button ref={cancelRef} onClick={onDeleteClose} colorScheme="gray">Cancel</Button>
-            <Button colorScheme="red" onClick={handleDelete} ml={3}>Delete</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent></AlertDialogOverlay>
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.700">
+            <AlertDialogHeader color="white">Delete Parameter</AlertDialogHeader>
+            <AlertDialogBody color="gray.300">
+              Delete <strong>{editing?.namespace}.{editing?.key}</strong>? This cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose} colorScheme="gray">Cancel</Button>
+              <Button colorScheme="red" onClick={handleDelete} ml={3}>Delete</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
       </AlertDialog>
     </Box>
   );
