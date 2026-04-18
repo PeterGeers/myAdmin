@@ -3,7 +3,6 @@ import {
   Alert,
   AlertIcon,
   Button,
-  ButtonGroup,
   Card,
   CardBody,
   CardHeader,
@@ -324,8 +323,8 @@ const ProfitLossReport: React.FC<ProfitLossReportProps> = ({
       {/* Filters */}
       <Card bg="gray.700">
         <CardBody>
-          <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            <GridItem colSpan={{ base: 1, md: 2 }}>
+          <HStack spacing={4} wrap="wrap" align="flex-end">
+            <VStack spacing={1} align="flex-start" maxW="160px">
               <YearFilter
                 values={selectedYears}
                 onChange={onYearsChange}
@@ -337,64 +336,60 @@ const ProfitLossReport: React.FC<ProfitLossReportProps> = ({
                 bg="gray.600"
                 color="white"
               />
-            </GridItem>
-            <GridItem>
-              <Text color="white" mb={2}>{t('actuals.displayFormat')}</Text>
+            </VStack>
+            <VStack spacing={1} align="flex-start">
+              <Text color="white" fontSize="sm">{t('actuals.displayFormat')}</Text>
               <Select
                 value={displayFormat}
                 onChange={(e) => onDisplayFormatChange(e.target.value as any)}
                 bg="gray.600"
                 color="white"
                 size="sm"
+                w="120px"
               >
                 <option value="2dec">{t('actuals.twoDecimals')}</option>
                 <option value="0dec">{t('actuals.wholeNumbers')}</option>
                 <option value="k">{t('actuals.thousands')}</option>
                 <option value="m">{t('actuals.millions')}</option>
               </Select>
-            </GridItem>
-            <GridItem>
-              <Text color="white" mb={2}>{t('actuals.drillDownLevel')}</Text>
-              <HStack>
-                {(['year', 'quarter', 'month'] as DrillDownLevel[]).map((lvl) => (
-                  <Button
-                    key={lvl}
-                    size="sm"
-                    colorScheme={drillDownLevel === lvl ? 'orange' : 'gray'}
-                    onClick={() => { setDrillDownLevel(lvl); setExpandedParents(new Set()); setExpandedLedgers(new Set()); }}
-                    isLoading={loading && drillDownLevel !== lvl}
-                  >
-                    {lvl === 'year' ? '📅' : lvl === 'quarter' ? '📊' : '📈'} {t(`actuals.${lvl}`)}
-                  </Button>
-                ))}
-              </HStack>
-            </GridItem>
-            <GridItem>
-              <HStack spacing={3}>
-                <Button colorScheme="orange" onClick={handleUpdateData} isLoading={loading} size="md">
-                  {t('actuals.refresh') ?? 'Refresh'}
-                </Button>
-                <ButtonGroup size="md" isAttached>
-                  <Button
-                    colorScheme={viewMode === 'standard' ? 'orange' : 'gray'}
-                    variant={viewMode === 'standard' ? 'solid' : 'outline'}
-                    color="white"
-                    onClick={() => setViewMode('standard')}
-                  >
-                    {t('actuals.standardView') ?? 'Standard'}
-                  </Button>
-                  <Button
-                    colorScheme={viewMode === 'pivot' ? 'orange' : 'gray'}
-                    variant={viewMode === 'pivot' ? 'solid' : 'outline'}
-                    color="white"
-                    onClick={() => setViewMode('pivot')}
-                  >
-                    {t('actuals.pivotView') ?? 'Pivot'}
-                  </Button>
-                </ButtonGroup>
-              </HStack>
-            </GridItem>
-          </Grid>
+            </VStack>
+            <VStack spacing={1} align="flex-start">
+              <Text color="white" fontSize="sm">{t('actuals.drillDownLevel')}</Text>
+              <Select
+                value={drillDownLevel}
+                onChange={(e) => {
+                  setDrillDownLevel(e.target.value as DrillDownLevel);
+                  setExpandedParents(new Set());
+                  setExpandedLedgers(new Set());
+                }}
+                bg="gray.600"
+                color="white"
+                size="sm"
+                w="130px"
+              >
+                <option value="year">{t('actuals.year')}</option>
+                <option value="quarter">{t('actuals.quarter')}</option>
+                <option value="month">{t('actuals.month')}</option>
+              </Select>
+            </VStack>
+            <VStack spacing={1} align="flex-start">
+              <Text color="white" fontSize="sm">{t('actuals.viewMode') ?? 'View'}</Text>
+              <Select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as ViewMode)}
+                bg="gray.600"
+                color="white"
+                size="sm"
+                w="130px"
+              >
+                <option value="standard">{t('actuals.standardView') ?? 'Standard'}</option>
+                <option value="pivot">{t('actuals.pivotView') ?? 'Pivot'}</option>
+              </Select>
+            </VStack>
+            <Button colorScheme="orange" onClick={handleUpdateData} isLoading={loading} size="sm">
+              {t('actuals.refresh') ?? 'Refresh'}
+            </Button>
+          </HStack>
         </CardBody>
       </Card>
 

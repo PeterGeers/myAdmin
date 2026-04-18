@@ -19,6 +19,39 @@ jest.mock('../../services/apiService', () => ({
   buildEndpoint: (endpoint: string, params: URLSearchParams) => `${endpoint}?${params.toString()}`
 }));
 
+// Mock FilterableHeader to render a simple <th> with optional filter input
+jest.mock('../filters/FilterableHeader', () => ({
+  FilterableHeader: ({ label, filterValue, onFilterChange, onSort, sortable, sortDirection, ...props }: any) => (
+    <th data-testid="th" onClick={sortable ? onSort : undefined} {...props}>
+      <span>{label}</span>
+      {sortable && sortDirection && <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>}
+      {filterValue !== undefined && (
+        <input
+          data-testid="input"
+          value={filterValue}
+          onChange={(e: any) => onFilterChange?.(e.target.value)}
+          placeholder="Filter..."
+        />
+      )}
+    </th>
+  ),
+}));
+
+// Mock YearFilter to render a simple select
+jest.mock('../filters/YearFilter', () => ({
+  YearFilter: ({ values, onChange, availableOptions, ...props }: any) => (
+    <select
+      data-testid="year-filter"
+      value={values?.[0] || ''}
+      onChange={(e: any) => onChange?.([e.target.value])}
+    >
+      {(availableOptions || []).map((y: string) => (
+        <option key={y} value={y}>{y}</option>
+      ))}
+    </select>
+  ),
+}));
+
 // Mock Chakra UI components
 jest.mock('@chakra-ui/react', () => ({
   Alert: ({ children, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,

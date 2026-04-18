@@ -116,23 +116,21 @@ export function ProvisioningPanel() {
                 <Th color="gray.400">{t('provisioning.table.company')}</Th>
                 <Th color="gray.400">{t('provisioning.table.locale')}</Th>
                 <Th color="gray.400">{t('provisioning.table.verifiedAt')}</Th>
-                <Th color="gray.400">{t('provisioning.table.action')}</Th>
               </Tr>
             </Thead>
             <Tbody>
               {signups.map(signup => (
-                <Tr key={signup.id}>
+                <Tr
+                  key={signup.id}
+                  onClick={() => openProvisionModal(signup)}
+                  _hover={{ bg: 'gray.700', cursor: 'pointer' }}
+                >
                   <Td color="white">{signup.first_name} {signup.last_name}</Td>
                   <Td color="gray.300">{signup.email}</Td>
                   <Td color="gray.300">{signup.company_name || '—'}</Td>
                   <Td><Badge colorScheme="blue">{signup.locale}</Badge></Td>
                   <Td color="gray.400" fontSize="xs">
                     {signup.verified_at ? new Date(signup.verified_at).toLocaleDateString() : '—'}
-                  </Td>
-                  <Td>
-                    <Button size="xs" colorScheme="green" onClick={() => openProvisionModal(signup)}>
-                      {t('provisioning.provisionBtn')}
-                    </Button>
                   </Td>
                 </Tr>
               ))}
