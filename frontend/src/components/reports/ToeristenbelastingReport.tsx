@@ -16,7 +16,7 @@ import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, authenticatedPost } from '../../services/apiService';
 
 const ToeristenbelastingReport: React.FC = () => {
-  const { t } = useTypedTranslation();
+  const { t } = useTypedTranslation('reports');
   const [toeristenbelastingData, setToeristenbelastingData] = useState<any>(null);
   const [toeristenbelastingFilters, setToeristenbelastingFilters] = useState({
     year: new Date().getFullYear().toString()

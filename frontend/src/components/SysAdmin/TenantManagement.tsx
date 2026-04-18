@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, VStack, HStack, Button, Text, Badge, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td,
+  Table, Thead, Tbody, Tr, Td,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, useDisclosure, FormControl,
   FormLabel, Checkbox, Stack, Input, Select, IconButton,
@@ -11,8 +11,8 @@ import {
 import { AddIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { getTenants, createTenant, updateTenant, deleteTenant, reprovisionTenant, Tenant, CreateTenantRequest, UpdateTenantRequest } from '../../services/sysadminService';
-import { FilterPanel } from '../filters/FilterPanel';
-import { FilterConfig, SearchFilterConfig } from '../filters/types';
+import { useColumnFilters } from '../../hooks/useColumnFilters';
+import { FilterableHeader } from '../filters/FilterableHeader';
 import { ModuleManagement } from './ModuleManagement';
 
 export function TenantManagement() {
@@ -27,8 +27,6 @@ export function TenantManagement() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('administration');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
@@ -53,10 +51,24 @@ export function TenantManagement() {
   const { isOpen: isModuleOpen, onOpen: onModuleOpen, onClose: onModuleClose } = useDisclosure();
   const cancelRef = React.useRef<HTMLButtonElement>(null);
 
+  // Client-side column filtering on the current page of results
+  const {
+    filters,
+    setFilter,
+    filteredData: displayTenants,
+  } = useColumnFilters<Tenant>(tenants, {
+    administration: '',
+    display_name: '',
+    status: '',
+    enabled_modules: '',
+    user_count: '',
+    created_at: '',
+  });
+
   useEffect(() => {
     loadTenants();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, perPage, searchTerm, statusFilter, sortBy, sortOrder]);
+  }, [currentPage, perPage, sortBy, sortOrder]);
 
   const loadTenants = async () => {
     setLoading(true);
@@ -64,8 +76,6 @@ export function TenantManagement() {
       const data = await getTenants({
         page: currentPage,
         per_page: perPage,
-        search: searchTerm || undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
         sort_by: sortBy,
         sort_order: sortOrder
       });
@@ -269,6 +279,10 @@ export function TenantManagement() {
     }
   };
 
+  const getSortDirection = (field: string): 'asc' | 'desc' | null => {
+    return sortBy === field ? sortOrder : null;
+  };
+
   const handleReprovision = async () => {
     if (!selectedTenant) return;
 
@@ -362,31 +376,6 @@ export function TenantManagement() {
     <Box>
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between" wrap="wrap" spacing={4}>
-          <FilterPanel
-            layout="horizontal"
-            size="sm"
-            spacing={4}
-            filters={[
-              {
-                type: 'search',
-                label: t('tenantManagement.search'),
-                value: searchTerm,
-                onChange: setSearchTerm,
-                placeholder: t('tenantManagement.searchPlaceholder'),
-              } as SearchFilterConfig,
-              {
-                type: 'single',
-                label: t('tenantManagement.status'),
-                options: ['all', 'active', 'suspended', 'inactive', 'deleted'],
-                value: statusFilter,
-                onChange: setStatusFilter,
-                getOptionLabel: (option: string) => option === 'all' ? t('tenantManagement.allStatus') : t(`tenantManagement.status.${option}`),
-              } as FilterConfig<string>,
-            ]}
-            labelColor="white"
-            bg="gray.600"
-            color="white"
-          />
           <HStack>
             <Text color="gray.400" fontSize="sm">
               {t('tenantManagement.total')}: <Text as="span" color="orange.400" fontWeight="bold">{totalCount}</Text>
@@ -401,32 +390,58 @@ export function TenantManagement() {
           <Table variant="simple">
             <Thead>
               <Tr>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('administration')}>
-                  {t('tenantManagement.table.administration')} {sortBy === 'administration' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('display_name')}>
-                  {t('tenantManagement.table.displayName')} {sortBy === 'display_name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('status')}>
-                  {t('tenantManagement.table.status')} {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </Th>
-                <Th color="gray.400">{t('tenantManagement.table.modules')}</Th>
-                <Th color="gray.400">{t('tenantManagement.table.users')}</Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('created_at')}>
-                  {t('tenantManagement.table.created')} {sortBy === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </Th>
+                <FilterableHeader
+                  label={t('tenantManagement.table.administration')}
+                  filterValue={filters.administration}
+                  onFilterChange={(v) => setFilter('administration', v)}
+                  sortable
+                  sortDirection={getSortDirection('administration')}
+                  onSort={() => handleSort('administration')}
+                />
+                <FilterableHeader
+                  label={t('tenantManagement.table.displayName')}
+                  filterValue={filters.display_name}
+                  onFilterChange={(v) => setFilter('display_name', v)}
+                  sortable
+                  sortDirection={getSortDirection('display_name')}
+                  onSort={() => handleSort('display_name')}
+                />
+                <FilterableHeader
+                  label={t('tenantManagement.table.status')}
+                  filterValue={filters.status}
+                  onFilterChange={(v) => setFilter('status', v)}
+                  sortable
+                  sortDirection={getSortDirection('status')}
+                  onSort={() => handleSort('status')}
+                />
+                <FilterableHeader
+                  label={t('tenantManagement.table.modules')}
+                  filterValue={filters.enabled_modules}
+                  onFilterChange={(v) => setFilter('enabled_modules', v)}
+                />
+                <FilterableHeader
+                  label={t('tenantManagement.table.users')}
+                  filterValue={filters.user_count}
+                  onFilterChange={(v) => setFilter('user_count', v)}
+                />
+                <FilterableHeader
+                  label={t('tenantManagement.table.created')}
+                  filterValue={filters.created_at}
+                  onFilterChange={(v) => setFilter('created_at', v)}
+                  sortable
+                  sortDirection={getSortDirection('created_at')}
+                  onSort={() => handleSort('created_at')}
+                />
               </Tr>
             </Thead>
             <Tbody>
-              {tenants.map((tenant) => (
-                <Tr key={tenant.administration}>
-                  <Td 
-                    color="orange.400" 
-                    fontWeight="bold"
-                    cursor="pointer"
-                    _hover={{ textDecoration: 'underline', color: 'orange.300' }}
-                    onClick={() => openEditModal(tenant)}
-                  >
+              {displayTenants.map((tenant) => (
+                <Tr
+                  key={tenant.administration}
+                  _hover={{ bg: 'gray.700', cursor: 'pointer' }}
+                  onClick={() => openEditModal(tenant)}
+                >
+                  <Td color="orange.400" fontWeight="bold">
                     {tenant.administration}
                   </Td>
                   <Td color="gray.300">{tenant.display_name}</Td>

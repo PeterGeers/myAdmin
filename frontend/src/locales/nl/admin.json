@@ -305,6 +305,13 @@
       "moduleRoles": "Modulerollen",
       "otherRoles": "Overige rollen"
     },
+    "table": {
+      "name": "Naam",
+      "description": "Beschrijving",
+      "category": "Categorie",
+      "precedence": "Prioriteit",
+      "users": "Gebruikers"
+    },
     "labels": {
       "user": "gebruiker",
       "users": "gebruikers",

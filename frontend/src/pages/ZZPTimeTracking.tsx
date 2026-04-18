@@ -13,11 +13,13 @@ import {
 import { AddIcon } from '@chakra-ui/icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
-import { TimeEntry, TimeSummary, Contact, TimeEntryFilters } from '../types/zzp';
+import { TimeEntry, TimeSummary, Contact } from '../types/zzp';
 import { getTimeEntries, getTimeSummary } from '../services/timeTrackingService';
 import { getContacts } from '../services/contactService';
 import { createInvoiceFromTimeEntries } from '../services/zzpInvoiceService';
 import { TimeEntryModal } from '../components/zzp/TimeEntryModal';
+import { FilterableHeader } from '../components/filters/FilterableHeader';
+import { useFilterableTable } from '../hooks/useFilterableTable';
 
 /* ─── Quick-Add Bar ─── */
 interface QuickAddBarProps {
@@ -241,27 +243,48 @@ const ZZPTimeTracking: React.FC = () => {
   const [selected, setSelected] = useState<TimeEntry | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  // Filters
-  const [filterContact, setFilterContact] = useState('');
-  const [filterBilled, setFilterBilled] = useState('');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
+  // Build flat rows with promoted nested fields for column filtering
+  const entryRows = React.useMemo(
+    () => entries.map(e => ({
+      ...e,
+      contact_name: e.contact?.company_name || `#${e.contact_id}`,
+      total: e.hours * e.hourly_rate,
+      billable_text: e.is_billable ? 'Yes' : 'No',
+      billed_text: e.is_billed ? 'Yes' : 'No',
+    })),
+    [entries],
+  );
+
+  // Combined column filtering + sorting via framework hook
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable(entryRows, {
+    initialFilters: {
+      entry_date: '',
+      contact_name: '',
+      project_name: '',
+      hours: '',
+      hourly_rate: '',
+      total: '',
+      billable_text: '',
+      billed_text: '',
+    },
+    defaultSort: { field: 'entry_date', direction: 'desc' as const },
+  });
 
   const loadEntries = useCallback(async () => {
     try {
       setLoading(true);
-      const filters: TimeEntryFilters = {};
-      if (filterContact) filters.contact_id = Number(filterContact);
-      if (filterBilled === 'true') filters.is_billed = true;
-      if (filterBilled === 'false') filters.is_billed = false;
-      if (filterDateFrom) filters.date_from = filterDateFrom;
-      if (filterDateTo) filters.date_to = filterDateTo;
-      const resp = await getTimeEntries(filters);
+      const resp = await getTimeEntries({});
       if (resp.success) {
         setEntries(resp.data || []);
         setDisabled(false);
       } else {
-        // If 404 or specific error, time tracking is disabled
         setDisabled(true);
       }
     } catch {
@@ -269,7 +292,7 @@ const ZZPTimeTracking: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [filterContact, filterBilled, filterDateFrom, filterDateTo]);
+  }, []);
 
   useEffect(() => { loadEntries(); }, [loadEntries]);
   useEffect(() => {
@@ -350,40 +373,18 @@ const ZZPTimeTracking: React.FC = () => {
       {/* Quick-add bar */}
       <QuickAddBar contacts={contacts} onAdded={loadEntries} />
 
-      {/* Filters */}
-      <Flex wrap="wrap" gap={2} mb={4} align="center">
-        <Select size="sm" w="180px" bg="gray.700" color="white" borderColor="gray.600"
-          value={filterContact} onChange={e => setFilterContact(e.target.value)}
-          placeholder={t('timeTracking.contact')}>
-          {contacts.map(c => (
-            <option key={c.id} value={c.id}>{c.company_name}</option>
-          ))}
-        </Select>
-        <Select size="sm" w="140px" bg="gray.700" color="white" borderColor="gray.600"
-          value={filterBilled} onChange={e => setFilterBilled(e.target.value)} placeholder="—">
-          <option value="false">{t('timeTracking.unbilled')}</option>
-          <option value="true">{t('timeTracking.billed')}</option>
-        </Select>
-        <Input type="date" size="sm" w="150px" bg="gray.700" color="white" borderColor="gray.600"
-          value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
-          aria-label="Date from" />
-        <Input type="date" size="sm" w="150px" bg="gray.700" color="white" borderColor="gray.600"
-          value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
-          aria-label="Date to" />
-      </Flex>
-
       {/* Content */}
       {loading ? <Spinner color="white" /> : (
         <>
           {/* Mobile cards */}
           <Box display={{ base: 'block', md: 'none' }}>
-            {entries.map(entry => (
+            {processedData.map(entry => (
               <TimeCard key={entry.id} entry={entry}
                 selected={selectedIds.has(entry.id)}
                 onToggle={() => toggleSelection(entry.id)}
                 onClick={() => handleRowClick(entry)} />
             ))}
-            {entries.length === 0 && (
+            {processedData.length === 0 && (
               <Text color="gray.500">{t('common.noData')}</Text>
             )}
           </Box>
@@ -394,18 +395,77 @@ const ZZPTimeTracking: React.FC = () => {
               <Thead>
                 <Tr>
                   <Th color="gray.400" w="40px" />
-                  <Th color="gray.400">{t('timeTracking.date')}</Th>
-                  <Th color="gray.400">{t('timeTracking.contact')}</Th>
-                  <Th color="gray.400" display={{ base: 'none', lg: 'table-cell' }}>{t('timeTracking.project')}</Th>
-                  <Th color="gray.400" isNumeric>{t('timeTracking.hours')}</Th>
-                  <Th color="gray.400" isNumeric>{t('timeTracking.rate')}</Th>
-                  <Th color="gray.400" isNumeric>{t('timeTracking.total')}</Th>
-                  <Th color="gray.400">{t('timeTracking.billable')}</Th>
-                  <Th color="gray.400">{t('timeTracking.billed')}</Th>
+                  <FilterableHeader
+                    label={t('timeTracking.date')}
+                    filterValue={filters.entry_date}
+                    onFilterChange={(v) => setFilter('entry_date', v)}
+                    sortable
+                    sortDirection={sortField === 'entry_date' ? sortDirection : null}
+                    onSort={() => handleSort('entry_date')}
+                  />
+                  <FilterableHeader
+                    label={t('timeTracking.contact')}
+                    filterValue={filters.contact_name}
+                    onFilterChange={(v) => setFilter('contact_name', v)}
+                    sortable
+                    sortDirection={sortField === 'contact_name' ? sortDirection : null}
+                    onSort={() => handleSort('contact_name')}
+                  />
+                  <FilterableHeader
+                    label={t('timeTracking.project')}
+                    filterValue={filters.project_name}
+                    onFilterChange={(v) => setFilter('project_name', v)}
+                    sortable
+                    sortDirection={sortField === 'project_name' ? sortDirection : null}
+                    onSort={() => handleSort('project_name')}
+                  />
+                  <FilterableHeader
+                    label={t('timeTracking.hours')}
+                    filterValue={filters.hours}
+                    onFilterChange={(v) => setFilter('hours', v)}
+                    isNumeric
+                    sortable
+                    sortDirection={sortField === 'hours' ? sortDirection : null}
+                    onSort={() => handleSort('hours')}
+                  />
+                  <FilterableHeader
+                    label={t('timeTracking.rate')}
+                    filterValue={filters.hourly_rate}
+                    onFilterChange={(v) => setFilter('hourly_rate', v)}
+                    isNumeric
+                    sortable
+                    sortDirection={sortField === 'hourly_rate' ? sortDirection : null}
+                    onSort={() => handleSort('hourly_rate')}
+                  />
+                  <FilterableHeader
+                    label={t('timeTracking.total')}
+                    filterValue={filters.total}
+                    onFilterChange={(v) => setFilter('total', v)}
+                    isNumeric
+                    sortable
+                    sortDirection={sortField === 'total' ? sortDirection : null}
+                    onSort={() => handleSort('total')}
+                  />
+                  <FilterableHeader
+                    label={t('timeTracking.billable')}
+                    filterValue={filters.billable_text}
+                    onFilterChange={(v) => setFilter('billable_text', v)}
+                    sortable
+                    sortDirection={sortField === 'billable_text' ? sortDirection : null}
+                    onSort={() => handleSort('billable_text')}
+                  />
+                  <FilterableHeader
+                    label={t('timeTracking.billed')}
+                    filterValue={filters.billed_text}
+                    onFilterChange={(v) => setFilter('billed_text', v)}
+                    sortable
+                    sortDirection={sortField === 'billed_text' ? sortDirection : null}
+                    onSort={() => handleSort('billed_text')}
+                  />
                 </Tr>
               </Thead>
               <Tbody>
-                {entries.map(entry => (
+                {processedData.map(entry => (
                   <Tr key={entry.id} _hover={{ bg: 'gray.700', cursor: 'pointer' }}
                     onClick={() => handleRowClick(entry)}>
                     <Td onClick={e => e.stopPropagation()}>
@@ -415,11 +475,11 @@ const ZZPTimeTracking: React.FC = () => {
                       )}
                     </Td>
                     <Td>{entry.entry_date}</Td>
-                    <Td>{entry.contact?.company_name || `#${entry.contact_id}`}</Td>
-                    <Td display={{ base: 'none', lg: 'table-cell' }}>{entry.project_name || '-'}</Td>
+                    <Td>{entry.contact_name}</Td>
+                    <Td>{entry.project_name || '-'}</Td>
                     <Td isNumeric>{entry.hours}</Td>
                     <Td isNumeric>{formatCurrency(entry.hourly_rate)}</Td>
-                    <Td isNumeric>{formatCurrency(entry.hours * entry.hourly_rate)}</Td>
+                    <Td isNumeric>{formatCurrency(entry.total)}</Td>
                     <Td>
                       {entry.is_billable
                         ? <Badge colorScheme="blue" variant="subtle">Yes</Badge>
@@ -432,7 +492,7 @@ const ZZPTimeTracking: React.FC = () => {
                     </Td>
                   </Tr>
                 ))}
-                {entries.length === 0 && (
+                {processedData.length === 0 && (
                   <Tr><Td colSpan={9}><Text color="gray.500">{t('common.noData')}</Text></Td></Tr>
                 )}
               </Tbody>

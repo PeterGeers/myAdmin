@@ -1,27 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, VStack, HStack, Button, Text, Badge, useToast, Spinner,
-  Table, Thead, Tbody, Tr, Th, Td, Select, Input, useDisclosure,
+  Table, Thead, Tbody, Tr, Td, Select, Input, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, FormControl, FormLabel
 } from '@chakra-ui/react';
-import { TriangleDownIcon, TriangleUpIcon, AddIcon } from '@chakra-ui/icons';
+import { AddIcon } from '@chakra-ui/icons';
 import { useTenant } from '../../context/TenantContext';
 import { getAssets, Asset, generateDepreciation, disposeAsset } from '../../services/assetService';
 import AssetForm from './AssetForm';
 import AssetDetail from './AssetDetail';
-
-type SortField = 'description' | 'category' | 'purchase_date'
-  | 'purchase_amount' | 'book_value' | 'status';
+import { FilterableHeader } from '../filters/FilterableHeader';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
 
 export default function AssetList() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [searchText, setSearchText] = useState('');
-  const [sortField, setSortField] = useState<SortField>('purchase_date');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
@@ -79,10 +73,7 @@ export default function AssetList() {
     if (!currentTenant) return;
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
-      if (statusFilter) params.status = statusFilter;
-      if (categoryFilter) params.category = categoryFilter;
-      const data = await getAssets(params);
+      const data = await getAssets({});
       setAssets(data.assets || []);
     } catch (error) {
       toast({
@@ -93,47 +84,41 @@ export default function AssetList() {
     } finally {
       setLoading(false);
     }
-  }, [currentTenant, statusFilter, categoryFilter, toast]);
+  }, [currentTenant, toast]);
 
   useEffect(() => { loadAssets(); }, [loadAssets]);
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  };
-
-  const sorted = [...assets]
-    .filter(a => {
-      if (!searchText) return true;
-      const s = searchText.toLowerCase();
-      return a.description.toLowerCase().includes(s)
-        || (a.category || '').toLowerCase().includes(s)
-        || a.ledger_account.includes(s);
-    })
-    .sort((a, b) => {
-      const av = a[sortField] ?? '';
-      const bv = b[sortField] ?? '';
-      const cmp = typeof av === 'number' && typeof bv === 'number'
-        ? av - bv
-        : String(av).localeCompare(String(bv));
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-
-  const categories = Array.from(new Set(assets.map(a => a.category).filter(Boolean))) as string[];
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(val);
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return null;
-    return sortDir === 'asc'
-      ? <TriangleUpIcon ml={1} boxSize={3} />
-      : <TriangleDownIcon ml={1} boxSize={3} />;
-  };
+  // Build flat rows with formatted currency for filtering
+  const assetRows = useMemo(() => assets.map(a => ({
+    ...a,
+    category_display: a.category || '—',
+    purchase_amount_display: formatCurrency(a.purchase_amount),
+    book_value_display: formatCurrency(a.book_value),
+  })), [assets]);
+
+  // Combined column filtering + sorting via framework hook
+  const {
+    filters,
+    setFilter,
+    handleSort: frameworkHandleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable(assetRows, {
+    initialFilters: {
+      id: '',
+      description: '',
+      category_display: '',
+      purchase_date: '',
+      purchase_amount_display: '',
+      book_value_display: '',
+      status: '',
+    },
+    defaultSort: { field: 'purchase_date', direction: 'desc' as const },
+  });
 
   if (loading) {
     return (
@@ -147,7 +132,7 @@ export default function AssetList() {
   return (
     <>
     <VStack spacing={4} align="stretch">
-      {/* Filters */}
+      {/* Action buttons */}
       <HStack spacing={3} wrap="wrap">
         <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={openCreate}>
           New Asset
@@ -155,42 +140,14 @@ export default function AssetList() {
         <Button colorScheme="green" size="sm" onClick={() => { setDepResults(null); onDepOpen(); }}>
           Generate Depreciation
         </Button>
-        <Input
-          placeholder="Search description..."
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-          bg="gray.700" color="white" borderColor="gray.600"
-          size="sm" maxW="250px"
-        />
-        <Select
-          placeholder="All statuses"
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          bg="gray.700" color="white" borderColor="gray.600"
-          size="sm" maxW="160px"
-        >
-          <option value="active" style={{ background: '#2D3748' }}>Active</option>
-          <option value="disposed" style={{ background: '#2D3748' }}>Disposed</option>
-        </Select>
-        <Select
-          placeholder="All categories"
-          value={categoryFilter}
-          onChange={e => setCategoryFilter(e.target.value)}
-          bg="gray.700" color="white" borderColor="gray.600"
-          size="sm" maxW="160px"
-        >
-          {categories.map(c => (
-            <option key={c} value={c} style={{ background: '#2D3748' }}>{c}</option>
-          ))}
-        </Select>
         <Button size="sm" colorScheme="orange" variant="outline" onClick={loadAssets}>
           Refresh
         </Button>
-        <Text color="gray.400" fontSize="sm">{sorted.length} / {assets.length}</Text>
+        <Text color="gray.400" fontSize="sm">{processedData.length} / {assets.length}</Text>
       </HStack>
 
       {/* Table */}
-      {sorted.length === 0 ? (
+      {processedData.length === 0 && !loading ? (
         <Box bg="gray.800" p={6} borderRadius="md" textAlign="center">
           <Text color="gray.400">No assets found</Text>
         </Box>
@@ -199,29 +156,68 @@ export default function AssetList() {
           <Table variant="simple" size="sm">
             <Thead>
               <Tr>
-                <Th color="gray.400" w="60px">ID</Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('description')}>
-                  Description <SortIcon field="description" />
-                </Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('category')}>
-                  Category <SortIcon field="category" />
-                </Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('purchase_date')}>
-                  Purchase Date <SortIcon field="purchase_date" />
-                </Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('purchase_amount')} isNumeric>
-                  Purchase Amount <SortIcon field="purchase_amount" />
-                </Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('book_value')} isNumeric>
-                  Book Value <SortIcon field="book_value" />
-                </Th>
-                <Th color="gray.400" cursor="pointer" onClick={() => handleSort('status')}>
-                  Status <SortIcon field="status" />
-                </Th>
+                <FilterableHeader
+                  label="ID"
+                  filterValue={filters.id}
+                  onFilterChange={(v) => setFilter('id', v)}
+                  sortable
+                  sortDirection={sortField === 'id' ? sortDirection : null}
+                  onSort={() => frameworkHandleSort('id')}
+                />
+                <FilterableHeader
+                  label="Description"
+                  filterValue={filters.description}
+                  onFilterChange={(v) => setFilter('description', v)}
+                  sortable
+                  sortDirection={sortField === 'description' ? sortDirection : null}
+                  onSort={() => frameworkHandleSort('description')}
+                />
+                <FilterableHeader
+                  label="Category"
+                  filterValue={filters.category_display}
+                  onFilterChange={(v) => setFilter('category_display', v)}
+                  sortable
+                  sortDirection={sortField === 'category_display' ? sortDirection : null}
+                  onSort={() => frameworkHandleSort('category_display')}
+                />
+                <FilterableHeader
+                  label="Purchase Date"
+                  filterValue={filters.purchase_date}
+                  onFilterChange={(v) => setFilter('purchase_date', v)}
+                  sortable
+                  sortDirection={sortField === 'purchase_date' ? sortDirection : null}
+                  onSort={() => frameworkHandleSort('purchase_date')}
+                />
+                <FilterableHeader
+                  label="Purchase Amount"
+                  filterValue={filters.purchase_amount_display}
+                  onFilterChange={(v) => setFilter('purchase_amount_display', v)}
+                  isNumeric
+                  sortable
+                  sortDirection={sortField === 'purchase_amount' ? sortDirection : null}
+                  onSort={() => frameworkHandleSort('purchase_amount')}
+                />
+                <FilterableHeader
+                  label="Book Value"
+                  filterValue={filters.book_value_display}
+                  onFilterChange={(v) => setFilter('book_value_display', v)}
+                  isNumeric
+                  sortable
+                  sortDirection={sortField === 'book_value' ? sortDirection : null}
+                  onSort={() => frameworkHandleSort('book_value')}
+                />
+                <FilterableHeader
+                  label="Status"
+                  filterValue={filters.status}
+                  onFilterChange={(v) => setFilter('status', v)}
+                  sortable
+                  sortDirection={sortField === 'status' ? sortDirection : null}
+                  onSort={() => frameworkHandleSort('status')}
+                />
               </Tr>
             </Thead>
             <Tbody>
-              {sorted.map(asset => (
+              {processedData.map(asset => (
                 <Tr key={asset.id} _hover={{ bg: 'gray.700' }} cursor="pointer"
                   onClick={() => openDetail(asset)}>
                   <Td color="gray.500" fontSize="xs">{asset.id}</Td>
@@ -232,10 +228,10 @@ export default function AssetList() {
                       : <Text color="gray.500">—</Text>}
                   </Td>
                   <Td color="gray.300">{asset.purchase_date}</Td>
-                  <Td color="gray.300" isNumeric>{formatCurrency(asset.purchase_amount)}</Td>
+                  <Td color="gray.300" isNumeric>{asset.purchase_amount_display}</Td>
                   <Td isNumeric fontWeight="bold"
                     color={asset.book_value > 0 ? 'green.300' : 'gray.500'}>
-                    {formatCurrency(asset.book_value)}
+                    {asset.book_value_display}
                   </Td>
                   <Td>
                     <Badge

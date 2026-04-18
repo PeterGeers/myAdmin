@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Box, VStack, HStack, Button, Table, Thead, Tbody, Tr, Th, Td,
+  Box, VStack, HStack, Button, Table, Thead, Tbody, Tr, Td,
   Badge, useToast, Spinner, Text, Modal, ModalOverlay, ModalContent,
   ModalHeader, ModalBody, ModalFooter, ModalCloseButton, useDisclosure,
   Checkbox, Stack, FormControl, FormLabel, Input, Select
@@ -9,6 +9,8 @@ import { EditIcon, AddIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { buildApiUrl } from '../../config';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import { FilterableHeader } from '../filters/FilterableHeader';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
 
 interface User {
   username: string;
@@ -51,14 +53,6 @@ export default function UserManagement({ tenant }: UserManagementProps) {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedEmailTemplate, setSelectedEmailTemplate] = useState<string>('user_invitation');
   const [sendingEmail, setSendingEmail] = useState(false);
-  
-  // Filter and sort state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchName, setSearchName] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [sortField, setSortField] = useState<'email' | 'name' | 'status' | 'created'>('email');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -120,57 +114,21 @@ export default function UserManagement({ tenant }: UserManagementProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant]);
 
-  // Filtered and sorted users
-  const filteredAndSortedUsers = useMemo(() => {
-    let filtered = users.filter(user => {
-      const matchesEmail = user.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesName = !searchName || (user.name?.toLowerCase().includes(searchName.toLowerCase()) ?? false);
-      const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-      const matchesRole = roleFilter === 'all' || user.groups.includes(roleFilter);
-      
-      return matchesEmail && matchesName && matchesStatus && matchesRole;
-    });
+  // Column text filters + sort via framework hook
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData: filteredAndSortedUsers,
+  } = useFilterableTable<User>(users, {
+    initialFilters: { email: '', name: '', status: '', groups: '', created: '', tenants: '' },
+    defaultSort: { field: 'email', direction: 'asc' },
+  });
 
-    // Sort
-    filtered.sort((a, b) => {
-      let aVal: string | number = '';
-      let bVal: string | number = '';
-
-      switch (sortField) {
-        case 'email':
-          aVal = a.email;
-          bVal = b.email;
-          break;
-        case 'name':
-          aVal = a.name || '';
-          bVal = b.name || '';
-          break;
-        case 'status':
-          aVal = a.status;
-          bVal = b.status;
-          break;
-        case 'created':
-          aVal = new Date(a.created).getTime();
-          bVal = new Date(b.created).getTime();
-          break;
-      }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  }, [users, searchTerm, searchName, statusFilter, roleFilter, sortField, sortDirection]);
-
-  const handleSort = (field: typeof sortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
+  const columnSortDirection = (field: string): 'asc' | 'desc' | null =>
+    sortField === field ? sortDirection : null;
 
   const openCreateModal = () => {
     setModalMode('create');
@@ -553,105 +511,74 @@ export default function UserManagement({ tenant }: UserManagementProps) {
 
   return (
     <VStack spacing={4} align="stretch">
-      {/* Filters */}
-      <HStack spacing={4} wrap="wrap">
-        <FormControl maxW="250px">
-          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.searchEmail')}</FormLabel>
-          <Input
-            placeholder={t('userManagement.filters.searchEmailPlaceholder')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            bg="gray.800"
-            color="white"
-            borderColor="gray.600"
-          />
-        </FormControl>
-
-        <FormControl maxW="250px">
-          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.searchName')}</FormLabel>
-          <Input
-            placeholder={t('userManagement.filters.searchNamePlaceholder')}
-            value={searchName}
-            onChange={(e) => setSearchName(e.target.value)}
-            bg="gray.800"
-            color="white"
-            borderColor="gray.600"
-          />
-        </FormControl>
-
-        <FormControl maxW="200px">
-          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.status')}</FormLabel>
-          <Select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            bg="gray.800"
-            color="white"
-            borderColor="gray.600"
-          >
-            <option value="all">{t('userManagement.filters.allStatuses')}</option>
-            <option value="CONFIRMED">{t('userManagement.status.confirmed')}</option>
-            <option value="FORCE_CHANGE_PASSWORD">{t('userManagement.status.forceChangePassword')}</option>
-            <option value="UNCONFIRMED">{t('userManagement.status.unconfirmed')}</option>
-          </Select>
-        </FormControl>
-
-        <FormControl maxW="200px">
-          <FormLabel color="gray.300" fontSize="sm">{t('userManagement.filters.role')}</FormLabel>
-          <Select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            bg="gray.800"
-            color="white"
-            borderColor="gray.600"
-          >
-            <option value="all">{t('userManagement.filters.allRoles')}</option>
-            {roles.map(role => (
-              <option key={role.name} value={role.name}>{role.name}</option>
-            ))}
-          </Select>
-        </FormControl>
-
-        <Button
-          colorScheme="orange"
-          leftIcon={<AddIcon />}
-          onClick={openCreateModal}
-          alignSelf="flex-end"
-        >
-          {t('userManagement.createUser')}
-        </Button>
-      </HStack>
+      {/* Primary action */}
+      <Button
+        colorScheme="orange"
+        leftIcon={<AddIcon />}
+        onClick={openCreateModal}
+        alignSelf="flex-end"
+        size="sm"
+      >
+        {t('userManagement.createUser')}
+      </Button>
 
       {/* Users Table */}
       <Box overflowX="auto" bg="gray.800" borderRadius="md" p={4}>
         <Table variant="simple" size="sm">
           <Thead>
             <Tr>
-              <Th color="gray.400" cursor="pointer" onClick={() => handleSort('email')}>
-                {t('userManagement.table.email')} {sortField === 'email' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </Th>
-              <Th color="gray.400" cursor="pointer" onClick={() => handleSort('name')}>
-                {t('userManagement.table.name')} {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </Th>
-              <Th color="gray.400" cursor="pointer" onClick={() => handleSort('status')}>
-                {t('userManagement.table.status')} {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </Th>
-              <Th color="gray.400">{t('userManagement.table.roles')}</Th>
-              <Th color="gray.400">{t('userManagement.table.tenants')}</Th>
-              <Th color="gray.400" cursor="pointer" onClick={() => handleSort('created')}>
-                {t('userManagement.table.created')} {sortField === 'created' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </Th>
+              <FilterableHeader
+                label={t('userManagement.table.email')}
+                filterValue={filters.email}
+                onFilterChange={(v) => setFilter('email', v)}
+                sortable
+                sortDirection={columnSortDirection('email')}
+                onSort={() => handleSort('email')}
+              />
+              <FilterableHeader
+                label={t('userManagement.table.name')}
+                filterValue={filters.name}
+                onFilterChange={(v) => setFilter('name', v)}
+                sortable
+                sortDirection={columnSortDirection('name')}
+                onSort={() => handleSort('name')}
+              />
+              <FilterableHeader
+                label={t('userManagement.table.status')}
+                filterValue={filters.status}
+                onFilterChange={(v) => setFilter('status', v)}
+                sortable
+                sortDirection={columnSortDirection('status')}
+                onSort={() => handleSort('status')}
+              />
+              <FilterableHeader
+                label={t('userManagement.table.roles')}
+                filterValue={filters.groups}
+                onFilterChange={(v) => setFilter('groups', v)}
+              />
+              <FilterableHeader
+                label={t('userManagement.table.created')}
+                filterValue={filters.created}
+                onFilterChange={(v) => setFilter('created', v)}
+                sortable
+                sortDirection={columnSortDirection('created')}
+                onSort={() => handleSort('created')}
+              />
+              <FilterableHeader
+                label={t('userManagement.table.tenants')}
+                filterValue={filters.tenants}
+                onFilterChange={(v) => setFilter('tenants', v)}
+              />
             </Tr>
           </Thead>
           <Tbody>
             {filteredAndSortedUsers.map(user => (
-              <Tr key={user.username}>
-                <Td 
-                  color="orange.400" 
-                  cursor="pointer" 
-                  textDecoration="underline"
-                  _hover={{ color: 'orange.300' }}
-                  onClick={() => openDetailsModal(user)}
-                >
+              <Tr
+                key={user.username}
+                _hover={{ bg: 'gray.700', cursor: 'pointer' }}
+                onClick={() => openDetailsModal(user)}
+              >
+                <Td color="orange.400" fontWeight="bold">
                   {user.email}
                 </Td>
                 <Td color="white">{user.name || '-'}</Td>
@@ -669,6 +596,9 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                     ))}
                   </HStack>
                 </Td>
+                <Td color="gray.400" fontSize="sm">
+                  {new Date(user.created).toLocaleDateString()}
+                </Td>
                 <Td>
                   <HStack spacing={1} wrap="wrap">
                     {user.tenants.map(t => (
@@ -677,9 +607,6 @@ export default function UserManagement({ tenant }: UserManagementProps) {
                       </Badge>
                     ))}
                   </HStack>
-                </Td>
-                <Td color="gray.400" fontSize="sm">
-                  {new Date(user.created).toLocaleDateString()}
                 </Td>
               </Tr>
             ))}
