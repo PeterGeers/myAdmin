@@ -411,3 +411,94 @@ export interface FilterOption<T> {
   /** Optional description or help text */
   description?: string;
 }
+
+// =============================================================================
+// Table Filter Framework v2 — Type Definitions
+// =============================================================================
+
+/**
+ * Column filter state: maps column keys to filter strings.
+ * Used by `useColumnFilters` to track the current text filter value per column.
+ *
+ * @example
+ * ```typescript
+ * const filters: ColumnFilterState = {
+ *   name: 'john',
+ *   email: '',
+ *   status: 'active'
+ * };
+ * ```
+ */
+export type ColumnFilterState = Record<string, string>;
+
+/**
+ * Sort direction for table column sorting.
+ */
+export type SortDirection = 'asc' | 'desc';
+
+/**
+ * Sort configuration specifying which field to sort and in which direction.
+ *
+ * @example
+ * ```typescript
+ * const sort: SortConfig = { field: 'Account', direction: 'asc' };
+ * ```
+ */
+export interface SortConfig {
+  /** The column/field key to sort by */
+  field: string;
+  /** Sort direction */
+  direction: SortDirection;
+}
+
+/**
+ * Props for the FilterableHeader component.
+ *
+ * Renders a `<Th>` element with a column label, optional sort indicator,
+ * and optional text filter `<Input>`. Used in the hybrid approach where
+ * text search filters live inside column headers.
+ *
+ * @example
+ * ```typescript
+ * <FilterableHeader
+ *   label="Account Name"
+ *   filterValue={filters.AccountName}
+ *   onFilterChange={(v) => setFilter('AccountName', v)}
+ *   sortable
+ *   sortDirection={sortField === 'AccountName' ? sortDirection : null}
+ *   onSort={() => handleSort('AccountName')}
+ *   placeholder="Search..."
+ * />
+ * ```
+ */
+export interface FilterableHeaderProps {
+  /** Column label text */
+  label: string;
+  /** Current filter value (omit to disable filter input) */
+  filterValue?: string;
+  /** Callback when filter value changes */
+  onFilterChange?: (value: string) => void;
+  /** Enable sort indicator (default: false) */
+  sortable?: boolean;
+  /** Current sort direction for this column (null = not active) */
+  sortDirection?: SortDirection | null;
+  /** Callback when sort is toggled */
+  onSort?: () => void;
+  /** Placeholder text for filter input */
+  placeholder?: string;
+  /** Right-align for numeric columns */
+  isNumeric?: boolean;
+}
+
+/**
+ * Options for the `useColumnFilters` hook.
+ *
+ * @example
+ * ```typescript
+ * const options: UseColumnFiltersOptions = { debounceMs: 300 };
+ * ```
+ */
+export interface UseColumnFiltersOptions {
+  /** Debounce delay in milliseconds (default: 150) */
+  debounceMs?: number;
+}
