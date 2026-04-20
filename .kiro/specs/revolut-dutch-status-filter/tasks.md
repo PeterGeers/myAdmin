@@ -1,0 +1,131 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Non-completed Revolut transactions bypass filter
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate Dutch pending transactions are not filtered out
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases — Dutch CSV rows with empty completion date (column 3) and empty saldo (column 9)
+  - Create test file `frontend/src/__tests__/BankingProcessor.revolut.bugcondition.test.ts`
+  - Import `processRevolutTransaction` from `BankingProcessor.tsx`
+  - Use fast-check to generate Revolut CSV rows where `isBugCondition` holds: completion date is empty string OR saldo is empty string
+  - Test cases to include:
+    - Dutch pending: `['Kaartbetaling','Betaalrekening','2026-04-16 12:07:04','','Albert Heijn','-29.06','0.00','EUR','IN BEHANDELING','']` with Dutch header → assert returns `[]`
+    - Dutch declined: row with status `GEWEIGERD`, empty completion date, empty saldo → assert returns `[]`
+    - Edge case: saldo filled but completion date empty → assert returns `[]`
+    - Edge case: completion date filled but saldo empty → assert returns `[]`
+    - Edge case: both fields whitespace only → assert returns `[]`
+  - Property: for all generated rows where completionDate.trim() === '' OR saldo.trim() === '', `processRevolutTransaction(columns, 0, bankLookup, 'test.csv', header)` returns `[]`
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct — it proves the bug exists: Dutch pending transactions are processed instead of filtered)
+  - Document counterexamples found (e.g., "processRevolutTransaction returns Transaction[] with Ref2 containing '0.00' for Dutch pending row instead of empty array")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.4, 2.1, 2.2_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Completed transactions produce correct output
+  - **IMPORTANT**: Follow observation-first methodology
+  - Create test file `frontend/src/__tests__/BankingProcessor.revolut.preservation.test.ts`
+  - Import `processRevolutTransaction` from `BankingProcessor.tsx`
+  - **Step 1 — Observe behavior on UNFIXED code for completed transactions:**
+    - Observe: completed Dutch row `['Kaartbetaling','Betaalrekening','2026-03-01 15:27:29','2026-03-01 03:18:36','Hotel Lelystad','-37.00','0.00','EUR','VOLTOOID','1290.32']` → produces Transaction with amount 37.00, Ref2 `Hotel Lelystad_1290.32_2026-03-01 15:27:29`
+    - Observe: completed English row with status `COMPLETED` → produces Transaction correctly
+    - Observe: English REVERTED row → returns `[]`
+    - Observe: English PENDING row → returns `[]`
+    - Observe: zero-amount row (amount=0, fee=0) with filled completion date and saldo → returns `[]`
+    - Observe: fee transaction row (fee > 0) → produces fee Transaction with Ref2 `Revo Charges_[saldo]_[startdatum]`
+  - **Step 2 — Write property-based tests capturing observed behavior:**
+    - Use fast-check to generate completed transaction rows (non-empty completion date, non-empty saldo, random amounts/descriptions)
+    - Property: for all completed rows, `processRevolutTransaction` returns non-empty Transaction[] with correct amounts, correct TransactionDate (startdatum date part), and Ref2 in format `[beschrijving]_[saldo]_[startdatum]` (current unfixed format)
+    - Property: for all rows with status containing 'REVERTED' or 'PENDING', returns `[]`
+    - Property: for all rows where amount=0 and fee=0, returns `[]`
+    - Property: for all rows with fee > 0, a fee Transaction is included with description 'Revo Charges'
+  - Verify all tests PASS on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 3. Implement the structural filter and Ref2 format change
+  - [x] 3.1 Add structural field filter to `processRevolutTransaction`
+    - File: `frontend/src/components/BankingProcessor.tsx`, function `processRevolutTransaction` (~line 109)
+    - Add `datumVoltooidIdx` column lookup: `const datumVoltooidIdx = getColIdx(['datum voltooid', 'completed date', 'completed'], 3);` alongside existing column index lookups
+    - Read raw completion date: `const datumVoltooidRaw = columns[datumVoltooidIdx] || '';`
+    - Read raw saldo for emptiness check: `const saldoRawValue = columns[saldoIdx] || '';`
+    - Add structural filter BEFORE the existing REVERTED/PENDING check: `if (!datumVoltooidRaw.trim() || !saldoRawValue.trim()) return transactions;`
+    - Keep existing `if (status.includes('REVERTED') || status.includes('PENDING')) return transactions;` as secondary safety layer
+    - _Bug_Condition: isBugCondition(input) where completionDate.trim() = '' OR saldoRaw.trim() = ''_
+    - _Expected_Behavior: processRevolutTransaction returns [] for all inputs where isBugCondition holds_
+    - _Preservation: Completed transactions (both fields non-empty) continue to be processed identically_
+    - _Requirements: 1.1, 1.4, 2.1, 2.2, 2.4, 3.1, 3.4_
+
+  - [x] 3.2 Change Ref2 format to use completion date
+    - In the main transaction block, change Ref2 from `[beschrijving, saldo, startdatum].join('_')` to `[beschrijving, saldo, datumVoltooidRaw].join('_')`
+    - In the fee transaction block, change feeRef2 from `['Revo Charges', saldo, startdatum].join('_')` to `['Revo Charges', saldo, datumVoltooidRaw].join('_')`
+    - TransactionDate remains as `startdatum.split(' ')[0]` — no change to user-facing date
+    - _Expected_Behavior: Ref2 uses datum voltooid (settlement date) for more accurate duplicate detection_
+    - _Preservation: All other Transaction fields remain unchanged_
+    - _Requirements: 2.3, 3.2, 3.3_
+
+  - [x] 3.3 Update preservation tests for new Ref2 format
+    - Update the preservation property tests from task 2 to expect the new Ref2 format `[beschrijving]_[saldo]_[datum voltooid]` instead of `[beschrijving]_[saldo]_[startdatum]`
+    - Verify preservation tests pass with the updated Ref2 format expectations
+    - _Requirements: 3.2_
+
+  - [x] 3.4 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Non-completed transactions are filtered out
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior (returns [] for non-completed transactions)
+    - When this test passes, it confirms the structural filter works correctly
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed — Dutch pending transactions are now filtered)
+    - _Requirements: 2.1, 2.2_
+
+  - [x] 3.5 Verify preservation tests still pass
+    - **Property 2: Preservation** - Completed transactions produce correct output
+    - **IMPORTANT**: Re-run the SAME tests from task 2 (updated in 3.3) — do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions — completed transactions still processed correctly)
+    - Confirm all tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 4. Create database migration script for Ref2 update
+  - [x] 4.1 Create migration script `backend/scripts/migrate_revolut_ref2.py`
+    - Parse all 14 Revolut CSV files from `.kiro/specs/FIN/BankingProcessor/Revolut/`
+    - Extract completed transactions (status `VOLTOOID`, non-empty `Datum voltooid` and `Saldo`)
+    - Build lookup map: old Ref2 (`[beschrijving]_[saldo]_[startdatum]`) → new Ref2 (`[beschrijving]_[saldo]_[datum voltooid]`)
+    - Format saldo to 2 decimals using `f"{float(saldo.replace(',', '.')):.2f}"` to match frontend's `parseFloat(...).toFixed(2)`
+    - Deduplicate across overlapping CSV files (same transaction in multiple exports)
+    - Support `--dry-run` flag (default) to report what would change without modifying data
+    - Support `--apply` flag to execute the actual UPDATE statements
+    - Update matching records in `mutaties` WHERE `Ref1 = 'NL08REVO7549383472'` AND `Ref2 = old_ref2`
+    - Log each update: old Ref2 → new Ref2, number of rows affected
+    - Report summary: total lookups built, total matches found, total rows updated
+    - _Requirements: 3.2, 3.3_
+
+  - [x] 4.2 Run migration script in dry-run mode and verify output
+    - Execute `python backend/scripts/migrate_revolut_ref2.py --dry-run`
+    - Verify the lookup map is built correctly from CSV files
+    - Verify deduplication works (no duplicate old Ref2 keys)
+    - Verify saldo formatting matches frontend (2 decimal places)
+    - Review the dry-run report for correctness before applying
+    - _Requirements: 3.2, 3.3_
+
+  - [x] 4.3 Apply migration to Railway production (MANUAL — requires user approval)
+    - **This step will NOT run automatically — it requires explicit user confirmation**
+    - After reviewing the dry-run output from 4.2, the user decides whether to proceed
+    - Execute against Railway production: `python backend/scripts/migrate_revolut_ref2.py --apply` (using Railway MySQL public proxy connection)
+    - The script must connect to Railway MySQL (`shinkansen.proxy.rlwy.net:42375`) not localhost
+    - Log every UPDATE with old → new Ref2 values
+    - Report final summary: total records updated, any mismatches or errors
+    - _Requirements: 3.2, 3.3_
+
+- [x] 5. Clean up investigation artifacts
+  - Delete `backend/scripts/check_revolut_pending.py` (created during bug investigation, no longer needed)
+
+- [x] 6. Checkpoint — Ensure all tests pass
+  - Run BankingProcessor-related tests: `cd frontend && npx react-scripts test --watchAll=false --testPathPattern="BankingProcessor"` to confirm no regressions in banking processing
+  - Verify bug condition exploration test passes (task 1 test on fixed code)
+  - Verify preservation property tests pass (task 2 tests on fixed code)
+  - Verify migration script dry-run completes successfully
+  - Ask the user if questions arise
