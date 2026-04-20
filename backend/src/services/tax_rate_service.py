@@ -175,7 +175,7 @@ class TaxRateService:
             'calc_params': calc_params,
             'effective_from': row.get('effective_from'),
             'effective_to': row.get('effective_to'),
-            'source': 'tenant' if row['administration'] != '_system_' else 'system',
+            'scope_origin': 'tenant' if row['administration'] != '_system_' else 'system',
         }
 
     def _auto_close_overlapping(self, administration: str, tax_type: str,

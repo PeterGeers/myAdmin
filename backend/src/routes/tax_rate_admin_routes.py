@@ -59,7 +59,7 @@ def list_tax_rates(user_email, user_roles, tenant, user_tenants):
                 'ledger_account': r.get('ledger_account'),
                 'effective_from': str(r['effective_from']) if r.get('effective_from') else None,
                 'effective_to': str(r['effective_to']) if r.get('effective_to') else None,
-                'source': 'system' if r['administration'] == '_system_' else 'tenant',
+                'scope_origin': 'system' if r['administration'] == '_system_' else 'tenant',
                 'description': r.get('description'),
                 'calc_method': r.get('calc_method', 'percentage'),
             })

@@ -10,7 +10,7 @@ export interface TaxRate {
   ledger_account: string | null;
   effective_from: string;
   effective_to: string | null;
-  source: 'system' | 'tenant';
+  scope_origin: 'system' | 'tenant';
   description: string | null;
   calc_method: string;
 }
