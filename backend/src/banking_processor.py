@@ -455,85 +455,56 @@ class BankingProcessor:
         
         if numeric_count == 0:
             # Non-numeric Ref2 values (e.g., Revolut descriptive references) — do running balance check
-            # Use vw_mutaties for proper signed amounts, ordered by completion date from Ref2
-            # Ref2 format: "description_saldo_completiondate" — saldo is the running balance at completion
-            cursor.close()
-            conn.close()
+            # Ref2 format: "description_saldo_completiondate"
+            # The saldo represents the account balance after this transaction settled
+            # Sort by completion date and verify saldo progression is consistent
             
-            # Re-query using vw_mutaties for signed amounts
-            conn2 = self.db.get_connection()
-            cursor2 = conn2.cursor(dictionary=True)
-            
-            cursor2.execute("""
-                SELECT m.TransactionDate, m.TransactionDescription, m.Amount,
-                       d.Ref2
-                FROM vw_mutaties m
-                JOIN mutaties d ON d.Ref1 = %s 
-                    AND d.TransactionDate = m.TransactionDate 
-                    AND d.TransactionDescription = m.TransactionDescription
-                    AND d.administration = m.administration
-                WHERE m.Reknum = %s 
-                AND m.administration = %s
-                AND m.TransactionDate >= %s
-                ORDER BY SUBSTRING_INDEX(d.Ref2, '_', -1), d.Ref2
-            """, (iban, account_code, administration, start_date))
-            
-            vw_transactions = cursor2.fetchall()
-            cursor2.close()
-            conn2.close()
-            
-            if not vw_transactions:
-                return {
-                    'success': True,
-                    'iban': iban,
-                    'account_code': account_code,
-                    'administration': administration,
-                    'start_date': start_date,
-                    'total_transactions': 0,
-                    'first_sequence': None,
-                    'last_sequence': None,
-                    'has_gaps': False,
-                    'sequence_issues': [],
-                    'check_type': 'balance_comparison',
-                    'message': 'No transactions found'
-                }
-            
-            # Build running balance and compare against saldo in Ref2
-            balance_issues = []
-            running_balance = None
-            
-            for tx in vw_transactions:
-                amount = float(tx['Amount']) if tx.get('Amount') is not None else 0.0
-                
-                # Extract saldo from Ref2 (format: "description_saldo_date")
-                current_saldo = None
+            # Sort transactions by completion date extracted from Ref2
+            def get_completion_date(tx):
                 if tx.get('Ref2'):
                     parts = tx['Ref2'].split('_')
-                    if len(parts) >= 2:
-                        try:
-                            current_saldo = float(parts[-2])
-                        except (ValueError, IndexError):
-                            pass
-                
-                if current_saldo is None:
+                    if len(parts) >= 3:
+                        return parts[-1]  # e.g. "2026-03-28 15:12:34"
+                return ''
+            
+            sorted_transactions = sorted(transactions, key=get_completion_date)
+            
+            # Walk through and check: saldo[i] - saldo[i-1] should equal ±amount[i]
+            balance_issues = []
+            prev_saldo = None
+            
+            for tx in sorted_transactions:
+                if not tx.get('Ref2'):
+                    continue
+                    
+                parts = tx['Ref2'].split('_')
+                if len(parts) < 3:
                     continue
                 
-                if running_balance is None:
-                    # First transaction: accept saldo as starting point
-                    running_balance = current_saldo
-                else:
-                    running_balance = round(running_balance + amount, 2)
+                try:
+                    current_saldo = float(parts[-2])
+                except (ValueError, IndexError):
+                    continue
+                
+                amount = abs(float(tx['TransactionAmount'])) if tx.get('TransactionAmount') else 0.0
+                
+                if prev_saldo is not None:
+                    saldo_diff = round(current_saldo - prev_saldo, 2)
                     
-                    if abs(running_balance - current_saldo) > 0.01:
+                    # The saldo difference should be ±amount (within rounding tolerance)
+                    if amount > 0 and abs(abs(saldo_diff) - amount) > 0.01:
                         balance_issues.append({
-                            'expected': running_balance,
+                            'expected': round(prev_saldo - amount, 2) if saldo_diff < 0 else round(prev_saldo + amount, 2),
                             'found': current_saldo,
-                            'gap': round(current_saldo - running_balance, 2),
+                            'gap': round(current_saldo - (prev_saldo - amount if saldo_diff < 0 else prev_saldo + amount), 2),
                             'date': str(tx['TransactionDate']) if tx.get('TransactionDate') else '',
                             'description': tx.get('TransactionDescription', '')
                         })
-                        # Reset running balance to actual saldo to continue checking
-                        running_balance = current_saldo
+                
+                prev_saldo = current_saldo
+            
+            cursor.close()
+            conn.close()
             
             return {
                 'success': True,
@@ -541,7 +512,7 @@ class BankingProcessor:
                 'account_code': account_code,
                 'administration': administration,
                 'start_date': start_date,
-                'total_transactions': len(vw_transactions),
+                'total_transactions': len(sorted_transactions),
                 'first_sequence': None,
                 'last_sequence': None,
                 'has_gaps': len(balance_issues) > 0,
