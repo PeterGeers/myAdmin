@@ -39,9 +39,6 @@ Want me to create a separate spec for this, or would you rather keep it as a not
 -- What is the added value 
 -- How can we easy filter a period for submitting (day, week, month or year)
 
-## column name 
-The verb source for the tenant/system scope in Tax rates is different from the verb scope in parameters while both have system and tenant
-Good observation, but that's an existing data model difference — TaxRate uses source (tenant/system) while Parameters uses scope_origin (tenant/system). Both are pre-existing field names from the backend. Changing that would be a separate task outside this migration scope.
 
 ## Precedence cognito
 System Admin Role management I am sorry no precence values in the table and the updated precedence is not retrieved after save. I will note it for further investigation now
@@ -49,3 +46,30 @@ System Admin Role management I am sorry no precence values in the table and the 
 
 ## Solve /t.d.ts problem
 My recommendation: Option A — downgrade fast-check to 3.22.0. It's the last 3.x release, fully compatible with TS 4.9.5, and the API surface you use (fc.record, fc.array, fc.string, fc.integer, etc.) is identical. Want me to do that?
+
+## Inmvoice processing
+Check what happens if multiple tenants are loading invouices for processing at trhe same time
+
+##   Railway skils
+Does this make sense railway skills install
+
+Railway Skills
+
+Installing to: Universal (.agents)
+
+  ✓ Downloaded skills
+
+✓ Universal (.agents): installed use-railway → C:\Users\peter\.agents\skills\use-railway
+
+
+
+Kiro
+That's a Railway CLI skill for AI agents — it installs a use-railway skill to C:\Users\peter\.agents\skills\use-railway. This is designed for tools like Cursor, Windsurf, or similar AI coding assistants that support the .agents/skills convention.
+
+Kiro doesn't use the .agents/skills folder — it uses .kiro/skills/ for workspace-level skills or ~/.kiro/skills/ for user-level skills. So that Railway skill won't be picked up by Kiro automatically.
+
+That said, we already have the Railway MCP server configured in 
+mcp.json
+ and the Railway CLI works fine from the terminal. For this bugfix, we don't really need the Railway skill — the migration script in task 4.3 will just use a direct MySQL connection to the Railway proxy, which we already tested earlier.
+
+If you want Railway skills available in Kiro specifically, you could copy the skill content to ~/.kiro/skills/use-railway/, but it's not needed for this bugfix. Want to proceed with executing the tasks?

@@ -43,7 +43,7 @@ import AccountSelect from './common/AccountSelect';
 import { useAccountLookup } from '../hooks/useAccountLookup';
 import BankingMutatiesTab from './banking/BankingMutatiesTab';
 
-interface Transaction {
+export interface Transaction {
   ID?: number;
   row_id: number;
   TransactionNumber: string;
@@ -106,7 +106,7 @@ const parseCSVRow = (row: string): string[] => {
   return columns;
 };
 
-const processRevolutTransaction = (columns: string[], index: number, bankLookup: any, fileName: string, header?: string[]): Transaction[] => {
+export const processRevolutTransaction = (columns: string[], index: number, bankLookup: any, fileName: string, header?: string[]): Transaction[] => {
   const transactions: Transaction[] = [];
   
   // Helper to find column index by name (supports Dutch and English)
@@ -120,6 +120,7 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
   // Dutch:   Type, Product, Startdatum, Datum voltooid, Beschrijving, Bedrag, Kosten, Valuta, Status, Saldo
   // English: Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance
   const startdatumIdx = getColIdx(['startdatum', 'started date', 'started'], 2);
+  const datumVoltooidIdx = getColIdx(['datum voltooid', 'completed date', 'completed'], 3);
   const beschrijvingIdx = getColIdx(['beschrijving', 'description'], 4);
   const bedragIdx = getColIdx(['bedrag', 'amount'], 5);
   const kostenIdx = getColIdx(['kosten', 'fee'], 6);
@@ -127,13 +128,18 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
   const saldoIdx = getColIdx(['saldo', 'balance'], 9);
   
   const startdatum = columns[startdatumIdx] || '';
+  const datumVoltooidRaw = columns[datumVoltooidIdx] || '';
   const beschrijving = columns[beschrijvingIdx] || '';
   const bedrag = columns[bedragIdx] || '0';
   const kosten = columns[kostenIdx] || '0';
   const status = columns[statusIdx] || '';
+  const saldoRawValue = columns[saldoIdx] || '';
   // Always format saldo to 2 decimals for consistency (514.3 -> 514.30)
   const saldoRaw = columns[saldoIdx] || '0';
   const saldo = parseFloat(saldoRaw.replace(',', '.')).toFixed(2);
+
+  // Language-independent filter: skip non-completed transactions (empty completion date or balance)
+  if (!datumVoltooidRaw.trim() || !saldoRawValue.trim()) return transactions;
 
   if (status.includes('REVERTED') || status.includes('PENDING')) return transactions;
 
@@ -150,8 +156,8 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
   if (amount !== 0) {
     const isNegative = amount < 0;
     const absAmount = Math.abs(amount);
-    // Use raw saldo string to avoid formatting differences (514.3 vs 514.30)
-    const ref2 = [beschrijving, saldo, startdatum].join('_');
+    // Use datum voltooid (settlement date) instead of startdatum for more accurate duplicate detection
+    const ref2 = [beschrijving, saldo, datumVoltooidRaw].join('_');
 
     transactions.push({
       row_id: index,
@@ -172,8 +178,8 @@ const processRevolutTransaction = (columns: string[], index: number, bankLookup:
 
   // Fee transaction
   if (fee > 0) {
-    // Use raw saldo string to avoid formatting differences
-    const feeRef2 = ['Revo Charges', saldo, startdatum].join('_');
+    // Use datum voltooid (settlement date) instead of startdatum for more accurate duplicate detection
+    const feeRef2 = ['Revo Charges', saldo, datumVoltooidRaw].join('_');
 
     transactions.push({
       row_id: index + 1000,
