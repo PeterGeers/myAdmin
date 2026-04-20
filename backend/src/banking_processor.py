@@ -455,11 +455,12 @@ class BankingProcessor:
         
         if numeric_count == 0:
             # Non-numeric Ref2 values (e.g., Revolut descriptive references) — do running balance check
-            # Use vw_mutaties for proper signed amounts, compare running sum against saldo in Ref2
+            # Use vw_mutaties for proper signed amounts, ordered by completion date from Ref2
+            # Ref2 format: "description_saldo_completiondate" — saldo is the running balance at completion
             cursor.close()
             conn.close()
             
-            # Re-query using vw_mutaties for signed amounts, ordered by date
+            # Re-query using vw_mutaties for signed amounts
             conn2 = self.db.get_connection()
             cursor2 = conn2.cursor(dictionary=True)
             
@@ -474,7 +475,7 @@ class BankingProcessor:
                 WHERE m.Reknum = %s 
                 AND m.administration = %s
                 AND m.TransactionDate >= %s
-                ORDER BY m.TransactionDate, m.TransactionDescription
+                ORDER BY SUBSTRING_INDEX(d.Ref2, '_', -1), d.Ref2
             """, (iban, account_code, administration, start_date))
             
             vw_transactions = cursor2.fetchall()
