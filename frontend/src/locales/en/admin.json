@@ -72,7 +72,7 @@
       "effectiveTo": "Effective To",
       "description": "Description",
       "calcMethod": "Calculation Method",
-      "source": "Source",
+      "scopeOrigin": "Scope",
       "status": "Status",
       "active": "active",
       "future": "future",

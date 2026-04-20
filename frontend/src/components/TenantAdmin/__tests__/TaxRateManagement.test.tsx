@@ -27,9 +27,9 @@ const { getTaxRates } = require('../../../services/taxRateService');
 const mockRates = {
   success: true, tenant: 'T1',
   tax_rates: [
-    { id: 1, tax_type: 'btw', tax_code: 'high', rate: 21, ledger_account: '2020', effective_from: '2000-01-01', effective_to: '9999-12-31', source: 'system', description: 'BTW Hoog', calc_method: 'percentage' },
-    { id: 2, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.9, ledger_account: null, effective_from: '2026-01-01', effective_to: '9999-12-31', source: 'tenant', description: 'Toeristenbelasting', calc_method: 'percentage' },
-    { id: 3, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.02, ledger_account: null, effective_from: '2000-01-01', effective_to: '2025-12-31', source: 'tenant', description: 'Toeristenbelasting oud', calc_method: 'percentage' },
+    { id: 1, tax_type: 'btw', tax_code: 'high', rate: 21, ledger_account: '2020', effective_from: '2000-01-01', effective_to: '9999-12-31', scope_origin: 'system', description: 'BTW Hoog', calc_method: 'percentage' },
+    { id: 2, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.9, ledger_account: null, effective_from: '2026-01-01', effective_to: '9999-12-31', scope_origin: 'tenant', description: 'Toeristenbelasting', calc_method: 'percentage' },
+    { id: 3, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.02, ledger_account: null, effective_from: '2000-01-01', effective_to: '2025-12-31', scope_origin: 'tenant', description: 'Toeristenbelasting oud', calc_method: 'percentage' },
   ],
 };
 
@@ -54,7 +54,7 @@ describe('TaxRateManagement', () => {
       });
     });
 
-    test('shows source badges', async () => {
+    test('shows scope_origin badges', async () => {
       render(<TaxRateManagement tenant="T1" />);
       await waitFor(() => {
         expect(screen.getAllByText('system').length).toBeGreaterThan(0);

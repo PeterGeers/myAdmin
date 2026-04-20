@@ -49,7 +49,7 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
     try { const data = await getTaxRates(); setRates(data.tax_rates || []); }
     catch (e: any) { toast({ title: t('tenantAdmin.taxRates.loading'), description: e.message, status: 'error', duration: 5000 }); }
     finally { setLoading(false); }
-  }, [tenant, toast, t]);
+  }, [toast, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -77,13 +77,13 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
       effective_from: '',
       effective_to_display: '',
       status_text: '',
-      source: '',
+      scope_origin: '',
       description_display: '',
     },
     defaultSort: { field: 'tax_type', direction: 'asc' as const },
   });
 
-  const canEdit = (r: TaxRate) => r.source === 'tenant' || isSysAdmin;
+  const canEdit = (r: TaxRate) => r.scope_origin === 'tenant' || isSysAdmin;
 
   const handleAdd = () => {
     setIsNew(true); setEditing(null);
@@ -208,12 +208,12 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
               onSort={() => handleSort('status_text')}
             />
             <FilterableHeader
-              label={t('tenantAdmin.taxRates.source')}
-              filterValue={filters.source}
-              onFilterChange={(v) => setFilter('source', v)}
+              label={t('tenantAdmin.taxRates.scopeOrigin')}
+              filterValue={filters.scope_origin}
+              onFilterChange={(v) => setFilter('scope_origin', v)}
               sortable
-              sortDirection={sortField === 'source' ? sortDirection : null}
-              onSort={() => handleSort('source')}
+              sortDirection={sortField === 'scope_origin' ? sortDirection : null}
+              onSort={() => handleSort('scope_origin')}
             />
             <FilterableHeader
               label={t('tenantAdmin.taxRates.description')}
@@ -237,7 +237,7 @@ export default function TaxRateManagement({ tenant, isSysAdmin = false }: Props)
                 <Td color="white" fontSize="sm">{r.effective_from}</Td>
                 <Td color="white" fontSize="sm">{r.effective_to_display}</Td>
                 <Td><Badge colorScheme={statusColors[status]} fontSize="xs">{status}</Badge></Td>
-                <Td><Badge colorScheme={r.source === 'tenant' ? 'orange' : 'gray'} fontSize="xs">{r.source}</Badge></Td>
+                <Td><Badge colorScheme={r.scope_origin === 'tenant' ? 'orange' : 'gray'} fontSize="xs">{r.scope_origin}</Badge></Td>
                 <Td color="white" fontSize="sm" maxW="200px" isTruncated>{r.description_display}</Td>
               </Tr>);
           })}

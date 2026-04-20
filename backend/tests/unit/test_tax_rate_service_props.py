@@ -160,11 +160,11 @@ class TestTaxRateDateFilteredResolution:
         if tenant_rate is not None:
             assert result is not None
             assert result['rate'] == tenant_rate
-            assert result['source'] == 'tenant'
+            assert result['scope_origin'] == 'tenant'
         elif system_rate is not None:
             assert result is not None
             assert result['rate'] == system_rate
-            assert result['source'] == 'system'
+            assert result['scope_origin'] == 'system'
         else:
             assert result is None
 

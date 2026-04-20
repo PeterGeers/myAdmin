@@ -72,7 +72,7 @@
       "effectiveTo": "Geldig tot",
       "description": "Omschrijving",
       "calcMethod": "Berekeningsmethode",
-      "source": "Bron",
+      "scopeOrigin": "Bereik",
       "status": "Status",
       "active": "actief",
       "future": "toekomstig",
