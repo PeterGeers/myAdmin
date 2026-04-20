@@ -397,6 +397,38 @@ def banking_check_revolut_balance_debug(user_email, user_roles):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@banking_bp.route('/api/banking/opening-balance-date', methods=['GET'])
+@cognito_required(required_permissions=['banking_read'])
+@tenant_required()
+def banking_opening_balance_date(user_email, user_roles, tenant, user_tenants):
+    """Get the opening balance date based on the last annual closure"""
+    try:
+        from database import DatabaseManager
+        from banking_processor import _get_opening_balance_date
+
+        db = DatabaseManager(test_mode=banking_service.test_mode)
+        opening_balance_date = _get_opening_balance_date(db, tenant)
+
+        if opening_balance_date:
+            # Derive last_closed_year from opening_balance_date (year - 1)
+            last_closed_year = int(opening_balance_date[:4]) - 1
+            return jsonify({
+                'success': True,
+                'opening_balance_date': opening_balance_date,
+                'last_closed_year': last_closed_year
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'opening_balance_date': None,
+                'last_closed_year': None
+            })
+
+    except Exception as e:
+        print(f"Opening balance date error: {e}", flush=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @banking_bp.route('/api/banking/migrate-revolut-ref2', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
 def banking_migrate_revolut_ref2(user_email, user_roles):
