@@ -29,6 +29,7 @@ import {
     Textarea,
     Th,
     Thead,
+    Tooltip,
     Tr,
     VStack,
     useDisclosure
@@ -297,6 +298,7 @@ const BankingProcessor: React.FC = () => {
   const [sequenceResult, setSequenceResult] = useState<any>(null);
   const [checkingSequence, setCheckingSequence] = useState(false);
   const [sequenceStartDate, setSequenceStartDate] = useState('2025-01-01');
+  const [openingBalanceDate, setOpeningBalanceDate] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState('');
   
   // Check Reference state
@@ -1036,6 +1038,27 @@ const BankingProcessor: React.FC = () => {
     }
   }, [currentTenant, fetchMutaties, fetchLookupData]);
 
+  // Fetch opening balance date based on annual closure
+  useEffect(() => {
+    const fetchOpeningBalanceDate = async () => {
+      try {
+        const params = new URLSearchParams({ test_mode: testMode.toString() });
+        const response = await authenticatedGet(`/api/banking/opening-balance-date?${params}`);
+        const data = await response.json();
+        if (data.success && data.opening_balance_date) {
+          setOpeningBalanceDate(data.opening_balance_date);
+          setSequenceStartDate(data.opening_balance_date);
+        } else {
+          setOpeningBalanceDate(null);
+        }
+      } catch (error) {
+        console.error('Error fetching opening balance date:', error);
+        setOpeningBalanceDate(null);
+      }
+    };
+    fetchOpeningBalanceDate();
+  }, [currentTenant, testMode]);
+
   // Set initial selectedAccount when lookupData changes
   useEffect(() => {
     if (lookupData.bank_accounts.length > 0 && !selectedAccount) {
@@ -1450,15 +1473,29 @@ const BankingProcessor: React.FC = () => {
                   </FormControl>
                   <FormControl maxW="130px">
                     <FormLabel color="white" fontSize="sm">Start Date</FormLabel>
-                    <Input
-                      type="date"
-                      value={sequenceStartDate}
-                      onChange={(e) => setSequenceStartDate(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      bg="gray.600"
-                      color="white"
-                      size="sm"
-                    />
+                    <Tooltip
+                      label="Set by annual closure"
+                      isDisabled={openingBalanceDate === null}
+                      placement="top"
+                      hasArrow
+                    >
+                      <Input
+                        type="date"
+                        value={sequenceStartDate}
+                        onChange={(e) => setSequenceStartDate(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        isReadOnly={openingBalanceDate !== null}
+                        bg={openingBalanceDate !== null ? "gray.700" : "gray.600"}
+                        color="white"
+                        size="sm"
+                        cursor={openingBalanceDate !== null ? "not-allowed" : undefined}
+                      />
+                    </Tooltip>
+                    {openingBalanceDate !== null && (
+                      <Text fontSize="xs" color="orange.300" mt={1}>
+                        Set by annual closure
+                      </Text>
+                    )}
                   </FormControl>
                 </HStack>
               </HStack>
@@ -1555,18 +1592,26 @@ const BankingProcessor: React.FC = () => {
 
               {sequenceResult && (
                 <Box bg="gray.800" p={4} borderRadius="md">
-                  <Heading size="sm" color="white" mb={3}>Sequence Check Results</Heading>
+                  <Heading size="sm" color="white" mb={3}>
+                    {sequenceResult.check_type === 'balance_comparison' ? 'Balance Check Results' : 'Sequence Check Results'}
+                  </Heading>
                   <Grid templateColumns="repeat(2, 1fr)" gap={4} mb={4}>
                     <Text color="white" fontSize="sm">Account: {sequenceResult.account_code} ({sequenceResult.administration})</Text>
                     <Text color="white" fontSize="sm">IBAN: {sequenceResult.iban}</Text>
                     <Text color="white" fontSize="sm">Since: {sequenceResult.start_date}</Text>
                     <Text color="white" fontSize="sm">Total Transactions: {sequenceResult.total_transactions}</Text>
-                    <Text color="white" fontSize="sm" gridColumn="span 2">Sequence Range: {sequenceResult.first_sequence} - {sequenceResult.last_sequence}</Text>
+                    {sequenceResult.check_type === 'balance_comparison' ? (
+                      <Text color="white" fontSize="sm" gridColumn="span 2">
+                        {sequenceResult.message}
+                      </Text>
+                    ) : (
+                      <Text color="white" fontSize="sm" gridColumn="span 2">Sequence Range: {sequenceResult.first_sequence} - {sequenceResult.last_sequence}</Text>
+                    )}
                   </Grid>
                   
                   {sequenceResult.has_gaps ? (
                     <Box>
-                      <Text color="red.300" fontWeight="bold" mb={2}>⚠️ {sequenceResult.sequence_issues.length} Sequence Issues Found:</Text>
+                      <Text color="red.300" fontWeight="bold" mb={2}>⚠️ {sequenceResult.sequence_issues.length} {sequenceResult.check_type === 'balance_comparison' ? 'Balance Issues' : 'Sequence Issues'} Found:</Text>
                       <Table size="sm" variant="simple">
                         <Thead>
                           <Tr>
@@ -1583,7 +1628,7 @@ const BankingProcessor: React.FC = () => {
                               <Td color="gray.300" fontSize="xs">{issue.expected}</Td>
                               <Td color="gray.300" fontSize="xs">{issue.found}</Td>
                               <Td color="gray.300" fontSize="xs">{issue.gap > 0 ? `+${issue.gap}` : issue.gap}</Td>
-                              <Td color="gray.300" fontSize="xs">{new Date(issue.date).toLocaleDateString('nl-NL')}</Td>
+                              <Td color="gray.300" fontSize="xs">{issue.date ? new Date(issue.date).toLocaleDateString('nl-NL') : ''}</Td>
                               <Td color="gray.300" fontSize="xs" maxW="200px" isTruncated title={issue.description}>{issue.description}</Td>
                             </Tr>
                           ))}
@@ -1591,7 +1636,11 @@ const BankingProcessor: React.FC = () => {
                       </Table>
                     </Box>
                   ) : (
-                    <Text color="green.300" fontWeight="bold">✅ All sequence numbers are consecutive - no gaps found!</Text>
+                    <Text color="green.300" fontWeight="bold">
+                      {sequenceResult.check_type === 'balance_comparison' 
+                        ? '✅ Balance matches — no discrepancies found!'
+                        : '✅ All sequence numbers are consecutive - no gaps found!'}
+                    </Text>
                   )}
                 </Box>
               )}

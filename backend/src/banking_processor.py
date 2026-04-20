@@ -9,6 +9,36 @@ from database import DatabaseManager
 from pattern_analyzer import PatternAnalyzer
 import json
 import unicodedata
+import logging
+
+
+def _get_opening_balance_date(db, administration):
+    """Get the opening balance date based on the last closed year.
+
+    Queries year_closure_status for the most recent closed year and returns
+    January 1 of the following year as the opening balance date.
+
+    Args:
+        db: DatabaseManager instance
+        administration: tenant identifier
+
+    Returns:
+        str or None: 'YYYY-01-01' if closure exists, None otherwise
+    """
+    try:
+        query = """
+            SELECT MAX(year) as last_closed_year
+            FROM year_closure_status
+            WHERE administration = %s
+        """
+        rows = db.execute_query(query, [administration])
+        if rows and rows[0]['last_closed_year']:
+            return f"{rows[0]['last_closed_year'] + 1}-01-01"
+        return None
+    except Exception as e:
+        logging.warning(f"Could not fetch opening balance date for {administration}: {e}")
+        return None
+
 
 class BankingProcessor:
     def __init__(self, test_mode=False):
@@ -227,6 +257,9 @@ class BankingProcessor:
         conn = self.db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
+        # Get opening balance date from year closure status
+        opening_balance_date = _get_opening_balance_date(self.db, administration)
+        
         # Get bank accounts filtered by tenant using vw_rekeningnummers
         if administration:
             cursor.execute("""
@@ -258,9 +291,12 @@ class BankingProcessor:
                 WHERE Administration = %s 
                 AND Reknum IN ({account_placeholders})
                 AND TransactionDate <= %s
+                {' AND TransactionDate >= %s' if opening_balance_date else ''}
                 GROUP BY Reknum, Administration
             """
             params = [administration] + account_codes + [end_date]
+            if opening_balance_date:
+                params.append(opening_balance_date)
         else:
             query = f"""
                 SELECT Reknum, Administration as administration, 
@@ -269,9 +305,12 @@ class BankingProcessor:
                 FROM vw_mutaties 
                 WHERE Administration = %s 
                 AND Reknum IN ({account_placeholders})
+                {' AND TransactionDate >= %s' if opening_balance_date else ''}
                 GROUP BY Reknum, Administration
             """
             params = [administration] + account_codes
+            if opening_balance_date:
+                params.append(opening_balance_date)
         
         cursor.execute(query, params)
         balances = cursor.fetchall()
@@ -280,43 +319,63 @@ class BankingProcessor:
         for balance in balances:
             # Get all transactions for the last transaction date (up to end_date if specified)
             if end_date:
-                cursor.execute("""
+                last_tx_query = """
                     SELECT TransactionDate, TransactionDescription, TransactionAmount, 
                            Debet, Credit, Ref2, Ref3, Ref4
                     FROM mutaties 
                     WHERE administration = %s 
                     AND (Debet = %s OR Credit = %s)
                     AND TransactionDate <= %s
+                    {opening_date_filter}
                     AND TransactionDate = (
                         SELECT MAX(TransactionDate) 
                         FROM mutaties 
                         WHERE administration = %s 
                         AND (Debet = %s OR Credit = %s)
                         AND TransactionDate <= %s
+                        {opening_date_filter}
                     )
                     ORDER BY Ref2 DESC
-                """, (
-                    balance['administration'], balance['Reknum'], balance['Reknum'], end_date,
+                """.format(opening_date_filter='AND TransactionDate >= %s' if opening_balance_date else '')
+                last_tx_params = [
                     balance['administration'], balance['Reknum'], balance['Reknum'], end_date
-                ))
+                ]
+                if opening_balance_date:
+                    last_tx_params.append(opening_balance_date)
+                last_tx_params.extend([
+                    balance['administration'], balance['Reknum'], balance['Reknum'], end_date
+                ])
+                if opening_balance_date:
+                    last_tx_params.append(opening_balance_date)
+                cursor.execute(last_tx_query, last_tx_params)
             else:
-                cursor.execute("""
+                last_tx_query = """
                     SELECT TransactionDate, TransactionDescription, TransactionAmount, 
                            Debet, Credit, Ref2, Ref3, Ref4
                     FROM mutaties 
                     WHERE administration = %s 
                     AND (Debet = %s OR Credit = %s)
+                    {opening_date_filter}
                     AND TransactionDate = (
                         SELECT MAX(TransactionDate) 
                         FROM mutaties 
                         WHERE administration = %s 
                         AND (Debet = %s OR Credit = %s)
+                        {opening_date_filter}
                     )
                     ORDER BY Ref2 DESC
-                """, (
-                    balance['administration'], balance['Reknum'], balance['Reknum'],
+                """.format(opening_date_filter='AND TransactionDate >= %s' if opening_balance_date else '')
+                last_tx_params = [
                     balance['administration'], balance['Reknum'], balance['Reknum']
-                ))
+                ]
+                if opening_balance_date:
+                    last_tx_params.append(opening_balance_date)
+                last_tx_params.extend([
+                    balance['administration'], balance['Reknum'], balance['Reknum']
+                ])
+                if opening_balance_date:
+                    last_tx_params.append(opening_balance_date)
+                cursor.execute(last_tx_query, last_tx_params)
             
             last_transactions = cursor.fetchall()
             
@@ -346,6 +405,11 @@ class BankingProcessor:
         """Check if Ref2 sequence numbers are consecutive for specific accounts since start_date"""
         conn = self.db.get_connection()
         cursor = conn.cursor(dictionary=True)
+        
+        # Override start_date with closure-derived opening balance date if available
+        opening_balance_date = _get_opening_balance_date(self.db, administration)
+        if opening_balance_date is not None:
+            start_date = opening_balance_date
         
         # If account_code and administration provided, get IBAN from lookup
         if account_code and administration:
@@ -379,6 +443,111 @@ class BankingProcessor:
             cursor.close()
             conn.close()
             return {'success': False, 'message': 'No transactions found'}
+        
+        # Check if Ref2 values are numeric (sequence check only applies to accounts with numeric Ref2)
+        numeric_count = 0
+        for tx in transactions[:10]:  # Sample first 10 transactions
+            try:
+                int(tx['Ref2'])
+                numeric_count += 1
+            except (ValueError, TypeError):
+                pass
+        
+        if numeric_count == 0:
+            # Non-numeric Ref2 values (e.g., Revolut descriptive references) — do running balance check
+            # Use vw_mutaties for proper signed amounts, compare running sum against saldo in Ref2
+            cursor.close()
+            conn.close()
+            
+            # Re-query using vw_mutaties for signed amounts, ordered by date
+            conn2 = self.db.get_connection()
+            cursor2 = conn2.cursor(dictionary=True)
+            
+            cursor2.execute("""
+                SELECT m.TransactionDate, m.TransactionDescription, m.Amount,
+                       d.Ref2
+                FROM vw_mutaties m
+                JOIN mutaties d ON d.Ref1 = %s 
+                    AND d.TransactionDate = m.TransactionDate 
+                    AND d.TransactionDescription = m.TransactionDescription
+                    AND d.administration = m.administration
+                WHERE m.Reknum = %s 
+                AND m.administration = %s
+                AND m.TransactionDate >= %s
+                ORDER BY m.TransactionDate, m.TransactionDescription
+            """, (iban, account_code, administration, start_date))
+            
+            vw_transactions = cursor2.fetchall()
+            cursor2.close()
+            conn2.close()
+            
+            if not vw_transactions:
+                return {
+                    'success': True,
+                    'iban': iban,
+                    'account_code': account_code,
+                    'administration': administration,
+                    'start_date': start_date,
+                    'total_transactions': 0,
+                    'first_sequence': None,
+                    'last_sequence': None,
+                    'has_gaps': False,
+                    'sequence_issues': [],
+                    'check_type': 'balance_comparison',
+                    'message': 'No transactions found'
+                }
+            
+            # Build running balance and compare against saldo in Ref2
+            balance_issues = []
+            running_balance = None
+            
+            for tx in vw_transactions:
+                amount = float(tx['Amount']) if tx.get('Amount') is not None else 0.0
+                
+                # Extract saldo from Ref2 (format: "description_saldo_date")
+                current_saldo = None
+                if tx.get('Ref2'):
+                    parts = tx['Ref2'].split('_')
+                    if len(parts) >= 2:
+                        try:
+                            current_saldo = float(parts[-2])
+                        except (ValueError, IndexError):
+                            pass
+                
+                if current_saldo is None:
+                    continue
+                
+                if running_balance is None:
+                    # First transaction: accept saldo as starting point
+                    running_balance = current_saldo
+                else:
+                    running_balance = round(running_balance + amount, 2)
+                    
+                    if abs(running_balance - current_saldo) > 0.01:
+                        balance_issues.append({
+                            'expected': running_balance,
+                            'found': current_saldo,
+                            'gap': round(current_saldo - running_balance, 2),
+                            'date': str(tx['TransactionDate']) if tx.get('TransactionDate') else '',
+                            'description': tx.get('TransactionDescription', '')
+                        })
+                        # Reset running balance to actual saldo to continue checking
+                        running_balance = current_saldo
+            
+            return {
+                'success': True,
+                'iban': iban,
+                'account_code': account_code,
+                'administration': administration,
+                'start_date': start_date,
+                'total_transactions': len(vw_transactions),
+                'first_sequence': None,
+                'last_sequence': None,
+                'has_gaps': len(balance_issues) > 0,
+                'sequence_issues': balance_issues,
+                'check_type': 'balance_comparison',
+                'message': f'Running balance check: {len(balance_issues)} discrepancies found' if balance_issues else 'Running balance is consistent — no gaps found'
+            }
         
         # Check for sequence gaps
         sequence_issues = []
