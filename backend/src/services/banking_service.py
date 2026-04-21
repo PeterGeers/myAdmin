@@ -542,6 +542,13 @@ class BankingService:
             cursor.close()
             conn.close()
             
+            # Convert date objects to ISO strings so the frontend receives
+            # "2026-01-14" instead of Flask's default "Wed, 14 Jan 2026 00:00:00 GMT"
+            for row in results:
+                val = row.get('TransactionDate')
+                if val and hasattr(val, 'isoformat'):
+                    row['TransactionDate'] = val.isoformat()
+            
             return {
                 'success': True,
                 'mutaties': results,
