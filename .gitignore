@@ -83,6 +83,7 @@ backend/reports/
 backend/frontend/
 frontend/coverage/
 frontend/build/
+frontend/playwright-report/
 
 # IDE
 .idea/
