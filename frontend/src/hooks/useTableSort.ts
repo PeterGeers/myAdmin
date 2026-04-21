@@ -41,16 +41,30 @@ function isNullish(value: unknown): value is null | undefined {
 }
 
 /**
+ * Check whether a value is a valid ISO-8601 date string.
+ *
+ * Accepts YYYY-MM-DD with optional time component (e.g. "2024-01-15",
+ * "2024-01-15T10:30:00Z"). Uses a regex pre-check to avoid expensive
+ * Date.parse calls on non-date strings.
+ */
+export function isISODateString(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  if (!/^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]*)?$/.test(value)) return false;
+  return Number.isFinite(Date.parse(value));
+}
+
+/**
  * Compare two values for sorting.
  *
  * Rules (from design §2):
  * - null/undefined sort to end regardless of direction
  * - Both numbers → numeric comparison
+ * - Both ISO date strings → chronological comparison
  * - Otherwise → case-insensitive string comparison via localeCompare
  *
  * Returns a raw comparator value (caller applies direction multiplier).
  */
-function compareValues(a: unknown, b: unknown): number {
+export function compareValues(a: unknown, b: unknown): number {
   const aNullish = isNullish(a);
   const bNullish = isNullish(b);
 
@@ -63,6 +77,11 @@ function compareValues(a: unknown, b: unknown): number {
   // Both numbers → numeric comparison
   if (isNumber(a) && isNumber(b)) {
     return a - b;
+  }
+
+  // Both ISO date strings → chronological comparison
+  if (isISODateString(a) && isISODateString(b)) {
+    return Date.parse(a as string) - Date.parse(b as string);
   }
 
   // Fallback → case-insensitive string comparison
