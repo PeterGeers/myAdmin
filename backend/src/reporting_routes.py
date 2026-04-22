@@ -447,11 +447,11 @@ def get_trends_data(user_email, user_roles, tenant, user_tenants):
         
         with service.get_cursor() as cursor:
             cursor.execute(f"""
-                SELECT Parent, ledger, YEAR(TransactionDate) as year, SUM(Amount) as total_amount
+                SELECT Parent, ledger, jaar as year, SUM(Amount) as total_amount
                 FROM vw_mutaties
                 WHERE {where_clause}
-                GROUP BY Parent, ledger, YEAR(TransactionDate)
-                ORDER BY Parent, ledger, year
+                GROUP BY Parent, ledger, jaar
+                ORDER BY Parent, ledger, jaar
             """, params)
             results = cursor.fetchall()
         
@@ -481,39 +481,51 @@ def get_filter_options(user_email, user_roles, tenant, user_tenants):
             admin_params = [administration]
         
         with service.get_cursor() as cursor:
-            # Get administrations (only those user has access to)
+            # Get administrations — query base mutaties table directly (avoids full view materialization)
             cursor.execute(f"""
-                SELECT DISTINCT administration FROM vw_mutaties
+                SELECT DISTINCT administration FROM mutaties
                 WHERE administration IS NOT NULL AND administration != ''
                 AND {admin_filter}
                 ORDER BY administration
             """, admin_params)
             administrations = [row['administration'] for row in cursor.fetchall()]
             
-            # Get ledgers with administration filter
-            # Get ledgers (account numbers) with administration filter
-            ledger_conditions = ["Reknum IS NOT NULL AND Reknum != ''", admin_filter]
-            ledger_params = admin_params.copy()
+            # Get ledgers (account numbers) — join mutaties with rekeningschema directly
+            # The OR join pattern is needed because a mutation can reference an account via either Debet or Credit
+            ledger_params = admin_params.copy() + admin_params.copy()
             
             cursor.execute(f"""
-                SELECT DISTINCT Reknum FROM vw_mutaties
-                WHERE {' AND '.join(ledger_conditions)}
+                SELECT DISTINCT r.Account as Reknum
+                FROM mutaties m
+                JOIN rekeningschema r ON m.Debet = r.Account AND m.administration = r.administration
+                WHERE {admin_filter.replace('administration', 'm.administration')}
+                UNION
+                SELECT DISTINCT r.Account as Reknum
+                FROM mutaties m
+                JOIN rekeningschema r ON m.Credit = r.Account AND m.administration = r.administration
+                WHERE {admin_filter.replace('administration', 'm.administration')}
                 ORDER BY Reknum
             """, ledger_params)
             ledgers = [row['Reknum'] for row in cursor.fetchall()]
             
-            # Get references with optional filters
+            # Get references — query base mutaties table directly
             ref_conditions = ["ReferenceNumber IS NOT NULL AND ReferenceNumber != ''", admin_filter]
             ref_params = admin_params.copy()
             if ledger != 'all':
-                ref_conditions.append("Reknum = %s")
-                ref_params.append(ledger)
-            
-            cursor.execute(f"""
-                SELECT DISTINCT ReferenceNumber FROM vw_mutaties
-                WHERE {' AND '.join(ref_conditions)}
-                ORDER BY ReferenceNumber
-            """, ref_params)
+                # Since mutaties doesn't have Reknum, join with rekeningschema to filter by account
+                ref_conditions.append("(m.Debet = %s OR m.Credit = %s)")
+                ref_params.extend([ledger, ledger])
+                cursor.execute(f"""
+                    SELECT DISTINCT m.ReferenceNumber FROM mutaties m
+                    WHERE {' AND '.join(ref_conditions)}
+                    ORDER BY m.ReferenceNumber
+                """, ref_params)
+            else:
+                cursor.execute(f"""
+                    SELECT DISTINCT ReferenceNumber FROM mutaties
+                    WHERE {' AND '.join(ref_conditions)}
+                    ORDER BY ReferenceNumber
+                """, ref_params)
             references = [row['ReferenceNumber'] for row in cursor.fetchall()]
         
         return jsonify({
@@ -534,11 +546,11 @@ def get_filter_options(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
 def get_available_data(data_type, user_email, user_roles, tenant, user_tenants):
-    """Get available years or references from vw_mutaties - filtered by user tenants"""
-    # Base queries with tenant filtering placeholder
+    """Get available years or references from mutaties table - filtered by user tenants"""
+    # Base queries on mutaties table directly (avoids full view materialization)
     queries = {
-        'years': "SELECT DISTINCT jaar as value FROM vw_mutaties WHERE jaar IS NOT NULL AND administration IN ({}) ORDER BY jaar DESC",
-        'references': "SELECT DISTINCT ReferenceNumber as value FROM vw_mutaties WHERE ReferenceNumber IS NOT NULL AND ReferenceNumber != '' AND administration IN ({}) ORDER BY ReferenceNumber"
+        'years': "SELECT DISTINCT YEAR(TransactionDate) as value FROM mutaties WHERE TransactionDate IS NOT NULL AND administration IN ({}) ORDER BY value DESC",
+        'references': "SELECT DISTINCT ReferenceNumber as value FROM mutaties WHERE ReferenceNumber IS NOT NULL AND ReferenceNumber != '' AND administration IN ({}) ORDER BY ReferenceNumber"
     }
     
     if data_type not in queries:
@@ -674,10 +686,16 @@ def get_reference_analysis(user_email, user_roles, tenant, user_tenants):
                     account_where += f" AND administration IN ({placeholders})"
                 account_params.extend(user_tenants)
             
+            # Get available accounts — query mutaties joined with rekeningschema directly
+            # Replace 'jaar' references with YEAR(m.TransactionDate) since mutaties doesn't have 'jaar'
+            account_where_mutaties = account_where.replace('jaar', 'YEAR(m.TransactionDate)')
+            
             cursor.execute(f"""
-                SELECT DISTINCT Reknum, AccountName FROM vw_mutaties
-                WHERE {account_where} AND Reknum IS NOT NULL AND Reknum != ''
-                      AND AccountName IS NOT NULL AND AccountName != ''
+                SELECT DISTINCT r.Account as Reknum, r.AccountName
+                FROM mutaties m
+                JOIN rekeningschema r ON (m.Debet = r.Account OR m.Credit = r.Account) AND m.administration = r.administration
+                WHERE {account_where_mutaties} AND r.Account IS NOT NULL AND r.Account != ''
+                      AND r.AccountName IS NOT NULL AND r.AccountName != ''
                 ORDER BY Reknum
             """, account_params)
             available_accounts = cursor.fetchall()
@@ -756,6 +774,8 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
         table_name = 'mutaties_test' if flag else 'mutaties'
         
         # Build IN clause for user_tenants
+        # Use YEAR() on base table — acceptable since administration index
+        # filters rows first, and composite index will cover this after task 6
         placeholders = ','.join(['%s'] * len(user_tenants))
         query = f"""
             SELECT DISTINCT YEAR(TransactionDate) as value 
@@ -1110,11 +1130,11 @@ def aangifte_ib_xlsx_export(user_email, user_roles, tenant, user_tenants):
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Build query with tenant filtering
+        # Build query with tenant filtering — query base mutaties table directly
         placeholders = ', '.join(['%s'] * len(user_tenants))
-        query = f"SELECT DISTINCT Administration FROM vw_mutaties WHERE Administration IN ({placeholders}) ORDER BY Administration"
+        query = f"SELECT DISTINCT administration FROM mutaties WHERE administration IN ({placeholders}) ORDER BY administration"
         cursor.execute(query, user_tenants)
-        available_admins = [row['Administration'] for row in cursor.fetchall()]
+        available_admins = [row['administration'] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
         

@@ -156,7 +156,6 @@
     "errorFetchingPreview": "Error fetching STR channel preview: {{error}}",
     "errorCalculating": "Error calculating STR channel revenue: {{error}}",
     "errorSavingStrChannel": "Error saving STR channel transactions: {{error}}",
-    "saltEdgeAlert": "Salt Edge integration ready! Waiting for account approval (2 business days). Bank account mappings now loaded from database.",
     "useButtonAbove": "Use the button above to check reference numbers"
   },
   "placeholders": {
@@ -175,7 +174,6 @@
     "admin": "Admin"
   },
   "labels": {
-    "connectBank": "🏦 Connect Bank (Salt Edge)",
     "trxNumber": "TrxNumber",
     "refNumber": "RefNumber",
     "required": "Required",

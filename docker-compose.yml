@@ -1,7 +1,6 @@
 services:
   mysql:
     image: mysql:8.0
-    command: --lower-case-table-names=2
     env_file:
       - ./backend/.env
     environment:
@@ -10,6 +9,7 @@ services:
     volumes:
       - ./mysql_data:/var/lib/mysql # Host directory mapping - survives volume deletion
       - ./backend/docker-init:/docker-entrypoint-initdb.d
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf
     ports:
       - "3306:3306"
     mem_limit: 2g
@@ -38,11 +38,12 @@ services:
     cpus: 1.5
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
 # Removed - using host directory mapping instead
 # volumes:
 #   mysql_data:

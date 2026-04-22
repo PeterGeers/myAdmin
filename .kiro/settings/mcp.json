@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "railway": {
+      "url": "https://mcp.railway.com",
+      "type": "http",
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

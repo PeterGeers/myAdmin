@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ChakraProvider, Box, VStack, Heading, Button, HStack, Flex, Text, Alert, AlertIcon, AlertDescription, CloseButton, Link as ChakraLink } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
 import PDFUploadForm from './components/PDFUploadForm';
-import BankConnect from './components/BankConnect';
 import BankingProcessor from './components/BankingProcessor';
 import STRProcessor from './components/STRProcessor';
 import STRInvoice from './components/STRInvoice';
@@ -31,7 +30,7 @@ import PasskeySettings from './components/settings/PasskeySettings';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 import { HelpButton } from './components/help';
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'bank-connect' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -82,7 +81,7 @@ function AppContent() {
         setCurrentPage('menu');
       }
       // If on FIN page but no FIN access, redirect to menu
-      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'bank-connect' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets') && !hasFIN) {
+      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets') && !hasFIN) {
         setCurrentPage('menu');
       }
       // If on ZZP page but no ZZP access, redirect to menu
@@ -150,18 +149,6 @@ function AppContent() {
             <Box minH="100vh" bg="gray.900">
               {renderPageHeader(`🏦 ${t('common:navigation.modules.importBanking')}`)}
               <BankingProcessor />
-            </Box>
-          </ProtectedRoute>
-        );
-      case 'bank-connect':
-        return (
-          <ProtectedRoute 
-            requiredRoles={['Finance_CRUD']}
-            onLoginSuccess={() => setCurrentPage('menu')}
-          >
-            <Box minH="100vh" bg="gray.900">
-              {renderPageHeader(`🏦 ${t('common:navigation.modules.connectBank')}`)}
-              <BankConnect />
             </Box>
           </ProtectedRoute>
         );

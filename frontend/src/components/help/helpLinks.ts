@@ -13,7 +13,6 @@ const DOCS_PATH = '/docs';
 /** Maps PageType values to MkDocs documentation sections */
 export const helpLinks: Record<string, string> = {
   'banking':      'banking/',
-  'bank-connect': 'banking/',
   'pdf':          'invoices/',
   'str':          'str/',
   'str-invoice':  'str/',

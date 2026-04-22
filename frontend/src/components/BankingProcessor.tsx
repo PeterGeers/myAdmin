@@ -1110,15 +1110,8 @@ const BankingProcessor: React.FC = () => {
 
             {/* File Selection */}
             <VStack align="stretch" mb={6}>
-              <HStack justify="space-between" mb={2}>
+              <HStack mb={2}>
                 <FormLabel color="white" mb={0}>{t('fileProcessing.selectFiles')}</FormLabel>
-                <Button
-                  colorScheme="green"
-                  size="sm"
-                  onClick={() => alert(t('messages.saltEdgeAlert'))}
-                >
-                  {t('labels.connectBank')}
-                </Button>
               </HStack>
               <FormControl>
                 <Input

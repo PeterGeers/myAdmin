@@ -156,7 +156,6 @@
     "errorFetchingPreview": "Fout bij ophalen van STR-kanaalvoorbeeld: {{error}}",
     "errorCalculating": "Fout bij berekenen van STR-kanaalomzet: {{error}}",
     "errorSavingStrChannel": "Fout bij opslaan van STR-kanaaltransacties: {{error}}",
-    "saltEdgeAlert": "Salt Edge integratie gereed! Wachten op accountgoedkeuring (2 werkdagen). Bankrekeningkoppelingen nu geladen vanuit database.",
     "useButtonAbove": "Gebruik de knop hierboven om referentienummers te controleren"
   },
   "placeholders": {
@@ -175,7 +174,6 @@
     "admin": "Admin"
   },
   "labels": {
-    "connectBank": "🏦 Bank Verbinden (Salt Edge)",
     "trxNumber": "TrxNummer",
     "refNumber": "RefNummer",
     "required": "Verplicht",
