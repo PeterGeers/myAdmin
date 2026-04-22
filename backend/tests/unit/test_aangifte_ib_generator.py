@@ -228,8 +228,8 @@ class TestGenerateTableRows:
     def test_generates_complete_hierarchical_structure(self):
         """Test that complete hierarchy is generated"""
         report_data = [
-            {'Parent': '1000', 'Aangifte': 'Liquide middelen', 'Amount': 100.0},
-            {'Parent': '8000', 'Aangifte': 'Revenue', 'Amount': -50.0}  # P&L account
+            {'Parent': '1000', 'Aangifte': 'Liquide middelen', 'Amount': 100.0, 'VW': 'N'},
+            {'Parent': '8000', 'Aangifte': 'Revenue', 'Amount': -50.0, 'VW': 'Y'}  # P&L account
         ]
         
         mock_cache = Mock()
@@ -259,9 +259,9 @@ class TestGenerateTableRows:
     def test_filters_zero_parent_totals(self):
         """Test that parent groups with zero total are filtered"""
         report_data = [
-            {'Parent': '1000', 'Aangifte': 'Item1', 'Amount': 100.0},
-            {'Parent': '1000', 'Aangifte': 'Item2', 'Amount': -100.0},  # Cancels out
-            {'Parent': '2000', 'Aangifte': 'BTW', 'Amount': 50.0}
+            {'Parent': '1000', 'Aangifte': 'Item1', 'Amount': 100.0, 'VW': 'N'},
+            {'Parent': '1000', 'Aangifte': 'Item2', 'Amount': -100.0, 'VW': 'N'},  # Cancels out
+            {'Parent': '2000', 'Aangifte': 'BTW', 'Amount': 50.0, 'VW': 'N'}
         ]
         
         mock_cache = Mock()
@@ -283,8 +283,8 @@ class TestGenerateTableRows:
     def test_filters_zero_aangifte_amounts(self):
         """Test that aangifte items with zero amounts are filtered"""
         report_data = [
-            {'Parent': '1000', 'Aangifte': 'Item1', 'Amount': 100.0},
-            {'Parent': '1000', 'Aangifte': 'Item2', 'Amount': 0.005}  # Below threshold
+            {'Parent': '1000', 'Aangifte': 'Item1', 'Amount': 100.0, 'VW': 'N'},
+            {'Parent': '1000', 'Aangifte': 'Item2', 'Amount': 0.005, 'VW': 'N'}  # Below threshold
         ]
         
         mock_cache = Mock()
@@ -319,11 +319,11 @@ class TestGenerateTableRows:
         assert rows == []
     
     def test_calculates_resultaat_correctly(self):
-        """Test that resultaat is calculated as sum of P&L accounts only"""
+        """Test that resultaat is calculated as sum of P&L accounts (VW='Y') only"""
         report_data = [
-            {'Parent': '1000', 'Aangifte': 'Item1', 'Amount': 100.0},  # Balance sheet - excluded
-            {'Parent': '8000', 'Aangifte': 'Item2', 'Amount': -30.0},  # P&L - included
-            {'Parent': '4000', 'Aangifte': 'Item3', 'Amount': 50.0}    # P&L - included
+            {'Parent': '1000', 'Aangifte': 'Item1', 'Amount': 100.0, 'VW': 'N'},  # Balance sheet - excluded
+            {'Parent': '8000', 'Aangifte': 'Item2', 'Amount': -30.0, 'VW': 'Y'},  # P&L - included
+            {'Parent': '4000', 'Aangifte': 'Item3', 'Amount': 50.0, 'VW': 'Y'}    # P&L - included
         ]
         
         mock_cache = Mock()
@@ -345,7 +345,7 @@ class TestGenerateTableRows:
     def test_passes_user_tenants_to_cache(self):
         """Test that user_tenants is passed to cache for security"""
         report_data = [
-            {'Parent': '1000', 'Aangifte': 'Liquide middelen', 'Amount': 100.0}
+            {'Parent': '1000', 'Aangifte': 'Liquide middelen', 'Amount': 100.0, 'VW': 'N'}
         ]
         
         mock_cache = Mock()
@@ -364,3 +364,126 @@ class TestGenerateTableRows:
         # Verify user_tenants was passed to cache
         call_args = mock_cache.query_aangifte_ib_details.call_args
         assert call_args.kwargs['user_tenants'] == user_tenants
+
+
+class TestResultaatUsesVWField:
+    """Tests that resultaat calculation uses VW='Y' field instead of Parent prefix.
+    
+    Validates: Requirements 2.8, 3.5
+    """
+
+    def test_resultaat_uses_vw_field(self):
+        """Test generate_table_rows() uses VW='Y' for P&L classification"""
+        report_data = [
+            {'Parent': '1000', 'Aangifte': 'Bank', 'Amount': 500.0, 'VW': 'N'},
+            {'Parent': '4000', 'Aangifte': 'Expenses', 'Amount': 200.0, 'VW': 'Y'},
+            {'Parent': '8000', 'Aangifte': 'Revenue', 'Amount': -300.0, 'VW': 'Y'},
+        ]
+
+        mock_cache = Mock()
+        mock_cache.query_aangifte_ib_details.return_value = []
+
+        rows = generate_table_rows(
+            report_data=report_data,
+            cache=mock_cache,
+            year=2025,
+            administration='GoodwinSolutions',
+            user_tenants=['GoodwinSolutions']
+        )
+
+        resultaat_rows = [r for r in rows if r['row_type'] == 'resultaat']
+        assert len(resultaat_rows) == 1
+        # Only VW='Y' items: 200.0 + (-300.0) = -100.0
+        assert resultaat_rows[0]['amount_raw'] == -100.0
+
+    def test_vw_wins_over_parent_prefix_disagreement(self):
+        """Test that VW field takes precedence when VW and Parent prefix disagree.
+        
+        - Account with Parent='1000' (balance sheet prefix) but VW='Y' (P&L) → INCLUDED in resultaat
+        - Account with Parent='8000' (P&L prefix) but VW='N' (balance sheet) → EXCLUDED from resultaat
+        This proves the system uses VW, not Parent prefix.
+        """
+        report_data = [
+            # Balance sheet Parent prefix, but VW says P&L → should be INCLUDED
+            {'Parent': '1000', 'Aangifte': 'Unusual P&L in 1xxx', 'Amount': 150.0, 'VW': 'Y'},
+            # P&L Parent prefix, but VW says Balance sheet → should be EXCLUDED
+            {'Parent': '8000', 'Aangifte': 'Unusual BS in 8xxx', 'Amount': 250.0, 'VW': 'N'},
+            # Normal P&L account → should be INCLUDED
+            {'Parent': '4000', 'Aangifte': 'Normal expense', 'Amount': 100.0, 'VW': 'Y'},
+        ]
+
+        mock_cache = Mock()
+        mock_cache.query_aangifte_ib_details.return_value = []
+
+        rows = generate_table_rows(
+            report_data=report_data,
+            cache=mock_cache,
+            year=2025,
+            administration='GoodwinSolutions',
+            user_tenants=['GoodwinSolutions']
+        )
+
+        resultaat_rows = [r for r in rows if r['row_type'] == 'resultaat']
+        assert len(resultaat_rows) == 1
+        # Only VW='Y' items: 150.0 (Parent 1000, VW Y) + 100.0 (Parent 4000, VW Y) = 250.0
+        # The 250.0 with Parent 8000 but VW='N' is EXCLUDED
+        assert resultaat_rows[0]['amount_raw'] == 250.0
+
+    def test_resultaat_standard_dutch_chart(self):
+        """Test resultaat calculation matches expected for standard Dutch chart of accounts.
+        
+        In the standard Dutch chart, VW='Y' accounts are 4xxx-9xxx (expenses and revenue).
+        VW='N' accounts are 1xxx-3xxx (balance sheet).
+        """
+        report_data = [
+            # Balance sheet accounts (VW='N') — excluded from resultaat
+            {'Parent': '1000', 'Aangifte': 'Liquide middelen', 'Amount': 88262.80, 'VW': 'N'},
+            {'Parent': '2000', 'Aangifte': 'BTW', 'Amount': -1430.31, 'VW': 'N'},
+            {'Parent': '3000', 'Aangifte': 'Eigen vermogen', 'Amount': -50000.0, 'VW': 'N'},
+            # P&L accounts (VW='Y') — included in resultaat
+            {'Parent': '4000', 'Aangifte': 'Kosten', 'Amount': 12500.0, 'VW': 'Y'},
+            {'Parent': '8000', 'Aangifte': 'Omzet', 'Amount': -45000.0, 'VW': 'Y'},
+            {'Parent': '8000', 'Aangifte': 'Rente', 'Amount': -120.50, 'VW': 'Y'},
+            {'Parent': '9000', 'Aangifte': 'Afschrijvingen', 'Amount': 3788.01, 'VW': 'Y'},
+        ]
+
+        mock_cache = Mock()
+        mock_cache.query_aangifte_ib_details.return_value = []
+
+        rows = generate_table_rows(
+            report_data=report_data,
+            cache=mock_cache,
+            year=2025,
+            administration='GoodwinSolutions',
+            user_tenants=['GoodwinSolutions']
+        )
+
+        resultaat_rows = [r for r in rows if r['row_type'] == 'resultaat']
+        assert len(resultaat_rows) == 1
+        # Expected: 12500.0 + (-45000.0) + (-120.50) + 3788.01 = -28832.49
+        expected_resultaat = 12500.0 + (-45000.0) + (-120.50) + 3788.01
+        assert abs(resultaat_rows[0]['amount_raw'] - expected_resultaat) < 0.01
+
+    def test_missing_vw_field_excluded_from_resultaat(self):
+        """Test that items without VW field are excluded from resultaat calculation"""
+        report_data = [
+            {'Parent': '8000', 'Aangifte': 'Revenue', 'Amount': -500.0, 'VW': 'Y'},
+            {'Parent': '4000', 'Aangifte': 'No VW field', 'Amount': 200.0},  # Missing VW
+            {'Parent': '6000', 'Aangifte': 'Empty VW', 'Amount': 100.0, 'VW': ''},  # Empty VW
+        ]
+
+        mock_cache = Mock()
+        mock_cache.query_aangifte_ib_details.return_value = []
+
+        rows = generate_table_rows(
+            report_data=report_data,
+            cache=mock_cache,
+            year=2025,
+            administration='GoodwinSolutions',
+            user_tenants=['GoodwinSolutions']
+        )
+
+        resultaat_rows = [r for r in rows if r['row_type'] == 'resultaat']
+        assert len(resultaat_rows) == 1
+        # Only the VW='Y' item is included: -500.0
+        assert resultaat_rows[0]['amount_raw'] == -500.0

@@ -2,7 +2,7 @@ import sys
 import os
 import pytest
 import mysql.connector
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, PropertyMock
 from datetime import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -122,22 +122,28 @@ class TestTransactionLogic:
             mock_cursor.execute.assert_called()
             mock_cursor.close.assert_called()
             mock_conn.close.assert_called()
-    
-    def test_get_last_transactions_fallback_to_gamma(self, transaction_logic, mock_connection, sample_template_transactions):
-        """Test fallback to Gamma when no transactions found"""
+
+    def test_get_last_transactions_zero_results_returns_error(self, transaction_logic, mock_connection):
+        """Test that 0 results returns error dict instead of Gamma fallback"""
         mock_conn, mock_cursor = mock_connection
-        # First call returns empty, second call returns Gamma transactions
-        mock_cursor.fetchall.side_effect = [[], sample_template_transactions]
+        mock_cursor.fetchall.return_value = []
         
         with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
-            transactions = transaction_logic.get_last_transactions('NewVendor')
+            result = transaction_logic.get_last_transactions('NewVendor')
             
-            assert len(transactions) == 2
-            assert transactions[0]['TransactionNumber'] == 'NewVendor'  # Updated from Gamma
-            assert mock_cursor.execute.call_count == 2  # Called twice
+            # Should return error dict, NOT fall back to Gamma
+            assert isinstance(result, dict)
+            assert result['error'] is True
+            assert 'NewVendor' in result['message']
+            assert 'Manual account selection required' in result['message']
+            assert result['results'] == []
+            # Should only execute ONE query (no Gamma fallback query)
+            assert mock_cursor.execute.call_count == 1
+            mock_cursor.close.assert_called()
+            mock_conn.close.assert_called()
     
-    def test_get_last_transactions_single_duplication(self, transaction_logic, mock_connection):
-        """Test single transaction duplication"""
+    def test_get_last_transactions_single_resolves_vat_from_tax_service(self, transaction_logic, mock_connection):
+        """Test single transaction resolves VAT account from TaxRateService, not hardcoded '2010'"""
         mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
@@ -152,15 +158,61 @@ class TestTransactionLogic:
         }]
         mock_cursor.fetchall.return_value = single_transaction
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
+        # Mock TaxRateService to return a specific VAT account
+        mock_tax_svc = MagicMock()
+        mock_tax_svc.get_tax_rate.return_value = {
+            'rate': 21.0,
+            'ledger_account': '2020',
+            'description': 'BTW hoog'
+        }
+        
+        mock_db_manager = MagicMock()
+        
+        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
+             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc) as mock_trs_cls, \
+             patch('database.DatabaseManager', return_value=mock_db_manager):
             transactions = transaction_logic.get_last_transactions('TestVendor')
             
             assert len(transactions) == 2  # Original + duplicated
-            assert transactions[1]['Debet'] == 2010  # VAT account
+            # VAT account should come from TaxRateService, not hardcoded '2010'
+            assert transactions[1]['Debet'] == '2020'
             assert transactions[1]['Credit'] == '4000'  # Original debet
+            # Verify TaxRateService was called
+            mock_tax_svc.get_tax_rate.assert_called_once()
     
-    def test_get_last_transactions_coursera_specific(self, transaction_logic, mock_connection):
-        """Test Coursera-specific account codes"""
+    def test_get_last_transactions_single_vat_fallback_when_no_rate(self, transaction_logic, mock_connection):
+        """Test graceful fallback to '2010' when TaxRateService returns None"""
+        mock_conn, mock_cursor = mock_connection
+        single_transaction = [{
+            'ID': 1,
+            'TransactionNumber': 'TestVendor',
+            'TransactionDate': '2025-01-15',
+            'TransactionDescription': 'Test transaction',
+            'TransactionAmount': 100.00,
+            'Debet': '4000',
+            'Credit': '1300',
+            'ReferenceNumber': 'TestVendor',
+            'Administration': 'GoodwinSolutions'
+        }]
+        mock_cursor.fetchall.return_value = single_transaction
+        
+        # Mock TaxRateService to return None (no rate configured)
+        mock_tax_svc = MagicMock()
+        mock_tax_svc.get_tax_rate.return_value = None
+        
+        mock_db_manager = MagicMock()
+        
+        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
+             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc), \
+             patch('database.DatabaseManager', return_value=mock_db_manager):
+            transactions = transaction_logic.get_last_transactions('TestVendor')
+            
+            assert len(transactions) == 2
+            # Should gracefully fall back to '2010'
+            assert transactions[1]['Debet'] == '2010'
+    
+    def test_no_coursera_vendor_overrides(self, transaction_logic, mock_connection):
+        """Test that Coursera vendor-specific overrides no longer exist — DB accounts used as-is"""
         mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
@@ -175,17 +227,22 @@ class TestTransactionLogic:
         }]
         mock_cursor.fetchall.return_value = single_transaction
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
+        mock_tax_svc = MagicMock()
+        mock_tax_svc.get_tax_rate.return_value = {'rate': 21.0, 'ledger_account': '2010', 'description': 'BTW hoog'}
+        mock_db_manager = MagicMock()
+        
+        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
+             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc), \
+             patch('database.DatabaseManager', return_value=mock_db_manager):
             transactions = transaction_logic.get_last_transactions('coursera')
             
             assert len(transactions) == 2
-            assert transactions[0]['Debet'] == '6200'  # Training expense
-            assert transactions[0]['Credit'] == '1600'  # Bank account
-            assert transactions[1]['Debet'] == '2010'  # VAT
-            assert transactions[1]['Credit'] == '6200'  # Training expense
+            # DB accounts should be used as-is — no override to '6200'/'1600'
+            assert transactions[0]['Debet'] == '4000'  # Original from DB, NOT '6200'
+            assert transactions[0]['Credit'] == '1300'  # Original from DB, NOT '1600'
     
-    def test_get_last_transactions_netflix_specific(self, transaction_logic, mock_connection):
-        """Test Netflix-specific account codes"""
+    def test_no_netflix_vendor_overrides(self, transaction_logic, mock_connection):
+        """Test that Netflix vendor-specific overrides no longer exist — DB accounts used as-is"""
         mock_conn, mock_cursor = mock_connection
         single_transaction = [{
             'ID': 1,
@@ -200,14 +257,42 @@ class TestTransactionLogic:
         }]
         mock_cursor.fetchall.return_value = single_transaction
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
+        mock_tax_svc = MagicMock()
+        mock_tax_svc.get_tax_rate.return_value = {'rate': 21.0, 'ledger_account': '2010', 'description': 'BTW hoog'}
+        mock_db_manager = MagicMock()
+        
+        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
+             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc), \
+             patch('database.DatabaseManager', return_value=mock_db_manager):
             transactions = transaction_logic.get_last_transactions('netflix')
             
             assert len(transactions) == 2
-            assert transactions[0]['Debet'] == '6400'  # Entertainment expense
-            assert transactions[0]['Credit'] == '1600'  # Bank account
-            assert transactions[1]['Debet'] == '2010'  # VAT
-            assert transactions[1]['Credit'] == '6400'  # Entertainment expense
+            # DB accounts should be used as-is — no override to '6400'/'1600'
+            assert transactions[0]['Debet'] == '4000'  # Original from DB, NOT '6400'
+            assert transactions[0]['Credit'] == '1300'  # Original from DB, NOT '1600'
+    
+    def test_single_transaction_vendors_no_duplication(self, transaction_logic, mock_connection):
+        """Test vendors in single_transaction_vendors list return 1 result (no duplication)"""
+        mock_conn, mock_cursor = mock_connection
+        single_transaction = [{
+            'ID': 1,
+            'TransactionNumber': 'SomeVendor',
+            'TransactionDate': '2025-01-15',
+            'TransactionDescription': 'SomeVendor transaction',
+            'TransactionAmount': 100.00,
+            'Debet': '4000',
+            'Credit': '1300',
+            'ReferenceNumber': 'SomeVendor',
+            'Administration': 'GoodwinSolutions'
+        }]
+        mock_cursor.fetchall.return_value = single_transaction
+        
+        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
+            transactions = transaction_logic.get_last_transactions('SomeVendor')
+            
+            # SomeVendor is in single_transaction_vendors — should NOT duplicate
+            assert len(transactions) == 1
+            assert transactions[0]['Debet'] == '4000'
     
     def test_check_file_exists(self, transaction_logic):
         """Test file existence check"""
@@ -387,6 +472,93 @@ class TestTransactionLogic:
             assert len(date_str) == 10
             assert date_str.count('-') == 2
             datetime.strptime(date_str, '%Y-%m-%d')  # Should not raise exception
+
+
+class TestInvoiceServiceErrorHandling:
+    """Test that invoice_service.py handles error dict from get_last_transactions()"""
+    
+    @patch('services.invoice_service.PDFProcessor')
+    @patch('services.invoice_service.TransactionLogic')
+    @patch('services.invoice_service.DatabaseManager')
+    @patch('services.invoice_service.GoogleDriveService', create=True)
+    def test_process_invoice_file_handles_error_dict(self, mock_drive, mock_db, mock_tl, mock_proc):
+        """Test that process_invoice_file returns template_error when get_last_transactions returns error"""
+        from services.invoice_service import InvoiceService
+        
+        service = InvoiceService(test_mode=True)
+        
+        # Mock processor to return valid file processing result
+        mock_result = {
+            'folder': 'TestVendor',
+            'txt': 'Some extracted text\npdfplumber used'
+        }
+        service.processor.process_file.return_value = mock_result
+        service.processor.extract_transactions.return_value = []
+        service.processor._parse_vendor_specific.return_value = {'description': 'test'}
+        
+        # Mock get_last_transactions to return error dict
+        error_dict = {
+            'error': True,
+            'message': 'No booking history found for vendor "NewVendor". Manual account selection required.',
+            'results': []
+        }
+        service.transaction_logic.get_last_transactions.return_value = error_dict
+        
+        result = service.process_invoice_file(
+            temp_path='/tmp/test.pdf',
+            drive_result={'id': 'test', 'url': 'http://test.com/file'},
+            folder_name='NewVendor',
+            tenant='TestTenant'
+        )
+        
+        # Should still succeed (file was processed) but with template_error
+        assert result['success'] is True
+        assert result['prepared_transactions'] == []
+        assert result['template_transactions'] == []
+        assert 'template_error' in result
+        assert 'NewVendor' in result['template_error']
+
+
+class TestPdfProcessorErrorHandling:
+    """Test that pdf_processor.py handles error dict from get_last_transactions()"""
+    
+    @patch('transaction_logic.TransactionLogic')
+    def test_format_vendor_transactions_handles_error_dict(self, mock_tl_cls):
+        """Test that _format_vendor_transactions handles error dict gracefully"""
+        from pdf_processor import PDFProcessor
+        
+        processor = PDFProcessor(test_mode=True)
+        
+        # Mock TransactionLogic to return error dict from get_last_transactions
+        mock_tl = MagicMock()
+        mock_tl.get_last_transactions.return_value = {
+            'error': True,
+            'message': 'No booking history found for vendor "NewVendor". Manual account selection required.',
+            'results': []
+        }
+        mock_tl_cls.return_value = mock_tl
+        
+        vendor_data = {
+            'date': '2025-01-15',
+            'description': 'Test invoice',
+            'total_amount': 100.00,
+            'vat_amount': 21.00
+        }
+        file_data = {
+            'folder': 'NewVendor',
+            'url': 'http://test.com/file',
+            'name': 'test.pdf'
+        }
+        
+        # Should handle error gracefully — falls back to default accounts via exception handler
+        transactions = processor._format_vendor_transactions(vendor_data, file_data)
+        
+        # Should still produce transactions (using fallback accounts from except block)
+        assert len(transactions) >= 1
+        # The fallback accounts from the except block
+        assert transactions[0]['debet'] == '4000'
+        assert transactions[0]['credit'] == '1300'
+
 
 if __name__ == '__main__':
     pytest.main([__file__])

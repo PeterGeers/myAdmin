@@ -19,7 +19,7 @@
     "VW": "N",
     "Belastingaangifte": "Liquide middelen",
     "Pattern": true,
-    "parameters": null
+    "parameters": { "bank_account": true }
   },
   {
     "Account": "1003",
@@ -30,7 +30,7 @@
     "VW": "N",
     "Belastingaangifte": "Liquide middelen",
     "Pattern": true,
-    "parameters": null
+    "parameters": { "bank_account": true }
   },
   {
     "Account": "1004",
@@ -41,7 +41,7 @@
     "VW": "N",
     "Belastingaangifte": "Liquide middelen",
     "Pattern": true,
-    "parameters": null
+    "parameters": { "bank_account": true }
   },
   {
     "Account": "1300",
@@ -195,7 +195,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4001",
@@ -206,7 +206,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4002",
@@ -217,7 +217,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4003",
@@ -228,7 +228,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4005",
@@ -239,7 +239,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4006",
@@ -250,7 +250,7 @@
     "VW": "Y",
     "Belastingaangifte": "Huisvestingskosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4007",
@@ -261,7 +261,7 @@
     "VW": "Y",
     "Belastingaangifte": "Verkoopkosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4010",
@@ -272,7 +272,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4011",
@@ -283,7 +283,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4012",
@@ -294,7 +294,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4015",
@@ -305,7 +305,7 @@
     "VW": "Y",
     "Belastingaangifte": "Auto- en transportkosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4016",
@@ -316,7 +316,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4017",
@@ -327,7 +327,7 @@
     "VW": "Y",
     "Belastingaangifte": "Auto- en transportkosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4025",
@@ -338,7 +338,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4026",
@@ -349,7 +349,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4051",
@@ -360,7 +360,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4081",
@@ -371,7 +371,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4082",
@@ -382,7 +382,7 @@
     "VW": "Y",
     "Belastingaangifte": "Andere kosten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4098",
@@ -393,7 +393,7 @@
     "VW": "Y",
     "Belastingaangifte": "Bijzondere baten en lasten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "4099",
@@ -404,7 +404,7 @@
     "VW": "Y",
     "Belastingaangifte": "Bijzondere baten en lasten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "expense_account": true }
   },
   {
     "Account": "8000",
@@ -415,7 +415,7 @@
     "VW": "Y",
     "Belastingaangifte": "Opbrengsten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "revenue_account": true, "btw_rate": "zero" }
   },
   {
     "Account": "8001",
@@ -426,7 +426,7 @@
     "VW": "Y",
     "Belastingaangifte": "Opbrengsten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "revenue_account": true, "btw_rate": "high" }
   },
   {
     "Account": "8002",
@@ -437,7 +437,7 @@
     "VW": "Y",
     "Belastingaangifte": "Opbrengsten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "revenue_account": true, "btw_rate": "high" }
   },
   {
     "Account": "8003",
@@ -448,7 +448,7 @@
     "VW": "Y",
     "Belastingaangifte": "Opbrengsten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "revenue_account": true, "str_revenue_account": true, "btw_rate": "low" }
   },
   {
     "Account": "8081",
@@ -459,7 +459,7 @@
     "VW": "Y",
     "Belastingaangifte": "Bijzondere baten en lasten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "revenue_account": true, "btw_rate": "zero" }
   },
   {
     "Account": "8082",
@@ -470,7 +470,7 @@
     "VW": "Y",
     "Belastingaangifte": "Bijzondere baten en lasten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "revenue_account": true, "btw_rate": "zero" }
   },
   {
     "Account": "8098",
@@ -481,7 +481,7 @@
     "VW": "Y",
     "Belastingaangifte": "Bijzondere baten en lasten",
     "Pattern": false,
-    "parameters": null
+    "parameters": { "revenue_account": true, "btw_rate": "zero" }
   },
   {
     "Account": "8099",
@@ -492,6 +492,6 @@
     "VW": "Y",
     "Belastingaangifte": "Bijzondere baten en lasten",
     "Pattern": false,
-    "parameters": { "roles": ["pl_closing"] }
+    "parameters": { "roles": ["pl_closing"], "revenue_account": true, "btw_rate": "zero" }
   }
 ]

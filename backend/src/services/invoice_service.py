@@ -216,6 +216,25 @@ class InvoiceService:
         last_transactions = self.transaction_logic.get_last_transactions(folder_name, tenant)
         prepared_transactions = []
         
+        # Handle error from get_last_transactions (e.g., no booking history)
+        if isinstance(last_transactions, dict) and last_transactions.get('error'):
+            print(f"Transaction template error: {last_transactions['message']}", flush=True)
+            # Still return file processing results but with no prepared transactions
+            lines = result['txt'].split('\n')
+            vendor_data = self.processor._parse_vendor_specific(lines, folder_name.lower())
+            parser_used = "pdfplumber" if "pdfplumber" in result['txt'] else "PyPDF2"
+            return {
+                'success': True,
+                'folder': result['folder'],
+                'extracted_text': result['txt'],
+                'vendor_data': vendor_data,
+                'transactions': transactions,
+                'prepared_transactions': [],
+                'template_transactions': [],
+                'parser_used': parser_used,
+                'template_error': last_transactions['message']
+            }
+        
         if last_transactions:
             print(f"Found {len(last_transactions)} previous transactions for reference", flush=True)
             

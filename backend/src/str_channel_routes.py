@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 import calendar
 from database import DatabaseManager
+from services.tax_rate_service import TaxRateService
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -73,6 +74,46 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         cursor.execute(query, (end_date, administration, pattern))
         channel_data = cursor.fetchall()
         
+        # Resolve STR revenue account from rekeningschema.parameters
+        str_revenue_query = """
+            SELECT Account FROM rekeningschema
+            WHERE administration = %s
+              AND JSON_EXTRACT(parameters, '$.str_revenue_account') = true
+            ORDER BY Account LIMIT 1
+        """
+        cursor.execute(str_revenue_query, (administration,))
+        str_revenue_rows = cursor.fetchall()
+        
+        if not str_revenue_rows:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': 'No STR revenue account configured. '
+                         'Set $.str_revenue_account flag in rekeningschema.'
+            }), 400
+        
+        str_revenue_account = str_revenue_rows[0]['Account']
+        
+        # Resolve VAT rate and account from TaxRateService
+        transaction_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        tax_svc = TaxRateService(db)
+        rate_info = tax_svc.get_tax_rate(
+            administration, 'btw', 'accommodation', transaction_date
+        )
+        
+        if not rate_info:
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False,
+                'error': f'No BTW accommodation rate configured for {end_date}'
+            }), 400
+        
+        vat_rate = rate_info['rate']
+        vat_base = 100.0 + vat_rate
+        vat_account = rate_info['ledger_account']
+        
         # Process the data to create transactions
         transactions = []
         
@@ -88,7 +129,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
                 'TransactionDescription': f"{row['ReferenceNumber']} omzet {end_date}",
                 'TransactionAmount': amount,
                 'Debet': row['Reknum'],
-                'Credit': '8003',
+                'Credit': str_revenue_account,
                 'ReferenceNumber': row['ReferenceNumber'],
                 'Ref1': ref1,
                 'Ref2': '',
@@ -98,29 +139,14 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
             }
             transactions.append(revenue_transaction)
             
-            # Determine BTW rate and account based on transaction date
-            from datetime import date
-            
-            transaction_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-            rate_change_date = date(2026, 1, 1)
-            
-            if transaction_date >= rate_change_date:
-                vat_rate = 21.0
-                vat_base = 121.0
-                vat_account = '2020'
-            else:
-                vat_rate = 9.0
-                vat_base = 109.0
-                vat_account = '2021'
-            
-            # VAT transaction with date-based rate and account
+            # VAT transaction using resolved rate and account
             vat_amount = round((amount / vat_base) * vat_rate, 2)
             vat_transaction = {
                 'TransactionDate': end_date,
                 'TransactionNumber': f"{row['ReferenceNumber']} {end_date}",
                 'TransactionDescription': f"{row['ReferenceNumber']} Btw {end_date}",
                 'TransactionAmount': vat_amount,
-                'Debet': '8003',
+                'Debet': str_revenue_account,
                 'Credit': vat_account,
                 'ReferenceNumber': row['ReferenceNumber'],
                 'Ref1': ref1,
