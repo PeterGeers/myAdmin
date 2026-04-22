@@ -417,9 +417,12 @@ class PDFProcessor:
         
         # Get last transactions to copy debit/credit accounts like R script
         try:
-            from database import DatabaseManager
-            db = DatabaseManager()
-            last_transactions = db.get_last_transactions(reference_number)
+            from transaction_logic import TransactionLogic
+            tl = TransactionLogic(test_mode=self.config.test_mode if hasattr(self.config, 'test_mode') else False)
+            last_transactions = tl.get_last_transactions(reference_number)
+            # Handle error result (no booking history for vendor)
+            if isinstance(last_transactions, dict) and last_transactions.get('error'):
+                raise ValueError(last_transactions['message'])
             # Use first transaction for main amount, second for VAT (like R script df[1] and df[2])
             main_debet = last_transactions[0]['Debet'] if last_transactions else '4000'
             main_credit = last_transactions[0]['Credit'] if last_transactions else '1300'

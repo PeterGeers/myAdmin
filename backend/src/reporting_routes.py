@@ -66,81 +66,6 @@ class ReportingService:
         
         return " AND ".join(where_parts) if where_parts else "1=1", params
     
-    def get_financial_summary(self, date_from, date_to, category='all', administration='all'):
-        """Get financial summary data for reporting"""
-        try:
-            connection = self.db.get_connection()
-            cursor = connection.cursor(dictionary=True)
-            
-            # Base query
-            where_conditions = ["TransactionDate BETWEEN %s AND %s"]
-            params = [date_from, date_to]
-            
-            # Add administration filter
-            if administration != 'all':
-                where_conditions.append("administration = %s")
-                params.append(administration)
-            
-            # Category-based account filtering
-            if category == 'income':
-                where_conditions.append("(Credit BETWEEN '4000' AND '4999' OR Credit BETWEEN '8000' AND '8999')")
-            elif category == 'expense':
-                where_conditions.append("(Debet BETWEEN '6000' AND '6999' OR Debet BETWEEN '7000' AND '7999')")
-            elif category == 'vat':
-                where_conditions.append("(Debet = '2010' OR Credit = '2010')")
-            
-            where_clause = " AND ".join(where_conditions)
-            
-            # Query for account-based summary
-            # amazonq-ignore-next-line
-            query = f"""
-                SELECT 
-                    CASE 
-                        WHEN Debet BETWEEN '4000' AND '4999' OR Credit BETWEEN '4000' AND '4999' THEN 'Revenue'
-                        WHEN Debet BETWEEN '6000' AND '6999' OR Credit BETWEEN '6000' AND '6999' THEN 'Operating Expenses'
-                        WHEN Debet BETWEEN '7000' AND '7999' OR Credit BETWEEN '7000' AND '7999' THEN 'Other Expenses'
-                        WHEN Debet = '2010' OR Credit = '2010' THEN 'VAT'
-                        WHEN Debet BETWEEN '1000' AND '1999' OR Credit BETWEEN '1000' AND '1999' THEN 'Bank/Cash'
-                        ELSE 'Other'
-                    END as category,
-                    SUM(CASE 
-                        WHEN Debet BETWEEN '4000' AND '8999' THEN -TransactionAmount
-                        WHEN Credit BETWEEN '4000' AND '8999' THEN TransactionAmount
-                        ELSE TransactionAmount
-                    END) as amount
-                FROM vw_mutaties
-                WHERE {where_clause}
-                GROUP BY category
-                HAVING ABS(amount) > 0.01
-                ORDER BY ABS(amount) DESC
-            """
-            
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-            
-            # Format data for frontend
-            labels = [row['category'] for row in results]
-            values = [float(row['amount']) for row in results]
-            total = sum(abs(value) for value in values)
-            
-            cursor.close()
-            connection.close()
-            
-            return {
-                'success': True,
-                'data': {
-                    'labels': labels,
-                    'values': values,
-                    'total': total
-                }
-            }
-            
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
     def get_str_revenue_summary(self, date_from, date_to, user_tenants=None):
         """Get STR revenue summary from bnb table with tenant filtering"""
         try:
@@ -189,40 +114,6 @@ class ReportingService:
                 'success': False,
                 'error': str(e)
             }
-
-@reporting_bp.route('/financial-summary', methods=['GET'])
-@cognito_required(required_permissions=['reports_read'])
-def get_financial_summary(user_email, user_roles):
-    """Get financial summary report"""
-    try:
-        # Get query parameters
-        date_from = request.args.get('dateFrom', datetime.now().strftime('%Y-01-01'))
-        date_to = request.args.get('dateTo', datetime.now().strftime('%Y-%m-%d'))
-        category = request.args.get('category', 'all')
-        administration = request.args.get('administration', 'all')
-        test_mode = request.args.get('testMode', 'false').lower() == 'true'
-        
-        # Validate dates
-        try:
-            datetime.strptime(date_from, '%Y-%m-%d')
-            datetime.strptime(date_to, '%Y-%m-%d')
-        except ValueError:
-            return jsonify({
-                'success': False,
-                'error': 'Invalid date format. Use YYYY-MM-DD'
-            }), 400
-        
-        # Get report data
-        service = ReportingService(test_mode=test_mode)
-        result = service.get_financial_summary(date_from, date_to, category, administration)
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 @reporting_bp.route('/str-revenue', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])

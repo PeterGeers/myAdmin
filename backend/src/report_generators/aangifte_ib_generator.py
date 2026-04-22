@@ -101,12 +101,12 @@ def generate_table_rows(
     grouped = _group_by_parent(report_data)
     
     # Step 2: Calculate totals for resultaat and grand total
-    # RESULTAAT = Only P&L accounts (Parents 4000+)
-    # Balance sheet accounts (1000-3000) are excluded from resultaat
+    # RESULTAAT = Only P&L accounts (VW = 'Y' from vw_mutaties)
+    # Balance sheet accounts (VW = 'N') are excluded from resultaat
     resultaat = sum(
         safe_float(item.get('Amount', 0)) 
         for item in report_data 
-        if item.get('Parent', '').startswith(('4', '5', '6', '7', '8', '9'))
+        if item.get('VW', '') == 'Y'
     )
     grand_total = 0.0  # Should be close to zero for balanced accounts
     

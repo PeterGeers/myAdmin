@@ -123,56 +123,6 @@ class TestReportingService:
         assert params == []
     
     @patch('reporting_routes.DatabaseManager')
-    def test_get_financial_summary_success(self, mock_db):
-        mock_conn = Mock()
-        mock_cursor = Mock()
-        mock_cursor.fetchall.return_value = [
-            {'category': 'Revenue', 'amount': 1000.0},
-            {'category': 'Expenses', 'amount': -500.0}
-        ]
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_connection.return_value = mock_conn
-        
-        service = ReportingService()
-        result = service.get_financial_summary('2023-01-01', '2023-12-31')
-        
-        assert result['success'] is True
-        assert result['data']['labels'] == ['Revenue', 'Expenses']
-        assert result['data']['values'] == [1000.0, -500.0]
-        assert result['data']['total'] == 1500.0
-        mock_cursor.execute.assert_called_once()
-        mock_cursor.close.assert_called_once()
-        mock_conn.close.assert_called_once()
-    
-    @patch('reporting_routes.DatabaseManager')
-    def test_get_financial_summary_with_filters(self, mock_db):
-        mock_conn = Mock()
-        mock_cursor = Mock()
-        mock_cursor.fetchall.return_value = []
-        mock_conn.cursor.return_value = mock_cursor
-        mock_db.return_value.get_connection.return_value = mock_conn
-        
-        service = ReportingService()
-        result = service.get_financial_summary('2023-01-01', '2023-12-31', 'income', 'Test')
-        
-        assert result['success'] is True
-        mock_cursor.execute.assert_called_once()
-        # Verify that administration filter was applied
-        call_args = mock_cursor.execute.call_args
-        assert 'administration = %s' in call_args[0][0]
-        assert 'Test' in call_args[0][1]
-    
-    @patch('reporting_routes.DatabaseManager')
-    def test_get_financial_summary_error(self, mock_db):
-        mock_db.return_value.get_connection.side_effect = Exception("Database error")
-        
-        service = ReportingService()
-        result = service.get_financial_summary('2023-01-01', '2023-12-31')
-        
-        assert result['success'] is False
-        assert result['error'] == "Database error"
-    
-    @patch('reporting_routes.DatabaseManager')
     def test_get_str_revenue_summary_success(self, mock_db):
         mock_conn = Mock()
         mock_cursor = Mock()
@@ -212,37 +162,6 @@ class TestReportingRoutes:
     @pytest.fixture
     def client(self, app):
         return app.test_client()
-    
-    @patch('reporting_routes.ReportingService')
-    def test_get_financial_summary_success(self, mock_service, client):
-        mock_service.return_value.get_financial_summary.return_value = {
-            'success': True,
-            'data': {'labels': ['Revenue'], 'values': [1000], 'total': 1000}
-        }
-        
-        response = client.get('/api/reporting/financial-summary?dateFrom=2023-01-01&dateTo=2023-12-31')
-        
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data['success'] is True
-        assert data['data']['total'] == 1000
-    
-    @patch('reporting_routes.ReportingService')
-    def test_get_financial_summary_invalid_date(self, mock_service, client):
-        response = client.get('/api/reporting/financial-summary?dateFrom=invalid-date')
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert 'Invalid date format' in data['error']
-    
-    @patch('reporting_routes.ReportingService')
-    def test_get_financial_summary_with_test_mode(self, mock_service, client):
-        mock_service.return_value.get_financial_summary.return_value = {'success': True, 'data': {}}
-        
-        response = client.get('/api/reporting/financial-summary?testMode=true')
-        
-        mock_service.assert_called_once_with(test_mode=True)
     
     @patch('reporting_routes.ReportingService')
     def test_get_str_revenue_success(self, mock_service, client):
@@ -480,13 +399,3 @@ class TestReportingRoutes:
         assert len(data['transactions']) == 1
         assert len(data['trend_data']) == 1
     
-    @patch('reporting_routes.ReportingService')
-    def test_route_error_handling(self, mock_service, client):
-        mock_service.side_effect = Exception("Service error")
-        
-        response = client.get('/api/reporting/financial-summary')
-        
-        assert response.status_code == 500
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert 'Service error' in data['error']

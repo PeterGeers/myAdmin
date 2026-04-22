@@ -451,14 +451,38 @@ class BTWProcessor:
                 conn.close()
     
     def save_btw_transaction(self, transaction):
-        """Save BTW transaction to database"""
+        """Save BTW transaction to database.
+        
+        Checks for existing BTW transaction for the same administration,
+        year and quarter to prevent duplicates from double-clicks.
+        """
         conn = None
         cursor = None
         try:
             conn = self.db.get_connection()
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
             
             table_name = 'mutaties_test' if self.test_mode else 'mutaties'
+            
+            # Check for existing BTW transaction for same administration + year-quarter
+            ref2 = transaction.get('Ref2', '')  # Format: "2026-Q1"
+            administration = transaction.get('Administration', '')
+            
+            if ref2 and administration:
+                dup_query = f"""
+                    SELECT ID FROM {table_name}
+                    WHERE TransactionNumber = 'BTW'
+                      AND Administration = %s
+                      AND Ref2 = %s
+                    LIMIT 1
+                """
+                cursor.execute(dup_query, (administration, ref2))
+                existing = cursor.fetchone()
+                if existing:
+                    return {
+                        'success': False, 
+                        'error': f'BTW transaction for {administration} {ref2} already exists (ID: {existing["ID"]}). Delete the existing transaction first if you want to re-save.'
+                    }
             
             insert_query = f"""
                 INSERT INTO {table_name} (

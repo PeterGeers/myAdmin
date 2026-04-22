@@ -281,15 +281,27 @@ class DatabaseManager:
         return [r['existing'] for r in results]
     
     def get_patterns(self, administration):
-        """Get patterns from vw_readreferences view with date filtering"""
+        """Get patterns from vw_readreferences view with date filtering.
+        
+        Bank accounts are resolved from rekeningschema.parameters $.bank_account flag
+        instead of using a hardcoded account number threshold.
+        """
         return self.execute_query("""
             SELECT debet, credit, administration, referenceNumber, Date
             FROM vw_readreferences 
             WHERE administration = %s 
-            AND (debet < '1300' OR credit < '1300')
+            AND (debet IN (
+                SELECT Account FROM rekeningschema
+                WHERE administration = %s
+                  AND JSON_EXTRACT(parameters, '$.bank_account') = true
+            ) OR credit IN (
+                SELECT Account FROM rekeningschema
+                WHERE administration = %s
+                  AND JSON_EXTRACT(parameters, '$.bank_account') = true
+            ))
             AND Date >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
             ORDER BY Date DESC
-        """, (administration,))
+        """, (administration, administration, administration))
     
     def get_recent_transactions(self, limit=100, table_name='mutaties'):
         """Get recent transactions for lookup data"""
@@ -297,43 +309,6 @@ class DatabaseManager:
             SELECT TransactionDescription, Debet, Credit, administration FROM {table_name} 
             ORDER BY ID DESC LIMIT %s
         """, (limit,))
-    
-    def get_last_transactions(self, reference_number, table_name='mutaties'):
-        """Get last transactions for a specific reference number - matches R getLastTransactions exactly"""
-        query = f"""
-            SELECT * FROM {table_name} 
-            WHERE TransactionNumber LIKE %s 
-            AND TransactionDate = (
-                SELECT MAX(TransactionDate) FROM {table_name} 
-                WHERE TransactionNumber LIKE %s
-            ) 
-            ORDER BY Debet DESC
-        """
-        
-        # Try with reference number first
-        results = self.execute_query(query, (f"{reference_number}%", f"{reference_number}%"))
-        
-        # Fallback to Gamma if no results
-        if not results:
-            results = self.execute_query(query, ("Gamma%", "Gamma%"))
-            for result in results:
-                result['TransactionNumber'] = reference_number
-                result['ReferenceNumber'] = reference_number
-        
-        # Ensure at least 2 records
-        if len(results) < 2:
-            if results:
-                second_record = results[0].copy()
-                second_record['Debet'] = '2010'
-                second_record['Credit'] = results[0]['Debet']
-                results.append(second_record)
-            else:
-                results = [
-                    {'Debet': '4000', 'Credit': '1300', 'TransactionNumber': reference_number, 'ReferenceNumber': reference_number},
-                    {'Debet': '2010', 'Credit': '4000', 'TransactionNumber': reference_number, 'ReferenceNumber': reference_number}
-                ]
-        
-        return results
     
     def get_previous_transactions(self, reference_number, limit=3, table_name='mutaties'):
         """Get previous transactions with descriptions for AI pattern learning"""

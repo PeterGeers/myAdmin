@@ -76,41 +76,11 @@ class TransactionLogic:
             results = ref3_groups[first_ref3]
             print(f"Multiple transactions found, using Ref3: {first_ref3}")
         
-        # If no results, use "Gamma" as fallback
+        # If no results, return error — no silent fallback
         if not results:
-            # Build fallback query with optional administration filter
-            fallback_query = f"""
-                SELECT ID, TransactionNumber, TransactionDate, TransactionDescription, TransactionAmount, 
-                       Debet, Credit, ReferenceNumber, Ref1, Ref2, Ref3, Ref4, Administration
-                FROM {self.table_name} 
-                WHERE TransactionNumber LIKE %s 
-                {admin_filter}
-                AND TransactionDate = (
-                    SELECT MAX(TransactionDate) 
-                    FROM {self.table_name} 
-                    WHERE TransactionNumber LIKE %s 
-                    {admin_filter}
-                )
-                ORDER BY Debet DESC
-            """
-            
-            if administration:
-                fallback_params = ("Gamma%", administration, "Gamma%", administration)
-            else:
-                fallback_params = ("Gamma%", "Gamma%")
-            
-            cursor.execute(fallback_query, fallback_params)
-            results = cursor.fetchall()
-            
-            # Update transaction numbers to current one and set administration
-            for row in results:
-                row['TransactionNumber'] = transaction_number
-                row['ReferenceNumber'] = transaction_number
-                # Reset amounts to 0 so vendor data will be used
-                row['TransactionAmount'] = 0
-                # Use provided administration or keep the one from Gamma
-                if administration:
-                    row['Administration'] = administration
+            cursor.close()
+            conn.close()
+            return {'error': True, 'message': f'No booking history found for vendor "{transaction_number}". Manual account selection required.', 'results': []}
         
         cursor.close()
         conn.close()
@@ -121,26 +91,20 @@ class TransactionLogic:
             single_transaction_vendors = ['SomeVendor']  # Add vendors that use single transactions
             
             if transaction_number not in single_transaction_vendors:
+                # Resolve VAT account from TaxRateService instead of hardcoding '2010'
+                from services.tax_rate_service import TaxRateService
+                from database import DatabaseManager
+                tax_svc = TaxRateService(DatabaseManager(test_mode=self.test_mode))
+                admin = administration or results[0].get('Administration', '')
+                rate_info = tax_svc.get_tax_rate(admin, 'btw', 'high', datetime.now().date())
+                vat_account = rate_info['ledger_account'] if rate_info else '2010'  # graceful fallback
+                
                 # Duplicate first transaction and modify for credit entry
                 credit_transaction = results[0].copy()
-                credit_transaction['Debet'] = '2010'  # Account 2010 as per R logic
+                credit_transaction['Debet'] = vat_account
                 credit_transaction['Credit'] = results[0]['Debet']
                 
-                # Set vendor-specific account codes
-                if transaction_number.lower() == 'coursera':
-                    results[0]['Debet'] = '6200'  # Training/Education expense
-                    results[0]['Credit'] = '1600'  # Bank account
-                    results[0]['TransactionAmount'] = 0  # Reset to use vendor data
-                    credit_transaction['Debet'] = '2010'  # VAT
-                    credit_transaction['Credit'] = '6200'  # Training expense
-                    credit_transaction['TransactionAmount'] = 0  # Reset to use vendor data
-                elif transaction_number.lower() == 'netflix':
-                    results[0]['Debet'] = '6400'  # Entertainment expense
-                    results[0]['Credit'] = '1600'  # Bank account
-                    results[0]['TransactionAmount'] = 0  # Reset to use vendor data
-                    credit_transaction['Debet'] = '2010'  # VAT
-                    credit_transaction['Credit'] = '6400'  # Entertainment expense
-                    credit_transaction['TransactionAmount'] = 0  # Reset to use vendor data
+                # No vendor-specific overrides — DB accounts are the correct template
                 
                 results.append(credit_transaction)
                 print(f"Created debet/credit pair for {transaction_number}")

@@ -306,14 +306,14 @@ class TestPDFProcessor:
             'name': f'test_{vendor_name}{file_extension}'
         }
         
-        # Mock database operations to avoid actual database calls
-        with patch('database.DatabaseManager') as mock_db_class:
-            mock_db = MagicMock()
-            mock_db.get_last_transactions.return_value = [
+        # Mock transaction logic to avoid actual database calls
+        with patch('transaction_logic.TransactionLogic') as mock_tl_class:
+            mock_tl = MagicMock()
+            mock_tl.get_last_transactions.return_value = [
                 {'Debet': '4000', 'Credit': '1300'},
                 {'Debet': '2010', 'Credit': '4000'}
             ]
-            mock_db_class.return_value = mock_db
+            mock_tl_class.return_value = mock_tl
             
             # Mock duplicate checker to test integration without actual duplicate detection
             with patch('duplicate_checker.DuplicateChecker') as mock_duplicate_checker_class:
