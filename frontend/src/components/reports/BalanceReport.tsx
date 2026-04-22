@@ -192,8 +192,8 @@ const BalanceReport: React.FC<BalanceReportProps> = ({
       {/* Filters */}
       <Card bg="gray.700">
         <CardBody>
-          <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            <GridItem colSpan={{ base: 1, md: 2 }}>
+          <HStack spacing={4} wrap="wrap" align="flex-end">
+            <VStack spacing={1} align="flex-start" maxW="160px">
               <YearFilter
                 values={selectedYears}
                 onChange={onYearsChange}
@@ -205,28 +205,27 @@ const BalanceReport: React.FC<BalanceReportProps> = ({
                 bg="gray.600"
                 color="white"
               />
-            </GridItem>
-            <GridItem>
-              <Text color="white" mb={2}>{t('actuals.displayFormat')}</Text>
+            </VStack>
+            <VStack spacing={1} align="flex-start">
+              <Text color="white" fontSize="sm">{t('actuals.displayFormat')}</Text>
               <Select
                 value={displayFormat}
                 onChange={(e) => onDisplayFormatChange(e.target.value as any)}
                 bg="gray.600"
                 color="white"
                 size="sm"
+                w="120px"
               >
                 <option value="2dec">{t('actuals.twoDecimals')}</option>
                 <option value="0dec">{t('actuals.wholeNumbers')}</option>
                 <option value="k">{t('actuals.thousands')}</option>
                 <option value="m">{t('actuals.millions')}</option>
               </Select>
-            </GridItem>
-            <GridItem>
-              <Button colorScheme="orange" onClick={handleUpdateData} isLoading={loading} size="sm">
-                {t('actuals.refresh') ?? 'Refresh'}
-              </Button>
-            </GridItem>
-          </Grid>
+            </VStack>
+            <Button colorScheme="orange" onClick={handleUpdateData} isLoading={loading} size="sm">
+              {t('actuals.refresh') ?? 'Refresh'}
+            </Button>
+          </HStack>
         </CardBody>
       </Card>
 
