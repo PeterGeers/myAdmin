@@ -488,11 +488,12 @@ class BankingService:
             where_conditions = []
             params = []
             
-            # Years filter
+            # Years filter — use sargable date range conditions
             if years and years != ['']:
-                year_placeholders = ','.join(['%s'] * len(years))
-                where_conditions.append(f"YEAR(TransactionDate) IN ({year_placeholders})")
-                params.extend(years)
+                from utils.query_helpers import years_to_date_range_conditions
+                year_sql, year_params = years_to_date_range_conditions(years)
+                where_conditions.append(year_sql)
+                params.extend(year_params)
             
             # Administration filter - MUST respect user's accessible tenants
             if administration == 'all':

@@ -79,8 +79,10 @@ class PDFValidator:
             params = []
             
             if year and year != 'all':
-                where_clause += " AND YEAR(TransactionDate) = %s"
-                params.append(year)
+                from utils.query_helpers import year_to_date_range
+                start_date, end_date = year_to_date_range(year)
+                where_clause += " AND TransactionDate >= %s AND TransactionDate < %s"
+                params.extend([start_date, end_date])
             
             if administration and administration != 'all':
                 where_clause += " AND administration = %s"
@@ -155,8 +157,10 @@ class PDFValidator:
             params = []
             
             if year and year != 'all':
-                where_clause += " AND YEAR(TransactionDate) = %s"
-                params.append(year)
+                from utils.query_helpers import year_to_date_range
+                start_date, end_date = year_to_date_range(year)
+                where_clause += " AND TransactionDate >= %s AND TransactionDate < %s"
+                params.extend([start_date, end_date])
             
             query = f"""
                 SELECT DISTINCT Administration

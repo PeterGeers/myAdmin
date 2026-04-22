@@ -1,17 +1,23 @@
-
 # Grouping modules FIN, STR, ZZP, Admin
+
 Same colour for all functions within a module like the module title
+
 # Make som functions tenant dependant
+
 - Activa beheer is CRUD and/or Read
 - STR Kanaal omzet (a real FIN function but strongly related to STR)
-# Bank verbinden (Saltedge)
-Alles verwijderen button and code as they no longer provded the expected functions
-# Su=izing of railway backend and railway mysql
+
+# Sizing of railway backend and railway mysql
+
 0.5 tot 8 vCpu and 1 tot 8 GB
+
 # Regular test updates
+
 refactor /retest of unit, integrationand e2e tests to solve broken tests
+
 ## Shiort term to fix
-*** Authentication tests (13 failures) — pre-existing Login component render issue (unrelated to this spec)
+
+\*\*\* Authentication tests (13 failures) — pre-existing Login component render issue (unrelated to this spec)
 The 2 remaining failing suites are both authentication tests (authentication-flow.test.tsx and authentication.integration.test.tsx) — these are pre-existing failures unrelated to this spec (Login component import issue with React 19)
 authentication-flow.test.tsx and authentication.integration.test.tsx — These are authentication integration tests that fail due to missing auth tokens/Cognito setup. These are pre-existing failures unrelated to the table filter framework migration.
 
@@ -27,49 +33,57 @@ A button in the edit modal that fetches and restores that default value into the
 For ui.tables parameters specifically, the useTableConfig hook already has DEFAULTS hardcoded, but the generic approach would be to resolve the next-scope-up value from the ParameterService
 Want me to create a separate spec for this, or would you rather keep it as a note and tackle it after the current migration is done?
 
-## Rwevolut sequence fix
-- Use last date as sequencer and mutatie amount and saldo
-- Do not load records where the processe data, saldo amount is zero CHECK Why are reords loaded that first where not
-
 ## Time tracking
-- Quick add part
--- Missing product or NOT
--- What about more people able to track time
--- What about access to the time tracking app as a stand alone app (cognito/jwt impact)
--- What is the added value 
--- How can we easy filter a period for submitting (day, week, month or year)
 
+- Quick add part
+  -- Missing product or NOT
+  -- What about more people able to track time
+  -- What about access to the time tracking app as a stand alone app (cognito/jwt impact)
+  -- What is the added value
+  -- How can we easy filter a period for submitting (day, week, month or year)
 
 ## Precedence cognito
+
 System Admin Role management I am sorry no precence values in the table and the updated precedence is not retrieved after save. I will note it for further investigation now
 -- is it in cognito
 
 ## Solve /t.d.ts problem
+
 My recommendation: Option A — downgrade fast-check to 3.22.0. It's the last 3.x release, fully compatible with TS 4.9.5, and the API surface you use (fc.record, fc.array, fc.string, fc.integer, etc.) is identical. Want me to do that?
 
 ## Inmvoice processing
-Check what happens if multiple tenants are loading invouices for processing at trhe same time
 
-##   Railway skils
+Check what happens if multiple tenants are loading invouices for processing at the same time.
+
+## Railway skils
+
+Can you add some relevant findings how to work with railway from Kiro in .kiro\steering\commands.md and delete the rauilway scrips as they are probably not relevant
+
+-- We have succeeded to let KIRO run mysql; and python scripts on railway
 Does this make sense railway skills install
-
 Railway Skills
-
 Installing to: Universal (.agents)
 
-  ✓ Downloaded skills
+✓ Downloaded skills
 
 ✓ Universal (.agents): installed use-railway → C:\Users\peter\.agents\skills\use-railway
-
-
 
 Kiro
 That's a Railway CLI skill for AI agents — it installs a use-railway skill to C:\Users\peter\.agents\skills\use-railway. This is designed for tools like Cursor, Windsurf, or similar AI coding assistants that support the .agents/skills convention.
 
 Kiro doesn't use the .agents/skills folder — it uses .kiro/skills/ for workspace-level skills or ~/.kiro/skills/ for user-level skills. So that Railway skill won't be picked up by Kiro automatically.
 
-That said, we already have the Railway MCP server configured in 
+That said, we already have the Railway MCP server configured in
 mcp.json
- and the Railway CLI works fine from the terminal. For this bugfix, we don't really need the Railway skill — the migration script in task 4.3 will just use a direct MySQL connection to the Railway proxy, which we already tested earlier.
+and the Railway CLI works fine from the terminal. For this bugfix, we don't really need the Railway skill — the migration script in task 4.3 will just use a direct MySQL connection to the Railway proxy, which we already tested earlier.
 
 If you want Railway skills available in Kiro specifically, you could copy the skill content to ~/.kiro/skills/use-railway/, but it's not needed for this bugfix. Want to proceed with executing the tasks?
+
+## Hardcoded ledger account ranges in reporting_routes.py
+
+`get_financial_summary` / `get_account_summary` use hardcoded account number ranges for categorization (e.g., `4000-4999` = Revenue, `6000-6999` = Operating Expenses, `2010` = VAT). This is brittle — if the chart of accounts changes or a tenant uses different numbering, it breaks silently. Refactor to use `rekeningschema` metadata (`Parent`, `VW`, `ledger`, `Belastingaangifte`) to drive categorization instead of hardcoded ranges.
+
+## Balance sheet in FIN Reports
+Check if the buttions are implemented wth the fiklters as defined in .kiro\steering\ui-patterns.md 
+-- If not apply the framework as intended
+-- Align the positioning and size of the (filter) buttons in line with Profit & Loss

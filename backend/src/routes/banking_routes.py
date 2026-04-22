@@ -202,6 +202,8 @@ def banking_filter_options(user_email, user_roles, tenant, user_tenants):
             admin_params = user_tenants
         
         # Get distinct years (filtered by tenant)
+        # Uses YEAR() on base table — acceptable since administration index
+        # filters rows first. Not on vw_mutaties so no view materialization.
         cursor.execute(f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL {admin_filter} ORDER BY year DESC", admin_params)
         years = [str(row['year']) for row in cursor.fetchall()]
         

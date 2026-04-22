@@ -73,6 +73,15 @@ All scripts in `backend/powershell/`. Run from the `backend/` directory.
 Railway MySQL proxy: `shinkansen.proxy.rlwy.net:42375`
 Railway backend: `https://invigorating-celebration-production.up.railway.app`
 
+**Railway DB connection from Python (Kiro):**
+
+- Get password: `railway variables` → use `DB_PASSWORD` from the backend service
+- Connect to database `railway`, then `USE finance` (the data lives in `finance`)
+- The `railway-run.ps1` scripts prompt for password interactively — for Kiro, set env vars directly:
+  ```
+  $env:DB_HOST='shinkansen.proxy.rlwy.net'; $env:DB_PORT='42375'; $env:DB_USER='root'; $env:DB_PASSWORD='<from railway variables>'; $env:DB_NAME='railway'
+  ```
+
 ## Environment Configuration
 
 Both frontend and backend use `.env` files. Copy `.env.example` to `.env`.

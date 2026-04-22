@@ -513,6 +513,8 @@ class MutatiesCache:
             list: Sorted list of years (newest first)
         """
         # If db_manager provided, query database directly for ALL years
+        # Uses YEAR() on base mutaties table — acceptable since this runs once
+        # for cache initialization, not performance-critical
         if db_manager is not None:
             try:
                 conn = db_manager.get_connection()

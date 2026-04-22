@@ -28,7 +28,8 @@ def get_years_needing_migration(db, administration=None):
     conn = db.get_connection()
     cursor = conn.cursor(dictionary=True)
     
-    # Get all years with transactions
+    # Uses YEAR() on base mutaties table — acceptable for admin tool
+    # (not performance-critical, runs infrequently)
     query = """
         SELECT DISTINCT 
             administration,
@@ -76,16 +77,23 @@ def get_first_year_with_transactions(db, administration):
     cursor = conn.cursor(dictionary=True)
     
     cursor.execute("""
-        SELECT MIN(YEAR(TransactionDate)) as first_year
+        SELECT MIN(TransactionDate) as first_date
         FROM mutaties
         WHERE administration = %s
+        AND TransactionDate IS NOT NULL
     """, (administration,))
     
     result = cursor.fetchone()
     cursor.close()
     conn.close()
     
-    return result['first_year'] if result else None
+    if result and result['first_date']:
+        first_date = result['first_date']
+        if hasattr(first_date, 'year'):
+            return first_date.year
+        # Handle string dates
+        return int(str(first_date)[:4])
+    return None
 
 
 @migration_bp.route('/api/migration/opening-balances/migrate', methods=['POST'])

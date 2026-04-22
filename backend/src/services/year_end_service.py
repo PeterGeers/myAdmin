@@ -42,6 +42,9 @@ class YearEndClosureService:
         Returns:
             list: Years available for closure
         """
+        # Use YEAR() on base mutaties table — acceptable since administration
+        # index filters rows first. NOT IN subquery uses year_closure_status
+        # which is a small table.
         query = """
             SELECT DISTINCT YEAR(TransactionDate) as year
             FROM mutaties
@@ -190,14 +193,21 @@ class YearEndClosureService:
     def _get_first_year(self, administration):
         """Get first year with transactions"""
         query = """
-            SELECT MIN(YEAR(TransactionDate)) as first_year
+            SELECT MIN(TransactionDate) as first_date
             FROM mutaties
             WHERE administration = %s
             AND TransactionDate IS NOT NULL
         """
         
         result = self.db.execute_query(query, [administration])
-        return result[0]['first_year'] if result and result[0]['first_year'] else None
+        if result and result[0]['first_date']:
+            # Extract year from the date in Python
+            first_date = result[0]['first_date']
+            if hasattr(first_date, 'year'):
+                return first_date.year
+            # Handle string dates
+            return int(str(first_date)[:4])
+        return None
     
     def _calculate_net_pl_result(self, administration, year):
         """
@@ -207,6 +217,7 @@ class YearEndClosureService:
         Positive = profit, Negative = loss
         
         Uses vw_mutaties view which has Amount column with correct sign.
+        Uses sargable date range instead of YEAR() for index usage.
         
         Args:
             administration: Tenant identifier
@@ -215,16 +226,19 @@ class YearEndClosureService:
         Returns:
             float: Net P&L result
         """
+        from utils.query_helpers import year_to_date_range
+        start_date, end_date = year_to_date_range(year)
+        
         query = """
             SELECT 
                 COALESCE(SUM(Amount), 0) as net_result
             FROM vw_mutaties
             WHERE administration = %s
-            AND YEAR(TransactionDate) = %s
+            AND TransactionDate >= %s AND TransactionDate < %s
             AND VW = 'Y'
         """
         
-        result = self.db.execute_query(query, [administration, year])
+        result = self.db.execute_query(query, [administration, start_date, end_date])
         return float(result[0]['net_result']) if result else 0.0
     
     def _count_balance_sheet_accounts(self, administration, year):
@@ -234,6 +248,7 @@ class YearEndClosureService:
         Uses ONLY current year transactions (matches _get_ending_balances logic).
         
         Uses vw_mutaties view for accurate balance calculation.
+        Uses sargable date range instead of YEAR() for index usage.
         
         Args:
             administration: Tenant identifier
@@ -242,6 +257,9 @@ class YearEndClosureService:
         Returns:
             int: Count of accounts with balances
         """
+        from utils.query_helpers import year_to_date_range
+        start_date, end_date = year_to_date_range(year)
+        
         query = """
             SELECT COUNT(DISTINCT Reknum) as count
             FROM (
@@ -251,13 +269,13 @@ class YearEndClosureService:
                 FROM vw_mutaties
                 WHERE administration = %s
                 AND VW = 'N'
-                AND YEAR(TransactionDate) = %s
+                AND TransactionDate >= %s AND TransactionDate < %s
                 GROUP BY Reknum
                 HAVING ABS(SUM(Amount)) > 0.01
             ) as accounts_with_balance
         """
         
-        result = self.db.execute_query(query, [administration, year])
+        result = self.db.execute_query(query, [administration, start_date, end_date])
         return int(result[0]['count']) if result else 0
 
     def _create_closure_transaction(self, administration, year, cursor):
@@ -555,6 +573,9 @@ class YearEndClosureService:
         # Choose query based on whether opening balance exists
         if has_opening_balance:
             # Re-closure: Use current year only (includes OpeningBalance + year transactions)
+            # Use sargable date range instead of YEAR() for index usage
+            from utils.query_helpers import year_to_date_range
+            start_date, end_date = year_to_date_range(year)
             query = """
                 SELECT 
                     Reknum as account,
@@ -563,12 +584,12 @@ class YearEndClosureService:
                 FROM vw_mutaties
                 WHERE administration = %s
                 AND VW = 'N'
-                AND YEAR(TransactionDate) = %s
+                AND TransactionDate >= %s AND TransactionDate < %s
                 GROUP BY Reknum, AccountName
                 HAVING ABS(SUM(Amount)) > 0.01
                 ORDER BY Reknum
             """
-            cursor.execute(query, [administration, year])
+            cursor.execute(query, [administration, start_date, end_date])
         else:
             # First closure: Use cumulative (all history through year-end)
             query = """
