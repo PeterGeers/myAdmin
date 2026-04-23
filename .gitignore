@@ -274,7 +274,7 @@ venv.bak/
 # mkdocs documentation (build output)
 /site
 docs/site/
-backend/docs-site/
+# backend/docs-site/ is committed — Railway needs it in the Docker build context
 
 # mypy
 .mypy_cache/
