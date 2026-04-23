@@ -27,10 +27,12 @@ myAdmin supports up to 100 tenants using a **shared database with tenant isolati
 ### Phase 3: Backend Implementation ✅ COMPLETE
 
 #### Summary & Status
+
 - **[PHASE3_COMPLETE.md](./PHASE3_COMPLETE.md)** - Phase 3 completion summary and overview
 - **[PHASE3_IMPLEMENTATION_CHECKLIST.md](./PHASE3_IMPLEMENTATION_CHECKLIST.md)** - Implementation tracking checklist
 
 #### Developer Guides
+
 - **[TENANT_CONTEXT_QUICK_REFERENCE.md](./TENANT_CONTEXT_QUICK_REFERENCE.md)** - Quick reference for developers
 - **[tenant_filtering_migration_guide.md](./tenant_filtering_migration_guide.md)** - Step-by-step migration guide
 - **[phase3_backend_implementation_summary.md](./phase3_backend_implementation_summary.md)** - Detailed implementation summary
@@ -41,7 +43,7 @@ myAdmin supports up to 100 tenants using a **shared database with tenant isolati
 
 1. **Start here**: [TENANT_CONTEXT_QUICK_REFERENCE.md](./TENANT_CONTEXT_QUICK_REFERENCE.md)
 2. **Migrating routes**: [tenant_filtering_migration_guide.md](./tenant_filtering_migration_guide.md)
-3. **Example code**: `../../backend/src/reporting_routes_tenant_example.py`
+3. **Example code**: See existing tenant-aware routes in `backend/src/reporting_routes.py`
 
 ### For Architects
 
@@ -57,30 +59,33 @@ myAdmin supports up to 100 tenants using a **shared database with tenant isolati
 
 ## Implementation Status
 
-| Phase | Status | Completion |
-|-------|--------|------------|
-| Phase 1: Database Schema | ✅ Complete | 100% |
-| Phase 2: Cognito Setup | ✅ Complete | 100% |
-| Phase 3: Backend Core | ✅ Complete | 100% |
-| Phase 3: Route Migration | 🔄 In Progress | 0% |
-| Phase 4: Frontend | ⏳ Pending | 0% |
-| Phase 5: Testing & Deployment | ⏳ Pending | 0% |
+| Phase                         | Status         | Completion |
+| ----------------------------- | -------------- | ---------- |
+| Phase 1: Database Schema      | ✅ Complete    | 100%       |
+| Phase 2: Cognito Setup        | ✅ Complete    | 100%       |
+| Phase 3: Backend Core         | ✅ Complete    | 100%       |
+| Phase 3: Route Migration      | 🔄 In Progress | 0%         |
+| Phase 4: Frontend             | ⏳ Pending     | 0%         |
+| Phase 5: Testing & Deployment | ⏳ Pending     | 0%         |
 
 ## Key Features Implemented
 
 ### Phase 1 ✅
+
 - Added `administration` field to all tables (lowercase)
 - Created `tenant_config` table
 - Updated views with tenant filtering
 - Added performance indexes
 
 ### Phase 2 ✅
+
 - Configured `custom:tenants` attribute in Cognito
 - Created Tenant_Admin and module-based groups
 - Created tenant management scripts
 - Removed legacy groups
 
 ### Phase 3 ✅
+
 - Tenant context management (`tenant_context.py`)
 - Tenant admin API (6 endpoints)
 - SQL query filtering helpers
@@ -129,6 +134,7 @@ def get_invoices(user_email, user_roles, tenant, user_tenants):
 ### Tenant Admin
 
 Tenant_Admin role can manage their assigned tenants:
+
 - Configure tenant settings (Google Drive, S3, email)
 - Manage tenant secrets (API keys, credentials)
 - Assign/remove module roles to users
@@ -138,14 +144,14 @@ Tenant_Admin role can manage their assigned tenants:
 
 ### Tenant Admin API
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/tenant/config` | GET | Get tenant configuration |
-| `/api/tenant/config` | POST | Set tenant configuration |
-| `/api/tenant/config/<key>` | DELETE | Delete configuration |
-| `/api/tenant/users` | GET | List tenant users |
-| `/api/tenant/users/<user>/roles` | POST | Assign role |
-| `/api/tenant/users/<user>/roles/<role>` | DELETE | Remove role |
+| Endpoint                                | Method | Purpose                  |
+| --------------------------------------- | ------ | ------------------------ |
+| `/api/tenant/config`                    | GET    | Get tenant configuration |
+| `/api/tenant/config`                    | POST   | Set tenant configuration |
+| `/api/tenant/config/<key>`              | DELETE | Delete configuration     |
+| `/api/tenant/users`                     | GET    | List tenant users        |
+| `/api/tenant/users/<user>/roles`        | POST   | Assign role              |
+| `/api/tenant/users/<user>/roles/<role>` | DELETE | Remove role              |
 
 ## Code Examples
 
@@ -174,10 +180,10 @@ from auth import tenant_required, add_tenant_filter
 def get_data(user_email, user_roles, tenant, user_tenants):
     query = "SELECT * FROM table WHERE date > %s"
     params = ['2024-01-01']
-    
+
     # Add tenant filter automatically
     query, params = add_tenant_filter(query, params, tenant)
-    
+
     results = db.execute_query(query, params, fetch=True)
     return jsonify({'data': results})
 ```
@@ -193,7 +199,7 @@ from auth import tenant_required, is_tenant_admin
 def update_settings(user_email, user_roles, tenant, user_tenants):
     if not is_tenant_admin(user_roles, tenant, user_tenants):
         return jsonify({'error': 'Tenant admin required'}), 403
-    
+
     # Update settings...
     return jsonify({'success': True})
 ```
@@ -267,7 +273,7 @@ For questions or issues:
 
 1. Check the [Quick Reference](./TENANT_CONTEXT_QUICK_REFERENCE.md)
 2. Review the [Migration Guide](./tenant_filtering_migration_guide.md)
-3. See [Example Routes](../../backend/src/reporting_routes_tenant_example.py)
+3. See existing tenant-aware routes in `backend/src/reporting_routes.py`
 4. Review the [Implementation Checklist](./PHASE3_IMPLEMENTATION_CHECKLIST.md)
 
 ## Files Reference
@@ -276,7 +282,7 @@ For questions or issues:
 
 - `backend/src/auth/tenant_context.py` - Tenant context management
 - `backend/src/tenant_admin_routes.py` - Tenant admin API
-- `backend/src/reporting_routes_tenant_example.py` - Example routes
+- `backend/src/reporting_routes.py` - Tenant-aware reporting routes
 - `backend/tests/test_tenant_context.py` - Unit tests
 
 ### Database Files

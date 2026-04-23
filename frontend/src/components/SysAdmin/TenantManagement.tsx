@@ -570,7 +570,7 @@ export function TenantManagement() {
 
               {modalMode === 'edit' && (
                 <FormControl>
-                  <FormLabel color="white">{t('tenantManagement.status')}</FormLabel>
+                  <FormLabel color="white">{t('tenantManagement.statusLabel')}</FormLabel>
                   <Select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
@@ -706,7 +706,7 @@ export function TenantManagement() {
                   <Text color="gray.400" fontSize="sm" mb={2}>{t('tenantManagement.modal.additionalInfo')}</Text>
                   <VStack align="stretch" spacing={2} fontSize="sm">
                     <HStack>
-                      <Text color="gray.500">{t('tenantManagement.status')}:</Text>
+                      <Text color="gray.500">{t('tenantManagement.statusLabel')}:</Text>
                       <Badge colorScheme={getStatusColor(selectedTenant.status)}>
                         {t(`tenantManagement.status.${selectedTenant.status}`)}
                       </Badge>

@@ -1,6 +1,7 @@
 {
   "buttons": {
     "save": "Opslaan",
+    "saved": "Opgeslagen",
     "cancel": "Annuleren",
     "delete": "Verwijderen",
     "edit": "Bewerken",

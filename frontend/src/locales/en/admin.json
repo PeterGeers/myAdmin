@@ -103,7 +103,7 @@
     "viewTenant": "Tenant Details",
     "search": "Search",
     "searchPlaceholder": "Search tenants...",
-    "status": "Status",
+    "statusLabel": "Status",
     "allStatus": "All Status",
     "total": "Total",
     "rowsPerPage": "Rows per page",
