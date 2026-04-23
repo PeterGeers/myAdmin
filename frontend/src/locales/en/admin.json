@@ -141,6 +141,7 @@
       "enabledModules": "Enabled Modules",
       "moduleFinancial": "FIN - Financial Management",
       "moduleSTR": "STR - Short-Term Rental",
+      "moduleZZP": "ZZP - Invoicing",
       "moduleAutoAdded": "TENADMIN module is added automatically",
       "locale": "Language",
       "localeNL": "Nederlands (Dutch)",
@@ -162,7 +163,10 @@
       "update": "Update",
       "create": "Create",
       "previousPage": "Previous page",
-      "nextPage": "Next page"
+      "nextPage": "Next page",
+      "resendInvitation": "Resend Invitation",
+      "resendInvitationTooltip": "Resend the admin invitation email with a new temporary password",
+      "resendDisabledDeleted": "Cannot send invitation for a deleted tenant"
     },
     "deleteDialog": {
       "title": "Delete Tenant",
@@ -186,6 +190,9 @@
       "reprovisionDetails": "Chart: {{chart}} ({{rows}} rows), new modules: {{modules}}",
       "reprovisionWarnings": "Re-provisioning warnings",
       "errorReprovisioning": "Error re-provisioning tenant",
+      "invitationResent": "Invitation resent",
+      "invitationResentSuccess": "Invitation email resent to {{email}} with a new temporary password",
+      "errorResendingInvitation": "Error resending invitation",
       "errorLoading": "Error loading tenants",
       "unknownError": "Unknown error"
     },

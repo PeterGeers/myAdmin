@@ -28,7 +28,7 @@ GETTING STARTED
 --------------------------------------------------------------------------------
 1. Visit the login URL above
 2. Enter your email address and temporary password
-3. You will be prompted to change your password on first login
+3. We recommend changing your password after first login
 4. Choose a strong password (minimum 8 characters, including uppercase, 
    lowercase, numbers, and special characters)
 5. After changing your password, you'll have full access to your tenant's 
@@ -37,8 +37,8 @@ GETTING STARTED
 
 SECURITY NOTICE
 --------------------------------------------------------------------------------
-⚠️  This temporary password is valid for 7 days. Please log in and change 
-    your password as soon as possible. Never share your password with anyone.
+⚠️  We recommend logging in and changing your password as soon as possible.
+    Never share your password with anyone.
 
 
 NEED HELP?

@@ -28,7 +28,7 @@ AAN DE SLAG
 --------------------------------------------------------------------------------
 1. Bezoek de login URL hierboven
 2. Voer uw e-mailadres en tijdelijk wachtwoord in
-3. U wordt gevraagd om uw wachtwoord te wijzigen bij de eerste login
+3. Wij raden u aan uw wachtwoord te wijzigen na de eerste login
 4. Kies een sterk wachtwoord (minimaal 8 tekens, inclusief hoofdletters, 
    kleine letters, cijfers en speciale tekens)
 5. Na het wijzigen van uw wachtwoord heeft u volledige toegang tot de 
@@ -37,8 +37,8 @@ AAN DE SLAG
 
 BEVEILIGINGSMELDING
 --------------------------------------------------------------------------------
-⚠️  Dit tijdelijke wachtwoord is 7 dagen geldig. Log alstublieft zo snel 
-    mogelijk in en wijzig uw wachtwoord. Deel uw wachtwoord nooit met anderen.
+⚠️  Wij raden u aan zo snel mogelijk in te loggen en uw wachtwoord te wijzigen.
+    Deel uw wachtwoord nooit met anderen.
 
 
 HULP NODIG?

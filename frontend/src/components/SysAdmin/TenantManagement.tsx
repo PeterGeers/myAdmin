@@ -10,7 +10,7 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
-import { getTenants, createTenant, updateTenant, deleteTenant, reprovisionTenant, Tenant, CreateTenantRequest, UpdateTenantRequest } from '../../services/sysadminService';
+import { getTenants, createTenant, updateTenant, deleteTenant, reprovisionTenant, resendInvitation, Tenant, CreateTenantRequest, UpdateTenantRequest } from '../../services/sysadminService';
 import { useColumnFilters } from '../../hooks/useColumnFilters';
 import { FilterableHeader } from '../filters/FilterableHeader';
 import { ModuleManagement } from './ModuleManagement';
@@ -164,7 +164,8 @@ export function TenantManagement() {
         zipcode: formData.zipcode.trim() || undefined,
         country: formData.country.trim() || undefined,
         enabled_modules: formData.enabled_modules,
-        locale: formData.locale
+        locale: formData.locale,
+        initial_admin_email: formData.contact_email.trim() || undefined,
       };
 
       await createTenant(request);
@@ -323,6 +324,32 @@ export function TenantManagement() {
     } catch (error) {
       toast({
         title: t('tenantManagement.messages.errorReprovisioning'),
+        description: error instanceof Error ? error.message : t('tenantManagement.messages.unknownError'),
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResendInvitation = async () => {
+    if (!selectedTenant || !formData.contact_email) return;
+
+    setActionLoading(true);
+    try {
+      await resendInvitation(selectedTenant.administration, formData.contact_email);
+
+      toast({
+        title: t('tenantManagement.messages.invitationResent'),
+        description: t('tenantManagement.messages.invitationResentSuccess', { email: formData.contact_email }),
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: t('tenantManagement.messages.errorResendingInvitation'),
         description: error instanceof Error ? error.message : t('tenantManagement.messages.unknownError'),
         status: 'error',
         duration: 5000,
@@ -694,6 +721,13 @@ export function TenantManagement() {
                     >
                       <Text color="gray.300">{t('tenantManagement.modal.moduleSTR')}</Text>
                     </Checkbox>
+                    <Checkbox
+                      isChecked={formData.enabled_modules.includes('ZZP')}
+                      onChange={() => toggleModule('ZZP')}
+                      colorScheme="orange"
+                    >
+                      <Text color="gray.300">{t('tenantManagement.modal.moduleZZP')}</Text>
+                    </Checkbox>
                   </Stack>
                   <Text fontSize="xs" color="gray.500" mt={1}>
                     {t('tenantManagement.modal.moduleAutoAdded')}
@@ -757,6 +791,18 @@ export function TenantManagement() {
                   title={t('tenantManagement.actions.reprovisionTooltip')}
                 >
                   {t('tenantManagement.actions.reprovision')}
+                </Button>
+                <Button
+                  variant="outline"
+                  colorScheme="purple"
+                  onClick={handleResendInvitation}
+                  isLoading={actionLoading}
+                  isDisabled={selectedTenant?.status === 'deleted'}
+                  title={selectedTenant?.status === 'deleted'
+                    ? t('tenantManagement.actions.resendDisabledDeleted')
+                    : t('tenantManagement.actions.resendInvitationTooltip')}
+                >
+                  {t('tenantManagement.actions.resendInvitation')}
                 </Button>
                 <Button 
                   variant="outline" 
