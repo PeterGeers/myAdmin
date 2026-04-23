@@ -78,3 +78,20 @@ mcp.json
 and the Railway CLI works fine from the terminal. For this bugfix, we don't really need the Railway skill — the migration script in task 4.3 will just use a direct MySQL connection to the Railway proxy, which we already tested earlier.
 
 If you want Railway skills available in Kiro specifically, you could copy the skill content to ~/.kiro/skills/use-railway/, but it's not needed for this bugfix. Want to proceed with executing the tasks?
+
+##  tenant switching slowness
+The tenant switching slowness is a separate concern from the onboarding spec. Want me to note it as a finding and continue with the onboarding testing, or investigate it now?
+
+## Kimmetje
+url hoofdletter gevoelig
+
+Nu alleen PeterGeers + Goodwin Solutions zichtbaar.
+
+ING bouwen
+
+Duidelijk maken filter tabel ipv invul tabel.
+
+verwijder knop contacten + producten,
+downloaden contacten / producten.
+
+Viool grafiek ook totaal omzet

@@ -57,6 +57,7 @@ export interface CreateTenantRequest {
   country?: string;
   enabled_modules: string[];
   locale?: 'nl' | 'en';
+  initial_admin_email?: string;
 }
 
 export interface UpdateTenantRequest {
@@ -181,6 +182,20 @@ export async function reprovisionTenant(
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(options || {})
+  });
+  return handleResponse(response);
+}
+
+export async function resendInvitation(
+  administration: string,
+  email: string
+): Promise<{ success: boolean; message: string }> {
+  const headers = await getAuthHeaders();
+  const url = buildApiUrl(`/api/sysadmin/tenants/${administration}/resend-invitation`);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ email })
   });
   return handleResponse(response);
 }

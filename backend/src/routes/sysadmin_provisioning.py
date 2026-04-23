@@ -138,6 +138,7 @@ def provision_signup(user_email, user_roles):
             modules=modules,
             created_by=user_email,
             locale=locale,
+            initial_admin_email=email,
         )
 
         # Set plan to trial with 2-month expiry
@@ -176,6 +177,8 @@ def provision_signup(user_email, user_roles):
             response['cognito_warning'] = cognito_error
         if prov_results.get('warnings'):
             response['warnings'] = prov_results['warnings']
+        if 'initial_admin' in prov_results:
+            response['initial_admin'] = prov_results['initial_admin']
 
         logger.info(f"Signup {email} provisioned as '{admin_name}' by {user_email}")
         return jsonify(response), 201

@@ -141,6 +141,7 @@
       "enabledModules": "Ingeschakelde modules",
       "moduleFinancial": "FIN - Financieel beheer",
       "moduleSTR": "STR - Vakantieverhuur",
+      "moduleZZP": "ZZP - Facturatie",
       "moduleAutoAdded": "TENADMIN module wordt automatisch toegevoegd",
       "locale": "Taal",
       "localeNL": "Nederlands",
@@ -162,7 +163,10 @@
       "update": "Bijwerken",
       "create": "Aanmaken",
       "previousPage": "Vorige pagina",
-      "nextPage": "Volgende pagina"
+      "nextPage": "Volgende pagina",
+      "resendInvitation": "Uitnodiging opnieuw verzenden",
+      "resendInvitationTooltip": "Verstuur de admin uitnodigingsmail opnieuw met een nieuw tijdelijk wachtwoord",
+      "resendDisabledDeleted": "Kan geen uitnodiging verzenden voor een verwijderde tenant"
     },
     "deleteDialog": {
       "title": "Tenant verwijderen",
@@ -186,6 +190,9 @@
       "reprovisionDetails": "Rekeningschema: {{chart}} ({{rows}} rijen), nieuwe modules: {{modules}}",
       "reprovisionWarnings": "Herinrichting waarschuwingen",
       "errorReprovisioning": "Fout bij herinrichten tenant",
+      "invitationResent": "Uitnodiging opnieuw verzonden",
+      "invitationResentSuccess": "Uitnodigingsmail opnieuw verzonden naar {{email}} met een nieuw tijdelijk wachtwoord",
+      "errorResendingInvitation": "Fout bij opnieuw verzenden uitnodiging",
       "errorLoading": "Fout bij laden tenants",
       "unknownError": "Onbekende fout"
     },

@@ -334,12 +334,15 @@ def provision(email: str, dry_run=False, test_mode=False, admin_name_override=No
         modules=modules,
         created_by='provision_tenant.py',
         locale=locale,
+        initial_admin_email=email,
     )
 
     logger.info(f"  Provisioning results: tenant={results['tenant']}, "
                 f"chart={results['chart']} ({results['chart_rows']} rows)")
     for mod in results['modules']:
         logger.info(f"    Module {mod['name']}: {mod['status']}")
+    if 'initial_admin' in results:
+        logger.info(f"  Initial admin: {results['initial_admin']['status']}")
     for warning in results.get('warnings', []):
         logger.warning(f"  ⚠️  {warning}")
 

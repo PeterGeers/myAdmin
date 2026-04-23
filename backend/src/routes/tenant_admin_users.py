@@ -141,15 +141,25 @@ def list_tenant_users(user_email, user_roles):
                 'message': f'You do not have access to tenant: {tenant}'
             }), 403
         
-        # Get all users from Cognito
-        response = cognito_client.list_users(
-            UserPoolId=USER_POOL_ID,
-            Limit=60
-        )
+        # Get all users from Cognito (paginated)
+        all_cognito_users = []
+        pagination_token = None
+        while True:
+            kwargs = {
+                'UserPoolId': USER_POOL_ID,
+                'Limit': 60,
+            }
+            if pagination_token:
+                kwargs['PaginationToken'] = pagination_token
+            response = cognito_client.list_users(**kwargs)
+            all_cognito_users.extend(response.get('Users', []))
+            pagination_token = response.get('PaginationToken')
+            if not pagination_token:
+                break
         
         tenant_users = []
         
-        for user in response.get('Users', []):
+        for user in all_cognito_users:
             # Get user's tenants
             user_tenant_list = get_user_attribute(user.get('Attributes', []), 'custom:tenants')
             
