@@ -103,7 +103,7 @@
     "viewTenant": "Tenantgegevens",
     "search": "Zoeken",
     "searchPlaceholder": "Tenants zoeken...",
-    "status": "Status",
+    "statusLabel": "Status",
     "allStatus": "Alle statussen",
     "total": "Totaal",
     "rowsPerPage": "Rijen per pagina",

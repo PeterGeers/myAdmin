@@ -30,6 +30,7 @@ const BtwReport: React.FC = () => {
   const [btwReport, setBtwReport] = useState<string>('');
   const [btwTransaction, setBtwTransaction] = useState<any>(null);
   const [btwLoading, setBtwLoading] = useState(false);
+  const [btwSaved, setBtwSaved] = useState(false);
 
   const fetchBtwAvailableYears = async () => {
     try {
@@ -69,6 +70,7 @@ const BtwReport: React.FC = () => {
       if (data.success) {
         setBtwReport(data.html_report);
         setBtwTransaction(data.transaction);
+        setBtwSaved(false);
       } else {
         console.error('BTW report generation failed:', data.error);
         alert('Failed to generate BTW report: ' + data.error);
@@ -82,7 +84,7 @@ const BtwReport: React.FC = () => {
   };
 
   const saveBtwTransaction = async () => {
-    if (!btwTransaction) return;
+    if (!btwTransaction || btwSaved) return;
     
     // Validate tenant selection before processing
     try {
@@ -116,6 +118,7 @@ const BtwReport: React.FC = () => {
         const uploadData = await uploadResponse.json();
         
         if (uploadData.success) {
+          setBtwSaved(true);
           alert(`BTW transaction saved successfully! Report uploaded to ${uploadData.location}.`);
         } else {
           alert('BTW transaction saved, but report upload failed: ' + uploadData.error);
@@ -141,6 +144,7 @@ const BtwReport: React.FC = () => {
       // Clear previous tenant data
       setBtwReport('');
       setBtwTransaction(null);
+      setBtwSaved(false);
       
       // Refresh available years for new tenant
       fetchBtwAvailableYears();
@@ -203,13 +207,16 @@ const BtwReport: React.FC = () => {
               <Heading size="md" color="white">{t('titles.btwReport')}</Heading>
               {btwTransaction && (
                 <Button 
-                  colorScheme="green" 
+                  colorScheme={btwSaved ? "gray" : "green"}
                   onClick={saveBtwTransaction}
                   isLoading={btwLoading}
-                  isDisabled={!currentTenant}
+                  isDisabled={!currentTenant || btwSaved}
                   size="sm"
                 >
-                  {t('common:buttons.save')} & {t('export.download')}
+                  {btwSaved 
+                    ? `✓ ${t('common:buttons.saved')}` 
+                    : `${t('common:buttons.save')} & ${t('export.download')}`
+                  }
                 </Button>
               )}
             </HStack>

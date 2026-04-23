@@ -78,12 +78,3 @@ mcp.json
 and the Railway CLI works fine from the terminal. For this bugfix, we don't really need the Railway skill — the migration script in task 4.3 will just use a direct MySQL connection to the Railway proxy, which we already tested earlier.
 
 If you want Railway skills available in Kiro specifically, you could copy the skill content to ~/.kiro/skills/use-railway/, but it's not needed for this bugfix. Want to proceed with executing the tasks?
-
-## Hardcoded ledger account ranges in reporting_routes.py
-
-`get_financial_summary` / `get_account_summary` use hardcoded account number ranges for categorization (e.g., `4000-4999` = Revenue, `6000-6999` = Operating Expenses, `2010` = VAT). This is brittle — if the chart of accounts changes or a tenant uses different numbering, it breaks silently. Refactor to use `rekeningschema` metadata (`Parent`, `VW`, `ledger`, `Belastingaangifte`) to drive categorization instead of hardcoded ranges.
-
-## Balance sheet in FIN Reports
-Check if the buttions are implemented wth the fiklters as defined in .kiro\steering\ui-patterns.md 
--- If not apply the framework as intended
--- Align the positioning and size of the (filter) buttons in line with Profit & Loss

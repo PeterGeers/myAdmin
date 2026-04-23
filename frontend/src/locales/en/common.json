@@ -1,6 +1,7 @@
 {
   "buttons": {
     "save": "Save",
+    "saved": "Saved",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
