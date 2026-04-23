@@ -1,0 +1,2 @@
+# Mark built MkDocs site as generated — hides from GitHub language stats and diffs
+backend/docs-site/** linguist-generated=true
