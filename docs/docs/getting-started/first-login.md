@@ -17,6 +17,8 @@ myAdmin gebruikt AWS Cognito voor authenticatie. Je ontvangt inloggegevens van j
 
 Ga naar de URL die je van je beheerder hebt ontvangen. Je ziet het inlogscherm.
 
+![Inlogscherm](../assets/images/getting-started/login.png){ width="400" }
+
 ### 2. Log in
 
 Vul je gebruikersnaam en wachtwoord in en klik op **Inloggen**.
@@ -27,6 +29,8 @@ Bij je eerste login word je mogelijk gevraagd om je wachtwoord te wijzigen. Kies
 ### 3. Navigatie
 
 Na het inloggen zie je het hoofdmenu met de volgende onderdelen:
+
+![Navigatiemenu](../assets/images/banking/nl-functions.png){ width="700" }
 
 | Menu-item         | Wat het doet                                           |
 | ----------------- | ------------------------------------------------------ |
@@ -39,18 +43,15 @@ Na het inloggen zie je het hoofdmenu met de volgende onderdelen:
 | **PDF Validatie** | Google Drive-links controleren                         |
 | **Beheer**        | Instellingen en gebruikersbeheer _(alleen beheerders)_ |
 
-### 4. Test- of productiemodus
-
-Rechtsboven in de applicatie zie je een schakelaar voor **Test** of **Productie** modus. Nieuwe gebruikers beginnen standaard in testmodus.
-
-!!! warning
-In **Productiemodus** werk je met echte gegevens. Schakel alleen over als je zeker weet wat je doet. Zie [Test vs Productie](test-vs-production.md).
-
 ## Tips
 
 - Gebruik de **zoekfunctie** in het menu om snel naar een module te navigeren
 - Klik op het :material-help-circle: icoon rechtsboven op elke pagina voor contextuele hulp
 - Je sessie verloopt na een periode van inactiviteit — log opnieuw in als dat gebeurt
+
+## Volgende stap
+
+Nu je bent ingelogd, stel je modules in: [Modules instellen](onboarding.md)
 
 ## Problemen oplossen
 

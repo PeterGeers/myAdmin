@@ -8,6 +8,8 @@ The STR module processes revenue files from rental platforms. You import booking
 
 ## What can you do here?
 
+![STR modules](../assets/images/STR/uk_str_modules.png){ width="600" }
+
 | Task                                          | Description                                                     |
 | --------------------------------------------- | --------------------------------------------------------------- |
 | [Import bookings](importing-bookings.md)      | Upload files from Airbnb, Booking.com, VRBO, or direct bookings |

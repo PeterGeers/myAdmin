@@ -700,34 +700,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/test-vs-production/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test vs Productie
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../getting-started/common-workflows/" class="md-nav__link">
         
   
@@ -2664,6 +2636,78 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Chart of Accounts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customizing-the-chart-of-accounts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customizing the Chart of Accounts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export-and-import-excel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export and Import (Excel)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ledger-account-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ledger Account Parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-bank-account-configuration-for-banking-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical: Bank Account Configuration for Banking Import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reference-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference Numbers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#accounts-in-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accounts in Use
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -2710,6 +2754,17 @@
     <span class="md-ellipsis">
       
         Step 2: Configure provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-parameters-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How parameters work
       
     </span>
   </a>
@@ -3000,38 +3055,151 @@
 </tbody>
 </table>
 <h2 id="financial-tab">Financial tab<a class="headerlink" href="#financial-tab" title="Permanent link">&para;</a></h2>
-<p>The Financial tab (only visible when the FIN module is active) contains two sections:</p>
+<p>The Financial tab (only visible when the FIN module is active) contains two sections for managing your general ledger (grootboek/rekeningschema) and tax rates.</p>
 <h3 id="chart-of-accounts">Chart of Accounts<a class="headerlink" href="#chart-of-accounts" title="Permanent link">&para;</a></h3>
-<p>All general ledger accounts for your administration. Click a row to edit.</p>
+<p>The chart of accounts (rekeningschema) contains all general ledger accounts for your administration. The initial chart of accounts that ships with the system is an <strong>example model</strong> — it is not fixed. You can and should adapt it to match your own administration needs.</p>
+<p><img alt="Chart of Accounts" src="../../../assets/images/tenant-admin/nl_rekeningschema.png" width="700" /></p>
+<h4 id="customizing-the-chart-of-accounts">Customizing the Chart of Accounts<a class="headerlink" href="#customizing-the-chart-of-accounts" title="Permanent link">&para;</a></h4>
+<p>You can modify the chart of accounts in three ways:</p>
 <ul>
-<li><strong>Export</strong> — Download as Excel</li>
-<li><strong>Import</strong> — Upload an Excel file</li>
-<li><strong>Add</strong> — Create a new account</li>
-<li><strong>Parameters</strong> — Set per-account parameters (e.g., VAT netting, year-end closure purpose)</li>
+<li><strong>Add</strong> — Create a new account directly in the application</li>
+<li><strong>Edit</strong> — Click any row to edit the account details</li>
+<li><strong>Export / Import</strong> — Download the current model as Excel, modify it, and re-upload</li>
 </ul>
+<h4 id="export-and-import-excel">Export and Import (Excel)<a class="headerlink" href="#export-and-import-excel" title="Permanent link">&para;</a></h4>
+<p>The recommended workflow for bulk changes:</p>
+<ol>
+<li>Click <strong>Export</strong> to download the current chart of accounts as an Excel file</li>
+<li>Open the file and make your changes (add rows, rename accounts, update categories)</li>
+<li>Click <strong>Import</strong> to upload the modified file</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Column structure must remain unchanged</p>
+</div>
+<p>The Excel file must have exactly these columns in this order:</p>
+<pre><code>| Column | Description | Required |
+|--------|-------------|----------|
+| `Account` | Account number (e.g., 1000, 4100) | Yes |
+| `AccountName` | Display name of the account | Yes |
+| `AccountLookup` | Lookup code or IBAN for bank accounts | No |
+| `SubParent` | Sub-category grouping | No |
+| `Parent` | Parent category grouping | No |
+| `VW` | Profit &amp; Loss classification | No |
+| `Belastingaangifte` | Tax declaration category (e.g., Activa, Passiva) | No |
+| `Pattern` | Set to `1` for bank accounts, `0` otherwise | No |
+
+Do not rename, reorder, or remove columns — the import will fail if the structure doesn't match.
+</code></pre>
+<h4 id="ledger-account-parameters">Ledger Account Parameters<a class="headerlink" href="#ledger-account-parameters" title="Permanent link">&para;</a></h4>
+<p>Each account can have additional parameters that control how it behaves in the system. Click a row and then use the <strong>Parameters</strong> button to view and edit these settings:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bank_account</code></td>
+<td>Marks this account as a bank account (source account for statement imports)</td>
+</tr>
+<tr>
+<td><code>iban</code></td>
+<td>The IBAN or bank account number associated with this account</td>
+</tr>
+<tr>
+<td><code>purpose</code></td>
+<td>Special purpose flag (e.g., VAT netting, year-end closure)</td>
+</tr>
+</tbody>
+</table>
+<p>You can also edit parameters as raw JSON via the key-value editor in the account detail view.</p>
+<p><img alt="Bank account parameter" src="../../../assets/images/tenant-admin/uk-ledger-bank-account-parameter.png" width="500" /></p>
+<h4 id="critical-bank-account-configuration-for-banking-import">Critical: Bank Account Configuration for Banking Import<a class="headerlink" href="#critical-bank-account-configuration-for-banking-import" title="Permanent link">&para;</a></h4>
+<div class="admonition danger">
+<p class="admonition-title">Required for banking statement imports</p>
+</div>
+<p>For the banking import to work correctly, your chart of accounts <strong>must</strong> have at least one account configured as a bank account:</p>
+<pre><code>- **`bank_account`** must be set to `true` (or `Pattern = 1` in the Excel file)
+- **`iban`** must contain the actual bank account number (e.g., `NL91ABNA0417164300`)
+
+Without these two fields correctly set, imported bank statements will not match to the right source account. If you have multiple bank accounts, each one needs its own ledger account with the correct IBAN.
+</code></pre>
+<h4 id="reference-numbers">Reference Numbers<a class="headerlink" href="#reference-numbers" title="Permanent link">&para;</a></h4>
+<p>Reference numbers (<code>ref1</code>) serve as labels to track details within a ledger account and to follow transactions between ledger accounts. For example:</p>
+<ul>
+<li>An imported invoice is booked on a <strong>creditor account</strong> with a reference number</li>
+<li>When the invoice is paid, the bank statement transaction is also booked on the same creditor account with the same reference number</li>
+<li>This links the two transactions together, making it easy to see which invoices have been paid</li>
+</ul>
+<p>The same principle applies to debtor accounts for outgoing invoices: the sent invoice and the received payment share a reference number.</p>
+<h4 id="accounts-in-use">Accounts in Use<a class="headerlink" href="#accounts-in-use" title="Permanent link">&para;</a></h4>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
 </div>
-<p>Accounts that are already used in transactions cannot be deleted.</p>
+<p>Accounts that are already used in transactions cannot be deleted. If you need to restructure your chart of accounts, create the new account first, rebook the transactions, and then deactivate the old account.</p>
 <h3 id="tax-rates">Tax Rates<a class="headerlink" href="#tax-rates" title="Permanent link">&para;</a></h3>
 <p>Manage VAT rates and other tax rates. Click a row to edit. System rates (source: system) can only be changed by the SysAdmin.</p>
 <h2 id="storage-tab">Storage tab<a class="headerlink" href="#storage-tab" title="Permanent link">&para;</a></h2>
-<p>Configure where your files are stored.</p>
+<p>Configure where your files (invoices, templates, reports) are stored. The storage provider determines how myAdmin saves and retrieves documents.</p>
 <h3 id="step-1-choose-provider">Step 1: Choose provider<a class="headerlink" href="#step-1-choose-provider" title="Permanent link">&para;</a></h3>
-<p>Select your storage provider:</p>
-<ul>
-<li><strong>Google Drive</strong> — OAuth authentication + folder structure</li>
-<li><strong>S3 Shared Bucket</strong> — Shared AWS S3 bucket (platform level)</li>
-<li><strong>S3 Tenant Bucket</strong> — Dedicated AWS S3 bucket per tenant</li>
-</ul>
+<p>Select your storage provider from the dropdown:</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Description</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Google Drive</strong></td>
+<td>Files stored in your own Google Drive account with OAuth authentication</td>
+<td>Organizations already using Google Workspace</td>
+</tr>
+<tr>
+<td><strong>S3 Shared Bucket</strong></td>
+<td>Files stored in a shared AWS S3 bucket managed by the platform</td>
+<td>Default option, no setup required</td>
+</tr>
+<tr>
+<td><strong>S3 Tenant Bucket</strong></td>
+<td>Files stored in a dedicated AWS S3 bucket for your organization</td>
+<td>Organizations needing full data isolation</td>
+</tr>
+</tbody>
+</table>
 <h3 id="step-2-configure-provider">Step 2: Configure provider<a class="headerlink" href="#step-2-configure-provider" title="Permanent link">&para;</a></h3>
 <p><strong>Google Drive:</strong></p>
 <ol>
-<li>Upload your credentials JSON file, or start the OAuth flow</li>
-<li>Test the connection with <strong>Test Connection</strong></li>
-<li>Enter the Root Folder ID</li>
-<li>Review configured folders (invoices, templates, reports)</li>
+<li><strong>Upload credentials</strong> — Upload your Google service account credentials JSON file, or click <strong>Start OAuth</strong> to authenticate via your browser</li>
+<li><strong>Test the connection</strong> — Click <strong>Test Connection</strong> to verify the credentials work. A green checkmark confirms the connection is active</li>
+<li><strong>Enter the Root Folder ID</strong> — This is the Google Drive folder ID where myAdmin will create its folder structure. You can find this in the URL when you open the folder in Google Drive (the long string after <code>/folders/</code>)</li>
+<li><strong>Review folder mappings</strong> — myAdmin uses subfolders for different document types:</li>
 </ol>
+<p><img alt="Google Drive configuration" src="../../../assets/images/tenant-admin/uk_storage_gdrive.png" width="600" />
+   - <strong>Invoices folder</strong> — Where uploaded and processed invoices are stored
+   - <strong>Templates folder</strong> — Where report and invoice templates are stored
+   - <strong>Reports folder</strong> — Where generated reports are saved</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+</div>
+<p>If the folders don't exist yet, myAdmin will create them automatically under the root folder when you first use the relevant feature.</p>
+<p><strong>S3 Shared Bucket:</strong></p>
+<p>No additional configuration needed. The platform administrator has already set up the shared bucket. Your files are stored in a tenant-specific prefix within the shared bucket.</p>
+<p><strong>S3 Tenant Bucket:</strong></p>
+<p>Contact your SysAdmin to set up a dedicated S3 bucket for your organization. Once configured, enter the bucket name in the settings.</p>
+<h3 id="how-parameters-work">How parameters work<a class="headerlink" href="#how-parameters-work" title="Permanent link">&para;</a></h3>
+<p>The settings you configure on this tab (and on the Financial tab) are stored as <strong>parameters</strong> — configuration values that control how myAdmin behaves for your organization.</p>
+<ul>
+<li>Parameters are <strong>pre-configured with sensible defaults</strong> when your modules are activated</li>
+<li>You customize them through the structured settings tabs (Storage, Financial, etc.)</li>
+<li>Some parameters (like <strong>branding</strong> settings) affect how invoices and documents look</li>
+<li>Some parameters (like <strong>field configurations</strong>) control which fields are visible or required in forms</li>
+<li>Changes take effect immediately — no restart needed</li>
+</ul>
 <h2 id="templates-tab">Templates tab<a class="headerlink" href="#templates-tab" title="Permanent link">&para;</a></h2>
 <p>Templates determine how invoice processing and reports look. On this tab you can:</p>
 <ul>

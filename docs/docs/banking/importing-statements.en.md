@@ -32,6 +32,8 @@ Log into your online banking and download the statement as a CSV file.
 
 In myAdmin, go to **Banking**. You'll see the import screen.
 
+![Banking import](../assets/images/banking/uk-bank-import.png){ width="700" }
+
 ### 3. Select files
 
 Click **Choose files** and select one or more CSV files. You can select multiple files at once.

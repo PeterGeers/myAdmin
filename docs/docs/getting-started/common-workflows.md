@@ -99,7 +99,7 @@ Dit is een snelle referentie voor de meest voorkomende taken. Elke workflow verw
 ## Tips
 
 !!! tip
-Begin altijd in **Testmodus** als je een nieuwe workflow voor het eerst uitvoert. Zo kun je oefenen zonder risico.
+Begin altijd met het oefenen van een nieuwe workflow in een testomgeving. Zo kun je leren zonder risico.
 
 - De meeste imports tonen een voortgangsbalk — wacht tot deze klaar is
 - Gebruik **Patronen toepassen** na elke bankimport om tijd te besparen

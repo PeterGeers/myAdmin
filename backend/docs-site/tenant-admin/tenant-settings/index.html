@@ -700,34 +700,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/test-vs-production/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test vs Productie
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../getting-started/common-workflows/" class="md-nav__link">
         
   
@@ -2664,6 +2636,78 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Rekeningschema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rekeningschema-aanpassen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rekeningschema aanpassen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exporteren-en-importeren-excel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exporteren en importeren (Excel)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grootboekrekening-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grootboekrekening parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#belangrijk-bankrekening-configuratie-voor-bankimport" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Belangrijk: Bankrekening configuratie voor bankimport
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#referentienummers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Referentienummers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rekeningen-in-gebruik" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rekeningen in gebruik
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -2710,6 +2754,17 @@
     <span class="md-ellipsis">
       
         Stap 2: Provider configureren
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hoe-parameters-werken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hoe parameters werken
       
     </span>
   </a>
@@ -3002,36 +3057,150 @@
 <h2 id="financieel-tabblad">Financieel tabblad<a class="headerlink" href="#financieel-tabblad" title="Permanent link">&para;</a></h2>
 <p>Het Financieel tabblad (alleen zichtbaar als de FIN-module actief is) bevat twee secties:</p>
 <h3 id="rekeningschema">Rekeningschema<a class="headerlink" href="#rekeningschema" title="Permanent link">&para;</a></h3>
-<p>Alle grootboekrekeningen voor je administratie. Klik op een rij om te bewerken.</p>
+<p>Het rekeningschema bevat alle grootboekrekeningen voor je administratie. Het standaard rekeningschema dat met het systeem wordt meegeleverd is een <strong>voorbeeldmodel</strong> — het staat niet vast. Je kunt en moet het aanpassen aan je eigen administratiebehoeften.</p>
+<p><img alt="Rekeningschema" src="../../assets/images/tenant-admin/nl_rekeningschema.png" width="700" /></p>
+<h4 id="rekeningschema-aanpassen">Rekeningschema aanpassen<a class="headerlink" href="#rekeningschema-aanpassen" title="Permanent link">&para;</a></h4>
+<p>Je kunt het rekeningschema op drie manieren wijzigen:</p>
 <ul>
-<li><strong>Exporteren</strong> — Download als Excel</li>
-<li><strong>Importeren</strong> — Upload een Excel-bestand</li>
-<li><strong>Toevoegen</strong> — Nieuwe rekening aanmaken</li>
-<li><strong>Parameters</strong> — Per rekening kun je parameters instellen (bijv. BTW saldering, jaarafsluiting doel)</li>
+<li><strong>Toevoegen</strong> — Maak direct een nieuwe rekening aan in de applicatie</li>
+<li><strong>Bewerken</strong> — Klik op een rij om de rekeninggegevens te bewerken</li>
+<li><strong>Exporteren / Importeren</strong> — Download het huidige model als Excel, pas het aan en upload het opnieuw</li>
 </ul>
+<h4 id="exporteren-en-importeren-excel">Exporteren en importeren (Excel)<a class="headerlink" href="#exporteren-en-importeren-excel" title="Permanent link">&para;</a></h4>
+<p>De aanbevolen werkwijze voor bulkwijzigingen:</p>
+<ol>
+<li>Klik op <strong>Exporteren</strong> om het huidige rekeningschema als Excel-bestand te downloaden</li>
+<li>Open het bestand en maak je wijzigingen (rijen toevoegen, rekeningen hernoemen, categorieën aanpassen)</li>
+<li>Klik op <strong>Importeren</strong> om het gewijzigde bestand te uploaden</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Kolomstructuur moet ongewijzigd blijven</p>
+</div>
+<p>Het Excel-bestand moet exact deze kolommen bevatten in deze volgorde:</p>
+<pre><code>| Kolom | Beschrijving | Verplicht |
+|-------|-------------|-----------|
+| `Account` | Rekeningnummer (bijv. 1000, 4100) | Ja |
+| `AccountName` | Weergavenaam van de rekening | Ja |
+| `AccountLookup` | Opzoekcode of IBAN voor bankrekeningen | Nee |
+| `SubParent` | Subcategorie groepering | Nee |
+| `Parent` | Bovenliggende categorie groepering | Nee |
+| `VW` | Winst &amp; Verlies classificatie | Nee |
+| `Belastingaangifte` | Belastingaangifte categorie (bijv. Activa, Passiva) | Nee |
+| `Pattern` | Zet op `1` voor bankrekeningen, `0` voor overige | Nee |
+
+Hernoem, verplaats of verwijder geen kolommen — de import mislukt als de structuur niet overeenkomt.
+</code></pre>
+<h4 id="grootboekrekening-parameters">Grootboekrekening parameters<a class="headerlink" href="#grootboekrekening-parameters" title="Permanent link">&para;</a></h4>
+<p>Elke rekening kan aanvullende parameters hebben die bepalen hoe deze zich in het systeem gedraagt. Klik op een rij en gebruik de <strong>Parameters</strong> knop om deze instellingen te bekijken en bewerken:</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Beschrijving</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bank_account</code></td>
+<td>Markeert deze rekening als bankrekening (bronrekening voor afschriftimport)</td>
+</tr>
+<tr>
+<td><code>iban</code></td>
+<td>Het IBAN of bankrekeningnummer dat bij deze rekening hoort</td>
+</tr>
+<tr>
+<td><code>purpose</code></td>
+<td>Speciaal doel (bijv. BTW saldering, jaarafsluiting)</td>
+</tr>
+</tbody>
+</table>
+<p>Je kunt parameters ook als ruwe JSON bewerken via de sleutel-waarde editor in het rekeningdetailscherm.</p>
+<p><img alt="Bankrekening parameter" src="../../assets/images/tenant-admin/nl-ledger-bank-account-parameter.png" width="500" /></p>
+<h4 id="belangrijk-bankrekening-configuratie-voor-bankimport">Belangrijk: Bankrekening configuratie voor bankimport<a class="headerlink" href="#belangrijk-bankrekening-configuratie-voor-bankimport" title="Permanent link">&para;</a></h4>
+<div class="admonition danger">
+<p class="admonition-title">Vereist voor het importeren van bankafschriften</p>
+</div>
+<p>Om de bankimport correct te laten werken, moet je rekeningschema <strong>minstens één rekening</strong> als bankrekening geconfigureerd hebben:</p>
+<pre><code>- **`bank_account`** moet op `true` staan (of `Pattern = 1` in het Excel-bestand)
+- **`iban`** moet het werkelijke bankrekeningnummer bevatten (bijv. `NL91ABNA0417164300`)
+
+Zonder deze twee velden correct ingesteld, worden geïmporteerde bankafschriften niet aan de juiste bronrekening gekoppeld. Als je meerdere bankrekeningen hebt, heeft elke rekening een eigen grootboekrekening met het juiste IBAN nodig.
+</code></pre>
+<h4 id="referentienummers">Referentienummers<a class="headerlink" href="#referentienummers" title="Permanent link">&para;</a></h4>
+<p>Referentienummers (<code>ref1</code>) dienen als labels om details binnen een grootboekrekening te volgen en om transacties tussen grootboekrekeningen te koppelen. Bijvoorbeeld:</p>
+<ul>
+<li>Een geïmporteerde factuur wordt geboekt op een <strong>crediteurenrekening</strong> met een referentienummer</li>
+<li>Wanneer de factuur betaald wordt, wordt de banktransactie ook op dezelfde crediteurenrekening geboekt met hetzelfde referentienummer</li>
+<li>Dit koppelt de twee transacties aan elkaar, zodat je eenvoudig kunt zien welke facturen betaald zijn</li>
+</ul>
+<p>Hetzelfde principe geldt voor debiteurenrekeningen bij uitgaande facturen: de verzonden factuur en de ontvangen betaling delen een referentienummer.</p>
+<h4 id="rekeningen-in-gebruik">Rekeningen in gebruik<a class="headerlink" href="#rekeningen-in-gebruik" title="Permanent link">&para;</a></h4>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
 </div>
-<p>Rekeningen die al in transacties worden gebruikt, kunnen niet worden verwijderd.</p>
+<p>Rekeningen die al in transacties worden gebruikt, kunnen niet worden verwijderd. Als je het rekeningschema wilt herstructureren, maak dan eerst de nieuwe rekening aan, herboek de transacties en deactiveer daarna de oude rekening.</p>
 <h3 id="belastingtarieven">Belastingtarieven<a class="headerlink" href="#belastingtarieven" title="Permanent link">&para;</a></h3>
 <p>Beheer BTW-tarieven en andere belastingtarieven. Klik op een rij om te bewerken. Systeemtarieven (bron: system) kunnen alleen door de SysAdmin worden gewijzigd.</p>
 <h2 id="opslag-tabblad">Opslag tabblad<a class="headerlink" href="#opslag-tabblad" title="Permanent link">&para;</a></h2>
-<p>Configureer waar je bestanden worden opgeslagen.</p>
+<p>Configureer waar je bestanden (facturen, sjablonen, rapporten) worden opgeslagen. De opslagprovider bepaalt hoe myAdmin documenten opslaat en ophaalt.</p>
 <h3 id="stap-1-provider-kiezen">Stap 1: Provider kiezen<a class="headerlink" href="#stap-1-provider-kiezen" title="Permanent link">&para;</a></h3>
-<p>Kies je opslagprovider:</p>
-<ul>
-<li><strong>Google Drive</strong> — OAuth-authenticatie + mappenstructuur</li>
-<li><strong>S3 Shared Bucket</strong> — Gedeelde AWS S3 bucket (platformniveau)</li>
-<li><strong>S3 Tenant Bucket</strong> — Eigen AWS S3 bucket per tenant</li>
-</ul>
+<p>Kies je opslagprovider uit het dropdown-menu:</p>
+<p><img alt="Opslag tabblad" src="../../assets/images/tenant-admin/nl_storage_tab.png" width="700" /></p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Beschrijving</th>
+<th>Geschikt voor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Google Drive</strong></td>
+<td>Bestanden opgeslagen in je eigen Google Drive account met OAuth-authenticatie</td>
+<td>Organisaties die al Google Workspace gebruiken</td>
+</tr>
+<tr>
+<td><strong>S3 Shared Bucket</strong></td>
+<td>Bestanden opgeslagen in een gedeelde AWS S3 bucket beheerd door het platform</td>
+<td>Standaardoptie, geen configuratie nodig</td>
+</tr>
+<tr>
+<td><strong>S3 Tenant Bucket</strong></td>
+<td>Bestanden opgeslagen in een eigen AWS S3 bucket voor je organisatie</td>
+<td>Organisaties die volledige data-isolatie nodig hebben</td>
+</tr>
+</tbody>
+</table>
 <h3 id="stap-2-provider-configureren">Stap 2: Provider configureren<a class="headerlink" href="#stap-2-provider-configureren" title="Permanent link">&para;</a></h3>
 <p><strong>Google Drive:</strong></p>
 <ol>
-<li>Upload je credentials JSON-bestand, of start de OAuth-flow</li>
-<li>Controleer de verbinding met <strong>Test Connection</strong></li>
-<li>Vul de Root Folder ID in</li>
-<li>Bekijk de geconfigureerde mappen (facturen, sjablonen, rapporten)</li>
+<li><strong>Credentials uploaden</strong> — Upload je Google service account credentials JSON-bestand, of klik op <strong>Start OAuth</strong> om via je browser te authenticeren</li>
+<li><strong>Verbinding testen</strong> — Klik op <strong>Test Connection</strong> om te controleren of de credentials werken. Een groen vinkje bevestigt dat de verbinding actief is</li>
+<li><strong>Root Folder ID invoeren</strong> — Dit is het Google Drive map-ID waar myAdmin zijn mappenstructuur aanmaakt. Je vindt dit in de URL wanneer je de map opent in Google Drive (de lange tekenreeks na <code>/folders/</code>)</li>
+<li><strong>Mapconfiguratie bekijken</strong> — myAdmin gebruikt submappen voor verschillende documenttypen:</li>
 </ol>
+<p><img alt="Google Drive configuratie" src="../../assets/images/tenant-admin/nl_storage_gdrive.png" width="600" />
+   - <strong>Facturen map</strong> — Waar geüploade en verwerkte facturen worden opgeslagen
+   - <strong>Sjablonen map</strong> — Waar rapport- en factuursjablonen worden opgeslagen
+   - <strong>Rapporten map</strong> — Waar gegenereerde rapporten worden bewaard</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+</div>
+<p>Als de mappen nog niet bestaan, maakt myAdmin ze automatisch aan onder de hoofdmap wanneer je de betreffende functie voor het eerst gebruikt.</p>
+<p><strong>S3 Shared Bucket:</strong></p>
+<p>Geen aanvullende configuratie nodig. De platformbeheerder heeft de gedeelde bucket al ingericht. Je bestanden worden opgeslagen in een tenant-specifiek prefix binnen de gedeelde bucket.</p>
+<p><strong>S3 Tenant Bucket:</strong></p>
+<p>Neem contact op met je SysAdmin om een eigen S3 bucket voor je organisatie in te richten. Na configuratie vul je de bucketnaam in bij de instellingen.</p>
+<h3 id="hoe-parameters-werken">Hoe parameters werken<a class="headerlink" href="#hoe-parameters-werken" title="Permanent link">&para;</a></h3>
+<p>De instellingen die je op dit tabblad (en op het Financieel tabblad) configureert, worden opgeslagen als <strong>parameters</strong> — configuratiewaarden die bepalen hoe myAdmin zich gedraagt voor je organisatie.</p>
+<ul>
+<li>Parameters worden <strong>vooraf geconfigureerd met verstandige standaardwaarden</strong> wanneer je modules worden geactiveerd</li>
+<li>Je past ze aan via de gestructureerde instellingstabbladen (Opslag, Financieel, etc.)</li>
+<li>Sommige parameters (zoals <strong>huisstijl</strong> instellingen) beïnvloeden hoe facturen en documenten eruitzien</li>
+<li>Sommige parameters (zoals <strong>veldconfiguraties</strong>) bepalen welke velden zichtbaar of verplicht zijn in formulieren</li>
+<li>Wijzigingen worden direct doorgevoerd — geen herstart nodig</li>
+</ul>
 <h2 id="sjablonen-tabblad">Sjablonen tabblad<a class="headerlink" href="#sjablonen-tabblad" title="Permanent link">&para;</a></h2>
 <p>Sjablonen bepalen hoe factuurverwerking en rapportages eruitzien. Op dit tabblad kun je:</p>
 <ul>

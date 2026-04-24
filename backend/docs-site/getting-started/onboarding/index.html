@@ -703,34 +703,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../test-vs-production/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test vs Productie
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../common-workflows/" class="md-nav__link">
         
   
@@ -852,6 +824,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#zzp-facturatie" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ZZP Facturatie
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#str-kortetermijnverhuur" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -867,17 +850,6 @@
     <span class="md-ellipsis">
       
         STR Prijzen
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#zzp-facturatie" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ZZP Facturatie
       
     </span>
   </a>
@@ -2931,17 +2903,20 @@
 
 <h1 id="modules-instellen">Modules instellen<a class="headerlink" href="#modules-instellen" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>Stap-voor-stap handleiding om elke module in gebruik te nemen.</p>
+<p>Stap-voor-stap handleiding om aan de slag te gaan met elke module.</p>
 </blockquote>
 <h2 id="overzicht">Overzicht<a class="headerlink" href="#overzicht" title="Permanent link">&para;</a></h2>
-<p>myAdmin bestaat uit meerdere modules die je afzonderlijk kunt activeren. Hieronder vind je per module wat je nodig hebt en welke eerste stappen je moet nemen om aan de slag te gaan.</p>
+<p>myAdmin bestaat uit meerdere modules die je individueel kunt activeren. Selecteer hieronder je module om te zien wat je nodig hebt en welke eerste stappen je moet nemen.</p>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
 </div>
-<p>Modules worden ingeschakeld door je SysAdmin. Als je een module niet ziet, vraag dan of deze voor je tenant is geactiveerd.</p>
+<p>Modules worden ingeschakeld door je SysAdmin. Als je een module niet ziet, vraag dan of deze is geactiveerd voor je tenant.</p>
 <hr />
+<div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Bankzaken &amp; Facturen</label><label for="__tabbed_1_2">ZZP Facturatie</label><label for="__tabbed_1_3">STR &amp; Prijzen</label><label for="__tabbed_1_4">Rapportages &amp; Belastingen</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
 <h2 id="bankzaken">Bankzaken<a class="headerlink" href="#bankzaken" title="Permanent link">&para;</a></h2>
-<p>Importeer bankafschriften, stel patronen in voor automatische rekeningtoewijzing en verwerk transacties.</p>
+<p>Bankafschriften importeren, patronen instellen voor automatische rekeningtoewijzing en transacties verwerken.</p>
 <p><strong>Vereisten:</strong></p>
 <ul>
 <li>FIN-module moet actief zijn</li>
@@ -2953,12 +2928,12 @@
 <li>Ga naar <strong>Bankzaken</strong> en klik op <strong>Importeren</strong></li>
 <li>Upload het CSV-bestand en bekijk de geïmporteerde transacties</li>
 <li>Klik op <strong>Patronen toepassen</strong> om automatisch rekeningen toe te wijzen</li>
-<li>Controleer de transacties en sla ze op</li>
+<li>Controleer de transacties en sla op</li>
 </ol>
 <p>→ Meer: <a href="../../banking/">Bankzaken</a></p>
 <hr />
 <h2 id="facturen">Facturen<a class="headerlink" href="#facturen" title="Permanent link">&para;</a></h2>
-<p>Upload PDF-facturen, laat AI de gegevens uitlezen en sla alles op in Google Drive.</p>
+<p>PDF-facturen uploaden, AI de details laten extraheren en alles opslaan in Google Drive.</p>
 <p><strong>Vereisten:</strong></p>
 <ul>
 <li>FIN-module moet actief zijn</li>
@@ -2969,13 +2944,38 @@
 <li>Controleer of Google Drive is ingesteld via <strong>Instellingen</strong></li>
 <li>Ga naar <strong>Facturen</strong> en klik op <strong>Uploaden</strong></li>
 <li>Selecteer een PDF-factuur</li>
-<li>Wacht tot de AI de gegevens heeft uitgelezen</li>
+<li>Wacht tot de AI de details heeft geëxtraheerd</li>
 <li>Controleer het resultaat en klik op <strong>Goedkeuren</strong></li>
 </ol>
 <p>→ Meer: <a href="../../invoices/">Facturen</a></p>
-<hr />
+</div>
+<div class="tabbed-block">
+<h2 id="zzp-facturatie">ZZP Facturatie<a class="headerlink" href="#zzp-facturatie" title="Permanent link">&para;</a></h2>
+<p>Facturen aanmaken en versturen naar je klanten, uren bijhouden per project en je debiteuren en crediteuren beheren.</p>
+<p><strong>Vereisten:</strong></p>
+<ul>
+<li>FIN-module moet actief zijn</li>
+<li>ZZP-module moet ingeschakeld zijn door je SysAdmin</li>
+</ul>
+<p><strong>Eerste stappen:</strong></p>
+<ol>
+<li><strong>Controleer of de FIN-module actief is</strong> — de ZZP-module vereist FIN</li>
+<li><strong>Maak je eerste contact aan</strong> — ga naar <strong>ZZP</strong> → <strong>Contacten</strong> en maak een contact aan met een uniek Klant-ID en bedrijfsnaam</li>
+<li><strong>Maak je eerste product of dienst aan</strong> — ga naar <strong>ZZP</strong> → <strong>Producten</strong> en maak een product aan met prijs en BTW-code</li>
+<li><strong>Maak je eerste factuur aan</strong> — ga naar <strong>ZZP</strong> → <strong>Facturen</strong>, selecteer het contact, voeg regelitems toe en sla op als concept</li>
+<li><strong>Verstuur de factuur</strong> — open het concept en klik op <strong>Versturen</strong> om de PDF te genereren, in FIN te boeken en per e-mail te versturen</li>
+<li><strong>Urenregistratie instellen</strong> (optioneel) — als je uren wilt bijhouden, ga naar <strong>ZZP</strong> → <strong>Urenregistratie</strong> en registreer je eerste uren</li>
+<li><strong>E-mailinstellingen configureren</strong> (optioneel) — vraag je Tenant Admin om het e-mailonderwerp en de afzender in te stellen</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Begin met één contact en één product om het proces te leren. Je kunt altijd later meer toevoegen.</p>
+</div>
+<p>→ Meer: <a href="../../zzp/">ZZP Facturatie</a></p>
+</div>
+<div class="tabbed-block">
 <h2 id="str-kortetermijnverhuur">STR (Kortetermijnverhuur)<a class="headerlink" href="#str-kortetermijnverhuur" title="Permanent link">&para;</a></h2>
-<p>Verwerk omzetbestanden van Airbnb, Booking.com en andere verhuurplatforms.</p>
+<p>Omzetbestanden verwerken van Airbnb, Booking.com en andere verhuurplatformen.</p>
 <p><strong>Vereisten:</strong></p>
 <ul>
 <li>FIN-module moet actief zijn</li>
@@ -2996,7 +2996,7 @@
 <p><strong>Vereisten:</strong></p>
 <ul>
 <li>STR-module moet actief zijn</li>
-<li>Minimaal één seizoen aan boekingsdata geïmporteerd</li>
+<li>Minstens één seizoen aan boekingsdata geïmporteerd</li>
 </ul>
 <p><strong>Eerste stappen:</strong></p>
 <ol>
@@ -3007,36 +3007,14 @@
 <li>Pas suggesties toe waar gewenst</li>
 </ol>
 <p>→ Meer: <a href="../../str-pricing/">STR Prijzen</a></p>
-<hr />
-<h2 id="zzp-facturatie">ZZP Facturatie<a class="headerlink" href="#zzp-facturatie" title="Permanent link">&para;</a></h2>
-<p>Maak en verstuur facturen aan je klanten, registreer uren per project en beheer je debiteuren en crediteuren.</p>
-<p><strong>Vereisten:</strong></p>
-<ul>
-<li>FIN-module moet actief zijn</li>
-<li>ZZP-module moet zijn ingeschakeld door je SysAdmin</li>
-</ul>
-<p><strong>Eerste stappen:</strong></p>
-<ol>
-<li><strong>Controleer of de FIN-module actief is</strong> — de ZZP-module vereist FIN</li>
-<li><strong>Maak je eerste contact aan</strong> — ga naar <strong>ZZP</strong> → <strong>Contacten</strong> en maak een contact aan met een uniek Klant-ID en bedrijfsnaam</li>
-<li><strong>Maak je eerste product of dienst aan</strong> — ga naar <strong>ZZP</strong> → <strong>Producten</strong> en maak een product aan met prijs en BTW-code</li>
-<li><strong>Maak je eerste factuur aan</strong> — ga naar <strong>ZZP</strong> → <strong>Facturen</strong>, selecteer het contact, voeg regelitems toe en sla op als concept</li>
-<li><strong>Verstuur de factuur</strong> — open het concept en klik op <strong>Versturen</strong> om de PDF te genereren, te boeken in FIN en per e-mail te versturen</li>
-<li><strong>Stel urenregistratie in</strong> (optioneel) — als je uren wilt bijhouden, ga naar <strong>ZZP</strong> → <strong>Urenregistratie</strong> en registreer je eerste uren</li>
-<li><strong>Configureer e-mailinstellingen</strong> (optioneel) — vraag je Tenant Admin om het e-mail onderwerp en de afzender in te stellen</li>
-</ol>
-<div class="admonition tip">
-<p class="admonition-title">Tip</p>
 </div>
-<p>Begin met één contact en één product om het proces te leren kennen. Je kunt later altijd meer toevoegen.</p>
-<p>→ Meer: <a href="../../zzp/">ZZP Facturatie</a></p>
-<hr />
+<div class="tabbed-block">
 <h2 id="rapportages">Rapportages<a class="headerlink" href="#rapportages" title="Permanent link">&para;</a></h2>
-<p>Bekijk interactieve dashboards, genereer winst- en verliesrekeningen en exporteer naar Excel.</p>
+<p>Interactieve dashboards bekijken, winst- &amp; verliesrekeningen genereren en exporteren naar Excel.</p>
 <p><strong>Vereisten:</strong></p>
 <ul>
 <li>FIN-module moet actief zijn</li>
-<li>Transacties moeten zijn geïmporteerd en verwerkt</li>
+<li>Transacties moeten geïmporteerd en verwerkt zijn</li>
 </ul>
 <p><strong>Eerste stappen:</strong></p>
 <ol>
@@ -3049,11 +3027,11 @@
 <p>→ Meer: <a href="../../reports/">Rapportages</a></p>
 <hr />
 <h2 id="belastingen">Belastingen<a class="headerlink" href="#belastingen" title="Permanent link">&para;</a></h2>
-<p>Bereid BTW-aangiften, inkomstenbelasting (IB) en toeristenbelasting voor.</p>
+<p>BTW-aangiften, inkomstenbelasting (IB) en toeristenbelasting voorbereiden.</p>
 <p><strong>Vereisten:</strong></p>
 <ul>
 <li>FIN-module moet actief zijn</li>
-<li>Transacties moeten zijn verwerkt voor de betreffende periode</li>
+<li>Transacties moeten verwerkt zijn voor de betreffende periode</li>
 </ul>
 <p><strong>Eerste stappen:</strong></p>
 <ol>
@@ -3066,7 +3044,7 @@
 <p>→ Meer: <a href="../../tax/">Belastingen</a></p>
 <hr />
 <h2 id="pdf-validatie">PDF Validatie<a class="headerlink" href="#pdf-validatie" title="Permanent link">&para;</a></h2>
-<p>Controleer of Google Drive-links in je transacties nog werken en repareer verbroken koppelingen.</p>
+<p>Controleer of Google Drive-links in je transacties nog werken en repareer gebroken links.</p>
 <p><strong>Vereisten:</strong></p>
 <ul>
 <li>Google Drive moet geconfigureerd zijn</li>
@@ -3076,11 +3054,14 @@
 <ol>
 <li>Ga naar <strong>PDF Validatie</strong></li>
 <li>Klik op <strong>Validatie starten</strong></li>
-<li>Wacht tot de controle is afgerond</li>
-<li>Bekijk de resultaten — groene links werken, rode links zijn verbroken</li>
-<li>Repareer verbroken links waar nodig</li>
+<li>Wacht tot de controle is voltooid</li>
+<li>Bekijk de resultaten — groene links werken, rode links zijn gebroken</li>
+<li>Repareer gebroken links waar nodig</li>
 </ol>
 <p>→ Meer: <a href="../../pdf-validation/">PDF Validatie</a></p>
+</div>
+</div>
+</div>
 
 
 

@@ -1,183 +1,185 @@
 # Modules instellen
 
-> Stap-voor-stap handleiding om elke module in gebruik te nemen.
+> Stap-voor-stap handleiding om aan de slag te gaan met elke module.
 
 ## Overzicht
 
-myAdmin bestaat uit meerdere modules die je afzonderlijk kunt activeren. Hieronder vind je per module wat je nodig hebt en welke eerste stappen je moet nemen om aan de slag te gaan.
+myAdmin bestaat uit meerdere modules die je individueel kunt activeren. Selecteer hieronder je module om te zien wat je nodig hebt en welke eerste stappen je moet nemen.
 
 !!! info
-Modules worden ingeschakeld door je SysAdmin. Als je een module niet ziet, vraag dan of deze voor je tenant is geactiveerd.
+Modules worden ingeschakeld door je SysAdmin. Als je een module niet ziet, vraag dan of deze is geactiveerd voor je tenant.
 
 ---
 
-## Bankzaken
+=== "Bankzaken & Facturen"
 
-Importeer bankafschriften, stel patronen in voor automatische rekeningtoewijzing en verwerk transacties.
+    ## Bankzaken
 
-**Vereisten:**
+    Bankafschriften importeren, patronen instellen voor automatische rekeningtoewijzing en transacties verwerken.
 
-- FIN-module moet actief zijn
-- CSV-bankafschriften van je bank (Rabobank, Revolut of creditcard)
+    **Vereisten:**
 
-**Eerste stappen:**
+    - FIN-module moet actief zijn
+    - CSV-bankafschriften van je bank (Rabobank, Revolut of creditcard)
 
-1. Download een bankafschrift als CSV vanuit je internetbankieren
-2. Ga naar **Bankzaken** en klik op **Importeren**
-3. Upload het CSV-bestand en bekijk de geïmporteerde transacties
-4. Klik op **Patronen toepassen** om automatisch rekeningen toe te wijzen
-5. Controleer de transacties en sla ze op
+    **Eerste stappen:**
 
-→ Meer: [Bankzaken](../banking/index.md)
+    1. Download een bankafschrift als CSV vanuit je internetbankieren
+    2. Ga naar **Bankzaken** en klik op **Importeren**
+    3. Upload het CSV-bestand en bekijk de geïmporteerde transacties
+    4. Klik op **Patronen toepassen** om automatisch rekeningen toe te wijzen
+    5. Controleer de transacties en sla op
 
----
+    → Meer: [Bankzaken](../banking/index.md)
 
-## Facturen
+    ---
 
-Upload PDF-facturen, laat AI de gegevens uitlezen en sla alles op in Google Drive.
+    ## Facturen
 
-**Vereisten:**
+    PDF-facturen uploaden, AI de details laten extraheren en alles opslaan in Google Drive.
 
-- FIN-module moet actief zijn
-- Google Drive moet geconfigureerd zijn (vraag je Tenant Admin)
+    **Vereisten:**
 
-**Eerste stappen:**
+    - FIN-module moet actief zijn
+    - Google Drive moet geconfigureerd zijn (vraag je Tenant Admin)
 
-1. Controleer of Google Drive is ingesteld via **Instellingen**
-2. Ga naar **Facturen** en klik op **Uploaden**
-3. Selecteer een PDF-factuur
-4. Wacht tot de AI de gegevens heeft uitgelezen
-5. Controleer het resultaat en klik op **Goedkeuren**
+    **Eerste stappen:**
 
-→ Meer: [Facturen](../invoices/index.md)
+    1. Controleer of Google Drive is ingesteld via **Instellingen**
+    2. Ga naar **Facturen** en klik op **Uploaden**
+    3. Selecteer een PDF-factuur
+    4. Wacht tot de AI de details heeft geëxtraheerd
+    5. Controleer het resultaat en klik op **Goedkeuren**
 
----
+    → Meer: [Facturen](../invoices/index.md)
 
-## STR (Kortetermijnverhuur)
+=== "ZZP Facturatie"
 
-Verwerk omzetbestanden van Airbnb, Booking.com en andere verhuurplatforms.
+    ## ZZP Facturatie
 
-**Vereisten:**
+    Facturen aanmaken en versturen naar je klanten, uren bijhouden per project en je debiteuren en crediteuren beheren.
 
-- FIN-module moet actief zijn
-- Omzetbestanden van je verhuurplatform (CSV of Excel)
+    **Vereisten:**
 
-**Eerste stappen:**
+    - FIN-module moet actief zijn
+    - ZZP-module moet ingeschakeld zijn door je SysAdmin
 
-1. Download een omzetbestand van Airbnb of Booking.com
-2. Ga naar **STR** en klik op **Importeren**
-3. Selecteer het platform en upload het bestand
-4. Bekijk de gerealiseerde en geplande boekingen
-5. Controleer de berekende bedragen en sla op
+    **Eerste stappen:**
 
-→ Meer: [STR](../str/index.md)
+    1. **Controleer of de FIN-module actief is** — de ZZP-module vereist FIN
+    2. **Maak je eerste contact aan** — ga naar **ZZP** → **Contacten** en maak een contact aan met een uniek Klant-ID en bedrijfsnaam
+    3. **Maak je eerste product of dienst aan** — ga naar **ZZP** → **Producten** en maak een product aan met prijs en BTW-code
+    4. **Maak je eerste factuur aan** — ga naar **ZZP** → **Facturen**, selecteer het contact, voeg regelitems toe en sla op als concept
+    5. **Verstuur de factuur** — open het concept en klik op **Versturen** om de PDF te genereren, in FIN te boeken en per e-mail te versturen
+    6. **Urenregistratie instellen** (optioneel) — als je uren wilt bijhouden, ga naar **ZZP** → **Urenregistratie** en registreer je eerste uren
+    7. **E-mailinstellingen configureren** (optioneel) — vraag je Tenant Admin om het e-mailonderwerp en de afzender in te stellen
 
----
+    !!! tip
+        Begin met één contact en één product om het proces te leren. Je kunt altijd later meer toevoegen.
 
-## STR Prijzen
+    → Meer: [ZZP Facturatie](../zzp/index.md)
 
-Bekijk AI-gestuurde prijsaanbevelingen voor je verhuurobjecten.
+=== "STR & Prijzen"
 
-**Vereisten:**
+    ## STR (Kortetermijnverhuur)
 
-- STR-module moet actief zijn
-- Minimaal één seizoen aan boekingsdata geïmporteerd
+    Omzetbestanden verwerken van Airbnb, Booking.com en andere verhuurplatformen.
 
-**Eerste stappen:**
+    **Vereisten:**
 
-1. Zorg dat je voldoende boekingsdata hebt geïmporteerd via de STR-module
-2. Ga naar **STR Prijzen**
-3. Bekijk de prijsaanbevelingen per object en periode
-4. Vergelijk de aanbevolen prijzen met je huidige tarieven
-5. Pas suggesties toe waar gewenst
+    - FIN-module moet actief zijn
+    - Omzetbestanden van je verhuurplatform (CSV of Excel)
 
-→ Meer: [STR Prijzen](../str-pricing/index.md)
+    **Eerste stappen:**
 
----
+    1. Download een omzetbestand van Airbnb of Booking.com
+    2. Ga naar **STR** en klik op **Importeren**
+    3. Selecteer het platform en upload het bestand
+    4. Bekijk de gerealiseerde en geplande boekingen
+    5. Controleer de berekende bedragen en sla op
 
-## ZZP Facturatie
+    → Meer: [STR](../str/index.md)
 
-Maak en verstuur facturen aan je klanten, registreer uren per project en beheer je debiteuren en crediteuren.
+    ---
 
-**Vereisten:**
+    ## STR Prijzen
 
-- FIN-module moet actief zijn
-- ZZP-module moet zijn ingeschakeld door je SysAdmin
+    Bekijk AI-gestuurde prijsaanbevelingen voor je verhuurobjecten.
 
-**Eerste stappen:**
+    **Vereisten:**
 
-1. **Controleer of de FIN-module actief is** — de ZZP-module vereist FIN
-2. **Maak je eerste contact aan** — ga naar **ZZP** → **Contacten** en maak een contact aan met een uniek Klant-ID en bedrijfsnaam
-3. **Maak je eerste product of dienst aan** — ga naar **ZZP** → **Producten** en maak een product aan met prijs en BTW-code
-4. **Maak je eerste factuur aan** — ga naar **ZZP** → **Facturen**, selecteer het contact, voeg regelitems toe en sla op als concept
-5. **Verstuur de factuur** — open het concept en klik op **Versturen** om de PDF te genereren, te boeken in FIN en per e-mail te versturen
-6. **Stel urenregistratie in** (optioneel) — als je uren wilt bijhouden, ga naar **ZZP** → **Urenregistratie** en registreer je eerste uren
-7. **Configureer e-mailinstellingen** (optioneel) — vraag je Tenant Admin om het e-mail onderwerp en de afzender in te stellen
+    - STR-module moet actief zijn
+    - Minstens één seizoen aan boekingsdata geïmporteerd
 
-!!! tip
-Begin met één contact en één product om het proces te leren kennen. Je kunt later altijd meer toevoegen.
+    **Eerste stappen:**
 
-→ Meer: [ZZP Facturatie](../zzp/index.md)
+    1. Zorg dat je voldoende boekingsdata hebt geïmporteerd via de STR-module
+    2. Ga naar **STR Prijzen**
+    3. Bekijk de prijsaanbevelingen per object en periode
+    4. Vergelijk de aanbevolen prijzen met je huidige tarieven
+    5. Pas suggesties toe waar gewenst
 
----
+    → Meer: [STR Prijzen](../str-pricing/index.md)
 
-## Rapportages
+=== "Rapportages & Belastingen"
 
-Bekijk interactieve dashboards, genereer winst- en verliesrekeningen en exporteer naar Excel.
+    ## Rapportages
 
-**Vereisten:**
+    Interactieve dashboards bekijken, winst- & verliesrekeningen genereren en exporteren naar Excel.
 
-- FIN-module moet actief zijn
-- Transacties moeten zijn geïmporteerd en verwerkt
+    **Vereisten:**
 
-**Eerste stappen:**
+    - FIN-module moet actief zijn
+    - Transacties moeten geïmporteerd en verwerkt zijn
 
-1. Zorg dat je bankafschriften en/of facturen hebt verwerkt
-2. Ga naar **Rapportages**
-3. Kies een dashboard of rapport
-4. Stel de gewenste periode in
-5. Exporteer naar Excel indien nodig
+    **Eerste stappen:**
 
-→ Meer: [Rapportages](../reports/index.md)
+    1. Zorg dat je bankafschriften en/of facturen hebt verwerkt
+    2. Ga naar **Rapportages**
+    3. Kies een dashboard of rapport
+    4. Stel de gewenste periode in
+    5. Exporteer naar Excel indien nodig
 
----
+    → Meer: [Rapportages](../reports/index.md)
 
-## Belastingen
+    ---
 
-Bereid BTW-aangiften, inkomstenbelasting (IB) en toeristenbelasting voor.
+    ## Belastingen
 
-**Vereisten:**
+    BTW-aangiften, inkomstenbelasting (IB) en toeristenbelasting voorbereiden.
 
-- FIN-module moet actief zijn
-- Transacties moeten zijn verwerkt voor de betreffende periode
+    **Vereisten:**
 
-**Eerste stappen:**
+    - FIN-module moet actief zijn
+    - Transacties moeten verwerkt zijn voor de betreffende periode
 
-1. Zorg dat alle transacties voor de aangifteperiode zijn verwerkt
-2. Ga naar **Belastingen** en kies het type aangifte (BTW, IB of toeristenbelasting)
-3. Selecteer de periode
-4. Controleer de berekende bedragen
-5. Exporteer het overzicht voor je aangifte
+    **Eerste stappen:**
 
-→ Meer: [Belastingen](../tax/index.md)
+    1. Zorg dat alle transacties voor de aangifteperiode zijn verwerkt
+    2. Ga naar **Belastingen** en kies het type aangifte (BTW, IB of toeristenbelasting)
+    3. Selecteer de periode
+    4. Controleer de berekende bedragen
+    5. Exporteer het overzicht voor je aangifte
 
----
+    → Meer: [Belastingen](../tax/index.md)
 
-## PDF Validatie
+    ---
 
-Controleer of Google Drive-links in je transacties nog werken en repareer verbroken koppelingen.
+    ## PDF Validatie
 
-**Vereisten:**
+    Controleer of Google Drive-links in je transacties nog werken en repareer gebroken links.
 
-- Google Drive moet geconfigureerd zijn
-- Transacties met Google Drive-links in je administratie
+    **Vereisten:**
 
-**Eerste stappen:**
+    - Google Drive moet geconfigureerd zijn
+    - Transacties met Google Drive-links in je administratie
 
-1. Ga naar **PDF Validatie**
-2. Klik op **Validatie starten**
-3. Wacht tot de controle is afgerond
-4. Bekijk de resultaten — groene links werken, rode links zijn verbroken
-5. Repareer verbroken links waar nodig
+    **Eerste stappen:**
 
-→ Meer: [PDF Validatie](../pdf-validation/index.md)
+    1. Ga naar **PDF Validatie**
+    2. Klik op **Validatie starten**
+    3. Wacht tot de controle is voltooid
+    4. Bekijk de resultaten — groene links werken, rode links zijn gebroken
+    5. Repareer gebroken links waar nodig
+
+    → Meer: [PDF Validatie](../pdf-validation/index.md)

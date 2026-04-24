@@ -700,34 +700,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/test-vs-production/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test vs Productie
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../getting-started/common-workflows/" class="md-nav__link">
         
   
@@ -2565,6 +2537,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#geavanceerde-parameters-geavanceerd-tabblad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Geavanceerde parameters (Geavanceerd tabblad)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Geavanceerde parameters (Geavanceerd tabblad)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hoe-het-parametersysteem-werkt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hoe het parametersysteem werkt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wat-je-ziet-in-het-geavanceerd-tabblad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wat je ziet in het Geavanceerd tabblad
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wanneer-het-geavanceerd-tabblad-gebruiken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wanneer het Geavanceerd tabblad gebruiken
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#belangrijke-parameter-namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Belangrijke parameter namespaces
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#problemen-oplossen" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3099,6 +3132,102 @@
 <li><strong>Rol aanmaken</strong> — Nieuwe rol toevoegen</li>
 <li><strong>Rol verwijderen</strong> — Rol verwijderen (alleen als er geen gebruikers aan gekoppeld zijn)</li>
 </ul>
+<h2 id="geavanceerde-parameters-geavanceerd-tabblad">Geavanceerde parameters (Geavanceerd tabblad)<a class="headerlink" href="#geavanceerde-parameters-geavanceerd-tabblad" title="Permanent link">&para;</a></h2>
+<p>Als SysAdmin heb je toegang tot het <strong>Geavanceerd tabblad</strong> (🔧) in het Tenant Beheer dashboard. Dit tabblad toont een ruwe parametertabel met alle configuratiewaarden voor de tenant.</p>
+<h3 id="hoe-het-parametersysteem-werkt">Hoe het parametersysteem werkt<a class="headerlink" href="#hoe-het-parametersysteem-werkt" title="Permanent link">&para;</a></h3>
+<p>Parameters bepalen hoe myAdmin zich gedraagt voor elke tenant. Ze volgen een <strong>scope-overervingsketen</strong>:</p>
+<div class="highlight"><pre><span></span><code>gebruiker → rol → tenant → systeem
+</code></pre></div>
+<p>Wanneer een parameter wordt opgevraagd, doorloopt het systeem deze keten en retourneert de eerste gevonden waarde. Dit betekent:</p>
+<ul>
+<li><strong>Systeem-scope</strong> parameters zijn standaardwaarden die voor alle tenants gelden. Ze zijn gedefinieerd in de codebase en veranderen alleen bij software-updates.</li>
+<li><strong>Tenant-scope</strong> parameters zijn overschrijvingen ingesteld door de Tenant Admin (via de gestructureerde tabbladen zoals Opslag en Financieel) of door de SysAdmin (via het Geavanceerd tabblad).</li>
+<li><strong>Rol-scope</strong> en <strong>Gebruiker-scope</strong> parameters maken fijnmazige overschrijvingen mogelijk voor specifieke rollen of gebruikers.</li>
+</ul>
+<h3 id="wat-je-ziet-in-het-geavanceerd-tabblad">Wat je ziet in het Geavanceerd tabblad<a class="headerlink" href="#wat-je-ziet-in-het-geavanceerd-tabblad" title="Permanent link">&para;</a></h3>
+<p>De ruwe parametertabel toont alle parameters over alle namespaces. Elke rij toont:</p>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Beschrijving</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Namespace</strong></td>
+<td>Parametergroep (bijv. <code>storage</code>, <code>fin</code>, <code>str</code>, <code>zzp_branding</code>)</td>
+</tr>
+<tr>
+<td><strong>Key</strong></td>
+<td>Parameternaam binnen de namespace</td>
+</tr>
+<tr>
+<td><strong>Value</strong></td>
+<td>Huidige waarde (geheimen zijn gemaskeerd voor niet-SysAdmin gebruikers)</td>
+</tr>
+<tr>
+<td><strong>Type</strong></td>
+<td>Datatype (<code>string</code>, <code>number</code>, <code>boolean</code>, <code>json</code>)</td>
+</tr>
+<tr>
+<td><strong>Scope</strong></td>
+<td>Waar de waarde vandaan komt (<code>system</code> = standaard, <code>tenant</code> = overschrijving)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="wanneer-het-geavanceerd-tabblad-gebruiken">Wanneer het Geavanceerd tabblad gebruiken<a class="headerlink" href="#wanneer-het-geavanceerd-tabblad-gebruiken" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Probleemoplossing</strong> — Controleer welke waarden een tenant daadwerkelijk gebruikt</li>
+<li><strong>Standaardwaarden overschrijven</strong> — Stel een tenant-specifieke waarde in die niet beschikbaar is via de gestructureerde UI</li>
+<li><strong>Geheimen beheren</strong> — Bekijk of werk versleutelde parameters bij (bijv. API-sleutels)</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+</div>
+<p>Wijzigingen in het Geavanceerd tabblad worden direct doorgevoerd. Wees voorzichtig bij het bewerken van systeem-scope parameters — deze beïnvloeden alle tenants.</p>
+<h3 id="belangrijke-parameter-namespaces">Belangrijke parameter namespaces<a class="headerlink" href="#belangrijke-parameter-namespaces" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Namespace</th>
+<th>Beschrijving</th>
+<th>Beheerd via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>storage</code></td>
+<td>Opslagprovider, map-ID's, bucketnamen</td>
+<td>Opslag tabblad (gestructureerde UI)</td>
+</tr>
+<tr>
+<td><code>fin</code></td>
+<td>Valuta, boekjaar, taal</td>
+<td>Financieel tabblad (gestructureerde UI)</td>
+</tr>
+<tr>
+<td><code>str</code></td>
+<td>Aantal kamers, platformen</td>
+<td>Moduleconfiguratie</td>
+</tr>
+<tr>
+<td><code>str_branding</code></td>
+<td>Bedrijfsgegevens voor STR-documenten</td>
+<td>Geavanceerd tabblad</td>
+</tr>
+<tr>
+<td><code>zzp_branding</code></td>
+<td>Bedrijfsgegevens voor ZZP-facturen</td>
+<td>Geavanceerd tabblad</td>
+</tr>
+<tr>
+<td><code>zzp</code></td>
+<td>Factuurprefix, betalingstermijnen, veldconfiguraties</td>
+<td>Moduleconfiguratie</td>
+</tr>
+</tbody>
+</table>
 <h2 id="problemen-oplossen">Problemen oplossen<a class="headerlink" href="#problemen-oplossen" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

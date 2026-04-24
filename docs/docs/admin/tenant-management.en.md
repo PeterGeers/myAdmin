@@ -94,6 +94,56 @@ As SysAdmin, you can also manage roles (Cognito groups):
 - **Create role** — Add a new role
 - **Delete role** — Remove a role (only if no users are assigned)
 
+## Advanced Parameters (Advanced Tab)
+
+As SysAdmin, you have access to the **Advanced tab** (🔧) in the Tenant Admin dashboard. This tab shows a raw parameter table with all configuration values for the tenant.
+
+### How the parameter system works
+
+Parameters control how myAdmin behaves for each tenant. They follow a **scope inheritance chain**:
+
+```
+user → role → tenant → system
+```
+
+When a parameter is requested, the system walks this chain and returns the first value found. This means:
+
+- **System-scope** parameters are defaults that apply to all tenants. They are defined in the codebase and only change when the software is updated.
+- **Tenant-scope** parameters are overrides set by the Tenant Admin (through the structured tabs like Storage and Financial) or by the SysAdmin (through the Advanced tab).
+- **Role-scope** and **User-scope** parameters allow fine-grained overrides for specific roles or users.
+
+### What you see in the Advanced tab
+
+The raw parameter table shows all parameters across all namespaces. Each row displays:
+
+| Column        | Description                                                          |
+| ------------- | -------------------------------------------------------------------- |
+| **Namespace** | Parameter group (e.g., `storage`, `fin`, `str`, `zzp_branding`)      |
+| **Key**       | Parameter name within the namespace                                  |
+| **Value**     | Current value (secrets are masked for non-SysAdmin users)            |
+| **Type**      | Data type (`string`, `number`, `boolean`, `json`)                    |
+| **Scope**     | Where the value comes from (`system` = default, `tenant` = override) |
+
+### When to use the Advanced tab
+
+- **Troubleshooting** — Check what values a tenant is actually using
+- **Override defaults** — Set a tenant-specific value that isn't available through the structured UI
+- **Manage secrets** — View or update encrypted parameters (e.g., API keys)
+
+!!! warning
+Changes in the Advanced tab take effect immediately. Be careful when editing system-scope parameters — they affect all tenants.
+
+### Key parameter namespaces
+
+| Namespace      | Description                                  | Managed via                   |
+| -------------- | -------------------------------------------- | ----------------------------- |
+| `storage`      | Storage provider, folder IDs, bucket names   | Storage tab (structured UI)   |
+| `fin`          | Currency, fiscal year, locale                | Financial tab (structured UI) |
+| `str`          | Room count, platforms                        | Module configuration          |
+| `str_branding` | Company details for STR documents            | Advanced tab                  |
+| `zzp_branding` | Company details for ZZP invoices             | Advanced tab                  |
+| `zzp`          | Invoice prefix, payment terms, field configs | Module configuration          |
+
 ## Troubleshooting
 
 | Problem               | Cause                      | Solution                              |

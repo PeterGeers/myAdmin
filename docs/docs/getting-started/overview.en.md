@@ -56,6 +56,3 @@ myAdmin is a web application consisting of:
 - A **database** (where your data is stored)
 
 You don't need to install anything — just open your browser and log in.
-
-!!! tip
-Use **Test mode** to explore the platform without touching real data. See [Test vs Production](test-vs-production.md) for more information.

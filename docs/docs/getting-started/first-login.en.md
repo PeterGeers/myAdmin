@@ -17,6 +17,8 @@ myAdmin uses AWS Cognito for authentication. You'll receive login credentials fr
 
 Go to the URL provided by your administrator. You'll see the login screen.
 
+![Login screen](../assets/images/getting-started/login.png){ width="400" }
+
 ### 2. Log in
 
 Enter your username and password and click **Log in**.
@@ -27,6 +29,8 @@ On your first login, you may be asked to change your password. Choose a strong p
 ### 3. Navigation
 
 After logging in, you'll see the main menu with the following sections:
+
+![Navigation menu](../assets/images/banking/uk-functions.png){ width="700" }
 
 | Menu item          | What it does                                         |
 | ------------------ | ---------------------------------------------------- |
@@ -39,18 +43,15 @@ After logging in, you'll see the main menu with the following sections:
 | **PDF Validation** | Check Google Drive links                             |
 | **Admin**          | Settings and user management _(administrators only)_ |
 
-### 4. Test or Production mode
-
-In the top-right corner of the application, you'll see a toggle for **Test** or **Production** mode. New users start in test mode by default.
-
-!!! warning
-In **Production mode**, you're working with real data. Only switch when you're sure about what you're doing. See [Test vs Production](test-vs-production.md).
-
 ## Tips
 
 - Use the **search function** in the menu to quickly navigate to a module
 - Click the :material-help-circle: icon in the top-right of any page for contextual help
 - Your session expires after a period of inactivity — log in again if that happens
+
+## Next step
+
+Now that you're logged in, set up your modules: [Setting Up Modules](onboarding.md)
 
 ## Troubleshooting
 

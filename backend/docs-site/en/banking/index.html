@@ -700,34 +700,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../getting-started/test-vs-production/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test vs Productie
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../getting-started/common-workflows/" class="md-nav__link">
         
   
@@ -2892,32 +2864,13 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
 <p>The Banking module is the core of your financial administration in myAdmin. Here you process bank statements, review transactions, and make sure every posting ends up on the correct general ledger account.</p>
 <h2 id="what-can-you-do-here">What can you do here?<a class="headerlink" href="#what-can-you-do-here" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Task</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="importing-statements/">Import statements</a></td>
-<td>Upload and process CSV files from your bank</td>
-</tr>
-<tr>
-<td><a href="reviewing-transactions/">Review transactions</a></td>
-<td>View, edit, and save imported transactions</td>
-</tr>
-<tr>
-<td><a href="pattern-matching/">Apply patterns</a></td>
-<td>Automatically fill in debit and credit accounts</td>
-</tr>
-<tr>
-<td><a href="handling-duplicates/">Handle duplicates</a></td>
-<td>Detect and prevent duplicate transactions</td>
-</tr>
-</tbody>
-</table>
+<p><img alt="Banking functions" src="../../assets/images/banking/uk-banking.png" width="600" />
+| Task | Description |
+| ------------------------------------------------ | ----------------------------------------------- |
+| <a href="importing-statements/">Import statements</a> | Upload and process CSV files from your bank |
+| <a href="reviewing-transactions/">Review transactions</a> | View, edit, and save imported transactions |
+| <a href="pattern-matching/">Apply patterns</a> | Automatically fill in debit and credit accounts |
+| <a href="handling-duplicates/">Handle duplicates</a> | Detect and prevent duplicate transactions |</p>
 <h2 id="typical-workflow">Typical workflow<a class="headerlink" href="#typical-workflow" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>graph LR
     A[Download CSV] --&gt; B[Import]
@@ -3014,7 +2967,7 @@
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 </div>
-<p>Always start in <strong>Test mode</strong> when importing bank statements for the first time. This way you can learn the process without risk.</p>
+<p>Always start by importing a bank statement in a test environment when trying the process for the first time. This way you can learn without risk.</p>
 
 
 

@@ -8,12 +8,13 @@ The Banking module is the core of your financial administration in myAdmin. Here
 
 ## What can you do here?
 
-| Task                                             | Description                                     |
+![Banking functions](../assets/images/banking/uk-banking.png){ width="600" }
+| Task | Description |
 | ------------------------------------------------ | ----------------------------------------------- |
-| [Import statements](importing-statements.md)     | Upload and process CSV files from your bank     |
-| [Review transactions](reviewing-transactions.md) | View, edit, and save imported transactions      |
-| [Apply patterns](pattern-matching.md)            | Automatically fill in debit and credit accounts |
-| [Handle duplicates](handling-duplicates.md)      | Detect and prevent duplicate transactions       |
+| [Import statements](importing-statements.md) | Upload and process CSV files from your bank |
+| [Review transactions](reviewing-transactions.md) | View, edit, and save imported transactions |
+| [Apply patterns](pattern-matching.md) | Automatically fill in debit and credit accounts |
+| [Handle duplicates](handling-duplicates.md) | Detect and prevent duplicate transactions |
 
 ## Typical workflow
 
@@ -57,4 +58,4 @@ Each transaction contains the following fields:
 | Ref4             | Source file name                               |
 
 !!! tip
-Always start in **Test mode** when importing bank statements for the first time. This way you can learn the process without risk.
+Always start by importing a bank statement in a test environment when trying the process for the first time. This way you can learn without risk.

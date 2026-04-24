@@ -703,34 +703,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../test-vs-production/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test vs Productie
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../common-workflows/" class="md-nav__link">
         
   
@@ -852,6 +824,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#zzp-invoicing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ZZP Invoicing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#str-short-term-rental" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -867,17 +850,6 @@
     <span class="md-ellipsis">
       
         STR Pricing
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#zzp-invoicing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ZZP Invoicing
       
     </span>
   </a>
@@ -2934,12 +2906,15 @@
 <p>Step-by-step guide to get started with each module.</p>
 </blockquote>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>myAdmin consists of multiple modules that you can activate individually. Below you'll find per module what you need and which first steps to take to get started.</p>
+<p>myAdmin consists of multiple modules that you can activate individually. Select your module below to see what you need and which first steps to take.</p>
 <div class="admonition info">
 <p class="admonition-title">Info</p>
 </div>
 <p>Modules are enabled by your SysAdmin. If you don't see a module, ask whether it has been activated for your tenant.</p>
 <hr />
+<div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Banking &amp; Invoices</label><label for="__tabbed_1_2">ZZP Invoicing</label><label for="__tabbed_1_3">STR &amp; Pricing</label><label for="__tabbed_1_4">Reports &amp; Tax</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
 <h2 id="banking">Banking<a class="headerlink" href="#banking" title="Permanent link">&para;</a></h2>
 <p>Import bank statements, set up patterns for automatic account assignment, and process transactions.</p>
 <p><strong>Prerequisites:</strong></p>
@@ -2973,7 +2948,32 @@
 <li>Review the result and click <strong>Approve</strong></li>
 </ol>
 <p>→ More: <a href="../../invoices/">Invoices</a></p>
-<hr />
+</div>
+<div class="tabbed-block">
+<h2 id="zzp-invoicing">ZZP Invoicing<a class="headerlink" href="#zzp-invoicing" title="Permanent link">&para;</a></h2>
+<p>Create and send invoices to your clients, track hours per project, and manage your debtors and creditors.</p>
+<p><strong>Prerequisites:</strong></p>
+<ul>
+<li>FIN module must be active</li>
+<li>ZZP module must be enabled by your SysAdmin</li>
+</ul>
+<p><strong>First steps:</strong></p>
+<ol>
+<li><strong>Check that the FIN module is active</strong> — the ZZP module requires FIN</li>
+<li><strong>Create your first contact</strong> — go to <strong>ZZP</strong> → <strong>Contacts</strong> and create a contact with a unique Client ID and company name</li>
+<li><strong>Create your first product or service</strong> — go to <strong>ZZP</strong> → <strong>Products</strong> and create a product with price and VAT code</li>
+<li><strong>Create your first invoice</strong> — go to <strong>ZZP</strong> → <strong>Invoices</strong>, select the contact, add line items, and save as draft</li>
+<li><strong>Send the invoice</strong> — open the draft and click <strong>Send</strong> to generate the PDF, book in FIN, and send by email</li>
+<li><strong>Set up time tracking</strong> (optional) — if you want to track hours, go to <strong>ZZP</strong> → <strong>Time Tracking</strong> and log your first hours</li>
+<li><strong>Configure email settings</strong> (optional) — ask your Tenant Admin to set up the email subject and sender</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Start with one contact and one product to learn the process. You can always add more later.</p>
+</div>
+<p>→ More: <a href="../../zzp/">ZZP Invoicing</a></p>
+</div>
+<div class="tabbed-block">
 <h2 id="str-short-term-rental">STR (Short-Term Rental)<a class="headerlink" href="#str-short-term-rental" title="Permanent link">&para;</a></h2>
 <p>Process revenue files from Airbnb, Booking.com, and other rental platforms.</p>
 <p><strong>Prerequisites:</strong></p>
@@ -3007,30 +3007,8 @@
 <li>Apply suggestions where desired</li>
 </ol>
 <p>→ More: <a href="../../str-pricing/">STR Pricing</a></p>
-<hr />
-<h2 id="zzp-invoicing">ZZP Invoicing<a class="headerlink" href="#zzp-invoicing" title="Permanent link">&para;</a></h2>
-<p>Create and send invoices to your clients, track hours per project, and manage your debtors and creditors.</p>
-<p><strong>Prerequisites:</strong></p>
-<ul>
-<li>FIN module must be active</li>
-<li>ZZP module must be enabled by your SysAdmin</li>
-</ul>
-<p><strong>First steps:</strong></p>
-<ol>
-<li><strong>Check that the FIN module is active</strong> — the ZZP module requires FIN</li>
-<li><strong>Create your first contact</strong> — go to <strong>ZZP</strong> → <strong>Contacts</strong> and create a contact with a unique Client ID and company name</li>
-<li><strong>Create your first product or service</strong> — go to <strong>ZZP</strong> → <strong>Products</strong> and create a product with price and VAT code</li>
-<li><strong>Create your first invoice</strong> — go to <strong>ZZP</strong> → <strong>Invoices</strong>, select the contact, add line items, and save as draft</li>
-<li><strong>Send the invoice</strong> — open the draft and click <strong>Send</strong> to generate the PDF, book in FIN, and send by email</li>
-<li><strong>Set up time tracking</strong> (optional) — if you want to track hours, go to <strong>ZZP</strong> → <strong>Time Tracking</strong> and log your first hours</li>
-<li><strong>Configure email settings</strong> (optional) — ask your Tenant Admin to set up the email subject and sender</li>
-</ol>
-<div class="admonition tip">
-<p class="admonition-title">Tip</p>
 </div>
-<p>Start with one contact and one product to learn the process. You can always add more later.</p>
-<p>→ More: <a href="../../zzp/">ZZP Invoicing</a></p>
-<hr />
+<div class="tabbed-block">
 <h2 id="reports">Reports<a class="headerlink" href="#reports" title="Permanent link">&para;</a></h2>
 <p>View interactive dashboards, generate profit &amp; loss statements, and export to Excel.</p>
 <p><strong>Prerequisites:</strong></p>
@@ -3081,6 +3059,9 @@
 <li>Fix broken links where needed</li>
 </ol>
 <p>→ More: <a href="../../pdf-validation/">PDF Validation</a></p>
+</div>
+</div>
+</div>
 
 
 

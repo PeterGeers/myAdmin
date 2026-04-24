@@ -55,7 +55,7 @@ Wanneer een factuur wordt verwerkt, slaat het systeem de Google Drive-link op in
 Google Drive-toegang wordt per administratie geconfigureerd door je beheerder. Het systeem gebruikt OAuth-authenticatie om veilig verbinding te maken met Google Drive.
 
 !!! info
-Als de Google Drive-verbinding verloopt, verschijnt er een melding in de applicatie. Neem contact op met je beheerder om de verbinding te vernieuwen.
+Als de Google Drive-verbinding verloopt, verschijnt er een melding in de applicatie. Neem contact op met je beheerder om de verbinding te vernieuwen. Zie [Instellingen — Opslag tabblad](../tenant-admin/tenant-settings.md) voor configuratie-instructies.
 
 ## Tips
 

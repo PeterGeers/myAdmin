@@ -4,14 +4,6 @@
 
 ## General
 
-### What's the difference between Test and Production mode?
-
-Test mode uses a separate database so you can safely practice. Production mode works with your real financial data. See [Test vs Production](getting-started/test-vs-production.md) for more details.
-
-### How do I know which mode I'm in?
-
-The current mode is always visible in the top-right of the navigation bar. **Test** or **Production** is clearly indicated.
-
 ### My session expired, what now?
 
 Sessions expire after a period of inactivity. Simply log in again with your username and password. Any work that was already saved is not lost.

@@ -8,12 +8,13 @@ De module Bankzaken is het hart van je financiële administratie in myAdmin. Hie
 
 ## Wat kun je hier doen?
 
-| Taak                                                 | Beschrijving                                            |
+![Bankzaken functies](../assets/images/banking/nl-banking.png){ width="600" }
+| Taak | Beschrijving |
 | ---------------------------------------------------- | ------------------------------------------------------- |
-| [Afschriften importeren](importing-statements.md)    | CSV-bestanden van je bank uploaden en verwerken         |
+| [Afschriften importeren](importing-statements.md) | CSV-bestanden van je bank uploaden en verwerken |
 | [Transacties controleren](reviewing-transactions.md) | Geïmporteerde transacties bekijken, bewerken en opslaan |
-| [Patronen toepassen](pattern-matching.md)            | Automatisch debet- en creditrekeningen laten invullen   |
-| [Duplicaten afhandelen](handling-duplicates.md)      | Dubbele transacties herkennen en voorkomen              |
+| [Patronen toepassen](pattern-matching.md) | Automatisch debet- en creditrekeningen laten invullen |
+| [Duplicaten afhandelen](handling-duplicates.md) | Dubbele transacties herkennen en voorkomen |
 
 ## Typische workflow
 
@@ -57,4 +58,4 @@ Elke transactie bevat de volgende velden:
 | Ref4             | Bronbestandsnaam                              |
 
 !!! tip
-Begin altijd in **Testmodus** als je voor het eerst bankafschriften importeert. Zo kun je het proces leren kennen zonder risico.
+Begin altijd met het importeren van een bankafschrift in een testomgeving als je het proces voor het eerst uitprobeert. Zo kun je het leren kennen zonder risico.
