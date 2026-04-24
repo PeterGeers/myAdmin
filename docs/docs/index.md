@@ -90,8 +90,7 @@ Nieuw bij myAdmin? Begin hier:
 
 1. [Wat is myAdmin?](getting-started/overview.md) — kort overzicht van het platform
 2. [Eerste login](getting-started/first-login.md) — inloggen en navigeren
-3. [Test vs Productie](getting-started/test-vs-production.md) — wanneer gebruik je welke modus
-4. [Veelgebruikte workflows](getting-started/common-workflows.md) — de belangrijkste taken op een rij
+3. [Veelgebruikte workflows](getting-started/common-workflows.md) — de belangrijkste taken op een rij
 
 ## Hulp nodig?
 

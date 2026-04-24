@@ -32,6 +32,8 @@ Log in bij je internetbankieren en download het afschrift als CSV-bestand.
 
 Ga in myAdmin naar **Bankzaken**. Je ziet het importscherm.
 
+![Bankimport](../assets/images/banking/nl-bank-import.png){ width="700" }
+
 ### 3. Selecteer bestanden
 
 Klik op **Bestanden kiezen** en selecteer een of meer CSV-bestanden. Je kunt meerdere bestanden tegelijk selecteren.

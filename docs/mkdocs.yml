@@ -40,6 +40,8 @@ markdown_extensions:
   - admonition
   - pymdownx.details
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
@@ -53,7 +55,6 @@ nav:
   - Aan de slag:
       - Overzicht: getting-started/overview.md
       - Eerste login: getting-started/first-login.md
-      - Test vs Productie: getting-started/test-vs-production.md
       - Veelgebruikte workflows: getting-started/common-workflows.md
       - Modules instellen: getting-started/onboarding.md
   - Bankzaken:

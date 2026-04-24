@@ -4,14 +4,6 @@
 
 ## Algemeen
 
-### Wat is het verschil tussen Test- en Productiemodus?
-
-Testmodus gebruikt een aparte database zodat je veilig kunt oefenen. Productiemodus werkt met je echte financiële gegevens. Zie [Test vs Productie](getting-started/test-vs-production.md) voor meer details.
-
-### Hoe weet ik in welke modus ik zit?
-
-De huidige modus is altijd zichtbaar rechtsboven in de navigatiebalk. **Test** of **Productie** staat duidelijk aangegeven.
-
 ### Mijn sessie is verlopen, wat nu?
 
 Sessies verlopen na een periode van inactiviteit. Log gewoon opnieuw in met je gebruikersnaam en wachtwoord. Je werk dat al was opgeslagen gaat niet verloren.

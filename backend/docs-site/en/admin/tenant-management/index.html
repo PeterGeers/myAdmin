@@ -700,34 +700,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/test-vs-production/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Test vs Productie
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../../getting-started/common-workflows/" class="md-nav__link">
         
   
@@ -2565,6 +2537,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#advanced-parameters-advanced-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Parameters (Advanced Tab)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced Parameters (Advanced Tab)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-parameter-system-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the parameter system works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-you-see-in-the-advanced-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you see in the Advanced tab
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-use-the-advanced-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use the Advanced tab
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-parameter-namespaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key parameter namespaces
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#troubleshooting" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3099,6 +3132,102 @@
 <li><strong>Create role</strong> — Add a new role</li>
 <li><strong>Delete role</strong> — Remove a role (only if no users are assigned)</li>
 </ul>
+<h2 id="advanced-parameters-advanced-tab">Advanced Parameters (Advanced Tab)<a class="headerlink" href="#advanced-parameters-advanced-tab" title="Permanent link">&para;</a></h2>
+<p>As SysAdmin, you have access to the <strong>Advanced tab</strong> (🔧) in the Tenant Admin dashboard. This tab shows a raw parameter table with all configuration values for the tenant.</p>
+<h3 id="how-the-parameter-system-works">How the parameter system works<a class="headerlink" href="#how-the-parameter-system-works" title="Permanent link">&para;</a></h3>
+<p>Parameters control how myAdmin behaves for each tenant. They follow a <strong>scope inheritance chain</strong>:</p>
+<div class="highlight"><pre><span></span><code>user → role → tenant → system
+</code></pre></div>
+<p>When a parameter is requested, the system walks this chain and returns the first value found. This means:</p>
+<ul>
+<li><strong>System-scope</strong> parameters are defaults that apply to all tenants. They are defined in the codebase and only change when the software is updated.</li>
+<li><strong>Tenant-scope</strong> parameters are overrides set by the Tenant Admin (through the structured tabs like Storage and Financial) or by the SysAdmin (through the Advanced tab).</li>
+<li><strong>Role-scope</strong> and <strong>User-scope</strong> parameters allow fine-grained overrides for specific roles or users.</li>
+</ul>
+<h3 id="what-you-see-in-the-advanced-tab">What you see in the Advanced tab<a class="headerlink" href="#what-you-see-in-the-advanced-tab" title="Permanent link">&para;</a></h3>
+<p>The raw parameter table shows all parameters across all namespaces. Each row displays:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Namespace</strong></td>
+<td>Parameter group (e.g., <code>storage</code>, <code>fin</code>, <code>str</code>, <code>zzp_branding</code>)</td>
+</tr>
+<tr>
+<td><strong>Key</strong></td>
+<td>Parameter name within the namespace</td>
+</tr>
+<tr>
+<td><strong>Value</strong></td>
+<td>Current value (secrets are masked for non-SysAdmin users)</td>
+</tr>
+<tr>
+<td><strong>Type</strong></td>
+<td>Data type (<code>string</code>, <code>number</code>, <code>boolean</code>, <code>json</code>)</td>
+</tr>
+<tr>
+<td><strong>Scope</strong></td>
+<td>Where the value comes from (<code>system</code> = default, <code>tenant</code> = override)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="when-to-use-the-advanced-tab">When to use the Advanced tab<a class="headerlink" href="#when-to-use-the-advanced-tab" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Troubleshooting</strong> — Check what values a tenant is actually using</li>
+<li><strong>Override defaults</strong> — Set a tenant-specific value that isn't available through the structured UI</li>
+<li><strong>Manage secrets</strong> — View or update encrypted parameters (e.g., API keys)</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+</div>
+<p>Changes in the Advanced tab take effect immediately. Be careful when editing system-scope parameters — they affect all tenants.</p>
+<h3 id="key-parameter-namespaces">Key parameter namespaces<a class="headerlink" href="#key-parameter-namespaces" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Namespace</th>
+<th>Description</th>
+<th>Managed via</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>storage</code></td>
+<td>Storage provider, folder IDs, bucket names</td>
+<td>Storage tab (structured UI)</td>
+</tr>
+<tr>
+<td><code>fin</code></td>
+<td>Currency, fiscal year, locale</td>
+<td>Financial tab (structured UI)</td>
+</tr>
+<tr>
+<td><code>str</code></td>
+<td>Room count, platforms</td>
+<td>Module configuration</td>
+</tr>
+<tr>
+<td><code>str_branding</code></td>
+<td>Company details for STR documents</td>
+<td>Advanced tab</td>
+</tr>
+<tr>
+<td><code>zzp_branding</code></td>
+<td>Company details for ZZP invoices</td>
+<td>Advanced tab</td>
+</tr>
+<tr>
+<td><code>zzp</code></td>
+<td>Invoice prefix, payment terms, field configs</td>
+<td>Module configuration</td>
+</tr>
+</tbody>
+</table>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

@@ -56,6 +56,3 @@ myAdmin bestaat uit een webapplicatie met:
 - Een **database** (waar je gegevens worden opgeslagen)
 
 Je hoeft niets te installeren — open gewoon de browser en log in.
-
-!!! tip
-Gebruik de **Testmodus** om het platform te verkennen zonder echte gegevens aan te raken. Zie [Test vs Productie](test-vs-production.md) voor meer informatie.

@@ -55,7 +55,7 @@ When an invoice is processed, the system stores the Google Drive link in the **R
 Google Drive access is configured per administration by your administrator. The system uses OAuth authentication to securely connect to Google Drive.
 
 !!! info
-If the Google Drive connection expires, a notification appears in the application. Contact your administrator to renew the connection.
+If the Google Drive connection expires, a notification appears in the application. Contact your administrator to renew the connection. For setup instructions, see [Settings — Storage tab](../tenant-admin/tenant-settings.md).
 
 ## Tips
 

@@ -94,6 +94,56 @@ Als SysAdmin kun je ook rollen (Cognito-groepen) beheren:
 - **Rol aanmaken** — Nieuwe rol toevoegen
 - **Rol verwijderen** — Rol verwijderen (alleen als er geen gebruikers aan gekoppeld zijn)
 
+## Geavanceerde parameters (Geavanceerd tabblad)
+
+Als SysAdmin heb je toegang tot het **Geavanceerd tabblad** (🔧) in het Tenant Beheer dashboard. Dit tabblad toont een ruwe parametertabel met alle configuratiewaarden voor de tenant.
+
+### Hoe het parametersysteem werkt
+
+Parameters bepalen hoe myAdmin zich gedraagt voor elke tenant. Ze volgen een **scope-overervingsketen**:
+
+```
+gebruiker → rol → tenant → systeem
+```
+
+Wanneer een parameter wordt opgevraagd, doorloopt het systeem deze keten en retourneert de eerste gevonden waarde. Dit betekent:
+
+- **Systeem-scope** parameters zijn standaardwaarden die voor alle tenants gelden. Ze zijn gedefinieerd in de codebase en veranderen alleen bij software-updates.
+- **Tenant-scope** parameters zijn overschrijvingen ingesteld door de Tenant Admin (via de gestructureerde tabbladen zoals Opslag en Financieel) of door de SysAdmin (via het Geavanceerd tabblad).
+- **Rol-scope** en **Gebruiker-scope** parameters maken fijnmazige overschrijvingen mogelijk voor specifieke rollen of gebruikers.
+
+### Wat je ziet in het Geavanceerd tabblad
+
+De ruwe parametertabel toont alle parameters over alle namespaces. Elke rij toont:
+
+| Kolom         | Beschrijving                                                                  |
+| ------------- | ----------------------------------------------------------------------------- |
+| **Namespace** | Parametergroep (bijv. `storage`, `fin`, `str`, `zzp_branding`)                |
+| **Key**       | Parameternaam binnen de namespace                                             |
+| **Value**     | Huidige waarde (geheimen zijn gemaskeerd voor niet-SysAdmin gebruikers)       |
+| **Type**      | Datatype (`string`, `number`, `boolean`, `json`)                              |
+| **Scope**     | Waar de waarde vandaan komt (`system` = standaard, `tenant` = overschrijving) |
+
+### Wanneer het Geavanceerd tabblad gebruiken
+
+- **Probleemoplossing** — Controleer welke waarden een tenant daadwerkelijk gebruikt
+- **Standaardwaarden overschrijven** — Stel een tenant-specifieke waarde in die niet beschikbaar is via de gestructureerde UI
+- **Geheimen beheren** — Bekijk of werk versleutelde parameters bij (bijv. API-sleutels)
+
+!!! warning
+Wijzigingen in het Geavanceerd tabblad worden direct doorgevoerd. Wees voorzichtig bij het bewerken van systeem-scope parameters — deze beïnvloeden alle tenants.
+
+### Belangrijke parameter namespaces
+
+| Namespace      | Beschrijving                                         | Beheerd via                             |
+| -------------- | ---------------------------------------------------- | --------------------------------------- |
+| `storage`      | Opslagprovider, map-ID's, bucketnamen                | Opslag tabblad (gestructureerde UI)     |
+| `fin`          | Valuta, boekjaar, taal                               | Financieel tabblad (gestructureerde UI) |
+| `str`          | Aantal kamers, platformen                            | Moduleconfiguratie                      |
+| `str_branding` | Bedrijfsgegevens voor STR-documenten                 | Geavanceerd tabblad                     |
+| `zzp_branding` | Bedrijfsgegevens voor ZZP-facturen                   | Geavanceerd tabblad                     |
+| `zzp`          | Factuurprefix, betalingstermijnen, veldconfiguraties | Moduleconfiguratie                      |
+
 ## Problemen oplossen
 
 | Probleem                    | Oorzaak                         | Oplossing                                  |

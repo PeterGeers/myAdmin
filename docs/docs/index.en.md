@@ -90,8 +90,7 @@ New to myAdmin? Start here:
 
 1. [What is myAdmin?](getting-started/overview.md) — brief platform overview
 2. [First login](getting-started/first-login.md) — logging in and navigating
-3. [Test vs Production](getting-started/test-vs-production.md) — when to use which mode
-4. [Common workflows](getting-started/common-workflows.md) — key tasks at a glance
+3. [Common workflows](getting-started/common-workflows.md) — key tasks at a glance
 
 ## Need Help?
 

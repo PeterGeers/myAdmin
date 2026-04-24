@@ -8,6 +8,8 @@ De STR-module verwerkt omzetbestanden van verhuurplatforms. Je importeert boekin
 
 ## Wat kun je hier doen?
 
+![STR modules](../assets/images/STR/nl_str_modules.png){ width="600" }
+
 | Taak                                              | Beschrijving                                                          |
 | ------------------------------------------------- | --------------------------------------------------------------------- |
 | [Boekingen importeren](importing-bookings.md)     | Bestanden van Airbnb, Booking.com, VRBO of directe boekingen uploaden |

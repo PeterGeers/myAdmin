@@ -99,7 +99,7 @@ This is a quick reference for the most common tasks. Each workflow links to deta
 ## Tips
 
 !!! tip
-Always start in **Test mode** when performing a new workflow for the first time. This way you can practice without risk.
+Always start by practicing a new workflow in a test environment first. This way you can learn without risk.
 
 - Most imports show a progress bar — wait until it completes
 - Use **Apply Patterns** after every bank import to save time

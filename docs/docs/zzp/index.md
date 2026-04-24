@@ -11,6 +11,8 @@ De ZZP-module vereist dat de FIN-module (Financiële Administratie) actief is vo
 
 ## Wat kun je hier doen?
 
+![ZZP functies](../assets/images/ZZP/nl_freelance_functions.png){ width="600" }
+
 | Taak                                      | Beschrijving                                         |
 | ----------------------------------------- | ---------------------------------------------------- |
 | [Contacten beheren](contacts.md)          | Klanten en leveranciers registreren en beheren       |

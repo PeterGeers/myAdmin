@@ -11,6 +11,8 @@ The ZZP module requires the FIN module (Financial Administration) to be active f
 
 ## What can you do here?
 
+![ZZP functions](../assets/images/ZZP/uk_freelance_functions.png){ width="600" }
+
 | Task                                      | Description                                  |
 | ----------------------------------------- | -------------------------------------------- |
 | [Managing contacts](contacts.md)          | Register and manage clients and suppliers    |
