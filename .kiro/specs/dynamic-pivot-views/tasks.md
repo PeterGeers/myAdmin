@@ -6,15 +6,15 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
 
 ## Tasks
 
-- [ ] 1. Database migration and backend foundation
-  - [ ] 1.1 Create the `pivot_models` database table
+- [x] 1. Database migration and backend foundation
+  - [x] 1.1 Create the `pivot_models` database table
     - Write a SQL migration script that creates the `pivot_models` table
     - Columns: `id`, `administration`, `name`, `data_source`, `definition` (JSON), `created_by`, `created_at`, `updated_at`
     - Include unique key `uq_admin_user_name (administration, created_by, name)` and index `idx_administration`
     - Run the migration against dev/test database to create the table
     - _Requirements: 4.2, 4.3, 4.5_
 
-  - [ ] 1.2 Create `AllowedColumnsRegistry` in `backend/src/services/pivot_service.py`
+  - [x] 1.2 Create `AllowedColumnsRegistry` in `backend/src/services/pivot_service.py`
     - Define `SYSTEM_ALLOWED_COLUMNS` dict with `vw_mutaties` and `vw_bnb_total` entries matching the design
     - Define `TENANT_COLUMN_MAP` dict mapping each data source to its tenant isolation column name (e.g., `'vw_mutaties': 'administration'`)
     - Define `DATA_SOURCE_FILTER_CONFIG` dict mapping each data source to its supported filter keys (e.g., `'vw_mutaties': ['years', 'administration', 'profitLoss', 'ledger']`)
@@ -27,13 +27,28 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Adding a new data source = add one entry to each of the three dicts — no other code changes needed
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
 
-  - [ ] 1.3 Seed `ui.pivot` parameter entries for existing tenants
-    - Create SQL seed script to insert default `allowed_columns.vw_mutaties` and `allowed_columns.vw_bnb_total` parameters at system scope
-    - Seed makes the full system-level column lists visible and editable in the ParameterManagement UI
-    - Use namespace `ui.pivot`, value_type `json`, scope `system`
-    - _Requirements: 6.7_
+  - [x] 1.3 Extend ParameterService to merge code defaults with database rows
+    - Add a `CODE_DEFAULTS` registry dict in `parameter_service.py` — maps `(namespace, key)` to `{value, value_type, description}`
+    - Register pivot defaults: `('ui.pivot', 'allowed_columns.vw_mutaties')` and `('ui.pivot', 'allowed_columns.vw_bnb_total')` with the full system column lists
+    - Modify `get_params_by_namespace()` to merge code defaults with database rows:
+      - Code defaults represent the system scope — they are the system-level values
+      - Tenant-scope database rows take precedence over code defaults (system)
+      - Code defaults that have no tenant override are included with `scope_origin: "system"`
+      - Tenant overrides are included with `scope_origin: "tenant"`
+      - No system-scope rows needed in the database — code IS the system scope
+    - This allows tenant admins to see all available parameters in the ParameterManagement UI without seed scripts
+    - "Reset to default" = delete the tenant-scope row → code default (system) takes over
+    - This pattern is reusable for any future module that needs discoverable defaults
+    - _Requirements: 6.2, 6.3, 6.7_
 
-  - [ ] 1.4 Create `PivotModelStore` in `backend/src/services/pivot_model_store.py`
+  - [x] 1.4 Update ParameterManagement UI to handle system (code) defaults
+    - Display parameters with `scope_origin: "system"` as read-only rows with a "Customize" action
+    - "Customize" creates a tenant-scope copy of the system default, making it editable
+    - "Reset" on a tenant-scope parameter deletes the row, reverting to system default from code
+    - Visually distinguish system defaults from tenant overrides (e.g., different badge color or icon)
+    - _Requirements: 6.2, 6.7_
+
+  - [x] 1.5 Create `PivotModelStore` in `backend/src/services/pivot_model_store.py`
     - Implement `save_model(tenant, user_email, name, definition)` — INSERT with duplicate name check
     - Implement `update_model(tenant, user_email, model_id, definition)` — UPDATE with timestamp
     - Implement `load_model(tenant, model_id)` — SELECT + JSON deserialization with validation
@@ -44,12 +59,12 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Use `DatabaseManager` with parameterized queries for all operations
     - _Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 10.1, 10.2, 10.3, 10.4_
 
-- [ ] 2. Checkpoint — Database and model layer complete
+- [x] 2. Checkpoint — Database and model layer complete
   - Ensure migration runs cleanly, PivotModelStore and AllowedColumnsRegistry compile without errors
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 3. PivotService query builder
-  - [ ] 3.1 Implement `PivotService` core in `backend/src/services/pivot_service.py`
+- [x] 3. PivotService query builder
+  - [x] 3.1 Implement `PivotService` core in `backend/src/services/pivot_service.py`
     - Implement `execute_pivot(tenant, user_tenants, config)` — orchestrates validation, query building, execution
     - Implement `build_pivot_query(config, user_tenants)` — generates parameterized SELECT with GROUP BY
     - Build WHERE clause with `administration IN (%s, %s, ...)` using `user_tenants` list for tenant isolation
@@ -61,20 +76,20 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Return `{success, data, columns, row_count}` response structure
     - _Requirements: 1.5, 1.6, 1.7, 1.8, 2.4, 3.1, 3.2, 3.3, 3.9_
 
-  - [ ] 3.2 Implement column pivot query generation
+  - [x] 3.2 Implement column pivot query generation
     - When `column_pivot` is set, generate conditional aggregation: `SUM(CASE WHEN pivot_col = %s THEN agg_col ELSE 0 END) AS label`
     - Support `column_nest_levels` for hierarchical column headers
     - Validate column role overlap: same column cannot be row group, column pivot, and column nest level simultaneously
     - Append grand total columns per pivot group
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.7, 9.8, 9.9, 9.10, 9.11_
 
-  - [ ] 3.3 Implement `build_underlying_query(config, user_tenants)`
+  - [x] 3.3 Implement `build_underlying_query(config, user_tenants)`
     - Build query for underlying (non-aggregated) dataset export
     - Apply same filters and tenant isolation but no GROUP BY
     - Return all columns from the data source matching filter criteria
     - _Requirements: 7.4_
 
-  - [ ] 3.4 Write property tests for PivotModelStore serialization (Properties 1, 2)
+  - [x] 3.4 Write property tests for PivotModelStore serialization (Properties 1, 2)
     - Create `backend/tests/unit/test_pivot_model_serialization.py`
     - **Property 1: Pivot model serialization round-trip** — For any valid definition, serialize then deserialize produces equivalent definition
     - **Property 2: Malformed JSON rejection** — For any invalid/incomplete JSON, deserialization raises descriptive error
@@ -82,14 +97,14 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Custom strategies for `PivotModelDefinition` with valid data sources, group columns, aggregate measures
     - **Validates: Requirements 4.2, 4.5, 10.1, 10.2, 10.3, 10.4**
 
-  - [ ] 3.5 Write property tests for pivot config validation (Properties 3, 4)
+  - [x] 3.5 Write property tests for pivot config validation (Properties 3, 4)
     - Create `backend/tests/unit/test_pivot_config_validation.py`
     - **Property 3: Incomplete config rejection** — For any config with empty group_columns OR empty aggregate_measures, validation rejects
     - **Property 4: Column role overlap rejection** — For any config where same column appears in multiple roles (row group, column pivot, column nest levels), validation rejects
     - Use Hypothesis with minimum 100 iterations per property
     - **Validates: Requirements 1.6, 9.10**
 
-  - [ ] 3.6 Write property tests for query builder (Properties 5, 6, 13)
+  - [x] 3.6 Write property tests for query builder (Properties 5, 6, 13)
     - Create `backend/tests/unit/test_pivot_query_builder.py`
     - **Property 5: Parameterized SQL structure** — For any valid config, generated SQL uses only `%s` placeholders, all filter values in params list, WHERE precedes GROUP BY
     - **Property 6: Tenant isolation** — For any config and user_tenants list, WHERE clause includes `administration IN (...)` with all tenant values in params
@@ -97,15 +112,15 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Use Hypothesis with minimum 100 iterations per property
     - **Validates: Requirements 2.4, 3.1, 3.2, 3.3, 9.7**
 
-  - [ ] 3.7 Write property tests for AllowedColumnsRegistry (Properties 7, 8)
+  - [x] 3.7 Write property tests for AllowedColumnsRegistry (Properties 7, 8)
     - Create `backend/tests/unit/test_allowed_columns_registry.py`
     - **Property 7: Column resolution is intersection** — For any system max and tenant restriction (subset of system max), resolved columns equal intersection; no tenant restriction returns full system set
     - **Property 8: Disallowed columns rejected** — For any request with column not in resolved registry, validation raises error
     - Use Hypothesis with minimum 100 iterations per property
     - **Validates: Requirements 6.2, 6.3, 6.5**
 
-- [ ] 4. Pivot API routes
-  - [ ] 4.1 Create `backend/src/routes/pivot_routes.py` with Blueprint `pivot_bp`
+- [x] 4. Pivot API routes
+  - [x] 4.1 Create `backend/src/routes/pivot_routes.py` with Blueprint `pivot_bp`
     - `POST /api/pivot/execute` — execute a pivot query, delegates to `PivotService.execute_pivot()`
     - `GET /api/pivot/columns/<source>` — get available columns for a data source
     - `GET /api/pivot/models` — list saved models for tenant
@@ -119,12 +134,12 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Wrap all routes in try/except with proper error responses per the error handling table
     - _Requirements: 3.1, 3.3, 3.9, 4.4, 5.4, 6.4, 6.5_
 
-  - [ ] 4.2 Register `pivot_bp` in `backend/src/app.py`
+  - [x] 4.2 Register `pivot_bp` in `backend/src/app.py`
     - Import and register the pivot blueprint
     - Initialize `PivotService` and `PivotModelStore` with `set_test_mode()` pattern
     - _Requirements: 3.1_
 
-  - [ ] 4.3 Write unit tests for pivot routes
+  - [x] 4.3 Write unit tests for pivot routes
     - Create `backend/tests/api/test_pivot_routes.py`
     - Test auth enforcement (401 without token, 403 without permission)
     - Test tenant isolation (only returns models for requesting tenant)
@@ -132,6 +147,39 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Test successful execute, save, load, update, delete flows
     - Test error response format matches design error handling table
     - _Requirements: 3.9, 4.4, 6.5, 9.10_
+
+- [ ] 4A. Sysadmin data source management
+  - [ ] 4A.1 Create sysadmin pivot API routes
+    - Add `GET /api/sysadmin/pivot/datasources` — runs `SHOW FULL TABLES` and merges with `ui.pivot / registered_sources`, `datasource_module.*`, `datasource_label.*` parameters
+    - Add `PUT /api/sysadmin/pivot/datasources` — validates source names exist in DB, updates `registered_sources`, `datasource_module.*`, `datasource_label.*` at system scope
+    - Auto-create `exclude_columns.<name>` and `force_groupable.<name>` defaults for newly enabled sources via schema introspection
+    - Both routes require `@cognito_required(required_permissions=['sysadmin_manage'])` and `@tenant_required(allow_sysadmin=True)`
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.8, 11.9_
+
+  - [ ] 4A.2 Create `SysAdminPivotDataSources.tsx` component
+    - Table listing all database tables/views with columns: Name, Type (VIEW/TABLE badge), Module (dropdown: FIN/STR/ZZP/—), Label (editable text), Pivot Enabled (toggle)
+    - Fetch data from `GET /api/sysadmin/pivot/datasources` on mount
+    - Save button sends changes via `PUT /api/sysadmin/pivot/datasources`
+    - Only visible to sysadmin users
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.8_
+
+  - [ ] 4A.3 Integrate into SysAdmin dashboard
+    - Add a "Pivot Data Sources" tab or section in the existing SysAdmin dashboard
+    - Render `SysAdminPivotDataSources` component
+    - _Requirements: 11.1, 11.8_
+
+  - [ ] 4A.4 Update PivotBuilder to filter sources by module
+    - Read `datasource_module` from the registered sources API response
+    - Filter available data sources based on the current module context (FIN tab → FIN sources, STR tab → STR sources)
+    - _Requirements: 11.6, 11.7_
+
+  - [ ] 4A.5 Write unit tests for sysadmin pivot routes
+    - Test sysadmin auth enforcement (403 for non-sysadmin)
+    - Test GET returns all tables/views with correct pivot status
+    - Test PUT validates source names against actual DB objects
+    - Test PUT updates parameters at system scope
+    - Test auto-creation of exclude/force_groupable defaults for new sources
+    - _Requirements: 11.1, 11.3, 11.4, 11.8, 11.9_
 
 - [ ] 5. Checkpoint — Backend complete
   - Ensure all backend services, routes, and tests compile and pass
