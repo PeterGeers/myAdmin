@@ -51,6 +51,7 @@ from routes.pdf_validation_routes import pdf_validation_bp
 from routes.duplicate_detection_routes import duplicate_detection_bp
 from routes.chart_of_accounts_routes import chart_of_accounts_bp
 from routes.asset_routes import asset_bp
+from routes.pivot_routes import pivot_bp
 from routes.year_end_config_routes import year_end_config_bp
 from routes.year_end_routes import year_end_bp
 from routes.migration_routes import migration_bp
@@ -187,6 +188,7 @@ app.register_blueprint(pdf_validation_bp)  # PDF validation endpoints
 app.register_blueprint(duplicate_detection_bp)  # Duplicate detection endpoints
 app.register_blueprint(chart_of_accounts_bp)  # Chart of Accounts management endpoints
 app.register_blueprint(asset_bp)  # Asset administration endpoints
+app.register_blueprint(pivot_bp)  # Pivot Views endpoints
 app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
 app.register_blueprint(year_end_bp)  # Year-end closure endpoints
 app.register_blueprint(migration_bp)  # ONE-TIME migration endpoints (remove after use!)
