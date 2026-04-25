@@ -251,10 +251,12 @@ class TestEdgeCases:
         svc = ParameterService(db)
 
         results = svc.get_params_by_namespace('storage', 'T1')
-        assert len(results) == 2
         keys = {r['key'] for r in results}
+        # DB rows must be present
         assert 'provider' in keys
         assert 'max_size' in keys
+        # CODE_DEFAULTS for 'storage' namespace are also merged in
+        assert len(results) >= 2
 
     def test_get_params_by_namespace_tenant_overrides_system(self):
         stored = {

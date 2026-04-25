@@ -419,25 +419,16 @@ Both use the existing pattern from `MutatiesReport.tsx` (`Blob` + `URL.createObj
 
 Two-tier column access control integrated into `PivotService`.
 
-**System-level** (hardcoded in `pivot_service.py`):
+**System-level** (derived from DB schema introspection at startup):
 
-```python
-SYSTEM_ALLOWED_COLUMNS = {
-    'vw_mutaties': {
-        'groupable': ['Aangifte', 'TransactionDate', 'Reknum', 'AccountName',
-                       'Parent', 'VW', 'jaar', 'kwartaal', 'maand', 'week',
-                       'ReferenceNumber', 'administration'],
-        'aggregatable': ['Amount'],
-    },
-    'vw_bnb_total': {
-        'groupable': ['channel', 'listing', 'checkinDate', 'year', 'q', 'm',
-                       'country', 'countryName', 'countryRegion', 'source_type', 'status'],
-        'aggregatable': ['nights', 'guests', 'amountGross', 'amountNett',
-                          'amountChannelFee', 'amountTouristTax', 'amountVat',
-                          'pricePerNight', 'daysBeforeReservation'],
-    },
-}
-```
+At application startup, `build_registry_from_db()` runs `DESCRIBE <view>` for each registered data source and classifies columns:
+
+- Non-numeric types (varchar, date) → groupable
+- Numeric types (int, decimal) → aggregatable
+- Overrides from `ui.pivot / force_groupable.<ds>` parameter → force numeric columns to groupable
+- Exclusions from `ui.pivot / exclude_columns.<ds>` parameter → hide columns entirely
+
+The result is stored in `SYSTEM_ALLOWED_COLUMNS` (populated at startup, empty at import time).
 
 **Tenant-level** (via `ParameterService`):
 
@@ -449,6 +440,95 @@ SYSTEM_ALLOWED_COLUMNS = {
 - When absent, the full system-level set is used.
 
 ## Data Models
+
+### 9. Sysadmin Data Source Management
+
+A sysadmin-only UI and API for controlling which database tables/views are available as pivot data sources. Prevents users from querying system tables and allows module tagging (FIN, STR, ZZP) for UI routing.
+
+**Backend API** (sysadmin routes):
+
+```
+GET  /api/sysadmin/pivot/datasources   — list all tables/views with pivot status
+PUT  /api/sysadmin/pivot/datasources   — update pivot-enabled list and module tags
+```
+
+Both routes use `@cognito_required(required_permissions=['sysadmin_manage'])` and `@tenant_required(allow_sysadmin=True)`.
+
+**GET response** — merges `SHOW FULL TABLES` with current parameter values:
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "vw_mutaties",
+      "type": "VIEW",
+      "pivot_enabled": true,
+      "module": "FIN",
+      "label": "Financial Transactions"
+    },
+    {
+      "name": "vw_bnb_total",
+      "type": "VIEW",
+      "pivot_enabled": true,
+      "module": "STR",
+      "label": "STR Revenue"
+    },
+    {
+      "name": "mutaties",
+      "type": "BASE TABLE",
+      "pivot_enabled": false,
+      "module": null,
+      "label": null
+    }
+  ]
+}
+```
+
+**PUT request** — updates the system-scope parameters:
+
+```json
+{
+  "sources": [
+    {
+      "name": "vw_mutaties",
+      "pivot_enabled": true,
+      "module": "FIN",
+      "label": "Financial Transactions"
+    },
+    {
+      "name": "vw_bnb_total",
+      "pivot_enabled": true,
+      "module": "STR",
+      "label": "STR Revenue"
+    }
+  ]
+}
+```
+
+The PUT handler:
+
+1. Validates each source name exists in the database (via `SHOW FULL TABLES`)
+2. Writes `ui.pivot / registered_sources` (list of enabled names) at system scope
+3. Writes `ui.pivot / datasource_module.<name>` per source at system scope
+4. Writes `ui.pivot / datasource_label.<name>` per source at system scope
+5. Auto-creates `exclude_columns.<name>` and `force_groupable.<name>` defaults for newly enabled sources by introspecting the schema
+
+**Frontend component**: `SysAdminPivotDataSources.tsx` — a table in the SysAdmin dashboard with:
+
+- Columns: Name, Type (VIEW/TABLE badge), Module (dropdown: FIN/STR/ZZP/—), Label (editable text), Pivot Enabled (toggle)
+- Save button writes changes via PUT
+- Only visible to sysadmin users
+
+**Parameter storage** (all at system scope, `ui.pivot` namespace):
+
+| Key                        | Type        | Description                          |
+| -------------------------- | ----------- | ------------------------------------ |
+| `registered_sources`       | json (list) | Names of enabled data sources        |
+| `datasource_module.<name>` | string      | Module tag: FIN, STR, ZZP            |
+| `datasource_label.<name>`  | string      | Human-readable label                 |
+| `exclude_columns.<name>`   | json (list) | Columns to hide from pivot           |
+| `force_groupable.<name>`   | json (list) | Numeric columns treated as groupable |
 
 ### pivot_models Table
 
@@ -668,92 +748,26 @@ Each property test:
 
 ## Extensibility: Adding a New Data Source
 
-The pivot module is designed so that adding a new view or table as a data source requires only configuration changes — no structural code modifications.
+Adding a new view or table as a pivot data source requires **zero code changes** — it is done entirely through the sysadmin UI and parameter system.
 
 ### Steps to Add a New Data Source
 
-**1. Backend — Register in AllowedColumnsRegistry** (`backend/src/services/pivot_service.py`)
+**1. Sysadmin UI** — Navigate to the Pivot Data Sources page in the SysAdmin dashboard. The page lists all tables and views from the database. Toggle "Pivot Enabled" for the desired view/table, assign a module (FIN/STR/ZZP), and set a human-readable label.
 
-Add an entry to `SYSTEM_ALLOWED_COLUMNS`:
+**2. Automatic schema introspection** — On the next application restart (or registry refresh), `build_registry_from_db()` will `DESCRIBE` the new view and auto-classify its columns as groupable or aggregatable based on SQL types.
 
-```python
-SYSTEM_ALLOWED_COLUMNS = {
-    'vw_mutaties': { ... },
-    'vw_bnb_total': { ... },
-    # New data source:
-    'vw_invoices': {
-        'groupable': ['vendor', 'category', 'year', 'month', 'status'],
-        'aggregatable': ['amount_excl_vat', 'amount_incl_vat', 'vat_amount'],
-    },
-}
-```
+**3. Optional: tune column roles** — If numeric columns should be groupable (e.g., year columns), update `ui.pivot / force_groupable.<name>` via the ParameterManagement UI. To hide irrelevant columns, update `ui.pivot / exclude_columns.<name>`.
 
-This is the only backend change needed. The query builder, column validation, tenant restrictions, and model persistence all work generically against any registered data source.
-
-**2. Backend — Ensure tenant isolation column exists**
-
-The `_build_where_clause` method uses `administration` as the tenant column. If the new view/table uses a different column name for tenant isolation, add a mapping:
-
-```python
-TENANT_COLUMN_MAP = {
-    'vw_mutaties': 'administration',
-    'vw_bnb_total': 'administration',
-    'vw_invoices': 'tenant_id',  # different column name
-}
-```
-
-**3. Frontend — Add filter configuration** (`frontend/src/components/pivot/PivotBuilder.tsx`)
-
-Define which `FilterPanel`/`GenericFilter`/`YearFilter` controls to render for the new source:
-
-```typescript
-const FILTER_CONFIG: Record<string, FilterDef[]> = {
-  vw_mutaties: [
-    { type: "year", key: "years" },
-    {
-      type: "dropdown",
-      key: "administration",
-      endpoint: "/api/reports/filter-options",
-    },
-    { type: "dropdown", key: "profitLoss", options: ["V", "W"] },
-    {
-      type: "dropdown",
-      key: "ledger",
-      endpoint: "/api/reports/filter-options",
-    },
-  ],
-  vw_bnb_total: [
-    { type: "year", key: "years" },
-    { type: "dropdown", key: "channel" },
-    { type: "dropdown", key: "listing" },
-  ],
-  // New data source:
-  vw_invoices: [
-    { type: "year", key: "years" },
-    { type: "dropdown", key: "vendor" },
-    { type: "dropdown", key: "category" },
-    {
-      type: "dropdown",
-      key: "status",
-      options: ["pending", "approved", "paid"],
-    },
-  ],
-};
-```
-
-**4. Frontend — Add data source label** (for the data source selector dropdown)
-
-Add the display name to the data source list so users see a friendly label.
+**4. Optional: tenant restrictions** — Tenant admins can restrict which columns their users see via `ui.pivot / allowed_columns.<name>`.
 
 ### What Does NOT Need to Change
 
-- `PivotService.execute_pivot()` — works with any registered data source
-- `PivotService.build_pivot_query()` — generates SQL dynamically from config
+- `PivotService` — works with any registered data source
 - `PivotModelStore` — stores/loads models regardless of data source
 - `PivotResultTable` — renders results from any data source
 - `pivotService.ts` — API client is data-source-agnostic
 - CSV export — works on any result set
-- Tenant column restrictions via `parameters` table — just use the new data source name as key
+- No Python code, no frontend code, no migrations
 
 ## Database Portability: MySQL → PostgreSQL
 

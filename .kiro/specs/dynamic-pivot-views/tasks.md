@@ -148,32 +148,32 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Test error response format matches design error handling table
     - _Requirements: 3.9, 4.4, 6.5, 9.10_
 
-- [ ] 4A. Sysadmin data source management
-  - [ ] 4A.1 Create sysadmin pivot API routes
+- [x] 4A. Sysadmin data source management
+  - [x] 4A.1 Create sysadmin pivot API routes
     - Add `GET /api/sysadmin/pivot/datasources` — runs `SHOW FULL TABLES` and merges with `ui.pivot / registered_sources`, `datasource_module.*`, `datasource_label.*` parameters
     - Add `PUT /api/sysadmin/pivot/datasources` — validates source names exist in DB, updates `registered_sources`, `datasource_module.*`, `datasource_label.*` at system scope
     - Auto-create `exclude_columns.<name>` and `force_groupable.<name>` defaults for newly enabled sources via schema introspection
     - Both routes require `@cognito_required(required_permissions=['sysadmin_manage'])` and `@tenant_required(allow_sysadmin=True)`
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.8, 11.9_
 
-  - [ ] 4A.2 Create `SysAdminPivotDataSources.tsx` component
+  - [x] 4A.2 Create `SysAdminPivotDataSources.tsx` component
     - Table listing all database tables/views with columns: Name, Type (VIEW/TABLE badge), Module (dropdown: FIN/STR/ZZP/—), Label (editable text), Pivot Enabled (toggle)
     - Fetch data from `GET /api/sysadmin/pivot/datasources` on mount
     - Save button sends changes via `PUT /api/sysadmin/pivot/datasources`
     - Only visible to sysadmin users
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.8_
 
-  - [ ] 4A.3 Integrate into SysAdmin dashboard
+  - [x] 4A.3 Integrate into SysAdmin dashboard
     - Add a "Pivot Data Sources" tab or section in the existing SysAdmin dashboard
     - Render `SysAdminPivotDataSources` component
     - _Requirements: 11.1, 11.8_
 
-  - [ ] 4A.4 Update PivotBuilder to filter sources by module
+  - [x] 4A.4 Update PivotBuilder to filter sources by module
     - Read `datasource_module` from the registered sources API response
     - Filter available data sources based on the current module context (FIN tab → FIN sources, STR tab → STR sources)
     - _Requirements: 11.6, 11.7_
 
-  - [ ] 4A.5 Write unit tests for sysadmin pivot routes
+  - [x] 4A.5 Write unit tests for sysadmin pivot routes
     - Test sysadmin auth enforcement (403 for non-sysadmin)
     - Test GET returns all tables/views with correct pivot status
     - Test PUT validates source names against actual DB objects
@@ -181,12 +181,12 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Test auto-creation of exclude/force_groupable defaults for new sources
     - _Requirements: 11.1, 11.3, 11.4, 11.8, 11.9_
 
-- [ ] 5. Checkpoint — Backend complete
+- [x] 5. Checkpoint — Backend complete
   - Ensure all backend services, routes, and tests compile and pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Frontend API client and types
-  - [ ] 6.1 Create TypeScript types in `frontend/src/types/pivot.ts`
+- [x] 6. Frontend API client and types
+  - [x] 6.1 Create TypeScript types in `frontend/src/types/pivot.ts`
     - Define `PivotConfig`, `AggregateMeasure`, `AvailableColumns`, `ColumnDef` interfaces
     - Define `PivotResult`, `PivotColumnMeta`, `PivotModelSummary`, `PivotModel` interfaces
     - Define `NumberFormat` type: `'decimal' | 'whole' | 'k-notation'`
@@ -194,14 +194,14 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Define `DataSourceConfig` interface: `{ key, label, filterConfig }` — describes a registered data source for the frontend
     - _Requirements: 1.3, 1.4, 1.5_
 
-  - [ ] 6.2 Create data source registry in `frontend/src/config/pivotDataSources.ts`
+  - [x] 6.2 Create data source registry in `frontend/src/config/pivotDataSources.ts`
     - Define `PIVOT_DATA_SOURCES` array of `DataSourceConfig` objects
     - Each entry specifies: `key` (e.g., `'vw_mutaties'`), `label` (e.g., `'Financial Transactions'`), and `filterConfig` (which filter components to render and their props)
     - PivotBuilder reads this registry to populate the data source dropdown and render the correct filters
     - Adding a new data source on the frontend = add one entry to this array — no component changes needed
     - _Requirements: 1.1, 2.1_
 
-  - [ ] 6.3 Create `frontend/src/services/pivotService.ts`
+  - [x] 6.3 Create `frontend/src/services/pivotService.ts`
     - Implement `executePivot(config)` — POST to `/api/pivot/execute`
     - Implement `getAvailableColumns(dataSource)` — GET `/api/pivot/columns/<source>`
     - Implement `listPivotModels()` — GET `/api/pivot/models`
@@ -213,22 +213,22 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Use `authenticatedGet`, `authenticatedPost`, `authenticatedPut`, `authenticatedDelete` from `apiService.ts`
     - _Requirements: 3.1, 4.1, 5.1, 5.2, 5.3_
 
-- [ ] 7. Shared frontend utilities
-  - [ ] 7.1 Create `formatPivotNumber()` in `frontend/src/utils/pivotFormatting.ts`
+- [x] 7. Shared frontend utilities
+  - [x] 7.1 Create `formatPivotNumber()` in `frontend/src/utils/pivotFormatting.ts`
     - Implement `formatPivotNumber(value, format, locale)` utility function
     - Three modes: decimal (2dp), whole (0dp), k-notation (abbreviated with k/M suffixes)
     - Use `Intl.NumberFormat` with locale parameter
     - Export as reusable utility for PivotResultTable and CSV export
     - _Requirements: 3.6, 3.7_
 
-  - [ ] 7.2 Create `buildHierarchicalTree()` in `frontend/src/utils/pivotTreeBuilder.ts`
+  - [x] 7.2 Create `buildHierarchicalTree()` in `frontend/src/utils/pivotTreeBuilder.ts`
     - Extract tree-building logic as a reusable pure function
     - Input: flat result rows + group column names + aggregate column names
     - Output: nested tree structure with rolled-up parent aggregates
     - Reusable for any future hierarchical table display
     - _Requirements: 8.2, 8.3_
 
-  - [ ] 7.3 Create `generateCsv()` in `frontend/src/utils/csvExport.ts`
+  - [x] 7.3 Create `generateCsv()` in `frontend/src/utils/csvExport.ts`
     - Extract CSV generation as a reusable utility (currently duplicated in MutatiesReport)
     - Input: column headers + data rows + optional number formatter
     - Output: CSV string
@@ -236,34 +236,38 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Reusable for pivot export and existing report exports
     - _Requirements: 7.2, 7.3_
 
-  - [ ] 7.4 Add i18n translation keys for pivot UI
+  - [x] 7.4 Add i18n translation keys for pivot UI
     - Add translation keys to the appropriate namespace (e.g., `reports` or new `pivot` namespace)
     - Keys for: data source labels, aggregation function names, column labels, button labels (Execute, Save, Load, Delete, Export), display mode labels, number format labels, validation messages, empty state message, error messages
     - Follow conventions in `.kiro/specs/Common/Internationalization/TRANSLATION_KEY_CONVENTIONS.md`
     - _Requirements: all UI requirements_
 
-- [ ] 8. PivotBuilder component
-  - [ ] 8.1 Create `frontend/src/components/pivot/PivotBuilder.tsx`
-    - Data source selector dropdown (vw_mutaties, vw_bnb_total)
-    - Fetch available columns from API on data source change
-    - Group column picker: multi-select from groupable columns, max 5
-    - Aggregate measure picker: function dropdown (SUM/COUNT/AVG/MIN/MAX) + column dropdown, max 10
-    - Column pivot selector: optional single column from groupable set
+- [x] 8. PivotBuilder component
+  - [x] 8.1 Create `frontend/src/components/pivot/PivotBuilder.tsx`
+    - Data source selector dropdown — populated dynamically from `getRegisteredSources()`, filtered by optional `moduleFilter` prop via `filterSourcesByModule()`
+    - Fetch available columns from `getAvailableColumns(dataSource)` on data source change — columns are schema-introspected, no hardcoded lists
+    - Group column picker: multi-select from groupable columns returned by API, max 5
+    - Aggregate measure picker: function dropdown (SUM/COUNT/AVG/MIN/MAX) + column dropdown from aggregatable columns returned by API, max 10
+    - Column pivot selector: optional single column from groupable set (excluding columns already used as row group)
     - Column nest level picker: multi-select, max 5, excluding columns already used as row group or column pivot
     - Validation: at least 1 group column + 1 aggregate measure before execute
     - Prevent same column in multiple roles (row group, column pivot, column nest level)
     - Execute button, Save button (prompts for model name), Load model dropdown
     - Display mode toggle (flat/hierarchical) — only shown when 2+ group columns
+    - Extract state management into `usePivotConfig` hook; split UI into sub-components (`PivotBuilderMeasures`, `PivotBuilderFilters`, `PivotBuilderModels`) to stay within 500-line target
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 9.1, 9.3, 9.5, 9.8, 9.10, 9.11_
 
-  - [ ] 8.2 Integrate filter controls in PivotBuilder
-    - Render filter controls matching the selected data source using existing `FilterPanel`, `YearFilter`, `GenericFilter`
-    - For `vw_mutaties`: YearFilter, administration dropdown, profit/loss (VW), ledger account (Reknum)
-    - For `vw_bnb_total`: YearFilter, channel dropdown, listing dropdown
-    - Pass filter values into pivot config for query execution
-    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+  - [x] 8.2 Integrate dynamic filter controls in PivotBuilder
+    - Render one text-input filter per groupable column returned by `getAvailableColumns()` — no hardcoded filter lists per data source
+    - Filter set changes automatically when data source changes (different columns = different filters)
+    - Comma-separated input is stored as array (backend applies `IN (%s, %s, ...)`)
+    - Single value input is stored as string (backend applies `column = %s`)
+    - Empty/cleared filters are excluded from the query
+    - Active filter count badge, clear button per filter
+    - Pass filter values into pivot config `filters` dict keyed by column name
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 8.3 Implement saved model management in PivotBuilder
+  - [x] 8.3 Implement saved model management in PivotBuilder
     - Load model list on mount via `listPivotModels()`
     - Populate config from selected saved model via `loadPivotModel(id)`
     - Save current config with user-provided name via `savePivotModel()`
@@ -273,7 +277,7 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - _Requirements: 4.1, 4.4, 5.1, 5.2, 5.3, 5.5, 5.6_
 
 - [ ] 9. PivotResultTable component
-  - [ ] 9.1 Create `frontend/src/components/pivot/PivotResultTable.tsx` — flat mode
+  - [x] 9.1 Create `frontend/src/components/pivot/PivotResultTable.tsx` — flat mode
     - Render standard Chakra `Table` with `FilterableHeader` for sorting on all columns
     - Display group columns as row identifiers, aggregate columns as computed values
     - Format numeric values with appropriate decimal precision (2 for currency, 0 for counts)
@@ -281,13 +285,13 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Display loading state while query executes
     - _Requirements: 3.4, 3.5, 3.6, 3.8_
 
-  - [ ] 9.2 Implement number format toggle
+  - [x] 9.2 Implement number format toggle
     - Three-way toggle: decimal (€12,345.67), whole (€12,346), k-notation (€12.3k)
     - Use `formatPivotNumber()` utility from task 7.1
     - Apply formatting to all aggregate measure columns
     - _Requirements: 3.7_
 
-  - [ ] 9.3 Implement hierarchical display mode
+  - [x] 9.3 Implement hierarchical display mode
     - Use `buildHierarchicalTree()` utility from task 7.2 to build tree from `WITH ROLLUP` result rows
     - First group column = top-level nodes, subsequent = nested children
     - Expand/collapse via row click on parent rows
@@ -297,7 +301,7 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Hide toggle when only 1 group column
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7_
 
-  - [ ] 9.4 Implement column-pivoted display mode
+  - [x] 9.4 Implement column-pivoted display mode
     - Render distinct values of column pivot as column headers
     - Spread aggregate measures across pivot columns
     - Render hierarchical column headers for column nest levels via multi-row `<thead>`
@@ -305,7 +309,7 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - When no column pivot selected, display all group columns on row axis only
     - _Requirements: 9.2, 9.4, 9.6, 9.9_
 
-  - [ ] 9.5 Write property tests for frontend (Properties 9, 10, 11, 12)
+  - [x] 9.5 Write property tests for frontend (Properties 9, 10, 11, 12)
     - Create `frontend/src/components/pivot/__tests__/PivotResultTable.property.test.ts`
     - **Property 9: Number format toggle correctness** — For any numeric value and display mode, formatting produces correct output (decimal=2dp, whole=0dp, k-notation=abbreviated)
     - **Property 10: CSV export structure** — For any non-empty result data, CSV has header row matching columns, same row count, consistent field count

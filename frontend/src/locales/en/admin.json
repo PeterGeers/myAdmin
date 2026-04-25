@@ -9,7 +9,8 @@
       "provisioning": "Provisioning",
       "roleManagement": "Role Management",
       "healthCheck": "Health Check",
-      "systemTaxRates": "System Tax Rates"
+      "systemTaxRates": "System Tax Rates",
+      "pivotDataSources": "Pivot Data Sources"
     }
   },
   "tenantAdmin": {
@@ -644,6 +645,26 @@
     "inactive": "Inactive",
     "enabled": "Enabled",
     "disabled": "Disabled"
+  },
+  "pivotDataSources": {
+    "loading": "Loading data sources...",
+    "total": "Total",
+    "searchPlaceholder": "Search tables/views...",
+    "save": "Save Changes",
+    "noResults": "No tables or views found",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "module": "Module",
+      "label": "Label",
+      "pivotEnabled": "Pivot Enabled",
+      "labelPlaceholder": "Enter label..."
+    },
+    "messages": {
+      "errorLoading": "Error loading data sources",
+      "saved": "Data sources saved",
+      "errorSaving": "Error saving data sources"
+    }
   },
   "provisioning": {
     "title": "Pending Signups",
