@@ -10,6 +10,7 @@ export interface Parameter {
   value_type: 'string' | 'number' | 'boolean' | 'json';
   scope_origin: 'system' | 'tenant' | 'role' | 'user';
   is_secret: boolean;
+  has_code_default?: boolean;
 }
 
 export interface ParameterCreateRequest {

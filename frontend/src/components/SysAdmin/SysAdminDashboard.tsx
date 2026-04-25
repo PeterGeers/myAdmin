@@ -11,6 +11,7 @@ import HealthCheck from './HealthCheck';
 import ProvisioningPanel from './ProvisioningPanel';
 import EmailLogPanel from '../shared/EmailLogPanel';
 import SystemTaxRates from './SystemTaxRates';
+import SysAdminPivotDataSources from './SysAdminPivotDataSources';
 
 export function SysAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -108,6 +109,9 @@ export function SysAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               {t('sysAdmin.tabs.systemTaxRates')}
             </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              📊 {t('sysAdmin.tabs.pivotDataSources')}
+            </Tab>
           </TabList>
 
           <TabPanels>
@@ -128,6 +132,9 @@ export function SysAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <SystemTaxRates />
+            </TabPanel>
+            <TabPanel>
+              <SysAdminPivotDataSources />
             </TabPanel>
           </TabPanels>
         </Tabs>

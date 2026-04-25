@@ -129,8 +129,8 @@ describe('ParameterManagement', () => {
 
     test('shows scope badges', async () => {
       await renderAndWait();
-      expect(screen.getAllByText('tenant').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('system').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('tenant override').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('system default').length).toBeGreaterThan(0);
     });
 
     test('shows secret values as masked', async () => {

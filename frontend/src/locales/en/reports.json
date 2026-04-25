@@ -298,5 +298,99 @@
     "violinChartsShowDistribution": "Violin charts show the full distribution of values with kernel density estimation.",
     "violinWidthExplanation": "The width of each violin represents the density of data at that value. Box plots inside show quartiles (Q1, median, Q3), and the orange line shows the mean.",
     "interactiveFeatures": "Interactive features: hover for details, zoom, pan, and download as image."
+  },
+  "pivot": {
+    "title": "Pivot Views",
+    "builder": {
+      "title": "Pivot Builder",
+      "dataSource": "Data Source",
+      "selectDataSource": "Select a data source",
+      "groupColumns": "Group Columns",
+      "selectGroupColumns": "Select columns to group by",
+      "aggregateMeasures": "Aggregate Measures",
+      "addMeasure": "Add measure",
+      "removeMeasure": "Remove measure",
+      "aggregateFunction": "Function",
+      "aggregateColumn": "Column",
+      "columnPivot": "Column Pivot",
+      "selectColumnPivot": "Select column to pivot (optional)",
+      "columnNestLevels": "Column Nest Levels",
+      "selectNestLevels": "Select nest levels (optional)",
+      "displayMode": "Display Mode",
+      "flat": "Flat",
+      "hierarchical": "Hierarchical",
+      "includeRollup": "Include subtotals",
+      "filters": "Filters"
+    },
+    "actions": {
+      "execute": "Execute",
+      "save": "Save",
+      "saveAs": "Save As",
+      "load": "Load",
+      "delete": "Delete",
+      "export": "Export",
+      "exportPivot": "Export Pivot Result",
+      "exportUnderlying": "Export Underlying Data"
+    },
+    "models": {
+      "title": "Saved Models",
+      "name": "Model Name",
+      "enterName": "Enter a name for this pivot model",
+      "selectModel": "Select a saved model",
+      "noModels": "No saved models yet",
+      "saveSuccess": "Pivot model saved successfully",
+      "updateSuccess": "Pivot model updated successfully",
+      "deleteSuccess": "Pivot model deleted successfully",
+      "deleteConfirm": "Are you sure you want to delete this pivot model?",
+      "duplicateName": "A model with this name already exists",
+      "notFound": "Pivot model not found",
+      "createdBy": "Created by",
+      "createdAt": "Created at",
+      "updatedAt": "Updated at"
+    },
+    "functions": {
+      "SUM": "Sum",
+      "COUNT": "Count",
+      "AVG": "Average",
+      "MIN": "Minimum",
+      "MAX": "Maximum"
+    },
+    "numberFormat": {
+      "label": "Number Format",
+      "decimal": "Decimal (2dp)",
+      "whole": "Whole numbers",
+      "kNotation": "Abbreviated (K/M)"
+    },
+    "results": {
+      "title": "Results",
+      "noData": "No data matches the current configuration. Try adjusting your filters or group columns.",
+      "loading": "Executing pivot query...",
+      "rowCount": "{{count}} rows",
+      "grandTotal": "Grand Total",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all"
+    },
+    "validation": {
+      "minGroupColumn": "Select at least one group column",
+      "minAggregateMeasure": "Select at least one aggregate measure",
+      "maxGroupColumns": "Maximum {{max}} group columns allowed",
+      "maxAggregateMeasures": "Maximum {{max}} aggregate measures allowed",
+      "maxNestLevels": "Maximum {{max}} column nest levels allowed",
+      "columnRoleOverlap": "Column '{{column}}' cannot be used in multiple roles",
+      "invalidFunction": "Invalid aggregation function: {{function}}",
+      "columnNotAllowed": "Column '{{column}}' is not available for this data source"
+    },
+    "errors": {
+      "executeFailed": "Failed to execute pivot query. Please check your configuration.",
+      "saveFailed": "Failed to save pivot model",
+      "loadFailed": "Failed to load pivot model",
+      "deleteFailed": "Failed to delete pivot model",
+      "exportFailed": "Failed to export data",
+      "columnsFailed": "Failed to load available columns"
+    },
+    "dataSources": {
+      "vw_mutaties": "Financial Transactions",
+      "vw_bnb_total": "STR Revenue"
+    }
   }
 }

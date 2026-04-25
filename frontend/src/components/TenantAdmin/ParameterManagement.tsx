@@ -12,14 +12,14 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Box, Table, Thead, Tbody, Tr, Td, Badge, Button, Grid,
-  useToast, useDisclosure, Spinner, Text, HStack,
+  Box, Table, Thead, Tbody, Tr, Td, Badge, Button, Grid, Th,
+  useToast, useDisclosure, Spinner, Text, HStack, IconButton, Tooltip,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   FormControl, FormLabel, Input, Textarea, Switch, Select,
   AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader,
   AlertDialogBody, AlertDialogFooter,
 } from '@chakra-ui/react';
-import { AddIcon } from '@chakra-ui/icons';
+import { AddIcon, EditIcon, RepeatIcon } from '@chakra-ui/icons';
 import { Parameter, ParameterCreateRequest } from '../../types/parameterTypes';
 import { getParameters, createParameter, updateParameter, deleteParameter } from '../../services/parameterService';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
@@ -149,7 +149,6 @@ export default function ParameterManagement({ tenant }: Props) {
   };
 
   const handleRowClick = (p: Parameter) => {
-    if (p.scope_origin === 'system') return;
     setIsNew(false); setEditing(p);
     setFormNs(p.namespace); setFormKey(p.key);
     setFormValue(typeof p.value === 'object' ? JSON.stringify(p.value, null, 2) : String(p.value ?? ''));
@@ -176,6 +175,12 @@ export default function ParameterManagement({ tenant }: Props) {
         const res = await updateParameter(editing.id, { value: parsedValue, value_type: formType as any });
         if (res.success) { toast({ title: t('tenantAdmin.parameters.updated'), status: 'success', duration: 3000 }); onClose(); load(); }
         else toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
+      } else if (editing && !editing.id) {
+        // Code default (no DB row yet) — create a tenant-scope row with the edited value
+        const req: ParameterCreateRequest = { scope: 'tenant', namespace: formNs, key: formKey, value: parsedValue, value_type: formType as any, is_secret: formSecret };
+        const res = await createParameter(req);
+        if (res.success) { toast({ title: t('tenantAdmin.parameters.updated'), status: 'success', duration: 3000 }); onClose(); load(); }
+        else toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
       }
     } catch (e: any) { toast({ title: t('tenantAdmin.parameters.title'), description: e.message, status: 'error', duration: 5000 }); }
     finally { setSaving(false); }
@@ -191,6 +196,56 @@ export default function ParameterManagement({ tenant }: Props) {
     finally { onDeleteClose(); }
   };
 
+  /** Customize a system-scope parameter: create a tenant-scope copy so it becomes editable. */
+  const handleCustomize = async (p: Parameter) => {
+    setSaving(true);
+    try {
+      const req: ParameterCreateRequest = {
+        scope: 'tenant',
+        namespace: p.namespace,
+        key: p.key,
+        value: p.value,
+        value_type: p.value_type,
+        is_secret: p.is_secret,
+      };
+      const res = await createParameter(req);
+      if (res.success) {
+        toast({ title: 'Parameter customized', description: `${p.namespace}.${p.key} is now editable for your tenant.`, status: 'success', duration: 3000 });
+        load();
+      } else {
+        toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, status: 'error', duration: 5000 });
+    } finally { setSaving(false); }
+  };
+
+  /** Reset a tenant-scope parameter to its system/code default by deleting the tenant override. */
+  const handleResetToDefault = async (p: Parameter) => {
+    if (!p.id) return;
+    try {
+      const res = await deleteParameter(p.id);
+      if (res.success) {
+        toast({ title: 'Reset to default', description: `${p.namespace}.${p.key} reverted to system default.`, status: 'success', duration: 3000 });
+        load();
+      } else {
+        toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, status: 'error', duration: 5000 });
+    }
+  };
+
+  /**
+   * Check if a tenant-scope parameter has a code default it can be reset to.
+   * The backend includes a `has_code_default` flag on each parameter entry.
+   * When true and the parameter is tenant-scope, the "Reset to Default" button
+   * is shown — deleting the tenant override reveals the code default.
+   */
+  const hasCodeDefault = useCallback((p: Parameter): boolean => {
+    return p.scope_origin === 'tenant' && !!p.has_code_default;
+  }, []);
+
   /** Render a table cell with column-specific styling */
   const renderCellValue = (p: ParameterRow, col: string) => {
     switch (col) {
@@ -205,8 +260,8 @@ export default function ParameterManagement({ tenant }: Props) {
       case 'scope_origin':
         return (
           <Td>
-            <Badge colorScheme={p.scope_origin === 'tenant' ? 'orange' : 'gray'} fontSize="xs">
-              {p.scope_origin}
+            <Badge colorScheme={p.scope_origin === 'tenant' ? 'orange' : 'purple'} fontSize="xs">
+              {p.scope_origin === 'system' ? 'system default' : 'tenant override'}
             </Badge>
           </Td>
         );
@@ -241,14 +296,15 @@ export default function ParameterManagement({ tenant }: Props) {
                 />
               );
             })}
+            <Th color="gray.400" fontSize="xs">Actions</Th>
           </Tr>
         </Thead>
         <Tbody>
           {displayRows.map((p, i) => (
             <Tr
               key={`${p.namespace}-${p.key}-${i}`}
-              cursor={p.scope_origin !== 'system' ? 'pointer' : 'default'}
-              _hover={p.scope_origin !== 'system' ? { bg: 'gray.600' } : {}}
+              cursor="pointer"
+              _hover={{ bg: 'gray.600' }}
               onClick={() => handleRowClick(p)}
             >
               {tableConfig.columns.map((col) => (
@@ -256,11 +312,38 @@ export default function ParameterManagement({ tenant }: Props) {
                   {renderCellValue(p, col)}
                 </React.Fragment>
               ))}
+              <Td onClick={(e) => e.stopPropagation()}>
+                {p.scope_origin === 'system' && (
+                  <Tooltip label="Create a tenant-specific copy to customize" fontSize="xs">
+                    <IconButton
+                      aria-label="Customize"
+                      icon={<EditIcon />}
+                      size="xs"
+                      colorScheme="orange"
+                      variant="ghost"
+                      isLoading={saving}
+                      onClick={() => handleCustomize(p)}
+                    />
+                  </Tooltip>
+                )}
+                {hasCodeDefault(p) && (
+                  <Tooltip label="Reset to system default" fontSize="xs">
+                    <IconButton
+                      aria-label="Reset to default"
+                      icon={<RepeatIcon />}
+                      size="xs"
+                      colorScheme="purple"
+                      variant="ghost"
+                      onClick={() => handleResetToDefault(p)}
+                    />
+                  </Tooltip>
+                )}
+              </Td>
             </Tr>
           ))}
           {displayRows.length === 0 && (
             <Tr>
-              <Td colSpan={tableConfig.columns.length} color="gray.500" textAlign="center">
+              <Td colSpan={tableConfig.columns.length + 1} color="gray.500" textAlign="center">
                 {t('tenantAdmin.parameters.noParameters')}
               </Td>
             </Tr>
@@ -289,7 +372,7 @@ export default function ParameterManagement({ tenant }: Props) {
               </FormControl>
               <FormControl>
                 <FormLabel color="white">{t('tenantAdmin.parameters.valueType')}</FormLabel>
-                <Select value={formType} onChange={e => setFormType(e.target.value)} bg="gray.600" color="white">
+                <Select value={formType} onChange={e => setFormType(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white">
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>

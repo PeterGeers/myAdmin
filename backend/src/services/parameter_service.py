@@ -11,13 +11,233 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 VALID_SCOPES = ('system', 'tenant', 'role', 'user')
 VALID_VALUE_TYPES = ('string', 'number', 'boolean', 'json')
 SCOPE_CHAIN = ['user', 'role', 'tenant', 'system']
+
+# ---------------------------------------------------------------------------
+# CODE_DEFAULTS — system-scope parameter defaults defined in code.
+#
+# These act as the system-level values for parameters that should be
+# discoverable in the ParameterManagement UI without requiring seed scripts.
+# Tenant-scope DB rows take precedence; deleting a tenant override reverts
+# to the code default.
+#
+# Key: (namespace, key)  →  Value: {value, value_type, description}
+# ---------------------------------------------------------------------------
+CODE_DEFAULTS: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+
+# ---------------------------------------------------------------------------
+# Value-type mapping: PARAMETER_SCHEMA uses 'type' names that may differ
+# from the VALID_VALUE_TYPES used by ParameterService.
+# ---------------------------------------------------------------------------
+_SCHEMA_TYPE_MAP = {
+    'string': 'string',
+    'number': 'number',
+    'boolean': 'boolean',
+    'json': 'json',
+}
+
+# Default values per value_type when the schema param has no explicit default.
+_TYPE_EMPTY_DEFAULTS: Dict[str, Any] = {
+    'string': '',
+    'number': 0,
+    'boolean': False,
+    'json': {},
+}
+
+
+def _register_code_defaults() -> None:
+    """Populate CODE_DEFAULTS from all known sources.
+
+    Called once at module load.  Sources:
+    1. PARAMETER_SCHEMA — auto-generates a CODE_DEFAULT for every param
+       defined in parameter_schema.py (storage, fin, str, str_branding,
+       zzp_branding, …).  Uses the schema 'default' when present,
+       otherwise falls back to an empty value for the type.
+    2. Manual entries — for namespaces not covered by PARAMETER_SCHEMA
+       (ui.pivot, ui.tables).
+    """
+    # ------------------------------------------------------------------
+    # Auto-generate from PARAMETER_SCHEMA
+    # ------------------------------------------------------------------
+    try:
+        from services.parameter_schema import PARAMETER_SCHEMA
+        for namespace, section in PARAMETER_SCHEMA.items():
+            for key, param_def in section.get('params', {}).items():
+                schema_type = param_def.get('type', 'string')
+                value_type = _SCHEMA_TYPE_MAP.get(schema_type, 'string')
+                default_value = param_def.get('default', _TYPE_EMPTY_DEFAULTS.get(value_type, ''))
+                description = param_def.get('description', param_def.get('label', key))
+                CODE_DEFAULTS[(namespace, key)] = {
+                    'value': default_value,
+                    'value_type': value_type,
+                    'description': description,
+                }
+    except ImportError:
+        logger.warning("parameter_schema not available; schema-based CODE_DEFAULTS skipped")
+
+    # ------------------------------------------------------------------
+    # ui.pivot — Allowed pivot columns per data source
+    # ------------------------------------------------------------------
+    CODE_DEFAULTS[('ui.pivot', 'allowed_columns.vw_mutaties')] = {
+        'value': {
+            'groupable': [
+                'Aangifte', 'TransactionDate', 'Reknum', 'AccountName',
+                'Parent', 'VW', 'jaar', 'kwartaal', 'maand', 'week',
+                'ReferenceNumber', 'administration',
+            ],
+            'aggregatable': ['Amount'],
+        },
+        'value_type': 'json',
+        'description': 'Allowed pivot columns for Financial Transactions (vw_mutaties)',
+    }
+    CODE_DEFAULTS[('ui.pivot', 'allowed_columns.vw_bnb_total')] = {
+        'value': {
+            'groupable': [
+                'channel', 'listing', 'checkinDate', 'year', 'q', 'm',
+                'country', 'countryName', 'countryRegion', 'source_type', 'status',
+            ],
+            'aggregatable': [
+                'nights', 'guests', 'amountGross', 'amountNett',
+                'amountChannelFee', 'amountTouristTax', 'amountVat',
+                'pricePerNight', 'daysBeforeReservation',
+            ],
+        },
+        'value_type': 'json',
+        'description': 'Allowed pivot columns for STR Revenue (vw_bnb_total)',
+    }
+
+    # ui.pivot — Excluded columns per data source (hidden from pivot UI)
+    CODE_DEFAULTS[('ui.pivot', 'exclude_columns.vw_mutaties')] = {
+        'value': ['TransactionNumber', 'TransactionDescription', 'Ref3', 'Ref4'],
+        'value_type': 'json',
+        'description': 'Columns excluded from pivot for Financial Transactions',
+    }
+    CODE_DEFAULTS[('ui.pivot', 'exclude_columns.vw_bnb_total')] = {
+        'value': ['checkoutDate'],
+        'value_type': 'json',
+        'description': 'Columns excluded from pivot for STR Revenue',
+    }
+
+    # ui.pivot — Force-groupable columns per data source
+    # (numeric columns that represent categories, not measures)
+    CODE_DEFAULTS[('ui.pivot', 'force_groupable.vw_mutaties')] = {
+        'value': ['jaar', 'kwartaal', 'maand', 'week'],
+        'value_type': 'json',
+        'description': 'Numeric columns treated as groupable for Financial Transactions',
+    }
+    CODE_DEFAULTS[('ui.pivot', 'force_groupable.vw_bnb_total')] = {
+        'value': ['year', 'q', 'm', 'nights', 'guests', 'daysBeforeReservation'],
+        'value_type': 'json',
+        'description': 'Numeric columns treated as groupable for STR Revenue',
+    }
+
+    # ui.pivot — Registered data sources (sysadmin-only whitelist)
+    # Only views/tables listed here can be used for pivot queries.
+    # Sysadmin manages this at system scope to prevent access to system tables.
+    CODE_DEFAULTS[('ui.pivot', 'registered_sources')] = {
+        'value': ['vw_mutaties', 'vw_bnb_total'],
+        'value_type': 'json',
+        'description': 'Views/tables available as pivot data sources (sysadmin only)',
+    }
+
+    # ui.pivot — Human-readable labels per data source
+    CODE_DEFAULTS[('ui.pivot', 'datasource_label.vw_mutaties')] = {
+        'value': 'Financial Transactions',
+        'value_type': 'string',
+        'description': 'Display label for vw_mutaties pivot data source',
+    }
+    CODE_DEFAULTS[('ui.pivot', 'datasource_label.vw_bnb_total')] = {
+        'value': 'STR Revenue',
+        'value_type': 'string',
+        'description': 'Display label for vw_bnb_total pivot data source',
+    }
+
+    # ------------------------------------------------------------------
+    # ui.tables — Table configuration defaults (columns, filters, sort, page size)
+    # These match the seed values from seed_table_config_params.sql.
+    # ------------------------------------------------------------------
+    _table_defaults = {
+        'chart_of_accounts.columns': {
+            'value': ['Account', 'AccountName', 'AccountLookup', 'SubParent',
+                      'Parent', 'VW', 'Belastingaangifte', 'parameters'],
+            'value_type': 'json',
+            'description': 'Visible columns for Chart of Accounts table',
+        },
+        'chart_of_accounts.filterable_columns': {
+            'value': ['Account', 'AccountName', 'AccountLookup', 'SubParent',
+                      'Parent', 'VW', 'Belastingaangifte', 'parameters'],
+            'value_type': 'json',
+            'description': 'Filterable columns for Chart of Accounts table',
+        },
+        'chart_of_accounts.default_sort': {
+            'value': {'field': 'Account', 'direction': 'asc'},
+            'value_type': 'json',
+            'description': 'Default sort for Chart of Accounts table',
+        },
+        'chart_of_accounts.page_size': {
+            'value': 1000,
+            'value_type': 'number',
+            'description': 'Page size for Chart of Accounts table',
+        },
+        'parameters.columns': {
+            'value': ['namespace', 'key', 'value', 'value_type', 'scope_origin'],
+            'value_type': 'json',
+            'description': 'Visible columns for Parameter Management table',
+        },
+        'parameters.filterable_columns': {
+            'value': ['namespace', 'key', 'value', 'value_type', 'scope_origin'],
+            'value_type': 'json',
+            'description': 'Filterable columns for Parameter Management table',
+        },
+        'parameters.default_sort': {
+            'value': {'field': 'namespace', 'direction': 'asc'},
+            'value_type': 'json',
+            'description': 'Default sort for Parameter Management table',
+        },
+        'parameters.page_size': {
+            'value': 100,
+            'value_type': 'number',
+            'description': 'Page size for Parameter Management table',
+        },
+        'banking_mutaties.columns': {
+            'value': ['ID', 'TransactionNumber', 'TransactionDate',
+                      'TransactionDescription', 'TransactionAmount', 'Debet',
+                      'Credit', 'ReferenceNumber', 'Ref1', 'Ref2', 'Ref3',
+                      'Ref4', 'Administration'],
+            'value_type': 'json',
+            'description': 'Visible columns for Banking Mutaties table',
+        },
+        'banking_mutaties.filterable_columns': {
+            'value': ['ID', 'TransactionNumber', 'TransactionDate',
+                      'TransactionDescription', 'TransactionAmount', 'Debet',
+                      'Credit', 'ReferenceNumber', 'Ref1', 'Ref2', 'Ref3',
+                      'Ref4', 'Administration'],
+            'value_type': 'json',
+            'description': 'Filterable columns for Banking Mutaties table',
+        },
+        'banking_mutaties.default_sort': {
+            'value': {'field': 'TransactionDate', 'direction': 'desc'},
+            'value_type': 'json',
+            'description': 'Default sort for Banking Mutaties table',
+        },
+        'banking_mutaties.page_size': {
+            'value': 100,
+            'value_type': 'number',
+            'description': 'Page size for Banking Mutaties table',
+        },
+    }
+    for key, default_def in _table_defaults.items():
+        CODE_DEFAULTS[('ui.tables', key)] = default_def
+
+
+_register_code_defaults()
 
 
 class ParameterService:
@@ -32,6 +252,7 @@ class ParameterService:
                   role: str = None, user: str = None) -> Any:
         """
         Resolve parameter value by walking scope chain: user -> role -> tenant -> system.
+        Falls back to CODE_DEFAULTS at system scope when no DB value exists.
         Returns None if no value found at any scope.
         """
         scope_lookups = [
@@ -52,6 +273,11 @@ class ParameterService:
             if value is not None:
                 self._cache[cache_key] = value
                 return value
+
+        # Fallback: check CODE_DEFAULTS (acts as system scope)
+        code_default = CODE_DEFAULTS.get((namespace, key))
+        if code_default is not None:
+            return code_default['value']
 
         return None
 
@@ -114,6 +340,15 @@ class ParameterService:
         """
         Return all parameters in a namespace for a tenant, with scope origin indicator.
         Used by the admin API to show where each value comes from.
+
+        Merges three sources:
+        1. Tenant-scope DB rows  (scope_origin = 'tenant')
+        2. System-scope DB rows  (scope_origin = 'system')
+        3. CODE_DEFAULTS entries  (scope_origin = 'system', id = None)
+
+        Tenant-scope rows take precedence over system-scope rows and code defaults.
+        System-scope DB rows take precedence over code defaults for the same key.
+        Code defaults that have no DB row at all are included with scope_origin 'system'.
         """
         query = """
             SELECT id, scope, scope_id, namespace, `key`, value, value_type, is_secret
@@ -126,8 +361,10 @@ class ParameterService:
         """
         rows = self.db.execute_query(query, (namespace, tenant), fetch=True)
 
-        seen_keys = {}
-        results = []
+        seen_keys: Dict[str, bool] = {}
+        results: List[dict] = []
+
+        # Process DB rows first (tenant rows come before system rows due to ORDER BY)
         for row in rows:
             key = row['key']
             if key in seen_keys:
@@ -151,6 +388,25 @@ class ParameterService:
                 'value_type': row['value_type'],
                 'scope_origin': row['scope'],
                 'is_secret': bool(row['is_secret']),
+                'has_code_default': (namespace, key) in CODE_DEFAULTS,
+            })
+
+        # Merge CODE_DEFAULTS entries that have no matching DB row
+        for (ns, key), default_def in CODE_DEFAULTS.items():
+            if ns != namespace:
+                continue
+            if key in seen_keys:
+                continue
+            seen_keys[key] = True
+            results.append({
+                'id': None,
+                'namespace': namespace,
+                'key': key,
+                'value': default_def['value'],
+                'value_type': default_def['value_type'],
+                'scope_origin': 'system',
+                'is_secret': False,
+                'has_code_default': True,
             })
 
         return results

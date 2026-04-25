@@ -298,5 +298,99 @@
     "violinChartsShowDistribution": "Viooldiagrammen tonen de volledige verdeling van waarden met kernel density estimation.",
     "violinWidthExplanation": "De breedte van elke viool vertegenwoordigt de dichtheid van gegevens bij die waarde. Boxplots binnenin tonen kwartielen (Q1, mediaan, Q3), en de oranje lijn toont het gemiddelde.",
     "interactiveFeatures": "Interactieve functies: hover voor details, zoom, pan en download als afbeelding."
+  },
+  "pivot": {
+    "title": "Draaitabellen",
+    "builder": {
+      "title": "Draaitabel Configuratie",
+      "dataSource": "Gegevensbron",
+      "selectDataSource": "Selecteer een gegevensbron",
+      "groupColumns": "Groepeerkolommen",
+      "selectGroupColumns": "Selecteer kolommen om te groeperen",
+      "aggregateMeasures": "Aggregatiematen",
+      "addMeasure": "Maat toevoegen",
+      "removeMeasure": "Maat verwijderen",
+      "aggregateFunction": "Functie",
+      "aggregateColumn": "Kolom",
+      "columnPivot": "Kolom Draaiing",
+      "selectColumnPivot": "Selecteer kolom om te draaien (optioneel)",
+      "columnNestLevels": "Kolom Nestniveaus",
+      "selectNestLevels": "Selecteer nestniveaus (optioneel)",
+      "displayMode": "Weergavemodus",
+      "flat": "Plat",
+      "hierarchical": "Hiërarchisch",
+      "includeRollup": "Subtotalen opnemen",
+      "filters": "Filters"
+    },
+    "actions": {
+      "execute": "Uitvoeren",
+      "save": "Opslaan",
+      "saveAs": "Opslaan als",
+      "load": "Laden",
+      "delete": "Verwijderen",
+      "export": "Exporteren",
+      "exportPivot": "Draaitabel Exporteren",
+      "exportUnderlying": "Onderliggende Gegevens Exporteren"
+    },
+    "models": {
+      "title": "Opgeslagen Modellen",
+      "name": "Modelnaam",
+      "enterName": "Voer een naam in voor dit draaitabelmodel",
+      "selectModel": "Selecteer een opgeslagen model",
+      "noModels": "Nog geen opgeslagen modellen",
+      "saveSuccess": "Draaitabelmodel succesvol opgeslagen",
+      "updateSuccess": "Draaitabelmodel succesvol bijgewerkt",
+      "deleteSuccess": "Draaitabelmodel succesvol verwijderd",
+      "deleteConfirm": "Weet u zeker dat u dit draaitabelmodel wilt verwijderen?",
+      "duplicateName": "Er bestaat al een model met deze naam",
+      "notFound": "Draaitabelmodel niet gevonden",
+      "createdBy": "Aangemaakt door",
+      "createdAt": "Aangemaakt op",
+      "updatedAt": "Bijgewerkt op"
+    },
+    "functions": {
+      "SUM": "Som",
+      "COUNT": "Aantal",
+      "AVG": "Gemiddelde",
+      "MIN": "Minimum",
+      "MAX": "Maximum"
+    },
+    "numberFormat": {
+      "label": "Getalnotatie",
+      "decimal": "Decimaal (2dp)",
+      "whole": "Hele getallen",
+      "kNotation": "Afgekort (K/M)"
+    },
+    "results": {
+      "title": "Resultaten",
+      "noData": "Geen gegevens komen overeen met de huidige configuratie. Pas uw filters of groepeerkolommen aan.",
+      "loading": "Draaitabel query uitvoeren...",
+      "rowCount": "{{count}} rijen",
+      "grandTotal": "Eindtotaal",
+      "expandAll": "Alles uitklappen",
+      "collapseAll": "Alles inklappen"
+    },
+    "validation": {
+      "minGroupColumn": "Selecteer ten minste één groepeerkolom",
+      "minAggregateMeasure": "Selecteer ten minste één aggregatiemaat",
+      "maxGroupColumns": "Maximaal {{max}} groepeerkolommen toegestaan",
+      "maxAggregateMeasures": "Maximaal {{max}} aggregatiematen toegestaan",
+      "maxNestLevels": "Maximaal {{max}} kolom nestniveaus toegestaan",
+      "columnRoleOverlap": "Kolom '{{column}}' kan niet in meerdere rollen worden gebruikt",
+      "invalidFunction": "Ongeldige aggregatiefunctie: {{function}}",
+      "columnNotAllowed": "Kolom '{{column}}' is niet beschikbaar voor deze gegevensbron"
+    },
+    "errors": {
+      "executeFailed": "Kan draaitabel query niet uitvoeren. Controleer uw configuratie.",
+      "saveFailed": "Kan draaitabelmodel niet opslaan",
+      "loadFailed": "Kan draaitabelmodel niet laden",
+      "deleteFailed": "Kan draaitabelmodel niet verwijderen",
+      "exportFailed": "Kan gegevens niet exporteren",
+      "columnsFailed": "Kan beschikbare kolommen niet laden"
+    },
+    "dataSources": {
+      "vw_mutaties": "Financiële Transacties",
+      "vw_bnb_total": "STR Omzet"
+    }
   }
 }

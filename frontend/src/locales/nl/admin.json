@@ -9,7 +9,8 @@
       "provisioning": "Inrichting",
       "roleManagement": "Rollenbeheer",
       "healthCheck": "Systeemstatus",
-      "systemTaxRates": "Systeem Belastingtarieven"
+      "systemTaxRates": "Systeem Belastingtarieven",
+      "pivotDataSources": "Pivot Databronnen"
     }
   },
   "tenantAdmin": {
@@ -644,6 +645,26 @@
     "inactive": "Inactief",
     "enabled": "Ingeschakeld",
     "disabled": "Uitgeschakeld"
+  },
+  "pivotDataSources": {
+    "loading": "Databronnen laden...",
+    "total": "Totaal",
+    "searchPlaceholder": "Tabellen/views zoeken...",
+    "save": "Wijzigingen opslaan",
+    "noResults": "Geen tabellen of views gevonden",
+    "table": {
+      "name": "Naam",
+      "type": "Type",
+      "module": "Module",
+      "label": "Label",
+      "pivotEnabled": "Pivot ingeschakeld",
+      "labelPlaceholder": "Label invoeren..."
+    },
+    "messages": {
+      "errorLoading": "Fout bij laden databronnen",
+      "saved": "Databronnen opgeslagen",
+      "errorSaving": "Fout bij opslaan databronnen"
+    }
   },
   "provisioning": {
     "title": "Wachtende aanmeldingen",

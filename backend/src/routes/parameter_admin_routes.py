@@ -47,14 +47,23 @@ def list_parameters(user_email, user_roles, tenant, user_tenants):
         else:
             all_params = []
             db = DatabaseManager(test_mode=flag)
+
+            # Discover namespaces from DB rows
             rows = db.execute_query(
                 "SELECT DISTINCT namespace FROM parameters "
                 "WHERE (scope = 'tenant' AND scope_id = %s) OR scope = 'system' "
                 "ORDER BY namespace",
                 (tenant,), fetch=True
             )
-            for row in rows:
-                ns_params = svc.get_params_by_namespace(row['namespace'], tenant)
+            db_namespaces = {row['namespace'] for row in rows}
+
+            # Also discover namespaces from CODE_DEFAULTS
+            from services.parameter_service import CODE_DEFAULTS
+            for (ns, _key) in CODE_DEFAULTS:
+                db_namespaces.add(ns)
+
+            for ns in sorted(db_namespaces):
+                ns_params = svc.get_params_by_namespace(ns, tenant)
                 all_params.extend(ns_params)
             params = all_params
 

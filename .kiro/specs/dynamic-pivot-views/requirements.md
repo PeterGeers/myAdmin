@@ -4,9 +4,18 @@
 
 Dynamic Pivot Views enables users to create ad-hoc aggregated views of tabular data by selecting grouping columns, aggregation functions, and optional filters — then save those configurations as reusable "pivot models" for later recall. This feature extends the existing table infrastructure (`useFilterableTable`, `FilterableHeader`, `ReportingService`) with a user-driven GROUP BY query builder and a persistence layer for saved view definitions.
 
-The scope covers the two primary data sources (`vw_mutaties` for financial transactions and `vw_bnb_total` for STR revenue) and integrates with the existing parameter system for default view configuration.
+Data sources (database views and tables) are managed by the system administrator through a dedicated UI. Column definitions are introspected automatically from the database schema at startup — no hardcoded column lists. The parameter system controls which columns are excluded, which numeric columns are treated as groupable categories, and which columns each tenant can access. Filters are generic: users filter on any column via inline column headers, and the backend applies them as parameterized WHERE conditions.
 
 ## Data Source Column Definitions
+
+Column definitions are **not hardcoded** — they are derived at startup from the database schema via `DESCRIBE <view>`. The tables below are reference documentation showing the initial data sources and their expected column roles.
+
+Column role classification:
+
+- **Groupable**: non-numeric columns (varchar, date) — used in GROUP BY
+- **Aggregatable**: numeric columns (decimal, int) — used with SUM/COUNT/AVG/MIN/MAX
+- **Overrides**: numeric columns that represent categories (e.g., `jaar`, `kwartaal`) are forced groupable via the `ui.pivot / force_groupable.<ds>` parameter
+- **Excluded**: columns hidden from pivot via the `ui.pivot / exclude_columns.<ds>` parameter (e.g., `TransactionNumber`, `TransactionDescription`)
 
 ### vw_mutaties (Financial Transactions)
 
@@ -122,6 +131,7 @@ Column pivoting is optional — when no Column_Pivot is selected, all Group_Colu
 - **Pivot_Service**: The backend service responsible for constructing and executing dynamic GROUP BY queries. Delegates model persistence to the Pivot_Model_Store.
 - **Pivot_API**: The set of backend REST endpoints for executing pivot queries and managing Pivot_Models (CRUD operations on the Pivot_Model_Store).
 - **Allowed_Columns_Registry**: A backend configuration that defines which columns from each Data_Source are available for grouping and aggregation, preventing arbitrary column access.
+- **Data_Source_Registry**: The sysadmin-managed whitelist of database tables and views that are available as pivot data sources. Stored in the parameter system (`ui.pivot / registered_sources`) at system scope. Prevents users from querying system tables or sensitive data.
 
 ## Requirements
 
@@ -142,15 +152,14 @@ Column pivoting is optional — when no Column_Pivot is selected, all Group_Colu
 
 ### Requirement 2: Apply Filters to a Pivot View
 
-**User Story:** As a financial administrator, I want to apply filters to my pivot view using the same filter controls I already know from the existing tables, so that I can focus the aggregation on a relevant subset of data without learning a new UI.
+**User Story:** As a financial administrator, I want to filter my pivot view data by any column value, so that I can focus the aggregation on a relevant subset of data.
 
 #### Acceptance Criteria
 
-1. WHEN the user configures a Pivot_View, THE Pivot_Builder SHALL display above-table filter controls appropriate to the selected Data_Source, reusing the existing `FilterPanel`, `YearFilter`, and `GenericFilter` components already used on the respective source tables.
-2. WHEN the Data_Source is `vw_mutaties`, THE Pivot_Builder SHALL offer the same above-table filter controls as the MutatiesReport: date range (via `YearFilter`), administration, profit/loss category (VW), and ledger account (Reknum).
-3. WHEN the Data_Source is `vw_bnb_total`, THE Pivot_Builder SHALL offer the same above-table filter controls as the BNB revenue table: date range, channel, and listing.
-4. WHEN the user sets filter values, THE Pivot_Service SHALL apply those filters as WHERE clause conditions before the GROUP BY aggregation.
-5. THE Pivot_Builder SHALL reuse the existing `FilterPanel` and `GenericFilter` components for filter rendering and state management, ensuring consistent filter behavior with the source tables.
+1. WHEN the user configures a Pivot_View, THE Pivot_Builder SHALL allow filtering on any column from the selected Data_Source using inline column header filters (consistent with the existing `FilterableHeader` pattern).
+2. WHEN the user sets filter values, THE Pivot_Service SHALL apply those filters as parameterized WHERE clause conditions before the GROUP BY aggregation.
+3. THE Pivot_Service SHALL validate filter column names against the known columns of the data source (from schema introspection) and silently ignore unknown column names.
+4. THE Pivot_Service SHALL support two filter modes: single-value equality (`column = %s`) and multi-value inclusion (`column IN (%s, %s, ...)`), determined automatically by whether the filter value is a scalar or a list.
 
 ### Requirement 3: Execute a Pivot View and Display Results
 
@@ -200,12 +209,12 @@ Column pivoting is optional — when no Column_Pivot is selected, all Group_Colu
 
 #### Acceptance Criteria
 
-1. THE Pivot_Service SHALL maintain an Allowed_Columns_Registry that defines, per Data_Source, the system-level maximum set of columns available for grouping and aggregation.
-2. THE system SHALL allow a tenant administrator to reduce the allowed columns for their tenant via the parameter system, restricting which columns are available to their users.
-3. WHEN resolving available columns for a user, THE Pivot_Service SHALL apply scope inheritance: start with the system-level maximum list, then apply any tenant-level restrictions.
+1. THE Pivot_Service SHALL maintain an Allowed_Columns_Registry that defines, per Data_Source, the system-level maximum set of columns available for grouping and aggregation, derived from database schema introspection at startup.
+2. THE system SHALL allow a tenant administrator to reduce the allowed columns for their tenant via the parameter system (`ui.pivot / allowed_columns.<data_source>`), restricting which columns are available to their users.
+3. WHEN resolving available columns for a user, THE Pivot_Service SHALL apply scope inheritance: start with the system-level maximum list (from schema introspection), then apply any tenant-level restrictions.
 4. WHEN the Pivot_Builder requests available columns for a Data_Source, THE Pivot_API SHALL return only columns permitted by the resolved Allowed_Columns_Registry for the current tenant.
 5. IF a pivot execution request includes a column not in the resolved Allowed_Columns_Registry, THEN THE Pivot_Service SHALL reject the request with a validation error.
-6. THE system-level Allowed_Columns_Registry SHALL be defined in backend configuration and not modifiable through the Pivot_API.
+6. THE system-level column classification (groupable vs aggregatable) SHALL be derived automatically from the database schema, with overrides managed through the parameter system (`ui.pivot / exclude_columns.<ds>` and `ui.pivot / force_groupable.<ds>`).
 7. THE tenant-level column restrictions SHALL be stored in the `parameters` table (namespace: `ui.pivot`, key per Data_Source) and editable by tenant administrators through the existing ParameterManagement UI.
 
 ### Requirement 7: Export Pivot Results
@@ -263,3 +272,19 @@ Column pivoting is optional — when no Column_Pivot is selected, all Group_Colu
 2. THE Pivot_Service SHALL deserialize stored JSON back into Pivot_Model definitions when loading.
 3. FOR ALL valid Pivot_Model definitions, serializing then deserializing SHALL produce an equivalent Pivot_Model definition (round-trip property).
 4. IF a stored JSON document is malformed or missing required fields, THEN THE Pivot_Service SHALL return a descriptive error and not load a partial model.
+
+### Requirement 11: Sysadmin Data Source Management
+
+**User Story:** As a system administrator, I want to manage which database tables and views are available as pivot data sources, so that I can prevent users from querying system tables or sensitive data, and tag each source with its module (FIN, STR, ZZP) for proper UI routing.
+
+#### Acceptance Criteria
+
+1. THE system SHALL provide a sysadmin-only UI page that lists all tables and views in the database.
+2. THE sysadmin UI SHALL display each table/view with its name, type (TABLE or VIEW), pivot-enabled status (yes/no toggle), and module assignment (FIN, STR, ZZP, or unassigned).
+3. WHEN the sysadmin enables pivot for a table/view, THE system SHALL add it to the `ui.pivot / registered_sources` parameter at system scope.
+4. WHEN the sysadmin disables pivot for a table/view, THE system SHALL remove it from the `ui.pivot / registered_sources` parameter.
+5. WHEN the sysadmin assigns a module to a data source, THE system SHALL store the assignment in the `ui.pivot / datasource_module.<name>` parameter at system scope.
+6. THE Pivot_Builder SHALL only display data sources that are enabled for pivot in the `registered_sources` parameter.
+7. THE Pivot_Builder SHALL filter available data sources by the current module context (e.g., FIN tab only shows FIN-tagged sources).
+8. ONLY users with the `sysadmin` role SHALL be able to access the data source management UI and modify the registered sources list.
+9. THE system SHALL auto-create parameter entries for `exclude_columns`, `force_groupable`, and `datasource_label` when a new data source is enabled, using sensible defaults derived from schema introspection.
