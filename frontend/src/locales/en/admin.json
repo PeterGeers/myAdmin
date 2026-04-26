@@ -37,7 +37,8 @@
       "templates": "Templates",
       "tenantInfo": "Tenant Info",
       "advanced": "Advanced",
-      "emailLog": "Email Log"
+      "emailLog": "Email Log",
+      "pivotViews": "Pivot Views"
     },
     "parameters": {
       "title": "Parameters",

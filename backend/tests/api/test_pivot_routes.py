@@ -496,4 +496,4 @@ class TestTenantIsolation:
             content_type='application/json',
         )
         call_args = mock_pivot_service.build_underlying_query.call_args
-        assert call_args[0][1] == ['TestTenant']
+        assert call_args[0][1] == 'TestTenant'

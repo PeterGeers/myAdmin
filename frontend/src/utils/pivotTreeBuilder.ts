@@ -210,10 +210,12 @@ function rollUpAggregates(
  * Null/undefined values are excluded from computation.
  */
 function applyAggregation(
-  values: (number | null | undefined)[],
+  values: (number | string | null | undefined)[],
   fn: 'SUM' | 'COUNT' | 'AVG' | 'MIN' | 'MAX',
 ): number | null {
-  const nums = values.filter((v): v is number => v != null && !Number.isNaN(v));
+  const nums = values
+    .map((v) => (v != null ? Number(v) : NaN))
+    .filter((v): v is number => !Number.isNaN(v));
 
   if (nums.length === 0) return null;
 

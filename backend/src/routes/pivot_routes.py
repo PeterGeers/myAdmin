@@ -21,6 +21,8 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md §3 Pivot API Routes
 
 import os
 import logging
+from datetime import date, datetime
+from decimal import Decimal
 from flask import Blueprint, request, jsonify
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -32,6 +34,41 @@ from services.pivot_model_store import PivotModelStore
 logger = logging.getLogger(__name__)
 
 pivot_bp = Blueprint('pivot', __name__, url_prefix='/api/pivot')
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _clean_rows(rows):
+    """Normalise DB rows for JSON serialisation.
+
+    * ``datetime`` / ``date`` → ISO-8601 string (``YYYY-MM-DD`` or full ISO)
+    * ``Decimal``             → ``float``
+    * ``bytes``               → UTF-8 string
+
+    This avoids Flask's default RFC-2822 date format
+    (``"Thu, 21 Mar 2019 00:00:00 GMT"``) which is hard to use in
+    spreadsheets and CSV exports.
+    """
+    if not rows:
+        return rows
+    cleaned = []
+    for row in rows:
+        out = {}
+        for key, val in row.items():
+            if isinstance(val, datetime):
+                out[key] = val.strftime('%Y-%m-%d %H:%M:%S') if val.hour or val.minute or val.second else val.strftime('%Y-%m-%d')
+            elif isinstance(val, date):
+                out[key] = val.strftime('%Y-%m-%d')
+            elif isinstance(val, Decimal):
+                out[key] = float(val)
+            elif isinstance(val, bytes):
+                out[key] = val.decode('utf-8', errors='replace')
+            else:
+                out[key] = val
+        cleaned.append(out)
+    return cleaned
 
 
 def _get_service():
@@ -80,6 +117,9 @@ def execute_pivot(user_email, user_roles, tenant, user_tenants):
 
         service = _get_service()
         result = service.execute_pivot(tenant, user_tenants, data)
+        # Clean date/Decimal/bytes values for JSON serialisation
+        if result.get('data'):
+            result['data'] = _clean_rows(result['data'])
         return jsonify(result)
     except ValueError as e:
         error_msg = str(e)
@@ -328,7 +368,7 @@ def export_underlying(user_email, user_roles, tenant, user_tenants):
             return jsonify({'success': False, 'error': 'Request body required'}), 400
 
         service = _get_service()
-        query, params = service.build_underlying_query(data, user_tenants)
+        query, params = service.build_underlying_query(data, tenant)
 
         try:
             rows = service.db.execute_query(query, params, fetch=True)
@@ -340,7 +380,7 @@ def export_underlying(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({
             'success': True,
-            'data': rows or [],
+            'data': _clean_rows(rows) if rows else [],
             'row_count': len(rows) if rows else 0,
         })
     except ValueError as e:

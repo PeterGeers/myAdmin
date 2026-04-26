@@ -106,9 +106,11 @@ def _make_service():
 # Strategies
 # ---------------------------------------------------------------------------
 
+# Note: 'administration' is the TENANT_COLUMN and is excluded from the
+# registry by derive_columns_from_schema — it is never user-selectable.
 _GROUPABLE = ['Aangifte', 'TransactionDate', 'Reknum', 'AccountName',
               'Parent', 'VW', 'jaar', 'kwartaal', 'maand', 'week',
-              'ReferenceNumber', 'administration']
+              'ReferenceNumber']
 _AGGREGATABLE = ['Amount']
 
 agg_function_st = st.sampled_from(['SUM', 'COUNT', 'AVG', 'MIN', 'MAX'])
@@ -200,12 +202,12 @@ class TestParameterizedSqlStructure:
     @settings(max_examples=100)
     @given(
         config=valid_config_st(),
-        tenants=st.lists(tenant_st, min_size=1, max_size=3, unique=True),
+        tenant=tenant_st,
     )
-    def test_only_placeholder_params(self, config, tenants):
+    def test_only_placeholder_params(self, config, tenant):
         """Generated SQL should only contain %s placeholders, no raw values."""
         svc = _make_service()
-        query, params = svc.build_pivot_query(config, tenants)
+        query, params = svc.build_pivot_query(config, tenant)
 
         # All user values should be in params, not in the query string
         assert '%s' in query
@@ -218,12 +220,12 @@ class TestParameterizedSqlStructure:
     @settings(max_examples=100)
     @given(
         config=valid_config_st(),
-        tenants=st.lists(tenant_st, min_size=1, max_size=3, unique=True),
+        tenant=tenant_st,
     )
-    def test_where_precedes_group_by(self, config, tenants):
+    def test_where_precedes_group_by(self, config, tenant):
         """WHERE clause should appear before GROUP BY in the query."""
         svc = _make_service()
-        query, _ = svc.build_pivot_query(config, tenants)
+        query, _ = svc.build_pivot_query(config, tenant)
 
         where_pos = query.upper().find('WHERE')
         group_pos = query.upper().find('GROUP BY')
@@ -234,16 +236,15 @@ class TestParameterizedSqlStructure:
     @settings(max_examples=100)
     @given(
         config=valid_config_st(),
-        tenants=st.lists(tenant_st, min_size=1, max_size=3, unique=True),
+        tenant=tenant_st,
     )
-    def test_filter_values_in_params(self, config, tenants):
+    def test_filter_values_in_params(self, config, tenant):
         """All filter values should appear in the params list."""
         svc = _make_service()
-        _, params = svc.build_pivot_query(config, tenants)
+        _, params = svc.build_pivot_query(config, tenant)
 
-        # Tenant values should be in params
-        for t in tenants:
-            assert t in params
+        # Tenant value should be in params (single-tenant = %s)
+        assert tenant in params
 
         # Filter values should be in params
         for key, val in config.get('filters', {}).items():
@@ -263,44 +264,41 @@ class TestParameterizedSqlStructure:
 # ---------------------------------------------------------------------------
 
 class TestTenantIsolation:
-    """For any config and user_tenants, WHERE includes administration IN (...)."""
+    """For any config and tenant, WHERE includes administration = %s."""
 
     @settings(max_examples=100)
     @given(
         config=valid_config_st(),
-        tenants=st.lists(tenant_st, min_size=1, max_size=5, unique=True),
+        tenant=tenant_st,
     )
-    def test_tenant_filter_in_where(self, config, tenants):
-        """WHERE clause must contain administration IN (...) with all tenants."""
+    def test_tenant_filter_in_where(self, config, tenant):
+        """WHERE clause must contain administration = %s with the tenant value."""
         svc = _make_service()
-        query, params = svc.build_pivot_query(config, tenants)
+        query, params = svc.build_pivot_query(config, tenant)
 
         # Check the WHERE clause contains the tenant column
         assert f'`{TENANT_COLUMN}`' in query
 
-        # All tenant values must be in params
-        for t in tenants:
-            assert t in params
+        # Tenant value must be in params
+        assert tenant in params
 
-        # The IN clause should have the right number of placeholders
-        # Find the administration IN (...) pattern
+        # The WHERE clause should use = %s for single-tenant isolation
         pattern = re.compile(
-            r'`administration`\s+IN\s*\(([^)]+)\)',
+            r'`administration`\s*=\s*%s',
             re.IGNORECASE,
         )
         match = pattern.search(query)
-        assert match, "Query must contain `administration` IN (...)"
-        placeholders_str = match.group(1)
-        placeholder_count = placeholders_str.count('%s')
-        assert placeholder_count == len(tenants)
+        assert match, "Query must contain `administration` = %s"
 
     @settings(max_examples=50)
     @given(config=valid_config_st())
-    def test_empty_tenants_blocks_all(self, config):
-        """With empty user_tenants, WHERE should contain 1=0 (match nothing)."""
+    def test_empty_tenant_still_filters(self, config):
+        """With empty string tenant, WHERE still contains administration = %s."""
         svc = _make_service()
-        query, _ = svc.build_pivot_query(config, [])
-        assert '1=0' in query
+        query, params = svc.build_pivot_query(config, '')
+        # Even with empty tenant, the filter is present (prevents data leakage)
+        assert f'`{TENANT_COLUMN}` = %s' in query
+        assert '' in params
 
 
 # ---------------------------------------------------------------------------
@@ -315,12 +313,12 @@ class TestColumnPivotConditionalAggregation:
     @settings(max_examples=100)
     @given(
         config=valid_pivot_config_st(),
-        tenants=st.lists(tenant_st, min_size=1, max_size=2, unique=True),
+        tenant=tenant_st,
     )
-    def test_case_when_for_each_pivot_value(self, config, tenants):
+    def test_case_when_for_each_pivot_value(self, config, tenant):
         """SQL should contain CASE WHEN for each pivot value."""
         svc = _make_service()
-        query, params = svc.build_pivot_query(config, tenants)
+        query, params = svc.build_pivot_query(config, tenant)
 
         pivot_values = config['pivot_values']
         agg_measures = config['aggregate_measures']
@@ -337,12 +335,12 @@ class TestColumnPivotConditionalAggregation:
     @settings(max_examples=100)
     @given(
         config=valid_pivot_config_st(),
-        tenants=st.lists(tenant_st, min_size=1, max_size=2, unique=True),
+        tenant=tenant_st,
     )
-    def test_pivot_values_in_params(self, config, tenants):
+    def test_pivot_values_in_params(self, config, tenant):
         """All pivot values should appear in the params list."""
         svc = _make_service()
-        _, params = svc.build_pivot_query(config, tenants)
+        _, params = svc.build_pivot_query(config, tenant)
 
         for pv in config['pivot_values']:
             assert pv in params
@@ -350,12 +348,12 @@ class TestColumnPivotConditionalAggregation:
     @settings(max_examples=100)
     @given(
         config=valid_pivot_config_st(),
-        tenants=st.lists(tenant_st, min_size=1, max_size=2, unique=True),
+        tenant=tenant_st,
     )
-    def test_grand_total_columns_present(self, config, tenants):
+    def test_grand_total_columns_present(self, config, tenant):
         """Grand total columns should be appended for each aggregate measure."""
         svc = _make_service()
-        query, _ = svc.build_pivot_query(config, tenants)
+        query, _ = svc.build_pivot_query(config, tenant)
 
         for m in config['aggregate_measures']:
             func = m['function'].upper()

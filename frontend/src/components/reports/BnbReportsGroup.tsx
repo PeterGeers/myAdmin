@@ -11,6 +11,7 @@ import BnbReturningGuestsReport from './BnbReturningGuestsReport';
 import BnbFutureReport from './BnbFutureReport';
 import ToeristenbelastingReport from './ToeristenbelastingReport';
 import BnbCountryBookingsReport from './BnbCountryBookingsReport';
+import { PivotViewsTab } from '../pivot/PivotViewsTab';
 
 const BnbReportsGroup: React.FC = () => {
   const { t } = useTypedTranslation('reports');
@@ -25,6 +26,7 @@ const BnbReportsGroup: React.FC = () => {
         <Tab color="white">📈 {t('titles.bnbFuture')}</Tab>
         <Tab color="white">🏨 {t('titles.toeristenbelasting')}</Tab>
         <Tab color="white">🌍 {t('titles.bnbCountryBookings')}</Tab>
+        <Tab color="white">📊 {t('titles.pivotViews')}</Tab>
       </TabList>
 
       <TabPanels>
@@ -54,6 +56,10 @@ const BnbReportsGroup: React.FC = () => {
         
         <TabPanel>
           <BnbCountryBookingsReport />
+        </TabPanel>
+
+        <TabPanel>
+          <PivotViewsTab moduleFilter="STR" />
         </TabPanel>
       </TabPanels>
     </Tabs>

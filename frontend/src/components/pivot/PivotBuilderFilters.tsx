@@ -45,12 +45,16 @@ function buildFilterConfigs(
   groupableColumns: ColumnDef[],
   filters: Record<string, any>,
   onFilterChange: (key: string, value: any) => void,
+  t: (key: string, options?: Record<string, any>) => string,
 ): SearchFilterConfig[] {
-  return groupableColumns.map((col) => ({
-    type: 'search' as const,
-    label: col.label || col.name,
-    value: filters[col.name] != null ? String(filters[col.name]) : '',
-    onChange: (val: string) => {
+  return groupableColumns.map((col) => {
+    const translated = t(`pivot.columnLabels.${col.name}`, { defaultValue: '' });
+    const label = translated || col.label || col.name;
+    return {
+      type: 'search' as const,
+      label,
+      value: filters[col.name] != null ? String(filters[col.name]) : '',
+      onChange: (val: string) => {
       // If the value contains commas, split into an array for multi-value IN filtering
       const trimmed = val.trim();
       if (!trimmed) {
@@ -67,8 +71,9 @@ function buildFilterConfigs(
         onFilterChange(col.name, trimmed);
       }
     },
-    placeholder: col.label || col.name,
-  }));
+    placeholder: label,
+    };
+  });
 }
 
 export function PivotBuilderFilters({
@@ -79,8 +84,8 @@ export function PivotBuilderFilters({
   disabled = false,
 }: PivotBuilderFiltersProps): React.ReactElement | null {
   const filterConfigs = useMemo(
-    () => buildFilterConfigs(groupableColumns, filters, onFilterChange),
-    [groupableColumns, filters, onFilterChange],
+    () => buildFilterConfigs(groupableColumns, filters, onFilterChange, t),
+    [groupableColumns, filters, onFilterChange, t],
   );
 
   if (filterConfigs.length === 0) return null;

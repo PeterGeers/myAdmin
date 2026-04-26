@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "MySQL Assignment - C:\\Users\\peter\\aws\\myAdmin\\backend\\scripts\\migrate_revolut_ref2.py", "match": "6fe2eecbad67e57b6354fe5cf29bc618f5745956aa3ced9c5d7a3eb60c8e5837"}]}
+{"last_found_secrets": [{"match": "c65f39d3de2eaf75fa9d6bc0a896dcdb5c957cec4e03209252e35a308ddea5ea", "name": "Generic Password - C:\\Users\\peter\\aws\\myAdmin\\backend\\tests\\unit\\test_create_initial_admin_user.py"}]}

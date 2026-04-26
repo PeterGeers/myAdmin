@@ -16,7 +16,8 @@
     "bnbReturningGuests": "BNB Returning Guests",
     "referenceAnalysis": "Reference Analysis",
     "toeristenbelasting": "Tourist Tax",
-    "yearEndClosure": "Year-End Closure"
+    "yearEndClosure": "Year-End Closure",
+    "pivotViews": "Pivot Views"
   },
   "filters": {
     "year": "Year",
@@ -305,22 +306,23 @@
       "title": "Pivot Builder",
       "dataSource": "Data Source",
       "selectDataSource": "Select a data source",
-      "groupColumns": "Group Columns",
-      "selectGroupColumns": "Select columns to group by",
+      "groupColumns": "Row Groups",
+      "selectGroupColumns": "Select columns for row grouping",
       "aggregateMeasures": "Aggregate Measures",
       "addMeasure": "Add measure",
       "removeMeasure": "Remove measure",
       "aggregateFunction": "Function",
       "aggregateColumn": "Column",
-      "columnPivot": "Column Pivot",
-      "selectColumnPivot": "Select column to pivot (optional)",
+      "columnPivot": "Column Headers",
+      "selectColumnPivot": "Pivot a column into headers (optional)",
       "columnNestLevels": "Column Nest Levels",
       "selectNestLevels": "Select nest levels (optional)",
       "displayMode": "Display Mode",
       "flat": "Flat",
       "hierarchical": "Hierarchical",
       "includeRollup": "Include subtotals",
-      "filters": "Filters"
+      "filters": "Filters",
+      "filtersHint": "use % as wildcard"
     },
     "actions": {
       "execute": "Execute",
@@ -391,6 +393,43 @@
     "dataSources": {
       "vw_mutaties": "Financial Transactions",
       "vw_bnb_total": "STR Revenue"
+    },
+    "columnLabels": {
+      "Aangifte": "Tax Declaration",
+      "TransactionDate": "Transaction Date",
+      "TransactionDescription": "Description",
+      "TransactionNumber": "Transaction No.",
+      "Amount": "Amount",
+      "Reknum": "Ledger No.",
+      "AccountName": "Account Name",
+      "Parent": "Parent Category",
+      "VW": "P&L / Balance",
+      "jaar": "Year",
+      "kwartaal": "Quarter",
+      "maand": "Month",
+      "week": "Week",
+      "ReferenceNumber": "Reference",
+      "channel": "Channel",
+      "listing": "Listing",
+      "checkinDate": "Check-in Date",
+      "checkoutDate": "Check-out Date",
+      "nights": "Nights",
+      "guests": "Guests",
+      "amountGross": "Gross Amount",
+      "amountNett": "Net Amount",
+      "amountChannelFee": "Channel Fee",
+      "amountTouristTax": "Tourist Tax",
+      "amountVat": "VAT",
+      "pricePerNight": "Price/Night",
+      "daysBeforeReservation": "Lead Time (days)",
+      "year": "Year",
+      "q": "Quarter",
+      "m": "Month",
+      "country": "Country",
+      "countryName": "Country Name",
+      "countryRegion": "Region",
+      "source_type": "Source Type",
+      "status": "Status"
     }
   }
 }

@@ -318,13 +318,13 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Use fast-check 4.4.0 with minimum 100 iterations per property
     - **Validates: Requirements 3.6, 3.7, 7.2, 7.3, 8.2, 8.3**
 
-- [ ] 10. Checkpoint — Core UI complete
+- [x] 10. Checkpoint — Core UI complete
   - Ensure PivotBuilder and PivotResultTable compile without errors
   - Verify end-to-end flow: select data source → pick columns → execute → see results
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 11. CSV export, wiring, and remaining tests
-  - [ ] 11.1 Implement CSV export in PivotResultTable
+  - [x] 11.1 Implement CSV export in PivotResultTable
     - Use `generateCsv()` utility from task 7.3
     - Pivot result export: iterate data array, format numbers per current display mode, generate CSV, trigger download
     - Underlying dataset export: call `exportUnderlying()` API, generate CSV with full-precision numbers
@@ -333,28 +333,30 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Use existing `Blob` + `URL.createObjectURL` + anchor click pattern from `MutatiesReport.tsx`
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-  - [ ] 11.2 Integrate PivotBuilder as a tab in TenantAdminDashboard
+  - [x] 11.2 Integrate PivotBuilder as a tab in TenantAdminDashboard
     - Add a new "📊 Pivot Views" tab in `frontend/src/components/TenantAdmin/TenantAdminDashboard.tsx`
     - Render `PivotBuilder` component inside the new tab panel, passing `tenant={currentTenant}`
     - Tenant admins use this tab to create, edit, save, load, and delete pivot model definitions
     - Tab visibility: always shown (pivot views work across FIN and STR modules)
     - _Requirements: 1.1, 4.1, 5.1_
 
-  - [ ] 11.3 Add PivotResultTable tab to FinancialReportsGroup
-    - Add a new "📊 Pivot Views" tab in `frontend/src/components/reports/FinancialReportsGroup.tsx`
-    - Create a `PivotViewsTab` wrapper component that loads saved models filtered to `data_source = 'vw_mutaties'`
-    - Render a model selector dropdown + `PivotResultTable` — user picks a saved model, clicks execute, sees results
-    - Reuses the same `PivotResultTable` component as the STR tab
+  - [x] 11.3 Add PivotViewsTab to FinancialReportsGroup
+    - Created reusable `PivotViewsTab` component in `frontend/src/components/pivot/PivotViewsTab.tsx`, parameterized by `moduleFilter` (any module — FIN, STR, ZZP, ADMIN, etc.)
+    - Loads saved pivot models filtered by module — fetches registered sources for the module, then filters the model list to matching data sources
+    - Model selector dropdown lets user pick a saved model; model structure (group columns, aggregates, data source) is locked
+    - Filter controls via `PivotBuilderFilters` let users adjust filter values on the model's group columns (e.g., year, quarter) without changing the model structure
+    - Execute button runs the pivot with the model config + user's filter overrides, results render in `PivotResultTable`
+    - Added "📊 Pivot Views" tab in `FinancialReportsGroup.tsx` rendering `<PivotViewsTab moduleFilter="FIN" />`
+    - Added `titles.pivotViews` translation keys in EN and NL reports translations
     - _Requirements: 3.4, 5.1, 5.2_
 
-  - [ ] 11.4 Add PivotResultTable tab to BnbReportsGroup
+  - [x] 11.4 Add PivotViewsTab to BnbReportsGroup
     - Add a new "📊 Pivot Views" tab in `frontend/src/components/reports/BnbReportsGroup.tsx`
-    - Create a `PivotViewsTab` wrapper component that loads saved models filtered to `data_source = 'vw_bnb_total'`
-    - Render a model selector dropdown + `PivotResultTable` — same pattern as the FIN tab
-    - Reuses the same `PivotResultTable` component and `PivotViewsTab` wrapper (parameterized by data source)
+    - Reuse the same `PivotViewsTab` component with `<PivotViewsTab moduleFilter="STR" />`
+    - Translation key `titles.pivotViews` already exists from task 11.3
     - _Requirements: 3.4, 5.1, 5.2_
 
-  - [ ] 11.5 Write unit tests for PivotBuilder
+  - [x] 11.5 Write unit tests for PivotBuilder and PivotViewsTab
     - Create `frontend/src/components/pivot/__tests__/PivotBuilder.test.tsx`
     - Test: renders data source selector with options
     - Test: fetches and displays columns on data source change
@@ -362,9 +364,15 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Test: save flow prompts for name and calls API
     - Test: load model populates config
     - Test: filter controls match selected data source
-    - _Requirements: 1.1, 1.2, 1.6, 2.1, 4.1, 5.2_
+    - Create `frontend/src/components/pivot/__tests__/PivotViewsTab.test.tsx`
+    - Test: renders model selector dropdown with saved models filtered by module
+    - Test: loading a model populates filter controls for the model's group columns
+    - Test: filter changes are applied when executing the pivot
+    - Test: model structure (group columns, aggregates) is not editable — only filters
+    - Test: shows empty state when no saved models exist for the module
+    - _Requirements: 1.1, 1.2, 1.6, 2.1, 4.1, 5.1, 5.2_
 
-  - [ ] 11.6 Write unit tests for PivotResultTable
+  - [x] 11.6 Write unit tests for PivotResultTable
     - Create `frontend/src/components/pivot/__tests__/PivotResultTable.test.tsx`
     - Test: renders flat table with correct columns and data
     - Test: renders empty state message when no data
@@ -373,18 +381,33 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
     - Test: export buttons disabled when no data
     - _Requirements: 3.4, 3.7, 3.8, 7.6, 8.1_
 
-  - [ ] 11.7 Write unit tests for pivotService.ts
+  - [x] 11.7 Write unit tests for pivotService.ts
     - Create `frontend/src/services/__tests__/pivotService.test.ts`
-    - Test all API client functions with MSW mocks
-    - Test error handling for failed requests
+    - Test all API client functions with MSW mocks (`executePivot`, `getAvailableColumns`, `getRegisteredSources`, `listPivotModels`, `loadPivotModel`, `savePivotModel`, `updatePivotModel`, `deletePivotModel`, `exportUnderlying`)
+    - Test `filterSourcesByModule()` — filters by module string, returns all when no filter provided
+    - Test `toBackendConfig` / `fromBackendConfig` camelCase ↔ snake_case conversion
+    - Test error handling for failed requests (non-200 responses, network errors)
     - _Requirements: 3.1, 4.1, 5.1_
 
-- [ ] 12. Final checkpoint — All implementation complete
+- [x] 12. Final checkpoint — All implementation complete
   - Ensure all backend and frontend code compiles without errors
   - Ensure all tests pass, ask the user if questions arise.
   - Verify full flow: configure pivot → execute → view results → save model → load model → export CSV
   - Verify tenant isolation: models and data scoped to current tenant
   - Verify column access control: only allowed columns shown and accepted
+
+- [ ] 13. Production deployment
+  - [ ] 13.1 Commit and push feature branch
+    - Stage all pivot-related changes (backend services, routes, tests, frontend components, tests, translations, types)
+    - Commit with message: `feat: Dynamic Pivot Views — complete implementation`
+    - Push `feature/dynamic-pivot-views` to origin
+  - [ ] 13.2 Run production database migration
+    - Execute `python backend/scripts/database/create_pivot_models_table.py` (without `--test` flag) against the production database
+    - Verify the `pivot_models` table exists with correct schema: `id`, `administration`, `name`, `data_source`, `definition` (JSON), `created_by`, `created_at`, `updated_at`, unique key `uq_admin_user_name`, index `idx_administration`
+  - [ ] 13.3 Merge feature branch into main
+    - Switch to `main` branch and pull latest
+    - Merge `feature/dynamic-pivot-views` into `main`
+    - Push `main` to origin
 
 ## Notes
 

@@ -19,15 +19,21 @@ import {
   Flex,
   FormControl,
   FormLabel,
+  HStack,
+  IconButton,
   Select,
   Spinner,
+  Tag,
+  TagLabel,
   Text,
   VStack,
+  Wrap,
+  WrapItem,
 } from '@chakra-ui/react';
+import { ArrowUpIcon, ArrowDownIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import type {
   DataSourceModule,
-  DisplayMode,
   PivotConfig,
   PivotResult,
 } from '../../types/pivot';
@@ -61,6 +67,15 @@ export function PivotBuilder({
   onConfigChange,
 }: PivotBuilderProps): React.ReactElement {
   const { t } = useTypedTranslation('reports');
+
+  // Translate a database column name to a human-readable label
+  const getColumnLabel = useCallback(
+    (name: string) => {
+      const translated = t(`pivot.columnLabels.${name}`, { defaultValue: '' });
+      return translated || name;
+    },
+    [t],
+  );
 
   const {
     dataSources,
@@ -176,19 +191,19 @@ export function PivotBuilder({
 
       {/* Error display */}
       {executeError && (
-        <Alert status="error" mb={3} borderRadius="md">
-          <AlertIcon />
-          <Text fontSize="sm">{executeError}</Text>
+        <Alert status="error" mb={3} borderRadius="md" bg="red.900" borderColor="red.600" borderWidth="1px">
+          <AlertIcon color="red.300" />
+          <Text fontSize="sm" color="red.200">{executeError}</Text>
         </Alert>
       )}
 
       {/* Validation messages */}
       {validationMessages.length > 0 && config.dataSource && (
-        <Alert status="warning" mb={3} borderRadius="md">
-          <AlertIcon />
+        <Alert status="warning" mb={3} borderRadius="md" bg="orange.900" borderColor="orange.600" borderWidth="1px">
+          <AlertIcon color="orange.300" />
           <VStack align="start" spacing={0}>
             {validationMessages.map((msg, i) => (
-              <Text key={i} fontSize="sm">
+              <Text key={i} fontSize="sm" color="orange.200">
                 {msg}
               </Text>
             ))}
@@ -279,13 +294,13 @@ export function PivotBuilder({
             {columnsLoading ? (
               <Spinner size="sm" color="orange.400" />
             ) : columnsError ? (
-              <Alert status="error" borderRadius="md" maxW="400px">
-                <AlertIcon />
-                <Text fontSize="sm">{columnsError}</Text>
+              <Alert status="error" borderRadius="md" maxW="400px" bg="red.900" borderColor="red.600" borderWidth="1px">
+                <AlertIcon color="red.300" />
+                <Text fontSize="sm" color="red.200">{columnsError}</Text>
               </Alert>
             ) : (
               <>
-                {/* Group columns — multi-select */}
+                {/* Group columns — multi-select with reorder */}
                 <Box minW="200px" flex={1} maxW="300px">
                   <GenericFilter<string>
                     label={t('pivot.builder.groupColumns')}
@@ -295,15 +310,58 @@ export function PivotBuilder({
                     multiSelect
                     placeholder={t('pivot.builder.selectGroupColumns')}
                     size="sm"
-                    getOptionLabel={(name) => {
-                      const col = columns.groupable.find((c) => c.name === name);
-                      return col?.label || name;
-                    }}
+                    getOptionLabel={(name) => getColumnLabel(name)}
                     getOptionValue={(name) => name}
                     labelColor="white"
                     bg="gray.600"
                     color="white"
                   />
+                  {config.groupColumns.length > 1 && (
+                    <Wrap spacing={1} mt={2}>
+                      {config.groupColumns.map((name, idx) => {
+                        const label = getColumnLabel(name);
+                        return (
+                          <WrapItem key={name}>
+                            <Tag size="sm" colorScheme="orange" variant="subtle">
+                              <HStack spacing={0}>
+                                <IconButton
+                                  aria-label="Move up"
+                                  icon={<ArrowUpIcon />}
+                                  size="xs"
+                                  variant="ghost"
+                                  colorScheme="orange"
+                                  isDisabled={idx === 0}
+                                  onClick={() => {
+                                    const arr = [...config.groupColumns];
+                                    [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                                    setGroupColumns(arr);
+                                  }}
+                                  minW="18px"
+                                  h="18px"
+                                />
+                                <TagLabel fontSize="xs">{label}</TagLabel>
+                                <IconButton
+                                  aria-label="Move down"
+                                  icon={<ArrowDownIcon />}
+                                  size="xs"
+                                  variant="ghost"
+                                  colorScheme="orange"
+                                  isDisabled={idx === config.groupColumns.length - 1}
+                                  onClick={() => {
+                                    const arr = [...config.groupColumns];
+                                    [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                                    setGroupColumns(arr);
+                                  }}
+                                  minW="18px"
+                                  h="18px"
+                                />
+                              </HStack>
+                            </Tag>
+                          </WrapItem>
+                        );
+                      })}
+                    </Wrap>
+                  )}
                   {config.groupColumns.length > 0 && (
                     <Text fontSize="xs" color="gray.400" mt={1}>
                       {config.groupColumns.length}/5
@@ -339,10 +397,7 @@ export function PivotBuilder({
                     availableOptions={availableForPivot.map((c) => c.name)}
                     placeholder={t('pivot.builder.selectColumnPivot')}
                     size="sm"
-                    getOptionLabel={(name) => {
-                      const col = columns.groupable.find((c) => c.name === name);
-                      return col?.label || name;
-                    }}
+                    getOptionLabel={(name) => getColumnLabel(name)}
                     getOptionValue={(name) => name}
                     labelColor="white"
                     bg="gray.600"
@@ -363,12 +418,7 @@ export function PivotBuilder({
                       multiSelect
                       placeholder={t('pivot.builder.selectNestLevels')}
                       size="sm"
-                      getOptionLabel={(name) => {
-                        const col = columns.groupable.find(
-                          (c) => c.name === name,
-                        );
-                        return col?.label || name;
-                      }}
+                      getOptionLabel={(name) => getColumnLabel(name)}
                       getOptionValue={(name) => name}
                       labelColor="white"
                       bg="gray.600"

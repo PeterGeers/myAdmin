@@ -48,7 +48,7 @@ async function parseJsonResponse<T>(res: Response): Promise<T> {
  * Convert a frontend PivotConfig (camelCase) to the backend request body
  * (snake_case) expected by POST /api/pivot/execute and /api/pivot/export.
  */
-function toBackendConfig(config: PivotConfig): Record<string, any> {
+export function toBackendConfig(config: PivotConfig): Record<string, any> {
   return {
     data_source: config.dataSource,
     group_columns: config.groupColumns,
@@ -57,6 +57,24 @@ function toBackendConfig(config: PivotConfig): Record<string, any> {
     column_pivot: config.columnPivot,
     column_nest_levels: config.columnNestLevels,
     include_rollup: config.includeRollup ?? false,
+    display_mode: config.displayMode ?? 'flat',
+  };
+}
+
+/**
+ * Convert a backend definition (snake_case) back to a frontend PivotConfig
+ * (camelCase). Used when loading saved models.
+ */
+export function fromBackendConfig(def: Record<string, any>): PivotConfig {
+  return {
+    dataSource: def.data_source ?? def.dataSource ?? '',
+    groupColumns: def.group_columns ?? def.groupColumns ?? [],
+    aggregateMeasures: def.aggregate_measures ?? def.aggregateMeasures ?? [],
+    filters: def.filters ?? {},
+    columnPivot: def.column_pivot ?? def.columnPivot ?? null,
+    columnNestLevels: def.column_nest_levels ?? def.columnNestLevels ?? [],
+    displayMode: def.display_mode ?? def.displayMode ?? 'flat',
+    includeRollup: def.include_rollup ?? def.includeRollup ?? false,
   };
 }
 
@@ -155,7 +173,12 @@ export async function listPivotModels(): Promise<PivotModelSummary[]> {
  */
 export async function loadPivotModel(id: number): Promise<PivotModel> {
   const res = await authenticatedGet(buildEndpoint(`${BASE}/models/${id}`));
-  return parseJsonResponse<PivotModel>(res);
+  const raw = await parseJsonResponse<PivotModel>(res);
+  // Convert snake_case definition from backend to camelCase PivotConfig
+  return {
+    ...raw,
+    definition: fromBackendConfig(raw.definition as any),
+  };
 }
 
 /**
