@@ -14,6 +14,7 @@ You became Tenant Admin because the SysAdmin invited you as the first administra
 | Task                                          | Description                                            |
 | --------------------------------------------- | ------------------------------------------------------ |
 | [Settings](tenant-settings.md)                | Tenant configuration, templates, and chart of accounts |
+| [Pivot models](pivot-views.md)                | Create, edit, and delete pivot models                  |
 | [Template management](template-management.md) | Download, upload, edit, and delete templates           |
 | [User management](user-management.md)         | Add users, assign and remove roles                     |
 | [Audit logging](audit-logging.md)             | Track activities and compliance reports                |

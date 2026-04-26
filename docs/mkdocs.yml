@@ -91,6 +91,7 @@ nav:
   - Rapportages:
       - Overzicht: reports/index.md
       - Dashboards: reports/dashboards.md
+      - Draaitabellen: reports/pivot-views.md
       - W&V & Balans: reports/pnl-balance-sheets.md
       - Excel export: reports/exporting-excel.md
   - Belastingen:
@@ -110,6 +111,7 @@ nav:
   - Tenant Beheer:
       - Overzicht: tenant-admin/index.md
       - Instellingen: tenant-admin/tenant-settings.md
+      - Draaitabelmodellen: tenant-admin/pivot-views.md
       - Sjabloonbeheer: tenant-admin/template-management.md
       - Gebruikers: tenant-admin/user-management.md
       - Audit logging: tenant-admin/audit-logging.md
