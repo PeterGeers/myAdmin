@@ -19,6 +19,7 @@ Beschikbaar via **Rapportages** → **Financieel**:
 | [BTW](../tax/btw.md)                                   | BTW-aangifte per kwartaal                                        |
 | [Referentie-analyse](dashboards.md#referentie-analyse) | Transacties gegroepeerd per referentienummer                     |
 | [Aangifte IB](../tax/income-tax-ib.md)                 | Inkomstenbelasting overzicht per jaar                            |
+| [Draaitabellen](pivot-views.md)                        | Dynamische geaggregeerde overzichten met groepering en filters   |
 
 ### BNB rapporten
 
@@ -33,6 +34,7 @@ Beschikbaar via **Rapportages** → **BNB**:
 | Toekomstige omzet                        | Geplande boekingen als trendlijn           |
 | Toeristenbelasting                       | Berekende toeristenbelasting per periode   |
 | Land van herkomst                        | Gastherkomst per land                      |
+| [Draaitabellen](pivot-views.md)          | Dynamische geaggregeerde overzichten       |
 
 ## Toegang
 

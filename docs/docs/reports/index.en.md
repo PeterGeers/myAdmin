@@ -19,6 +19,7 @@ Available via **Reports** → **Financial**:
 | [VAT](../tax/btw.md)                                   | VAT declaration per quarter                                        |
 | [Reference analysis](dashboards.md#reference-analysis) | Transactions grouped by reference number                           |
 | [Income tax (IB)](../tax/income-tax-ib.md)             | Income tax overview per year                                       |
+| [Pivot Views](pivot-views.md)                          | Dynamic aggregated views with grouping and filters                 |
 
 ### BNB reports
 
@@ -33,6 +34,7 @@ Available via **Reports** → **BNB**:
 | Future revenue                             | Planned bookings as trend line                    |
 | Tourist tax                                | Calculated tourist tax per period                 |
 | Country of origin                          | Guest origin by country                           |
+| [Pivot Views](pivot-views.md)              | Dynamic aggregated views                          |
 
 ## Access
 
