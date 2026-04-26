@@ -37,7 +37,8 @@
       "templates": "Sjablonen",
       "tenantInfo": "Tenantinfo",
       "advanced": "Geavanceerd",
-      "emailLog": "E-maillog"
+      "emailLog": "E-maillog",
+      "pivotViews": "Draaitabelweergaven"
     },
     "parameters": {
       "title": "Parameters",

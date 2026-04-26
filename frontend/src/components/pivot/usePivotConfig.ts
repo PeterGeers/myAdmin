@@ -59,22 +59,26 @@ export interface ValidationErrors {
 function validateConfig(config: PivotConfig): ValidationErrors {
   const errors: ValidationErrors = {};
 
-  if (config.groupColumns.length === 0) {
+  const groupColumns = config.groupColumns || [];
+  const aggregateMeasures = config.aggregateMeasures || [];
+  const columnNestLevels = config.columnNestLevels || [];
+
+  if (groupColumns.length === 0) {
     errors.groupColumns = 'minGroupColumn';
   }
-  if (config.aggregateMeasures.length === 0) {
+  if (aggregateMeasures.length === 0) {
     errors.aggregateMeasures = 'minAggregateMeasure';
   }
 
   // Check column role overlap — use plain object to avoid Map iteration issue
   const roles: Record<string, string[]> = {};
-  for (const col of config.groupColumns) {
+  for (const col of groupColumns) {
     roles[col] = [...(roles[col] || []), 'groupColumn'];
   }
   if (config.columnPivot) {
     roles[config.columnPivot] = [...(roles[config.columnPivot] || []), 'columnPivot'];
   }
-  for (const col of config.columnNestLevels) {
+  for (const col of columnNestLevels) {
     roles[col] = [...(roles[col] || []), 'nestLevel'];
   }
   for (const col of Object.keys(roles)) {

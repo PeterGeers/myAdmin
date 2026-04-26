@@ -13,8 +13,8 @@
 // Data source types
 // ---------------------------------------------------------------------------
 
-/** Module tags for data source routing (FIN tab, STR tab, etc.) */
-export type DataSourceModule = 'FIN' | 'STR' | 'ZZP';
+/** Module tags for data source routing (e.g. 'FIN', 'STR', 'ZZP', 'ADMIN'). Open string so new modules can be added on the backend without changing this type. */
+export type DataSourceModule = string;
 
 /** A registered pivot data source returned by GET /api/pivot/sources */
 export interface PivotDataSource {

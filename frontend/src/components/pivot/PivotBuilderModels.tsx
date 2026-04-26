@@ -205,7 +205,7 @@ export function PivotBuilderModels({
         <Button
           size="sm"
           colorScheme="orange"
-          variant="ghost"
+          variant="outline"
           onClick={handleSaveClick}
           disabled={!isValid}
         >
@@ -218,7 +218,7 @@ export function PivotBuilderModels({
             aria-label={t('pivot.actions.delete')}
             icon={<DeleteIcon />}
             size="sm"
-            variant="ghost"
+            variant="outline"
             colorScheme="red"
             onClick={deleteModal.onOpen}
           />

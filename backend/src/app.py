@@ -356,6 +356,27 @@ from reporting_routes import set_test_mode as set_reporting_test_mode, set_logge
 set_reporting_test_mode(flag)
 set_reporting_logger(logger)
 
+# Initialize pivot registry from database schema (must run at startup)
+# Retry a few times to handle Docker race condition where MySQL isn't ready yet.
+_pivot_registry_ok = False
+for _attempt in range(5):
+    try:
+        from services.pivot_service import build_registry_from_db
+        from services.parameter_service import ParameterService as _PivotParamService
+        _pivot_db = DatabaseManager(test_mode=flag)
+        _pivot_ps = _PivotParamService(_pivot_db)
+        build_registry_from_db(_pivot_db, _pivot_ps)
+        print("✅ Pivot registry initialized from database schema", flush=True)
+        _pivot_registry_ok = True
+        break
+    except Exception as e:
+        if _attempt < 4:
+            import time as _time
+            print(f"⚠️ Pivot registry init attempt {_attempt + 1}/5 failed ({e}), retrying in 3s...", flush=True)
+            _time.sleep(3)
+        else:
+            print(f"⚠️ Pivot registry initialization failed after 5 attempts: {e}", flush=True)
+
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 

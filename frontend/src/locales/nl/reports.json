@@ -16,7 +16,8 @@
     "bnbReturningGuests": "BNB Terugkerende Gasten",
     "referenceAnalysis": "Referentie Analyse",
     "toeristenbelasting": "Toeristenbelasting",
-    "yearEndClosure": "Jaarafsluiting"
+    "yearEndClosure": "Jaarafsluiting",
+    "pivotViews": "Draaitabellen"
   },
   "filters": {
     "year": "Jaar",
@@ -305,22 +306,23 @@
       "title": "Draaitabel Configuratie",
       "dataSource": "Gegevensbron",
       "selectDataSource": "Selecteer een gegevensbron",
-      "groupColumns": "Groepeerkolommen",
-      "selectGroupColumns": "Selecteer kolommen om te groeperen",
+      "groupColumns": "Rijgroepen",
+      "selectGroupColumns": "Selecteer kolommen voor rijgroepering",
       "aggregateMeasures": "Aggregatiematen",
       "addMeasure": "Maat toevoegen",
       "removeMeasure": "Maat verwijderen",
       "aggregateFunction": "Functie",
       "aggregateColumn": "Kolom",
-      "columnPivot": "Kolom Draaiing",
-      "selectColumnPivot": "Selecteer kolom om te draaien (optioneel)",
+      "columnPivot": "Kolomkoppen",
+      "selectColumnPivot": "Draai een kolom naar koppen (optioneel)",
       "columnNestLevels": "Kolom Nestniveaus",
       "selectNestLevels": "Selecteer nestniveaus (optioneel)",
       "displayMode": "Weergavemodus",
       "flat": "Plat",
       "hierarchical": "Hiërarchisch",
       "includeRollup": "Subtotalen opnemen",
-      "filters": "Filters"
+      "filters": "Filters",
+      "filtersHint": "gebruik % als jokerteken"
     },
     "actions": {
       "execute": "Uitvoeren",
@@ -391,6 +393,43 @@
     "dataSources": {
       "vw_mutaties": "Financiële Transacties",
       "vw_bnb_total": "STR Omzet"
+    },
+    "columnLabels": {
+      "Aangifte": "Aangifte",
+      "TransactionDate": "Transactiedatum",
+      "TransactionDescription": "Omschrijving",
+      "TransactionNumber": "Transactienr.",
+      "Amount": "Bedrag",
+      "Reknum": "Rekeningnr.",
+      "AccountName": "Rekeningnaam",
+      "Parent": "Hoofdcategorie",
+      "VW": "W&V / Balans",
+      "jaar": "Jaar",
+      "kwartaal": "Kwartaal",
+      "maand": "Maand",
+      "week": "Week",
+      "ReferenceNumber": "Referentie",
+      "channel": "Kanaal",
+      "listing": "Accommodatie",
+      "checkinDate": "Incheckdatum",
+      "checkoutDate": "Uitcheckdatum",
+      "nights": "Nachten",
+      "guests": "Gasten",
+      "amountGross": "Bruto bedrag",
+      "amountNett": "Netto bedrag",
+      "amountChannelFee": "Kanaalkosten",
+      "amountTouristTax": "Toeristenbelasting",
+      "amountVat": "BTW",
+      "pricePerNight": "Prijs/nacht",
+      "daysBeforeReservation": "Boekingstermijn (dagen)",
+      "year": "Jaar",
+      "q": "Kwartaal",
+      "m": "Maand",
+      "country": "Land",
+      "countryName": "Landnaam",
+      "countryRegion": "Regio",
+      "source_type": "Brontype",
+      "status": "Status"
     }
   }
 }

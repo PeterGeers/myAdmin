@@ -1,11 +1,11 @@
 /**
- * PivotResultTable — Basic Unit Tests
+ * PivotResultTable — Unit Tests
  *
  * Covers flat mode rendering, loading state, empty state, number formatting,
- * and the three-way number format toggle (decimal / whole / k-notation).
- * Full test suite (hierarchical, pivoted, export) will be added in task 11.6.
+ * the three-way number format toggle (decimal / whole / k-notation),
+ * hierarchical mode with expand/collapse, and export button states.
  *
- * Requirements: 3.4, 3.5, 3.6, 3.7, 3.8
+ * Requirements: 3.4, 3.5, 3.6, 3.7, 3.8, 7.6, 8.1
  */
 
 import React from 'react';
@@ -17,6 +17,27 @@ import type { PivotColumnMeta, PivotConfig } from '../../../types/pivot';
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
+
+// Mock PivotExportMenu to avoid API dependencies and test its presence/absence
+jest.mock('../PivotExportMenu', () => ({
+  PivotExportMenu: ({ data, columns }: any) => {
+    const hasData = data.length > 0 && columns.length > 0;
+    return (
+      <button
+        data-testid="pivot-export-menu"
+        disabled={!hasData}
+      >
+        Export
+      </button>
+    );
+  },
+}));
+
+// Mock PivotResultTablePivoted to avoid complex rendering in non-pivoted tests
+jest.mock('../PivotResultTablePivoted', () => ({
+  PivotResultTablePivoted: () => <div data-testid="pivoted-table">Pivoted</div>,
+  isPivotedResult: (columns: any[]) => columns.some((c: any) => c.pivotValue !== undefined),
+}));
 
 jest.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
@@ -117,8 +138,9 @@ describe('PivotResultTable', () => {
         isLoading={false}
       />,
     );
-    // Should render an empty fragment
-    expect(container.innerHTML).toBe('');
+    // Should render a minimal empty element (stable root to avoid React removeChild errors)
+    expect(container.querySelector('table')).toBeNull();
+    expect(container.textContent).toBe('');
   });
 
   it('renders empty state when columns exist but no data', () => {
@@ -639,5 +661,96 @@ describe('PivotResultTable — Hierarchical Mode', () => {
     expect(screen.queryByTestId(/^tree-row-/)).not.toBeInTheDocument();
     expect(screen.getByTestId('th-Aangifte')).toBeInTheDocument();
     expect(screen.getByTestId('th-jaar')).toBeInTheDocument();
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Export button tests (Requirement 7.6)
+// ---------------------------------------------------------------------------
+
+describe('PivotResultTable — Export Buttons', () => {
+  it('renders export menu when data is present', () => {
+    render(
+      <PivotResultTable
+        data={sampleData}
+        columns={sampleColumns}
+        config={baseConfig}
+        isLoading={false}
+      />,
+    );
+
+    const exportMenu = screen.getByTestId('pivot-export-menu');
+    expect(exportMenu).toBeInTheDocument();
+    expect(exportMenu).not.toBeDisabled();
+  });
+
+  it('does not render export menu when no data (empty state)', () => {
+    render(
+      <PivotResultTable
+        data={[]}
+        columns={sampleColumns}
+        config={baseConfig}
+        isLoading={false}
+      />,
+    );
+
+    // Export menu should not be in the DOM — toolbar is not rendered in empty state
+    expect(screen.queryByTestId('pivot-export-menu')).not.toBeInTheDocument();
+  });
+
+  it('does not render export menu when no columns (no query executed)', () => {
+    render(
+      <PivotResultTable
+        data={[]}
+        columns={[]}
+        config={baseConfig}
+        isLoading={false}
+      />,
+    );
+
+    expect(screen.queryByTestId('pivot-export-menu')).not.toBeInTheDocument();
+  });
+
+  it('does not render export menu during loading state', () => {
+    render(
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <PivotResultTable
+                data={[]}
+                columns={[]}
+                config={baseConfig}
+                isLoading={true}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+
+    expect(screen.queryByTestId('pivot-export-menu')).not.toBeInTheDocument();
+  });
+
+  it('renders export menu in hierarchical mode when data is present', () => {
+    const hierarchicalConfig: PivotConfig = {
+      ...baseConfig,
+      displayMode: 'hierarchical',
+      includeRollup: true,
+    };
+
+    render(
+      <PivotResultTable
+        data={sampleData}
+        columns={sampleColumns}
+        config={hierarchicalConfig}
+        isLoading={false}
+      />,
+    );
+
+    const exportMenu = screen.getByTestId('pivot-export-menu');
+    expect(exportMenu).toBeInTheDocument();
+    expect(exportMenu).not.toBeDisabled();
   });
 });

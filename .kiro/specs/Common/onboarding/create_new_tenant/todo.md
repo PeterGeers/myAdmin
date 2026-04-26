@@ -1,8 +1,8 @@
 # Create New Tenant — Provisioning Spec
 
-**Status:** Ready for Implementation
-**Date:** 2026-03-25
-**Related:** `backend/scripts/provision_tenant.py`, `backend/src/routes/sysadmin_tenants.py`
+**Status:** Complete (Phase 7 — Initial Admin User added April 2026)
+**Date:** 2026-04-23
+**Related:** `backend/src/services/tenant_provisioning_service.py`, `backend/src/routes/sysadmin_tenants.py`, `backend/scripts/provision_tenant.py`, `backend/src/routes/sysadmin_provisioning.py`
 
 ---
 
@@ -10,15 +10,17 @@
 
 There are two ways to create a tenant, and they do different things:
 
-| Capability             | SysAdmin UI (`sysadmin_tenants.py`) | Script (`provision_tenant.py`) |
-| ---------------------- | ----------------------------------- | ------------------------------ |
-| Insert tenant record   | ✅                                  | ✅                             |
-| Insert tenant modules  | ✅                                  | ✅                             |
-| Copy chart of accounts | ❌                                  | ✅ (from GoodwinSolutions)     |
-| Locale support         | ❌                                  | ❌                             |
-| Update Cognito user    | ❌                                  | ✅                             |
-| Track signup status    | ❌ (not applicable)                 | ✅                             |
-| Admin notification     | ❌                                  | ✅                             |
+| Capability             | SysAdmin UI (`sysadmin_tenants.py`) | Script (`provision_tenant.py`) | Provisioning API (`sysadmin_provisioning.py`) |
+| ---------------------- | ----------------------------------- | ------------------------------ | --------------------------------------------- |
+| Insert tenant record   | ✅                                  | ✅                             | ✅                                            |
+| Insert tenant modules  | ✅                                  | ✅                             | ✅                                            |
+| Copy chart of accounts | ✅ (from JSON template)             | ✅ (from JSON template)        | ✅ (from JSON template)                       |
+| Locale support         | ✅ (nl/en)                          | ✅ (from signup)               | ✅ (from signup)                              |
+| Create initial admin   | ✅ (contact_email)                  | ✅ (signup email)              | ✅ (signup email)                             |
+| Update Cognito user    | ✅ (via admin user creation)        | ✅                             | ✅                                            |
+| Track signup status    | ❌ (not applicable)                 | ✅                             | ✅                                            |
+| Admin notification     | ❌                                  | ✅                             | ✅                                            |
+| Resend invitation      | ✅ (SysAdmin button)                | ❌                             | ❌                                            |
 
 Problems:
 
@@ -149,7 +151,7 @@ If loading the chart of accounts fails (e.g., template file missing):
 - Mark the tenant as needing chart setup (e.g., flag in response or tenant status)
 - The chart is required for correct bookings — the admin must resolve this before the tenant starts processing transactions
 
-Future: implement transaction validation against the chart of accounts to prevent bookings to non-existent accounts.
+Future: ~~implement transaction validation against the chart of accounts to prevent bookings to non-existent accounts.~~ ✅ Solved — account validation is now in place.
 
 ---
 
@@ -346,6 +348,78 @@ SysAdmin needs a way to re-provision an existing tenant to fill in missing piece
 - [x] Add unit tests for the re-provision endpoint
 - [x] Test: re-provision tenant with missing chart → chart loaded from template
 - [x] Test: re-provision fully provisioned tenant → all steps skipped
+
+### Phase 7: Initial Admin User Creation (Bugfix — April 2026)
+
+**Problem:** All 3 provisioning entry points created tenant infrastructure but never created an initial admin user. New tenants had 0 users and no way to log in.
+
+**Solution:** Added `create_initial_admin_user()` to `TenantProvisioningService` and wired it into all entry points.
+
+**Spec:** `.kiro/specs/Common/onboarding/onboarding-initial-admin-user/` (bugfix.md, design.md, tasks.md)
+
+- [x] Add `create_initial_admin_user()` method to `TenantProvisioningService`
+  - Handles new Cognito users (create + set permanent password → CONFIRMED)
+  - Handles existing Cognito users (add tenant to `custom:tenants`)
+  - Idempotent: skips if `user_tenant_roles` row already exists
+  - Failures are warnings, not hard errors
+- [x] Add optional `initial_admin_email` parameter to `create_and_provision_tenant()`
+- [x] Update `sysadmin_tenants.py` — extract `initial_admin_email` from request, pass to service
+- [x] Update `provision_tenant.py` — pass signup email as `initial_admin_email`
+- [x] Update `sysadmin_provisioning.py` — pass signup email as `initial_admin_email`
+- [x] Add SysAdmin resend invitation endpoint (`POST /<administration>/resend-invitation`)
+  - Generates new temp password, updates Cognito, ensures `user_tenant_roles` exists
+  - Blocks resend for deleted tenants
+  - Ensures `custom:tenants` is updated for existing Cognito users
+- [x] Add "Resend Invitation" button to SysAdmin Tenant Management modal (disabled for deleted tenants)
+- [x] Add `resendInvitation()` to `sysadminService.ts`
+- [x] Frontend: send `initial_admin_email` (= `contact_email`) in create tenant request
+- [x] Frontend: add ZZP module to tenant creation module selection
+- [x] Property-based tests: bug condition exploration, preservation, unit tests (60 tests total)
+- [x] Fix Cognito user listing pagination — fetch all pages, not just first 60
+- [x] Create `tenant_added` HTML email templates (NL/EN) for existing users added to a tenant
+- [x] Update invitation email templates — remove false "7 days valid" claim, recommend password change
+
+**Additional fixes discovered during testing:**
+
+- Cognito `list_users` pagination bug: only first 60 users returned → all users now fetched
+- Resend invitation didn't update `custom:tenants` for existing users → fixed
+- `CreateTenantRequest` interface missing `initial_admin_email` → added
+- `tenant_added` email was plain text fallback → proper HTML templates created
+
+### Phase 8: Parameters for New Tenants (TODO)
+
+New tenants need two types of parameters configured before they can fully operate:
+
+**1. Generic parameters** (`parameters` table, scope=tenant)
+Tenant-level configuration stored in the `parameters` table via `ParameterService`. These are flat key-value pairs with namespace grouping and scope inheritance (user → role → tenant → system).
+
+Currently seeded by `seed_tenant_parameters.py` for existing tenants, but NOT automatically run during provisioning. New tenants are missing:
+
+- `storage.report_output_path` — where reports are written
+- `storage.google_drive_folder_id` — Google Drive invoices folder
+
+**Action needed:** Call `seed_tenant()` from `create_and_provision_tenant()` after Step 3 (chart of accounts), or integrate parameter seeding into the provisioning flow.
+
+**2. Ledger-specific parameters** (`rekeningschema.parameters` JSON column)
+Per-account flags stored as JSON in the `parameters` column of the `rekeningschema` table. Defined in `backend/src/config/ledger_parameters.json`. These mark accounts with special roles:
+
+| Parameter                                                    | Module | Purpose                                  |
+| ------------------------------------------------------------ | ------ | ---------------------------------------- |
+| `bank_account` + `iban`                                      | FIN    | Identifies bank accounts and their IBANs |
+| `asset_account`                                              | FIN    | Marks depreciable asset accounts         |
+| `roles` (interim_opening_balance, equity_result, pl_closing) | FIN    | Year-end closure account roles           |
+| `vat_netting` + `vat_primary`                                | FIN    | VAT netting group configuration          |
+| `zzp_invoice_ledger`                                         | ZZP    | Bank account shown on ZZP invoices       |
+| `zzp_revenue_ledger`                                         | ZZP    | Revenue account for ZZP invoice booking  |
+| `zzp_debtor_account` / `zzp_creditor_account`                | ZZP    | Debtor/creditor accounts for ZZP         |
+
+These are loaded from the chart of accounts JSON templates (the `parameters` field in each account entry). The chart template already includes `roles` for key accounts (e.g., `interim_opening_balance` on account 2001). However, bank-specific parameters (`bank_account`, `iban`) and ZZP booking accounts must be configured by the Tenant Admin after provisioning, since they are tenant-specific.
+
+**Current state:** Chart template parameters are loaded correctly during provisioning. Tenant-level parameters (`parameters` table) are NOT seeded automatically for new tenants.
+
+- [ ] Integrate `seed_tenant()` into `create_and_provision_tenant()` as Step 5
+- [ ] Add parameter seeding to the re-provision endpoint as well
+- [ ] Document which parameters the Tenant Admin must configure manually after provisioning (bank IBANs, ZZP accounts)
 
 ---
 

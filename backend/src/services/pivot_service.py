@@ -99,7 +99,17 @@ def derive_columns_from_schema(
         col_name = row['Field']
         raw_type = row['Type']
 
+        # MySQL connector may return bytes instead of str in some environments
+        if isinstance(col_name, bytes):
+            col_name = col_name.decode('utf-8')
+        if isinstance(raw_type, bytes):
+            raw_type = raw_type.decode('utf-8')
+
         if col_name in exclude_columns:
+            continue
+
+        # Tenant isolation column is always filtered automatically — never expose it
+        if col_name == TENANT_COLUMN:
             continue
 
         simple_type = _normalise_sql_type(raw_type)
@@ -229,21 +239,26 @@ class AllowedColumnsRegistry:
     def __init__(self, parameter_service):
         self.parameter_service = parameter_service
 
-    def get_available_columns(self, data_source: str, tenant: str) -> Dict[str, List[str]]:
+    def get_available_columns(self, data_source: str, tenant: str) -> Dict[str, list]:
         system_cols = SYSTEM_ALLOWED_COLUMNS.get(data_source)
         if system_cols is None:
             raise ValueError(f"Unknown data source '{data_source}'")
 
+        type_map = COLUMN_TYPE_MAP.get(data_source, {})
+
+        def _col_obj(name: str) -> dict:
+            return {'name': name, 'type': type_map.get(name, 'varchar'), 'label': name}
+
         tenant_restriction = self._get_tenant_restriction(data_source, tenant)
         if tenant_restriction is None:
             return {
-                'groupable': list(system_cols['groupable']),
-                'aggregatable': list(system_cols['aggregatable']),
+                'groupable': [_col_obj(c) for c in system_cols['groupable']],
+                'aggregatable': [_col_obj(c) for c in system_cols['aggregatable']],
             }
         return {
-            'groupable': [c for c in system_cols['groupable']
+            'groupable': [_col_obj(c) for c in system_cols['groupable']
                           if c in tenant_restriction.get('groupable', [])],
-            'aggregatable': [c for c in system_cols['aggregatable']
+            'aggregatable': [_col_obj(c) for c in system_cols['aggregatable']
                              if c in tenant_restriction.get('aggregatable', [])],
         }
 
@@ -261,8 +276,8 @@ class AllowedColumnsRegistry:
                          aggregate_columns, column_pivot=None,
                          column_nest_levels=None):
         allowed = self.get_available_columns(data_source, tenant)
-        allowed_g = set(allowed['groupable'])
-        allowed_a = set(allowed['aggregatable'])
+        allowed_g = set(c['name'] if isinstance(c, dict) else c for c in allowed['groupable'])
+        allowed_a = set(c['name'] if isinstance(c, dict) else c for c in allowed['aggregatable'])
 
         for col in group_columns:
             if col not in allowed_g:
@@ -327,12 +342,12 @@ class PivotService:
         nest_combinations = config.get('nest_combinations', [])
         if cp and not pivot_values:
             pivot_values, nest_combinations = self._fetch_pivot_values(
-                ds, cp, cnl, config.get('filters', {}), user_tenants,
+                ds, cp, cnl, config.get('filters', {}), tenant,
             )
             config = {**config, 'pivot_values': pivot_values, 'nest_combinations': nest_combinations}
 
         try:
-            query, params = self.build_pivot_query(config, user_tenants)
+            query, params = self.build_pivot_query(config, tenant)
             rows = self.db.execute_query(query, params, fetch=True)
         except ValueError:
             raise
@@ -347,7 +362,7 @@ class PivotService:
             'row_count': len(rows) if rows else 0,
         }
 
-    def build_pivot_query(self, config, user_tenants):
+    def build_pivot_query(self, config, tenant):
         ds = config.get('data_source', '')
         gc = config.get('group_columns', [])
         am = config.get('aggregate_measures', [])
@@ -374,8 +389,9 @@ class PivotService:
                     else f"{func}({q(col)}) AS {q(alias)}"
                 )
 
-        where_clause, wp = self._build_where_clause(ds, filters, user_tenants)
-        params = wp + params
+        where_clause, wp = self._build_where_clause(ds, filters, tenant)
+        # SELECT params (pivot CASE WHEN) come before WHERE params in the SQL
+        params = params + wp
 
         group_by = ', '.join(q(c) for c in gc)
         if rollup:
@@ -384,12 +400,25 @@ class PivotService:
         query = f"SELECT {', '.join(select_parts)} FROM {q(ds)} WHERE {where_clause} GROUP BY {group_by}"
         return query, params
 
-    def build_underlying_query(self, config, user_tenants):
+    def build_underlying_query(self, config, tenant):
         ds = config.get('data_source', '')
         filters = config.get('filters', {})
         q = self._quote_col
-        where_clause, params = self._build_where_clause(ds, filters, user_tenants)
-        return f"SELECT * FROM {q(ds)} WHERE {where_clause}", params
+        where_clause, params = self._build_where_clause(ds, filters, tenant)
+
+        # Select only allowed columns (groupable + aggregatable) instead of
+        # SELECT * — this excludes noisy/sensitive columns like addInfo,
+        # guestName, phone, sourceFile that are in the exclude list.
+        allowed = self.registry.get_available_columns(ds, tenant)
+        col_names = (
+            [c['name'] for c in allowed['groupable']]
+            + [c['name'] for c in allowed['aggregatable']]
+        )
+        if not col_names:
+            raise ValueError(f"No allowed columns for data source '{ds}'")
+
+        select_clause = ', '.join(q(c) for c in col_names)
+        return f"SELECT {select_clause} FROM {q(ds)} WHERE {where_clause}", params
 
     # -- Validation --------------------------------------------------------
 
@@ -423,23 +452,34 @@ class PivotService:
 
     # -- WHERE clause (generic) --------------------------------------------
 
-    def _build_where_clause(self, data_source, filters, user_tenants):
+    def _build_where_clause(self, data_source, filters, tenant):
+        """Build WHERE clause filtering by the CURRENT tenant only."""
         parts, params = [], []
-        if user_tenants:
-            ph = ', '.join(['%s'] * len(user_tenants))
-            parts.append(f"{self._quote_col(TENANT_COLUMN)} IN ({ph})")
-            params.extend(user_tenants)
-        else:
-            parts.append('1=0')
+        # Filter by current tenant only — never expose data from other tenants
+        parts.append(f"{self._quote_col(TENANT_COLUMN)} = %s")
+        params.append(tenant)
 
         known = set(COLUMN_TYPE_MAP.get(data_source, {}).keys())
         for col, val in filters.items():
             if val is None or val == '' or val == 'all' or col not in known:
                 continue
             if isinstance(val, list) and val:
-                ph = ', '.join(['%s'] * len(val))
-                parts.append(f"{self._quote_col(col)} IN ({ph})")
-                params.extend(val)
+                # Check if any list item contains a wildcard
+                like_items = [v for v in val if isinstance(v, str) and '%' in v]
+                exact_items = [v for v in val if v not in like_items]
+                sub_parts = []
+                if exact_items:
+                    ph = ', '.join(['%s'] * len(exact_items))
+                    sub_parts.append(f"{self._quote_col(col)} IN ({ph})")
+                    params.extend(exact_items)
+                for lv in like_items:
+                    sub_parts.append(f"{self._quote_col(col)} LIKE %s")
+                    params.append(lv)
+                if sub_parts:
+                    parts.append(f"({' OR '.join(sub_parts)})")
+            elif isinstance(val, str) and '%' in val:
+                parts.append(f"{self._quote_col(col)} LIKE %s")
+                params.append(val)
             else:
                 parts.append(f"{self._quote_col(col)} = %s")
                 params.append(val)
@@ -590,7 +630,7 @@ class PivotService:
 
     # -- Fetch distinct pivot values ----------------------------------------
 
-    def _fetch_pivot_values(self, data_source, column_pivot, nest_levels, filters, user_tenants):
+    def _fetch_pivot_values(self, data_source, column_pivot, nest_levels, filters, tenant):
         """Fetch distinct values for the pivot column (and nest level combinations).
 
         Runs a lightweight SELECT DISTINCT query against the data source,
@@ -603,7 +643,7 @@ class PivotService:
             the nest levels (empty list when no nest levels).
         """
         q = self._quote_col
-        where_clause, params = self._build_where_clause(data_source, filters, user_tenants)
+        where_clause, params = self._build_where_clause(data_source, filters, tenant)
 
         # Fetch distinct pivot values
         pv_query = f"SELECT DISTINCT {q(column_pivot)} FROM {q(data_source)} WHERE {where_clause} ORDER BY {q(column_pivot)}"

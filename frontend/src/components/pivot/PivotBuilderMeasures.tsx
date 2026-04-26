@@ -111,7 +111,7 @@ export function PivotBuilderMeasures({
               aria-label={t('pivot.builder.removeMeasure')}
               icon={<CloseIcon />}
               size="sm"
-              variant="ghost"
+              variant="outline"
               colorScheme="red"
               onClick={() => onRemove(index)}
               disabled={disabled}
@@ -121,7 +121,7 @@ export function PivotBuilderMeasures({
         <Flex justify="space-between" align="center" mt={1}>
           <Button
             size="sm"
-            variant="ghost"
+            variant="outline"
             colorScheme="orange"
             leftIcon={<AddIcon />}
             onClick={onAdd}

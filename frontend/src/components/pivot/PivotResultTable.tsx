@@ -18,7 +18,7 @@
  * Reference: .kiro/specs/dynamic-pivot-views/design.md §5 PivotResultTable
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   AlertIcon,
@@ -35,6 +35,7 @@ import {
   Tbody,
   Td,
   Text,
+  Th,
   Thead,
   Tr,
 } from '@chakra-ui/react';
@@ -49,6 +50,7 @@ import {
 } from '../../utils/pivotTreeBuilder';
 import type { PivotTreeNode } from '../../utils/pivotTreeBuilder';
 import { PivotResultTablePivoted, isPivotedResult } from './PivotResultTablePivoted';
+import { PivotExportMenu } from './PivotExportMenu';
 import type {
   NumberFormat,
   PivotColumnMeta,
@@ -219,7 +221,7 @@ export function PivotResultTable({
   const [treeNodes, setTreeNodes] = useState<PivotTreeNode[]>([]);
 
   // Rebuild tree when data or config changes
-  useMemo(() => {
+  useEffect(() => {
     if (isHierarchical && data.length > 0 && groupColumnNames.length >= 2) {
       const tree = buildHierarchicalTree(data, groupColumnNames, aggregateColumnNames, {
         aggregateFunctions: aggregateFunctionMap,
@@ -288,66 +290,25 @@ export function PivotResultTable({
   };
 
   // -----------------------------------------------------------------------
-  // Loading state
+  // Shared toolbar (only rendered when we have data)
   // -----------------------------------------------------------------------
-  if (isLoading) {
-    return (
-      <Card bg="gray.700">
-        <CardBody>
-          <Flex align="center" justify="center" py={8} gap={3}>
-            <Spinner size="md" color="orange.400" />
-            <Text color="gray.300" fontSize="sm">
-              {t('pivot.results.loading')}
-            </Text>
-          </Flex>
-        </CardBody>
-      </Card>
-    );
-  }
+  const hasData = columns.length > 0 && data.length > 0;
 
-  // -----------------------------------------------------------------------
-  // Empty state — no columns means no query has been executed yet
-  // -----------------------------------------------------------------------
-  if (columns.length === 0) {
-    return <></>;
-  }
-
-  // -----------------------------------------------------------------------
-  // Empty results — query executed but returned zero rows
-  // -----------------------------------------------------------------------
-  if (data.length === 0) {
-    return (
-      <Card bg="gray.700">
-        <CardBody>
-          <Alert status="info" borderRadius="md" bg="gray.600">
-            <AlertIcon />
-            <Text color="white" fontSize="sm">
-              {t('pivot.results.noData')}
-            </Text>
-          </Alert>
-        </CardBody>
-      </Card>
-    );
-  }
-
-  // -----------------------------------------------------------------------
-  // Shared toolbar
-  // -----------------------------------------------------------------------
   const rowCount = isPivoted
     ? data.length
     : isHierarchical
       ? flatNodes.length
       : processedData.length;
 
-  const toolbar = (
+  const toolbar = hasData ? (
     <Flex justify="space-between" align="center" mb={2} wrap="wrap" gap={2}>
       <Flex align="center" gap={3}>
         <Text color="gray.400" fontSize="xs">
           {t('pivot.results.rowCount', { count: rowCount })}
         </Text>
 
-        {/* Expand/Collapse all — only in hierarchical mode */}
-        {isHierarchical && (
+        {/* Expand/Collapse all — only in hierarchical mode without column pivot */}
+        {isHierarchical && !isPivoted && (
           <ButtonGroup size="xs" isAttached variant="outline">
             <Button
               onClick={() => setAllExpanded(true)}
@@ -365,6 +326,14 @@ export function PivotResultTable({
             </Button>
           </ButtonGroup>
         )}
+
+        {/* CSV export menu */}
+        <PivotExportMenu
+          data={data}
+          columns={columns}
+          config={config}
+          numberFormat={activeFormat}
+        />
       </Flex>
 
       {/* Number format toggle — only shown when aggregate columns exist */}
@@ -390,177 +359,217 @@ export function PivotResultTable({
         </Flex>
       )}
     </Flex>
-  );
+  ) : null;
 
   // -----------------------------------------------------------------------
-  // Column-pivoted mode rendering
+  // Render — single root element with conditional content inside.
+  // This avoids the React removeChild error caused by switching between
+  // completely different root elements (fragment vs Card) across renders.
   // -----------------------------------------------------------------------
-  if (isPivoted) {
-    return (
-      <Card bg="gray.700">
-        <CardBody>
-          {toolbar}
-          <PivotResultTablePivoted
-            data={data}
-            columns={columns}
-            config={config}
-            numberFormat={activeFormat}
-          />
-        </CardBody>
-      </Card>
-    );
+
+  // No columns means no query has been executed yet — render nothing
+  if (columns.length === 0 && !isLoading) {
+    return <Box />;
   }
 
-  // -----------------------------------------------------------------------
-  // Hierarchical mode rendering
-  // -----------------------------------------------------------------------
-  if (isHierarchical) {
-    return (
-      <Card bg="gray.700">
-        <CardBody>
-          {toolbar}
-          <TableContainer overflowX="auto">
-            <Table size="sm" variant="simple">
-              <Thead>
-                <Tr>
-                  {/* Single "Group" header spanning the first column (tree label) */}
-                  <FilterableHeader
-                    key="__tree_label"
-                    label={groupColumnNames[0]}
-                    filterValue=""
-                    onFilterChange={() => {}}
-                    sortable={false}
-                    sortDirection={null}
-                    onSort={() => {}}
-                    isNumeric={false}
-                  />
-                  {/* Aggregate column headers */}
-                  {columns
-                    .filter((c) => c.type === 'aggregate')
-                    .map((col) => (
-                      <FilterableHeader
-                        key={col.name}
-                        label={col.name}
-                        filterValue=""
-                        onFilterChange={() => {}}
-                        sortable={false}
-                        sortDirection={null}
-                        onSort={() => {}}
-                        isNumeric
-                      />
-                    ))}
-                </Tr>
-              </Thead>
-              <Tbody>
-                {flatNodes.map((node, idx) => {
-                  const hasChildren = node.children.length > 0;
-                  const isParent = hasChildren;
-
-                  return (
-                    <Tr
-                      key={`${node.groupColumn}-${node.value}-${idx}`}
-                      _hover={{ bg: 'gray.600' }}
-                      cursor={isParent ? 'pointer' : 'default'}
-                      onClick={isParent ? () => toggleNode(node) : undefined}
-                      fontWeight={isParent ? 'semibold' : 'normal'}
-                      bg={node.depth === 0 ? 'gray.650' : undefined}
-                      data-testid={`tree-row-${node.depth}-${node.value}`}
-                    >
-                      {/* Tree label cell with indentation and expand/collapse icon */}
-                      <Td color="white" fontSize="sm">
-                        <Flex align="center">
-                          <Box w={`${node.depth * INDENT_PX}px`} flexShrink={0} />
-                          {isParent ? (
-                            <Icon
-                              as={node.isExpanded ? ChevronDownIcon : ChevronRightIcon}
-                              boxSize={4}
-                              color="orange.400"
-                              mr={1}
-                              data-testid={`tree-toggle-${node.value}`}
-                            />
-                          ) : (
-                            <Box w="20px" flexShrink={0} />
-                          )}
-                          <Text as="span" color={isParent ? 'orange.200' : 'white'}>
-                            {node.value != null ? String(node.value) : t('pivot.results.grandTotal')}
-                          </Text>
-                        </Flex>
-                      </Td>
-
-                      {/* Aggregate value cells */}
-                      {aggregateColumnNames.map((colName) => {
-                        const col = columns.find((c) => c.name === colName);
-                        const value = node.aggregates[colName];
-                        return (
-                          <Td
-                            key={colName}
-                            color="white"
-                            fontSize="sm"
-                            isNumeric
-                          >
-                            {col && value != null
-                              ? formatCellValue(value, col, activeFormat, locale)
-                              : ''}
-                          </Td>
-                        );
-                      })}
-                    </Tr>
-                  );
-                })}
-              </Tbody>
-            </Table>
-          </TableContainer>
-        </CardBody>
-      </Card>
-    );
-  }
-
-  // -----------------------------------------------------------------------
-  // Flat mode rendering
-  // -----------------------------------------------------------------------
   return (
     <Card bg="gray.700">
       <CardBody>
-        {toolbar}
-        <TableContainer overflowX="auto">
-          <Table size="sm" variant="simple">
-            <Thead>
-              <Tr>
-                {columns.map((col) => (
-                  <FilterableHeader
-                    key={col.name}
-                    label={col.name}
-                    filterValue={filters[col.name]}
-                    onFilterChange={(v) => setFilter(col.name, v)}
-                    sortable
-                    sortDirection={columnSortDirection(col.name)}
-                    onSort={() => handleSort(col.name)}
-                    isNumeric={col.type === 'aggregate'}
-                  />
-                ))}
-              </Tr>
-            </Thead>
-            <Tbody>
-              {processedData.map((row, rowIndex) => (
-                <Tr
-                  key={rowIndex}
-                  _hover={{ bg: 'gray.600' }}
-                >
-                  {columns.map((col) => (
-                    <Td
-                      key={col.name}
-                      color="white"
-                      fontSize="sm"
-                      isNumeric={col.type === 'aggregate'}
-                    >
-                      {formatCellValue(row[col.name], col, activeFormat, locale)}
-                    </Td>
-                  ))}
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </TableContainer>
+        {/* Loading state */}
+        {isLoading && (
+          <Flex align="center" justify="center" py={8} gap={3}>
+            <Spinner size="md" color="orange.400" />
+            <Text color="gray.300" fontSize="sm">
+              {t('pivot.results.loading')}
+            </Text>
+          </Flex>
+        )}
+
+        {/* Empty results — query executed but returned zero rows */}
+        {!isLoading && columns.length > 0 && data.length === 0 && (
+          <Alert status="info" borderRadius="md" bg="gray.600">
+            <AlertIcon />
+            <Text color="white" fontSize="sm">
+              {t('pivot.results.noData')}
+            </Text>
+          </Alert>
+        )}
+
+        {/* Data content — only rendered when we have results */}
+        {!isLoading && hasData && (
+          <>
+            {toolbar}
+
+            {/* Column-pivoted mode */}
+            {isPivoted && (
+              <PivotResultTablePivoted
+                data={data}
+                columns={columns}
+                config={config}
+                numberFormat={activeFormat}
+              />
+            )}
+
+            {/* Hierarchical mode */}
+            {!isPivoted && isHierarchical && (
+              <TableContainer overflowX="auto">
+                <Table size="sm" variant="simple" w="auto">
+                  <Thead>
+                    <Tr>
+                      {/* Single "Group" header for the tree label column */}
+                      <Th color="gray.300" fontSize="xs" borderColor="gray.600">
+                        {groupColumnNames.join(' → ')}
+                      </Th>
+                      {/* Aggregate column headers */}
+                      {columns
+                        .filter((c) => c.type === 'aggregate')
+                        .map((col) => (
+                          <Th
+                            key={col.name}
+                            color="gray.300"
+                            fontSize="xs"
+                            borderColor="gray.600"
+                            isNumeric
+                          >
+                            {col.name}
+                          </Th>
+                        ))}
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {flatNodes.map((node, idx) => {
+                      const hasChildren = node.children.length > 0;
+                      const isParent = hasChildren;
+
+                      // Depth-based styling: higher levels are bolder with distinct backgrounds
+                      const depthBg = node.depth === 0
+                        ? 'gray.600'
+                        : node.depth === 1
+                          ? 'gray.650'
+                          : undefined;
+                      const depthFontWeight = node.depth === 0
+                        ? 'bold'
+                        : isParent
+                          ? 'semibold'
+                          : 'normal';
+                      const depthFontSize = node.depth === 0
+                        ? 'sm'
+                        : node.depth === 1
+                          ? 'sm'
+                          : 'xs';
+                      const depthBorderTop = node.depth === 0
+                        ? '2px solid'
+                        : node.depth === 1
+                          ? '1px solid'
+                          : undefined;
+                      const depthBorderColor = node.depth === 0
+                        ? 'orange.500'
+                        : node.depth === 1
+                          ? 'gray.500'
+                          : undefined;
+
+                      return (
+                        <Tr
+                          key={`${node.groupColumn}-${node.value}-${idx}`}
+                          _hover={{ bg: 'gray.550' }}
+                          cursor={isParent ? 'pointer' : 'default'}
+                          onClick={isParent ? () => toggleNode(node) : undefined}
+                          fontWeight={depthFontWeight}
+                          bg={depthBg}
+                          borderTop={depthBorderTop}
+                          borderColor={depthBorderColor}
+                          data-testid={`tree-row-${node.depth}-${node.value}`}
+                        >
+                          {/* Tree label cell with indentation and expand/collapse icon */}
+                          <Td color="white" fontSize={depthFontSize}>
+                            <Flex align="center">
+                              <Box w={`${node.depth * INDENT_PX}px`} flexShrink={0} />
+                              {isParent ? (
+                                <Icon
+                                  as={node.isExpanded ? ChevronDownIcon : ChevronRightIcon}
+                                  boxSize={4}
+                                  color="orange.400"
+                                  mr={1}
+                                  data-testid={`tree-toggle-${node.value}`}
+                                />
+                              ) : (
+                                <Box w="20px" flexShrink={0} />
+                              )}
+                              <Text as="span" color={node.depth === 0 ? 'orange.300' : isParent ? 'orange.200' : 'white'}>
+                                {node.value != null ? String(node.value) : t('pivot.results.grandTotal')}
+                              </Text>
+                            </Flex>
+                          </Td>
+
+                          {/* Aggregate value cells */}
+                          {aggregateColumnNames.map((colName) => {
+                            const col = columns.find((c) => c.name === colName);
+                            const value = node.aggregates[colName];
+                            return (
+                              <Td
+                                key={colName}
+                                color="white"
+                                fontSize={depthFontSize}
+                                isNumeric
+                              >
+                                {col && value != null
+                                  ? formatCellValue(value, col, activeFormat, locale)
+                                  : ''}
+                              </Td>
+                            );
+                          })}
+                        </Tr>
+                      );
+                    })}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* Flat mode */}
+            {!isPivoted && !isHierarchical && (
+              <TableContainer overflowX="auto">
+                <Table size="sm" variant="simple" w="auto">
+                  <Thead>
+                    <Tr>
+                      {columns.map((col) => (
+                        <FilterableHeader
+                          key={col.name}
+                          label={col.name}
+                          filterValue={filters[col.name]}
+                          onFilterChange={(v) => setFilter(col.name, v)}
+                          sortable
+                          sortDirection={columnSortDirection(col.name)}
+                          onSort={() => handleSort(col.name)}
+                          isNumeric={col.type === 'aggregate'}
+                        />
+                      ))}
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {processedData.map((row, rowIndex) => (
+                      <Tr
+                        key={rowIndex}
+                        _hover={{ bg: 'gray.600' }}
+                      >
+                        {columns.map((col) => (
+                          <Td
+                            key={col.name}
+                            color="white"
+                            fontSize="sm"
+                            isNumeric={col.type === 'aggregate'}
+                          >
+                            {formatCellValue(row[col.name], col, activeFormat, locale)}
+                          </Td>
+                        ))}
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            )}
+          </>
+        )}
       </CardBody>
     </Card>
   );

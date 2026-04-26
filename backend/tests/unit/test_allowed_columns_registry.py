@@ -97,10 +97,12 @@ def _populate_registry():
 # Strategies
 # ---------------------------------------------------------------------------
 
-# After registry is populated, these are the system-level columns
+# After registry is populated, these are the system-level columns.
+# Note: 'administration' is the TENANT_COLUMN and is excluded from the
+# registry by derive_columns_from_schema — it is never user-selectable.
 _GROUPABLE = ['Aangifte', 'TransactionDate', 'Reknum', 'AccountName',
               'Parent', 'VW', 'jaar', 'kwartaal', 'maand', 'week',
-              'ReferenceNumber', 'administration']
+              'ReferenceNumber']
 _AGGREGATABLE = ['Amount']
 
 groupable_col_st = st.sampled_from(_GROUPABLE)
@@ -145,13 +147,17 @@ class TestColumnResolutionIntersection:
 
         result = registry.get_available_columns('vw_mutaties', 'tenant1')
 
+        # Extract names from the dict objects returned by get_available_columns
+        result_g_names = [c['name'] for c in result['groupable']]
+        result_a_names = [c['name'] for c in result['aggregatable']]
+
         # Groupable: intersection of system and restriction
         expected_g = [c for c in _GROUPABLE if c in restriction['groupable']]
-        assert result['groupable'] == expected_g
+        assert result_g_names == expected_g
 
         # Aggregatable: intersection of system and restriction
         expected_a = [c for c in _AGGREGATABLE if c in restriction['aggregatable']]
-        assert result['aggregatable'] == expected_a
+        assert result_a_names == expected_a
 
     @settings(max_examples=100)
     @given(data=st.data())
@@ -163,8 +169,10 @@ class TestColumnResolutionIntersection:
 
         result = registry.get_available_columns('vw_mutaties', 'tenant1')
 
-        assert result['groupable'] == _GROUPABLE
-        assert result['aggregatable'] == _AGGREGATABLE
+        result_g_names = [c['name'] for c in result['groupable']]
+        result_a_names = [c['name'] for c in result['aggregatable']]
+        assert result_g_names == _GROUPABLE
+        assert result_a_names == _AGGREGATABLE
 
     @settings(max_examples=100)
     @given(restriction=tenant_restriction_st())
@@ -176,8 +184,10 @@ class TestColumnResolutionIntersection:
 
         result = registry.get_available_columns('vw_mutaties', 'tenant1')
 
-        assert set(result['groupable']).issubset(set(_GROUPABLE))
-        assert set(result['aggregatable']).issubset(set(_AGGREGATABLE))
+        result_g_names = {c['name'] for c in result['groupable']}
+        result_a_names = {c['name'] for c in result['aggregatable']}
+        assert result_g_names.issubset(set(_GROUPABLE))
+        assert result_a_names.issubset(set(_AGGREGATABLE))
 
     @settings(max_examples=100)
     @given(restriction=tenant_restriction_st())
@@ -189,8 +199,10 @@ class TestColumnResolutionIntersection:
 
         result = registry.get_available_columns('vw_mutaties', 'tenant1')
 
-        assert set(result['groupable']).issubset(set(restriction['groupable']))
-        assert set(result['aggregatable']).issubset(set(restriction['aggregatable']))
+        result_g_names = {c['name'] for c in result['groupable']}
+        result_a_names = {c['name'] for c in result['aggregatable']}
+        assert result_g_names.issubset(set(restriction['groupable']))
+        assert result_a_names.issubset(set(restriction['aggregatable']))
 
 
 # ---------------------------------------------------------------------------
