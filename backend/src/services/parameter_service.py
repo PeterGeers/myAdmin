@@ -159,6 +159,20 @@ def _register_code_defaults() -> None:
         'description': 'Display label for vw_bnb_total pivot data source',
     }
 
+    # ui.pivot — Module assignment per data source
+    # Tags each data source with its module (FIN, STR, ZZP) so the frontend
+    # can filter available sources per report tab.
+    CODE_DEFAULTS[('ui.pivot', 'datasource_module.vw_mutaties')] = {
+        'value': 'FIN',
+        'value_type': 'string',
+        'description': 'Module assignment for vw_mutaties pivot data source',
+    }
+    CODE_DEFAULTS[('ui.pivot', 'datasource_module.vw_bnb_total')] = {
+        'value': 'STR',
+        'value_type': 'string',
+        'description': 'Module assignment for vw_bnb_total pivot data source',
+    }
+
     # ------------------------------------------------------------------
     # ui.tables — Table configuration defaults (columns, filters, sort, page size)
     # These match the seed values from seed_table_config_params.sql.
