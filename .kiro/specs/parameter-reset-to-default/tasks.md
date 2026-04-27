@@ -185,7 +185,7 @@ Rework the Parameter Management modal and table to replace the misleading "Delet
 - [x] 11. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 12. Commit and push to main
+- [x] 12. Commit and push to main
   - Stage all changed files (backend endpoint, frontend component, services, types, tests)
   - Commit with message: "feat: parameter reset-to-default — replace Delete with Reset, remove Actions column, add JSON validation"
   - Push to main branch
