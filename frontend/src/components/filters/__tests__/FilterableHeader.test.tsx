@@ -105,6 +105,19 @@ jest.mock('@chakra-ui/react', () => {
         {...props}
       />
     ),
+    InputGroup: ({ children, size }: any) => (
+      <div data-testid="input-group" data-size={size}>{children}</div>
+    ),
+    InputLeftElement: ({ children, pointerEvents, h }: any) => (
+      <div data-testid="input-left-element" data-pointer-events={pointerEvents} data-h={h}>{children}</div>
+    ),
+  };
+});
+
+jest.mock('@chakra-ui/icons', () => {
+  const React = require('react');
+  return {
+    SearchIcon: (props: any) => <span data-testid="search-icon" {...props}>🔍</span>,
   };
 });
 

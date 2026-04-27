@@ -11,7 +11,8 @@
  */
 
 import React from 'react';
-import { Th, VStack, HStack, Text, Input } from '@chakra-ui/react';
+import { Th, VStack, HStack, Text, Input, InputGroup, InputLeftElement } from '@chakra-ui/react';
+import { SearchIcon } from '@chakra-ui/icons';
 import { FilterableHeaderProps } from './types';
 
 /**
@@ -79,19 +80,24 @@ export const FilterableHeader: React.FC<FilterableHeaderProps> = ({
 
         {/* Optional filter input */}
         {filterValue !== undefined && (
-          <Input
-            size="xs"
-            value={filterValue}
-            onChange={(e) => onFilterChange?.(e.target.value)}
-            placeholder={placeholder || 'Filter...'}
-            bg="gray.600"
-            color="white"
-            aria-label={`Filter by ${label}`}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-          />
+          <InputGroup size="xs">
+            <InputLeftElement pointerEvents="none" h="24px">
+              <SearchIcon color="gray.300" boxSize="10px" />
+            </InputLeftElement>
+            <Input
+              value={filterValue}
+              onChange={(e) => onFilterChange?.(e.target.value)}
+              placeholder={placeholder || 'Filter...'}
+              bg="gray.600"
+              color="white"
+              pl="24px"
+              aria-label={`Filter by ${label}`}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+          </InputGroup>
         )}
       </VStack>
     </Th>
