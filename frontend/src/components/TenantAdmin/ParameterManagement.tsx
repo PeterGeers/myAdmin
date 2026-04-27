@@ -1,8 +1,10 @@
 /**
  * Parameter Management Component
  *
- * Allows tenant admins to view, create, edit, and delete parameters.
- * System-scope parameters are read-only (row-click disabled).
+ * Allows tenant admins to view, edit, and delete parameters.
+ * All parameter rows are clickable to open the edit modal.
+ * Actions (edit, reset, customize) are consolidated into the modal —
+ * no inline action buttons or Add Parameter button.
  *
  * Uses the table-filter-framework-v2 hybrid approach:
  * - useTableConfig('parameters') for parameter-driven column/filter config
@@ -12,16 +14,15 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Box, Table, Thead, Tbody, Tr, Td, Badge, Button, Grid, Th,
-  useToast, useDisclosure, Spinner, Text, HStack, IconButton, Tooltip,
+  Box, Table, Thead, Tbody, Tr, Td, Badge, Button, Grid, HStack,
+  useToast, useDisclosure, Spinner, Text,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
-  FormControl, FormLabel, Input, Textarea, Switch, Select,
+  FormControl, FormLabel, Input, Textarea, Select, Code,
   AlertDialog, AlertDialogOverlay, AlertDialogContent, AlertDialogHeader,
   AlertDialogBody, AlertDialogFooter,
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, RepeatIcon } from '@chakra-ui/icons';
 import { Parameter, ParameterCreateRequest } from '../../types/parameterTypes';
-import { getParameters, createParameter, updateParameter, deleteParameter } from '../../services/parameterService';
+import { getParameters, createParameter, updateParameter, deleteParameter, getParameterDefault } from '../../services/parameterService';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { FilterableHeader } from '../filters/FilterableHeader';
 import { useFilterableTable } from '../../hooks/useFilterableTable';
@@ -65,7 +66,7 @@ export default function ParameterManagement({ tenant }: Props) {
   const [params, setParams] = useState<Record<string, Parameter[]>>({});
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Parameter | null>(null);
-  const [isNew, setIsNew] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formNs, setFormNs] = useState('');
   const [formKey, setFormKey] = useState('');
@@ -75,7 +76,13 @@ export default function ParameterManagement({ tenant }: Props) {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isResetOpen, onOpen: onResetOpen, onClose: onResetClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const resetCancelRef = useRef<HTMLButtonElement>(null);
+  const [defaultValue, setDefaultValue] = useState<any>(null);
+  const [defaultSource, setDefaultSource] = useState<string>('');
+  const [loadingDefault, setLoadingDefault] = useState(false);
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   // Parameter-driven table configuration
   const tableConfig = useTableConfig('parameters');
@@ -142,36 +149,60 @@ export default function ParameterManagement({ tenant }: Props) {
     [processedData, allParams],
   );
 
-  const handleAdd = () => {
-    setIsNew(true); setEditing(null);
-    setFormNs(''); setFormKey(''); setFormValue(''); setFormType('string'); setFormSecret(false);
+  const handleRowClick = (p: Parameter) => {
+    const readOnly = p.scope_origin === 'system' || p.id === null;
+    setIsReadOnly(readOnly);
+    setEditing(p);
+    setFormNs(p.namespace); setFormKey(p.key);
+    const initialValue = typeof p.value === 'object' ? JSON.stringify(p.value, null, 2) : String(p.value ?? '');
+    setFormValue(initialValue);
+    setFormType(p.value_type); setFormSecret(p.is_secret);
+    // Validate initial JSON value
+    if (p.value_type === 'json') {
+      try {
+        JSON.parse(initialValue);
+        setJsonError(null);
+      } catch (e: any) {
+        setJsonError(`Invalid JSON: ${e.message}`);
+      }
+    } else {
+      setJsonError(null);
+    }
     onOpen();
   };
 
-  const handleRowClick = (p: Parameter) => {
-    setIsNew(false); setEditing(p);
-    setFormNs(p.namespace); setFormKey(p.key);
-    setFormValue(typeof p.value === 'object' ? JSON.stringify(p.value, null, 2) : String(p.value ?? ''));
-    setFormType(p.value_type); setFormSecret(p.is_secret);
-    onOpen();
+  /** Validate JSON on every value change when formType is 'json' */
+  const handleValueChange = (newValue: string) => {
+    setFormValue(newValue);
+    if (formType === 'json') {
+      try {
+        JSON.parse(newValue);
+        setJsonError(null);
+      } catch (e: any) {
+        setJsonError(`Invalid JSON: ${e.message}`);
+      }
+    }
+  };
+
+  /** Re-indent current JSON value with 2-space formatting */
+  const handleFormat = () => {
+    try {
+      const parsed = JSON.parse(formValue);
+      setFormValue(JSON.stringify(parsed, null, 2));
+      setJsonError(null);
+    } catch {
+      // Button should be disabled when invalid, but guard anyway
+    }
   };
 
   const handleSave = async () => {
-    if (!formNs.trim() || !formKey.trim()) {
-      toast({ title: t('tenantAdmin.parameters.namespace') + ' and ' + t('tenantAdmin.parameters.key') + ' are required', status: 'warning', duration: 3000 }); return;
-    }
     setSaving(true);
     try {
       let parsedValue: any = formValue;
       if (formType === 'number') parsedValue = Number(formValue);
       else if (formType === 'boolean') parsedValue = formValue === 'true';
       else if (formType === 'json') parsedValue = JSON.parse(formValue);
-      if (isNew) {
-        const req: ParameterCreateRequest = { scope: 'tenant', namespace: formNs, key: formKey, value: parsedValue, value_type: formType as any, is_secret: formSecret };
-        const res = await createParameter(req);
-        if (res.success) { toast({ title: t('tenantAdmin.parameters.created'), status: 'success', duration: 3000 }); onClose(); load(); }
-        else toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
-      } else if (editing?.id) {
+      if (editing?.id) {
         const res = await updateParameter(editing.id, { value: parsedValue, value_type: formType as any });
         if (res.success) { toast({ title: t('tenantAdmin.parameters.updated'), status: 'success', duration: 3000 }); onClose(); load(); }
         else toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
@@ -186,6 +217,31 @@ export default function ParameterManagement({ tenant }: Props) {
     finally { setSaving(false); }
   };
 
+  const handleCustomize = async () => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      let parsedValue: any = formValue;
+      if (formType === 'number') parsedValue = Number(formValue);
+      else if (formType === 'boolean') parsedValue = formValue === 'true';
+      else if (formType === 'json') parsedValue = JSON.parse(formValue);
+      const req: ParameterCreateRequest = {
+        scope: 'tenant', namespace: formNs, key: formKey,
+        value: parsedValue, value_type: formType as any, is_secret: formSecret,
+      };
+      const res = await createParameter(req);
+      if (res.success) {
+        toast({ title: t('tenantAdmin.parameters.customized'), status: 'success', duration: 3000 });
+        onClose();
+        load();
+      } else {
+        toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
+      }
+    } catch (e: any) {
+      toast({ title: t('tenantAdmin.parameters.title'), description: e.message, status: 'error', duration: 5000 });
+    } finally { setSaving(false); }
+  };
+
   const handleDelete = async () => {
     if (!editing?.id) return;
     try {
@@ -196,37 +252,33 @@ export default function ParameterManagement({ tenant }: Props) {
     finally { onDeleteClose(); }
   };
 
-  /** Customize a system-scope parameter: create a tenant-scope copy so it becomes editable. */
-  const handleCustomize = async (p: Parameter) => {
-    setSaving(true);
+  const handleResetToDefault = async () => {
+    if (!editing) return;
+    setLoadingDefault(true);
     try {
-      const req: ParameterCreateRequest = {
-        scope: 'tenant',
-        namespace: p.namespace,
-        key: p.key,
-        value: p.value,
-        value_type: p.value_type,
-        is_secret: p.is_secret,
-      };
-      const res = await createParameter(req);
-      if (res.success) {
-        toast({ title: 'Parameter customized', description: `${p.namespace}.${p.key} is now editable for your tenant.`, status: 'success', duration: 3000 });
-        load();
+      const res = await getParameterDefault(editing.namespace, editing.key);
+      if (res.success && res.has_default) {
+        setDefaultValue(res.value);
+        setDefaultSource(res.source || '');
+        onResetOpen();
       } else {
-        toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
+        toast({ title: 'Error', description: 'Failed to fetch default value', status: 'error', duration: 5000 });
       }
     } catch (e: any) {
-      toast({ title: 'Error', description: e.message, status: 'error', duration: 5000 });
-    } finally { setSaving(false); }
+      toast({ title: 'Error', description: 'Failed to fetch default value', status: 'error', duration: 5000 });
+    } finally {
+      setLoadingDefault(false);
+    }
   };
 
-  /** Reset a tenant-scope parameter to its system/code default by deleting the tenant override. */
-  const handleResetToDefault = async (p: Parameter) => {
-    if (!p.id) return;
+  const handleConfirmReset = async () => {
+    if (!editing?.id) return;
     try {
-      const res = await deleteParameter(p.id);
+      const res = await deleteParameter(editing.id);
       if (res.success) {
-        toast({ title: 'Reset to default', description: `${p.namespace}.${p.key} reverted to system default.`, status: 'success', duration: 3000 });
+        toast({ title: t('tenantAdmin.parameters.resetToDefault'), status: 'success', duration: 3000 });
+        onResetClose();
+        onClose();
         load();
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
@@ -235,16 +287,6 @@ export default function ParameterManagement({ tenant }: Props) {
       toast({ title: 'Error', description: e.message, status: 'error', duration: 5000 });
     }
   };
-
-  /**
-   * Check if a tenant-scope parameter has a code default it can be reset to.
-   * The backend includes a `has_code_default` flag on each parameter entry.
-   * When true and the parameter is tenant-scope, the "Reset to Default" button
-   * is shown — deleting the tenant override reveals the code default.
-   */
-  const hasCodeDefault = useCallback((p: Parameter): boolean => {
-    return p.scope_origin === 'tenant' && !!p.has_code_default;
-  }, []);
 
   /** Render a table cell with column-specific styling */
   const renderCellValue = (p: ParameterRow, col: string) => {
@@ -274,11 +316,6 @@ export default function ParameterManagement({ tenant }: Props) {
 
   return (
     <Box>
-      <HStack mb={4} justify="flex-end">
-        <Button leftIcon={<AddIcon />} colorScheme="orange" size="sm" onClick={handleAdd}>
-          {t('tenantAdmin.parameters.addParameter')}
-        </Button>
-      </HStack>
       <Table variant="simple" size="sm">
         <Thead>
           <Tr>
@@ -296,7 +333,6 @@ export default function ParameterManagement({ tenant }: Props) {
                 />
               );
             })}
-            <Th color="gray.400" fontSize="xs">Actions</Th>
           </Tr>
         </Thead>
         <Tbody>
@@ -312,38 +348,11 @@ export default function ParameterManagement({ tenant }: Props) {
                   {renderCellValue(p, col)}
                 </React.Fragment>
               ))}
-              <Td onClick={(e) => e.stopPropagation()}>
-                {p.scope_origin === 'system' && (
-                  <Tooltip label="Create a tenant-specific copy to customize" fontSize="xs">
-                    <IconButton
-                      aria-label="Customize"
-                      icon={<EditIcon />}
-                      size="xs"
-                      colorScheme="orange"
-                      variant="ghost"
-                      isLoading={saving}
-                      onClick={() => handleCustomize(p)}
-                    />
-                  </Tooltip>
-                )}
-                {hasCodeDefault(p) && (
-                  <Tooltip label="Reset to system default" fontSize="xs">
-                    <IconButton
-                      aria-label="Reset to default"
-                      icon={<RepeatIcon />}
-                      size="xs"
-                      colorScheme="purple"
-                      variant="ghost"
-                      onClick={() => handleResetToDefault(p)}
-                    />
-                  </Tooltip>
-                )}
-              </Td>
             </Tr>
           ))}
           {displayRows.length === 0 && (
             <Tr>
-              <Td colSpan={tableConfig.columns.length + 1} color="gray.500" textAlign="center">
+              <Td colSpan={tableConfig.columns.length} color="gray.500" textAlign="center">
                 {t('tenantAdmin.parameters.noParameters')}
               </Td>
             </Tr>
@@ -355,55 +364,83 @@ export default function ParameterManagement({ tenant }: Props) {
         <ModalOverlay />
         <ModalContent bg="gray.700">
           <ModalHeader color="white">
-            {isNew
-              ? t('tenantAdmin.parameters.addParameter')
-              : `${t('tenantAdmin.parameters.editParameter')} - ${editing?.namespace}.${editing?.key}`}
+            {`${isReadOnly ? t('tenantAdmin.parameters.viewParameter') : t('tenantAdmin.parameters.editParameter')} - ${editing?.namespace}.${editing?.key}`}
           </ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody>
             <Grid templateColumns="repeat(2, 1fr)" gap={4}>
               <FormControl>
                 <FormLabel color="white">{t('tenantAdmin.parameters.namespace')}</FormLabel>
-                <Input value={formNs} onChange={e => setFormNs(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white" />
+                <Input value={formNs} isDisabled bg="gray.600" color="white" />
               </FormControl>
               <FormControl>
                 <FormLabel color="white">{t('tenantAdmin.parameters.key')}</FormLabel>
-                <Input value={formKey} onChange={e => setFormKey(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white" />
+                <Input value={formKey} isDisabled bg="gray.600" color="white" />
               </FormControl>
               <FormControl>
                 <FormLabel color="white">{t('tenantAdmin.parameters.valueType')}</FormLabel>
-                <Select value={formType} onChange={e => setFormType(e.target.value)} isDisabled={!isNew} bg="gray.600" color="white">
+                <Select value={formType} isDisabled bg="gray.600" color="white">
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
                   <option value="json">json</option>
                 </Select>
               </FormControl>
-              {isNew && (
-                <FormControl display="flex" alignItems="flex-end">
-                  <FormLabel color="white" mb={0} mr={3}>{t('tenantAdmin.parameters.secret')}</FormLabel>
-                  <Switch isChecked={formSecret} onChange={e => setFormSecret(e.target.checked)} colorScheme="orange" />
-                </FormControl>
-              )}
               <FormControl gridColumn="span 2">
-                <FormLabel color="white">{t('tenantAdmin.parameters.value')}</FormLabel>
+                <HStack justify="space-between">
+                  <FormLabel color="white" mb={0}>{t('tenantAdmin.parameters.value')}</FormLabel>
+                  {formType === 'json' && (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="blue"
+                      isDisabled={!!jsonError || isReadOnly}
+                      onClick={handleFormat}
+                    >
+                      Format
+                    </Button>
+                  )}
+                </HStack>
                 {formType === 'boolean' ? (
-                  <Select value={formValue} onChange={e => setFormValue(e.target.value)} bg="gray.600" color="white">
+                  <Select value={formValue} onChange={e => handleValueChange(e.target.value)} isDisabled={isReadOnly} bg="gray.600" color="white">
                     <option value="true">true</option>
                     <option value="false">false</option>
                   </Select>
                 ) : formType === 'json' ? (
-                  <Textarea value={formValue} onChange={e => setFormValue(e.target.value)} rows={5} bg="gray.600" color="white" fontFamily="mono" />
+                  <>
+                    <Textarea value={formValue} onChange={e => handleValueChange(e.target.value)} isDisabled={isReadOnly} rows={5} bg="gray.600" color="white" fontFamily="mono" />
+                    {jsonError && (
+                      <Text color="red.300" fontSize="xs" mt={1}>{jsonError}</Text>
+                    )}
+                  </>
                 ) : (
-                  <Input value={formValue} onChange={e => setFormValue(e.target.value)} type={formType === 'number' ? 'number' : 'text'} bg="gray.600" color="white" />
+                  <Input value={formValue} onChange={e => handleValueChange(e.target.value)} isDisabled={isReadOnly} type={formType === 'number' ? 'number' : 'text'} bg="gray.600" color="white" />
                 )}
               </FormControl>
             </Grid>
           </ModalBody>
           <ModalFooter>
-            {!isNew && editing?.id && <Button colorScheme="red" variant="ghost" mr="auto" onClick={onDeleteOpen}>Delete</Button>}
-            <Button colorScheme="gray" mr={3} onClick={onClose}>Cancel</Button>
-            <Button colorScheme="orange" onClick={handleSave} isLoading={saving}>{isNew ? 'Create' : 'Save'}</Button>
+            {isReadOnly ? (
+              <>
+                <Button colorScheme="orange" mr={3} onClick={handleCustomize} isLoading={saving}>
+                  {t('tenantAdmin.parameters.customize')}
+                </Button>
+                <Button colorScheme="gray" onClick={onClose}>Cancel</Button>
+              </>
+            ) : (
+              <>
+                {editing?.id && editing?.has_code_default && (
+                  <Button colorScheme="red" variant="ghost" mr="auto" onClick={handleResetToDefault} isLoading={loadingDefault}>
+                    {t('tenantAdmin.parameters.resetToDefaultBtn')}
+                  </Button>
+                )}
+                {editing?.id && !editing?.has_code_default && (
+                  <Button colorScheme="red" variant="ghost" mr="auto" onClick={onDeleteOpen}>Delete</Button>
+                )}
+                <Button colorScheme="gray" mr={3} onClick={onClose}>Cancel</Button>
+                <Button colorScheme="orange" onClick={handleSave} isLoading={saving} isDisabled={formType === 'json' && !!jsonError}>Save</Button>
+              </>
+            )}
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -418,6 +455,55 @@ export default function ParameterManagement({ tenant }: Props) {
             <AlertDialogFooter>
               <Button ref={cancelRef} onClick={onDeleteClose} colorScheme="gray">Cancel</Button>
               <Button colorScheme="red" onClick={handleDelete} ml={3}>Delete</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      <AlertDialog isOpen={isResetOpen} leastDestructiveRef={resetCancelRef as any} onClose={onResetClose}>
+        <AlertDialogOverlay>
+          <AlertDialogContent bg="gray.700" maxW="lg">
+            <AlertDialogHeader color="white">
+              Reset: {editing?.namespace}.{editing?.key}
+            </AlertDialogHeader>
+            <AlertDialogBody color="gray.300">
+              <Text fontWeight="bold" mb={1}>{t('tenantAdmin.parameters.currentValue')}</Text>
+              {editing?.is_secret ? (
+                <Code display="block" p={2} mb={4} bg="gray.600" color="white" whiteSpace="pre" fontFamily="mono">
+                  ********
+                </Code>
+              ) : editing?.value_type === 'json' ? (
+                <Code display="block" p={2} mb={4} bg="gray.600" color="white" whiteSpace="pre" fontFamily="mono" overflowX="auto">
+                  {typeof editing?.value === 'object' ? JSON.stringify(editing.value, null, 2) : String(editing?.value ?? '')}
+                </Code>
+              ) : (
+                <Code display="block" p={2} mb={4} bg="gray.600" color="white" whiteSpace="pre" fontFamily="mono">
+                  {String(editing?.value ?? '')}
+                </Code>
+              )}
+
+              <Text fontWeight="bold" mb={1}>
+                {t('tenantAdmin.parameters.defaultValue')} ({defaultSource})
+              </Text>
+              {editing?.is_secret ? (
+                <Code display="block" p={2} bg="gray.600" color="white" whiteSpace="pre" fontFamily="mono">
+                  ********
+                </Code>
+              ) : editing?.value_type === 'json' ? (
+                <Code display="block" p={2} bg="gray.600" color="white" whiteSpace="pre" fontFamily="mono" overflowX="auto">
+                  {typeof defaultValue === 'object' ? JSON.stringify(defaultValue, null, 2) : String(defaultValue ?? '')}
+                </Code>
+              ) : (
+                <Code display="block" p={2} bg="gray.600" color="white" whiteSpace="pre" fontFamily="mono">
+                  {String(defaultValue ?? '')}
+                </Code>
+              )}
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={resetCancelRef} onClick={onResetClose} colorScheme="gray">Cancel</Button>
+              <Button colorScheme="red" onClick={handleConfirmReset} ml={3}>
+                {t('tenantAdmin.parameters.resetToDefaultBtn')}
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>

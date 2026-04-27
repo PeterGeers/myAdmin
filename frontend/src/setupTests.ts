@@ -4,6 +4,21 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
+// Suppress React 19 "not wrapped in act(...)" warnings.
+// React 19 aggressively warns about state updates outside act() even when
+// React Testing Library's waitFor/findBy* queries handle them correctly.
+// See: https://github.com/testing-library/react-testing-library/issues/1061
+const originalConsoleError = console.error;
+console.error = (...args: any[]) => {
+  if (
+    typeof args[0] === 'string' &&
+    args[0].includes('was not wrapped in act')
+  ) {
+    return;
+  }
+  originalConsoleError(...args);
+};
+
 // Polyfills needed by MSW
 if (typeof global.TextEncoder === 'undefined') {
   const { TextEncoder, TextDecoder } = require('util');

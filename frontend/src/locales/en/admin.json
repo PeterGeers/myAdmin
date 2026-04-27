@@ -45,8 +45,11 @@
       "loading": "Loading parameters...",
       "addParameter": "Add Parameter",
       "editParameter": "Edit Parameter",
+      "viewParameter": "View Parameter",
       "deleteParameter": "Delete Parameter",
       "deleteConfirm": "Delete this parameter? This cannot be undone.",
+      "customize": "Customize",
+      "customized": "Parameter customized",
       "namespace": "Namespace",
       "key": "Key",
       "value": "Value",
@@ -57,7 +60,11 @@
       "noParameters": "No parameters found",
       "created": "Parameter created",
       "updated": "Parameter updated",
-      "deleted": "Parameter deleted"
+      "deleted": "Parameter deleted",
+      "resetToDefault": "Parameter reset to default",
+      "resetToDefaultBtn": "Reset to Default",
+      "currentValue": "Current value",
+      "defaultValue": "Default value"
     },
     "taxRates": {
       "title": "Tax Rates",

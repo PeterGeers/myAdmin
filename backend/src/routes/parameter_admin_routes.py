@@ -195,6 +195,70 @@ def delete_parameter(user_email, user_roles, tenant, user_tenants, param_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@parameter_admin_bp.route('/api/tenant-admin/parameters/default', methods=['GET'])
+@cognito_required(required_permissions=[])
+@tenant_required()
+def get_parameter_default(user_email, user_roles, tenant, user_tenants):
+    """Return the default value for a parameter (CODE_DEFAULT or system-scope DB row).
+
+    Query params: namespace, key
+    Resolution order: CODE_DEFAULTS → system-scope DB row → has_default: false
+    Secret values are masked for non-SysAdmin users.
+
+    Requirements: 1.1, 1.2, 1.3, 1.4, 1.5
+    Reference: .kiro/specs/parameter-reset-to-default/design.md
+    """
+    namespace = request.args.get('namespace')
+    key = request.args.get('key')
+
+    if not namespace or not key:
+        return jsonify({'success': False, 'error': 'namespace and key are required'}), 400
+
+    try:
+        is_admin = _is_sysadmin(user_roles)
+
+        # 1. Check CODE_DEFAULTS
+        from services.parameter_service import CODE_DEFAULTS
+        code_default = CODE_DEFAULTS.get((namespace, key))
+        if code_default is not None:
+            value = code_default['value']
+            if code_default.get('is_secret', False) and not is_admin:
+                value = '********'
+            return jsonify({
+                'success': True,
+                'has_default': True,
+                'value': value,
+                'value_type': code_default['value_type'],
+                'source': 'code_default',
+            })
+
+        # 2. Check system-scope DB row
+        db = DatabaseManager(test_mode=flag)
+        rows = db.execute_query(
+            "SELECT value, value_type, is_secret FROM parameters "
+            "WHERE scope = 'system' AND namespace = %s AND `key` = %s LIMIT 1",
+            (namespace, key), fetch=True
+        )
+        if rows:
+            row = rows[0]
+            parsed = ParameterService._parse_json_value(row['value'])
+            if row['is_secret'] and not is_admin:
+                parsed = '********'
+            return jsonify({
+                'success': True,
+                'has_default': True,
+                'value': parsed,
+                'value_type': row['value_type'],
+                'source': 'system',
+            })
+
+        # 3. No default
+        return jsonify({'success': True, 'has_default': False})
+    except Exception as e:
+        logger.error("Error fetching parameter default: %s", e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @parameter_admin_bp.route('/api/tenant-admin/parameters/schema', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
