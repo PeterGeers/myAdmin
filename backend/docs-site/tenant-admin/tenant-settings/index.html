@@ -2805,6 +2805,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#geavanceerd-tabblad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Geavanceerd tabblad
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Geavanceerd tabblad">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters-bekijken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameters bekijken
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parameter-bewerken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter bewerken
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#terugzetten-naar-standaard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Terugzetten naar standaard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parameter-verwijderen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parameter verwijderen
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#sjablonen-tabblad" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3257,6 +3318,73 @@ Zonder deze twee velden correct ingesteld, worden geïmporteerde bankafschriften
 <li>Sommige parameters (zoals <strong>veldconfiguraties</strong>) bepalen welke velden zichtbaar of verplicht zijn in formulieren</li>
 <li>Wijzigingen worden direct doorgevoerd — geen herstart nodig</li>
 </ul>
+<h2 id="geavanceerd-tabblad">Geavanceerd tabblad<a class="headerlink" href="#geavanceerd-tabblad" title="Permanent link">&para;</a></h2>
+<div class="admonition info">
+<p class="admonition-title">Alleen SysAdmin</p>
+</div>
+<p>Dit tabblad is alleen zichtbaar voor gebruikers met de SysAdmin-rol. Tenant Admins zien dit tabblad niet.</p>
+<p>Het Geavanceerd tabblad toont de ruwe parametertabel — alle configuratieparameters voor je tenant in hun oorspronkelijke sleutel-waarde vorm. Dit is handig voor geavanceerde configuratie en probleemoplossing.</p>
+<h3 id="parameters-bekijken">Parameters bekijken<a class="headerlink" href="#parameters-bekijken" title="Permanent link">&para;</a></h3>
+<p>De tabel toont alle parameters met de volgende kolommen:</p>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Beschrijving</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Namespace</td>
+<td>Logische groepering (bijv. <code>ui.pivot</code>, <code>storage</code>, <code>zzp</code>)</td>
+</tr>
+<tr>
+<td>Key</td>
+<td>Parameternaam binnen de namespace</td>
+</tr>
+<tr>
+<td>Value</td>
+<td>Huidige waarde (geheime waarden worden gemaskeerd als <code>********</code>)</td>
+</tr>
+<tr>
+<td>Value Type</td>
+<td>Datatype: <code>string</code>, <code>number</code>, <code>boolean</code> of <code>json</code></td>
+</tr>
+<tr>
+<td>Scope</td>
+<td><code>system default</code> (standaardwaarde) of <code>tenant override</code> (aangepaste waarde)</td>
+</tr>
+</tbody>
+</table>
+<p>Klik op een kolom om te sorteren. Typ in het filterveld onder een kolomkop om te filteren.</p>
+<h3 id="parameter-bewerken">Parameter bewerken<a class="headerlink" href="#parameter-bewerken" title="Permanent link">&para;</a></h3>
+<p>Klik op een rij om de parameter te openen. Wat je kunt doen hangt af van het type parameter:</p>
+<p><strong>Systeemparameters</strong> (scope: <code>system default</code>) openen in <strong>alleen-lezen modus</strong>:</p>
+<ul>
+<li>Alle velden zijn uitgeschakeld</li>
+<li>Klik op <strong>Aanpassen</strong> om een tenant-specifieke kopie aan te maken met dezelfde waarde</li>
+<li>Na het aanpassen kun je de kopie bewerken via de tabel</li>
+</ul>
+<p><strong>Tenant-parameters</strong> (scope: <code>tenant override</code>) openen in <strong>bewerkingsmodus</strong>:</p>
+<ul>
+<li>Pas de waarde aan en klik op <strong>Opslaan</strong></li>
+<li>Voor JSON-parameters: het systeem valideert de JSON bij elke wijziging en toont een foutmelding als de JSON ongeldig is. De <strong>Opslaan</strong>-knop is uitgeschakeld zolang de JSON ongeldig is</li>
+<li>Gebruik de <strong>Format</strong>-knop naast JSON-velden om de JSON automatisch op te maken met inspringen</li>
+</ul>
+<h3 id="terugzetten-naar-standaard">Terugzetten naar standaard<a class="headerlink" href="#terugzetten-naar-standaard" title="Permanent link">&para;</a></h3>
+<p>Wanneer je een tenant-parameter opent die een standaardwaarde heeft (afkomstig uit de systeemconfiguratie), verschijnt de knop <strong>Terugzetten naar standaard</strong>:</p>
+<ol>
+<li>Klik op <strong>Terugzetten naar standaard</strong></li>
+<li>Een bevestigingsvenster toont je <strong>huidige waarde</strong> naast de <strong>standaardwaarde</strong>, zodat je de impact kunt beoordelen</li>
+<li>Klik op <strong>Terugzetten naar standaard</strong> om te bevestigen, of <strong>Annuleren</strong> om terug te keren</li>
+</ol>
+<p>Na het terugzetten wordt de tenant-specifieke waarde verwijderd en valt de parameter terug op de standaardwaarde.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+</div>
+<p>Terugzetten is niet destructief — je kunt de parameter altijd opnieuw aanpassen via de <strong>Aanpassen</strong>-knop.</p>
+<h3 id="parameter-verwijderen">Parameter verwijderen<a class="headerlink" href="#parameter-verwijderen" title="Permanent link">&para;</a></h3>
+<p>Wanneer een tenant-parameter geen standaardwaarde heeft, verschijnt in plaats van "Terugzetten naar standaard" een <strong>Verwijderen</strong>-knop. Dit verwijdert de parameter permanent.</p>
 <h2 id="sjablonen-tabblad">Sjablonen tabblad<a class="headerlink" href="#sjablonen-tabblad" title="Permanent link">&para;</a></h2>
 <p>Sjablonen bepalen hoe factuurverwerking en rapportages eruitzien. Op dit tabblad kun je:</p>
 <ul>
