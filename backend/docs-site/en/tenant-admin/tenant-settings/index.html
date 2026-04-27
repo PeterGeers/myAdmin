@@ -2805,6 +2805,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#advanced-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced tab
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced tab">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#viewing-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#editing-a-parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing a parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resetting-to-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resetting to default
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deleting-a-parameter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deleting a parameter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#templates-tab" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3256,6 +3317,73 @@ Without these two fields correctly set, imported bank statements will not match 
 <li>Some parameters (like <strong>field configurations</strong>) control which fields are visible or required in forms</li>
 <li>Changes take effect immediately — no restart needed</li>
 </ul>
+<h2 id="advanced-tab">Advanced tab<a class="headerlink" href="#advanced-tab" title="Permanent link">&para;</a></h2>
+<div class="admonition info">
+<p class="admonition-title">SysAdmin only</p>
+</div>
+<p>This tab is only visible to users with the SysAdmin role. Tenant Admins do not see this tab.</p>
+<p>The Advanced tab shows the raw parameters table — all configuration parameters for your tenant in their original key-value form. This is useful for advanced configuration and troubleshooting.</p>
+<h3 id="viewing-parameters">Viewing parameters<a class="headerlink" href="#viewing-parameters" title="Permanent link">&para;</a></h3>
+<p>The table displays all parameters with the following columns:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Namespace</td>
+<td>Logical grouping (e.g., <code>ui.pivot</code>, <code>storage</code>, <code>zzp</code>)</td>
+</tr>
+<tr>
+<td>Key</td>
+<td>Parameter name within the namespace</td>
+</tr>
+<tr>
+<td>Value</td>
+<td>Current value (secret values are masked as <code>********</code>)</td>
+</tr>
+<tr>
+<td>Value Type</td>
+<td>Data type: <code>string</code>, <code>number</code>, <code>boolean</code>, or <code>json</code></td>
+</tr>
+<tr>
+<td>Scope</td>
+<td><code>system default</code> (default value) or <code>tenant override</code> (customized value)</td>
+</tr>
+</tbody>
+</table>
+<p>Click a column header to sort. Type in the filter field below a column header to filter.</p>
+<h3 id="editing-a-parameter">Editing a parameter<a class="headerlink" href="#editing-a-parameter" title="Permanent link">&para;</a></h3>
+<p>Click any row to open the parameter. What you can do depends on the parameter type:</p>
+<p><strong>System parameters</strong> (scope: <code>system default</code>) open in <strong>read-only mode</strong>:</p>
+<ul>
+<li>All fields are disabled</li>
+<li>Click <strong>Customize</strong> to create a tenant-specific copy with the same value</li>
+<li>After customizing, you can edit the copy from the table</li>
+</ul>
+<p><strong>Tenant parameters</strong> (scope: <code>tenant override</code>) open in <strong>edit mode</strong>:</p>
+<ul>
+<li>Modify the value and click <strong>Save</strong></li>
+<li>For JSON parameters: the system validates the JSON on every change and shows an error message when the JSON is invalid. The <strong>Save</strong> button is disabled while the JSON is invalid</li>
+<li>Use the <strong>Format</strong> button next to JSON fields to automatically re-indent the JSON for readability</li>
+</ul>
+<h3 id="resetting-to-default">Resetting to default<a class="headerlink" href="#resetting-to-default" title="Permanent link">&para;</a></h3>
+<p>When you open a tenant parameter that has a default value (from the system configuration), the <strong>Reset to Default</strong> button appears:</p>
+<ol>
+<li>Click <strong>Reset to Default</strong></li>
+<li>A confirmation dialog shows your <strong>current value</strong> alongside the <strong>default value</strong>, so you can assess the impact</li>
+<li>Click <strong>Reset to Default</strong> to confirm, or <strong>Cancel</strong> to go back</li>
+</ol>
+<p>After resetting, the tenant-specific value is removed and the parameter falls back to the default value.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+</div>
+<p>Resetting is not destructive — you can always customize the parameter again using the <strong>Customize</strong> button.</p>
+<h3 id="deleting-a-parameter">Deleting a parameter<a class="headerlink" href="#deleting-a-parameter" title="Permanent link">&para;</a></h3>
+<p>When a tenant parameter has no default value, a <strong>Delete</strong> button appears instead of "Reset to Default". This permanently removes the parameter.</p>
 <h2 id="templates-tab">Templates tab<a class="headerlink" href="#templates-tab" title="Permanent link">&para;</a></h2>
 <p>Templates determine how invoice processing and reports look. On this tab you can:</p>
 <ul>

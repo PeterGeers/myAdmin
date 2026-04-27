@@ -151,6 +151,60 @@ De instellingen die je op dit tabblad (en op het Financieel tabblad) configureer
 - Sommige parameters (zoals **veldconfiguraties**) bepalen welke velden zichtbaar of verplicht zijn in formulieren
 - Wijzigingen worden direct doorgevoerd — geen herstart nodig
 
+## Geavanceerd tabblad
+
+!!! info "Alleen SysAdmin"
+Dit tabblad is alleen zichtbaar voor gebruikers met de SysAdmin-rol. Tenant Admins zien dit tabblad niet.
+
+Het Geavanceerd tabblad toont de ruwe parametertabel — alle configuratieparameters voor je tenant in hun oorspronkelijke sleutel-waarde vorm. Dit is handig voor geavanceerde configuratie en probleemoplossing.
+
+### Parameters bekijken
+
+De tabel toont alle parameters met de volgende kolommen:
+
+| Kolom      | Beschrijving                                                                |
+| ---------- | --------------------------------------------------------------------------- |
+| Namespace  | Logische groepering (bijv. `ui.pivot`, `storage`, `zzp`)                    |
+| Key        | Parameternaam binnen de namespace                                           |
+| Value      | Huidige waarde (geheime waarden worden gemaskeerd als `********`)           |
+| Value Type | Datatype: `string`, `number`, `boolean` of `json`                           |
+| Scope      | `system default` (standaardwaarde) of `tenant override` (aangepaste waarde) |
+
+Klik op een kolom om te sorteren. Typ in het filterveld onder een kolomkop om te filteren.
+
+### Parameter bewerken
+
+Klik op een rij om de parameter te openen. Wat je kunt doen hangt af van het type parameter:
+
+**Systeemparameters** (scope: `system default`) openen in **alleen-lezen modus**:
+
+- Alle velden zijn uitgeschakeld
+- Klik op **Aanpassen** om een tenant-specifieke kopie aan te maken met dezelfde waarde
+- Na het aanpassen kun je de kopie bewerken via de tabel
+
+**Tenant-parameters** (scope: `tenant override`) openen in **bewerkingsmodus**:
+
+- Pas de waarde aan en klik op **Opslaan**
+- Voor JSON-parameters: het systeem valideert de JSON bij elke wijziging en toont een foutmelding als de JSON ongeldig is. De **Opslaan**-knop is uitgeschakeld zolang de JSON ongeldig is
+- Gebruik de **Format**-knop naast JSON-velden om de JSON automatisch op te maken met inspringen
+
+### Terugzetten naar standaard
+
+Wanneer je een tenant-parameter opent die een standaardwaarde heeft (afkomstig uit de systeemconfiguratie), verschijnt de knop **Terugzetten naar standaard**:
+
+1. Klik op **Terugzetten naar standaard**
+2. Een bevestigingsvenster toont je **huidige waarde** naast de **standaardwaarde**, zodat je de impact kunt beoordelen
+3. Klik op **Terugzetten naar standaard** om te bevestigen, of **Annuleren** om terug te keren
+
+Na het terugzetten wordt de tenant-specifieke waarde verwijderd en valt de parameter terug op de standaardwaarde.
+
+!!! tip
+Terugzetten is niet destructief — je kunt de parameter altijd opnieuw aanpassen via de **Aanpassen**-knop.
+
+### Parameter verwijderen
+
+Wanneer een tenant-parameter geen standaardwaarde heeft, verschijnt in plaats van "Terugzetten naar standaard" een **Verwijderen**-knop. Dit verwijdert de parameter permanent.
+
 ## Sjablonen tabblad
 
 Sjablonen bepalen hoe factuurverwerking en rapportages eruitzien. Op dit tabblad kun je:

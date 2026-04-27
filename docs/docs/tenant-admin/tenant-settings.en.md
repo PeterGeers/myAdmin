@@ -149,6 +149,60 @@ The settings you configure on this tab (and on the Financial tab) are stored as 
 - Some parameters (like **field configurations**) control which fields are visible or required in forms
 - Changes take effect immediately — no restart needed
 
+## Advanced tab
+
+!!! info "SysAdmin only"
+This tab is only visible to users with the SysAdmin role. Tenant Admins do not see this tab.
+
+The Advanced tab shows the raw parameters table — all configuration parameters for your tenant in their original key-value form. This is useful for advanced configuration and troubleshooting.
+
+### Viewing parameters
+
+The table displays all parameters with the following columns:
+
+| Column     | Description                                                              |
+| ---------- | ------------------------------------------------------------------------ |
+| Namespace  | Logical grouping (e.g., `ui.pivot`, `storage`, `zzp`)                    |
+| Key        | Parameter name within the namespace                                      |
+| Value      | Current value (secret values are masked as `********`)                   |
+| Value Type | Data type: `string`, `number`, `boolean`, or `json`                      |
+| Scope      | `system default` (default value) or `tenant override` (customized value) |
+
+Click a column header to sort. Type in the filter field below a column header to filter.
+
+### Editing a parameter
+
+Click any row to open the parameter. What you can do depends on the parameter type:
+
+**System parameters** (scope: `system default`) open in **read-only mode**:
+
+- All fields are disabled
+- Click **Customize** to create a tenant-specific copy with the same value
+- After customizing, you can edit the copy from the table
+
+**Tenant parameters** (scope: `tenant override`) open in **edit mode**:
+
+- Modify the value and click **Save**
+- For JSON parameters: the system validates the JSON on every change and shows an error message when the JSON is invalid. The **Save** button is disabled while the JSON is invalid
+- Use the **Format** button next to JSON fields to automatically re-indent the JSON for readability
+
+### Resetting to default
+
+When you open a tenant parameter that has a default value (from the system configuration), the **Reset to Default** button appears:
+
+1. Click **Reset to Default**
+2. A confirmation dialog shows your **current value** alongside the **default value**, so you can assess the impact
+3. Click **Reset to Default** to confirm, or **Cancel** to go back
+
+After resetting, the tenant-specific value is removed and the parameter falls back to the default value.
+
+!!! tip
+Resetting is not destructive — you can always customize the parameter again using the **Customize** button.
+
+### Deleting a parameter
+
+When a tenant parameter has no default value, a **Delete** button appears instead of "Reset to Default". This permanently removes the parameter.
+
 ## Templates tab
 
 Templates determine how invoice processing and reports look. On this tab you can:
