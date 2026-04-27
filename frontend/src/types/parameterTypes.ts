@@ -27,6 +27,14 @@ export interface ParameterUpdateRequest {
   value_type?: 'string' | 'number' | 'boolean' | 'json';
 }
 
+export interface ParameterDefaultResponse {
+  success: boolean;
+  has_default: boolean;
+  value?: any;
+  value_type?: 'string' | 'number' | 'boolean' | 'json';
+  source?: 'code_default' | 'system';
+}
+
 export interface ParametersResponse {
   success: boolean;
   tenant: string;

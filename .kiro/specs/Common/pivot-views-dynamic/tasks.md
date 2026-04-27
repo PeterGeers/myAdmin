@@ -404,7 +404,7 @@ Phased implementation of the Dynamic Pivot Views feature: backend services (Allo
   - [x] 13.2 Run production database migration
     - Execute `python backend/scripts/database/create_pivot_models_table.py` (without `--test` flag) against the production database
     - Verify the `pivot_models` table exists with correct schema: `id`, `administration`, `name`, `data_source`, `definition` (JSON), `created_by`, `created_at`, `updated_at`, unique key `uq_admin_user_name`, index `idx_administration`
-  - [ ] 13.3 Merge feature branch into main
+  - [x] 13.3 Merge feature branch into main
     - Switch to `main` branch and pull latest
     - Merge `feature/dynamic-pivot-views` into `main`
     - Push `main` to origin
