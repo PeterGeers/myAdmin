@@ -7,7 +7,8 @@ on:
         paths:
             - "frontend/**"
             - ".github/workflows/deploy-frontend.yml"
-    workflow_dispatch: # Allow manual trigger
+    workflow_dispatch:
+        # Allow manual trigger
 
 permissions:
     contents: read
@@ -40,17 +41,17 @@ jobs:
 
             - name: Build frontend
               working-directory: frontend
-              run: npm run build
+              run: npm run build:ci
               env:
-                  CI: false # Treat warnings as warnings, not errors
-                  REACT_APP_API_URL: https://invigorating-celebration-production.up.railway.app
-                  REACT_APP_COGNITO_USER_POOL_ID: eu-west-1_Hdp40eWmu
-                  REACT_APP_COGNITO_CLIENT_ID: 66tp0087h9tfbstggonnu5aghp
-                  REACT_APP_COGNITO_DOMAIN: myadmin-6x2848jl.auth.eu-west-1.amazoncognito.com
-                  REACT_APP_AWS_REGION: eu-west-1
-                  REACT_APP_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
-                  REACT_APP_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
-                  REACT_APP_DOCS_URL: /docs
+                  CI: false
+                  VITE_API_URL: https://invigorating-celebration-production.up.railway.app
+                  VITE_COGNITO_USER_POOL_ID: eu-west-1_Hdp40eWmu
+                  VITE_COGNITO_CLIENT_ID: 66tp0087h9tfbstggonnu5aghp
+                  VITE_COGNITO_DOMAIN: myadmin-6x2848jl.auth.eu-west-1.amazoncognito.com
+                  VITE_AWS_REGION: eu-west-1
+                  VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
+                  VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
+                  VITE_DOCS_URL: /docs
 
             - name: Setup Pages
               uses: actions/configure-pages@v4
