@@ -5,6 +5,7 @@
  * Verifies tenant context integration, API calls, and user interactions.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -13,19 +14,19 @@ import { useTenant } from '../../context/TenantContext';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 
 // Mock dependencies
-jest.mock('../../context/TenantContext');
-jest.mock('../../services/tenantApiService');
+vi.mock('../../context/TenantContext');
+vi.mock('../../services/tenantApiService');
 
 // Mock useTypedTranslation to return keys (avoids needing full i18n setup)
-jest.mock('../../hooks/useTypedTranslation', () => ({
+vi.mock('../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: jest.fn() }
+    i18n: { language: 'en', changeLanguage: vi.fn() }
   })
 }));
 
 // Mock Chakra UI components to avoid dependency issues
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   VStack: ({ children, ...props }: any) => <div data-testid="vstack" {...props}>{children}</div>,
   Alert: ({ children, status, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,
   AlertIcon: () => <span data-testid="alert-icon">!</span>,
@@ -53,7 +54,7 @@ jest.mock('@chakra-ui/react', () => ({
   Box: ({ children, bg, ...props }: any) => <div data-testid="box" {...props}>{children}</div>,
 }));
 
-jest.mock('../filters/FilterPanel', () => {
+vi.mock('../filters/FilterPanel', () => {
   return {
     FilterPanel: function MockFilterPanel(props: any) {
       return (
@@ -80,10 +81,10 @@ jest.mock('../filters/FilterPanel', () => {
   };
 });
 
-const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
-const mockTenantAwareGet = tenantAwareGet as jest.MockedFunction<typeof tenantAwareGet>;
-const mockTenantAwarePost = tenantAwarePost as jest.MockedFunction<typeof tenantAwarePost>;
-const mockRequireTenant = requireTenant as jest.MockedFunction<typeof requireTenant>;
+const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
+const mockTenantAwareGet = tenantAwareGet as vi.MockedFunction<typeof tenantAwareGet>;
+const mockTenantAwarePost = tenantAwarePost as vi.MockedFunction<typeof tenantAwarePost>;
+const mockRequireTenant = requireTenant as vi.MockedFunction<typeof requireTenant>;
 
 // Helper to render and wait for async effects (fetchBtwAvailableYears on mount)
 async function renderAndSettle(ui: React.ReactElement) {
@@ -97,13 +98,13 @@ async function renderAndSettle(ui: React.ReactElement) {
 
 describe('BtwReport', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Default mock implementations
     mockUseTenant.mockReturnValue({
       currentTenant: 'GoodwinSolutions',
       availableTenants: ['GoodwinSolutions', 'TestTenant'],
-      setCurrentTenant: jest.fn(),
+      setCurrentTenant: vi.fn(),
       hasMultipleTenants: true
     });
 
@@ -129,7 +130,7 @@ describe('BtwReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['GoodwinSolutions'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -157,7 +158,7 @@ describe('BtwReport', () => {
         throw new Error('No tenant selected');
       });
 
-      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
       await renderAndSettle(<BtwReport />);
       
@@ -210,7 +211,7 @@ describe('BtwReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['GoodwinSolutions'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -241,7 +242,7 @@ describe('BtwReport', () => {
         })
       } as Response);
 
-      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
       await renderAndSettle(<BtwReport />);
       
@@ -258,8 +259,8 @@ describe('BtwReport', () => {
     it('handles network errors during report generation', async () => {
       mockTenantAwarePost.mockRejectedValueOnce(new Error('Network error'));
 
-      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       await renderAndSettle(<BtwReport />);
       

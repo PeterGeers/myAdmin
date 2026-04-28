@@ -18,7 +18,7 @@ const getRedirectUrls = () => {
       'http://localhost:3000/callback',
       'http://localhost:5000/',
       'http://localhost:5000/callback',
-      process.env.REACT_APP_REDIRECT_SIGN_IN || 'http://localhost:5000/'
+      import.meta.env.VITE_REDIRECT_SIGN_IN || 'http://localhost:5000/'
     ],
     signOut: [
       `${baseUrl}/`,
@@ -27,7 +27,7 @@ const getRedirectUrls = () => {
       'http://localhost:3000/login',
       'http://localhost:5000/',
       'http://localhost:5000/login',
-      process.env.REACT_APP_REDIRECT_SIGN_OUT || 'http://localhost:5000/'
+      import.meta.env.VITE_REDIRECT_SIGN_OUT || 'http://localhost:5000/'
     ]
   };
 };
@@ -38,16 +38,16 @@ const awsconfig = {
   Auth: {
     Cognito: {
       // User Pool ID from Cognito
-      userPoolId: process.env.REACT_APP_COGNITO_USER_POOL_ID || '',
+      userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || '',
       
       // App Client ID from Cognito
-      userPoolClientId: process.env.REACT_APP_COGNITO_CLIENT_ID || '',
+      userPoolClientId: import.meta.env.VITE_COGNITO_CLIENT_ID || '',
       
       // OAuth configuration for Hosted UI
       loginWith: {
         oauth: {
           // Cognito domain for Hosted UI
-          domain: process.env.REACT_APP_COGNITO_DOMAIN || '',
+          domain: import.meta.env.VITE_COGNITO_DOMAIN || '',
           
           // OAuth scopes - what information to request
           scopes: ['openid', 'email', 'profile'],

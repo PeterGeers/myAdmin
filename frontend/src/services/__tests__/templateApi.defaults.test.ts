@@ -5,20 +5,21 @@
  * and throws an Error with the server message on non-OK responses.
  */
 
+import { vi } from 'vitest';
 import { downloadDefaultTemplate, deleteTenantTemplate } from '../templateApi';
 
 // Mock the authenticatedRequest dependency
-jest.mock('../apiService', () => ({
-  authenticatedRequest: jest.fn(),
+vi.mock('../apiService', () => ({
+  authenticatedRequest: vi.fn(),
 }));
 
 import { authenticatedRequest } from '../apiService';
 
-const mockAuthRequest = authenticatedRequest as jest.MockedFunction<typeof authenticatedRequest>;
+const mockAuthRequest = authenticatedRequest as vi.MockedFunction<typeof authenticatedRequest>;
 
 describe('templateApi - default template functions', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('downloadDefaultTemplate', () => {

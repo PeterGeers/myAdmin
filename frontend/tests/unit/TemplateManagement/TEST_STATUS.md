@@ -41,7 +41,7 @@
 Used the exact mock pattern from working tests (TenantSelector.test.tsx):
 
 ```typescript
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: ({ children }: any) => <div>{children}</div>,
   Button: ({ children, onClick, isDisabled, isLoading, loadingText }: any) => (
     <button onClick={onClick} disabled={isDisabled || isLoading}>

@@ -1,28 +1,29 @@
 /**
  * TaxRateManagement Component - Unit Tests
  */
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '../../../test-utils';
 import TaxRateManagement from '../TaxRateManagement';
 
-jest.mock('../../../services/taxRateService', () => ({
-  getTaxRates: jest.fn(),
-  createTaxRate: jest.fn(),
-  updateTaxRate: jest.fn(),
-  deleteTaxRate: jest.fn(),
+vi.mock('../../../services/taxRateService', () => ({
+  getTaxRates: vi.fn(),
+  createTaxRate: vi.fn(),
+  updateTaxRate: vi.fn(),
+  deleteTaxRate: vi.fn(),
 }));
 
 const mockT = (key: string) => key;
-const mockI18n = { language: 'en', changeLanguage: jest.fn() };
+const mockI18n = { language: 'en', changeLanguage: vi.fn() };
 
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: mockT,
     i18n: mockI18n
   })
 }));
 
-const { getTaxRates } = require('../../../services/taxRateService');
+import { getTaxRates } from '../../../services/taxRateService';
 
 const mockRates = {
   success: true, tenant: 'T1',
@@ -35,7 +36,7 @@ const mockRates = {
 
 describe('TaxRateManagement', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     getTaxRates.mockResolvedValue(mockRates);
   });
 

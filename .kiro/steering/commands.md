@@ -10,13 +10,15 @@ Pull into context with `#commands` when you need build/run/test commands or envi
 
 ```bash
 cd frontend
-npm start                    # Dev server (port 3000)
-npm test                     # Unit tests
+npm start                    # Vite dev server (port 3000)
+npm test                     # Vitest (watch mode)
+npm run test:run             # Vitest (single run, CI)
 npm run test:e2e             # Playwright E2E tests
 npm run test:e2e:ui          # E2E tests with UI
-npm run lint                 # ESLint
-npm run build                # Production build
-npm run build:ci             # CI build (ESLint disabled)
+npm run lint                 # ESLint (flat config)
+npm run build                # tsc + Vite production build
+npm run build:ci             # Vite build (skip tsc)
+npm run preview              # Serve production build locally
 ```
 
 ## Backend
@@ -94,7 +96,9 @@ Both frontend and backend use `.env` files. Copy `.env.example` to `.env`.
 - `OPENROUTER_API_KEY`: AI invoice extraction (optional)
 - `CREDENTIALS_ENCRYPTION_KEY`: Tenant credential encryption
 
-**Frontend Key Variables**:
+**Frontend Key Variables** (Vite uses `VITE_` prefix, accessed via `import.meta.env`):
 
-- `REACT_APP_API_URL`: Backend API URL
-- AWS Cognito configuration variables
+- `VITE_API_URL`: Backend API URL
+- `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_DOMAIN`, `VITE_AWS_REGION`: AWS Cognito
+- `VITE_REDIRECT_SIGN_IN`, `VITE_REDIRECT_SIGN_OUT`: OAuth redirect URLs
+- `VITE_DOCS_URL`: Documentation URL

@@ -9,12 +9,13 @@
  * Validates: Requirements 4.8
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
 import fc from 'fast-check';
 
 // Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => {
+vi.mock('@chakra-ui/react', () => {
   const React = require('react');
 
   return {
@@ -112,7 +113,7 @@ jest.mock('@chakra-ui/react', () => {
   };
 });
 
-jest.mock('@chakra-ui/icons', () => {
+vi.mock('@chakra-ui/icons', () => {
   const React = require('react');
   return {
     SearchIcon: (props: any) => <span data-testid="search-icon" {...props}>🔍</span>,
@@ -120,7 +121,7 @@ jest.mock('@chakra-ui/icons', () => {
 });
 
 // Import component after mocks
-// eslint-disable-next-line import/first
+// eslint-disable-next-line import-x/first
 import { FilterableHeader } from '../FilterableHeader';
 
 /**

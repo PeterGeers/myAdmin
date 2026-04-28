@@ -1,46 +1,89 @@
-# Getting Started with Create React App
+# myAdmin Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React TypeScript frontend for the myAdmin financial administration platform, built with Vite.
 
-## Available Scripts
+## Tech Stack
 
-In the project directory, you can run:
+- **Framework**: React 19 with TypeScript 5.9+
+- **Build Tool**: Vite 8.x
+- **UI**: Chakra UI 2.8, Material UI 7.3, Framer Motion
+- **Charts**: Recharts 3.3, Plotly.js (lazy-loaded)
+- **Auth**: AWS Amplify 6 (Cognito)
+- **Testing**: Vitest, Playwright, React Testing Library, fast-check
+- **Linting**: ESLint flat config (`eslint.config.js`)
 
-### `npm start`
+## Getting Started
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```bash
+# Install dependencies
+npm install
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+# Start dev server (port 3000)
+npm start
 
-### `npm test`
+# Run unit tests
+npm run test:run
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+# Run tests in watch mode
+npm test
 
-### `npm run build`
+# Run e2e tests (requires backend running)
+npm run test:e2e
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+# Lint
+npm run lint
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+# Production build
+npm run build
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# Preview production build locally
+npm run preview
+```
 
-### `npm run eject`
+## Environment Variables
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+Copy `.env.example` to `.env` and fill in the values. All frontend env vars use the `VITE_` prefix:
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+| Variable                    | Description              |
+| --------------------------- | ------------------------ |
+| `VITE_COGNITO_USER_POOL_ID` | AWS Cognito User Pool ID |
+| `VITE_COGNITO_CLIENT_ID`    | Cognito App Client ID    |
+| `VITE_COGNITO_DOMAIN`       | Cognito domain           |
+| `VITE_AWS_REGION`           | AWS region               |
+| `VITE_API_URL`              | Backend API URL          |
+| `VITE_REDIRECT_SIGN_IN`     | OAuth sign-in redirect   |
+| `VITE_REDIRECT_SIGN_OUT`    | OAuth sign-out redirect  |
+| `VITE_DOCS_URL`             | Documentation URL        |
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+## Project Structure
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+```
+frontend/
+├── src/
+│   ├── components/       # Reusable UI components
+│   ├── pages/            # Page-level components
+│   ├── services/         # API service layer
+│   ├── hooks/            # Custom React hooks
+│   ├── context/          # React context providers
+│   ├── types/            # TypeScript type definitions
+│   └── utils/            # Utility functions
+├── tests/                # E2E tests (Playwright)
+├── vite.config.ts        # Vite + Vitest configuration
+├── eslint.config.js      # ESLint flat config
+└── tsconfig.json         # TypeScript configuration
+```
 
-## Learn More
+## Build & Deploy
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+# Production build (outputs to build/)
+npm run build
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+# Deploy to GitHub Pages
+npm run deploy
+
+# Bundle analysis
+ANALYZE=true npm run build
+```
+
+The production build uses `base: '/myAdmin'` for GitHub Pages deployment. Asset paths are prefixed accordingly.

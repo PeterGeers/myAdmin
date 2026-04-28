@@ -435,7 +435,7 @@ const handleApplyFixes = async () => {
 import * as templateApi from "./templateApi";
 import { authenticatedRequest } from "./apiService";
 
-jest.mock("./apiService");
+vi.mock("./apiService");
 
 describe("templateApi", () => {
   describe("previewTemplate", () => {
@@ -449,7 +449,9 @@ describe("templateApi", () => {
         }),
       };
 
-      (authenticatedRequest as jest.Mock).mockResolvedValue(mockResponse);
+      (authenticatedRequest as ReturnType<typeof vi.fn>).mockResolvedValue(
+        mockResponse,
+      );
 
       const result = await templateApi.previewTemplate(
         "str_invoice_nl",
@@ -466,7 +468,9 @@ describe("templateApi", () => {
         json: async () => ({ message: "Invalid template" }),
       };
 
-      (authenticatedRequest as jest.Mock).mockResolvedValue(mockResponse);
+      (authenticatedRequest as ReturnType<typeof vi.fn>).mockResolvedValue(
+        mockResponse,
+      );
 
       await expect(
         templateApi.previewTemplate("str_invoice_nl", "<html>...</html>"),

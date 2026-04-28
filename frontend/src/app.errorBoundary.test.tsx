@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 
@@ -49,11 +50,11 @@ const ThrowError = ({ shouldThrow }: { shouldThrow: boolean }) => {
 
 describe('App Error Boundaries', () => {
   beforeEach(() => {
-    jest.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('ErrorBoundary Component', () => {
@@ -93,7 +94,7 @@ describe('App Error Boundaries', () => {
     });
 
     it('logs error to console when error is caught', () => {
-      const consoleSpy = jest.spyOn(console, 'error');
+      const consoleSpy = vi.spyOn(console, 'error');
 
       render(
         <MockErrorBoundary>

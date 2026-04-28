@@ -1,8 +1,9 @@
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
+// @testing-library/jest-dom adds custom matchers for asserting on DOM nodes.
+// Works with Vitest via globals — allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 
 // Suppress React 19 "not wrapped in act(...)" warnings.
 // React 19 aggressively warns about state updates outside act() even when
@@ -49,7 +50,7 @@ if (typeof global.BroadcastChannel === 'undefined') {
 
 // Mock fetch for tests
 if (typeof global.fetch === 'undefined') {
-  global.fetch = jest.fn((input: RequestInfo | URL, init?: RequestInit) =>
+  global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
     Promise.resolve({
       ok: true,
       status: 200,
@@ -58,13 +59,13 @@ if (typeof global.fetch === 'undefined') {
       redirected: false,
       type: 'basic' as ResponseType,
       url: '',
-      clone: jest.fn(),
+      clone: vi.fn(),
       body: null,
       bodyUsed: false,
-      arrayBuffer: jest.fn(),
-      blob: jest.fn(),
-      formData: jest.fn(),
-      text: jest.fn(),
+      arrayBuffer: vi.fn(),
+      blob: vi.fn(),
+      formData: vi.fn(),
+      text: vi.fn(),
       json: () => Promise.resolve({ mode: 'Test', database: 'testfinance', folder: 'testFacturen' }),
     } as Response)
   );
@@ -72,9 +73,9 @@ if (typeof global.fetch === 'undefined') {
 
 // Global mock for AWS Amplify auth functions
 // This prevents tests from trying to make real AWS calls which causes hangs
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn(() => Promise.resolve({ tokens: null })),
-  getCurrentUser: jest.fn(() => Promise.reject(new Error('Not authenticated'))),
-  signOut: jest.fn(() => Promise.resolve()),
-  signInWithRedirect: jest.fn(() => Promise.resolve()),
+vi.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: vi.fn(() => Promise.resolve({ tokens: null })),
+  getCurrentUser: vi.fn(() => Promise.reject(new Error('Not authenticated'))),
+  signOut: vi.fn(() => Promise.resolve()),
+  signInWithRedirect: vi.fn(() => Promise.resolve()),
 }));

@@ -13,6 +13,7 @@
  * These service-level tests provide coverage of the core business logic.
  */
 
+import { vi } from 'vitest';
 import {
   getYearStatus,
   validateYear,
@@ -23,14 +24,14 @@ import {
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 
 // Mock the API service
-jest.mock('../services/apiService', () => ({
-  authenticatedGet: jest.fn(),
-  authenticatedPost: jest.fn(),
+vi.mock('../services/apiService', () => ({
+  authenticatedGet: vi.fn(),
+  authenticatedPost: vi.fn(),
 }));
 
 // Mock the config
-jest.mock('../config', () => ({
-  buildApiUrl: jest.fn((endpoint: string) => `http://localhost:5000${endpoint}`),
+vi.mock('../config', () => ({
+  buildApiUrl: vi.fn((endpoint: string) => `http://localhost:5000${endpoint}`),
 }));
 
 // Helper to create mock Response
@@ -43,7 +44,7 @@ const createMockResponse = (data: any, ok = true) => ({
 
 describe('Year-End Closure Service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Get Year Status', () => {
@@ -54,7 +55,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 is not closed',
       };
 
-      (authenticatedGet as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData));
 
       const result = await getYearStatus(2025);
 
@@ -73,7 +74,7 @@ describe('Year-End Closure Service', () => {
         notes: 'Year-end closure completed',
       };
 
-      (authenticatedGet as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData));
 
       const result = await getYearStatus(2024);
 
@@ -83,7 +84,7 @@ describe('Year-End Closure Service', () => {
     });
 
     it('should handle API errors', async () => {
-      (authenticatedGet as jest.Mock).mockResolvedValue(
+      vi.mocked(authenticatedGet).mockResolvedValue(
         createMockResponse({ error: 'API Error' }, false)
       );
 
@@ -105,7 +106,7 @@ describe('Year-End Closure Service', () => {
         },
       };
 
-      (authenticatedPost as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
 
       const result = await validateYear(2025);
 
@@ -129,7 +130,7 @@ describe('Year-End Closure Service', () => {
         },
       };
 
-      (authenticatedPost as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
 
       const result = await validateYear(2025);
 
@@ -150,7 +151,7 @@ describe('Year-End Closure Service', () => {
         },
       };
 
-      (authenticatedPost as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
 
       const result = await validateYear(2025);
 
@@ -173,7 +174,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 closed successfully',
       };
 
-      (authenticatedPost as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
 
       const result = await closeYear(2025, 'Closing year 2025');
 
@@ -183,7 +184,7 @@ describe('Year-End Closure Service', () => {
     });
 
     it('should handle close year errors', async () => {
-      (authenticatedPost as jest.Mock).mockResolvedValue(
+      vi.mocked(authenticatedPost).mockResolvedValue(
         createMockResponse(
           { error: 'Cannot close year 2025: Previous year must be closed first' },
           false
@@ -202,7 +203,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2024 reopened successfully',
       };
 
-      (authenticatedPost as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
 
       const result = await reopenYear(2024);
 
@@ -211,7 +212,7 @@ describe('Year-End Closure Service', () => {
     });
 
     it('should handle sequential reopening validation error', async () => {
-      (authenticatedPost as jest.Mock).mockResolvedValue(
+      vi.mocked(authenticatedPost).mockResolvedValue(
         createMockResponse(
           { error: 'Cannot reopen year 2024 because year 2025 is already closed' },
           false
@@ -243,7 +244,7 @@ describe('Year-End Closure Service', () => {
         },
       ];
 
-      (authenticatedGet as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData));
 
       const result = await getClosedYears();
 
@@ -253,7 +254,7 @@ describe('Year-End Closure Service', () => {
     });
 
     it('should return empty array when no years are closed', async () => {
-      (authenticatedGet as jest.Mock).mockResolvedValue(createMockResponse([]));
+      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse([]));
 
       const result = await getClosedYears();
 
@@ -271,7 +272,7 @@ describe('Year-End Closure Service', () => {
         closed_by: 'peter@pgeers.nl',
       };
 
-      (authenticatedGet as jest.Mock).mockResolvedValue(createMockResponse(mockData2024));
+      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData2024));
 
       const year2024Status = await getYearStatus(2024);
       expect(year2024Status.closed).toBe(true);
@@ -284,13 +285,13 @@ describe('Year-End Closure Service', () => {
         closed_by: 'peter@pgeers.nl',
       };
 
-      (authenticatedGet as jest.Mock).mockResolvedValue(createMockResponse(mockData2025));
+      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData2025));
 
       const year2025Status = await getYearStatus(2025);
       expect(year2025Status.closed).toBe(true);
 
       // Attempting to reopen 2024 should fail
-      (authenticatedPost as jest.Mock).mockResolvedValue(
+      vi.mocked(authenticatedPost).mockResolvedValue(
         createMockResponse(
           { error: 'Cannot reopen year 2024 because year 2025 is already closed' },
           false
@@ -314,7 +315,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 closed successfully',
       };
 
-      (authenticatedPost as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
 
       const result = await closeYear(2025, '');
 
@@ -334,7 +335,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 closed successfully',
       };
 
-      (authenticatedPost as jest.Mock).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
 
       const result = await closeYear(2025, '');
 

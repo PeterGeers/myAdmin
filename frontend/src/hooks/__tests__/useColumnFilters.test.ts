@@ -5,6 +5,7 @@
  * Requirements: 12.1
  */
 
+import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useColumnFilters } from '../useColumnFilters';
 
@@ -24,11 +25,11 @@ const initialFilters = { name: '', email: '', status: '' };
 
 describe('useColumnFilters', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('returns full data when no filters are active', () => {
@@ -51,7 +52,7 @@ describe('useColumnFilters', () => {
 
     // Advance past debounce
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     expect(result.current.filteredData).toEqual([sampleData[0]]);
@@ -70,7 +71,7 @@ describe('useColumnFilters', () => {
     });
 
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     expect(result.current.filteredData).toEqual([sampleData[0], sampleData[2]]);
@@ -86,7 +87,7 @@ describe('useColumnFilters', () => {
     });
 
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     expect(result.current.filteredData).toEqual([sampleData[0]]);
@@ -106,7 +107,7 @@ describe('useColumnFilters', () => {
 
     // After debounce: filteredData is updated
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     expect(result.current.filteredData).toEqual([sampleData[0]]);
@@ -123,13 +124,13 @@ describe('useColumnFilters', () => {
 
     // At 150ms: not yet applied
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
     expect(result.current.filteredData).toEqual(sampleData);
 
     // At 300ms: applied
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
     expect(result.current.filteredData).toEqual([sampleData[1]]);
   });
@@ -144,7 +145,7 @@ describe('useColumnFilters', () => {
       result.current.setFilter('name', 'alice');
     });
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
     expect(result.current.filteredData).toHaveLength(1);
 
@@ -172,7 +173,7 @@ describe('useColumnFilters', () => {
       result.current.setFilter('extra', 'val');
     });
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     // Alice's row doesn't have 'extra' field → filter passes → included
@@ -189,7 +190,7 @@ describe('useColumnFilters', () => {
       result.current.setFilter('name', 'test');
     });
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     expect(result.current.filteredData).toEqual([]);

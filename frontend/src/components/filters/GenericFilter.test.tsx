@@ -10,12 +10,13 @@
  * - Different data types
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Mock Chakra UI components with improved state management
-jest.mock('@chakra-ui/react', () => {
+vi.mock('@chakra-ui/react', () => {
   const React = require('react');
   
   return {
@@ -179,12 +180,12 @@ jest.mock('@chakra-ui/react', () => {
   };
 });
 
-jest.mock('@chakra-ui/icons', () => ({
+vi.mock('@chakra-ui/icons', () => ({
   ChevronDownIcon: () => <span data-testid="chevron-icon">▼</span>,
 }));
 
 // Import component after mocks
-// eslint-disable-next-line import/first
+// eslint-disable-next-line import-x/first
 import { GenericFilter } from './GenericFilter';
 
 // Test data types
@@ -204,7 +205,7 @@ const objectOptions: TestObject[] = [
 describe('GenericFilter', () => {
   describe('Single-Select Mode', () => {
     it('renders single-select dropdown with label', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -220,7 +221,7 @@ describe('GenericFilter', () => {
     });
 
     it('displays placeholder when no value selected', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -236,7 +237,7 @@ describe('GenericFilter', () => {
     });
 
     it('displays selected value', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2024']}
@@ -252,7 +253,7 @@ describe('GenericFilter', () => {
 
     it('calls onChange with selected option when value changes', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -270,7 +271,7 @@ describe('GenericFilter', () => {
 
     it('calls onChange with empty array when cleared', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2024']}
@@ -288,7 +289,7 @@ describe('GenericFilter', () => {
     });
 
     it('renders all available options', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -306,7 +307,7 @@ describe('GenericFilter', () => {
 
   describe('Multi-Select Mode', () => {
     it('renders multi-select menu button with label', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -323,7 +324,7 @@ describe('GenericFilter', () => {
     });
 
     it('displays placeholder when no values selected', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -339,7 +340,7 @@ describe('GenericFilter', () => {
     });
 
     it('displays single selected value label', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2024']}
@@ -354,7 +355,7 @@ describe('GenericFilter', () => {
     });
 
     it('displays count when multiple values selected', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2023', '2024']}
@@ -370,7 +371,7 @@ describe('GenericFilter', () => {
 
     it('opens menu when button clicked', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -393,7 +394,7 @@ describe('GenericFilter', () => {
 
     it('toggles selection when option clicked', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -419,7 +420,7 @@ describe('GenericFilter', () => {
 
     it('removes selection when already selected option clicked', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2024']}
@@ -458,7 +459,7 @@ describe('GenericFilter', () => {
     // Related: Mock improvements for Chakra UI testing limitations
     it.skip('shows checkboxes for all options', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2024']}
@@ -484,7 +485,7 @@ describe('GenericFilter', () => {
     // from the accessibility tree due to aria-hidden attribute in the mock
     it.skip('checks selected options', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2024']}
@@ -507,7 +508,7 @@ describe('GenericFilter', () => {
 
     it('shows "No options available" when options array is empty', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -534,7 +535,7 @@ describe('GenericFilter', () => {
     // Need to ensure the mock Select component properly passes disabled to the <select> element
     // Related: Mock improvements for Chakra UI FormControl isDisabled prop
     it.skip('disables single-select when disabled prop is true', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -550,7 +551,7 @@ describe('GenericFilter', () => {
     });
 
     it('disables multi-select button when disabled prop is true', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -574,7 +575,7 @@ describe('GenericFilter', () => {
     // The component passes isLoading which should disable the Select, but the mock doesn't handle it
     // Need to ensure FormControl isDisabled prop propagates to Select
     it.skip('disables single-select when loading', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -590,7 +591,7 @@ describe('GenericFilter', () => {
     });
 
     it('disables multi-select button when loading', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -612,7 +613,7 @@ describe('GenericFilter', () => {
     // But the mock Select doesn't render the icon, so the spinner isn't in the DOM
     // Need to update Select mock to render the icon prop
     it.skip('shows spinner in single-select when loading', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -628,7 +629,7 @@ describe('GenericFilter', () => {
     });
 
     it('shows spinner in multi-select button when loading', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -646,7 +647,7 @@ describe('GenericFilter', () => {
 
   describe('Error State', () => {
     it('displays error message in single-select mode', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -662,7 +663,7 @@ describe('GenericFilter', () => {
     });
 
     it('displays error message in multi-select mode', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -679,7 +680,7 @@ describe('GenericFilter', () => {
     });
 
     it('does not display error when error is null', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -697,7 +698,7 @@ describe('GenericFilter', () => {
   describe('Custom Rendering', () => {
     it('uses custom renderOption in multi-select', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       const customRender = (option: TestObject) => (
         <div data-testid={`custom-${option.id}`}>
           {option.name} (${option.value})
@@ -726,7 +727,7 @@ describe('GenericFilter', () => {
     });
 
     it('uses custom getOptionLabel', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[objectOptions[0]]}
@@ -747,7 +748,7 @@ describe('GenericFilter', () => {
 
     it('uses custom getOptionValue', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -768,7 +769,7 @@ describe('GenericFilter', () => {
 
   describe('Accessibility', () => {
     it('has proper ARIA label for single-select', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -783,7 +784,7 @@ describe('GenericFilter', () => {
     });
 
     it('has proper ARIA label for multi-select button', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -800,7 +801,7 @@ describe('GenericFilter', () => {
 
     it('has proper ARIA attributes for menu', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -824,7 +825,7 @@ describe('GenericFilter', () => {
 
     it('has proper role for menu items', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2024']}
@@ -850,7 +851,7 @@ describe('GenericFilter', () => {
     });
 
     it('associates label with form control', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -869,7 +870,7 @@ describe('GenericFilter', () => {
   describe('Different Data Types', () => {
     it('works with string primitives', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -887,7 +888,7 @@ describe('GenericFilter', () => {
 
     it('works with number primitives', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       const numberOptions = [2023, 2024, 2025];
       
       render(
@@ -907,7 +908,7 @@ describe('GenericFilter', () => {
 
     it('works with complex objects', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       
       render(
         <GenericFilter
@@ -927,7 +928,7 @@ describe('GenericFilter', () => {
     });
 
     it('handles objects with label property', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       const optionsWithLabel = [
         { label: 'First', value: '1' },
         { label: 'Second', value: '2' },
@@ -954,7 +955,7 @@ describe('GenericFilter', () => {
     // Need to ensure the mock Select properly renders option values from getOptionValue
     it.skip('handles objects with id property', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       
       render(
         <GenericFilter
@@ -975,7 +976,7 @@ describe('GenericFilter', () => {
 
   describe('Size Variants', () => {
     it('applies small size variant', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       const { container } = render(
         <GenericFilter
           values={[]}
@@ -992,7 +993,7 @@ describe('GenericFilter', () => {
     });
 
     it('applies medium size variant (default)', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       const { container } = render(
         <GenericFilter
           values={[]}
@@ -1008,7 +1009,7 @@ describe('GenericFilter', () => {
     });
 
     it('applies large size variant', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       const { container } = render(
         <GenericFilter
           values={[]}
@@ -1026,7 +1027,7 @@ describe('GenericFilter', () => {
 
   describe('Edge Cases', () => {
     it('handles empty availableOptions array', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -1043,7 +1044,7 @@ describe('GenericFilter', () => {
     });
 
     it('handles empty values array', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={[]}
@@ -1059,7 +1060,7 @@ describe('GenericFilter', () => {
     });
 
     it('handles multiple values in single-select mode (uses first)', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2023', '2024']}
@@ -1074,7 +1075,7 @@ describe('GenericFilter', () => {
     });
 
     it('handles value not in availableOptions', () => {
-      const onChange = jest.fn();
+      const onChange = vi.fn();
       render(
         <GenericFilter
           values={['2022']}

@@ -5,15 +5,16 @@
  * Target: 15+ tests
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '../../../test-utils';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { CredentialsManagement } from '../CredentialsManagement';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
 
 describe('CredentialsManagement Component', () => {
   const mockToken = 'mock-jwt-token';
@@ -33,7 +34,7 @@ describe('CredentialsManagement Component', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     mockFetchAuthSession.mockResolvedValue({
       tokens: {
@@ -44,7 +45,7 @@ describe('CredentialsManagement Component', () => {
     } as any);
 
     // Mock successful API responses
-    global.fetch = jest.fn((url: string) => {
+    global.fetch = vi.fn((url: string) => {
       if (typeof url === 'string' && url.includes('/api/tenant-admin/credentials')) {
         return Promise.resolve({
           ok: true,
@@ -55,11 +56,11 @@ describe('CredentialsManagement Component', () => {
         ok: true,
         json: async () => ({}),
       } as Response);
-    }) as jest.Mock;
+    });
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // ============================================================================
@@ -150,7 +151,7 @@ describe('CredentialsManagement Component', () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        const calls = (global.fetch as jest.Mock).mock.calls;
+        const calls = vi.mocked(global.fetch).mock.calls;
         const credentialsCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/credentials'));
         expect(credentialsCall[1].headers['Authorization']).toBe(`Bearer ${mockToken}`);
       });
@@ -160,14 +161,14 @@ describe('CredentialsManagement Component', () => {
       render(<CredentialsManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        const calls = (global.fetch as jest.Mock).mock.calls;
+        const calls = vi.mocked(global.fetch).mock.calls;
         const credentialsCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/credentials'));
         expect(credentialsCall[1].headers['X-Tenant']).toBe(mockTenant);
       });
     });
 
     test('handles API error gracefully', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('API Error'));
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('API Error'));
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
@@ -282,10 +283,10 @@ describe('CredentialsManagement Component', () => {
   describe('OAuth Flow', () => {
     test('starts OAuth flow when button clicked', async () => {
       // Mock window.open before rendering
-      const mockOpen = jest.fn().mockReturnValue(null);
+      const mockOpen = vi.fn().mockReturnValue(null);
       window.open = mockOpen;
 
-      (global.fetch as jest.Mock)
+      vi.mocked(global.fetch)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ credentials: mockCredentials }),
@@ -315,10 +316,10 @@ describe('CredentialsManagement Component', () => {
     });
 
     test('opens OAuth window with correct URL', async () => {
-      const mockOpen = jest.fn().mockReturnValue({ closed: false });
+      const mockOpen = vi.fn().mockReturnValue({ closed: false });
       window.open = mockOpen;
 
-      (global.fetch as jest.Mock)
+      vi.mocked(global.fetch)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ credentials: mockCredentials }),
@@ -361,7 +362,7 @@ describe('CredentialsManagement Component', () => {
     });
 
     test('tests connection when button clicked', async () => {
-      (global.fetch as jest.Mock)
+      vi.mocked(global.fetch)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ credentials: mockCredentials }),
@@ -391,7 +392,7 @@ describe('CredentialsManagement Component', () => {
     });
 
     test('shows loading state during connection test', async () => {
-      (global.fetch as jest.Mock)
+      vi.mocked(global.fetch)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ credentials: mockCredentials }),
@@ -478,7 +479,7 @@ describe('CredentialsManagement Component', () => {
 
   describe('Error Handling', () => {
     test('displays error message when credentials fail to load', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Failed to load credentials'));
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Failed to load credentials'));
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
@@ -488,7 +489,7 @@ describe('CredentialsManagement Component', () => {
     });
 
     test('displays error when upload fails', async () => {
-      (global.fetch as jest.Mock)
+      vi.mocked(global.fetch)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ credentials: mockCredentials }),
@@ -519,7 +520,7 @@ describe('CredentialsManagement Component', () => {
       // Wait for the upload attempt to complete (error is shown via toast)
       await waitFor(() => {
         // Verify the POST was attempted
-        const calls = (global.fetch as jest.Mock).mock.calls;
+        const calls = vi.mocked(global.fetch).mock.calls;
         const postCall = calls.find((call: any[]) =>
           typeof call[0] === 'string' &&
           call[0].includes('/api/tenant-admin/credentials') &&
@@ -530,7 +531,7 @@ describe('CredentialsManagement Component', () => {
     });
 
     test('displays error message when connection test fails', async () => {
-      (global.fetch as jest.Mock)
+      vi.mocked(global.fetch)
         .mockResolvedValueOnce({
           ok: true,
           json: async () => ({ credentials: mockCredentials }),
@@ -548,7 +549,7 @@ describe('CredentialsManagement Component', () => {
 
       // Wait for the test attempt to complete (error is shown via toast)
       await waitFor(() => {
-        const calls = (global.fetch as jest.Mock).mock.calls;
+        const calls = vi.mocked(global.fetch).mock.calls;
         const testCall = calls.find((call: any[]) =>
           typeof call[0] === 'string' &&
           call[0].includes('/api/tenant-admin/credentials/test')

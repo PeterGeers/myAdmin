@@ -6,26 +6,27 @@
  * @see .kiro/specs/table-filter-framework-v2/design.md — Property 7
  */
 
+import { vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import fc from 'fast-check';
 import { useTableConfig, DEFAULTS, TableEntity } from '../useTableConfig';
 import * as parameterService from '../../services/parameterService';
 
 // Mock the parameter service
-jest.mock('../../services/parameterService');
-const mockGetParameters = parameterService.getParameters as jest.MockedFunction<
+vi.mock('../../services/parameterService');
+const mockGetParameters = parameterService.getParameters as vi.MockedFunction<
   typeof parameterService.getParameters
 >;
 
 // Suppress console.error in tests that trigger error paths
-const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 afterAll(() => {
   consoleSpy.mockRestore();
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -48,7 +49,7 @@ const apiScenarioArbitrary = fc.constantFrom('empty', 'failure', 'error', 'no_na
 
 describe('Property 7: Default Config Robustness', () => {
   // Increase timeout for property-based tests with async renderHook
-  jest.setTimeout(30000);
+  vi.setConfig({ testTimeout: 30000 });
   /**
    * **Validates: Requirements 6.4, 6.10**
    *
@@ -67,7 +68,7 @@ describe('Property 7: Default Config Robustness', () => {
     );
 
     for (const [entity, scenario] of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
 
       // Configure mock based on scenario
       switch (scenario) {

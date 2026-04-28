@@ -2,19 +2,20 @@
  * Tests for useTenantValidation hook
  */
 
+import { vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useTenantValidation } from './useTenantValidation';
 
 // Mock the tenant context
-const mockUseTenant = jest.fn();
-jest.mock('../context/TenantContext', () => ({
+const mockUseTenant = vi.fn();
+vi.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant()
 }));
 
 describe('useTenantValidation', () => {
   beforeEach(() => {
     localStorage.clear();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('validateTenantSelection', () => {

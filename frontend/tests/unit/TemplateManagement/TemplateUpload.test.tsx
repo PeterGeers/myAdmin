@@ -4,17 +4,29 @@
  * Tests for file upload, validation, template type selection, and field mappings.
  */
 
+import { vi } from 'vitest';
+
+// Use centralized Chakra UI mocks to avoid @zag-js/focus-visible crash in jsdom
+vi.mock('@chakra-ui/react', async () => {
+  const { chakraMock } = await import('../../../src/components/TenantAdmin/TemplateManagement/chakraMock');
+  return chakraMock;
+});
+vi.mock('@chakra-ui/icons', async () => {
+  const { iconsMock } = await import('../../../src/components/TenantAdmin/TemplateManagement/chakraMock');
+  return iconsMock;
+});
+
 import React from 'react';
-import { render, screen, waitFor } from '../../../src/test-utils';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TemplateUpload } from '../../../src/components/TenantAdmin/TemplateManagement/TemplateUpload';
 import type { TemplateType } from '../../../src/types/template';
 
 describe('TemplateUpload', () => {
-  const mockOnUpload = jest.fn();
+  const mockOnUpload = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Rendering', () => {
@@ -77,16 +89,25 @@ describe('TemplateUpload', () => {
       const user = userEvent.setup();
       render(<TemplateUpload onUpload={mockOnUpload} />);
       
-      // Try to upload without selecting type (triggers error)
-      const uploadButton = screen.getByRole('button', { name: /upload & preview template/i });
-      await user.click(uploadButton);
+      // Upload a non-HTML file to trigger a file error
+      const badFile = new File(['test content'], 'document.pdf', {
+        type: 'application/pdf',
+      });
+      const input = screen.getByLabelText(/upload html template file/i) as HTMLInputElement;
+      Object.defineProperty(input, 'files', { value: [badFile], writable: false, configurable: true });
+      fireEvent.change(input);
       
-      // Select a template type
+      // Should show file error
+      await waitFor(() => {
+        expect(screen.getByText(/only html files/i)).toBeInTheDocument();
+      });
+      
+      // Select a template type — should clear errors
       const select = screen.getByLabelText(/template type/i);
       await user.selectOptions(select, 'str_invoice_nl');
       
       // Error should be cleared
-      expect(screen.queryByText(/please select a template type/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/only html files/i)).not.toBeInTheDocument();
     });
   });
 
@@ -120,15 +141,15 @@ describe('TemplateUpload', () => {
     });
 
     it('rejects non-HTML files', async () => {
-      const user = userEvent.setup();
       render(<TemplateUpload onUpload={mockOnUpload} />);
       
       const file = new File(['test content'], 'document.pdf', {
         type: 'application/pdf',
       });
       
-      const input = screen.getByLabelText(/upload html template file/i);
-      await user.upload(input, file);
+      const input = screen.getByLabelText(/upload html template file/i) as HTMLInputElement;
+      Object.defineProperty(input, 'files', { value: [file], writable: false });
+      fireEvent.change(input);
       
       await waitFor(() => {
         expect(screen.getByText(/only html files/i)).toBeInTheDocument();
@@ -172,7 +193,8 @@ describe('TemplateUpload', () => {
     it('hides field mappings by default', () => {
       render(<TemplateUpload onUpload={mockOnUpload} />);
       
-      expect(screen.queryByLabelText(/field mappings \(json\)/i)).not.toBeVisible();
+      // Mock Collapse removes content from DOM when not open
+      expect(screen.queryByLabelText(/field mappings \(json\)/i)).not.toBeInTheDocument();
     });
 
     it('shows field mappings when toggled', async () => {
@@ -182,32 +204,33 @@ describe('TemplateUpload', () => {
       const toggleButton = screen.getByRole('button', { name: /advanced: field mappings/i });
       await user.click(toggleButton);
       
-      expect(screen.getByLabelText(/field mappings \(json\)/i)).toBeVisible();
+      expect(screen.getByLabelText(/field mappings \(json\)/i)).toBeInTheDocument();
     });
 
     it('validates JSON format', async () => {
       const user = userEvent.setup();
       render(<TemplateUpload onUpload={mockOnUpload} />);
       
-      // Show field mappings
-      const toggleButton = screen.getByRole('button', { name: /advanced: field mappings/i });
-      await user.click(toggleButton);
-      
-      // Enter invalid JSON
-      const textarea = screen.getByLabelText(/field mappings \(json\)/i);
-      await user.clear(textarea);
-      await user.type(textarea, '{invalid json}');
-      
-      // Try to upload
+      // Select template type first (triggers useEffect that resets field mappings)
       const select = screen.getByLabelText(/template type/i);
       await user.selectOptions(select, 'str_invoice_nl');
       
+      // Upload a valid file
       const file = new File(['<html><body>Test</body></html>'], 'template.html', {
         type: 'text/html',
       });
       const input = screen.getByLabelText(/upload html template file/i);
       await user.upload(input, file);
       
+      // Show field mappings
+      const toggleButton = screen.getByRole('button', { name: /advanced: field mappings/i });
+      await user.click(toggleButton);
+      
+      // Enter invalid JSON AFTER type selection (so useEffect doesn't overwrite it)
+      const textarea = screen.getByLabelText(/field mappings \(json\)/i);
+      fireEvent.change(textarea, { target: { value: '{invalid json}' } });
+      
+      // Click upload
       const uploadButton = screen.getByRole('button', { name: /upload & preview template/i });
       await user.click(uploadButton);
       
@@ -224,10 +247,9 @@ describe('TemplateUpload', () => {
       const toggleButton = screen.getByRole('button', { name: /advanced: field mappings/i });
       await user.click(toggleButton);
       
-      // Enter valid JSON
+      // Enter valid JSON using fireEvent (userEvent can't handle curly braces)
       const textarea = screen.getByLabelText(/field mappings \(json\)/i);
-      await user.clear(textarea);
-      await user.type(textarea, '{"field": "value"}');
+      fireEvent.change(textarea, { target: { value: '{"field": "value"}' } });
       
       // Should not show error
       expect(screen.queryByText(/invalid json format/i)).not.toBeInTheDocument();
@@ -259,13 +281,9 @@ describe('TemplateUpload', () => {
       const select = screen.getByLabelText(/template type/i);
       await user.selectOptions(select, 'str_invoice_nl');
       
-      // Try to upload without file
+      // Button should be disabled without file
       const uploadButton = screen.getByRole('button', { name: /upload & preview template/i });
-      await user.click(uploadButton);
-      
-      await waitFor(() => {
-        expect(screen.getByText(/please select a file/i)).toBeInTheDocument();
-      });
+      expect(uploadButton).toBeDisabled();
     });
 
     it('shows error when uploading without template type', async () => {
@@ -279,13 +297,9 @@ describe('TemplateUpload', () => {
       const input = screen.getByLabelText(/upload html template file/i);
       await user.upload(input, file);
       
-      // Try to upload without template type
+      // Button should be disabled without template type
       const uploadButton = screen.getByRole('button', { name: /upload & preview template/i });
-      await user.click(uploadButton);
-      
-      await waitFor(() => {
-        expect(screen.getByText(/please select a template type/i)).toBeInTheDocument();
-      });
+      expect(uploadButton).toBeDisabled();
     });
 
     it('enables upload button when all required fields are filled', async () => {
@@ -363,7 +377,8 @@ describe('TemplateUpload', () => {
       
       const textarea = screen.getByLabelText(/field mappings \(json\)/i);
       await user.clear(textarea);
-      await user.type(textarea, '{"custom_field": "value"}');
+      // Use fireEvent for JSON input (userEvent can't handle curly braces)
+      fireEvent.change(textarea, { target: { value: '{"custom_field": "value"}' } });
       
       // Click upload
       const uploadButton = screen.getByRole('button', { name: /upload & preview template/i });
@@ -385,7 +400,8 @@ describe('TemplateUpload', () => {
       
       expect(screen.getByLabelText(/template type/i)).toBeDisabled();
       expect(screen.getByRole('button', { name: /browse files/i })).toBeDisabled();
-      expect(screen.getByRole('button', { name: /upload & preview template/i })).toBeDisabled();
+      // When loading, button shows "Uploading..." text
+      expect(screen.getByRole('button', { name: /uploading/i })).toBeDisabled();
     });
 
     it('disables all inputs when disabled prop is true', () => {

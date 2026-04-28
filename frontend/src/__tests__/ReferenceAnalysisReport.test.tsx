@@ -9,6 +9,7 @@
  * - Error handling
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -18,7 +19,7 @@ import ReferenceAnalysisReport from '../components/reports/ReferenceAnalysisRepo
 import { authenticatedGet } from '../services/apiService';
 
 // Mock all Chakra UI components
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Alert: ({ children, ...props }: any) => <div data-testid={props['data-testid'] || 'alert'} {...props}>{children}</div>,
   AlertIcon: () => <span data-testid="alert-icon">⚠️</span>,
   Box: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -79,20 +80,20 @@ jest.mock('@chakra-ui/react', () => ({
   SimpleGrid: ({ children }: any) => <div data-testid="simple-grid">{children}</div>,
   useDisclosure: () => ({
     isOpen: false,
-    onOpen: jest.fn(),
-    onClose: jest.fn(),
+    onOpen: vi.fn(),
+    onClose: vi.fn(),
   }),
   ChevronDownIcon: () => <span>▼</span>,
 }));
 
 // Mock the API service
-jest.mock('../services/apiService', () => ({
-  authenticatedGet: jest.fn(),
+vi.mock('../services/apiService', () => ({
+  authenticatedGet: vi.fn(),
 }));
 
 // Mock the config
-jest.mock('../config', () => ({
-  buildApiUrl: jest.fn((endpoint, params) => {
+vi.mock('../config', () => ({
+  buildApiUrl: vi.fn((endpoint, params) => {
     let url = `http://localhost:3000${endpoint}`;
     if (params && params instanceof URLSearchParams) {
       url += `?${params.toString()}`;
@@ -102,7 +103,7 @@ jest.mock('../config', () => ({
 }));
 
 // Mock Recharts
-jest.mock('recharts', () => ({
+vi.mock('recharts', () => ({
   LineChart: ({ children }: any) => <div data-testid="line-chart">{children}</div>,
   Line: () => <div data-testid="line" />,
   XAxis: () => <div data-testid="x-axis" />,
@@ -113,7 +114,7 @@ jest.mock('recharts', () => ({
 }));
 
 // Mock FilterPanel
-jest.mock('../components/filters/FilterPanel', () => ({
+vi.mock('../components/filters/FilterPanel', () => ({
   FilterPanel: ({ filters }: any) => (
     <div data-testid="filter-panel">
       {filters.map((filter: any, index: number) => {
@@ -155,8 +156,8 @@ jest.mock('../components/filters/FilterPanel', () => ({
 }));
 
 // Mock TenantContext
-const mockUseTenant = jest.fn();
-jest.mock('../context/TenantContext', () => ({
+const mockUseTenant = vi.fn();
+vi.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant(),
 }));
 
@@ -191,8 +192,8 @@ const mockApiResponse = {
 
 describe('ReferenceAnalysisReport Tenant Handling', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (authenticatedGet as jest.Mock).mockResolvedValue({
+    vi.clearAllMocks();
+    vi.mocked(authenticatedGet).mockResolvedValue({
       json: () => Promise.resolve(mockApiResponse),
     });
   });
@@ -202,7 +203,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'tenant1',
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 
@@ -220,7 +221,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 
@@ -244,7 +245,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'tenant1',
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 
@@ -267,7 +268,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 
@@ -290,7 +291,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'tenant1',
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 
@@ -309,7 +310,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'tenant1',
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 
@@ -329,11 +330,11 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'tenant1',
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 
-      (authenticatedGet as jest.Mock).mockRejectedValue(new Error('API Error'));
+      vi.mocked(authenticatedGet).mockRejectedValue(new Error('API Error'));
       
       render(<ReferenceAnalysisReport />);
 
@@ -352,7 +353,7 @@ describe('ReferenceAnalysisReport Tenant Handling', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['tenant1', 'tenant2'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: true,
       });
 

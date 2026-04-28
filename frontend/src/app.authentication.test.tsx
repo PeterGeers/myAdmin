@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -13,9 +14,9 @@ interface User {
 const mockAuthContext = {
   isAuthenticated: false,
   user: null,
-  login: jest.fn(),
-  logout: jest.fn(),
-  checkSession: jest.fn()
+  login: vi.fn(),
+  logout: vi.fn(),
+  checkSession: vi.fn()
 };
 
 // Mock App component with authentication
@@ -52,10 +53,10 @@ const MockAppWithAuth = ({
 
 // Mock session storage
 const mockSessionStorage = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn()
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn()
 };
 
 Object.defineProperty(window, 'sessionStorage', {
@@ -64,7 +65,7 @@ Object.defineProperty(window, 'sessionStorage', {
 
 describe('App Authentication', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockSessionStorage.getItem.mockReturnValue(null);
   });
 

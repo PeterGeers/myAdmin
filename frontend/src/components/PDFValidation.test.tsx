@@ -1,17 +1,18 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Mock fetch and EventSource
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 const mockEventSource = {
   onmessage: null as any,
   onerror: null as any,
-  close: jest.fn()
+  close: vi.fn()
 };
 
 global.fetch = mockFetch;
-global.EventSource = jest.fn(() => mockEventSource) as any;
+global.EventSource = vi.fn(() => mockEventSource) as any;
 
 // Mock PDFValidation component
 const MockPDFValidation = () => {
@@ -250,7 +251,7 @@ const MockPDFValidation = () => {
 
 describe('PDFValidation', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockFetch.mockResolvedValue({
       json: () => Promise.resolve({ success: true, administrations: ['TEST', 'PROD'] })
     });

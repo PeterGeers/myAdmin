@@ -5,29 +5,30 @@
  * Target: 20+ tests
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '../../../test-utils';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import UserManagement from '../UserManagement';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+vi.mock('aws-amplify/auth');
 
 // Mock config
-jest.mock('../../../config', () => ({
+vi.mock('../../../config', () => ({
   buildApiUrl: (endpoint: string) => `http://localhost:5000${endpoint}`,
   API_BASE_URL: 'http://localhost:5000',
 }));
 
 // Mock useTypedTranslation to return keys as-is
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: jest.fn() }
+    i18n: { language: 'en', changeLanguage: vi.fn() }
   })
 }));
 
-const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
 
 describe('UserManagement Component', () => {
   const mockToken = 'mock-jwt-token';
@@ -63,7 +64,7 @@ describe('UserManagement Component', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     mockFetchAuthSession.mockResolvedValue({
       tokens: {
@@ -74,7 +75,7 @@ describe('UserManagement Component', () => {
     } as any);
 
     // Mock successful API responses
-    global.fetch = jest.fn((url: string) => {
+    global.fetch = vi.fn((url: string) => {
       if (typeof url === 'string' && url.includes('/api/tenant-admin/users')) {
         return Promise.resolve({
           ok: true,
@@ -91,11 +92,11 @@ describe('UserManagement Component', () => {
         ok: true,
         json: async () => ({}),
       } as Response);
-    }) as jest.Mock;
+    });
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // ============================================================================
@@ -190,7 +191,7 @@ describe('UserManagement Component', () => {
       render(<UserManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        const calls = (global.fetch as jest.Mock).mock.calls;
+        const calls = vi.mocked(global.fetch).mock.calls;
         const usersCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/users'));
         expect(usersCall[1].headers['Authorization']).toBe(`Bearer ${mockToken}`);
       });
@@ -200,14 +201,14 @@ describe('UserManagement Component', () => {
       render(<UserManagement tenant={mockTenant} />);
 
       await waitFor(() => {
-        const calls = (global.fetch as jest.Mock).mock.calls;
+        const calls = vi.mocked(global.fetch).mock.calls;
         const usersCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/users'));
         expect(usersCall[1].headers['X-Tenant']).toBe(mockTenant);
       });
     });
 
     test('handles API error gracefully', async () => {
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('API Error'));
+      vi.mocked(global.fetch).mockRejectedValue(new Error('API Error'));
 
       render(<UserManagement tenant={mockTenant} />);
 
@@ -460,7 +461,7 @@ describe('UserManagement Component', () => {
 
   describe('Error Handling', () => {
     test('displays error message when users fail to load', async () => {
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Failed to load users'));
+      vi.mocked(global.fetch).mockRejectedValue(new Error('Failed to load users'));
 
       render(<UserManagement tenant={mockTenant} />);
 
@@ -471,7 +472,7 @@ describe('UserManagement Component', () => {
     });
 
     test('displays error message when roles fail to load', async () => {
-      (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      vi.mocked(global.fetch).mockImplementation((url: string) => {
         if (typeof url === 'string' && url.includes('/api/tenant-admin/roles')) {
           return Promise.resolve({
             ok: false,

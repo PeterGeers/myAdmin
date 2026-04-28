@@ -2,15 +2,15 @@
 
 ## Frontend
 
-**Framework**: React 19.2.0 with TypeScript 4.9.5
+**Framework**: React 19.2.0 with TypeScript 5.9+
 
-**UI Libraries**: Chakra UI 2.8.2 (primary), Material UI 7.3.4, Framer Motion 12.23.24, Recharts 3.3.0, Plotly.js 3.3.0
+**UI Libraries**: Chakra UI 2.8.2 (primary), Material UI 7.3.4, Framer Motion 12.23.24, Recharts 3.3.0, Plotly.js 3.3.0 (via plotly.js-dist-min)
 
 **State & Forms**: Formik 2.4.6, Yup 1.7.1, AWS Amplify 6.16.0
 
-**Testing**: Jest, Playwright 1.58.1, React Testing Library 16.3.0, MSW 2.11.6, fast-check 4.4.0
+**Testing**: Vitest 4.x, Playwright 1.58.1, React Testing Library 16.3.0, MSW 2.11.6, fast-check 4.4.0 (via @fast-check/vitest)
 
-**Build**: Create React App 5.0.1
+**Build**: Vite 8.x with @vitejs/plugin-react, ESLint flat config (eslint.config.js)
 
 ## Backend
 
@@ -36,7 +36,7 @@
 
 ## Code Style
 
-**Frontend**: TypeScript strict mode, ESLint react-app config, Chakra UI theme in `theme.js`
+**Frontend**: TypeScript strict mode, ESLint flat config (`eslint.config.js`), Chakra UI theme in `theme.js`, `@/` path alias for `./src/`
 
 **Backend**: PEP 8, type hints encouraged, docstrings for public functions, pytest markers for test categorization
 

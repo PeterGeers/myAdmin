@@ -251,7 +251,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     <Box minH="100vh" bg="gray.900" display="flex" alignItems="center" justifyContent="center" px={4}>
       <Container maxW="md">
         <VStack spacing={8} bg="gray.800" p={8} borderRadius="lg" boxShadow="2xl">
-          <Image src={`${process.env.PUBLIC_URL}/jabaki-logo.png`} alt="myAdmin Logo" maxW="200px" mb={4} />
+          <Image src={`${import.meta.env.BASE_URL}/jabaki-logo.png`} alt="myAdmin Logo" maxW="200px" mb={4} />
           {children}
           <Text color="gray.500" fontSize="xs" textAlign="center">{t('auth:login.protectedBy')}</Text>
         </VStack>

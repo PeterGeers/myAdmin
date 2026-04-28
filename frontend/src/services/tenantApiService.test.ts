@@ -2,6 +2,7 @@
  * Tests for tenantApiService
  */
 
+import { vi } from 'vitest';
 import {
   tenantAwareGet,
   tenantAwarePost,
@@ -15,22 +16,22 @@ import {
 import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete } from './apiService';
 
 // Mock the base API service
-jest.mock('./apiService', () => ({
-  authenticatedGet: jest.fn(),
-  authenticatedPost: jest.fn(),
-  authenticatedPut: jest.fn(),
-  authenticatedDelete: jest.fn()
+vi.mock('./apiService', () => ({
+  authenticatedGet: vi.fn(),
+  authenticatedPost: vi.fn(),
+  authenticatedPut: vi.fn(),
+  authenticatedDelete: vi.fn()
 }));
 
-const mockAuthenticatedGet = authenticatedGet as jest.MockedFunction<typeof authenticatedGet>;
-const mockAuthenticatedPost = authenticatedPost as jest.MockedFunction<typeof authenticatedPost>;
-const mockAuthenticatedPut = authenticatedPut as jest.MockedFunction<typeof authenticatedPut>;
-const mockAuthenticatedDelete = authenticatedDelete as jest.MockedFunction<typeof authenticatedDelete>;
+const mockAuthenticatedGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
+const mockAuthenticatedPost = authenticatedPost as vi.MockedFunction<typeof authenticatedPost>;
+const mockAuthenticatedPut = authenticatedPut as vi.MockedFunction<typeof authenticatedPut>;
+const mockAuthenticatedDelete = authenticatedDelete as vi.MockedFunction<typeof authenticatedDelete>;
 
 describe('tenantApiService', () => {
   beforeEach(() => {
     localStorage.clear();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('tenantAwareGet', () => {
