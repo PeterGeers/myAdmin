@@ -18,12 +18,12 @@ The configuration is set up in `aws-exports.ts` and uses environment variables f
 Add these to your `frontend/.env` file:
 
 ```env
-REACT_APP_COGNITO_USER_POOL_ID=eu-west-1_XXXXXXX
-REACT_APP_COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxx
-REACT_APP_COGNITO_DOMAIN=myadmin.auth.eu-west-1.amazoncognito.com
-REACT_APP_AWS_REGION=eu-west-1
-REACT_APP_REDIRECT_SIGN_IN=http://localhost:3000/
-REACT_APP_REDIRECT_SIGN_OUT=http://localhost:3000/
+VITE_COGNITO_USER_POOL_ID=eu-west-1_XXXXXXX
+VITE_COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxx
+VITE_COGNITO_DOMAIN=myadmin.auth.eu-west-1.amazoncognito.com
+VITE_AWS_REGION=eu-west-1
+VITE_REDIRECT_SIGN_IN=http://localhost:3000/
+VITE_REDIRECT_SIGN_OUT=http://localhost:3000/
 ```
 
 ### Initialization
@@ -64,7 +64,7 @@ The configuration uses the **Authorization Code Flow** (`responseType: 'code'`),
 Run the configuration tests:
 
 ```bash
-npm test -- aws-exports.test.ts --watchAll=false
+npx vitest run src/aws-exports.test.ts
 ```
 
 ## Production Configuration
@@ -72,8 +72,8 @@ npm test -- aws-exports.test.ts --watchAll=false
 For production deployment, update the environment variables with production URLs:
 
 ```env
-REACT_APP_REDIRECT_SIGN_IN=https://your-app.railway.app/
-REACT_APP_REDIRECT_SIGN_OUT=https://your-app.railway.app/
+VITE_REDIRECT_SIGN_IN=https://your-app.railway.app/
+VITE_REDIRECT_SIGN_OUT=https://your-app.railway.app/
 ```
 
 **Important**: Also update the callback URLs in AWS Cognito User Pool settings to match your production URLs.

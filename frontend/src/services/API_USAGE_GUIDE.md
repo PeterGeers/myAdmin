@@ -456,9 +456,10 @@ export default BNBListingReport;
 When testing components that use authenticated API calls, you can mock the service:
 
 ```typescript
+import { vi } from "vitest";
 import { authenticatedGet } from "../services/apiService";
 
-jest.mock("../services/apiService");
+vi.mock("../services/apiService");
 
 test("loads invoices", async () => {
   const mockResponse = {
@@ -466,7 +467,9 @@ test("loads invoices", async () => {
     json: async () => ({ invoices: [{ id: 1, description: "Test" }] }),
   };
 
-  (authenticatedGet as jest.Mock).mockResolvedValue(mockResponse);
+  (authenticatedGet as ReturnType<typeof vi.fn>).mockResolvedValue(
+    mockResponse,
+  );
 
   // Test your component
 });

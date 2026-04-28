@@ -10,31 +10,34 @@
  * - Security requirements
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import FINReports from './FINReports';
 
 // Mock the contexts
-const mockUseAuth = jest.fn();
-const mockUseTenant = jest.fn();
+const mockUseAuth = vi.fn();
+const mockUseTenant = vi.fn();
 
-jest.mock('../context/AuthContext', () => ({
+vi.mock('../context/AuthContext', () => ({
   useAuth: () => mockUseAuth()
 }));
 
-jest.mock('../context/TenantContext', () => ({
+vi.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant()
 }));
 
 // Mock the FinancialReportsGroup component
-jest.mock('./reports/FinancialReportsGroup', () => {
-  return function MockFinancialReportsGroup() {
-    return <div data-testid="financial-reports-group">Financial Reports Group</div>;
+vi.mock('./reports/FinancialReportsGroup', () => {
+  return {
+    default: function MockFinancialReportsGroup() {
+      return <div data-testid="financial-reports-group">Financial Reports Group</div>;
+    },
   };
 });
 
 // Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: ({ children, ...props }: any) => {
     // Filter out Chakra-specific props to avoid DOM warnings
     const { bg, minH, p, display, alignItems, justifyContent, ...domProps } = props;
@@ -56,13 +59,13 @@ jest.mock('@chakra-ui/react', () => ({
 
 describe('FINReports Component', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Clear console.log mock
-    jest.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('Tenant Context Integration', () => {
@@ -178,7 +181,7 @@ describe('FINReports Component', () => {
   describe('Auto-refresh on Tenant Change', () => {
     it('should log tenant change when tenant changes', () => {
       // Arrange
-      const consoleSpy = jest.spyOn(console, 'log');
+      const consoleSpy = vi.spyOn(console, 'log');
       mockUseAuth.mockReturnValue({
         user: { roles: ['Finance_Read'] }
       });

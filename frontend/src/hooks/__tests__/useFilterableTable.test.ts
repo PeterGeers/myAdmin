@@ -5,6 +5,7 @@
  * Requirements: 12.3
  */
 
+import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useFilterableTable } from '../useFilterableTable';
 
@@ -28,11 +29,11 @@ const defaultConfig = {
 
 describe('useFilterableTable', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('combined filter + sort produces correct output', () => {
@@ -50,7 +51,7 @@ describe('useFilterableTable', () => {
       result.current.setFilter('city', 'amsterdam');
     });
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     // Only Amsterdam rows, still sorted by name asc
@@ -103,7 +104,7 @@ describe('useFilterableTable', () => {
       result.current.setFilter('city', 'amsterdam');
     });
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     // Should be: Mike, Zara (filtered to Amsterdam, then sorted by name asc)
@@ -133,7 +134,7 @@ describe('useFilterableTable', () => {
       result.current.setFilter('name', 'alice');
     });
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
 
     expect(result.current.processedData).toEqual([sampleData[1]]);
@@ -183,7 +184,7 @@ describe('useFilterableTable', () => {
       result.current.setFilter('city', 'amsterdam');
     });
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
     expect(result.current.processedData).toHaveLength(2);
 
@@ -228,13 +229,13 @@ describe('useFilterableTable', () => {
 
     // At 150ms: not yet applied (custom 300ms debounce)
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
     expect(result.current.processedData).toEqual(sampleData);
 
     // At 300ms: applied
     act(() => {
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
     });
     expect(result.current.processedData).toHaveLength(1);
     expect(result.current.processedData[0].name).toBe('Alice');

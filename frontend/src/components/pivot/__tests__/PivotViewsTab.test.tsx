@@ -8,6 +8,7 @@
  * Requirements: 1.1, 2.1, 5.1, 5.2
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -92,14 +93,14 @@ const mockPivotResult: PivotResult = {
 // Mocks
 // ---------------------------------------------------------------------------
 
-const mockGetRegisteredSources = jest.fn();
-const mockFilterSourcesByModule = jest.fn();
-const mockListPivotModels = jest.fn();
-const mockLoadPivotModel = jest.fn();
-const mockExecutePivot = jest.fn();
-const mockGetAvailableColumns = jest.fn();
+const mockGetRegisteredSources = vi.fn();
+const mockFilterSourcesByModule = vi.fn();
+const mockListPivotModels = vi.fn();
+const mockLoadPivotModel = vi.fn();
+const mockExecutePivot = vi.fn();
+const mockGetAvailableColumns = vi.fn();
 
-jest.mock('../../../services/pivotService', () => ({
+vi.mock('../../../services/pivotService', () => ({
   getRegisteredSources: (...args: any[]) => mockGetRegisteredSources(...args),
   filterSourcesByModule: (...args: any[]) => mockFilterSourcesByModule(...args),
   listPivotModels: (...args: any[]) => mockListPivotModels(...args),
@@ -126,7 +127,7 @@ const stableT = (key: string, opts?: any) => {
 };
 const stableI18n = { language: 'en' };
 
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: stableT,
     i18n: stableI18n,
@@ -134,7 +135,7 @@ jest.mock('../../../hooks/useTypedTranslation', () => ({
 }));
 
 // Mock FilterPanel to render simplified filter inputs
-jest.mock('../../filters/FilterPanel', () => ({
+vi.mock('../../filters/FilterPanel', () => ({
   FilterPanel: ({ filters }: any) => (
     <div data-testid="filter-panel">
       {(filters || []).map((f: any, i: number) => (
@@ -153,7 +154,7 @@ jest.mock('../../filters/FilterPanel', () => ({
 }));
 
 // Mock PivotResultTable to capture props
-jest.mock('../PivotResultTable', () => ({
+vi.mock('../PivotResultTable', () => ({
   PivotResultTable: ({ data, columns, config, isLoading }: any) => (
     <div data-testid="pivot-result-table">
       <span data-testid="result-row-count">{data?.length ?? 0}</span>
@@ -186,13 +187,13 @@ function setupDefaultMocks() {
 
 describe('PivotViewsTab', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     setupDefaultMocks();
   });
 
   afterEach(() => {
     cleanup();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // -----------------------------------------------------------------------

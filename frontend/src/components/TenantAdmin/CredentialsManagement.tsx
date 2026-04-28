@@ -44,7 +44,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/tenant-admin/credentials`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant': tenant
@@ -106,7 +106,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
       formData.append('file', selectedFile);
       formData.append('credential_type', credentialType);
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/tenant-admin/credentials`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -162,7 +162,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/tenant-admin/credentials/test`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials/test`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -203,7 +203,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/tenant-admin/credentials/oauth/start`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials/oauth/start`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -228,7 +228,7 @@ export function CredentialsManagement({ tenant }: CredentialsManagementProps) {
           
           // Call complete endpoint to store tokens
           try {
-            const completeResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/tenant-admin/credentials/oauth/complete`, {
+            const completeResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/tenant-admin/credentials/oauth/complete`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,

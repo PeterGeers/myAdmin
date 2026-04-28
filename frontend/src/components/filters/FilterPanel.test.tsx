@@ -10,13 +10,14 @@
  * - Props propagation to GenericFilter
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { FilterPanel } from './FilterPanel';
 import { FilterConfig, SearchFilterConfig } from './types';
 
 // Mock GenericFilter to simplify testing
-jest.mock('./GenericFilter', () => ({
+vi.mock('./GenericFilter', () => ({
   GenericFilter: ({ label, values, multiSelect, disabled, size, isLoading, error }: any) => (
     <div data-testid={`filter-${label}`}>
       <span data-label={label}>{label}</span>
@@ -35,7 +36,7 @@ jest.mock('./GenericFilter', () => ({
 }));
 
 // Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: ({ children, minW, ...props }: any) => <div data-box {...props}>{children}</div>,
   SimpleGrid: ({ children, columns, spacing, minChildWidth, width, ...props }: any) => (
     <div 
@@ -93,7 +94,7 @@ describe('FilterPanel', () => {
     label: 'Year',
     options: ['2023', '2024', '2025'],
     value: '2024',
-    onChange: jest.fn(),
+    onChange: vi.fn(),
   };
 
   const mockMultiSelectFilter: FilterConfig<string> = {
@@ -101,19 +102,19 @@ describe('FilterPanel', () => {
     label: 'Listings',
     options: ['Listing 1', 'Listing 2', 'Listing 3'],
     value: ['Listing 1', 'Listing 2'],
-    onChange: jest.fn(),
+    onChange: vi.fn(),
   };
 
   const mockSearchFilter: SearchFilterConfig = {
     type: 'search',
     label: 'Reference',
     value: '',
-    onChange: jest.fn(),
+    onChange: vi.fn(),
     placeholder: 'Search...',
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Horizontal Layout', () => {
@@ -597,7 +598,7 @@ describe('FilterPanel', () => {
         label: `Filter ${i + 1}`,
         options: ['A', 'B', 'C'],
         value: 'A',
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       }));
 
       render(
@@ -619,7 +620,7 @@ describe('FilterPanel', () => {
         label: 'Year (2023-2025)',
         options: ['2023', '2024', '2025'],
         value: '2024',
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       };
 
       render(
@@ -683,7 +684,7 @@ describe('FilterPanel', () => {
         label: 'Year',
         options: ['2023', '2024', '2025'],
         value: '2024',
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       };
 
       const quarterFilter: FilterConfig<string> = {
@@ -691,7 +692,7 @@ describe('FilterPanel', () => {
         label: 'Quarter',
         options: ['Q1', 'Q2', 'Q3', 'Q4'],
         value: 'Q1',
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       };
 
       render(
@@ -711,7 +712,7 @@ describe('FilterPanel', () => {
         label: 'Years',
         options: ['2022', '2023', '2024', '2025'],
         value: ['2023', '2024'],
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       };
 
       render(
@@ -731,7 +732,7 @@ describe('FilterPanel', () => {
         label: 'Years',
         options: ['2023', '2024', '2025'],
         value: ['2024'],
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       };
 
       const listingFilter: FilterConfig<string> = {
@@ -739,7 +740,7 @@ describe('FilterPanel', () => {
         label: 'Listings',
         options: ['Listing 1', 'Listing 2'],
         value: [],
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       };
 
       const channelFilter: FilterConfig<string> = {
@@ -747,7 +748,7 @@ describe('FilterPanel', () => {
         label: 'Channels',
         options: ['airbnb', 'booking', 'direct'],
         value: ['airbnb'],
-        onChange: jest.fn(),
+        onChange: vi.fn(),
       };
 
       render(

@@ -9,18 +9,19 @@
  * - Backward compatibility
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { YearFilter } from './YearFilter';
 
 // Mock Chakra UI icons
-jest.mock('@chakra-ui/icons', () => ({
+vi.mock('@chakra-ui/icons', () => ({
   ChevronDownIcon: () => <span>▼</span>,
 }));
 
 // Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => {
+vi.mock('@chakra-ui/react', () => {
   const React = require('react');
   
   // Create a simple context for FormControl disabled state
@@ -94,8 +95,8 @@ jest.mock('@chakra-ui/react', () => {
     ChevronDownIcon: () => <span>▼</span>,
     useDisclosure: () => ({
       isOpen: false,
-      onOpen: jest.fn(),
-      onClose: jest.fn(),
+      onOpen: vi.fn(),
+      onClose: vi.fn(),
     }),
   };
 });
@@ -108,7 +109,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
         />
       );
@@ -120,7 +121,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
         />
       );
@@ -132,7 +133,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           label="Tax Year"
         />
@@ -145,7 +146,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           placeholder="Choose a year"
         />
@@ -158,7 +159,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
         />
       );
@@ -171,7 +172,7 @@ describe('YearFilter', () => {
     
     it('calls onChange with selected year', async () => {
       const user = userEvent.setup();
-      const handleChange = jest.fn();
+      const handleChange = vi.fn();
       
       render(
         <YearFilter
@@ -191,7 +192,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={['2024']}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
         />
       );
@@ -206,7 +207,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           multiSelect
         />
@@ -219,7 +220,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={['2023', '2024']}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           multiSelect
         />
@@ -232,7 +233,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={['2024']}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           multiSelect
         />
@@ -247,7 +248,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={[]}
           yearConfig={{
             mode: 'historical',
@@ -268,7 +269,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={[]}
           yearConfig={{
             mode: 'future',
@@ -287,7 +288,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={['2030', '2031']}
           yearConfig={{
             mode: 'historical',
@@ -308,7 +309,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           isLoading
         />
@@ -323,7 +324,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           multiSelect
           isLoading
@@ -339,7 +340,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           error="Failed to load years"
         />
@@ -352,7 +353,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           disabled
         />
@@ -368,7 +369,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           isLoading
         />
@@ -382,7 +383,7 @@ describe('YearFilter', () => {
   
   describe('Backward Compatibility', () => {
     it('works with BTW report pattern (single-select)', () => {
-      const handleChange = jest.fn();
+      const handleChange = vi.fn();
       const selectedYear = '2024';
       
       render(
@@ -403,7 +404,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={selectedYears}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           multiSelect
         />
@@ -418,7 +419,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
         />
       );
@@ -431,7 +432,7 @@ describe('YearFilter', () => {
       render(
         <YearFilter
           values={[]}
-          onChange={jest.fn()}
+          onChange={vi.fn()}
           availableOptions={mockYears}
           label="Tax Year"
         />

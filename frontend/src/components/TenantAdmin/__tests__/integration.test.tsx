@@ -5,23 +5,24 @@
  * Target: 5+ integration tests
  */
 
+import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import * as api from '../../../services/tenantAdminApi';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
 
 describe('Tenant Admin Integration Tests', () => {
   const mockToken = 'mock-jwt-token';
   const mockTenant = 'TestTenant';
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Mock localStorage
-    Storage.prototype.getItem = jest.fn((key) => {
+    Storage.prototype.getItem = vi.fn((key) => {
       if (key === 'selectedTenant') return mockTenant;
       return null;
     });
@@ -36,11 +37,11 @@ describe('Tenant Admin Integration Tests', () => {
     } as any);
 
     // Mock fetch
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // ============================================================================
@@ -56,7 +57,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'User created successfully',
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => createUserResponse,
       });
@@ -78,7 +79,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'Role assigned successfully',
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => assignRoleResponse,
       });
@@ -103,7 +104,7 @@ describe('Tenant Admin Integration Tests', () => {
         ],
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => listUsersResponse,
       });
@@ -119,7 +120,7 @@ describe('Tenant Admin Integration Tests', () => {
     });
 
     test('handles user creation failure gracefully', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: false,
         status: 400,
         json: async () => ({ error: 'User already exists' }),
@@ -148,7 +149,7 @@ describe('Tenant Admin Integration Tests', () => {
         credential_type: 'google_drive',
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => uploadResponse,
       });
@@ -169,7 +170,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'Connection successful',
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => testResponse,
       });
@@ -190,7 +191,7 @@ describe('Tenant Admin Integration Tests', () => {
         ],
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => listResponse,
       });
@@ -205,7 +206,7 @@ describe('Tenant Admin Integration Tests', () => {
     });
 
     test('handles upload failure and shows error', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: false,
         status: 400,
         json: async () => ({ error: 'Invalid credentials format' }),
@@ -235,7 +236,7 @@ describe('Tenant Admin Integration Tests', () => {
         ],
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => browseFoldersResponse,
       });
@@ -250,7 +251,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'Storage configured successfully',
       };
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => configureResponse,
       });
@@ -280,7 +281,7 @@ describe('Tenant Admin Integration Tests', () => {
     });
 
     test('handles 403 Forbidden errors', async () => {
-      (global.fetch as jest.Mock).mockResolvedValue({
+      vi.mocked(global.fetch).mockResolvedValue({
         ok: false,
         status: 403,
         json: async () => ({ error: 'Access denied' }),
@@ -300,7 +301,7 @@ describe('Tenant Admin Integration Tests', () => {
 
       isLoading = true;
 
-      (global.fetch as jest.Mock).mockImplementation(
+      vi.mocked(global.fetch).mockImplementation(
         () =>
           new Promise((resolve) =>
             setTimeout(

@@ -5,6 +5,7 @@
  * Verifies tenant context integration, API calls, and user interactions.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -13,25 +14,25 @@ import { useTenant } from '../../context/TenantContext';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
 
 // Mock dependencies
-jest.mock('../../context/TenantContext');
-jest.mock('../../services/tenantApiService');
+vi.mock('../../context/TenantContext');
+vi.mock('../../services/tenantApiService');
 
 // Mock useTypedTranslation to return keys as-is (avoids needing full i18n setup)
-jest.mock('../../hooks/useTypedTranslation', () => ({
+vi.mock('../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: jest.fn() }
+    i18n: { language: 'en', changeLanguage: vi.fn() }
   })
 }));
 
-jest.mock('../../config', () => ({
-  buildApiUrl: jest.fn((path: string, params?: URLSearchParams) => {
+vi.mock('../../config', () => ({
+  buildApiUrl: vi.fn((path: string, params?: URLSearchParams) => {
     return params ? `${path}?${params.toString()}` : path;
   })
 }));
 
 // Mock Chakra UI components with proper prop destructuring (strip colorScheme, bg, etc.)
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   VStack: ({ children, ...props }: any) => <div data-testid="vstack" {...props}>{children}</div>,
   Alert: ({ children, status, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,
   AlertIcon: () => <span data-testid="alert-icon">!</span>,
@@ -60,11 +61,11 @@ jest.mock('@chakra-ui/react', () => ({
   Th: ({ children, isNumeric, ...props }: any) => <th data-testid="th" {...props}>{children}</th>,
   Thead: ({ children, ...props }: any) => <thead data-testid="thead" {...props}>{children}</thead>,
   Tr: ({ children, bg, _hover, ...props }: any) => <tr data-testid="tr" {...props}>{children}</tr>,
-  useToast: () => jest.fn(),
+  useToast: () => vi.fn(),
 }));
 
 // Mock FilterPanel
-jest.mock('../filters/FilterPanel', () => {
+vi.mock('../filters/FilterPanel', () => {
   return {
     FilterPanel: function MockFilterPanel(props: any) {
       return (
@@ -81,16 +82,18 @@ jest.mock('../filters/FilterPanel', () => {
 });
 
 // Mock YearEndClosureSection to avoid its internal Chakra dependencies
-jest.mock('../YearEndClosureSection', () => {
-  return function MockYearEndClosureSection() {
-    return <div data-testid="year-end-closure-section">YearEndClosureSection</div>;
+vi.mock('../YearEndClosureSection', () => {
+  return {
+    default: function MockYearEndClosureSection() {
+      return <div data-testid="year-end-closure-section">YearEndClosureSection</div>;
+    },
   };
 });
 
-const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
-const mockTenantAwareGet = tenantAwareGet as jest.MockedFunction<typeof tenantAwareGet>;
-const mockTenantAwarePost = tenantAwarePost as jest.MockedFunction<typeof tenantAwarePost>;
-const mockRequireTenant = requireTenant as jest.MockedFunction<typeof requireTenant>;
+const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
+const mockTenantAwareGet = tenantAwareGet as vi.MockedFunction<typeof tenantAwareGet>;
+const mockTenantAwarePost = tenantAwarePost as vi.MockedFunction<typeof tenantAwarePost>;
+const mockRequireTenant = requireTenant as vi.MockedFunction<typeof requireTenant>;
 
 // Helper to render and wait for async mount effects (fetchAangifteIbData)
 async function renderAndSettle(ui: React.ReactElement) {
@@ -103,13 +106,13 @@ async function renderAndSettle(ui: React.ReactElement) {
 
 describe('AangifteIbReport', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Default mock implementations
     mockUseTenant.mockReturnValue({
       currentTenant: 'GoodwinSolutions',
       availableTenants: ['GoodwinSolutions', 'TestTenant'],
-      setCurrentTenant: jest.fn(),
+      setCurrentTenant: vi.fn(),
       hasMultipleTenants: true
     });
 
@@ -134,7 +137,7 @@ describe('AangifteIbReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['GoodwinSolutions'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -175,7 +178,7 @@ describe('AangifteIbReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: ['GoodwinSolutions'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 

@@ -5,6 +5,13 @@
  * TemplatePreview, and TemplateApproval components.
  */
 
+import { vi } from 'vitest';
+
+// Mock @zag-js/focus-visible — crashes in jsdom when Chakra UI checkbox/accordion renders
+vi.mock('@zag-js/focus-visible', () => ({
+  trackFocusVisible: (fn: (v: boolean) => void) => { fn(false); return () => {}; },
+}));
+
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -15,7 +22,7 @@ import { TemplateApproval } from '../components/TenantAdmin/TemplateManagement/T
 import { AIHelpButton } from '../components/TenantAdmin/TemplateManagement/AIHelpButton';
 
 // Mock Chakra UI FIRST - before any component imports
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: ({ children, ...props }: any) => {
     // Filter out ALL Chakra-specific props
     const { bg, p, spacing, borderRadius, boxShadow, minH, flex, borderColor, borderWidth, border, textAlign, mt, mb, ml, mr, pt, pb, pl, pr, w, h, maxW, maxH, minW, ...domProps } = props;
@@ -163,18 +170,19 @@ jest.mock('@chakra-ui/react', () => ({
     const { fontSize, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
   },
-  useToast: () => jest.fn(),
+  useToast: () => vi.fn(),
   useDisclosure: () => ({
     isOpen: false,
-    onOpen: jest.fn(),
-    onClose: jest.fn(),
-    onToggle: jest.fn(),
+    onOpen: vi.fn(),
+    onClose: vi.fn(),
+    onToggle: vi.fn(),
   }),
 }));
 
 // Mock Chakra icons
-jest.mock('@chakra-ui/icons', () => ({
+vi.mock('@chakra-ui/icons', () => ({
   CheckCircleIcon: () => <span>✓</span>,
+  CheckIcon: () => <span>✓</span>,
   WarningIcon: () => <span>⚠</span>,
   InfoIcon: () => <span>ℹ</span>,
   CloseIcon: () => <span>×</span>,
@@ -183,7 +191,7 @@ jest.mock('@chakra-ui/icons', () => ({
 describe('Template Management Integration Tests', () => {
   describe('Upload → Validation Flow', () => {
     it('uploads a file and displays validation results', async () => {
-      const mockOnUpload = jest.fn();
+      const mockOnUpload = vi.fn();
       const mockValidationResult = {
         is_valid: false,
         errors: [
@@ -288,8 +296,8 @@ describe('Template Management Integration Tests', () => {
 
   describe('Validation → AI Help Flow', () => {
     it('enables AI help button when there are errors', () => {
-      const mockOnRequestHelp = jest.fn();
-      const mockOnApplyFixes = jest.fn();
+      const mockOnRequestHelp = vi.fn();
+      const mockOnApplyFixes = vi.fn();
 
       render(
         <AIHelpButton
@@ -307,8 +315,8 @@ describe('Template Management Integration Tests', () => {
     });
 
     it('disables AI help button when there are no errors', () => {
-      const mockOnRequestHelp = jest.fn();
-      const mockOnApplyFixes = jest.fn();
+      const mockOnRequestHelp = vi.fn();
+      const mockOnApplyFixes = vi.fn();
 
       render(
         <AIHelpButton
@@ -327,8 +335,8 @@ describe('Template Management Integration Tests', () => {
 
     it('displays AI suggestions when available', async () => {
       const user = userEvent.setup();
-      const mockOnRequestHelp = jest.fn();
-      const mockOnApplyFixes = jest.fn();
+      const mockOnRequestHelp = vi.fn();
+      const mockOnApplyFixes = vi.fn();
       const mockAISuggestions = {
         success: true,
         ai_suggestions: {
@@ -371,8 +379,8 @@ describe('Template Management Integration Tests', () => {
 
   describe('Validation → Approval Flow', () => {
     it('enables approve button when validation passes', () => {
-      const mockOnApprove = jest.fn();
-      const mockOnReject = jest.fn();
+      const mockOnApprove = vi.fn();
+      const mockOnReject = vi.fn();
 
       render(
         <TemplateApproval
@@ -389,8 +397,8 @@ describe('Template Management Integration Tests', () => {
     });
 
     it('disables approve button when validation fails', () => {
-      const mockOnApprove = jest.fn();
-      const mockOnReject = jest.fn();
+      const mockOnApprove = vi.fn();
+      const mockOnReject = vi.fn();
 
       render(
         <TemplateApproval
@@ -407,8 +415,8 @@ describe('Template Management Integration Tests', () => {
     });
 
     it('allows rejection even when validation fails', () => {
-      const mockOnApprove = jest.fn();
-      const mockOnReject = jest.fn();
+      const mockOnApprove = vi.fn();
+      const mockOnReject = vi.fn();
 
       render(
         <TemplateApproval
@@ -430,7 +438,7 @@ describe('Template Management Integration Tests', () => {
       const user = userEvent.setup();
       
       // Step 1: Upload
-      const mockOnUpload = jest.fn();
+      const mockOnUpload = vi.fn();
       const { rerender } = render(<TemplateUpload onUpload={mockOnUpload} />);
 
       const file = new File(['<html><body>Valid Template</body></html>'], 'template.html', {
@@ -470,8 +478,8 @@ describe('Template Management Integration Tests', () => {
       expect(screen.getByText(/your template passed all validation checks/i)).toBeInTheDocument();
 
       // Step 3: Approval
-      const mockOnApprove = jest.fn();
-      const mockOnReject = jest.fn();
+      const mockOnApprove = vi.fn();
+      const mockOnReject = vi.fn();
 
       rerender(
         <div>
@@ -505,7 +513,7 @@ describe('Template Management Integration Tests', () => {
       const user = userEvent.setup();
       
       // Step 1: Upload
-      const mockOnUpload = jest.fn();
+      const mockOnUpload = vi.fn();
       const { rerender } = render(<TemplateUpload onUpload={mockOnUpload} />);
 
       const file = new File(['<html><body>Invalid Template</body></html>'], 'template.html', {
@@ -534,8 +542,8 @@ describe('Template Management Integration Tests', () => {
         warnings: [],
       };
 
-      const mockOnRequestHelp = jest.fn();
-      const mockOnApplyFixes = jest.fn();
+      const mockOnRequestHelp = vi.fn();
+      const mockOnApplyFixes = vi.fn();
 
       rerender(
         <div>
@@ -562,8 +570,8 @@ describe('Template Management Integration Tests', () => {
       });
 
       // Step 4: Rejection
-      const mockOnApprove = jest.fn();
-      const mockOnReject = jest.fn();
+      const mockOnApprove = vi.fn();
+      const mockOnReject = vi.fn();
 
       rerender(
         <div>

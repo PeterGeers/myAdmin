@@ -7,7 +7,7 @@
 
 import i18n from 'i18next';
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || '';
 const DOCS_PATH = '/docs';
 
 /** Maps PageType values to MkDocs documentation sections */

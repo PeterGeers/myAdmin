@@ -5,38 +5,40 @@
  * pivot view toggle, split charts, Update Data cache invalidation.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ProfitLossReport from '../ProfitLossReport';
 import { useTenant } from '../../../context/TenantContext';
 import { authenticatedGet } from '../../../services/apiService';
+import { invalidateAndFetch } from '../../../utils/financialReportUtils';
 
 // --- Mocks ---
 
-jest.mock('../../../context/TenantContext');
-jest.mock('../../../services/apiService', () => {
-  const actual = jest.requireActual('../../../services/apiService');
+vi.mock('../../../context/TenantContext');
+vi.mock('../../../services/apiService', async () => {
+  const actual = await vi.importActual('../../../services/apiService');
   return {
     ...actual,
-    authenticatedGet: jest.fn(),
-    authenticatedPost: jest.fn().mockResolvedValue({ json: () => Promise.resolve({ success: true }) }),
+    authenticatedGet: vi.fn(),
+    authenticatedPost: vi.fn().mockResolvedValue({ json: () => Promise.resolve({ success: true }) }),
   };
 });
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: jest.fn() },
+    i18n: { language: 'en', changeLanguage: vi.fn() },
   }),
 }));
-jest.mock('../../../utils/financialReportUtils', () => {
-  const actual = jest.requireActual('../../../utils/financialReportUtils');
+vi.mock('../../../utils/financialReportUtils', async () => {
+  const actual = await vi.importActual('../../../utils/financialReportUtils');
   return {
     ...actual,
-    invalidateAndFetch: jest.fn(async (fn: () => Promise<void>) => fn()),
+    invalidateAndFetch: vi.fn(async (fn: () => Promise<void>) => fn()),
   };
 });
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Alert: ({ children }: any) => <div data-testid="alert">{children}</div>,
   AlertIcon: () => <span>!</span>,
   Button: ({ children, onClick, isLoading, ...p }: any) => (
@@ -62,9 +64,9 @@ jest.mock('@chakra-ui/react', () => ({
   Thead: ({ children }: any) => <thead>{children}</thead>,
   Tr: ({ children }: any) => <tr>{children}</tr>,
   VStack: ({ children }: any) => <div>{children}</div>,
-  useToast: () => jest.fn(),
+  useToast: () => vi.fn(),
 }));
-jest.mock('recharts', () => ({
+vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
   BarChart: ({ children }: any) => <div data-testid="bar-chart">{children}</div>,
   Bar: () => <div data-testid="bar" />,
@@ -74,14 +76,14 @@ jest.mock('recharts', () => ({
   Tooltip: () => null,
   Legend: () => null,
 }));
-jest.mock('../../filters/YearFilter', () => ({
+vi.mock('../../filters/YearFilter', () => ({
   YearFilter: () => <div data-testid="year-filter" />,
 }));
 
 // --- Test data ---
 
-const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
-const mockAuthGet = authenticatedGet as jest.MockedFunction<typeof authenticatedGet>;
+const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
+const mockAuthGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
 
 const plResponse = {
   success: true,
@@ -105,19 +107,19 @@ const defaultProps = {
   selectedYears: ['2024', '2025'],
   displayFormat: '2dec' as const,
   availableYears: ['2023', '2024', '2025'],
-  onYearsChange: jest.fn(),
-  onDisplayFormatChange: jest.fn(),
+  onYearsChange: vi.fn(),
+  onDisplayFormatChange: vi.fn(),
 };
 
 const tenantCtx = {
   currentTenant: 'TestTenant',
   availableTenants: ['TestTenant'],
-  setCurrentTenant: jest.fn(),
+  setCurrentTenant: vi.fn(),
   hasMultipleTenants: false,
 };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   mockUseTenant.mockReturnValue(tenantCtx);
   mockAuthGet.mockImplementation((url: string) => {
     if (url?.includes('includeRef=true')) {
@@ -209,7 +211,6 @@ describe('ProfitLossReport', () => {
   });
 
   it('Update Data button triggers invalidateAndFetch', async () => {
-    const { invalidateAndFetch } = require('../../../utils/financialReportUtils');
     render(<ProfitLossReport {...defaultProps} />);
     await waitFor(() => expect(screen.getByText('actuals.refresh')).toBeInTheDocument());
 

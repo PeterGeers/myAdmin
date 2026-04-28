@@ -1,17 +1,18 @@
 /**
  * Tests for Product Service API calls.
  */
+import { vi } from 'vitest';
 import {
   getProducts, getProduct, createProduct, updateProduct,
   deleteProduct, getProductTypes,
 } from '../services/productService';
 
-const mockGet = jest.fn();
-const mockPost = jest.fn();
-const mockPut = jest.fn();
-const mockDelete = jest.fn();
+const mockGet = vi.fn();
+const mockPost = vi.fn();
+const mockPut = vi.fn();
+const mockDelete = vi.fn();
 
-jest.mock('../services/apiService', () => ({
+vi.mock('../services/apiService', () => ({
   authenticatedGet: (...args: any[]) => mockGet(...args),
   authenticatedPost: (...args: any[]) => mockPost(...args),
   authenticatedPut: (...args: any[]) => mockPut(...args),
@@ -22,7 +23,7 @@ jest.mock('../services/apiService', () => ({
 const json = (data: any) => ({ json: async () => data });
 
 describe('Product Service', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('getProducts without includeInactive', async () => {
     mockGet.mockResolvedValue(json({ success: true, data: [] }));

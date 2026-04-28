@@ -8,6 +8,7 @@
  * Reference: .kiro/specs/dynamic-pivot-views/tasks.md §11.7
  */
 
+import { vi } from 'vitest';
 import {
   executePivot,
   getAvailableColumns,
@@ -28,12 +29,12 @@ import type { PivotConfig, PivotDataSource } from '../../types/pivot';
 // Mock apiService
 // ---------------------------------------------------------------------------
 
-const mockGet = jest.fn();
-const mockPost = jest.fn();
-const mockPut = jest.fn();
-const mockDelete = jest.fn();
+const mockGet = vi.fn();
+const mockPost = vi.fn();
+const mockPut = vi.fn();
+const mockDelete = vi.fn();
 
-jest.mock('../apiService', () => ({
+vi.mock('../apiService', () => ({
   authenticatedGet: (...args: any[]) => mockGet(...args),
   authenticatedPost: (...args: any[]) => mockPost(...args),
   authenticatedPut: (...args: any[]) => mockPut(...args),
@@ -82,7 +83,7 @@ const SAMPLE_CONFIG: PivotConfig = {
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => vi.clearAllMocks());
 
 // ===========================================================================
 // toBackendConfig / fromBackendConfig

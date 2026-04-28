@@ -6,6 +6,7 @@
  * @see .kiro/specs/table-filter-framework-v2/design.md — Property 5
  */
 
+import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import fc from 'fast-check';
 import { useFilterableTable } from '../useFilterableTable';
@@ -75,7 +76,7 @@ describe('Property 5: Filter-Then-Sort Confluence', () => {
           ),
         ),
         ([keys, data, filterValues, sortField, sortDirection]) => {
-          jest.useFakeTimers();
+          vi.useFakeTimers();
 
           try {
             const initialFilters = Object.fromEntries(keys.map((k) => [k, '']));
@@ -95,7 +96,7 @@ describe('Property 5: Filter-Then-Sort Confluence', () => {
               }
             });
             act(() => {
-              jest.advanceTimersByTime(200);
+              vi.advanceTimersByTime(200);
             });
 
             const combinedOutput = combinedResult.current.processedData;
@@ -112,7 +113,7 @@ describe('Property 5: Filter-Then-Sort Confluence', () => {
               }
             });
             act(() => {
-              jest.advanceTimersByTime(200);
+              vi.advanceTimersByTime(200);
             });
 
             const filteredData = filterResult.current.filteredData;
@@ -127,7 +128,7 @@ describe('Property 5: Filter-Then-Sort Confluence', () => {
             // --- Assert confluence ---
             expect(combinedOutput).toEqual(independentOutput);
           } finally {
-            jest.useRealTimers();
+            vi.useRealTimers();
           }
         },
       ),

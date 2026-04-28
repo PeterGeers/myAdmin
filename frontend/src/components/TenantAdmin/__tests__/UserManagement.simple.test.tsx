@@ -5,18 +5,19 @@
  * Target: 20+ tests
  */
 
+import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+vi.mock('aws-amplify/auth');
 
 // Mock config
-jest.mock('../../../config', () => ({
+vi.mock('../../../config', () => ({
   buildApiUrl: (endpoint: string) => `http://localhost:5000${endpoint}`,
   API_BASE_URL: 'http://localhost:5000',
 }));
 
-const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
 
 describe('UserManagement Component Logic', () => {
   const mockToken = 'mock-jwt-token';
@@ -52,7 +53,7 @@ describe('UserManagement Component Logic', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     mockFetchAuthSession.mockResolvedValue({
       tokens: {
@@ -62,7 +63,7 @@ describe('UserManagement Component Logic', () => {
       },
     } as any);
 
-    global.fetch = jest.fn((url: string) => {
+    global.fetch = vi.fn((url: string) => {
       if (url.includes('/api/tenant-admin/users')) {
         return Promise.resolve({
           ok: true,
@@ -79,11 +80,11 @@ describe('UserManagement Component Logic', () => {
         ok: true,
         json: async () => ({}),
       } as Response);
-    }) as jest.Mock;
+    });
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

@@ -68,7 +68,7 @@ Use shared fixtures from `conftest.py`:
 - Third-party library internals
 - Simple getters/setters
 
-## Frontend (Jest + React Testing Library)
+## Frontend (Vitest + React Testing Library)
 
 ### Naming
 
@@ -80,8 +80,9 @@ Format: `describe('ComponentName') > it('should do X when Y')`
 - Use `screen.getByRole`, `screen.getByText` over `getByTestId`
 - Avoid testing internal state — test what the user sees
 - Use MSW for API mocking
+- Use `vi.fn()`, `vi.mock()`, `vi.spyOn()` — never `jest.*`
 
 ### Coverage
 
 - Target: 80% for new components
-- Run: `npm test -- --coverage`
+- Run: `npx vitest run --coverage`

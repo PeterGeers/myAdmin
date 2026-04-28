@@ -9,10 +9,11 @@
  * - Token expiration handling
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AuthProvider } from '../context/AuthContext';
+import { AuthProvider, useAuth } from '../context/AuthContext';
 
 // Import mocked functions
 import { getCurrentUser, signOut, signIn, fetchAuthSession } from 'aws-amplify/auth';
@@ -24,36 +25,37 @@ import Login from '../pages/Login';
 import Unauthorized from '../pages/Unauthorized';
 
 // Mock AWS Amplify auth functions
-jest.mock('aws-amplify/auth', () => ({
-  getCurrentUser: jest.fn(),
-  signOut: jest.fn(),
-  signIn: jest.fn(),
-  signInWithRedirect: jest.fn(),
-  fetchAuthSession: jest.fn(),
-  resetPassword: jest.fn(),
-  confirmResetPassword: jest.fn(),
+vi.mock('aws-amplify/auth', () => ({
+  getCurrentUser: vi.fn(),
+  signOut: vi.fn(),
+  signIn: vi.fn(),
+  signInWithRedirect: vi.fn(),
+  fetchAuthSession: vi.fn(),
+  resetPassword: vi.fn(),
+  confirmResetPassword: vi.fn(),
+  confirmSignIn: vi.fn(),
 }));
 
 // Mock authService to prevent infinite loops in AuthContext
-jest.mock('../services/authService', () => ({
-  getCurrentAuthTokens: jest.fn(),
-  getCurrentUserRoles: jest.fn(),
-  getCurrentUserEmail: jest.fn(),
-  getCurrentUserName: jest.fn(),
-  getCurrentUserTenants: jest.fn(),
-  isAuthenticated: jest.fn(),
-  hasRole: jest.fn(),
-  hasAnyRole: jest.fn(),
-  hasAllRoles: jest.fn(),
-  decodeJWTPayload: jest.fn(),
-  validateRoleCombinations: jest.fn(),
-  signInWithPassword: jest.fn(),
-  signInWithPasskey: jest.fn(),
-  isPasskeySupported: jest.fn().mockReturnValue(true),
+vi.mock('../services/authService', () => ({
+  getCurrentAuthTokens: vi.fn(),
+  getCurrentUserRoles: vi.fn(),
+  getCurrentUserEmail: vi.fn(),
+  getCurrentUserName: vi.fn(),
+  getCurrentUserTenants: vi.fn(),
+  isAuthenticated: vi.fn(),
+  hasRole: vi.fn(),
+  hasAnyRole: vi.fn(),
+  hasAllRoles: vi.fn(),
+  decodeJWTPayload: vi.fn(),
+  validateRoleCombinations: vi.fn(),
+  signInWithPassword: vi.fn(),
+  signInWithPasskey: vi.fn(),
+  isPasskeySupported: vi.fn().mockReturnValue(true),
 }));
 
 // Mock Chakra UI components to avoid dependency issues
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   ChakraProvider: ({ children }: any) => <div>{children}</div>,
   Box: ({ children, as: As, onSubmit, ...props }: any) => As === 'form' ? <form onSubmit={onSubmit} {...props}>{children}</form> : <div {...props}>{children}</div>,
   VStack: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -77,18 +79,25 @@ jest.mock('@chakra-ui/react', () => ({
   FormControl: ({ children }: any) => <div>{children}</div>,
   FormLabel: ({ children }: any) => <label>{children}</label>,
   Input: ({ value, onChange, type, placeholder, disabled, ...props }: any) => <input type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} aria-label={placeholder} />,
-  useToast: () => jest.fn(),
+  InputGroup: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  InputRightElement: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  IconButton: ({ 'aria-label': ariaLabel, onClick, icon, ...props }: any) => (
+    <button aria-label={ariaLabel} onClick={onClick}>{icon || 'icon-btn'}</button>
+  ),
+  useToast: () => vi.fn(),
 }));
 
-jest.mock('@chakra-ui/icons', () => ({
-  WarningIcon: { name: 'WarningIcon' },
+vi.mock('@chakra-ui/icons', () => ({
+  ViewIcon: () => <span>👁</span>,
+  ViewOffIcon: () => <span>👁‍🗨</span>,
   LockIcon: { name: 'LockIcon' },
+  WarningIcon: { name: 'WarningIcon' },
   CheckCircleIcon: { name: 'CheckCircleIcon' },
 }));
 
 // Mock react-i18next — t() returns the key as-is
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', changeLanguage: jest.fn() } }),
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', changeLanguage: vi.fn() } }),
   Trans: ({ children }: any) => children,
 }));
 
@@ -155,51 +164,51 @@ const createMockSession = (token: string) => ({
 
 // Helper to setup authenticated state mocks
 const setupAuthenticatedMocks = (user: any, token: string, roles: string[]) => {
-  (getCurrentUser as jest.Mock).mockResolvedValue(user);
-  (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(token));
-  (authService.isAuthenticated as jest.Mock).mockResolvedValue(true);
-  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(user.signInDetails.loginId);
-  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(user.username);
-  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue(roles);
-  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue(['tenant1']);
+  vi.mocked(getCurrentUser).mockResolvedValue(user);
+  vi.mocked(fetchAuthSession).mockResolvedValue(createMockSession(token));
+  vi.mocked(authService.isAuthenticated).mockResolvedValue(true);
+  vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(user.signInDetails.loginId);
+  vi.mocked(authService.getCurrentUserName).mockResolvedValue(user.username);
+  vi.mocked(authService.getCurrentUserRoles).mockResolvedValue(roles);
+  vi.mocked(authService.getCurrentUserTenants).mockResolvedValue(['tenant1']);
   
   // Mock role checking functions
-  (authService.hasRole as jest.Mock).mockImplementation((userRoles: string[], requiredRole: string) => 
+  vi.mocked(authService.hasRole).mockImplementation((userRoles: string[], requiredRole: string) => 
     roles.includes(requiredRole)
   );
-  (authService.hasAnyRole as jest.Mock).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
+  vi.mocked(authService.hasAnyRole).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
     requiredRoles.some(role => roles.includes(role))
   );
-  (authService.hasAllRoles as jest.Mock).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
+  vi.mocked(authService.hasAllRoles).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
     requiredRoles.every(role => roles.includes(role))
   );
 };
 
 // Helper to setup unauthenticated state mocks
 const setupUnauthenticatedMocks = () => {
-  (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
-  (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
-  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
-  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+  vi.mocked(fetchAuthSession).mockRejectedValue(new Error('Not authenticated'));
+  vi.mocked(authService.isAuthenticated).mockResolvedValue(false);
+  vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserRoles).mockResolvedValue([]);
+  vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserName).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserTenants).mockResolvedValue([]);
 };
 
 describe('Authentication Integration Tests', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Re-set isPasskeySupported after clearAllMocks resets it
-    (authService.isPasskeySupported as jest.Mock).mockReturnValue(true);
+    vi.mocked(authService.isPasskeySupported).mockReturnValue(true);
     
     // Setup default mocks for authService to prevent hanging
-    (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
-    (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
-    (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+    vi.mocked(authService.isAuthenticated).mockResolvedValue(false);
+    vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserRoles).mockResolvedValue([]);
+    vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserName).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserTenants).mockResolvedValue([]);
   });
 
   describe('Login Flow', () => {
@@ -227,9 +236,9 @@ describe('Authentication Integration Tests', () => {
 
     it('should call signInWithPassword on form submit', async () => {
       setupUnauthenticatedMocks();
-      (authService.signInWithPassword as jest.Mock).mockResolvedValue({ isSignedIn: true });
+      vi.mocked(authService.signInWithPassword).mockResolvedValue({ isSignedIn: true });
 
-      renderWithProviders(<Login onLoginSuccess={jest.fn()} />);
+      renderWithProviders(<Login onLoginSuccess={vi.fn()} />);
 
       const emailInput = screen.getByPlaceholderText('user@example.com');
       await userEvent.type(emailInput, 'test@example.com');
@@ -247,9 +256,9 @@ describe('Authentication Integration Tests', () => {
 
     it('should call signInWithPasskey when passkey button clicked', async () => {
       setupUnauthenticatedMocks();
-      (authService.signInWithPasskey as jest.Mock).mockResolvedValue({ isSignedIn: true });
+      vi.mocked(authService.signInWithPasskey).mockResolvedValue({ isSignedIn: true });
 
-      renderWithProviders(<Login onLoginSuccess={jest.fn()} />);
+      renderWithProviders(<Login onLoginSuccess={vi.fn()} />);
 
       const emailInput = screen.getByPlaceholderText('user@example.com');
       await userEvent.type(emailInput, 'test@example.com');
@@ -264,7 +273,7 @@ describe('Authentication Integration Tests', () => {
 
     it('should handle password login errors gracefully', async () => {
       setupUnauthenticatedMocks();
-      (authService.signInWithPassword as jest.Mock).mockRejectedValue({ name: 'NotAuthorizedException' });
+      vi.mocked(authService.signInWithPassword).mockRejectedValue({ name: 'NotAuthorizedException' });
 
       renderWithProviders(<Login />);
 
@@ -284,7 +293,7 @@ describe('Authentication Integration Tests', () => {
 
     it('should handle passkey login errors gracefully', async () => {
       setupUnauthenticatedMocks();
-      (authService.signInWithPasskey as jest.Mock).mockRejectedValue({ name: 'NotAuthorizedException' });
+      vi.mocked(authService.signInWithPasskey).mockRejectedValue({ name: 'NotAuthorizedException' });
 
       renderWithProviders(<Login />);
 
@@ -350,10 +359,10 @@ describe('Authentication Integration Tests', () => {
 
     it('should redirect to login after logout', async () => {
       setupAuthenticatedMocks(mockAdminUser, mockAdminToken, ['Administrators']);
-      (signOut as jest.Mock).mockResolvedValue(undefined);
+      vi.mocked(signOut).mockResolvedValue(undefined);
 
       const TestComponent = () => {
-        const { logout } = require('../context/AuthContext').useAuth();
+        const { logout } = useAuth();
         return (
           <div>
             <div>Protected Content</div>
@@ -373,7 +382,7 @@ describe('Authentication Integration Tests', () => {
       });
 
       // Simulate logout
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      vi.mocked(fetchAuthSession).mockRejectedValue(new Error('Not authenticated'));
       const logoutButton = screen.getByText('Logout');
       await userEvent.click(logoutButton);
 
@@ -487,7 +496,7 @@ describe('Authentication Integration Tests', () => {
   describe('Logout Functionality', () => {
     it('should successfully logout user', async () => {
       setupAuthenticatedMocks(mockAdminUser, mockAdminToken, ['Administrators']);
-      (signOut as jest.Mock).mockResolvedValue(undefined);
+      vi.mocked(signOut).mockResolvedValue(undefined);
 
       renderWithProviders(<Unauthorized requiredRoles={['Administrators']} />);
 
@@ -514,10 +523,10 @@ describe('Authentication Integration Tests', () => {
       const encodedPayload = btoa(JSON.stringify(expiredPayload));
       const expiredToken = `header.${encodedPayload}.signature`;
 
-      (getCurrentUser as jest.Mock).mockResolvedValue(mockAdminUser);
-      (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(expiredToken));
+      vi.mocked(getCurrentUser).mockResolvedValue(mockAdminUser);
+      vi.mocked(fetchAuthSession).mockResolvedValue(createMockSession(expiredToken));
       // For expired tokens, isAuthenticated should return false
-      (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
+      vi.mocked(authService.isAuthenticated).mockResolvedValue(false);
 
       const TestComponent = () => <div>Protected Content</div>;
 
@@ -560,10 +569,10 @@ describe('Authentication Integration Tests', () => {
 
   describe('User Experience', () => {
     it('should show loading state while checking authentication', async () => {
-      (getCurrentUser as jest.Mock).mockImplementation(
+      vi.mocked(getCurrentUser).mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 100))
       );
-      (fetchAuthSession as jest.Mock).mockImplementation(
+      vi.mocked(fetchAuthSession).mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 100))
       );
       setupUnauthenticatedMocks();

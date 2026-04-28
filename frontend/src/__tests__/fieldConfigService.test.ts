@@ -1,12 +1,13 @@
 /**
  * Tests for Field Config Service API calls.
  */
+import { vi } from 'vitest';
 import { getFieldConfig, updateFieldConfig } from '../services/fieldConfigService';
 
-const mockGet = jest.fn();
-const mockPut = jest.fn();
+const mockGet = vi.fn();
+const mockPut = vi.fn();
 
-jest.mock('../services/apiService', () => ({
+vi.mock('../services/apiService', () => ({
   authenticatedGet: (...args: any[]) => mockGet(...args),
   authenticatedPut: (...args: any[]) => mockPut(...args),
   buildEndpoint: (endpoint: string) => endpoint,
@@ -15,7 +16,7 @@ jest.mock('../services/apiService', () => ({
 const json = (data: any) => ({ json: async () => data });
 
 describe('Field Config Service', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('getFieldConfig fetches config for contacts', async () => {
     const config = { client_id: 'required', company_name: 'required', vat_number: 'hidden' };

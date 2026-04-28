@@ -4,6 +4,7 @@
  * Tests for displaying validation errors, warnings, and success states.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -11,8 +12,14 @@ import { ValidationResults } from '../ValidationResults';
 import type { ValidationResult } from '../../../../types/template';
 
 // Use centralized Chakra UI mocks
-jest.mock('@chakra-ui/react', () => require('../chakraMock').chakraMock);
-jest.mock('@chakra-ui/icons', () => require('../chakraMock').iconsMock);
+vi.mock('@chakra-ui/react', async () => {
+  const { chakraMock } = await import('../chakraMock');
+  return chakraMock;
+});
+vi.mock('@chakra-ui/icons', async () => {
+  const { iconsMock } = await import('../chakraMock');
+  return iconsMock;
+});
 
 
 

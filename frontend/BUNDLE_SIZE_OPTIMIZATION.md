@@ -166,12 +166,10 @@ Once loaded, Plotly is cached by the browser:
 To analyze your bundle size:
 
 ```bash
-# Install bundle analyzer
-npm install --save-dev webpack-bundle-analyzer
+# Run build with bundle visualizer
+ANALYZE=true npm run build
 
-# Analyze production build
-npm run build
-npx webpack-bundle-analyzer build/static/js/*.js
+# Opens build/stats.html with interactive treemap
 ```
 
 This opens a visual treemap showing:
@@ -221,15 +219,11 @@ const ExpensiveModal = React.lazy(() => import('./ExpensiveModal'));
 
 ## Monitoring Bundle Size
 
-### Set Budget in package.json
+### Set Budget
 
-```json
-{
-  "scripts": {
-    "build": "react-scripts build",
-    "analyze": "source-map-explorer 'build/static/js/*.js'"
-  }
-}
+```bash
+# Run build with bundle analysis
+ANALYZE=true npm run build
 ```
 
 ### Install source-map-explorer

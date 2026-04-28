@@ -7,6 +7,7 @@
  * Requirements: 1.1, 1.2, 1.6, 2.1, 4.1, 5.1, 5.2
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -98,7 +99,7 @@ function mockFilterDomProps(props: Record<string, any>): Record<string, any> {
   return rest;
 }
 
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: ({ children, ...p }: any) => <div {...mockFilterDomProps(p)}>{children}</div>,
   Flex: ({ children, ...p }: any) => <div {...mockFilterDomProps(p)}>{children}</div>,
   VStack: ({ children, ...p }: any) => <div {...mockFilterDomProps(p)}>{children}</div>,
@@ -138,10 +139,10 @@ jest.mock('@chakra-ui/react', () => ({
   ModalBody: ({ children }: any) => <div>{children}</div>,
   ModalFooter: ({ children }: any) => <div>{children}</div>,
   ModalCloseButton: () => null,
-  useDisclosure: () => ({ isOpen: false, onOpen: jest.fn(), onClose: jest.fn() }),
+  useDisclosure: () => ({ isOpen: false, onOpen: vi.fn(), onClose: vi.fn() }),
 }));
 
-jest.mock('@chakra-ui/icons', () => ({
+vi.mock('@chakra-ui/icons', () => ({
   ArrowUpIcon: () => <span>↑</span>,
   ArrowDownIcon: () => <span>↓</span>,
   AddIcon: () => <span>+</span>,
@@ -153,17 +154,17 @@ jest.mock('@chakra-ui/icons', () => ({
 // Mocks — Services
 // ---------------------------------------------------------------------------
 
-const mockGetRegisteredSources = jest.fn();
-const mockFilterSourcesByModule = jest.fn();
-const mockGetAvailableColumns = jest.fn();
-const mockExecutePivot = jest.fn();
-const mockListPivotModels = jest.fn();
-const mockLoadPivotModel = jest.fn();
-const mockSavePivotModel = jest.fn();
-const mockUpdatePivotModel = jest.fn();
-const mockDeletePivotModel = jest.fn();
+const mockGetRegisteredSources = vi.fn();
+const mockFilterSourcesByModule = vi.fn();
+const mockGetAvailableColumns = vi.fn();
+const mockExecutePivot = vi.fn();
+const mockListPivotModels = vi.fn();
+const mockLoadPivotModel = vi.fn();
+const mockSavePivotModel = vi.fn();
+const mockUpdatePivotModel = vi.fn();
+const mockDeletePivotModel = vi.fn();
 
-jest.mock('../../../services/pivotService', () => ({
+vi.mock('../../../services/pivotService', () => ({
   getRegisteredSources: (...args: any[]) => mockGetRegisteredSources(...args),
   filterSourcesByModule: (...args: any[]) => mockFilterSourcesByModule(...args),
   getAvailableColumns: (...args: any[]) => mockGetAvailableColumns(...args),
@@ -228,7 +229,7 @@ const stableT = (key: string, opts?: any) => {
 };
 const stableI18n = { language: 'en' };
 
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({ t: stableT, i18n: stableI18n }),
 }));
 
@@ -237,7 +238,7 @@ jest.mock('../../../hooks/useTypedTranslation', () => ({
 // ---------------------------------------------------------------------------
 
 // Mock GenericFilter to render a simplified multi-select
-jest.mock('../../filters/GenericFilter', () => ({
+vi.mock('../../filters/GenericFilter', () => ({
   GenericFilter: ({ label, values, onChange, availableOptions, multiSelect, getOptionLabel }: any) => (
     <div data-testid={`generic-filter-${label}`}>
       <label>{label}</label>
@@ -265,7 +266,7 @@ jest.mock('../../filters/GenericFilter', () => ({
 }));
 
 // Mock FilterPanel to render simplified filter inputs
-jest.mock('../../filters/FilterPanel', () => ({
+vi.mock('../../filters/FilterPanel', () => ({
   FilterPanel: ({ filters }: any) => (
     <div data-testid="filter-panel">
       {(filters || []).map((f: any, i: number) => (
@@ -284,7 +285,7 @@ jest.mock('../../filters/FilterPanel', () => ({
 }));
 
 // Mock PivotResultTable
-jest.mock('../PivotResultTable', () => ({
+vi.mock('../PivotResultTable', () => ({
   PivotResultTable: () => <div data-testid="pivot-result-table" />,
 }));
 
@@ -322,13 +323,13 @@ import { PivotBuilder } from '../PivotBuilder';
 
 describe('PivotBuilder', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     setupDefaultMocks();
   });
 
   afterEach(() => {
     cleanup();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // -----------------------------------------------------------------------
@@ -522,7 +523,7 @@ describe('PivotBuilder', () => {
     });
 
     it('loads model and populates config when model is selected', async () => {
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       render(<PivotBuilder onConfigChange={onConfigChange} />);
 
       await waitFor(() => {
@@ -611,7 +612,7 @@ describe('PivotBuilder', () => {
 
   describe('execute', () => {
     it('calls executePivot and passes results to onResults callback', async () => {
-      const onResults = jest.fn();
+      const onResults = vi.fn();
       render(<PivotBuilder onResults={onResults} />);
 
       await waitFor(() => {
@@ -684,7 +685,7 @@ describe('PivotBuilder', () => {
 
   describe('config change callback', () => {
     it('calls onConfigChange when config changes', async () => {
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       render(<PivotBuilder onConfigChange={onConfigChange} />);
 
       await waitFor(() => {

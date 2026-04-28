@@ -44,8 +44,8 @@ if (!isAuthenticated && !loading) {
 
 The Login page uses the following environment variables from `.env`:
 
-- `REACT_APP_COGNITO_DOMAIN`: Cognito domain for Hosted UI
-- `REACT_APP_COGNITO_CLIENT_ID`: Cognito App Client ID
+- `VITE_COGNITO_DOMAIN`: Cognito domain for Hosted UI
+- `VITE_COGNITO_CLIENT_ID`: Cognito App Client ID
 
 These are configured in `frontend/src/aws-exports.ts`.
 

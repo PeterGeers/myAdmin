@@ -33,8 +33,8 @@ import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { FilterPanel } from '../filters/FilterPanel';
 import { useTenant } from '../../context/TenantContext';
 
-// Lazy load Plotly only when needed (reduces initial bundle size by ~3MB)
-const Plot = React.lazy(() => import('react-plotly.js'));
+// Lazy load Plotly only when needed (reduces initial bundle size)
+const Plot = React.lazy(() => import('../PlotlyChart'));
 
 interface BnbViolinFilterOptions {
   years: string[];
