@@ -30,7 +30,7 @@ Use this checklist when reviewing code changes. Pull it into context with `#pr-c
 - [ ] Tests use existing fixtures from conftest.py
 - [ ] Proper markers applied (unit/integration/api)
 - [ ] Edge cases covered (empty input, invalid data, missing fields)
-- [ ] All tests pass (`pytest tests/unit/` and `npm test`)
+- [ ] All tests pass (`pytest tests/unit/` and `npx vitest run`)
 
 ## Performance
 

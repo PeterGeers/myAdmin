@@ -1,181 +1,136 @@
 # myAdmin Frontend Test Infrastructure Summary
 
-## 🚀 Quick Test Execution
+## Quick Test Execution
 
-### **Run All Tests** (Comprehensive with coverage)
-```bash
-npm test -- --coverage --watchAll=false
-```
-**Features:**
-- Runs all React component tests
-- Coverage reporting with thresholds
-- Jest and React Testing Library integration
-- TypeScript type checking
-- No watch mode for CI/CD
+### Run All Tests (single execution)
 
-### **Run Specific Test Files** (Quick individual testing)
 ```bash
-npm test -- simple-routing.test.js --watchAll=false
-npm test -- app.routing.test.tsx --watchAll=false
-npm test -- app.theme.test.tsx --watchAll=false
-```
-**Features:**
-- Fast execution for single components
-- Development workflow optimization
-- Chakra UI dependency workarounds
-
-### **Run with Debug Mode**
-```bash
-npm run test:debug
+npm run test:run
 ```
 
-## 🎯 Test Coverage Status
+### Run All Tests (watch mode)
 
-### ✅ Current Working Tests
-- **simple-routing.test.js** - Basic routing validation (7 tests, 5 passing)
-- Mock-based testing without Chakra UI dependencies
-- API endpoint validation
-- Component structure verification
+```bash
+npm test
+```
 
-### 🚧 Planned Test Coverage: 8 Core Components
+### Run with Coverage
 
-## 📋 Test Infrastructure Components
+```bash
+npx vitest run --coverage
+```
 
-### 1. **Jest Configuration**
-- **Framework**: React Testing Library + Jest
+### Run Specific Test Files
+
+```bash
+npx vitest run src/components/App.routing.test.tsx
+npx vitest run src/components/App.theme.test.tsx
+```
+
+## Test Framework Stack
+
+- **Vitest** — Test runner and assertion library (replaces Jest)
+- **React Testing Library** — Component testing utilities
+- **@testing-library/user-event** — User interaction simulation
+- **@testing-library/jest-dom** — Custom matchers
+- **@fast-check/vitest** — Property-based testing
+- **vitest-axe** — Accessibility testing
+- **MSW (Mock Service Worker)** — API mocking
+- **TypeScript** — Type safety in tests
+
+## Test Infrastructure
+
+### Configuration
+
+- **Framework**: Vitest (configured in `vite.config.ts`)
 - **Environment**: jsdom for DOM simulation
-- **TypeScript**: Full TypeScript support
-- **Coverage**: Statement, branch, function, line coverage
+- **Setup file**: `src/setupTests.ts`
+- **Globals**: `describe`, `it`, `expect`, `vi` available globally
 
-### 2. **Test Utilities & Setup**
-- **File**: `setupTests.ts` - Jest DOM extensions
-- **Mocking**: Mock Service Worker (MSW) for API calls
+### Test Utilities & Setup
+
+- **File**: `setupTests.ts` — Vitest DOM extensions, polyfills, global mocks
+- **Mocking**: `vi.fn()`, `vi.mock()`, `vi.spyOn()` (Vitest API)
 - **Providers**: Chakra UI theme provider wrapping
 - **Custom Render**: Enhanced render with providers
 
-### 3. **Dependency Management**
-- **Chakra UI Issues**: Dependency conflicts resolved with mocks
-- **Workaround Tests**: Basic mocks for UI components
-- **Alternative Approach**: Simple validation without complex UI testing
+## Test Categories
 
-## 🧪 Core Component Test Plan
+### Unit Tests
 
-| Component | Priority | Status | Tests Planned |
-|-----------|----------|--------|---------------|
-| **App.tsx** | High | Planned | Routing, theme, error boundaries |
-| **BankingProcessor.tsx** | High | Planned | File upload, processing, validation |
-| **myAdminReports.tsx** | High | Planned | Charts, filters, exports |
-| **PDFUploadForm.tsx** | Medium | Planned | Upload, preview, editing |
-| **PDFValidation.tsx** | Medium | Planned | Progress, URL validation |
-| **STRProcessor.tsx** | Medium | Planned | Platform selection, processing |
-| **BankingProcessor.tsx (STR Tab)** | Medium | Planned | STR channel revenue calculations |
-| **ProfitLoss.tsx** | Low | Planned | Report generation, exports |
-
-## 🛠 Test Categories
-
-### **Unit Tests** (Primary Focus)
 - Component rendering and props
 - State management and hooks
 - Event handlers and user interactions
 - Utility functions and helpers
 - TypeScript type safety
 
-### **Integration Tests**
+### Integration Tests
+
 - API communication with backend
 - Form submissions and data flow
 - Navigation and routing
 - Context providers and state sharing
 
-### **Accessibility Tests**
-- Screen reader compatibility
-- Keyboard navigation
+### Property-Based Tests
+
+- Randomized input testing via fast-check
+- Invariant verification across input ranges
+- Edge case discovery
+
+### Accessibility Tests
+
+- Automated a11y testing via vitest-axe
 - ARIA attributes and roles
-- Focus management
+- Keyboard navigation
 
-## 🎯 Test Data & Mocking
+### E2E Tests
 
-### **Mock Service Worker (MSW)**
-- API endpoint mocking for `/api/*` routes
-- Banking data responses
-- Report data simulation
-- File upload responses
-- Error scenario testing
+- Playwright-based end-to-end tests
+- Located in `tests/e2e/`
+- Run separately via `npm run test:e2e`
 
-### **Sample Data**
-- Mock transaction records
-- Banking CSV/TSV data
-- STR booking data
-- Report aggregation data
-- PDF processing results
+## Test Execution Scripts
 
-## 🚀 Test Execution Scripts
-
-### **Package.json Scripts**
 ```json
 {
   "scripts": {
-    "test": "react-scripts test",
-    "test:coverage": "react-scripts test --coverage --watchAll=false",
-    "test:ci": "CI=true react-scripts test --coverage --watchAll=false",
-    "test:debug": "react-scripts --inspect-brk test --runInBand --no-cache"
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   }
 }
 ```
 
-### **Coverage Requirements**
-- **Statements**: 80%
-- **Branches**: 75%
-- **Functions**: 80%
-- **Lines**: 80%
+## Mocking Patterns
 
-## 🔧 Current Challenges & Solutions
+### Vitest Mocking
 
-### **Chakra UI Dependency Issues**
-- **Problem**: Complex dependency conflicts in test environment
-- **Solution**: Mock-based testing with simplified UI components
-- **Workaround**: `simple-routing.test.js` bypasses UI dependencies entirely
+```typescript
+import { vi } from "vitest";
 
-### **Test Environment Setup**
-- **jsdom**: DOM simulation for React components
-- **TypeScript**: Type checking in test files
-- **Provider Wrapping**: Theme and context provider setup
+vi.mock("../services/apiService");
+const mockFn = vi.fn();
+vi.spyOn(obj, "method");
+```
 
-## 📊 Test Infrastructure Features
+### MSW for API Mocking
 
-### **Comprehensive Mocking**
-- React hooks (useState, useEffect, useCallback)
-- Chakra UI components as simple HTML elements
-- API calls with MSW
-- File operations and uploads
-- External service integrations
+```typescript
+import { http, HttpResponse } from "msw";
 
-### **Error Handling Testing**
-- Network failures and API errors
-- Form validation errors
-- File processing failures
-- Invalid data scenarios
+const handlers = [
+  http.get("/api/folders", () => {
+    return HttpResponse.json(["General", "Booking.com"]);
+  }),
+];
+```
 
-### **Performance Considerations**
-- Fast test execution with mocking
-- No external API calls during testing
-- Efficient component rendering
-- Minimal test setup overhead
+## Current Status
 
-## 🎉 Current Status Summary
-
-- **Working Tests**: 1 file (simple-routing.test.js)
-- **Passing Tests**: 5/7 in current file
-- **Infrastructure**: Basic Jest + React Testing Library setup
-- **Mocking Strategy**: Functional for Chakra UI bypass
-- **Coverage**: Ready for implementation
-- **CI/CD Ready**: Test scripts configured
-
-## 🚀 Next Steps
-
-1. **Resolve Chakra UI Dependencies**: Install missing modules or enhance mocking
-2. **Implement Core Component Tests**: Start with high-priority components
-3. **API Integration Testing**: Validate frontend-backend communication
-4. **Coverage Implementation**: Achieve 80%+ coverage targets
-5. **CI/CD Integration**: Automated testing in deployment pipeline
-
-The myAdmin frontend has a **foundational testing infrastructure** ready for comprehensive test implementation across all React components.
+- **Test Runner**: Vitest (migrated from Jest)
+- **Build Tool**: Vite 8.x
+- **109 test files** migrated to Vitest API
+- **Property-based tests** via @fast-check/vitest
+- **Accessibility tests** via vitest-axe
+- **E2E tests** via Playwright

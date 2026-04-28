@@ -1,9 +1,12 @@
+import { vi } from 'vitest';
 import React from 'react';
 
 // Mock Plotly to avoid loading the full library in tests
-jest.mock('react-plotly.js', () => {
-  return function MockPlot() {
-    return <div data-testid="plotly-violin-chart">Plotly Violin Chart</div>;
+vi.mock('./PlotlyChart', () => {
+  return {
+    default: function MockPlot() {
+      return <div data-testid="plotly-violin-chart">Plotly Violin Chart</div>;
+    },
   };
 });
 

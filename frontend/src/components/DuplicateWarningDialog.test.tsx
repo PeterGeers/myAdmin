@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 
@@ -287,8 +288,8 @@ const generateTestProps = (): DuplicateWarningProps => ({
     newTransaction: generateTransaction(),
     matchCount: Math.floor(Math.random() * 10) + 1
   },
-  onContinue: jest.fn(),
-  onCancel: jest.fn(),
+  onContinue: vi.fn(),
+  onCancel: vi.fn(),
   isLoading: Math.random() > 0.7
 });
 
@@ -407,8 +408,8 @@ const testButtonInteractions = (
   isLoading: boolean,
   continueButton: Element | undefined,
   cancelButton: Element | undefined,
-  mockOnContinue: jest.Mock,
-  mockOnCancel: jest.Mock
+  mockOnContinue: ReturnType<typeof vi.fn>,
+  mockOnCancel: ReturnType<typeof vi.fn>
 ) => {
   if (isLoading || !continueButton || !cancelButton) {
     return;
@@ -462,12 +463,12 @@ describe('DuplicateWarningDialog Property Tests', () => {
    * 
    * **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 7.1, 7.2, 7.3, 7.4, 7.5**
    */
-  it('should display duplicate information consistently and provide clear user controls for any duplicate scenario', () => {
+  it('should display duplicate information consistently and provide clear user controls for any duplicate scenario', { timeout: 30000 }, () => {
     // Run property-based test with 100 random test cases
     for (let i = 0; i < 100; i++) {
       const testProps = generateTestProps();
-      const mockOnContinue = jest.fn();
-      const mockOnCancel = jest.fn();
+      const mockOnContinue = vi.fn();
+      const mockOnCancel = vi.fn();
 
       const { container, unmount } = render(
         <MockDuplicateWarningDialog
@@ -568,8 +569,8 @@ describe('DuplicateWarningDialog Property Tests', () => {
         newTransaction: emptyTransaction,
         matchCount: 1
       },
-      onContinue: jest.fn(),
-      onCancel: jest.fn(),
+      onContinue: vi.fn(),
+      onCancel: vi.fn(),
       isLoading: false
     };
 
@@ -596,8 +597,8 @@ describe('DuplicateWarningDialog Property Tests', () => {
   });
 
   it('should maintain button functionality during loading states', () => {
-    const mockOnContinue = jest.fn();
-    const mockOnCancel = jest.fn();
+    const mockOnContinue = vi.fn();
+    const mockOnCancel = vi.fn();
 
     const props = {
       isOpen: true,

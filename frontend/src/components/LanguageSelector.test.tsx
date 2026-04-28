@@ -2,20 +2,21 @@
  * Unit tests for LanguageSelector component
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LanguageSelector } from './LanguageSelector';
 
 // Track language state for tests
 let mockCurrentLanguage = 'en';
-const mockChangeLanguage = jest.fn((lang: string) => {
+const mockChangeLanguage = vi.fn((lang: string) => {
   mockCurrentLanguage = lang;
   localStorage.setItem('i18nextLng', lang);
   return Promise.resolve();
 });
 
 // Mock react-i18next
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
     i18n: {
@@ -26,12 +27,12 @@ jest.mock('react-i18next', () => ({
 }));
 
 // Mock the API service
-jest.mock('../services/apiService', () => ({
-  apiRequest: jest.fn(() => Promise.resolve({ success: true }))
+vi.mock('../services/apiService', () => ({
+  apiRequest: vi.fn(() => Promise.resolve({ success: true }))
 }));
 
 // Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => {
+vi.mock('@chakra-ui/react', () => {
   const React = require('react');
   return {
     Menu: ({ children }: any) => <div data-testid="menu">{children}</div>,
@@ -50,11 +51,11 @@ jest.mock('@chakra-ui/react', () => {
     Button: React.forwardRef(({ children, ...props }: any, ref: any) => (
       <button ref={ref} {...props}>{children}</button>
     )),
-    useToast: () => jest.fn(),
+    useToast: () => vi.fn(),
   };
 });
 
-jest.mock('@chakra-ui/icons', () => ({
+vi.mock('@chakra-ui/icons', () => ({
   ChevronDownIcon: () => <span data-testid="chevron-down">▼</span>,
 }));
 

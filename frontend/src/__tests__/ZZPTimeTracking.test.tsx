@@ -5,18 +5,19 @@
  * Reference: .kiro/specs/zzp-module/tasks.md Phase 8.5
  */
 
+import { vi } from 'vitest';
 import {
   getTimeEntries, createTimeEntry, updateTimeEntry,
   deleteTimeEntry, getTimeSummary,
 } from '../services/timeTrackingService';
 
 // Mock the entire apiService module — the time tracking service imports from it
-const mockAuthGet = jest.fn();
-const mockAuthPost = jest.fn();
-const mockAuthPut = jest.fn();
-const mockAuthDelete = jest.fn();
+const mockAuthGet = vi.fn();
+const mockAuthPost = vi.fn();
+const mockAuthPut = vi.fn();
+const mockAuthDelete = vi.fn();
 
-jest.mock('../services/apiService', () => ({
+vi.mock('../services/apiService', () => ({
   authenticatedGet: (...args: any[]) => mockAuthGet(...args),
   authenticatedPost: (...args: any[]) => mockAuthPost(...args),
   authenticatedPut: (...args: any[]) => mockAuthPut(...args),
@@ -31,7 +32,7 @@ jest.mock('../services/apiService', () => ({
 const jsonResp = (data: any) => ({ json: async () => data });
 
 describe('Time Tracking Service', () => {
-  beforeEach(() => { jest.clearAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); });
 
   describe('getTimeEntries', () => {
     it('fetches entries without filters', async () => {

@@ -1,30 +1,37 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock the API service
-jest.mock('../services/apiService', () => ({
-  authenticatedGet: jest.fn(),
-  authenticatedPost: jest.fn(),
-  authenticatedFormData: jest.fn(),
+vi.mock('../services/apiService', () => ({
+  authenticatedGet: vi.fn(),
+  authenticatedPost: vi.fn(),
+  authenticatedFormData: vi.fn(),
 }));
 
 // Mock the tenant context
 const mockUseTenant = {
   currentTenant: 'tenant1' as string | null,
   availableTenants: ['tenant1', 'tenant2'],
-  setCurrentTenant: jest.fn(),
+  setCurrentTenant: vi.fn(),
   hasMultipleTenants: true,
 };
 
-jest.mock('../context/TenantContext', () => ({
+vi.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant,
 }));
 
-const { authenticatedGet, authenticatedPost, authenticatedFormData } = require('../services/apiService');
+import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
+
+vi.mocked(authenticatedGet);
+vi.mocked(authenticatedPost);
+vi.mocked(authenticatedFormData);
+
+import { useTenant } from '../context/TenantContext';
 
 // Mock PDFUploadForm component for testing tenant functionality
 const MockPDFUploadFormWithTenant = () => {
-  const { currentTenant } = require('../context/TenantContext').useTenant();
+  const { currentTenant } = useTenant();
   const [message, setMessage] = React.useState('');
   
   const handleSubmit = () => {
@@ -93,7 +100,7 @@ const MockPDFUploadFormWithTenant = () => {
 
 describe('PDFUploadForm - Tenant Handling', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Reset mock to default tenant
     mockUseTenant.currentTenant = 'tenant1';
@@ -152,7 +159,7 @@ describe('PDFUploadForm - Tenant Handling', () => {
   describe('API Integration Tests', () => {
     it('should call API with tenant parameter', async () => {
       // This test verifies that the actual PDFUploadForm would call APIs with tenant
-      const mockFetchFolders = jest.fn().mockResolvedValue({
+      const mockFetchFolders = vi.fn().mockResolvedValue({
         json: () => Promise.resolve(['folder1', 'folder2']),
       });
       

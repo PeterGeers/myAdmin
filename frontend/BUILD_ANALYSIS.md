@@ -141,21 +141,7 @@ The warning is **informational** and can be safely ignored because:
 
 ### 2. Suppress the Warning (Optional)
 
-Add to `package.json`:
-
-```json
-{
-  "scripts": {
-    "build": "GENERATE_SOURCEMAP=false react-scripts build"
-  }
-}
-```
-
-Or create `.env.production`:
-
-```
-GENERATE_SOURCEMAP=false
-```
+The Vite build does not produce this warning — it was CRA-specific.
 
 ### 3. Use Plotly Basic (If Needed)
 

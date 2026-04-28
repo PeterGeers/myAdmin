@@ -2,19 +2,20 @@
  * Tests for TenantSelector Component
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import TenantSelector from './TenantSelector';
 
 // Mock the tenant context
-const mockUseTenant = jest.fn();
+const mockUseTenant = vi.fn();
 
-jest.mock('../context/TenantContext', () => ({
+vi.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant()
 }));
 
 // Mock Chakra UI components to avoid dependency issues
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   HStack: ({ children }: any) => <div data-testid="hstack">{children}</div>,
   Text: ({ children }: any) => <span>{children}</span>,
   Select: ({ children, value, onChange }: any) => (
@@ -29,7 +30,7 @@ describe('TenantSelector', () => {
     mockUseTenant.mockReturnValue({
       currentTenant: 'GoodwinSolutions',
       availableTenants: ['GoodwinSolutions', 'PeterPrive'],
-      setCurrentTenant: jest.fn(),
+      setCurrentTenant: vi.fn(),
       hasMultipleTenants: true
     });
 
@@ -42,7 +43,7 @@ describe('TenantSelector', () => {
     mockUseTenant.mockReturnValue({
       currentTenant: 'GoodwinSolutions',
       availableTenants: ['GoodwinSolutions'],
-      setCurrentTenant: jest.fn(),
+      setCurrentTenant: vi.fn(),
       hasMultipleTenants: false
     });
 

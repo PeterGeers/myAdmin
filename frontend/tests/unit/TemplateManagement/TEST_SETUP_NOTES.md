@@ -49,7 +49,7 @@ npm install --save-dev @chakra-ui/utils@latest
 For unit tests that don't need full Chakra UI rendering:
 
 ```typescript
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   ChakraProvider: ({ children }: any) => children,
   Box: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   // ... other components
@@ -80,13 +80,13 @@ jest.mock('@chakra-ui/react', () => ({
 
 ```bash
 # Run all Template Management tests
-npm test -- --testPathPattern="TemplateManagement" --watchAll=false
+npx vitest run --testPathPattern="TemplateManagement"
 
 # Run specific test file
-npm test -- TemplateUpload.test.tsx --watchAll=false
+npx vitest run tests/unit/TemplateManagement/TemplateUpload.test.tsx
 
 # Run with coverage
-npm test -- --testPathPattern="TemplateManagement" --coverage --watchAll=false
+npx vitest run --testPathPattern="TemplateManagement" --coverage
 ```
 
 ## Next Steps

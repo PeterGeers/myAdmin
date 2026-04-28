@@ -5,13 +5,14 @@
  * Target: 15+ tests
  */
 
+import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import * as api from '../../../services/tenantAdminApi';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
 
 describe('Tenant Admin API Service', () => {
   const mockToken = 'mock-jwt-token';
@@ -19,10 +20,10 @@ describe('Tenant Admin API Service', () => {
 
   beforeEach(() => {
     // Reset mocks
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Mock localStorage
-    Storage.prototype.getItem = jest.fn((key) => {
+    Storage.prototype.getItem = vi.fn((key) => {
       if (key === 'selectedTenant') return mockTenant;
       return null;
     });
@@ -37,11 +38,11 @@ describe('Tenant Admin API Service', () => {
     } as any);
 
     // Mock fetch
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // ============================================================================
@@ -51,7 +52,7 @@ describe('Tenant Admin API Service', () => {
   describe('User Management API', () => {
     test('createUser sends POST request with correct data', async () => {
       const mockResponse = { success: true, username: 'test@example.com' };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -80,7 +81,7 @@ describe('Tenant Admin API Service', () => {
 
     test('listUsers sends GET request with filters', async () => {
       const mockResponse = { users: [] };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -99,7 +100,7 @@ describe('Tenant Admin API Service', () => {
 
     test('assignRole sends POST request to correct endpoint', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -117,7 +118,7 @@ describe('Tenant Admin API Service', () => {
 
     test('removeRole sends DELETE request to correct endpoint', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -134,7 +135,7 @@ describe('Tenant Admin API Service', () => {
 
     test('removeUser sends DELETE request', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -157,7 +158,7 @@ describe('Tenant Admin API Service', () => {
   describe('Credentials Management API', () => {
     test('uploadCredentials sends FormData with file', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -176,13 +177,13 @@ describe('Tenant Admin API Service', () => {
         })
       );
 
-      const callArgs = (global.fetch as jest.Mock).mock.calls[0];
+      const callArgs = vi.mocked(global.fetch).mock.calls[0];
       expect(callArgs[1].body).toBeInstanceOf(FormData);
     });
 
     test('listCredentials sends GET request', async () => {
       const mockResponse = { credentials: [] };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -198,7 +199,7 @@ describe('Tenant Admin API Service', () => {
 
     test('testCredentials sends POST request with credential type', async () => {
       const mockResponse = { success: true, accessible: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -216,7 +217,7 @@ describe('Tenant Admin API Service', () => {
 
     test('startOAuth sends POST request with service', async () => {
       const mockResponse = { auth_url: 'https://oauth.example.com', state: 'abc123' };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -235,7 +236,7 @@ describe('Tenant Admin API Service', () => {
 
     test('completeOAuth sends POST request with code and state', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -259,7 +260,7 @@ describe('Tenant Admin API Service', () => {
   describe('Storage Configuration API', () => {
     test('browseFolders sends GET request', async () => {
       const mockResponse = { folders: [] };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -275,7 +276,7 @@ describe('Tenant Admin API Service', () => {
 
     test('getStorageConfig sends GET request', async () => {
       const mockResponse = { config: {} };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -291,7 +292,7 @@ describe('Tenant Admin API Service', () => {
 
     test('updateStorageConfig sends PUT request with config', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -310,7 +311,7 @@ describe('Tenant Admin API Service', () => {
 
     test('testFolder sends POST request with folder ID', async () => {
       const mockResponse = { accessible: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -328,7 +329,7 @@ describe('Tenant Admin API Service', () => {
 
     test('getStorageUsage sends GET request', async () => {
       const mockResponse = { usage: {} };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -350,7 +351,7 @@ describe('Tenant Admin API Service', () => {
   describe('Tenant Details API', () => {
     test('getTenantDetails sends GET request', async () => {
       const mockResponse = { tenant: { administration: 'TestTenant' } };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -366,7 +367,7 @@ describe('Tenant Admin API Service', () => {
 
     test('updateTenantDetails sends PUT request with details', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -390,7 +391,7 @@ describe('Tenant Admin API Service', () => {
 
   describe('Error Handling', () => {
     test('handles HTTP error responses', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: false,
         status: 403,
         statusText: 'Forbidden',
@@ -401,7 +402,7 @@ describe('Tenant Admin API Service', () => {
     });
 
     test('handles network errors', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'));
 
       await expect(api.listUsers()).rejects.toThrow('Network error');
     });
@@ -420,7 +421,7 @@ describe('Tenant Admin API Service', () => {
   describe('Settings API', () => {
     test('getSettings sends GET request', async () => {
       const mockResponse = { settings: {} };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -436,7 +437,7 @@ describe('Tenant Admin API Service', () => {
 
     test('updateSettings sends PUT request', async () => {
       const mockResponse = { success: true };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });
@@ -455,7 +456,7 @@ describe('Tenant Admin API Service', () => {
 
     test('getActivity sends GET request with date range', async () => {
       const mockResponse = { activity: { total_actions: 0 } };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         json: async () => mockResponse,
       });

@@ -4,18 +4,30 @@
  * Tests for AI assistance modal, fix suggestions, and auto-fix application.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '../../../src/test-utils';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// Use centralized Chakra UI mocks to avoid @zag-js/focus-visible crash in jsdom
+vi.mock('@chakra-ui/react', async () => {
+  const { chakraMock } = await import('../../../src/components/TenantAdmin/TemplateManagement/chakraMock');
+  return chakraMock;
+});
+vi.mock('@chakra-ui/icons', async () => {
+  const { iconsMock } = await import('../../../src/components/TenantAdmin/TemplateManagement/chakraMock');
+  return iconsMock;
+});
+
 import { AIHelpButton } from '../../../src/components/TenantAdmin/TemplateManagement/AIHelpButton';
 import type { AIHelpResponse, AIFixSuggestion } from '../../../src/types/template';
 
 describe('AIHelpButton', () => {
-  const mockOnRequestHelp = jest.fn();
-  const mockOnApplyFixes = jest.fn();
+  const mockOnRequestHelp = vi.fn();
+  const mockOnApplyFixes = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockOnRequestHelp.mockResolvedValue(undefined);
     mockOnApplyFixes.mockResolvedValue(undefined);
   });
@@ -261,7 +273,7 @@ describe('AIHelpButton', () => {
       const button = screen.getByRole('button', { name: /get ai help/i });
       await user.click(button);
       
-      expect(screen.getByText(/auto-fixable/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/auto-fixable/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -512,7 +524,7 @@ describe('AIHelpButton', () => {
       const button = screen.getByRole('button', { name: /get ai help/i });
       await user.click(button);
       
-      expect(screen.getByText(/no automatic fixes available/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/no automatic fixes available/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 

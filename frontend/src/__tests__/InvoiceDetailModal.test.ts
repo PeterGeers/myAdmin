@@ -4,6 +4,7 @@
  */
 
 // Extracted from InvoiceDetailModal.tsx — the props interface
+import { vi } from 'vitest';
 interface InvoiceDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -25,7 +26,7 @@ describe('InvoiceDetailModal', () => {
     it('accepts required props (isOpen, onClose)', () => {
       const props: InvoiceDetailModalProps = {
         isOpen: true,
-        onClose: jest.fn(),
+        onClose: vi.fn(),
       };
       expect(props.isOpen).toBe(true);
       expect(typeof props.onClose).toBe('function');
@@ -34,7 +35,7 @@ describe('InvoiceDetailModal', () => {
     it('accepts optional invoiceId', () => {
       const props: InvoiceDetailModalProps = {
         isOpen: true,
-        onClose: jest.fn(),
+        onClose: vi.fn(),
         invoiceId: 42,
       };
       expect(props.invoiceId).toBe(42);
@@ -43,17 +44,17 @@ describe('InvoiceDetailModal', () => {
     it('accepts null invoiceId for new invoice', () => {
       const props: InvoiceDetailModalProps = {
         isOpen: true,
-        onClose: jest.fn(),
+        onClose: vi.fn(),
         invoiceId: null,
       };
       expect(props.invoiceId).toBeNull();
     });
 
     it('accepts optional onSaved callback', () => {
-      const onSaved = jest.fn();
+      const onSaved = vi.fn();
       const props: InvoiceDetailModalProps = {
         isOpen: true,
-        onClose: jest.fn(),
+        onClose: vi.fn(),
         onSaved,
       };
       expect(props.onSaved).toBe(onSaved);
@@ -62,8 +63,8 @@ describe('InvoiceDetailModal', () => {
 
   describe('invoiceId pass-through to ZZPInvoiceDetail', () => {
     it('passes numeric invoiceId', () => {
-      const onClose = jest.fn();
-      const onSaved = jest.fn();
+      const onClose = vi.fn();
+      const onSaved = vi.fn();
       const result = getInvoiceDetailProps({
         isOpen: true, onClose, invoiceId: 123, onSaved,
       });
@@ -74,22 +75,22 @@ describe('InvoiceDetailModal', () => {
 
     it('passes null invoiceId for new invoice creation', () => {
       const result = getInvoiceDetailProps({
-        isOpen: true, onClose: jest.fn(), invoiceId: null,
+        isOpen: true, onClose: vi.fn(), invoiceId: null,
       });
       expect(result.invoiceId).toBeNull();
     });
 
     it('passes undefined invoiceId when not provided', () => {
       const result = getInvoiceDetailProps({
-        isOpen: true, onClose: jest.fn(),
+        isOpen: true, onClose: vi.fn(),
       });
       expect(result.invoiceId).toBeUndefined();
     });
 
     it('passes onSaved callback through', () => {
-      const onSaved = jest.fn();
+      const onSaved = vi.fn();
       const result = getInvoiceDetailProps({
-        isOpen: true, onClose: jest.fn(), onSaved,
+        isOpen: true, onClose: vi.fn(), onSaved,
       });
       result.onSaved?.();
       expect(onSaved).toHaveBeenCalledTimes(1);
@@ -97,7 +98,7 @@ describe('InvoiceDetailModal', () => {
 
     it('handles missing onSaved gracefully', () => {
       const result = getInvoiceDetailProps({
-        isOpen: true, onClose: jest.fn(),
+        isOpen: true, onClose: vi.fn(),
       });
       expect(result.onSaved).toBeUndefined();
     });

@@ -4,21 +4,28 @@
  * Tests for approve/reject buttons, confirmation dialogs, and notes/reason input.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TemplateApproval } from '../TemplateApproval';
 
 // Mock Chakra UI
-jest.mock('@chakra-ui/react', () => require('../chakraMock').chakraMock);
-jest.mock('@chakra-ui/icons', () => require('../chakraMock').iconsMock);
+vi.mock('@chakra-ui/react', async () => {
+  const { chakraMock } = await import('../chakraMock');
+  return chakraMock;
+});
+vi.mock('@chakra-ui/icons', async () => {
+  const { iconsMock } = await import('../chakraMock');
+  return iconsMock;
+});
 
 describe('TemplateApproval', () => {
-  const mockOnApprove = jest.fn();
-  const mockOnReject = jest.fn();
+  const mockOnApprove = vi.fn();
+  const mockOnReject = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Button Rendering', () => {

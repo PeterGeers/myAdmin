@@ -2,6 +2,7 @@
  * Tests for AuthContext
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -9,24 +10,24 @@ import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import * as authService from '../services/authService';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+vi.mock('aws-amplify/auth');
 
 // Mock authService to prevent infinite loops in AuthContext
-jest.mock('../services/authService', () => ({
-  isAuthenticated: jest.fn(),
-  getCurrentAuthTokens: jest.fn(),
-  getCurrentUserRoles: jest.fn(),
-  getCurrentUserEmail: jest.fn(),
-  getCurrentUserName: jest.fn(),
-  getCurrentUserTenants: jest.fn(),
-  hasRole: jest.fn(),
-  hasAnyRole: jest.fn(),
-  hasAllRoles: jest.fn(),
+vi.mock('../services/authService', () => ({
+  isAuthenticated: vi.fn(),
+  getCurrentAuthTokens: vi.fn(),
+  getCurrentUserRoles: vi.fn(),
+  getCurrentUserEmail: vi.fn(),
+  getCurrentUserName: vi.fn(),
+  getCurrentUserTenants: vi.fn(),
+  hasRole: vi.fn(),
+  hasAnyRole: vi.fn(),
+  hasAllRoles: vi.fn(),
 }));
 
-const mockGetCurrentUser = getCurrentUser as jest.MockedFunction<typeof getCurrentUser>;
-const mockSignOut = signOut as jest.MockedFunction<typeof signOut>;
-const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
+const mockGetCurrentUser = getCurrentUser as vi.MockedFunction<typeof getCurrentUser>;
+const mockSignOut = signOut as vi.MockedFunction<typeof signOut>;
+const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
 
 // Mock JWT token creation
 const createMockToken = (email: string, groups: string[]) => {
@@ -57,28 +58,28 @@ const createMockSession = (token: string) => ({
 const setupAuthenticatedMocks = (user: any, token: string, roles: string[]) => {
   mockGetCurrentUser.mockResolvedValue(user);
   mockFetchAuthSession.mockResolvedValue(createMockSession(token));
-  (authService.isAuthenticated as jest.Mock).mockResolvedValue(true);
-  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(user.signInDetails?.loginId || user.username);
-  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(user.username);
-  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue(roles);
-  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue(['tenant1']);
-  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue({
+  vi.mocked(authService.isAuthenticated).mockResolvedValue(true);
+  vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(user.signInDetails?.loginId || user.username);
+  vi.mocked(authService.getCurrentUserName).mockResolvedValue(user.username);
+  vi.mocked(authService.getCurrentUserRoles).mockResolvedValue(roles);
+  vi.mocked(authService.getCurrentUserTenants).mockResolvedValue(['tenant1']);
+  vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue({
     idToken: token,
     accessToken: token
   });
-  (authService.hasRole as jest.Mock).mockImplementation((userRoles: string[], requiredRole: string) => 
+  vi.mocked(authService.hasRole).mockImplementation((userRoles: string[], requiredRole: string) => 
     roles.includes(requiredRole)
   );
 };
 
 const setupUnauthenticatedMocks = () => {
   mockFetchAuthSession.mockRejectedValue(new Error('Not authenticated'));
-  (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
-  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
-  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+  vi.mocked(authService.isAuthenticated).mockResolvedValue(false);
+  vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserRoles).mockResolvedValue([]);
+  vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserName).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserTenants).mockResolvedValue([]);
 };
 
 // Test component that uses the auth context
@@ -106,20 +107,20 @@ function TestComponent() {
 
 describe('AuthContext', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Setup default mocks for authService to prevent hanging
-    (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
-    (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
-    (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+    vi.mocked(authService.isAuthenticated).mockResolvedValue(false);
+    vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserRoles).mockResolvedValue([]);
+    vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserName).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserTenants).mockResolvedValue([]);
   });
 
   it('should throw error when useAuth is used outside AuthProvider', () => {
     // Suppress console.error for this test
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
 
     expect(() => {
       render(<TestComponent />);
@@ -182,9 +183,9 @@ describe('AuthContext', () => {
 
   it('should handle authentication errors gracefully', async () => {
     mockFetchAuthSession.mockRejectedValue(new Error('Auth error'));
-    (authService.isAuthenticated as jest.Mock).mockRejectedValue(new Error('Auth error'));
+    vi.mocked(authService.isAuthenticated).mockRejectedValue(new Error('Auth error'));
 
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
 
     render(
       <AuthProvider>

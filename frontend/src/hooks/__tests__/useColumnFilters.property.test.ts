@@ -6,6 +6,7 @@
  * @see .kiro/specs/table-filter-framework-v2/design.md — Properties 1 & 2
  */
 
+import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import fc from 'fast-check';
 import { useColumnFilters } from '../useColumnFilters';
@@ -53,7 +54,7 @@ describe('Property 1: Filter Correctness', () => {
           ),
         ),
         ([keys, data, filterValues]) => {
-          jest.useFakeTimers();
+          vi.useFakeTimers();
 
           try {
             const initialFilters = Object.fromEntries(keys.map((k) => [k, '']));
@@ -71,7 +72,7 @@ describe('Property 1: Filter Correctness', () => {
 
             // Advance past debounce
             act(() => {
-              jest.advanceTimersByTime(200);
+              vi.advanceTimersByTime(200);
             });
 
             const filtered = result.current.filteredData;
@@ -89,7 +90,7 @@ describe('Property 1: Filter Correctness', () => {
 
             expect(filtered).toEqual(expected);
           } finally {
-            jest.useRealTimers();
+            vi.useRealTimers();
           }
         },
       ),
@@ -121,7 +122,7 @@ describe('Property 2: Filter Reset Round-Trip', () => {
           ),
         ),
         ([keys, data, filterValues]) => {
-          jest.useFakeTimers();
+          vi.useFakeTimers();
 
           try {
             const initialFilters = Object.fromEntries(keys.map((k) => [k, '']));
@@ -137,7 +138,7 @@ describe('Property 2: Filter Reset Round-Trip', () => {
               }
             });
             act(() => {
-              jest.advanceTimersByTime(200);
+              vi.advanceTimersByTime(200);
             });
 
             // Reset filters
@@ -148,7 +149,7 @@ describe('Property 2: Filter Reset Round-Trip', () => {
             // After reset, filteredData should be identical to original data
             expect(result.current.filteredData).toEqual(data);
           } finally {
-            jest.useRealTimers();
+            vi.useRealTimers();
           }
         },
       ),

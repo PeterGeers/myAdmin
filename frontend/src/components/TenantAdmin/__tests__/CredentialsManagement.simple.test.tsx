@@ -5,12 +5,13 @@
  * Target: 15+ tests
  */
 
+import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth');
+vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
 
 describe('CredentialsManagement Component Logic', () => {
   const mockToken = 'mock-jwt-token';
@@ -35,7 +36,7 @@ describe('CredentialsManagement Component Logic', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     mockFetchAuthSession.mockResolvedValue({
       tokens: {
@@ -45,11 +46,11 @@ describe('CredentialsManagement Component Logic', () => {
       },
     } as any);
 
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // ============================================================================

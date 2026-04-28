@@ -1,11 +1,12 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 // Mock fetch
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 // Mock Recharts
-jest.mock('recharts', () => ({
+vi.mock('recharts', () => ({
   PieChart: () => <div data-testid="pie-chart" />,
   Pie: () => <div data-testid="pie" />,
   Cell: () => <div data-testid="cell" />,
@@ -14,7 +15,7 @@ jest.mock('recharts', () => ({
 }));
 
 // Mock URL for CSV export
-global.URL.createObjectURL = jest.fn(() => 'mock-url');
+global.URL.createObjectURL = vi.fn(() => 'mock-url');
 
 // Simple mock component
 const MockProfitLoss = () => (
@@ -43,7 +44,7 @@ const MockProfitLoss = () => (
 
 describe('ProfitLoss Component', () => {
   beforeEach(() => {
-    (fetch as jest.Mock).mockClear();
+    vi.mocked(fetch).mockClear();
   });
 
   describe('Report Generation', () => {

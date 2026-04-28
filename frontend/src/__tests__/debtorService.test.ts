@@ -1,15 +1,16 @@
 /**
  * Tests for Debtor Service API calls.
  */
+import { vi } from 'vitest';
 import {
   getReceivables, getPayables, getAging,
   sendReminder, runPaymentCheck, getPaymentCheckStatus,
 } from '../services/debtorService';
 
-const mockGet = jest.fn();
-const mockPost = jest.fn();
+const mockGet = vi.fn();
+const mockPost = vi.fn();
 
-jest.mock('../services/apiService', () => ({
+vi.mock('../services/apiService', () => ({
   authenticatedGet: (...args: any[]) => mockGet(...args),
   authenticatedPost: (...args: any[]) => mockPost(...args),
   buildEndpoint: (endpoint: string) => endpoint,
@@ -18,7 +19,7 @@ jest.mock('../services/apiService', () => ({
 const json = (data: any) => ({ json: async () => data });
 
 describe('Debtor Service', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('getReceivables calls correct endpoint', async () => {
     mockGet.mockResolvedValue(json({ success: true, data: [] }));

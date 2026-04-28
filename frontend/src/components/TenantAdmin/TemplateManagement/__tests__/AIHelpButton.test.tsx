@@ -4,6 +4,7 @@
  * Tests for AI assistance modal, fix suggestions, and auto-fix application.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -11,18 +12,24 @@ import { AIHelpButton } from '../AIHelpButton';
 import type { AIHelpResponse } from '../../../../types/template';
 
 // Use centralized Chakra UI mocks
-jest.mock('@chakra-ui/react', () => require('../chakraMock').chakraMock);
-jest.mock('@chakra-ui/icons', () => require('../chakraMock').iconsMock);
+vi.mock('@chakra-ui/react', async () => {
+  const { chakraMock } = await import('../chakraMock');
+  return chakraMock;
+});
+vi.mock('@chakra-ui/icons', async () => {
+  const { iconsMock } = await import('../chakraMock');
+  return iconsMock;
+});
 
 
 
 
 describe('AIHelpButton', () => {
-  const mockOnRequestHelp = jest.fn();
-  const mockOnApplyFixes = jest.fn();
+  const mockOnRequestHelp = vi.fn();
+  const mockOnApplyFixes = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockOnRequestHelp.mockResolvedValue(undefined);
     mockOnApplyFixes.mockResolvedValue(undefined);
   });
