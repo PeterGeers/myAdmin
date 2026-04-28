@@ -41,7 +41,7 @@ Follow the BankingProcessor pattern:
 
 ## Translation (i18n)
 
-- Use `useTypedTranslation(namespace)` from `hooks/useTypedTranslation.ts` — NOT `useTranslation` directly (CRA TypeScript workaround)
+- Use `useTypedTranslation(namespace)` from `hooks/useTypedTranslation.ts` — typed wrapper for `useTranslation` with namespace support
 - All user-facing text uses namespaced keys
 - Key pattern: `{namespace}:{category}.{key}` (e.g., `common:buttons.save`)
 - Categories: `buttons` (actions), `labels` (form fields), `messages` (feedback), `titles` (headings)

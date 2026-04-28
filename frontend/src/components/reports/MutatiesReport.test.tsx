@@ -5,6 +5,7 @@
  * Verifies tenant context integration, validation, auto-refresh, and security.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -13,14 +14,14 @@ import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet } from '../../services/apiService';
 
 // Mock dependencies
-jest.mock('../../context/TenantContext');
-jest.mock('../../services/apiService', () => ({
-  authenticatedGet: jest.fn(),
+vi.mock('../../context/TenantContext');
+vi.mock('../../services/apiService', () => ({
+  authenticatedGet: vi.fn(),
   buildEndpoint: (endpoint: string, params: URLSearchParams) => `${endpoint}?${params.toString()}`
 }));
 
 // Mock FilterableHeader to render a simple <th> with optional filter input
-jest.mock('../filters/FilterableHeader', () => ({
+vi.mock('../filters/FilterableHeader', () => ({
   FilterableHeader: ({ label, filterValue, onFilterChange, onSort, sortable, sortDirection, ...props }: any) => (
     <th data-testid="th" onClick={sortable ? onSort : undefined} {...props}>
       <span>{label}</span>
@@ -38,7 +39,7 @@ jest.mock('../filters/FilterableHeader', () => ({
 }));
 
 // Mock YearFilter to render a simple select
-jest.mock('../filters/YearFilter', () => ({
+vi.mock('../filters/YearFilter', () => ({
   YearFilter: ({ values, onChange, availableOptions, ...props }: any) => (
     <select
       data-testid="year-filter"
@@ -53,7 +54,7 @@ jest.mock('../filters/YearFilter', () => ({
 }));
 
 // Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Alert: ({ children, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,
   AlertIcon: () => <span data-testid="alert-icon">!</span>,
   Button: ({ children, onClick, ...props }: any) => (
@@ -78,8 +79,8 @@ jest.mock('@chakra-ui/react', () => ({
   VStack: ({ children, ...props }: any) => <div data-testid="vstack" {...props}>{children}</div>
 }));
 
-const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
-const mockAuthenticatedGet = authenticatedGet as jest.MockedFunction<typeof authenticatedGet>;
+const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
+const mockAuthenticatedGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
 
 const mockMutatiesData = [
   {
@@ -104,7 +105,7 @@ const mockMutatiesData = [
 
 describe('MutatiesReport', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Default mock response
     mockAuthenticatedGet.mockResolvedValue({
@@ -120,7 +121,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -133,7 +134,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: [],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -146,7 +147,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -163,7 +164,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -180,7 +181,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -202,7 +203,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
       
@@ -228,7 +229,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
     });
@@ -267,7 +268,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
     });
@@ -286,13 +287,13 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
       mockAuthenticatedGet.mockRejectedValue(new Error('API Error'));
       
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
       
       render(<MutatiesReport />);
       
@@ -307,7 +308,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -318,7 +319,7 @@ describe('MutatiesReport', () => {
         })
       } as Response);
       
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
       
       render(<MutatiesReport />);
       
@@ -335,7 +336,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: null,
         availableTenants: [],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -352,7 +353,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 
@@ -376,7 +377,7 @@ describe('MutatiesReport', () => {
       mockUseTenant.mockReturnValue({
         currentTenant: 'TestTenant',
         availableTenants: ['TestTenant'],
-        setCurrentTenant: jest.fn(),
+        setCurrentTenant: vi.fn(),
         hasMultipleTenants: false
       });
 

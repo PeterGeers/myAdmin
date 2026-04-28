@@ -185,7 +185,7 @@ export async function getCurrentUserRoles(): Promise<string[]> {
     try {
       const idToken = tokens.idToken;
       if (idToken) {
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         const tenant = localStorage.getItem('selectedTenant') || '';
         const headers: Record<string, string> = {
           'Authorization': `Bearer ${idToken}`,

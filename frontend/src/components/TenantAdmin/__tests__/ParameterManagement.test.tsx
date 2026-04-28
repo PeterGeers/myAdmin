@@ -17,16 +17,17 @@
  * simple inline wrappers so the modal content renders in the same DOM tree.
  * useDisclosure and useToast are also replaced with stable implementations.
  */
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '../../../test-utils';
 
 /* ------------------------------------------------------------------ */
 /*  Chakra UI mock — render modals inline, stable hooks                */
 /* ------------------------------------------------------------------ */
-const mockToast = jest.fn();
+const mockToast = vi.fn();
 
-jest.mock('@chakra-ui/react', () => {
-  const actual = jest.requireActual('@chakra-ui/react');
+vi.mock('@chakra-ui/react', async () => {
+  const actual = await vi.importActual('@chakra-ui/react');
   const React = require('react');
 
   // Stable useDisclosure that doesn't trigger cascading re-renders
@@ -64,27 +65,27 @@ jest.mock('@chakra-ui/react', () => {
 import ParameterManagement from '../ParameterManagement';
 
 // Mock the parameter service
-jest.mock('../../../services/parameterService', () => ({
-  getParameters: jest.fn(),
-  createParameter: jest.fn(),
-  updateParameter: jest.fn(),
-  deleteParameter: jest.fn(),
-  getParameterDefault: jest.fn(),
+vi.mock('../../../services/parameterService', () => ({
+  getParameters: vi.fn(),
+  createParameter: vi.fn(),
+  updateParameter: vi.fn(),
+  deleteParameter: vi.fn(),
+  getParameterDefault: vi.fn(),
 }));
 
 // Stable translation function reference to prevent useCallback/useEffect loops
-// (must be prefixed with 'mock' to be accessible inside jest.mock())
+// (must be prefixed with 'mock' to be accessible inside vi.mock())
 const mockT = (key: string) => key;
-const mockI18n = { language: 'en', changeLanguage: jest.fn() };
+const mockI18n = { language: 'en', changeLanguage: vi.fn() };
 
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: mockT,
     i18n: mockI18n,
   }),
 }));
 
-jest.mock('../../../hooks/useTableConfig', () => ({
+vi.mock('../../../hooks/useTableConfig', () => ({
   useTableConfig: () => ({
     columns: ['namespace', 'key', 'value', 'value_type', 'scope_origin'],
     filterableColumns: ['namespace', 'key', 'value', 'value_type', 'scope_origin'],
@@ -96,7 +97,7 @@ jest.mock('../../../hooks/useTableConfig', () => ({
 }));
 
 // Mock useColumnFilters to bypass debounce
-jest.mock('../../../hooks/useColumnFilters', () => {
+vi.mock('../../../hooks/useColumnFilters', () => {
   const { useState, useMemo, useCallback } = require('react');
 
   function applyFilters(data: any[], filters: Record<string, string>) {
@@ -131,8 +132,7 @@ jest.mock('../../../hooks/useColumnFilters', () => {
   };
 });
 
-const { getParameters, createParameter, deleteParameter, getParameterDefault } =
-  require('../../../services/parameterService');
+import { getParameters, createParameter, deleteParameter, getParameterDefault } from '../../../services/parameterService';
 
 /* ------------------------------------------------------------------ */
 /*  Test data                                                          */
@@ -158,7 +158,7 @@ const mockParams = {
 
 describe('ParameterManagement', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockToast.mockClear();
     getParameters.mockResolvedValue(mockParams);
   });

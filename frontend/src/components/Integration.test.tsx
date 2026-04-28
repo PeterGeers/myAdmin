@@ -1,9 +1,10 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Mock fetch
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 // Mock parent-child communication
 const ParentComponent = () => {
@@ -103,7 +104,7 @@ const NavigationComponent = () => {
 
 describe('Integration Tests', () => {
   beforeEach(() => {
-    (fetch as jest.Mock).mockClear();
+    vi.mocked(fetch).mockClear();
   });
 
   describe('Parent-child communication', () => {
@@ -138,7 +139,7 @@ describe('Integration Tests', () => {
   describe('API integration', () => {
     it('fetches and displays data', async () => {
       const user = userEvent.setup();
-      (fetch as jest.Mock).mockResolvedValue({
+      vi.mocked(fetch).mockResolvedValue({
         json: () => Promise.resolve({ message: 'API data loaded' })
       });
 
@@ -154,7 +155,7 @@ describe('Integration Tests', () => {
 
     it('handles API errors', async () => {
       const user = userEvent.setup();
-      (fetch as jest.Mock).mockRejectedValue(new Error('API Error'));
+      vi.mocked(fetch).mockRejectedValue(new Error('API Error'));
 
       render(<APIComponent />);
 

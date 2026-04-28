@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -5,18 +6,18 @@ import userEvent from '@testing-library/user-event';
 import App from './App';
 
 // Mock fetch for API calls
-global.fetch = jest.fn(() =>
+global.fetch = vi.fn(() =>
   Promise.resolve({
     json: () => Promise.resolve({ mode: 'Test', database: 'testfinance', folder: 'testFacturen' }),
   })
-) as jest.Mock;
+);
 
 // Mock the entire App component to avoid Chakra UI issues
-jest.mock('./App', () => {
+vi.mock('./App', () => {
   const React = require('react');
   const { useState, useEffect } = React;
   
-  return function MockApp() {
+  function MockApp() {
     const [currentPage, setCurrentPage] = useState('menu');
     const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
 
@@ -103,11 +104,12 @@ jest.mock('./App', () => {
 
     return renderPage();
   };
+  return { default: MockApp };
 });
 
 describe('App Routing', () => {
   beforeEach(() => {
-    (fetch as jest.Mock).mockClear();
+    vi.mocked(fetch).mockClear();
   });
 
   describe('Initial State', () => {

@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -6,8 +7,8 @@ import userEvent from '@testing-library/user-event';
 const MockBankingProcessorWithConfirmation = ({ 
   transactions = [],
   patternResults = null,
-  onSave = jest.fn(),
-  onCancel = jest.fn()
+  onSave = vi.fn(),
+  onCancel = vi.fn()
 }: {
   transactions?: any[];
   patternResults?: any;
@@ -132,7 +133,7 @@ describe('BankingProcessor - Save to Database Confirmation', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Save to Database Button', () => {
@@ -233,7 +234,7 @@ describe('BankingProcessor - Save to Database Confirmation', () => {
   describe('Confirmation Dialog Actions', () => {
     it('closes dialog when cancel button is clicked', async () => {
       const user = userEvent.setup();
-      const onCancel = jest.fn();
+      const onCancel = vi.fn();
       render(
         <MockBankingProcessorWithConfirmation 
           transactions={mockTransactions} 
@@ -252,7 +253,7 @@ describe('BankingProcessor - Save to Database Confirmation', () => {
 
     it('closes dialog when close button (×) is clicked', async () => {
       const user = userEvent.setup();
-      const onCancel = jest.fn();
+      const onCancel = vi.fn();
       render(
         <MockBankingProcessorWithConfirmation 
           transactions={mockTransactions} 
@@ -269,7 +270,7 @@ describe('BankingProcessor - Save to Database Confirmation', () => {
 
     it('closes dialog when overlay is clicked', async () => {
       const user = userEvent.setup();
-      const onCancel = jest.fn();
+      const onCancel = vi.fn();
       render(
         <MockBankingProcessorWithConfirmation 
           transactions={mockTransactions} 
@@ -286,7 +287,7 @@ describe('BankingProcessor - Save to Database Confirmation', () => {
 
     it('calls onSave and closes dialog when confirm button is clicked', async () => {
       const user = userEvent.setup();
-      const onSave = jest.fn().mockResolvedValue(undefined);
+      const onSave = vi.fn().mockResolvedValue(undefined);
       render(
         <MockBankingProcessorWithConfirmation 
           transactions={mockTransactions} 
@@ -310,7 +311,7 @@ describe('BankingProcessor - Save to Database Confirmation', () => {
       const savePromise = new Promise<void>((resolve) => {
         resolvePromise = resolve;
       });
-      const onSave = jest.fn().mockReturnValue(savePromise);
+      const onSave = vi.fn().mockReturnValue(savePromise);
       
       render(
         <MockBankingProcessorWithConfirmation 
@@ -402,7 +403,7 @@ describe('BankingProcessor - Save to Database Confirmation', () => {
   describe('User Experience', () => {
     it('prevents accidental saves by requiring explicit confirmation', async () => {
       const user = userEvent.setup();
-      const onSave = jest.fn();
+      const onSave = vi.fn();
       render(
         <MockBankingProcessorWithConfirmation 
           transactions={mockTransactions} 

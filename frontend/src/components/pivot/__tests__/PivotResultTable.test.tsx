@@ -8,6 +8,7 @@
  * Requirements: 3.4, 3.5, 3.6, 3.7, 3.8, 7.6, 8.1
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -19,7 +20,7 @@ import type { PivotColumnMeta, PivotConfig } from '../../../types/pivot';
 // ---------------------------------------------------------------------------
 
 // Mock PivotExportMenu to avoid API dependencies and test its presence/absence
-jest.mock('../PivotExportMenu', () => ({
+vi.mock('../PivotExportMenu', () => ({
   PivotExportMenu: ({ data, columns }: any) => {
     const hasData = data.length > 0 && columns.length > 0;
     return (
@@ -34,12 +35,12 @@ jest.mock('../PivotExportMenu', () => ({
 }));
 
 // Mock PivotResultTablePivoted to avoid complex rendering in non-pivoted tests
-jest.mock('../PivotResultTablePivoted', () => ({
+vi.mock('../PivotResultTablePivoted', () => ({
   PivotResultTablePivoted: () => <div data-testid="pivoted-table">Pivoted</div>,
   isPivotedResult: (columns: any[]) => columns.some((c: any) => c.pivotValue !== undefined),
 }));
 
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: (key: string, opts?: any) => {
       const map: Record<string, string> = {
@@ -58,7 +59,7 @@ jest.mock('../../../hooks/useTypedTranslation', () => ({
 }));
 
 // Mock FilterableHeader to render a simple <th> with optional filter input
-jest.mock('../../filters/FilterableHeader', () => ({
+vi.mock('../../filters/FilterableHeader', () => ({
   FilterableHeader: ({ label, filterValue, onFilterChange, onSort, sortable, sortDirection, isNumeric, ...props }: any) => (
     <th data-testid={`th-${label}`} onClick={sortable ? onSort : undefined}>
       <span>{label}</span>
@@ -349,7 +350,7 @@ describe('PivotResultTable', () => {
   });
 
   it('calls onNumberFormatChange callback when toggle is clicked', () => {
-    const onFormatChange = jest.fn();
+    const onFormatChange = vi.fn();
 
     render(
       <PivotResultTable

@@ -4,6 +4,7 @@
  * Tests for main container component, state management, and workflow orchestration.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -12,20 +13,26 @@ import * as templateApi from '../../../../services/templateApi';
 import type { PreviewResponse, AIHelpResponse, ApprovalResponse, RejectionResponse } from '../../../../types/template';
 
 // Use centralized Chakra UI mocks
-jest.mock('@chakra-ui/react', () => require('../chakraMock').chakraMock);
-jest.mock('@chakra-ui/icons', () => require('../chakraMock').iconsMock);
+vi.mock('@chakra-ui/react', async () => {
+  const { chakraMock } = await import('../chakraMock');
+  return chakraMock;
+});
+vi.mock('@chakra-ui/icons', async () => {
+  const { iconsMock } = await import('../chakraMock');
+  return iconsMock;
+});
 
 // Mock the template API
-jest.mock('../../../../services/templateApi');
+vi.mock('../../../../services/templateApi');
 
 describe('TemplateManagement', () => {
-  const mockPreviewTemplate = templateApi.previewTemplate as jest.MockedFunction<typeof templateApi.previewTemplate>;
-  const mockApproveTemplate = templateApi.approveTemplate as jest.MockedFunction<typeof templateApi.approveTemplate>;
-  const mockRejectTemplate = templateApi.rejectTemplate as jest.MockedFunction<typeof templateApi.rejectTemplate>;
-  const mockGetAIHelp = templateApi.getAIHelp as jest.MockedFunction<typeof templateApi.getAIHelp>;
+  const mockPreviewTemplate = templateApi.previewTemplate as vi.MockedFunction<typeof templateApi.previewTemplate>;
+  const mockApproveTemplate = templateApi.approveTemplate as vi.MockedFunction<typeof templateApi.approveTemplate>;
+  const mockRejectTemplate = templateApi.rejectTemplate as vi.MockedFunction<typeof templateApi.rejectTemplate>;
+  const mockGetAIHelp = templateApi.getAIHelp as vi.MockedFunction<typeof templateApi.getAIHelp>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Initial Rendering', () => {

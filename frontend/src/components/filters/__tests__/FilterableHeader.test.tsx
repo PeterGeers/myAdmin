@@ -12,11 +12,12 @@
  * Requirements: 12.4
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock Chakra UI components to simplify testing
-jest.mock('@chakra-ui/react', () => {
+vi.mock('@chakra-ui/react', () => {
   const React = require('react');
 
   return {
@@ -114,7 +115,7 @@ jest.mock('@chakra-ui/react', () => {
   };
 });
 
-jest.mock('@chakra-ui/icons', () => {
+vi.mock('@chakra-ui/icons', () => {
   const React = require('react');
   return {
     SearchIcon: (props: any) => <span data-testid="search-icon" {...props}>🔍</span>,
@@ -122,7 +123,7 @@ jest.mock('@chakra-ui/icons', () => {
 });
 
 // Import component after mocks
-// eslint-disable-next-line import/first
+// eslint-disable-next-line import-x/first
 import { FilterableHeader } from '../FilterableHeader';
 
 describe('FilterableHeader', () => {
@@ -173,7 +174,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Name" filterValue="" onFilterChange={jest.fn()} />
+            <FilterableHeader label="Name" filterValue="" onFilterChange={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -201,7 +202,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Name" filterValue="test" onFilterChange={jest.fn()} />
+            <FilterableHeader label="Name" filterValue="test" onFilterChange={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -217,7 +218,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Name" filterValue="" onFilterChange={jest.fn()} />
+            <FilterableHeader label="Name" filterValue="" onFilterChange={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -234,7 +235,7 @@ describe('FilterableHeader', () => {
             <FilterableHeader
               label="Name"
               filterValue=""
-              onFilterChange={jest.fn()}
+              onFilterChange={vi.fn()}
               placeholder="Search names..."
             />
           </tr>
@@ -250,7 +251,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Name" filterValue="john" onFilterChange={jest.fn()} />
+            <FilterableHeader label="Name" filterValue="john" onFilterChange={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -264,7 +265,7 @@ describe('FilterableHeader', () => {
   // -----------------------------------------------------------------------
 
   it('calls onFilterChange on input change', () => {
-    const onFilterChange = jest.fn();
+    const onFilterChange = vi.fn();
     render(
       <table>
         <thead>
@@ -288,7 +289,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable sortDirection="asc" onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable sortDirection="asc" onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -302,7 +303,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable sortDirection="desc" onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable sortDirection="desc" onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -316,7 +317,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable sortDirection={null} onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable sortDirection={null} onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -346,7 +347,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable sortDirection="asc" onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable sortDirection="asc" onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -361,7 +362,7 @@ describe('FilterableHeader', () => {
   // -----------------------------------------------------------------------
 
   it('calls onSort callback on sort click', () => {
-    const onSort = jest.fn();
+    const onSort = vi.fn();
     render(
       <table>
         <thead>
@@ -378,7 +379,7 @@ describe('FilterableHeader', () => {
   });
 
   it('does not call onSort when not sortable', () => {
-    const onSort = jest.fn();
+    const onSort = vi.fn();
     render(
       <table>
         <thead>
@@ -399,7 +400,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -429,7 +430,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -447,7 +448,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Account" filterValue="" onFilterChange={jest.fn()} />
+            <FilterableHeader label="Account" filterValue="" onFilterChange={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -466,7 +467,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable sortDirection="asc" onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable sortDirection="asc" onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -481,7 +482,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable sortDirection="desc" onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable sortDirection="desc" onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -496,7 +497,7 @@ describe('FilterableHeader', () => {
       <table>
         <thead>
           <tr>
-            <FilterableHeader label="Amount" sortable sortDirection={null} onSort={jest.fn()} />
+            <FilterableHeader label="Amount" sortable sortDirection={null} onSort={vi.fn()} />
           </tr>
         </thead>
       </table>,
@@ -582,10 +583,10 @@ describe('FilterableHeader', () => {
             <FilterableHeader
               label="Account"
               filterValue="test"
-              onFilterChange={jest.fn()}
+              onFilterChange={vi.fn()}
               sortable
               sortDirection="asc"
-              onSort={jest.fn()}
+              onSort={vi.fn()}
             />
           </tr>
         </thead>

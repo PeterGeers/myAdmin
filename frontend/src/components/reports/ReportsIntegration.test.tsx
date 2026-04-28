@@ -5,9 +5,10 @@
  * and can be imported without errors.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 
-jest.mock('@chakra-ui/icons', () => ({
+vi.mock('@chakra-ui/icons', () => ({
   ChevronDownIcon: () => <span>▼</span>,
   ChevronUpIcon: () => <span>▲</span>,
   CloseIcon: () => <span>✕</span>,
@@ -28,7 +29,7 @@ import BtwReport from './BtwReport';
 import ReferenceAnalysisReport from './ReferenceAnalysisReport';
 import AangifteIbReport from './AangifteIbReport';
 
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: 'div', VStack: 'div', Tabs: 'div', TabList: 'div', Tab: 'button',
   TabPanels: 'div', TabPanel: 'div', Button: 'button', Input: 'input',
   Select: 'select', Text: 'span', Heading: 'h1', Flex: 'div', Stack: 'div',
@@ -36,8 +37,8 @@ jest.mock('@chakra-ui/react', () => ({
   Tr: 'tr', Th: 'th', Td: 'td',
 }));
 
-jest.mock('axios');
-jest.mock('react-plotly.js', () => () => null);
+vi.mock('axios');
+vi.mock('../PlotlyChart', () => () => null);
 
 describe('Reports Integration Tests', () => {
   describe('Component Imports', () => {

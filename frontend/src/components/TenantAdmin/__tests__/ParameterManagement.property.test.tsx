@@ -22,6 +22,7 @@
  * For async rendering tests we use fc.sample + loop (renderHook is async and
  * fast-check's property callback is sync).
  */
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, cleanup } from '../../../test-utils';
 import fc from 'fast-check';
@@ -29,10 +30,10 @@ import fc from 'fast-check';
 /* ------------------------------------------------------------------ */
 /*  Chakra UI mock — render modals inline, stable hooks                */
 /* ------------------------------------------------------------------ */
-const mockToast = jest.fn();
+const mockToast = vi.fn();
 
-jest.mock('@chakra-ui/react', () => {
-  const actual = jest.requireActual('@chakra-ui/react');
+vi.mock('@chakra-ui/react', async () => {
+  const actual = await vi.importActual('@chakra-ui/react');
   const React = require('react');
 
   function useDisclosure() {
@@ -69,22 +70,22 @@ import ParameterManagement from '../ParameterManagement';
 /* ------------------------------------------------------------------ */
 /*  Service mock                                                       */
 /* ------------------------------------------------------------------ */
-jest.mock('../../../services/parameterService', () => ({
-  getParameters: jest.fn(),
-  createParameter: jest.fn(),
-  updateParameter: jest.fn(),
-  deleteParameter: jest.fn(),
-  getParameterDefault: jest.fn(),
+vi.mock('../../../services/parameterService', () => ({
+  getParameters: vi.fn(),
+  createParameter: vi.fn(),
+  updateParameter: vi.fn(),
+  deleteParameter: vi.fn(),
+  getParameterDefault: vi.fn(),
 }));
 
 const mockT = (key: string) => key;
-const mockI18n = { language: 'en', changeLanguage: jest.fn() };
+const mockI18n = { language: 'en', changeLanguage: vi.fn() };
 
-jest.mock('../../../hooks/useTypedTranslation', () => ({
+vi.mock('../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({ t: mockT, i18n: mockI18n }),
 }));
 
-jest.mock('../../../hooks/useTableConfig', () => ({
+vi.mock('../../../hooks/useTableConfig', () => ({
   useTableConfig: () => ({
     columns: ['namespace', 'key', 'value', 'value_type', 'scope_origin'],
     filterableColumns: ['namespace', 'key', 'value', 'value_type', 'scope_origin'],
@@ -95,7 +96,7 @@ jest.mock('../../../hooks/useTableConfig', () => ({
   }),
 }));
 
-jest.mock('../../../hooks/useColumnFilters', () => {
+vi.mock('../../../hooks/useColumnFilters', () => {
   const { useState, useMemo, useCallback } = require('react');
 
   function applyFilters(data: any[], filters: Record<string, string>) {
@@ -130,8 +131,7 @@ jest.mock('../../../hooks/useColumnFilters', () => {
   };
 });
 
-const { getParameters, getParameterDefault, deleteParameter } =
-  require('../../../services/parameterService');
+import { getParameters, getParameterDefault, deleteParameter } from '../../../services/parameterService';
 
 /* ------------------------------------------------------------------ */
 /*  Generators                                                         */
@@ -220,7 +220,7 @@ describe('Feature: parameter-reset-to-default, Property 2: Modal Footer Button D
     );
 
     for (const param of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockToast.mockClear();
 
       await renderWithParam(param);
@@ -267,7 +267,7 @@ describe('Feature: parameter-reset-to-default, Property 3: Confirmation Dialog I
     );
 
     for (const { namespace, key, currentValue, defaultValue } of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockToast.mockClear();
 
       const param = {
@@ -344,7 +344,7 @@ describe('Feature: parameter-reset-to-default, Property 4: JSON Values Formatted
     );
 
     for (const { namespace, key, currentJson, defaultJson } of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockToast.mockClear();
 
       const param = {
@@ -408,7 +408,7 @@ describe('Feature: parameter-reset-to-default, Property 5: Modal Mode Matches Pa
     );
 
     for (const { namespace, key, scope_origin, has_code_default } of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockToast.mockClear();
 
       const param = {
@@ -481,7 +481,7 @@ describe('Feature: parameter-reset-to-default, Property 6: JSON Validation Contr
     };
 
     for (const { input, shouldBeValid } of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockToast.mockClear();
 
       await renderWithParam(param);
@@ -542,7 +542,7 @@ describe('Feature: parameter-reset-to-default, Property 7: JSON Format Button Id
     };
 
     for (const jsonObj of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockToast.mockClear();
 
       await renderWithParam(param);
@@ -601,7 +601,7 @@ describe('Feature: parameter-reset-to-default, Property 7: JSON Format Button Id
     };
 
     for (const invalidJson of inputs) {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockToast.mockClear();
 
       await renderWithParam(param);

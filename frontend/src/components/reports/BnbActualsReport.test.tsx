@@ -5,6 +5,7 @@
  * Verifies multi-select filters, view type switching, and data visualization.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -13,24 +14,26 @@ import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 
 // Mock dependencies
-jest.mock('../../context/TenantContext');
-jest.mock('../../services/apiService');
-jest.mock('../../hooks/useTypedTranslation', () => ({
+vi.mock('../../context/TenantContext');
+vi.mock('../../services/apiService');
+vi.mock('../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: jest.fn() }
+    i18n: { language: 'en', changeLanguage: vi.fn() }
   })
 }));
 
 // Mock BnbYearMonthMatrix sub-component
-jest.mock('./BnbYearMonthMatrix', () => {
-  return function MockBnbYearMonthMatrix() {
-    return <div data-testid="bnb-year-month-matrix" />;
+vi.mock('./BnbYearMonthMatrix', () => {
+  return {
+    default: function MockBnbYearMonthMatrix() {
+      return <div data-testid="bnb-year-month-matrix" />;
+    },
   };
 });
 
 // Mock Chakra UI components
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Button: ({ children, onClick, ...props }: any) => (
     <button data-testid="button" onClick={onClick} {...props}>{children}</button>
   ),
@@ -73,7 +76,7 @@ jest.mock('@chakra-ui/react', () => ({
 }));
 
 // Mock Recharts components
-jest.mock('recharts', () => ({
+vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
   PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
   Pie: () => <div data-testid="pie" />,
@@ -90,7 +93,7 @@ jest.mock('recharts', () => ({
 }));
 
 // Mock FilterPanel
-jest.mock('../filters/FilterPanel', () => ({
+vi.mock('../filters/FilterPanel', () => ({
   FilterPanel: function MockFilterPanel(props: any) {
     return (
       <div data-testid="filter-panel">
@@ -141,9 +144,9 @@ jest.mock('../filters/FilterPanel', () => ({
   }
 }));
 
-const mockUseTenant = useTenant as jest.MockedFunction<typeof useTenant>;
-const mockAuthenticatedGet = authenticatedGet as jest.MockedFunction<typeof authenticatedGet>;
-const mockBuildEndpoint = buildEndpoint as jest.MockedFunction<typeof buildEndpoint>;
+const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
+const mockAuthenticatedGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
+const mockBuildEndpoint = buildEndpoint as vi.MockedFunction<typeof buildEndpoint>;
 
 const mockBnbListingData = [
   {
@@ -193,12 +196,12 @@ const mockBnbChannelData = [
 
 describe('BnbActualsReport', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     mockUseTenant.mockReturnValue({
       currentTenant: 'TestTenant',
       availableTenants: ['TestTenant'],
-      setCurrentTenant: jest.fn(),
+      setCurrentTenant: vi.fn(),
       hasMultipleTenants: false
     });
 

@@ -1,17 +1,18 @@
 /**
  * Tests for ZZP Invoice Service API calls.
  */
+import { vi } from 'vitest';
 import {
   getInvoices, getInvoice, createInvoice, updateInvoice,
   sendInvoice, createCreditNote, getInvoicePdf, copyLastInvoice,
   createInvoiceFromTimeEntries,
 } from '../services/zzpInvoiceService';
 
-const mockGet = jest.fn();
-const mockPost = jest.fn();
-const mockPut = jest.fn();
+const mockGet = vi.fn();
+const mockPost = vi.fn();
+const mockPut = vi.fn();
 
-jest.mock('../services/apiService', () => ({
+vi.mock('../services/apiService', () => ({
   authenticatedGet: (...args: any[]) => mockGet(...args),
   authenticatedPost: (...args: any[]) => mockPost(...args),
   authenticatedPut: (...args: any[]) => mockPut(...args),
@@ -25,7 +26,7 @@ jest.mock('../services/apiService', () => ({
 const json = (data: any) => ({ json: async () => data });
 
 describe('ZZP Invoice Service', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('getInvoices without filters', async () => {
     mockGet.mockResolvedValue(json({ success: true, data: [] }));

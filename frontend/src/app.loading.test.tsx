@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 
@@ -28,7 +29,7 @@ const MockAppWithLoading = ({ isLoading = false, hasError = false }) => {
 
 // Mock fetch for API calls
 const mockFetch = (response: any, delay = 0) => {
-  global.fetch = jest.fn(() =>
+  global.fetch = vi.fn(() =>
     new Promise((resolve) =>
       setTimeout(() => resolve({
         ok: true,
@@ -40,11 +41,11 @@ const mockFetch = (response: any, delay = 0) => {
 
 describe('App Loading States', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('Initial Loading Behavior', () => {

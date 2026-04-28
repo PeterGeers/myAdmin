@@ -3,6 +3,7 @@
  * Validates that all API calls in components have corresponding backend routes
  */
 
+import { vi } from 'vitest';
 const API_ENDPOINTS = [
   '/api/test',
   '/api/reports/mutaties-table',
@@ -27,16 +28,16 @@ describe('API Alignment Tests', () => {
   const BASE_URL = 'http://localhost:5000';
   
   beforeAll(() => {
-    global.fetch = jest.fn();
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   describe('API Endpoint Validation', () => {
     it.each(API_ENDPOINTS)('should have working endpoint: %s', async (endpoint) => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      vi.mocked(global.fetch).mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: {

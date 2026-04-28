@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -189,12 +190,12 @@ const MockBankingProcessor = ({
 };
 
 // Mock fetch
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 describe('Banking Processor', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockResolvedValue({
+    vi.clearAllMocks();
+    vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ success: true, data: [] })
     });
@@ -403,7 +404,7 @@ describe('Banking Processor', () => {
       const user = userEvent.setup();
       
       // Mock fetch to return pattern suggestions
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           success: true,
@@ -435,7 +436,7 @@ describe('Banking Processor', () => {
       const user = userEvent.setup();
       
       // Mock the pattern suggestion flow
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           success: true,
@@ -471,7 +472,7 @@ describe('Banking Processor', () => {
       const user = userEvent.setup();
       
       // Mock the pattern suggestion flow
-      global.fetch = jest.fn().mockResolvedValue({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           success: true,

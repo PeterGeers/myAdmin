@@ -4,6 +4,7 @@
  * Tests the integration between TemplateUpload component and validation/preview flow
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -11,10 +12,10 @@ import { TemplateUpload } from '../components/TenantAdmin/TemplateManagement/Tem
 import * as templateApi from '../services/templateApi';
 
 // Mock the template API
-jest.mock('../services/templateApi', () => ({
-  getCurrentTemplate: jest.fn(),
-  downloadDefaultTemplate: jest.fn(),
-  deleteTenantTemplate: jest.fn(),
+vi.mock('../services/templateApi', () => ({
+  getCurrentTemplate: vi.fn(),
+  downloadDefaultTemplate: vi.fn(),
+  deleteTenantTemplate: vi.fn(),
   TemplateType: {
     STR_INVOICE_NL: 'str_invoice_nl',
     STR_INVOICE_EN: 'str_invoice_en',
@@ -26,7 +27,7 @@ jest.mock('../services/templateApi', () => ({
 }));
 
 // Mock Chakra UI
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: ({ children, ...props }: any) => {
     const { bg, p, borderRadius, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
@@ -117,26 +118,26 @@ jest.mock('@chakra-ui/react', () => ({
   Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
   useDisclosure: () => ({
     isOpen: true,
-    onOpen: jest.fn(),
-    onClose: jest.fn(),
-    onToggle: jest.fn(),
+    onOpen: vi.fn(),
+    onClose: vi.fn(),
+    onToggle: vi.fn(),
   }),
-  useToast: () => jest.fn(),
+  useToast: () => vi.fn(),
 }));
 
 describe('Template Upload Integration Tests', () => {
-  const mockOnUpload = jest.fn();
-  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as jest.MockedFunction<typeof templateApi.getCurrentTemplate>;
+  const mockOnUpload = vi.fn();
+  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as vi.MockedFunction<typeof templateApi.getCurrentTemplate>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Mock getCurrentTemplate to throw error (404) when no template found
     mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
   });
 
   afterEach(() => {
-    jest.clearAllTimers();
+    vi.clearAllTimers();
   });
 
   describe('Complete Upload Flow', () => {

@@ -1,19 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ChakraProvider, Box, VStack, Heading, Button, HStack, Flex, Text, Alert, AlertIcon, AlertDescription, CloseButton, Link as ChakraLink } from '@chakra-ui/react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { ChakraProvider, Box, VStack, Heading, Button, HStack, Flex, Text, Alert, AlertIcon, AlertDescription, CloseButton, Link as ChakraLink, Spinner } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
-import PDFUploadForm from './components/PDFUploadForm';
-import BankingProcessor from './components/BankingProcessor';
-import STRProcessor from './components/STRProcessor';
-import STRInvoice from './components/STRInvoice';
-import STRPricing from './components/STRPricing';
-import FINReports from './components/FINReports';
-import AssetList from './components/Assets/AssetList';
-import ZZPContacts from './pages/ZZPContacts';
-import ZZPProducts from './pages/ZZPProducts';
-import ZZPInvoices from './pages/ZZPInvoices';
-import ZZPTimeTracking from './pages/ZZPTimeTracking';
-import ZZPDebtors from './pages/ZZPDebtors';
-import STRReports from './components/STRReports';
+// Critical path — keep eagerly loaded
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 import TenantSelector from './components/TenantSelector';
@@ -23,12 +11,44 @@ import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TenantProvider } from './context/TenantContext';
 import { useTenantModules } from './hooks/useTenantModules';
-import { TenantAdminDashboard } from './components/TenantAdmin/TenantAdminDashboard';
-import { SysAdminDashboard } from './components/SysAdmin/SysAdminDashboard';
-import MigrationTool from './pages/MigrationTool';
-import PasskeySettings from './components/settings/PasskeySettings';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 import { HelpButton } from './components/help';
+import { buildApiUrl } from './config';
+
+// FIN module pages
+const PDFUploadForm = lazy(() => import('./components/PDFUploadForm'));
+const BankingProcessor = lazy(() => import('./components/BankingProcessor'));
+const FINReports = lazy(() => import('./components/FINReports'));
+const AssetList = lazy(() => import('./components/Assets/AssetList'));
+
+// STR module pages
+const STRProcessor = lazy(() => import('./components/STRProcessor'));
+const STRInvoice = lazy(() => import('./components/STRInvoice'));
+const STRPricing = lazy(() => import('./components/STRPricing'));
+const STRReports = lazy(() => import('./components/STRReports'));
+
+// ZZP module pages
+const ZZPContacts = lazy(() => import('./pages/ZZPContacts'));
+const ZZPProducts = lazy(() => import('./pages/ZZPProducts'));
+const ZZPInvoices = lazy(() => import('./pages/ZZPInvoices'));
+const ZZPTimeTracking = lazy(() => import('./pages/ZZPTimeTracking'));
+const ZZPDebtors = lazy(() => import('./pages/ZZPDebtors'));
+
+// Admin pages (named exports)
+const TenantAdminDashboard = lazy(() =>
+  import('./components/TenantAdmin/TenantAdminDashboard').then(m => ({
+    default: m.TenantAdminDashboard,
+  }))
+);
+const SysAdminDashboard = lazy(() =>
+  import('./components/SysAdmin/SysAdminDashboard').then(m => ({
+    default: m.SysAdminDashboard,
+  }))
+);
+
+// Admin pages (default exports)
+const MigrationTool = lazy(() => import('./pages/MigrationTool'));
+const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
 
 type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors';
 
@@ -65,12 +85,10 @@ function AppContent() {
   };
 
   useEffect(() => {
-    import('./config').then(({ buildApiUrl }) => {
-      fetch(buildApiUrl('/api/status'))
-        .then(res => res.json())
-        .then(data => setStatus(data))
-        .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));
-    });
+    fetch(buildApiUrl('/api/status'))
+      .then(res => res.json())
+      .then(data => setStatus(data))
+      .catch(() => setStatus({ mode: 'Production', database: 'finance', folder: 'Facturen' }));
   }, []);
 
   // Redirect to menu if user loses module access after tenant switch
@@ -501,7 +519,23 @@ function AppContent() {
     }
   };
 
-  return renderPage();
+  return (
+    <Suspense
+      fallback={
+        <Box
+          minH="100vh"
+          bg="gray.900"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Spinner size="xl" color="orange.400" thickness="4px" />
+        </Box>
+      }
+    >
+      {renderPage()}
+    </Suspense>
+  );
 }
 
 function App() {

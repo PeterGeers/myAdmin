@@ -5,25 +5,26 @@
  * Requirements: 6.8, 6.9
  */
 
+import { vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useTableConfig, DEFAULTS, TableEntity } from '../useTableConfig';
 import * as parameterService from '../../services/parameterService';
 
 // Mock the parameter service
-jest.mock('../../services/parameterService');
-const mockGetParameters = parameterService.getParameters as jest.MockedFunction<
+vi.mock('../../services/parameterService');
+const mockGetParameters = parameterService.getParameters as vi.MockedFunction<
   typeof parameterService.getParameters
 >;
 
 // Suppress console.error in tests that trigger error paths
-const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 afterAll(() => {
   consoleSpy.mockRestore();
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 // ---------------------------------------------------------------------------

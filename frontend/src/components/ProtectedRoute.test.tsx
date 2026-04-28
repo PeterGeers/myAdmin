@@ -2,44 +2,49 @@
  * Tests for ProtectedRoute Component
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ProtectedRoute from './ProtectedRoute';
 
 // Mock the auth context
-jest.mock('../context/AuthContext', () => ({
-  ...jest.requireActual('../context/AuthContext'),
-  useAuth: jest.fn(),
+vi.mock('../context/AuthContext', async () => ({
+  ...await vi.importActual('../context/AuthContext'),
+  useAuth: vi.fn(),
 }));
 
 // Mock the Login and Unauthorized pages
-jest.mock('../pages/Login', () => {
-  return function MockLogin() {
-    return <div data-testid="login-page">Login Page</div>;
+vi.mock('../pages/Login', () => {
+  return {
+    default: function MockLogin() {
+      return <div data-testid="login-page">Login Page</div>;
+    },
   };
 });
 
-jest.mock('../pages/Unauthorized', () => {
-  return function MockUnauthorized() {
-    return <div data-testid="unauthorized-page">Unauthorized Page</div>;
+vi.mock('../pages/Unauthorized', () => {
+  return {
+    default: function MockUnauthorized() {
+      return <div data-testid="unauthorized-page">Unauthorized Page</div>;
+    },
   };
 });
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth', () => ({
-  getCurrentUser: jest.fn(),
-  signOut: jest.fn(),
-  fetchAuthSession: jest.fn(),
+vi.mock('aws-amplify/auth', () => ({
+  getCurrentUser: vi.fn(),
+  signOut: vi.fn(),
+  fetchAuthSession: vi.fn(),
 }));
 
-const { useAuth } = require('../context/AuthContext');
+import { useAuth } from '../context/AuthContext';
 
 describe('ProtectedRoute', () => {
   const mockChild = <div data-testid="protected-content">Protected Content</div>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should show loading state when authentication is loading', () => {
@@ -47,7 +52,7 @@ describe('ProtectedRoute', () => {
       isAuthenticated: false,
       loading: true,
       user: null,
-      hasAnyRole: jest.fn(),
+      hasAnyRole: vi.fn(),
     });
 
     const { container } = render(
@@ -63,7 +68,7 @@ describe('ProtectedRoute', () => {
       isAuthenticated: false,
       loading: false,
       user: null,
-      hasAnyRole: jest.fn(),
+      hasAnyRole: vi.fn(),
     });
 
     render(
@@ -79,7 +84,7 @@ describe('ProtectedRoute', () => {
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Administrators'] },
-      hasAnyRole: jest.fn(() => true),
+      hasAnyRole: vi.fn(() => true),
     });
 
     render(
@@ -95,7 +100,7 @@ describe('ProtectedRoute', () => {
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Administrators'] },
-      hasAnyRole: jest.fn((roles) => roles.includes('Administrators')),
+      hasAnyRole: vi.fn((roles) => roles.includes('Administrators')),
     });
 
     render(
@@ -113,7 +118,7 @@ describe('ProtectedRoute', () => {
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Viewers'] },
-      hasAnyRole: jest.fn((roles) => !roles.includes('Administrators')),
+      hasAnyRole: vi.fn((roles) => !roles.includes('Administrators')),
     });
 
     render(
@@ -131,7 +136,7 @@ describe('ProtectedRoute', () => {
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Accountants'] },
-      hasAnyRole: jest.fn((roles) => roles.includes('Accountants')),
+      hasAnyRole: vi.fn((roles) => roles.includes('Accountants')),
     });
 
     render(

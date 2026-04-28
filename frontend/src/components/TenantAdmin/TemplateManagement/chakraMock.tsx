@@ -1,6 +1,7 @@
 // Mock Chakra UI components to avoid dependency issues
 // This removes Chakra-specific props before passing to DOM elements
 import React from 'react';
+import { vi } from 'vitest';
 
 export const chakraMock = {
   ChakraProvider: ({ children }: any) => <div>{children}</div>,
@@ -43,13 +44,13 @@ export const chakraMock = {
     return <input {...domProps} />;
   },
   Textarea: ({ ...props }: any) => {
-    const { bg, fontFamily, fontSize, ...domProps } = props;
-    return <textarea {...domProps} />;
+    const { bg, fontFamily, fontSize, isDisabled, minHeight, whiteSpace, overflowX, resize, ...domProps } = props;
+    return <textarea disabled={isDisabled} {...domProps} />;
   },
   Select: ({ children, ...props }: any) => {
-    const { placeholder, ...domProps } = props;
+    const { placeholder, isDisabled, ...domProps } = props;
     return (
-      <select {...domProps}>
+      <select disabled={isDisabled} {...domProps}>
         {placeholder && <option value="">{placeholder}</option>}
         {children}
       </select>
@@ -185,12 +186,12 @@ export const chakraMock = {
     const [isOpen, setIsOpen] = React.useState(options?.defaultIsOpen ?? false);
     return {
       isOpen,
-      onOpen: jest.fn(() => setIsOpen(true)),
-      onClose: jest.fn(() => setIsOpen(false)),
-      onToggle: jest.fn(() => setIsOpen(!isOpen)),
+      onOpen: vi.fn(() => setIsOpen(true)),
+      onClose: vi.fn(() => setIsOpen(false)),
+      onToggle: vi.fn(() => setIsOpen(!isOpen)),
     };
   },
-  useToast: () => jest.fn(),
+  useToast: () => vi.fn(),
 };
 
 export const iconsMock = {

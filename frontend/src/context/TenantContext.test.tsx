@@ -2,13 +2,14 @@
  * Tests for TenantContext
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { TenantProvider, useTenant } from './TenantContext';
 
 // Mock AuthContext
-jest.mock('./AuthContext', () => ({
-  ...jest.requireActual('./AuthContext'),
+vi.mock('./AuthContext', async () => ({
+  ...await vi.importActual('./AuthContext'),
   useAuth: () => ({
     user: {
       username: 'testuser',
@@ -19,12 +20,12 @@ jest.mock('./AuthContext', () => ({
     },
     loading: false,
     isAuthenticated: true,
-    logout: jest.fn(),
-    refreshUserRoles: jest.fn(),
-    hasRole: jest.fn(),
-    hasAnyRole: jest.fn(),
-    hasAllRoles: jest.fn(),
-    validateRoles: jest.fn()
+    logout: vi.fn(),
+    refreshUserRoles: vi.fn(),
+    hasRole: vi.fn(),
+    hasAnyRole: vi.fn(),
+    hasAllRoles: vi.fn(),
+    validateRoles: vi.fn()
   })
 }));
 

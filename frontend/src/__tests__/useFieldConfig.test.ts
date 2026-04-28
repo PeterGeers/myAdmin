@@ -3,26 +3,27 @@
  * Tests the isVisible/isRequired helpers directly since Chakra UI
  * component rendering is complex to mock in this project.
  */
+import { vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useFieldConfig } from '../hooks/useFieldConfig';
 
-jest.mock('../services/fieldConfigService', () => ({
-  getFieldConfig: jest.fn(),
+vi.mock('../services/fieldConfigService', () => ({
+  getFieldConfig: vi.fn(),
 }));
 
 import { getFieldConfig } from '../services/fieldConfigService';
 
 describe('useFieldConfig', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('returns loading true initially', () => {
-    (getFieldConfig as jest.Mock).mockReturnValue(new Promise(() => {})); // never resolves
+    vi.mocked(getFieldConfig).mockReturnValue(new Promise(() => {})); // never resolves
     const { result } = renderHook(() => useFieldConfig('contacts'));
     expect(result.current.loading).toBe(true);
   });
 
   it('loads config and exposes isVisible/isRequired', async () => {
-    (getFieldConfig as jest.Mock).mockResolvedValue({
+    vi.mocked(getFieldConfig).mockResolvedValue({
       success: true,
       data: { client_id: 'required', vat_number: 'hidden', phone: 'optional' },
     });
@@ -39,7 +40,7 @@ describe('useFieldConfig', () => {
   });
 
   it('sets error on failed response', async () => {
-    (getFieldConfig as jest.Mock).mockResolvedValue({
+    vi.mocked(getFieldConfig).mockResolvedValue({
       success: false,
       error: 'Not found',
     });
@@ -51,7 +52,7 @@ describe('useFieldConfig', () => {
   });
 
   it('sets error on exception', async () => {
-    (getFieldConfig as jest.Mock).mockRejectedValue(new Error('Network error'));
+    vi.mocked(getFieldConfig).mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useFieldConfig('invoices'));
 

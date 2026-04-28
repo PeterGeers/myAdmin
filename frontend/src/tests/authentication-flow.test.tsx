@@ -9,6 +9,7 @@
  * - Token expiration
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -18,39 +19,43 @@ import { getCurrentUser, signOut, fetchAuthSession } from 'aws-amplify/auth';
 import * as authService from '../services/authService';
 
 // Mock AWS Amplify
-jest.mock('aws-amplify/auth', () => ({
-  getCurrentUser: jest.fn(),
-  signOut: jest.fn(),
-  fetchAuthSession: jest.fn(),
-  resetPassword: jest.fn(),
-  confirmResetPassword: jest.fn(),
-  confirmSignIn: jest.fn(),
+vi.mock('aws-amplify/auth', () => ({
+  getCurrentUser: vi.fn(),
+  signOut: vi.fn(),
+  signIn: vi.fn(),
+  signInWithRedirect: vi.fn(),
+  fetchAuthSession: vi.fn(),
+  resetPassword: vi.fn(),
+  confirmResetPassword: vi.fn(),
+  confirmSignIn: vi.fn(),
 }));
 
 // Mock authService to prevent infinite loops in AuthContext
-jest.mock('../services/authService', () => ({
-  isAuthenticated: jest.fn(),
-  getCurrentAuthTokens: jest.fn(),
-  getCurrentUserRoles: jest.fn(),
-  getCurrentUserEmail: jest.fn(),
-  getCurrentUserName: jest.fn(),
-  getCurrentUserTenants: jest.fn(),
-  hasRole: jest.fn(),
-  hasAnyRole: jest.fn(),
-  hasAllRoles: jest.fn(),
-  signInWithPassword: jest.fn(),
-  signInWithPasskey: jest.fn(),
-  isPasskeySupported: jest.fn().mockReturnValue(true),
+vi.mock('../services/authService', () => ({
+  isAuthenticated: vi.fn(),
+  getCurrentAuthTokens: vi.fn(),
+  getCurrentUserRoles: vi.fn(),
+  getCurrentUserEmail: vi.fn(),
+  getCurrentUserName: vi.fn(),
+  getCurrentUserTenants: vi.fn(),
+  hasRole: vi.fn(),
+  hasAnyRole: vi.fn(),
+  hasAllRoles: vi.fn(),
+  decodeJWTPayload: vi.fn(),
+  validateRoleCombinations: vi.fn(),
+  signInWithPassword: vi.fn(),
+  signInWithPasskey: vi.fn(),
+  isPasskeySupported: vi.fn().mockReturnValue(true),
 }));
 
 // Mock react-i18next — t() returns the key as-is
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', changeLanguage: jest.fn() } }),
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', changeLanguage: vi.fn() } }),
   Trans: ({ children }: any) => children,
 }));
 
 // Mock Chakra UI components to avoid dependency issues
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   ChakraProvider: ({ children }: any) => <div>{children}</div>,
   Box: ({ children, as: As, onSubmit, ...props }: any) => {
     const { bg, p, spacing, borderRadius, boxShadow, minH, alignItems, justifyContent, display, px, maxW, ...domProps } = props;
@@ -103,7 +108,21 @@ jest.mock('@chakra-ui/react', () => ({
   Input: ({ value, onChange, type, placeholder, disabled, ...props }: any) => (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} aria-label={placeholder} />
   ),
-  useToast: () => jest.fn(),
+  InputGroup: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  InputRightElement: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  IconButton: ({ 'aria-label': ariaLabel, onClick, icon, ...props }: any) => (
+    <button aria-label={ariaLabel} onClick={onClick}>{icon || 'icon-btn'}</button>
+  ),
+  useToast: () => vi.fn(),
+}));
+
+// Mock @chakra-ui/icons
+vi.mock('@chakra-ui/icons', () => ({
+  ViewIcon: () => <span>👁</span>,
+  ViewOffIcon: () => <span>👁‍🗨</span>,
+  LockIcon: () => <span>🔒</span>,
+  WarningIcon: { name: 'WarningIcon' },
+  CheckCircleIcon: { name: 'CheckCircleIcon' },
 }));
 
 // Mock user data
@@ -159,38 +178,38 @@ const createMockSession = (token: string) => ({
 
 // Helper function to setup authenticated mocks
 const setupAuthenticatedMocks = (user: any, token: string, roles: string[]) => {
-  (getCurrentUser as jest.Mock).mockResolvedValue(user);
-  (fetchAuthSession as jest.Mock).mockResolvedValue(createMockSession(token));
-  (authService.isAuthenticated as jest.Mock).mockResolvedValue(true);
-  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(user.signInDetails.loginId);
-  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(user.username);
-  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue(roles);
-  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue(['tenant1']);
-  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue({
+  vi.mocked(getCurrentUser).mockResolvedValue(user);
+  vi.mocked(fetchAuthSession).mockResolvedValue(createMockSession(token));
+  vi.mocked(authService.isAuthenticated).mockResolvedValue(true);
+  vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(user.signInDetails.loginId);
+  vi.mocked(authService.getCurrentUserName).mockResolvedValue(user.username);
+  vi.mocked(authService.getCurrentUserRoles).mockResolvedValue(roles);
+  vi.mocked(authService.getCurrentUserTenants).mockResolvedValue(['tenant1']);
+  vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue({
     idToken: token,
     accessToken: token
   });
   
   // Mock role checking functions
-  (authService.hasRole as jest.Mock).mockImplementation((userRoles: string[], requiredRole: string) => 
+  vi.mocked(authService.hasRole).mockImplementation((userRoles: string[], requiredRole: string) => 
     roles.includes(requiredRole)
   );
-  (authService.hasAnyRole as jest.Mock).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
+  vi.mocked(authService.hasAnyRole).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
     requiredRoles.some(role => roles.includes(role))
   );
-  (authService.hasAllRoles as jest.Mock).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
+  vi.mocked(authService.hasAllRoles).mockImplementation((userRoles: string[], requiredRoles: string[]) => 
     requiredRoles.every(role => roles.includes(role))
   );
 };
 
 const setupUnauthenticatedMocks = () => {
-  (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
-  (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
-  (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
-  (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
-  (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+  vi.mocked(fetchAuthSession).mockRejectedValue(new Error('Not authenticated'));
+  vi.mocked(authService.isAuthenticated).mockResolvedValue(false);
+  vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserRoles).mockResolvedValue([]);
+  vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserName).mockResolvedValue(null);
+  vi.mocked(authService.getCurrentUserTenants).mockResolvedValue([]);
 };
 
 // Mock component for testing protected routes
@@ -213,20 +232,20 @@ function AdminOnlyComponent() {
 
 describe('Authentication Flow Tests', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Setup default mocks for authService to prevent hanging
-    (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
-    (authService.getCurrentAuthTokens as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserRoles as jest.Mock).mockResolvedValue([]);
-    (authService.getCurrentUserEmail as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserName as jest.Mock).mockResolvedValue(null);
-    (authService.getCurrentUserTenants as jest.Mock).mockResolvedValue([]);
+    vi.mocked(authService.isAuthenticated).mockResolvedValue(false);
+    vi.mocked(authService.getCurrentAuthTokens).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserRoles).mockResolvedValue([]);
+    vi.mocked(authService.getCurrentUserEmail).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserName).mockResolvedValue(null);
+    vi.mocked(authService.getCurrentUserTenants).mockResolvedValue([]);
   });
 
   describe('Login Flow', () => {
     it('should show login page when not authenticated', () => {
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      vi.mocked(fetchAuthSession).mockRejectedValue(new Error('Not authenticated'));
 
       render(
         <div>
@@ -307,7 +326,7 @@ describe('Authentication Flow Tests', () => {
     });
 
     it('should show login when not authenticated', async () => {
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      vi.mocked(fetchAuthSession).mockRejectedValue(new Error('Not authenticated'));
 
       render(
         <div>
@@ -393,7 +412,7 @@ describe('Authentication Flow Tests', () => {
       const mockToken = createMockToken('admin@test.com', ['Administrators']);
       
       setupAuthenticatedMocks(mockAdminUser, mockToken, ['Administrators']);
-      (signOut as jest.Mock).mockResolvedValue(undefined);
+      vi.mocked(signOut).mockResolvedValue(undefined);
 
       render(
         <div>
@@ -408,8 +427,8 @@ describe('Authentication Flow Tests', () => {
       });
 
       // Now simulate what happens after logout - the session becomes invalid
-      (fetchAuthSession as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
-      (getCurrentUser as jest.Mock).mockRejectedValue(new Error('Not authenticated'));
+      vi.mocked(fetchAuthSession).mockRejectedValue(new Error('Not authenticated'));
+      vi.mocked(getCurrentUser).mockRejectedValue(new Error('Not authenticated'));
 
       // Trigger a re-check by forcing a component update
       // In a real app, this would happen when the user clicks logout
@@ -449,7 +468,7 @@ describe('Authentication Flow Tests', () => {
       const mockToken = createMockToken('admin@test.com', ['Administrators']);
       
       // Clear mocks first
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       
       // Setup mocks
       setupAuthenticatedMocks(mockAdminUser, mockToken, ['Administrators']);

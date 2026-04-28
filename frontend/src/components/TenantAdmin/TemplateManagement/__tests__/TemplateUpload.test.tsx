@@ -4,6 +4,7 @@
  * Tests for file upload, validation, template type selection, and field mappings.
  */
 
+import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -11,10 +12,10 @@ import { TemplateUpload } from '../TemplateUpload';
 import * as templateApi from '../../../../services/templateApi';
 
 // Mock the template API
-jest.mock('../../../../services/templateApi', () => ({
-  getCurrentTemplate: jest.fn(),
-  downloadDefaultTemplate: jest.fn(),
-  deleteTenantTemplate: jest.fn(),
+vi.mock('../../../../services/templateApi', () => ({
+  getCurrentTemplate: vi.fn(),
+  downloadDefaultTemplate: vi.fn(),
+  deleteTenantTemplate: vi.fn(),
   TemplateType: {
     STR_INVOICE_NL: 'str_invoice_nl',
     STR_INVOICE_EN: 'str_invoice_en',
@@ -26,7 +27,7 @@ jest.mock('../../../../services/templateApi', () => ({
 }));
 
 // Mock Chakra UI components to avoid dependency issues
-jest.mock('@chakra-ui/react', () => ({
+vi.mock('@chakra-ui/react', () => ({
   Box: ({ children, ...props }: any) => {
     const { bg, p, borderRadius, flex, ...domProps } = props;
     return <div {...domProps}>{children}</div>;
@@ -122,26 +123,26 @@ jest.mock('@chakra-ui/react', () => ({
   AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
   useDisclosure: () => ({
     isOpen: true,  // Always open in tests
-    onOpen: jest.fn(),
-    onClose: jest.fn(),
-    onToggle: jest.fn(),
+    onOpen: vi.fn(),
+    onClose: vi.fn(),
+    onToggle: vi.fn(),
   }),
-  useToast: () => jest.fn(),
+  useToast: () => vi.fn(),
 }));
 
 describe('TemplateUpload', () => {
-  const mockOnUpload = jest.fn();
-  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as jest.MockedFunction<typeof templateApi.getCurrentTemplate>;
+  const mockOnUpload = vi.fn();
+  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as vi.MockedFunction<typeof templateApi.getCurrentTemplate>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     
     // Mock getCurrentTemplate to throw error (404) when no template found
     mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
   });
 
   afterEach(() => {
-    jest.clearAllTimers();
+    vi.clearAllTimers();
   });
 
   describe('Rendering', () => {
@@ -580,7 +581,7 @@ describe('TemplateUpload', () => {
     });
 
     it('calls downloadDefaultTemplate on click', async () => {
-      const mockDownload = templateApi.downloadDefaultTemplate as jest.MockedFunction<any>;
+      const mockDownload = templateApi.downloadDefaultTemplate as vi.MockedFunction<any>;
       mockDownload.mockResolvedValue({
         success: true,
         template_type: 'str_invoice_nl',
@@ -592,8 +593,8 @@ describe('TemplateUpload', () => {
       mockGetCurrentTemplate.mockRejectedValue(new Error('No template found'));
 
       // Mock URL.createObjectURL and URL.revokeObjectURL
-      const mockCreateObjectURL = jest.fn(() => 'blob:mock-url');
-      const mockRevokeObjectURL = jest.fn();
+      const mockCreateObjectURL = vi.fn(() => 'blob:mock-url');
+      const mockRevokeObjectURL = vi.fn();
       global.URL.createObjectURL = mockCreateObjectURL;
       global.URL.revokeObjectURL = mockRevokeObjectURL;
 
@@ -676,7 +677,7 @@ describe('TemplateUpload', () => {
     });
 
     it('calls deleteTenantTemplate on confirm and resets state', async () => {
-      const mockDelete = templateApi.deleteTenantTemplate as jest.MockedFunction<any>;
+      const mockDelete = templateApi.deleteTenantTemplate as vi.MockedFunction<any>;
       mockDelete.mockResolvedValue({
         success: true,
         message: 'Template deactivated successfully.',
