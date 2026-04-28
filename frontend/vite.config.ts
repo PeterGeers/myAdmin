@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ command }) => {
   // rollup-plugin-visualizer is ESM-only, so dynamic import is needed
   const visualizerPlugin = process.env.ANALYZE
     ? (await import('rollup-plugin-visualizer')).visualizer({
@@ -19,8 +19,9 @@ export default defineConfig(async () => {
       visualizerPlugin,
     ].filter(Boolean),
 
-    // Replace package.json "homepage" field
-    base: '/myAdmin',
+    // base path only for production builds (GitHub Pages deploys to /myAdmin)
+    // In dev (command === 'serve'), keep '/' so the proxy can intercept /api requests
+    base: command === 'build' ? '/myAdmin' : '/',
 
     // Replace package.json "proxy" field
     server: {
