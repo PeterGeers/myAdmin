@@ -26,6 +26,10 @@
       "title": "Booking.com Multi-File Import:",
       "description": "Select multiple Booking.com export files at once to import all listings together. Supports .csv, .tsv, .xls, and .xlsx files."
     },
+    "airbnbMultiFileInfo": {
+      "title": "Airbnb Multi-File Import:",
+      "description": "Select multiple Airbnb CSV export files at once to import all listings together. Files are deduplicated by reservation code."
+    },
     "payoutResults": {
       "title": "Payout Import Results",
       "totalRows": "Total Rows",

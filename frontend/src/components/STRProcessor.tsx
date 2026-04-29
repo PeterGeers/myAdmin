@@ -118,8 +118,8 @@ const STRProcessor: React.FC = () => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
-    if (selectedPlatform === 'vrbo' || selectedPlatform === 'booking') {
-      // VRBO and Booking.com: accept multiple files
+    if (selectedPlatform === 'vrbo' || selectedPlatform === 'booking' || selectedPlatform === 'airbnb') {
+      // VRBO, Booking.com, and Airbnb: accept multiple files
       const fileList = Array.from(files);
       setSelectedFiles(fileList);
       setSelectedFile(fileList[0]); // keep first for compatibility
@@ -188,8 +188,8 @@ const STRProcessor: React.FC = () => {
           setPlannedBookings(data.planned);
           setAlreadyLoadedBookings(data.already_loaded || []);
           setSummary(data.summary);
-          // Multi-file booking import: show file count in success message
-          if (selectedPlatform === 'booking' && selectedFiles.length > 1) {
+          // Multi-file booking/airbnb import: show file count in success message
+          if ((selectedPlatform === 'booking' || selectedPlatform === 'airbnb') && selectedFiles.length > 1) {
             setMessage(t('processor.messages.multiFileProcessedSuccess', {
               fileCount: selectedFiles.length,
               realised: data.realised.length,
@@ -208,7 +208,7 @@ const STRProcessor: React.FC = () => {
         } else {
           // Check if error message contains failed file info for partial failure warning
           const errorMsg = data.error || '';
-          if (selectedPlatform === 'booking' && errorMsg.includes('failed to parse')) {
+          if ((selectedPlatform === 'booking' || selectedPlatform === 'airbnb') && errorMsg.includes('failed to parse')) {
             setWarning(errorMsg);
           } else {
             setError(errorMsg);
@@ -315,8 +315,8 @@ const STRProcessor: React.FC = () => {
                 </Select>
                 <Input
                   type="file"
-                  accept={selectedPlatform === 'payout' ? '.csv' : '.csv,.tsv,.xlsx,.xls'}
-                  multiple={selectedPlatform === 'vrbo' || selectedPlatform === 'booking'}
+                  accept={selectedPlatform === 'payout' || selectedPlatform === 'airbnb' ? '.csv' : '.csv,.tsv,.xlsx,.xls'}
+                  multiple={selectedPlatform === 'vrbo' || selectedPlatform === 'booking' || selectedPlatform === 'airbnb'}
                   onChange={handleFileUpload}
                   bg="gray.600"
                   color="white"
@@ -353,6 +353,15 @@ const STRProcessor: React.FC = () => {
                   <Box color="white" fontSize="xs">
                     <Text fontWeight="bold">{t('processor.bookingMultiFileInfo.title')}</Text>
                     <Text>{t('processor.bookingMultiFileInfo.description')}</Text>
+                  </Box>
+                </Alert>
+              )}
+              {selectedPlatform === 'airbnb' && (
+                <Alert status="info" mt={3} bg="blue.900" borderRadius="md">
+                  <AlertIcon />
+                  <Box color="white" fontSize="xs">
+                    <Text fontWeight="bold">{t('processor.airbnbMultiFileInfo.title')}</Text>
+                    <Text>{t('processor.airbnbMultiFileInfo.description')}</Text>
                   </Box>
                 </Alert>
               )}
