@@ -1,5 +1,5 @@
-// Feature: str-bookingcom-multi-file-import
-// Tests for STRProcessor multi-file booking import functionality
+// Feature: str-bookingcom-multi-file-import + str-airbnb-multi-file-import
+// Tests for STRProcessor multi-file booking and airbnb import functionality
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -36,7 +36,7 @@ const MockSTRProcessor: React.FC<MockProps> = ({
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
-    if (selectedPlatform === 'vrbo' || selectedPlatform === 'booking') {
+    if (selectedPlatform === 'vrbo' || selectedPlatform === 'booking' || selectedPlatform === 'airbnb') {
       const fileList = Array.from(files);
       setSelectedFiles(fileList);
       setSelectedFile(fileList[0]);
@@ -52,7 +52,7 @@ const MockSTRProcessor: React.FC<MockProps> = ({
   const processFiles = () => {
     if (!selectedFile || !successData) return;
     if (successData.success) {
-      if (selectedPlatform === 'booking' && selectedFiles.length > 1) {
+      if ((selectedPlatform === 'booking' || selectedPlatform === 'airbnb') && selectedFiles.length > 1) {
         setMessage(
           `Processed ${selectedFiles.length} files: ${successData.realised.length} realised, ${successData.planned.length} planned, ${successData.already_loaded.length} already loaded bookings`
         );
@@ -63,7 +63,7 @@ const MockSTRProcessor: React.FC<MockProps> = ({
       }
     } else {
       const errorMsg = successData.error || '';
-      if (selectedPlatform === 'booking' && errorMsg.includes('failed to parse')) {
+      if ((selectedPlatform === 'booking' || selectedPlatform === 'airbnb') && errorMsg.includes('failed to parse')) {
         setWarning(errorMsg);
       } else {
         setError(errorMsg);
@@ -71,8 +71,8 @@ const MockSTRProcessor: React.FC<MockProps> = ({
     }
   };
 
-  const isMultiPlatform = selectedPlatform === 'vrbo' || selectedPlatform === 'booking';
-  const acceptAttr = selectedPlatform === 'payout' ? '.csv' : '.csv,.tsv,.xlsx,.xls';
+  const isMultiPlatform = selectedPlatform === 'vrbo' || selectedPlatform === 'booking' || selectedPlatform === 'airbnb';
+  const acceptAttr = selectedPlatform === 'payout' || selectedPlatform === 'airbnb' ? '.csv' : '.csv,.tsv,.xlsx,.xls';
 
   return (
     <div>
@@ -121,6 +121,16 @@ const MockSTRProcessor: React.FC<MockProps> = ({
           <span>
             Select multiple Booking.com export files at once to import all
             listings together. Supports .csv, .tsv, .xls, and .xlsx files.
+          </span>
+        </div>
+      )}
+
+      {selectedPlatform === 'airbnb' && (
+        <div data-testid="airbnb-multi-file-hint" role="alert">
+          <strong>Airbnb Multi-File Import:</strong>
+          <span>
+            Select multiple Airbnb CSV export files at once to import all
+            listings together. Files are deduplicated by reservation code.
           </span>
         </div>
       )}
@@ -232,12 +242,6 @@ describe('Booking.com Multi-File Import - Frontend', () => {
     render(<MockSTRProcessor initialPlatform="booking" />);
     const input = screen.getByTestId('file-input') as HTMLInputElement;
     expect(input.multiple).toBe(true);
-  });
-
-  it('does not enable multi-select for airbnb platform', () => {
-    render(<MockSTRProcessor initialPlatform="airbnb" />);
-    const input = screen.getByTestId('file-input') as HTMLInputElement;
-    expect(input.multiple).toBe(false);
   });
 
   it('does not enable multi-select for direct platform', () => {
@@ -395,6 +399,11 @@ describe('Booking.com Multi-File Import - Frontend', () => {
     expect(screen.queryByTestId('booking-multi-file-hint')).not.toBeInTheDocument();
   });
 
+  it('does not show airbnb hint for other platforms', () => {
+    render(<MockSTRProcessor initialPlatform="booking" />);
+    expect(screen.queryByTestId('airbnb-multi-file-hint')).not.toBeInTheDocument();
+  });
+
   // Req 1.2: All selected filenames displayed
   it('displays all selected filenames for multi-file booking upload', () => {
     render(<MockSTRProcessor initialPlatform="booking" />);
@@ -431,6 +440,235 @@ describe('Booking.com Multi-File Import - Frontend', () => {
 
     const msg = screen.getByTestId('success-message').textContent || '';
     expect(msg).toContain('studio.csv');
+    expect(msg).not.toContain('files');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property 8: All selected filenames are displayed (Airbnb)
+// Feature: str-airbnb-multi-file-import, Property 8: All selected filenames displayed
+// ---------------------------------------------------------------------------
+describe('Property 8: All selected filenames are displayed (Airbnb)', () => {
+  const filenameArb = fc
+    .tuple(
+      fc.string({ minLength: 1, maxLength: 20 }).filter((s) => /^[a-z0-9_-]+$/.test(s)),
+      fc.constant('.csv')
+    )
+    .map(([base, ext]) => `${base}${ext}`);
+
+  fcTest.prop(
+    [fc.array(filenameArb, { minLength: 1, maxLength: 10 })],
+    { numRuns: 100 },
+  )(
+    'all selected filenames appear in the rendered output for airbnb platform',
+    (filenames) => {
+      const { getByTestId } = render(
+        <MockSTRProcessor initialPlatform="airbnb" />
+      );
+
+      const files = filenames.map((name) => createMockFile(name));
+      const fileList = createFileList(files);
+
+      const input = getByTestId('file-input') as HTMLInputElement;
+      fireEvent.change(input, { target: { files: fileList } });
+
+      const selectedText = getByTestId('selected-files').textContent || '';
+      for (const name of filenames) {
+        expect(selectedText).toContain(name);
+      }
+    }
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests for Airbnb multi-file import (Task 5.5)
+// Feature: str-airbnb-multi-file-import
+// ---------------------------------------------------------------------------
+describe('Airbnb Multi-File Import - Frontend', () => {
+  // Req 1.1: Airbnb platform enables multi-select on file input
+  it('enables multi-select on file input when airbnb platform is selected', () => {
+    render(<MockSTRProcessor initialPlatform="airbnb" />);
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    expect(input.multiple).toBe(true);
+  });
+
+  // Req 1.3: File input accepts .csv only for airbnb
+  it('accepts .csv only for airbnb platform', () => {
+    render(<MockSTRProcessor initialPlatform="airbnb" />);
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    expect(input.accept).toBe('.csv');
+  });
+
+  // Req 1.4: Process button disabled when no files selected
+  it('disables process button when no files are selected', () => {
+    render(<MockSTRProcessor initialPlatform="airbnb" />);
+    const button = screen.getByTestId('process-button') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
+
+  it('enables process button after files are selected', () => {
+    render(<MockSTRProcessor initialPlatform="airbnb" />);
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    const files = createFileList([createMockFile('listing.csv')]);
+    fireEvent.change(input, { target: { files } });
+
+    const button = screen.getByTestId('process-button') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+  });
+
+  // Req 6.1: Multi-file success shows file count
+  it('shows file count in success message for multi-file airbnb import', () => {
+    const successData = {
+      success: true,
+      realised: [{ id: 1 }, { id: 2 }],
+      planned: [{ id: 3 }],
+      already_loaded: [],
+      summary: { total_bookings: 3 },
+    };
+    render(
+      <MockSTRProcessor initialPlatform="airbnb" successData={successData} />
+    );
+
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    const files = createFileList([
+      createMockFile('green_studio.csv'),
+      createMockFile('red_studio.csv'),
+    ]);
+    fireEvent.change(input, { target: { files } });
+    fireEvent.click(screen.getByTestId('process-button'));
+
+    const msg = screen.getByTestId('success-message').textContent || '';
+    expect(msg).toContain('2 files');
+    expect(msg).toContain('2 realised');
+    expect(msg).toContain('1 planned');
+  });
+
+  // Req 6.2: Summary shows realised/planned/already-loaded counts
+  it('shows realised/planned/already-loaded counts in success message', () => {
+    const successData = {
+      success: true,
+      realised: [{ id: 1 }],
+      planned: [{ id: 2 }, { id: 3 }],
+      already_loaded: [{ id: 4 }],
+      summary: { total_bookings: 4 },
+    };
+    render(
+      <MockSTRProcessor initialPlatform="airbnb" successData={successData} />
+    );
+
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: createFileList([createMockFile('green.csv'), createMockFile('red.csv')]) },
+    });
+    fireEvent.click(screen.getByTestId('process-button'));
+
+    const msg = screen.getByTestId('success-message').textContent || '';
+    expect(msg).toContain('1 realised');
+    expect(msg).toContain('2 planned');
+    expect(msg).toContain('1 already loaded');
+  });
+
+  // Req 6.3: Failed files warning displayed
+  it('displays warning when backend reports failed files for airbnb', () => {
+    const failData = {
+      success: false,
+      realised: [],
+      planned: [],
+      already_loaded: [],
+      summary: null,
+      error: 'Some files failed to parse: bad_file.csv',
+    };
+    render(
+      <MockSTRProcessor initialPlatform="airbnb" successData={failData} />
+    );
+
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: createFileList([createMockFile('good.csv')]) },
+    });
+    fireEvent.click(screen.getByTestId('process-button'));
+
+    const warningEl = screen.getByTestId('warning-alert');
+    expect(warningEl.textContent).toContain('failed to parse');
+    expect(warningEl.textContent).toContain('bad_file.csv');
+  });
+
+  it('displays error (not warning) for non-parse failures on airbnb', () => {
+    const failData = {
+      success: false,
+      realised: [],
+      planned: [],
+      already_loaded: [],
+      summary: null,
+      error: 'Internal server error',
+    };
+    render(
+      <MockSTRProcessor initialPlatform="airbnb" successData={failData} />
+    );
+
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: createFileList([createMockFile('file.csv')]) },
+    });
+    fireEvent.click(screen.getByTestId('process-button'));
+
+    expect(screen.getByTestId('error-alert').textContent).toContain(
+      'Internal server error'
+    );
+  });
+
+  // Req 6.4: Airbnb platform shows multi-file hint
+  it('shows multi-file hint when airbnb platform is selected', () => {
+    render(<MockSTRProcessor initialPlatform="airbnb" />);
+    const hint = screen.getByTestId('airbnb-multi-file-hint');
+    expect(hint).toBeInTheDocument();
+    expect(hint.textContent).toContain('Airbnb Multi-File Import');
+    expect(hint.textContent).toContain('multiple');
+  });
+
+  it('does not show airbnb hint for direct platform', () => {
+    render(<MockSTRProcessor initialPlatform="direct" />);
+    expect(screen.queryByTestId('airbnb-multi-file-hint')).not.toBeInTheDocument();
+  });
+
+  // Req 1.2: All selected filenames displayed
+  it('displays all selected filenames for multi-file airbnb upload', () => {
+    render(<MockSTRProcessor initialPlatform="airbnb" />);
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    const files = createFileList([
+      createMockFile('green_studio.csv'),
+      createMockFile('red_studio.csv'),
+      createMockFile('child_friendly.csv'),
+    ]);
+    fireEvent.change(input, { target: { files } });
+
+    const text = screen.getByTestId('selected-files').textContent || '';
+    expect(text).toContain('green_studio.csv');
+    expect(text).toContain('red_studio.csv');
+    expect(text).toContain('child_friendly.csv');
+  });
+
+  // Single-file airbnb import still shows filename (not file count)
+  it('shows filename (not file count) for single-file airbnb import', () => {
+    const successData = {
+      success: true,
+      realised: [{ id: 1 }],
+      planned: [],
+      already_loaded: [],
+      summary: { total_bookings: 1 },
+    };
+    render(
+      <MockSTRProcessor initialPlatform="airbnb" successData={successData} />
+    );
+
+    const input = screen.getByTestId('file-input') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: createFileList([createMockFile('green_studio.csv')]) },
+    });
+    fireEvent.click(screen.getByTestId('process-button'));
+
+    const msg = screen.getByTestId('success-message').textContent || '';
+    expect(msg).toContain('green_studio.csv');
     expect(msg).not.toContain('files');
   });
 });

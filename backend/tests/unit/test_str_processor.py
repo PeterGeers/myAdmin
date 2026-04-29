@@ -174,12 +174,12 @@ class TestSTRProcessor:
     
     @patch('pandas.read_csv')
     def test_process_airbnb_success(self, mock_read_csv, str_processor, sample_airbnb_data):
-        """Test successful Airbnb processing"""
+        """Test successful Airbnb processing via multi-file path"""
         mock_df = pd.DataFrame([sample_airbnb_data])
         mock_read_csv.return_value = mock_df
         
         with patch('os.path.basename', return_value='test.csv'):
-            result = str_processor._process_airbnb('test.csv')
+            result = str_processor._process_airbnb_multi(['test.csv'])
         
         assert len(result) == 1
         assert result[0]['channel'] == 'airbnb'
@@ -196,18 +196,17 @@ class TestSTRProcessor:
         mock_df = pd.DataFrame([sample_airbnb_data])
         mock_read_csv.return_value = mock_df
         
-        result = str_processor._process_airbnb('test.csv')
+        result = str_processor._process_airbnb_multi(['test.csv'])
         
         assert len(result) == 0  # Should be skipped
     
     @patch('pandas.read_csv')
     def test_process_airbnb_error(self, mock_read_csv, str_processor):
-        """Test Airbnb processing with error"""
+        """Test Airbnb processing with all files failing raises ValueError"""
         mock_read_csv.side_effect = Exception("File not found")
         
-        result = str_processor._process_airbnb('nonexistent.csv')
-        
-        assert result == []
+        with pytest.raises(ValueError, match="All files failed to parse"):
+            str_processor._process_airbnb_multi(['nonexistent.csv'])
     
     @patch('pandas.read_excel')
     def test_process_booking_success(self, mock_read_excel, str_processor, sample_booking_data):
@@ -433,31 +432,23 @@ class TestSTRProcessor:
         assert booking_entry['amount'] == 300.00
         assert booking_entry['items'] == 1
     
-    @patch.object(STRProcessor, '_process_single_file')
-    def test_process_str_files_success(self, mock_process_single, str_processor):
-        """Test processing multiple STR files"""
-        mock_process_single.side_effect = [
-            [{'booking': 1}],
-            [{'booking': 2}]
-        ]
+    @patch.object(STRProcessor, '_process_airbnb_multi')
+    def test_process_str_files_success(self, mock_process_multi, str_processor):
+        """Test processing multiple STR files for airbnb delegates to _process_airbnb_multi"""
+        mock_process_multi.return_value = [{'booking': 1}, {'booking': 2}]
         
         result = str_processor.process_str_files(['file1.csv', 'file2.csv'], 'airbnb')
         
         assert len(result) == 2
-        assert mock_process_single.call_count == 2
+        mock_process_multi.assert_called_once_with(['file1.csv', 'file2.csv'])
     
-    @patch.object(STRProcessor, '_process_single_file')
-    def test_process_str_files_with_error(self, mock_process_single, str_processor):
-        """Test processing STR files with one file error"""
-        mock_process_single.side_effect = [
-            [{'booking': 1}],
-            Exception("File error")
-        ]
+    @patch.object(STRProcessor, '_process_airbnb_multi')
+    def test_process_str_files_with_error(self, mock_process_multi, str_processor):
+        """Test processing STR files with airbnb multi error"""
+        mock_process_multi.side_effect = ValueError("All files failed to parse: file1.csv, file2.csv")
         
-        result = str_processor.process_str_files(['file1.csv', 'file2.csv'], 'airbnb')
-        
-        assert len(result) == 1  # Only successful file processed
-        assert mock_process_single.call_count == 2
+        with pytest.raises(ValueError, match="All files failed to parse"):
+            str_processor.process_str_files(['file1.csv', 'file2.csv'], 'airbnb')
 
 if __name__ == '__main__':
     pytest.main([__file__])

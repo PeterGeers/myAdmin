@@ -149,7 +149,7 @@ Enhance the Booking.com import workflow to support uploading multiple CSV/Excel 
 - [x] 8. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Commit and push to main
+- [x] 9. Commit and push to main
   - Stage all changed files related to this feature
   - Create a commit with message: `feat: add Booking.com multi-file import support`
   - Push to main branch

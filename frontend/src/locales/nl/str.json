@@ -26,6 +26,10 @@
       "title": "Booking.com Multi-Bestand Import:",
       "description": "Selecteer meerdere Booking.com exportbestanden tegelijk om alle accommodaties samen te importeren. Ondersteunt .csv, .tsv, .xls en .xlsx bestanden."
     },
+    "airbnbMultiFileInfo": {
+      "title": "Airbnb Multi-Bestand Import:",
+      "description": "Selecteer meerdere Airbnb CSV-exportbestanden tegelijk om alle accommodaties samen te importeren. Bestanden worden ontdubbeld op reserveringscode."
+    },
     "payoutResults": {
       "title": "Payout Import Resultaten",
       "totalRows": "Totaal Rijen",
