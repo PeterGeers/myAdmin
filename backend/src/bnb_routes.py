@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 import logging
 from database import DatabaseManager
-import numpy as np
 from collections import defaultdict
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required

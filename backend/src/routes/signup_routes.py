@@ -9,7 +9,7 @@ Public endpoints for trial signup flow:
 No JWT auth required. Protected by rate limiting, honeypot, and CSRF.
 """
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request
 import logging
 
 from shared_limiter import limiter

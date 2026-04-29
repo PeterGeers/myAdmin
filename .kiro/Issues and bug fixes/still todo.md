@@ -73,7 +73,32 @@ For the pivot feature specifically: the TENANT_COLUMN_MAP pattern in the extensi
 
 -- heeft een transactie geboektn met een datum in een al afgesloten periode, Zou niet mogen kunnen
 
+# Documentaion
+- Outdated documentation 
+- Code changes on the fly, Local document updates but lot of referral documents not updated
 
+# import STR bookings airbnb
+Just a question. I just saw that airbnb also need multiple file upload. Good question. I'd recommend a separate spec session for Airbnb multi-file upload. Here's why:
 
+Different processing logic. The current spec is tightly scoped to Booking.com's specific algorithm — its uplift factor, deduplication by Book number, TSV/CSV/Excel parsing, and the _process_booking_multi method. Airbnb files have a completely different format, different columns, different financial calculation logic, and likely a different deduplication key (reservation code vs Book number).
 
+What you'd reuse vs. what's new:
 
+The frontend multi-select pattern is already in place for vrbo and now booking — extending it to airbnb is trivial (just adding 'airbnb' to the multi-platform check)
+The backend would need its own _process_airbnb_multi() method with Airbnb-specific concatenation, deduplication, and algorithm logic
+The delete-by-channel/listing-pair strategy in insert_planned_bookings already works generically, so no DB changes needed there either
+A separate spec would be lightweight since the pattern is now established. You'd mainly need to document the Airbnb-specific file format, dedup key, and any edge cases unique to Airbnb exports.
+
+That said, if the Airbnb processing logic is nearly identical to Booking.com (same concat + dedup + per-row approach), you could also handle it as a quick follow-up task added to this spec after task 9. But formally, a separate spec keeps things clean and traceable.
+
+Want me to start a new spec session for Airbnb multi-file upload?
+
+# Is an orm layer fioreseen in the scope
+Kiro
+No. This spec deliberately avoids introducing an ORM (like SQLAlchemy). The approach is a lightweight abstraction layer — dialect helpers and a centralized DatabaseManager — while keeping raw SQL queries.
+The reasoning from the root cause analysis still applies: the codebase has 1,200+ hand-written SQL queries across 96 files. Introducing an ORM on top of the abstraction layer refactoring would double the scope and risk. The abstraction layer is the pragmatic middle ground — it gives you database portability without rewriting every query into ORM model calls.
+That said, once the abstraction layer is in place, adopting an ORM later becomes much more feasible since all database access is already centralized. It could be a future phase if there's a need for it.
+
+# Import errors on bdc
+failing urls 
+- https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/search_reservations.html?source=nav&upcoming_reservations=1&hotel_id=5620035&lang=en&ses=ddc3b11e6559a324b0778f09821fd4fe&date_from=2026-04-01&date_to=2027-05-01&date_type=arrival

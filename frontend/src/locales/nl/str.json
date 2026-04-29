@@ -22,6 +22,10 @@
       "description": "Upload maandelijkse Payout CSV om boekingen bij te werken met werkelijke financiële cijfers",
       "format": "Verwacht formaat: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv"
     },
+    "bookingMultiFileInfo": {
+      "title": "Booking.com Multi-Bestand Import:",
+      "description": "Selecteer meerdere Booking.com exportbestanden tegelijk om alle accommodaties samen te importeren. Ondersteunt .csv, .tsv, .xls en .xlsx bestanden."
+    },
     "payoutResults": {
       "title": "Payout Import Resultaten",
       "totalRows": "Totaal Rijen",
@@ -80,6 +84,7 @@
       "payoutImportSuccess": "✅ Payout import succesvol! {{updated}} boekingen bijgewerkt. {{notFound}}",
       "notFoundWarning": "⚠️ {{count}} reserveringen niet gevonden in database.",
       "processedSuccess": "Verwerkt {{realised}} gerealiseerd, {{planned}} gepland, {{alreadyLoaded}} al geladen boekingen van {{filename}}",
+      "multiFileProcessedSuccess": "{{fileCount}} bestanden verwerkt: {{realised}} gerealiseerd, {{planned}} gepland, {{alreadyLoaded}} al geladen boekingen",
       "failedToSave": "Kan boekingen niet opslaan",
       "failedToUpload": "Kan bestand niet uploaden en verwerken",
       "failedToWriteFuture": "Kan BNB toekomstige gegevens niet schrijven"

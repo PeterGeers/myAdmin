@@ -8,7 +8,7 @@ including session validation, timeout handling, and cleanup operations.
 import logging
 import time
 import threading
-from typing import Dict, Optional, Set
+from typing import Dict, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 

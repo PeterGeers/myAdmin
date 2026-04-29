@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Optional, Dict, List, Any
 from datetime import datetime
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 

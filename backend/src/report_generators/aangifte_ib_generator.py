@@ -27,7 +27,6 @@ from report_generators.common_formatters import (
     format_currency,
     format_amount,
     safe_float,
-    get_css_class_for_amount,
     escape_html
 )
 

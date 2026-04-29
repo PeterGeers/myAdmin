@@ -43,6 +43,7 @@ const STRProcessor: React.FC = () => {
   const [summary, setSummary] = useState<STRSummary | null>(null);
   const [message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [warning, setWarning] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('airbnb');
@@ -117,8 +118,8 @@ const STRProcessor: React.FC = () => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
-    if (selectedPlatform === 'vrbo') {
-      // VRBO: accept multiple files
+    if (selectedPlatform === 'vrbo' || selectedPlatform === 'booking') {
+      // VRBO and Booking.com: accept multiple files
       const fileList = Array.from(files);
       setSelectedFiles(fileList);
       setSelectedFile(fileList[0]); // keep first for compatibility
@@ -143,6 +144,7 @@ const STRProcessor: React.FC = () => {
     
     setLoading(true);
     setError('');
+    setWarning('');
     setPayoutResult(null);
     
     try {
@@ -186,15 +188,31 @@ const STRProcessor: React.FC = () => {
           setPlannedBookings(data.planned);
           setAlreadyLoadedBookings(data.already_loaded || []);
           setSummary(data.summary);
-          setMessage(t('processor.messages.processedSuccess', { 
-            realised: data.realised.length, 
-            planned: data.planned.length, 
-            alreadyLoaded: data.already_loaded?.length || 0,
-            filename: selectedFile.name 
-          }));
+          // Multi-file booking import: show file count in success message
+          if (selectedPlatform === 'booking' && selectedFiles.length > 1) {
+            setMessage(t('processor.messages.multiFileProcessedSuccess', {
+              fileCount: selectedFiles.length,
+              realised: data.realised.length,
+              planned: data.planned.length,
+              alreadyLoaded: data.already_loaded?.length || 0
+            }));
+          } else {
+            setMessage(t('processor.messages.processedSuccess', { 
+              realised: data.realised.length, 
+              planned: data.planned.length, 
+              alreadyLoaded: data.already_loaded?.length || 0,
+              filename: selectedFile.name 
+            }));
+          }
           setSelectedFile(null);
         } else {
-          setError(data.error);
+          // Check if error message contains failed file info for partial failure warning
+          const errorMsg = data.error || '';
+          if (selectedPlatform === 'booking' && errorMsg.includes('failed to parse')) {
+            setWarning(errorMsg);
+          } else {
+            setError(errorMsg);
+          }
         }
       }
     } catch (err) {
@@ -233,6 +251,13 @@ const STRProcessor: React.FC = () => {
           <Alert status="error">
             <AlertIcon />
             {error}
+          </Alert>
+        )}
+        
+        {warning && (
+          <Alert status="warning">
+            <AlertIcon />
+            <Text color="black">{warning}</Text>
           </Alert>
         )}
         
@@ -290,8 +315,8 @@ const STRProcessor: React.FC = () => {
                 </Select>
                 <Input
                   type="file"
-                  accept={selectedPlatform === 'payout' ? '.csv' : '.csv,.xlsx,.xls'}
-                  multiple={selectedPlatform === 'vrbo'}
+                  accept={selectedPlatform === 'payout' ? '.csv' : '.csv,.tsv,.xlsx,.xls'}
+                  multiple={selectedPlatform === 'vrbo' || selectedPlatform === 'booking'}
                   onChange={handleFileUpload}
                   bg="gray.600"
                   color="white"
@@ -319,6 +344,15 @@ const STRProcessor: React.FC = () => {
                   <Box color="white" fontSize="xs">
                     <Text fontWeight="bold">VRBO Import</Text>
                     <Text>Select both Reservations CSV(s) and Payouts CSV. Files are auto-detected by header.</Text>
+                  </Box>
+                </Alert>
+              )}
+              {selectedPlatform === 'booking' && (
+                <Alert status="info" mt={3} bg="blue.900" borderRadius="md">
+                  <AlertIcon />
+                  <Box color="white" fontSize="xs">
+                    <Text fontWeight="bold">{t('processor.bookingMultiFileInfo.title')}</Text>
+                    <Text>{t('processor.bookingMultiFileInfo.description')}</Text>
                   </Box>
                 </Alert>
               )}
