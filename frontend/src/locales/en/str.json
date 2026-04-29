@@ -22,6 +22,10 @@
       "description": "Upload monthly Payout CSV to update bookings with actual financial figures",
       "format": "Expected format: Payout_from_YYYY-MM-DD_until_YYYY-MM-DD.csv"
     },
+    "bookingMultiFileInfo": {
+      "title": "Booking.com Multi-File Import:",
+      "description": "Select multiple Booking.com export files at once to import all listings together. Supports .csv, .tsv, .xls, and .xlsx files."
+    },
     "payoutResults": {
       "title": "Payout Import Results",
       "totalRows": "Total Rows",
@@ -80,6 +84,7 @@
       "payoutImportSuccess": "✅ Payout import successful! {{updated}} bookings updated. {{notFound}}",
       "notFoundWarning": "⚠️ {{count}} reservations not found in database.",
       "processedSuccess": "Processed {{realised}} realised, {{planned}} planned, {{alreadyLoaded}} already loaded bookings from {{filename}}",
+      "multiFileProcessedSuccess": "Processed {{fileCount}} files: {{realised}} realised, {{planned}} planned, {{alreadyLoaded}} already loaded bookings",
       "failedToSave": "Failed to save bookings",
       "failedToUpload": "Failed to upload and process file",
       "failedToWriteFuture": "Failed to write BNB future data"

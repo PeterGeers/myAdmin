@@ -15,7 +15,6 @@ REQ-PAT-006: Implement pattern caching for performance
 
 import json
 import os
-import pickle
 import time
 import threading
 from datetime import datetime, timedelta

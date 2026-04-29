@@ -12,7 +12,7 @@ import logging
 import traceback
 import time
 from typing import Optional, Dict, Any
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 from pathlib import Path
 from datetime import datetime
 

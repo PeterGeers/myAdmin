@@ -245,6 +245,10 @@ class STRProcessor:
         if platform.lower() == 'vrbo':
             return self._process_vrbo(file_paths)
 
+        # Booking.com: concatenate, deduplicate, then process
+        if platform.lower() in ['booking', 'booking.com']:
+            return self._process_booking_multi(file_paths)
+
         all_bookings = []
         
         for file_path in file_paths:
@@ -421,10 +425,13 @@ class STRProcessor:
         """Process Booking.com Excel/CSV export"""
         print(f"Starting booking.com processing for: {file_path}")
         try:
-            # Handle both .xls/.xlsx and .csv files
+            # Handle both .xls/.xlsx and .csv/.tsv files
             if file_path.endswith(('.xls', '.xlsx')):
                 print(f"Reading Excel file: {file_path}")
                 df = pd.read_excel(file_path)
+            elif file_path.endswith('.tsv'):
+                print(f"Reading TSV file: {file_path}")
+                df = pd.read_csv(file_path, sep='\t')
             else:
                 print(f"Reading CSV file: {file_path}")
                 df = pd.read_csv(file_path)
@@ -437,159 +444,15 @@ class STRProcessor:
                 print("No data rows found in file")
                 return []
             
+            # Source file info for single-file import: "{date} {filename}"
+            source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
+            
             transactions = []
             
             for _, row in df.iterrows():
-                # Map Booking.com columns with flexible matching
-                checkin_date = row.get('Check-in', row.get('Checkin', row.get('Check in', '')))
-                checkout_date = row.get('Check-out', row.get('Checkout', row.get('Check out', '')))
-                guest_name = row.get('Guest name(s)', row.get('Guest name', row.get('Guest', '')))
-                unit_type = row.get('Unit type', row.get('Property', row.get('Accommodation', '')))
-                nights = row.get('Duration (nights)', row.get('Nights', row.get('Duration', 0)))
-                price_str = row.get('Price', row.get('Total price', row.get('Amount', '0')))
-                booking_id = row.get('Book number', row.get('Booking number', row.get('Reservation', '')))
-                status = row.get('Status', 'ok')
-                commission_amount_str = row.get('Commission amount', row.get('Commission', ''))
-                
-                print(f"DEBUG - Processing booking: {booking_id}")
-                print(f"  Raw price_str: {price_str}")
-                print(f"  Raw commission_str: {commission_amount_str}")
-                print(f"  Commission field type: {type(commission_amount_str)}")
-                
-                # Skip cancelled bookings with no commission (no revenue)
-                if status == 'cancelled_by_guest' and (pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None):
-                    continue
-                
-                # Extract numeric base price from "126.6314 EUR" format
-                try:
-                    if isinstance(price_str, str) and 'EUR' in price_str:
-                        base_price = float(price_str.replace(' EUR', '').replace(',', '.'))
-                    else:
-                        base_price = float(price_str) if price_str else 0
-                except (ValueError, TypeError):
-                    base_price = 0
-                
-                # Skip records with zero or missing base price
-                if base_price == 0:
-                    print(f"  SKIPPING: Base price is zero")
-                    continue
-                
-                # Extract numeric commission amount from "15.195768 EUR" format
-                try:
-                    # Check if commission is NaN or empty
-                    if pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None:
-                        commission_amount = 0
-                        print(f"  WARNING: No commission data, using 0")
-                    elif isinstance(commission_amount_str, str) and 'EUR' in commission_amount_str:
-                        commission_amount = float(commission_amount_str.replace(' EUR', '').replace(',', '.'))
-                    else:
-                        commission_amount = float(commission_amount_str) if commission_amount_str else 0
-                except (ValueError, TypeError):
-                    commission_amount = 0
-                    print(f"  WARNING: Could not parse commission, using 0")
-                
-                print(f"  Parsed base_price: {base_price}")
-                print(f"  Parsed commission_amount: {commission_amount}")
-                
-                # Get tax rates based on check-in date
-                tax_rates = self.get_tax_rates(checkin_date)
-                
-                # Calculate gross amount using Booking.com algorithm
-                # amountGross = (basePrice + commissionAmount) × 1.047826
-                uplift_factor = 1.047826
-                amount_gross = round((base_price + commission_amount) * uplift_factor, 2)
-                
-                print(f"  Calculated amount_gross: {amount_gross}")
-                print(f"  Formula: ({base_price} + {commission_amount}) × {uplift_factor} = {amount_gross}")
-                
-                # Calculate channel fee
-                # amountChannelFee = amountGross - basePrice
-                amount_channel_fee = round(amount_gross - base_price, 2)
-                
-                price = amount_gross  # Use calculated gross amount
-                
-                # Determine status based on check-in date and booking status
-                from datetime import datetime, date
-                today = date.today()
-                try:
-                    checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
-                    if status == 'cancelled_by_guest':
-                        booking_status = 'cancelled'
-                    elif checkin_dt > today:
-                        booking_status = 'planned'
-                    else:
-                        booking_status = 'realised'
-                except:
-                    booking_status = 'realised'
-                
-                # Use generic tax calculation function with the calculated gross amount
-                tax_calc = self.calculate_str_taxes(price, checkin_date, amount_channel_fee)
-                amount_vat = tax_calc['amount_vat']
-                amount_tourist_tax = tax_calc['amount_tourist_tax']
-                amount_nett = tax_calc['amount_nett']
-                
-                # Extract persons from Excel data
-                persons = row.get('Persons', 0) or 0
-                adults = row.get('Adults', 0) or 0
-                children = row.get('Children', 0) or 0
-                guests = persons if persons > 0 else (adults + children)
-                
-                # Calculate dates and periods
-                try:
-                    checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d')
-                    checkout_dt = datetime.strptime(checkout_date, '%Y-%m-%d')
-                    reservation_dt = datetime.strptime(str(row.get('Booked on', '')).split(' ')[0], '%Y-%m-%d')
-                    
-                    year = checkin_dt.year
-                    quarter = (checkin_dt.month - 1) // 3 + 1
-                    month = checkin_dt.month
-                    days_before_reservation = (checkin_dt - reservation_dt).days
-                except:
-                    year = datetime.now().year
-                    quarter = 1
-                    month = 1
-                    days_before_reservation = 0
-                    reservation_dt = datetime.now()
-                
-                # Price per night based on net amount
-                price_per_night = amount_nett / nights if nights > 0 else 0
-                
-                # Additional info - concatenate all Excel fields with |
-                add_info = '|'.join(str(row.get(col, '')) for col in df.columns)
-                
-                # Detect country from addInfo (Booking.com)
-                country = detect_country('booking.com', phone='', addinfo=add_info)
-                
-                # Source file info
-                source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
-                
-                transaction = {
-                    'sourceFile': source_file,
-                    'channel': 'booking.com',
-                    'listing': self._normalize_listing_name(str(unit_type)),
-                    'checkinDate': str(checkin_date),
-                    'checkoutDate': str(checkout_date),
-                    'nights': int(nights) if nights else 0,
-                    'guests': int(guests),
-                    'amountGross': round(float(price), 2),
-                    'amountChannelFee': round(float(amount_channel_fee), 2),
-                    'guestName': str(guest_name),
-                    'phone': '',  # Phone not available in booking.com data
-                    'reservationCode': str(booking_id),
-                    'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
-                    'status': str(booking_status),
-                    'addInfo': add_info,
-                    'amountVat': amount_vat,  # Already rounded in calculate_str_taxes()
-                    'amountTouristTax': amount_tourist_tax,  # Already rounded in calculate_str_taxes()
-                    'amountNett': amount_nett,  # Already rounded in calculate_str_taxes()
-                    'pricePerNight': round(float(price_per_night), 2),
-                    'year': year,
-                    'q': quarter,
-                    'm': month,
-                    'daysBeforeReservation': days_before_reservation,
-                    'country': country  # NEW: Country detection
-                }
-                transactions.append(transaction)
+                booking = self._calculate_booking_row(row, df.columns, source_file)
+                if booking is not None:
+                    transactions.append(booking)
             
             print(f"Booking.com processing completed: {len(transactions)} transactions")
             return transactions
@@ -598,7 +461,222 @@ class STRProcessor:
             import traceback
             traceback.print_exc()
             return []
-    
+
+    def _process_booking_multi(self, file_paths: List[str]) -> List[Dict]:
+        """
+        Process multiple Booking.com files: read, concatenate, deduplicate, calculate.
+
+        Args:
+            file_paths: List of paths to Booking.com CSV/Excel files
+
+        Returns:
+            List of booking dicts with financial calculations applied
+
+        Raises:
+            ValueError: If all files fail to parse
+        """
+        dfs = []
+        failed_files = []
+
+        for fp in file_paths:
+            try:
+                if fp.endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(fp)
+                elif fp.endswith('.tsv'):
+                    df = pd.read_csv(fp, sep='\t')
+                else:
+                    df = pd.read_csv(fp)
+                dfs.append(df)
+                print(f"Booking multi-import: loaded {len(df)} rows from {os.path.basename(fp)}")
+            except Exception as e:
+                failed_files.append(os.path.basename(fp))
+                print(f"Booking multi-import: failed to parse {os.path.basename(fp)}: {e}")
+
+        if not dfs:
+            raise ValueError(f"All files failed to parse: {', '.join(failed_files)}")
+
+        # Concatenate all DataFrames
+        combined = pd.concat(dfs, ignore_index=True)
+        print(f"Booking multi-import: {len(combined)} total rows from {len(dfs)} file(s)")
+
+        # Deduplicate by Book number, keeping the last occurrence
+        book_col = None
+        for col_name in ['Book number', 'Booking number', 'Reservation']:
+            if col_name in combined.columns:
+                book_col = col_name
+                break
+
+        if book_col:
+            before_dedup = len(combined)
+            combined = combined.drop_duplicates(subset=book_col, keep='last')
+            print(f"Booking multi-import: deduplicated {before_dedup} -> {len(combined)} rows (by {book_col})")
+
+        # Determine sourceFile label
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        if len(file_paths) > 1:
+            source_file = f"{today_str} multi-import ({len(file_paths)} files)"
+        else:
+            source_file = f"{today_str} {os.path.basename(file_paths[0])}"
+
+        # Process each row through the existing Booking.com algorithm
+        transactions = []
+        for _, row in combined.iterrows():
+            booking = self._calculate_booking_row(row, combined.columns, source_file)
+            if booking is not None:
+                transactions.append(booking)
+
+        if failed_files:
+            print(f"Booking multi-import: WARNING - failed files: {', '.join(failed_files)}")
+
+        print(f"Booking multi-import: {len(transactions)} transactions from {len(file_paths)} file(s)")
+        return transactions
+
+    def _calculate_booking_row(self, row, df_columns, source_file: str) -> Optional[Dict]:
+        """
+        Process a single Booking.com row into a booking dict.
+
+        Shared helper used by both _process_booking and _process_booking_multi
+        to ensure algorithm equivalence.
+
+        Args:
+            row: A pandas Series representing one booking row
+            df_columns: The columns of the source DataFrame (for addInfo)
+            source_file: The sourceFile label to attach
+
+        Returns:
+            Booking dict or None if the row should be skipped
+        """
+        # Map Booking.com columns with flexible matching
+        checkin_date = row.get('Check-in', row.get('Checkin', row.get('Check in', '')))
+        checkout_date = row.get('Check-out', row.get('Checkout', row.get('Check out', '')))
+        guest_name = row.get('Guest name(s)', row.get('Guest name', row.get('Guest', '')))
+        unit_type = row.get('Unit type', row.get('Property', row.get('Accommodation', '')))
+        nights = row.get('Duration (nights)', row.get('Nights', row.get('Duration', 0)))
+        price_str = row.get('Price', row.get('Total price', row.get('Amount', '0')))
+        booking_id = row.get('Book number', row.get('Booking number', row.get('Reservation', '')))
+        status = row.get('Status', 'ok')
+        commission_amount_str = row.get('Commission amount', row.get('Commission', ''))
+
+        # Skip cancelled bookings with no commission (no revenue)
+        if status == 'cancelled_by_guest' and (
+            pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None
+        ):
+            return None
+
+        # Extract numeric base price from "126.6314 EUR" format
+        try:
+            if isinstance(price_str, str) and 'EUR' in price_str:
+                base_price = float(price_str.replace(' EUR', '').replace(',', '.'))
+            else:
+                base_price = float(price_str) if price_str else 0
+        except (ValueError, TypeError):
+            base_price = 0
+
+        # Skip records with zero or missing base price
+        if base_price == 0:
+            return None
+
+        # Extract numeric commission amount from "15.195768 EUR" format
+        try:
+            if pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None:
+                commission_amount = 0
+            elif isinstance(commission_amount_str, str) and 'EUR' in commission_amount_str:
+                commission_amount = float(commission_amount_str.replace(' EUR', '').replace(',', '.'))
+            else:
+                commission_amount = float(commission_amount_str) if commission_amount_str else 0
+        except (ValueError, TypeError):
+            commission_amount = 0
+
+        # Get tax rates based on check-in date
+        tax_rates = self.get_tax_rates(checkin_date)
+
+        # Calculate gross amount using Booking.com algorithm
+        uplift_factor = 1.047826
+        amount_gross = round((base_price + commission_amount) * uplift_factor, 2)
+
+        # Calculate channel fee
+        amount_channel_fee = round(amount_gross - base_price, 2)
+
+        price = amount_gross
+
+        # Determine status based on check-in date and booking status
+        today = date.today()
+        try:
+            checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d').date()
+            if status == 'cancelled_by_guest':
+                booking_status = 'cancelled'
+            elif checkin_dt > today:
+                booking_status = 'planned'
+            else:
+                booking_status = 'realised'
+        except Exception:
+            booking_status = 'realised'
+
+        # Use generic tax calculation function
+        tax_calc = self.calculate_str_taxes(price, checkin_date, amount_channel_fee)
+        amount_vat = tax_calc['amount_vat']
+        amount_tourist_tax = tax_calc['amount_tourist_tax']
+        amount_nett = tax_calc['amount_nett']
+
+        # Extract persons from data
+        persons = row.get('Persons', 0) or 0
+        adults = row.get('Adults', 0) or 0
+        children = row.get('Children', 0) or 0
+        guests = persons if persons > 0 else (adults + children)
+
+        # Calculate dates and periods
+        try:
+            checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
+            checkout_dt = datetime.strptime(str(checkout_date), '%Y-%m-%d')
+            reservation_dt = datetime.strptime(str(row.get('Booked on', '')).split(' ')[0], '%Y-%m-%d')
+
+            year = checkin_dt.year
+            quarter = (checkin_dt.month - 1) // 3 + 1
+            month = checkin_dt.month
+            days_before_reservation = (checkin_dt - reservation_dt).days
+        except Exception:
+            year = datetime.now().year
+            quarter = 1
+            month = 1
+            days_before_reservation = 0
+            reservation_dt = datetime.now()
+
+        # Price per night based on net amount
+        price_per_night = amount_nett / nights if nights > 0 else 0
+
+        # Additional info - concatenate all columns with |
+        add_info = '|'.join(str(row.get(col, '')) for col in df_columns)
+
+        # Detect country from addInfo (Booking.com)
+        country = detect_country('booking.com', phone='', addinfo=add_info)
+
+        return {
+            'sourceFile': source_file,
+            'channel': 'booking.com',
+            'listing': self._normalize_listing_name(str(unit_type)),
+            'checkinDate': str(checkin_date),
+            'checkoutDate': str(checkout_date),
+            'nights': int(nights) if nights else 0,
+            'guests': int(guests),
+            'amountGross': round(float(price), 2),
+            'amountChannelFee': round(float(amount_channel_fee), 2),
+            'guestName': str(guest_name),
+            'phone': '',
+            'reservationCode': str(booking_id),
+            'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
+            'status': str(booking_status),
+            'addInfo': add_info,
+            'amountVat': amount_vat,
+            'amountTouristTax': amount_tourist_tax,
+            'amountNett': amount_nett,
+            'pricePerNight': round(float(price_per_night), 2),
+            'year': year,
+            'q': quarter,
+            'm': month,
+            'daysBeforeReservation': days_before_reservation,
+            'country': country,
+        }
+
     def _process_direct(self, file_path: str) -> List[Dict]:
         """Process direct bookings Excel/CSV"""
         try:
