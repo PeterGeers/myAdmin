@@ -102,20 +102,20 @@ Centralize all database access through `DatabaseManager`, eliminate direct `mysq
     - Test backward compatibility of `execute_query`, `execute_batch_queries`, `get_connection`, `get_cursor` signatures
     - _Requirements: 3.4, 9.1_
 
-- [ ] 4. Create CI lint rule (`backend/scripts/check_db_imports.py`)
-  - [ ] 4.1 Implement AST-based lint script
+- [x] 4. Create CI lint rule (`backend/scripts/check_db_imports.py`)
+  - [x] 4.1 Implement AST-based lint script
     - Scan all `.py` files for `import mysql.connector` and `from mysql.connector`
     - Configurable `ALLOWED_FILES` set (initially `database.py`, `scalability_manager.py`)
     - Exit code 0 = clean, 1 = violations found with descriptive error messages
     - _Requirements: 10.1, 10.2, 10.3_
 
-  - [ ] 4.2 Write unit tests for CI lint rule
+  - [x] 4.2 Write unit tests for CI lint rule
     - Test it catches violations in sample files
     - Test it passes for allowed files
     - Test configurable allowed files list
     - _Requirements: 10.1, 10.2, 10.3_
 
-- [ ] 5. Checkpoint — Phase 1 Foundation
+- [x] 5. Checkpoint — Phase 1 Foundation
   - Ensure all tests pass, ask the user if questions arise.
   - Run `python backend/scripts/check_db_imports.py` to establish baseline violation count
 
