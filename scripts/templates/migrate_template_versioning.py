@@ -28,6 +28,7 @@ backend_src = Path(__file__).parent.parent.parent / 'backend' / 'src'
 sys.path.insert(0, str(backend_src))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 # Configure logging
 logging.basicConfig(
@@ -328,7 +329,7 @@ class TemplateVersioningMigrator:
             
             # Check column types
             logger.info("  Checking column types...")
-            describe_query = "DESCRIBE tenant_template_config"
+            describe_query = dialect.describe_table('tenant_template_config')
             columns_info = self.db_manager.execute_query(describe_query)
             
             # Verify specific column types

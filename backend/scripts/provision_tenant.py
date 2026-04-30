@@ -29,7 +29,6 @@ import re
 import argparse
 import logging
 import boto3
-import mysql.connector
 from datetime import datetime
 from pathlib import Path
 
@@ -43,6 +42,8 @@ sys.path.insert(0, str(backend_dir))
 from dotenv import load_dotenv
 load_dotenv(backend_dir / '.env')
 
+from database import DatabaseManager
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -51,27 +52,16 @@ logger = logging.getLogger(__name__)
 # Database helpers
 # ============================================================================
 
-def get_promo_db_config():
-    """Connection config for myadmin_promo database"""
-    return {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'user': os.getenv('DB_USER', 'root'),
-        'password': os.getenv('DB_PASSWORD', ''),
-        'database': os.getenv('PROMO_DB_NAME', 'myadmin_promo'),
-        'port': int(os.getenv('DB_PORT', '3306')),
-    }
+def get_promo_db():
+    """Get DatabaseManager for myadmin_promo database"""
+    db = DatabaseManager()
+    db.config['database'] = os.getenv('PROMO_DB_NAME', 'myadmin_promo')
+    return db
 
 
-def get_finance_db_config(test_mode=False):
-    """Connection config for finance database"""
-    db_name = os.getenv('TEST_DB_NAME', 'testfinance') if test_mode else os.getenv('DB_NAME', 'finance')
-    return {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'user': os.getenv('DB_USER', 'root'),
-        'password': os.getenv('DB_PASSWORD', ''),
-        'database': db_name,
-        'port': int(os.getenv('DB_PORT', '3306')),
-    }
+def get_finance_db(test_mode=False):
+    """Get DatabaseManager for finance database"""
+    return DatabaseManager(test_mode=test_mode)
 
 
 def generate_administration_name(company_name: str, email: str, test_mode=False) -> str:
@@ -89,25 +79,20 @@ def generate_administration_name(company_name: str, email: str, test_mode=False)
     base_name = base_name[:45]  # Leave room for suffix
 
     # Check uniqueness against finance DB
-    conn = mysql.connector.connect(**get_finance_db_config(test_mode))
-    try:
-        cursor = conn.cursor()
-        candidate = base_name
-        suffix = 1
-        while True:
-            cursor.execute(
-                "SELECT COUNT(*) FROM tenants WHERE administration = %s",
-                (candidate,)
-            )
-            count = cursor.fetchone()[0]
-            if count == 0:
-                break
-            candidate = f"{base_name}{suffix}"
-            suffix += 1
-        cursor.close()
-        return candidate
-    finally:
-        conn.close()
+    db = get_finance_db(test_mode)
+    candidate = base_name
+    suffix = 1
+    while True:
+        result = db.execute_query(
+            "SELECT COUNT(*) as cnt FROM tenants WHERE administration = %s",
+            (candidate,)
+        )
+        count = result[0]['cnt'] if result else 0
+        if count == 0:
+            break
+        candidate = f"{base_name}{suffix}"
+        suffix += 1
+    return candidate
 
 
 # ============================================================================
@@ -116,40 +101,31 @@ def generate_administration_name(company_name: str, email: str, test_mode=False)
 
 def lookup_signup(email: str) -> dict:
     """Step 1: Look up pending_signups row"""
-    conn = mysql.connector.connect(**get_promo_db_config())
-    try:
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM pending_signups WHERE email = %s", (email,))
-        row = cursor.fetchone()
-        cursor.close()
-        return row
-    finally:
-        conn.close()
+    db = get_promo_db()
+    result = db.execute_query(
+        "SELECT * FROM pending_signups WHERE email = %s",
+        (email,)
+    )
+    return result[0] if result else None
 
 
 def insert_tenant(admin_name: str, display_name: str, email: str, test_mode=False):
     """Step 2: Insert into tenants table"""
-    conn = mysql.connector.connect(**get_finance_db_config(test_mode))
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO tenants 
-               (administration, display_name, status, contact_email, country, created_at, created_by)
-               VALUES (%s, %s, 'active', %s, 'Netherlands', NOW(), 'provision_tenant.py')""",
-            (admin_name, display_name, email)
-        )
-        conn.commit()
-        cursor.close()
-        logger.info(f"  ✅ Tenant '{admin_name}' inserted into tenants table")
-    finally:
-        conn.close()
+    db = get_finance_db(test_mode)
+    db.execute_query(
+        """INSERT INTO tenants 
+           (administration, display_name, status, contact_email, country, created_at, created_by)
+           VALUES (%s, %s, 'active', %s, 'Netherlands', NOW(), 'provision_tenant.py')""",
+        (admin_name, display_name, email),
+        fetch=False, commit=True
+    )
+    logger.info(f"  ✅ Tenant '{admin_name}' inserted into tenants table")
 
 
 def insert_modules_list(admin_name: str, modules: list, test_mode=False):
     """Step 3: Insert tenant_modules from provided list"""
-    conn = mysql.connector.connect(**get_finance_db_config(test_mode))
-    try:
-        cursor = conn.cursor()
+    db = get_finance_db(test_mode)
+    with db.get_cursor() as (cursor, conn):
         for module in modules:
             cursor.execute(
                 """INSERT INTO tenant_modules (administration, module_name, is_active, created_at)
@@ -157,17 +133,13 @@ def insert_modules_list(admin_name: str, modules: list, test_mode=False):
                 (admin_name, module)
             )
         conn.commit()
-        cursor.close()
-        logger.info(f"  ✅ Modules inserted: {', '.join(modules)}")
-    finally:
-        conn.close()
+    logger.info(f"  ✅ Modules inserted: {', '.join(modules)}")
 
 
 def copy_default_chart_of_accounts(admin_name: str, test_mode=False):
     """Step 4: Copy rekeningschema from GoodwinSolutions as default template"""
-    conn = mysql.connector.connect(**get_finance_db_config(test_mode))
-    try:
-        cursor = conn.cursor()
+    db = get_finance_db(test_mode)
+    with db.get_cursor() as (cursor, conn):
         cursor.execute(
             """INSERT INTO rekeningschema 
                (Account, AccountLookup, AccountName, SubParent, Parent, VW, Belastingaangifte, administration, Pattern)
@@ -178,10 +150,7 @@ def copy_default_chart_of_accounts(admin_name: str, test_mode=False):
         )
         count = cursor.rowcount
         conn.commit()
-        cursor.close()
-        logger.info(f"  ✅ Copied {count} chart of accounts entries from GoodwinSolutions")
-    finally:
-        conn.close()
+    logger.info(f"  ✅ Copied {count} chart of accounts entries from GoodwinSolutions")
 
 
 def update_cognito_user(email: str, admin_name: str):
@@ -223,18 +192,13 @@ def update_cognito_user(email: str, admin_name: str):
 
 def mark_provisioned(email: str):
     """Step 6: Update pending_signups status to 'provisioned'"""
-    conn = mysql.connector.connect(**get_promo_db_config())
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE pending_signups SET status = 'provisioned', provisioned_at = NOW() WHERE email = %s",
-            (email,)
-        )
-        conn.commit()
-        cursor.close()
-        logger.info(f"  ✅ pending_signups status updated to 'provisioned'")
-    finally:
-        conn.close()
+    db = get_promo_db()
+    db.execute_query(
+        "UPDATE pending_signups SET status = 'provisioned', provisioned_at = NOW() WHERE email = %s",
+        (email,),
+        fetch=False, commit=True
+    )
+    logger.info(f"  ✅ pending_signups status updated to 'provisioned'")
 
 
 def send_notification(email: str, admin_name: str, first_name: str):
@@ -284,16 +248,14 @@ def provision(email: str, dry_run=False, test_mode=False, admin_name_override=No
         admin_name = admin_name_override
         logger.info(f"  Using provided administration name: {admin_name}")
         # Still check uniqueness
-        conn = mysql.connector.connect(**get_finance_db_config(test_mode))
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM tenants WHERE administration = %s", (admin_name,))
-            if cursor.fetchone()[0] > 0:
-                logger.error(f"❌ Administration '{admin_name}' already exists in tenants table")
-                sys.exit(1)
-            cursor.close()
-        finally:
-            conn.close()
+        db = get_finance_db(test_mode)
+        result = db.execute_query(
+            "SELECT COUNT(*) as cnt FROM tenants WHERE administration = %s",
+            (admin_name,)
+        )
+        if result and result[0]['cnt'] > 0:
+            logger.error(f"❌ Administration '{admin_name}' already exists in tenants table")
+            sys.exit(1)
     else:
         admin_name = generate_administration_name(signup.get('company_name', ''), email, test_mode)
 

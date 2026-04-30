@@ -14,6 +14,7 @@ sys.path.insert(0, str(backend_dir / 'src'))
 
 from dotenv import load_dotenv
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 # Load environment variables
 load_dotenv(backend_dir / '.env')
@@ -46,7 +47,7 @@ def verify_table():
         
         # Check columns
         print("\n2. Checking table structure...")
-        columns = db.execute_query("DESCRIBE ai_usage_log")
+        columns = db.execute_query(dialect.describe_table('ai_usage_log'))
         
         expected_columns = {
             'id': 'int',

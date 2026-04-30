@@ -13,9 +13,10 @@ This script:
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 def consolidate_database_views():
     """
@@ -126,14 +127,14 @@ def consolidate_database_views():
             WHERE administration = %s AND (debet < '1300' OR credit < '1300')
         """, (administration,))'''
             
-            new_method = '''    def get_patterns(self, administration):
+            new_method = f'''    def get_patterns(self, administration):
         """Get patterns from vw_readreferences view with date filtering"""
         return self.execute_query("""
             SELECT debet, credit, administration, referenceNumber, Date
             FROM vw_readreferences 
             WHERE administration = %s 
             AND (debet < '1300' OR credit < '1300')
-            AND Date >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+            AND Date >= {dialect.date_subtract(dialect.current_date(), 2, 'YEAR')}
             ORDER BY Date DESC
         """, (administration,))'''
             

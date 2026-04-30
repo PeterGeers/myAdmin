@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
+from src.dialect_helpers import dialect
 
 db = DatabaseManager()
 
@@ -65,7 +66,7 @@ print("\n3. Checking for invalid column references...")
 try:
     # Check vw_mutaties
     print("   Checking vw_mutaties...")
-    result = db.execute_query("SHOW CREATE VIEW vw_mutaties")
+    result = db.execute_query(dialect.get_view_definition("vw_mutaties"))
     if result:
         create_stmt = result[0]['Create View']
         print(f"      Definition length: {len(create_stmt)} chars")

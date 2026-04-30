@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 from services.year_end_config import YearEndConfigService
 from services.year_end_service import YearEndClosureService
 
@@ -29,7 +30,7 @@ def check_setup():
             print("   ✅ year_closure_status table exists")
             
             # Check table structure
-            columns = db.execute_query("DESCRIBE year_closure_status")
+            columns = db.execute_query(dialect.describe_table('year_closure_status'))
             print(f"   ✅ Table has {len(columns)} columns")
             for col in columns:
                 print(f"      - {col['Field']}: {col['Type']}")

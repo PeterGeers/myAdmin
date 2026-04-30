@@ -8,6 +8,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
+from src.dialect_helpers import dialect
 
 db = DatabaseManager(test_mode=False)
 
@@ -45,11 +46,11 @@ print(f"   {'TOTAL':30} : {total:>6} bookings")
 
 # 3. Check recent bookings (last 90 days) by tenant
 print("\n3. Checking recent bookings (last 90 days) by tenant:")
-result = db.execute_query("""
+result = db.execute_query(f"""
     SELECT administration, COUNT(*) as count
     FROM vw_bnb_total
-    WHERE checkinDate >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-      AND checkinDate <= CURDATE()
+    WHERE checkinDate >= {dialect.date_subtract(dialect.current_date(), 90, 'DAY')}
+      AND checkinDate <= {dialect.current_date()}
     GROUP BY administration
     ORDER BY administration
 """)
@@ -101,10 +102,10 @@ else:
 
 # 7. Check future bookings
 print("\n7. Checking future bookings by tenant:")
-result = db.execute_query("""
+result = db.execute_query(f"""
     SELECT administration, COUNT(*) as count
     FROM vw_bnb_total
-    WHERE checkinDate > CURDATE()
+    WHERE checkinDate > {dialect.current_date()}
     GROUP BY administration
     ORDER BY administration
 """)
@@ -116,24 +117,24 @@ else:
 
 # 8. Test search query simulation (what the API does)
 print("\n8. Simulating API search query for GoodwinSolutions:")
-result = db.execute_query("""
+result = db.execute_query(f"""
     SELECT COUNT(*) as count
     FROM vw_bnb_total 
     WHERE (guestName LIKE %s OR reservationCode LIKE %s)
     AND administration = %s
-    AND checkinDate >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-    AND checkinDate <= CURDATE()
+    AND checkinDate >= {dialect.date_subtract(dialect.current_date(), 90, 'DAY')}
+    AND checkinDate <= {dialect.current_date()}
 """, ('%2%', '%2%', 'GoodwinSolutions'))
 print(f"   Query with '2' pattern: {result[0]['count']} bookings")
 
 print("\n9. Simulating API search query for PeterPrive:")
-result = db.execute_query("""
+result = db.execute_query(f"""
     SELECT COUNT(*) as count
     FROM vw_bnb_total 
     WHERE (guestName LIKE %s OR reservationCode LIKE %s)
     AND administration = %s
-    AND checkinDate >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-    AND checkinDate <= CURDATE()
+    AND checkinDate >= {dialect.date_subtract(dialect.current_date(), 90, 'DAY')}
+    AND checkinDate <= {dialect.current_date()}
 """, ('%2%', '%2%', 'PeterPrive'))
 print(f"   Query with '2' pattern: {result[0]['count']} bookings")
 

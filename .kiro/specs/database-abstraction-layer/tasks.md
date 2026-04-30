@@ -270,238 +270,238 @@ Centralize all database access through `DatabaseManager`, eliminate direct `mysq
 
 ### Phase 3: Refactor Script Code (`backend/scripts/` and root `scripts/`)
 
-- [ ] 12. Refactor provisioning and migration scripts with direct imports
-  - [ ] 12.1 Refactor `backend/scripts/provision_tenant.py` (Inventory #33)
+- [x] 12. Refactor provisioning and migration scripts with direct imports
+  - [x] 12.1 Refactor `backend/scripts/provision_tenant.py` (Inventory #33)
     - Remove `import mysql.connector`
     - Replace 8× standalone `mysql.connector.connect()` calls with `DatabaseManager` instances (one for finance DB, one for promo DB)
     - Replace all direct `cursor.execute()` calls
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 12.2 Refactor `backend/scripts/migrate_roles_to_db.py` (Inventory #34)
+  - [x] 12.2 Refactor `backend/scripts/migrate_roles_to_db.py` (Inventory #34)
     - Remove `import mysql.connector`
     - Replace standalone `mysql.connector.connect()` and direct `cursor.execute()` with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 12.3 Refactor `backend/scripts/setup_test_database.py` (Inventory #35)
+  - [x] 12.3 Refactor `backend/scripts/setup_test_database.py` (Inventory #35)
     - Remove `import mysql.connector`
     - Replace standalone `mysql.connector.connect()` with `DatabaseManager`
     - Replace `SHOW CREATE VIEW` with `dialect.get_view_definition()`
     - Replace `mysql.connector.Error` catch with `DatabaseError`
     - _Requirements: 1.3, 3.1, 6.5, 11.1, 11.3, 11.5, 11.6_
 
-  - [ ] 12.4 Refactor `backend/scripts/run_phase1_migration.py` (Inventory #36)
+  - [x] 12.4 Refactor `backend/scripts/run_phase1_migration.py` (Inventory #36)
     - Remove `import mysql.connector`
     - Replace `mysql.connector.Error` catch with `DatabaseError`
     - _Requirements: 1.3, 11.1, 11.3_
 
-  - [ ] 12.5 Refactor `backend/scripts/migrate_revolut_ref2.py` (Inventory #37)
+  - [x] 12.5 Refactor `backend/scripts/migrate_revolut_ref2.py` (Inventory #37)
     - Remove `import mysql.connector`
     - Replace standalone `mysql.connector.connect()` with `DatabaseManager`
     - Replace `mysql.connector.Error` catch with `DatabaseError`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-- [ ] 13. Refactor country-related scripts
-  - [ ] 13.1 Refactor `backend/scripts/backfill_country.py` (Inventory #38)
+- [x] 13. Refactor country-related scripts
+  - [x] 13.1 Refactor `backend/scripts/backfill_country.py` (Inventory #38)
     - Remove `import mysql.connector`; replace standalone connection, `executemany`, and error catch with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 13.2 Refactor `backend/scripts/populate_all_countries.py` (Inventory #39)
+  - [x] 13.2 Refactor `backend/scripts/populate_all_countries.py` (Inventory #39)
     - Remove `import mysql.connector`; replace standalone connection, `executemany`, and error catch with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 13.3 Refactor `backend/scripts/create_countries_lookup.py` (Inventory #40)
+  - [x] 13.3 Refactor `backend/scripts/create_countries_lookup.py` (Inventory #40)
     - Remove `import mysql.connector`; replace standalone connection, `executemany`, `DESCRIBE`, and error catch with `DatabaseManager` and dialect helpers
     - _Requirements: 1.3, 3.1, 6.4, 6.5, 11.1, 11.3, 11.5, 11.6_
 
-  - [ ] 13.4 Refactor `backend/scripts/migrate_add_country.py` (Inventory #41)
+  - [x] 13.4 Refactor `backend/scripts/migrate_add_country.py` (Inventory #41)
     - Remove `import mysql.connector`; replace standalone connection, `DESCRIBE`, and error catch with `DatabaseManager` and dialect helpers
     - _Requirements: 1.3, 3.1, 6.4, 6.5, 11.1, 11.3, 11.5, 11.6_
 
-  - [ ] 13.5 Refactor `backend/scripts/migrate_add_country_name.py` (Inventory #42)
+  - [x] 13.5 Refactor `backend/scripts/migrate_add_country_name.py` (Inventory #42)
     - Remove `import mysql.connector`; replace standalone connection, `DESCRIBE`, and error catch with `DatabaseManager` and dialect helpers
     - _Requirements: 1.3, 3.1, 6.4, 6.5, 11.1, 11.3, 11.5, 11.6_
 
-  - [ ] 13.6 Refactor `backend/scripts/generate_country_report.py` (Inventory #43)
+  - [x] 13.6 Refactor `backend/scripts/generate_country_report.py` (Inventory #43)
     - Remove `import mysql.connector`; replace standalone connection and error catch with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 13.7 Refactor `backend/scripts/fix_country_12.py` (Inventory #44)
+  - [x] 13.7 Refactor `backend/scripts/fix_country_12.py` (Inventory #44)
     - Remove `import mysql.connector`; replace standalone connection and `executemany` with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 13.8 Refactor `backend/scripts/debug_country.py` (Inventory #45)
+  - [x] 13.8 Refactor `backend/scripts/debug_country.py` (Inventory #45)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 13.9 Refactor `backend/scripts/verify_country.py` (Inventory #46)
+  - [x] 13.9 Refactor `backend/scripts/verify_country.py` (Inventory #46)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 13.10 Refactor `backend/scripts/test_country_lookup.py` (Inventory #47)
+  - [x] 13.10 Refactor `backend/scripts/test_country_lookup.py` (Inventory #47)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-- [ ] 14. Checkpoint — Provisioning, migration, and country scripts refactored
+- [x] 14. Checkpoint — Provisioning, migration, and country scripts refactored
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Refactor maintenance, database, and encoding scripts
-  - [ ] 15.1 Refactor `backend/scripts/maintenance/query_templates.py` (Inventory #48)
+- [x] 15. Refactor maintenance, database, and encoding scripts
+  - [x] 15.1 Refactor `backend/scripts/maintenance/query_templates.py` (Inventory #48)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - Remove hardcoded credentials
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 15.2 Refactor `backend/scripts/database/fix_encoding_duplicate.py` (Inventory #49)
+  - [x] 15.2 Refactor `backend/scripts/database/fix_encoding_duplicate.py` (Inventory #49)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 15.3 Refactor `backend/scripts/database/configure_vat_netting.py` (Inventory #50)
+  - [x] 15.3 Refactor `backend/scripts/database/configure_vat_netting.py` (Inventory #50)
     - Replace `JSON_EXTRACT(...)`, `JSON_SET(...)` with dialect helpers
     - _Requirements: 4.1, 4.3, 11.6_
 
-  - [ ] 15.4 Refactor `backend/scripts/database/test_parameters_column.py` (Inventory #51)
+  - [x] 15.4 Refactor `backend/scripts/database/test_parameters_column.py` (Inventory #51)
     - Replace `JSON_EXTRACT(...)`, `JSON_CONTAINS(...)` with dialect helpers
     - Replace direct `cursor.execute()` with `DatabaseManager`
     - _Requirements: 4.1, 4.4, 11.3, 11.6_
 
-  - [ ] 15.5 Refactor `backend/scripts/database/create_year_closure_tables.py` (Inventory #52)
+  - [x] 15.5 Refactor `backend/scripts/database/create_year_closure_tables.py` (Inventory #52)
     - Replace `JSON_EXTRACT(...)` in index creation with dialect helper
     - _Requirements: 4.1, 11.6_
 
-  - [ ] 15.6 Refactor `backend/scripts/database/apply_schema_migration.py` (Inventory #53)
+  - [x] 15.6 Refactor `backend/scripts/database/apply_schema_migration.py` (Inventory #53)
     - Replace `JSON_EXTRACT(...)` in index creation with dialect helper
     - _Requirements: 4.1, 11.6_
 
-  - [ ] 15.7 Refactor `backend/scripts/database/migrate_opening_balances.py` (Inventory #54)
+  - [x] 15.7 Refactor `backend/scripts/database/migrate_opening_balances.py` (Inventory #54)
     - Replace `JSON_CONTAINS(...)` with `dialect.json_contains()`
     - _Requirements: 4.4, 11.6_
 
-- [ ] 16. Refactor view introspection scripts
-  - [ ] 16.1 Refactor `backend/scripts/fix_lookupbankaccounts_view.py` (Inventory #55)
+- [x] 16. Refactor view introspection scripts
+  - [x] 16.1 Refactor `backend/scripts/fix_lookupbankaccounts_view.py` (Inventory #55)
     - Replace `SHOW CREATE VIEW` in 2 locations with `dialect.get_view_definition()`
     - _Requirements: 6.2, 6.5, 11.6_
 
-  - [ ] 16.2 Refactor `backend/scripts/verify_all_views_lowercase.py` (Inventory #56)
+  - [x] 16.2 Refactor `backend/scripts/verify_all_views_lowercase.py` (Inventory #56)
     - Replace `SHOW CREATE VIEW` with `dialect.get_view_definition()`
     - _Requirements: 6.2, 6.5, 11.6_
 
-  - [ ] 16.3 Refactor `backend/scripts/diagnose_mysql_workbench_issue.py` (Inventory #57)
+  - [x] 16.3 Refactor `backend/scripts/diagnose_mysql_workbench_issue.py` (Inventory #57)
     - Replace `SHOW CREATE VIEW` with `dialect.get_view_definition()`
     - _Requirements: 6.2, 6.5, 11.6_
 
-  - [ ] 16.4 Refactor `backend/scripts/diagnostics/check_account_1022.py` (Inventory #58)
+  - [x] 16.4 Refactor `backend/scripts/diagnostics/check_account_1022.py` (Inventory #58)
     - Replace `SHOW CREATE VIEW` with `dialect.get_view_definition()`
     - _Requirements: 6.2, 6.5, 11.6_
 
-  - [ ] 16.5 Refactor `backend/scripts/analysis/investigate_account_1022_root_cause.py` (Inventory #59)
+  - [x] 16.5 Refactor `backend/scripts/analysis/investigate_account_1022_root_cause.py` (Inventory #59)
     - Replace `SHOW CREATE VIEW` with `dialect.get_view_definition()`
     - _Requirements: 6.2, 6.5, 11.6_
 
-- [ ] 17. Refactor analysis scripts with direct imports
-  - [ ] 17.1 Refactor `backend/scripts/analysis/analyze_goodwin.py` (Inventory #60)
+- [x] 17. Refactor analysis scripts with direct imports
+  - [x] 17.1 Refactor `backend/scripts/analysis/analyze_goodwin.py` (Inventory #60)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 17.2 Refactor `backend/scripts/analysis/analyze_mutaties_table.py` (Inventory #61)
+  - [x] 17.2 Refactor `backend/scripts/analysis/analyze_mutaties_table.py` (Inventory #61)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 17.3 Refactor `backend/scripts/analysis/check_columns.py` (Inventory #62)
+  - [x] 17.3 Refactor `backend/scripts/analysis/check_columns.py` (Inventory #62)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 17.4 Refactor `backend/scripts/analysis/debug_account_names.py` (Inventory #63)
+  - [x] 17.4 Refactor `backend/scripts/analysis/debug_account_names.py` (Inventory #63)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 17.5 Refactor `backend/scripts/analysis/debug_check_accounts.py` (Inventory #64)
+  - [x] 17.5 Refactor `backend/scripts/analysis/debug_check_accounts.py` (Inventory #64)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 17.6 Refactor `backend/scripts/analysis/debug_ref4.py` (Inventory #65)
+  - [x] 17.6 Refactor `backend/scripts/analysis/debug_ref4.py` (Inventory #65)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 17.7 Refactor `backend/scripts/analysis/show_duplicates.py` (Inventory #66)
+  - [x] 17.7 Refactor `backend/scripts/analysis/show_duplicates.py` (Inventory #66)
     - Remove `import mysql.connector`; replace standalone connection with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-- [ ] 18. Refactor data optimization and pattern scripts
-  - [ ] 18.1 Refactor `backend/scripts/data/optimize_pattern_storage.py` (Inventory #67)
+- [x] 18. Refactor data optimization and pattern scripts
+  - [x] 18.1 Refactor `backend/scripts/data/optimize_pattern_storage.py` (Inventory #67)
     - Replace `DATE_SUB(CURDATE(), ...)` in 4+ queries with dialect helpers
     - _Requirements: 5.2, 5.3, 11.6_
 
-  - [ ] 18.2 Refactor `backend/scripts/data/pattern_storage_value_analysis.py` (Inventory #68)
+  - [x] 18.2 Refactor `backend/scripts/data/pattern_storage_value_analysis.py` (Inventory #68)
     - Replace `DATE_SUB(CURDATE(), ...)` with dialect helpers
     - _Requirements: 5.2, 5.3, 11.6_
 
-  - [ ] 18.3 Refactor `backend/scripts/data/aggressive_pattern_optimization.py` (Inventory #69)
+  - [x] 18.3 Refactor `backend/scripts/data/aggressive_pattern_optimization.py` (Inventory #69)
     - Replace `DATE_SUB(CURDATE(), ...)` in 5+ queries with dialect helpers
     - _Requirements: 5.2, 5.3, 11.6_
 
-  - [ ] 18.4 Refactor `backend/scripts/database/consolidate_database_views.py` (Inventory #70)
+  - [x] 18.4 Refactor `backend/scripts/database/consolidate_database_views.py` (Inventory #70)
     - Replace `DATE_SUB(CURDATE(), ...)` with dialect helpers
     - _Requirements: 5.2, 5.3, 11.6_
 
-- [ ] 19. Refactor remaining backend scripts
-  - [ ] 19.1 Refactor `backend/scripts/check_str_invoice_tenant_filtering.py` (Inventory #71)
+- [x] 19. Refactor remaining backend scripts
+  - [x] 19.1 Refactor `backend/scripts/check_str_invoice_tenant_filtering.py` (Inventory #71)
     - Replace `DATE_SUB(CURDATE(), ...)`, `CURDATE()` with dialect helpers
     - _Requirements: 5.2, 5.3, 11.6_
 
-  - [ ] 19.2 Refactor `backend/scripts/maintenance/fix_checkout_dates.py` (Inventory #72)
+  - [x] 19.2 Refactor `backend/scripts/maintenance/fix_checkout_dates.py` (Inventory #72)
     - Replace `DATE_ADD(checkinDate, INTERVAL ...)` with `dialect.date_add()`
     - _Requirements: 5.3, 11.6_
 
-  - [ ] 19.3 Refactor `backend/scripts/database/check_view_names.py` (Inventory #73)
+  - [x] 19.3 Refactor `backend/scripts/database/check_view_names.py` (Inventory #73)
     - Replace `SHOW FULL TABLES WHERE Table_type = "VIEW"` with `dialect.list_tables()`
     - _Requirements: 6.3, 6.5, 11.6_
 
-  - [ ] 19.4 Refactor `backend/scripts/check_year_end_setup.py` (Inventory #74)
+  - [x] 19.4 Refactor `backend/scripts/check_year_end_setup.py` (Inventory #74)
     - Replace `DESCRIBE year_closure_status` with `dialect.describe_table()`
     - _Requirements: 6.4, 6.5, 11.6_
 
-  - [ ] 19.5 Refactor `backend/scripts/verify_ai_usage_log_table.py` (Inventory #75)
+  - [x] 19.5 Refactor `backend/scripts/verify_ai_usage_log_table.py` (Inventory #75)
     - Replace `DESCRIBE ai_usage_log` with `dialect.describe_table()`
     - _Requirements: 6.4, 6.5, 11.6_
 
-  - [ ] 19.6 Refactor `backend/scripts/verify_template_validation_log_table.py` (Inventory #76)
+  - [x] 19.6 Refactor `backend/scripts/verify_template_validation_log_table.py` (Inventory #76)
     - Replace `DESCRIBE template_validation_log` with `dialect.describe_table()`
     - _Requirements: 6.4, 6.5, 11.6_
 
-  - [ ] 19.7 Refactor `backend/scripts/database/apply_pattern_migrations.py` (Inventory #77)
+  - [x] 19.7 Refactor `backend/scripts/database/apply_pattern_migrations.py` (Inventory #77)
     - Replace `DESCRIBE pattern_analysis_metadata`, `DESCRIBE pattern_verb_patterns` with `dialect.describe_table()`
     - _Requirements: 6.4, 6.5, 11.6_
 
-  - [ ] 19.8 Refactor `backend/scripts/diagnostics/check_myadmin_module.py` (Inventory #78)
+  - [x] 19.8 Refactor `backend/scripts/diagnostics/check_myadmin_module.py` (Inventory #78)
     - Replace `DESCRIBE tenant_modules` with `dialect.describe_table()`
     - Replace direct `cursor.execute()` with `DatabaseManager`
     - _Requirements: 3.1, 6.4, 6.5, 11.3, 11.6_
 
-  - [ ] 19.9 Refactor `backend/scripts/create_ai_usage_log_table.py` (Inventory #79)
+  - [x] 19.9 Refactor `backend/scripts/create_ai_usage_log_table.py` (Inventory #79)
     - Update string references to `SHOW`/`DESCRIBE` if needed
     - _Requirements: 11.6_
 
-- [ ] 20. Refactor root `scripts/` directory files
-  - [ ] 20.1 Refactor `scripts/deployment/update_ref3_from_csv.py` (Inventory #80)
+- [x] 20. Refactor root `scripts/` directory files
+  - [x] 20.1 Refactor `scripts/deployment/update_ref3_from_csv.py` (Inventory #80)
     - Remove `import mysql.connector`; replace standalone connection and direct `cursor.execute()` with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 20.2 Refactor `scripts/deployment/update_database_with_urls.py` (Inventory #81)
+  - [x] 20.2 Refactor `scripts/deployment/update_database_with_urls.py` (Inventory #81)
     - Remove `import mysql.connector`; replace standalone connection and direct `cursor.execute()` with `DatabaseManager`
     - _Requirements: 1.3, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 20.3 Refactor `scripts/deployment/fix_duplicate_rows.py` (Inventory #82)
+  - [x] 20.3 Refactor `scripts/deployment/fix_duplicate_rows.py` (Inventory #82)
     - Remove `import mysql.connector`; replace standalone connection and 7× direct `cursor.execute()` with `DatabaseManager` using `transaction()`
     - _Requirements: 1.3, 2.2, 3.1, 11.1, 11.3, 11.5_
 
-  - [ ] 20.4 Refactor `scripts/templates/migrate_template_versioning.py` (Inventory #83)
+  - [x] 20.4 Refactor `scripts/templates/migrate_template_versioning.py` (Inventory #83)
     - Replace `DESCRIBE tenant_template_config` with `dialect.describe_table()`
     - _Requirements: 6.4, 6.5, 11.6_
 
-  - [ ] 20.5 Refactor `scripts/check_template_schema.py` (Inventory #84)
+  - [x] 20.5 Refactor `scripts/check_template_schema.py` (Inventory #84)
     - Replace `DESCRIBE tenant_template_config` with `dialect.describe_table()`
     - _Requirements: 6.4, 6.5, 11.6_
 
-- [ ] 21. Checkpoint — All script code refactored
+- [x] 21. Checkpoint — All script code refactored
   - Ensure all tests pass, ask the user if questions arise.
   - Run `python backend/scripts/check_db_imports.py` to verify zero violations in `backend/scripts/` and `scripts/`
 

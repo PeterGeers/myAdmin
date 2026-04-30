@@ -1,32 +1,30 @@
-import mysql.connector
+import sys
 import os
-from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv()
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 
-conn = mysql.connector.connect(
-    host=os.getenv('DB_HOST', 'localhost'),
-    user=os.getenv('DB_USER'),
-    password=os.getenv('DB_PASSWORD'),
-    database=os.getenv('DB_NAME')
-)
+from database import DatabaseManager
 
-cursor = conn.cursor(dictionary=True)
+db = DatabaseManager()
 
 # Check both records
-cursor.execute("SELECT ID, Omschrijving, Bedrag, Datum FROM mutaties WHERE ID IN (61679, 61901)")
-records = cursor.fetchall()
+records = db.execute_query(
+    "SELECT ID, Omschrijving, Bedrag, Datum FROM mutaties WHERE ID IN (61679, 61901)"
+)
 
 print("Current records:")
 for r in records:
     print(f"ID {r['ID']}: {r['Omschrijving']} | {r['Bedrag']} | {r['Datum']}")
 
 # Delete the one with encoding issue (Ã¸)
-cursor.execute("DELETE FROM mutaties WHERE ID = 61901 AND Omschrijving LIKE '%Ã¸%'")
-conn.commit()
+db.execute_query(
+    "DELETE FROM mutaties WHERE ID = 61901 AND Omschrijving LIKE %s",
+    ('%Ã¸%',),
+    fetch=False,
+    commit=True
+)
 
 print(f"\nDeleted record 61901 with encoding issue")
 print(f"Kept record 61679 with correct UTF-8: Søstrene Grene")
-
-cursor.close()
-conn.close()
