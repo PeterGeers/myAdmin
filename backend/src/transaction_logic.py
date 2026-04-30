@@ -1,28 +1,18 @@
-import mysql.connector
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from database import DatabaseManager
 
 load_dotenv()
 
 class TransactionLogic:
     def __init__(self, test_mode=False):
         self.test_mode = test_mode
-        
-        # Use test database if test_mode is True or TEST_MODE env var is set
-        use_test = test_mode or os.getenv('TEST_MODE', 'false').lower() == 'true'
         self.table_name = 'mutaties'  # Use same table name in both databases
-        db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', 'finance')
-        
-        self.config = {
-            'host': os.getenv('DB_HOST', 'localhost'),
-            'user': os.getenv('DB_USER', 'root'),
-            'password': os.getenv('DB_PASSWORD', ''),
-            'database': db_name
-        }
+        self.db = DatabaseManager(test_mode=test_mode)
     
     def get_connection(self):
-        return mysql.connector.connect(**self.config)
+        return self.db.get_connection()
     
     def get_last_transactions(self, transaction_number, administration=None):
         """Get last transactions based on TransactionNumber and max date
@@ -31,9 +21,6 @@ class TransactionLogic:
             transaction_number: The transaction number to search for
             administration: The tenant/administration to filter by (optional)
         """
-        conn = self.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
         # Build query with optional administration filter
         admin_filter = "AND administration = %s" if administration else ""
         
@@ -59,8 +46,9 @@ class TransactionLogic:
         else:
             params = (f"{transaction_number}%", f"{transaction_number}%")
         
-        cursor.execute(query, params)
-        results = cursor.fetchall()
+        with self.db.get_cursor() as (cursor, conn):
+            cursor.execute(query, params)
+            results = cursor.fetchall()
         
         # If multiple transactions on same day, group by Ref3 and take first group
         if len(results) > 2:
@@ -78,12 +66,7 @@ class TransactionLogic:
         
         # If no results, return error — no silent fallback
         if not results:
-            cursor.close()
-            conn.close()
             return {'error': True, 'message': f'No booking history found for vendor "{transaction_number}". Manual account selection required.', 'results': []}
-        
-        cursor.close()
-        conn.close()
         
         # Only duplicate if exactly 1 transaction (some vendors have single transactions)
         if len(results) == 1:
@@ -93,8 +76,7 @@ class TransactionLogic:
             if transaction_number not in single_transaction_vendors:
                 # Resolve VAT account from TaxRateService instead of hardcoding '2010'
                 from services.tax_rate_service import TaxRateService
-                from database import DatabaseManager
-                tax_svc = TaxRateService(DatabaseManager(test_mode=self.test_mode))
+                tax_svc = TaxRateService(self.db)
                 admin = administration or results[0].get('Administration', '')
                 rate_info = tax_svc.get_tax_rate(admin, 'btw', 'high', datetime.now().date())
                 vat_account = rate_info['ledger_account'] if rate_info else '2010'  # graceful fallback
@@ -202,48 +184,42 @@ class TransactionLogic:
         Zero-amount transactions are silently skipped (e.g. VAT line when VAT = 0).
         Returns only the transactions that were actually saved.
         """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
         saved_transactions = []
         skipped_count = 0
         
-        for transaction in transactions:
-            # Skip transactions with zero amount (e.g. zero-VAT invoice lines)
-            amount = float(transaction.get('TransactionAmount', 0))
-            if amount == 0:
-                print(f"Skipping zero-amount transaction: {transaction.get('TransactionDescription', 'Unknown')} "
-                      f"(Debet: {transaction.get('Debet')}, Credit: {transaction.get('Credit')})", flush=True)
-                skipped_count += 1
-                continue
-            insert_query = f"""
-                INSERT INTO {self.table_name} 
-                (TransactionNumber, TransactionDate, TransactionDescription, TransactionAmount, 
-                 Debet, Credit, ReferenceNumber, Ref1, Ref2, Ref3, Ref4, Administration)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            
-            cursor.execute(insert_query, (
-                transaction['TransactionNumber'],
-                transaction['TransactionDate'],
-                transaction['TransactionDescription'],
-                transaction['TransactionAmount'],
-                transaction['Debet'],
-                transaction['Credit'],
-                transaction['ReferenceNumber'],
-                transaction['Ref1'],
-                transaction['Ref2'],
-                transaction['Ref3'],
-                transaction['Ref4'],
-                transaction['Administration']
-            ))
-            
-            transaction['ID'] = cursor.lastrowid
-            saved_transactions.append(transaction)
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with self.db.transaction() as (cursor, conn):
+            for transaction in transactions:
+                # Skip transactions with zero amount (e.g. zero-VAT invoice lines)
+                amount = float(transaction.get('TransactionAmount', 0))
+                if amount == 0:
+                    print(f"Skipping zero-amount transaction: {transaction.get('TransactionDescription', 'Unknown')} "
+                          f"(Debet: {transaction.get('Debet')}, Credit: {transaction.get('Credit')})", flush=True)
+                    skipped_count += 1
+                    continue
+                insert_query = f"""
+                    INSERT INTO {self.table_name} 
+                    (TransactionNumber, TransactionDate, TransactionDescription, TransactionAmount, 
+                     Debet, Credit, ReferenceNumber, Ref1, Ref2, Ref3, Ref4, Administration)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(insert_query, (
+                    transaction['TransactionNumber'],
+                    transaction['TransactionDate'],
+                    transaction['TransactionDescription'],
+                    transaction['TransactionAmount'],
+                    transaction['Debet'],
+                    transaction['Credit'],
+                    transaction['ReferenceNumber'],
+                    transaction['Ref1'],
+                    transaction['Ref2'],
+                    transaction['Ref3'],
+                    transaction['Ref4'],
+                    transaction['Administration']
+                ))
+                
+                transaction['ID'] = cursor.lastrowid
+                saved_transactions.append(transaction)
         
         if skipped_count > 0:
             print(f"Skipped {skipped_count} zero-amount transaction(s)", flush=True)

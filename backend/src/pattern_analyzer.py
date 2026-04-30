@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 from typing import Dict, List, Optional, Tuple, Any
 from database import DatabaseManager
+from dialect_helpers import dialect
 from pattern_cache import get_pattern_cache
 
 
@@ -1105,13 +1106,13 @@ class PatternAnalyzer:
             # Store analysis metadata
             if is_incremental:
                 # For incremental updates, accumulate transaction count
-                self.db.execute_query("""
+                self.db.execute_query(f"""
                     INSERT INTO pattern_analysis_metadata 
                     (administration, last_analysis_date, transactions_analyzed, patterns_discovered,
                      date_range_from, date_range_to)
-                    VALUES (%s, NOW(), %s, %s, %s, %s)
+                    VALUES (%s, {dialect.current_timestamp()}, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
-                    last_analysis_date = NOW(),
+                    last_analysis_date = {dialect.current_timestamp()},
                     transactions_analyzed = transactions_analyzed + VALUES(transactions_analyzed),
                     patterns_discovered = %s,
                     date_range_to = VALUES(date_range_to),
@@ -1125,13 +1126,13 @@ class PatternAnalyzer:
                 ), fetch=False, commit=True)
             else:
                 # For full analysis, replace transaction count
-                self.db.execute_query("""
+                self.db.execute_query(f"""
                     INSERT INTO pattern_analysis_metadata 
                     (administration, last_analysis_date, transactions_analyzed, patterns_discovered,
                      date_range_from, date_range_to)
-                    VALUES (%s, NOW(), %s, %s, %s, %s)
+                    VALUES (%s, {dialect.current_timestamp()}, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
-                    last_analysis_date = NOW(),
+                    last_analysis_date = {dialect.current_timestamp()},
                     transactions_analyzed = VALUES(transactions_analyzed),
                     patterns_discovered = VALUES(patterns_discovered),
                     date_range_from = VALUES(date_range_from),
@@ -1516,9 +1517,9 @@ class PatternAnalyzer:
                 self.persistent_cache.invalidate_cache(administration)
             else:
                 print("📝 No new patterns discovered, updating analysis timestamp only...")
-                self.db.execute_query("""
+                self.db.execute_query(f"""
                     UPDATE pattern_analysis_metadata 
-                    SET last_analysis_date = NOW(),
+                    SET last_analysis_date = {dialect.current_timestamp()},
                         transactions_analyzed = transactions_analyzed + %s,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE administration = %s
@@ -1609,10 +1610,10 @@ class PatternAnalyzer:
             """, (administration,))
             
             # Get transaction count for comparison
-            transaction_count = self.db.execute_query("""
+            transaction_count = self.db.execute_query(f"""
                 SELECT COUNT(*) as count FROM mutaties 
                 WHERE administration = %s 
-                AND TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+                AND TransactionDate >= {dialect.date_subtract(dialect.current_date(), 2, 'YEAR')}
             """, (administration,))
             
             total_patterns = verb_pattern_count[0]['count'] if verb_pattern_count else 0
@@ -1743,10 +1744,10 @@ class PatternAnalyzer:
             latest_pending = pending_transactions[0]['latest'] if pending_transactions else None
             
             # Get total transaction count for comparison
-            total_transactions = self.db.execute_query("""
+            total_transactions = self.db.execute_query(f"""
                 SELECT COUNT(*) as count FROM mutaties 
                 WHERE administration = %s 
-                AND TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+                AND TransactionDate >= {dialect.date_subtract(dialect.current_date(), 2, 'YEAR')}
                 AND (Debet IS NOT NULL OR Credit IS NOT NULL)
             """, (administration,))
             

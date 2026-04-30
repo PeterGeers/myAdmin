@@ -1,18 +1,11 @@
 from flask import Blueprint, request, jsonify
-import mysql.connector
 import os
+from database import DatabaseManager
 from google_drive_service import GoogleDriveService
 from auth.cognito_utils import cognito_required
 
 missing_invoices_bp = Blueprint('missing_invoices', __name__)
-
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD'),
-        database=os.getenv('DB_NAME')
-    )
+db = DatabaseManager()
 
 @missing_invoices_bp.route('/api/transactions', methods=['POST'])
 @cognito_required(required_permissions=['transactions_read'])
@@ -23,9 +16,6 @@ def get_transactions(user_email, user_roles):
     if not ids:
         return jsonify([])
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     placeholders = ','.join(['%s'] * len(ids))
     query = f"""
     SELECT ID, TransactionAmount, TransactionDate, TransactionDescription, ReferenceNumber
@@ -33,21 +23,17 @@ def get_transactions(user_email, user_roles):
     WHERE ID IN ({placeholders})
     """
     
-    cursor.execute(query, ids)
-    results = cursor.fetchall()
+    results = db.execute_query(query, ids)
     
     transactions = []
     for row in results:
         transactions.append({
-            'ID': row[0],
-            'TransactionAmount': float(row[1]),
-            'TransactionDate': row[2].isoformat(),
-            'TransactionDescription': row[3],
-            'ReferenceNumber': row[4]
+            'ID': row['ID'],
+            'TransactionAmount': float(row['TransactionAmount']),
+            'TransactionDate': row['TransactionDate'].isoformat(),
+            'TransactionDescription': row['TransactionDescription'],
+            'ReferenceNumber': row['ReferenceNumber']
         })
-    
-    cursor.close()
-    conn.close()
     
     return jsonify(transactions)
 
@@ -113,23 +99,15 @@ def update_transaction_refs(user_email, user_roles):
         print(f"Missing data - IDs: {ids}, URL: {drive_url}")
         return jsonify({'error': 'Missing IDs or drive URL'}), 400
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     placeholders = ','.join(['%s'] * len(ids))
     
     if filename:
         # Update both Ref3 and Ref4
         query = f"UPDATE mutaties SET Ref3 = %s, Ref4 = %s WHERE ID IN ({placeholders})"
-        cursor.execute(query, [drive_url, filename] + ids)
+        db.execute_query(query, [drive_url, filename] + ids, fetch=False, commit=True)
     else:
         # Update only Ref3
         query = f"UPDATE mutaties SET Ref3 = %s WHERE ID IN ({placeholders})"
-        cursor.execute(query, [drive_url] + ids)
-    
-    conn.commit()
-    
-    cursor.close()
-    conn.close()
+        db.execute_query(query, [drive_url] + ids, fetch=False, commit=True)
     
     return jsonify({'success': True})

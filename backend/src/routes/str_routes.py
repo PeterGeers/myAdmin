@@ -17,6 +17,7 @@ from auth.tenant_context import tenant_required
 from str_processor import STRProcessor
 from str_database import STRDatabase
 from database import DatabaseManager
+from dialect_helpers import dialect
 import os
 
 # Create blueprint
@@ -198,14 +199,14 @@ def pricing_recommendations(user_email, user_roles):
         cursor = conn.cursor(dictionary=True)
         
         # Get all recommendations with historical data and multipliers
-        query = """
+        query = f"""
         SELECT listing_name, price_date, recommended_price, ai_recommended_adr, 
                ai_historical_adr, ai_variance, ai_reasoning, is_weekend, 
                event_uplift, event_name, last_year_adr, generated_at,
                base_rate, historical_mult, occupancy_mult, pace_mult, 
                event_mult, ai_correction, btw_adjustment
         FROM pricing_recommendations 
-        WHERE price_date >= CURDATE()
+        WHERE price_date >= {dialect.current_date()}
         ORDER BY listing_name, price_date
         """
         
@@ -250,11 +251,11 @@ def pricing_historical(user_email, user_roles):
         cursor = conn.cursor(dictionary=True)
         
         # Get monthly historical ADR data with guest fee adjustment for Child Friendly
-        query = """
+        query = f"""
         SELECT 
             listing,
-            YEAR(checkinDate) as year,
-            MONTH(checkinDate) as month,
+            {dialect.year('checkinDate')} as year,
+            {dialect.month('checkinDate')} as month,
             COUNT(*) as bookings,
             AVG(
                 CASE 
@@ -264,9 +265,9 @@ def pricing_historical(user_email, user_roles):
                 END
             ) as historical_adr
         FROM bnb 
-        WHERE checkinDate >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH)
+        WHERE checkinDate >= {dialect.date_subtract(dialect.current_date(), 24, 'MONTH')}
         AND nights > 0
-        GROUP BY listing, YEAR(checkinDate), MONTH(checkinDate)
+        GROUP BY listing, {dialect.year('checkinDate')}, {dialect.month('checkinDate')}
         ORDER BY listing, year, month
         """
         
@@ -279,14 +280,14 @@ def pricing_historical(user_email, user_roles):
                 row['historical_adr'] = float(row['historical_adr'])
         
         # Get recommended ADR data by month
-        rec_query = """
+        rec_query = f"""
         SELECT 
             listing_name,
-            YEAR(price_date) as year,
-            MONTH(price_date) as month,
+            {dialect.year('price_date')} as year,
+            {dialect.month('price_date')} as month,
             AVG(recommended_price) as recommended_adr
         FROM pricing_recommendations 
-        GROUP BY listing_name, YEAR(price_date), MONTH(price_date)
+        GROUP BY listing_name, {dialect.year('price_date')}, {dialect.month('price_date')}
         ORDER BY listing_name, year, month
         """
         
@@ -354,14 +355,14 @@ def pricing_multipliers(user_email, user_roles):
         if not listing:
             return jsonify({'success': False, 'error': 'Listing parameter required'}), 400
         
-        query = """
+        query = f"""
         SELECT price_date, listing_name, recommended_price,
                base_rate, historical_mult, occupancy_mult, pace_mult,
                event_mult, ai_correction, btw_adjustment,
                is_weekend, event_name
         FROM pricing_recommendations
         WHERE listing_name = %s
-        AND price_date >= CURDATE()
+        AND price_date >= {dialect.current_date()}
         ORDER BY price_date
         """
         

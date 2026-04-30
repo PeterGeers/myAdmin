@@ -14,10 +14,10 @@ import re
 import html
 import boto3
 import logging
-import mysql.connector
 from datetime import datetime
 from typing import Dict, Any, Optional, Tuple
 from botocore.exceptions import ClientError
+from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +42,14 @@ class SignupService:
 
         self.cognito = boto3.client('cognito-idp', region_name=self.region)
 
-        # Promo DB config (same server, different database)
-        self.db_config = {
-            'host': os.getenv('DB_HOST', os.getenv('RAILWAY_PRIVATE_DOMAIN', 'localhost')),
-            'user': os.getenv('DB_USER', os.getenv('MYSQL_USER', 'root')),
-            'password': os.getenv('DB_PASSWORD', os.getenv('MYSQL_PASSWORD', '')),
-            'database': os.getenv('PROMO_DB_NAME', 'myadmin_promo'),
-            'port': int(os.getenv('DB_PORT', '3306'))
-        }
+        # Create DatabaseManager for promo database (separate from main finance DB)
+        self.db = DatabaseManager()
+        self.db.config['database'] = os.getenv('PROMO_DB_NAME', 'myadmin_promo')
 
 
     def _get_connection(self):
-        """Get a direct connection to the promo database"""
-        return mysql.connector.connect(**self.db_config)
+        """Get a connection to the promo database via DatabaseManager"""
+        return self.db.get_connection()
 
     # ========================================================================
     # Input Validation

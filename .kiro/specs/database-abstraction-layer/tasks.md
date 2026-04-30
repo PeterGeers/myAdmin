@@ -121,150 +121,150 @@ Centralize all database access through `DatabaseManager`, eliminate direct `mysq
 
 ### Phase 2: Refactor Production Code (`backend/src/`) — HIGHEST PRIORITY
 
-- [ ] 6. Refactor core database files with direct imports and standalone connections
-  - [ ] 6.1 Refactor `backend/src/transaction_logic.py` (Inventory #1)
+- [x] 6. Refactor core database files with direct imports and standalone connections
+  - [x] 6.1 Refactor `backend/src/transaction_logic.py` (Inventory #1)
     - Remove `import mysql.connector`
     - Replace `self.get_connection()` / standalone `mysql.connector.connect()` with `DatabaseManager.get_connection()`
     - Route all queries through `DatabaseManager`
     - _Requirements: 1.2, 2.1, 2.4, 11.1, 11.2, 11.5_
 
-  - [ ] 6.2 Refactor `backend/src/str_database.py` (Inventory #2)
+  - [x] 6.2 Refactor `backend/src/str_database.py` (Inventory #2)
     - Remove `import mysql.connector`
     - Replace 8× `mysql.connector.Error` catches with `DatabaseError`
     - Replace `DESCRIBE bnb` with `dialect.describe_table('bnb')`
     - _Requirements: 1.2, 6.5, 7.4, 11.1, 11.2, 11.6_
 
-  - [ ] 6.3 Refactor `backend/src/routes/missing_invoices_routes.py` (Inventory #3)
+  - [x] 6.3 Refactor `backend/src/routes/missing_invoices_routes.py` (Inventory #3)
     - Remove `import mysql.connector`
     - Delete `get_db_connection()` helper
     - Replace standalone `mysql.connector.connect()` and direct `cursor.execute()` with `DatabaseManager`
     - _Requirements: 1.2, 2.1, 2.4, 11.1, 11.2, 11.5_
 
-  - [ ] 6.4 Refactor `backend/src/business_pricing_model.py` (Inventory #4)
+  - [x] 6.4 Refactor `backend/src/business_pricing_model.py` (Inventory #4)
     - Remove unused `import mysql.connector` (already uses `DatabaseManager`)
     - _Requirements: 1.2, 11.1_
 
-  - [ ] 6.5 Refactor `backend/src/services/signup_service.py` (Inventory #5)
+  - [x] 6.5 Refactor `backend/src/services/signup_service.py` (Inventory #5)
     - Remove `import mysql.connector`
     - Replace `_get_connection()` / standalone `mysql.connector.connect()` with `DatabaseManager.get_connection()` or a second `DatabaseManager` instance for the promo database
     - _Requirements: 1.2, 2.4, 11.1, 11.5_
 
-  - [ ] 6.6 Remove duplicate `backend/src/validate_pattern/database.py` (Inventory #6)
+  - [x] 6.6 Remove duplicate `backend/src/validate_pattern/database.py` (Inventory #6)
     - Delete this file entirely (it is a full copy of `database.py`)
     - Update all imports in `validate_pattern/` to use the main `DatabaseManager` from `backend/src/database.py`
     - _Requirements: 1.2, 11.1, 11.5_
 
-  - [ ] 6.7 Refactor `backend/src/migrate_revolut_ref2.py` (Inventory #9)
+  - [x] 6.7 Refactor `backend/src/migrate_revolut_ref2.py` (Inventory #9)
     - Remove `import mysql.connector`
     - Replace standalone `mysql.connector.connect()` with `DatabaseManager`
     - _Requirements: 1.2, 2.4, 11.1, 11.5_
 
-- [ ] 7. Checkpoint — Core database files refactored
+- [x] 7. Checkpoint — Core database files refactored
   - Ensure all tests pass, ask the user if questions arise.
   - Run `python backend/scripts/check_db_imports.py` to verify reduced violation count
 
-- [ ] 8. Refactor route files with MySQL-specific SQL (JSON, date, introspection)
-  - [ ] 8.1 Refactor `backend/src/routes/chart_of_accounts_routes.py` (Inventory #10)
+- [x] 8. Refactor route files with MySQL-specific SQL (JSON, date, introspection)
+  - [x] 8.1 Refactor `backend/src/routes/chart_of_accounts_routes.py` (Inventory #10)
     - Replace `JSON_UNQUOTE(JSON_EXTRACT(...))` with `dialect.json_unquote_extract()`
     - Replace `IFNULL(JSON_EXTRACT(...))` with `dialect.ifnull(dialect.json_extract(...))`
     - 3 query locations
     - _Requirements: 4.5, 5.4, 11.6_
 
-  - [ ] 8.2 Refactor `backend/src/routes/str_routes.py` (Inventory #11)
+  - [x] 8.2 Refactor `backend/src/routes/str_routes.py` (Inventory #11)
     - Replace `DATE_SUB(CURDATE(), ...)` with `dialect.date_subtract(dialect.current_date(), ...)`
     - Replace `YEAR()`, `MONTH()` with `dialect.year()`, `dialect.month()`
     - Multiple queries
     - _Requirements: 5.1, 5.2, 5.3, 11.6_
 
-  - [ ] 8.3 Refactor `backend/src/routes/zzp_routes.py` (Inventory #12)
+  - [x] 8.3 Refactor `backend/src/routes/zzp_routes.py` (Inventory #12)
     - Replace `JSON_EXTRACT(parameters, ...)` with `dialect.json_extract()`
     - Replace `DATEDIFF(CURDATE(), ...)` with `dialect.date_diff(dialect.current_date(), ...)`
     - _Requirements: 4.5, 5.2, 11.6_
 
-  - [ ] 8.4 Refactor `backend/src/routes/sysadmin_provisioning.py` (Inventory #13)
+  - [x] 8.4 Refactor `backend/src/routes/sysadmin_provisioning.py` (Inventory #13)
     - Replace `DATE_ADD(NOW(), INTERVAL ...)` with `dialect.date_add(dialect.current_timestamp(), ...)`
     - _Requirements: 5.3, 11.6_
 
-  - [ ] 8.5 Refactor `backend/src/str_channel_routes.py` (Inventory #14)
+  - [x] 8.5 Refactor `backend/src/str_channel_routes.py` (Inventory #14)
     - Replace `JSON_EXTRACT(parameters, '$.str_revenue_account')` with `dialect.json_extract()`
     - _Requirements: 4.5, 11.6_
 
-- [ ] 9. Refactor service files with MySQL-specific SQL
-  - [ ] 9.1 Refactor `backend/src/hybrid_pricing_optimizer.py` (Inventory #15)
+- [x] 9. Refactor service files with MySQL-specific SQL
+  - [x] 9.1 Refactor `backend/src/hybrid_pricing_optimizer.py` (Inventory #15)
     - Replace `DATE_SUB(CURDATE(), ...)`, `DATE_ADD(...)`, `YEAR()`, `MONTH()` in 6+ queries with dialect helpers
     - _Requirements: 5.1, 5.2, 5.3, 11.6_
 
-  - [ ] 9.2 Refactor `backend/src/services/ai_usage_tracker.py` (Inventory #16)
+  - [x] 9.2 Refactor `backend/src/services/ai_usage_tracker.py` (Inventory #16)
     - Replace `DATE_SUB(NOW(), INTERVAL ...)` in 2 queries with `dialect.date_subtract(dialect.current_timestamp(), ...)`
     - _Requirements: 5.3, 11.6_
 
-  - [ ] 9.3 Refactor `backend/src/services/pivot_service.py` (Inventory #17)
+  - [x] 9.3 Refactor `backend/src/services/pivot_service.py` (Inventory #17)
     - Replace `DESCRIBE {data_source}` with `dialect.describe_table(data_source)`
     - _Requirements: 6.4, 6.5, 11.6_
 
-  - [ ] 9.4 Refactor `backend/src/services/year_end_config.py` (Inventory #18)
+  - [x] 9.4 Refactor `backend/src/services/year_end_config.py` (Inventory #18)
     - Replace `JSON_SET(COALESCE(parameters, '{}'), ...)` in 2 queries with `dialect.json_set()`
     - _Requirements: 4.3, 11.6_
 
-  - [ ] 9.5 Refactor `backend/src/services/invoice_service.py` (Inventory #19)
+  - [x] 9.5 Refactor `backend/src/services/invoice_service.py` (Inventory #19)
     - Replace `CURDATE()` with `dialect.current_date()`
     - _Requirements: 5.2, 11.6_
 
-  - [ ] 9.6 Refactor `backend/src/services/zzp_invoice_service.py` (Inventory #20)
+  - [x] 9.6 Refactor `backend/src/services/zzp_invoice_service.py` (Inventory #20)
     - Replace `CURDATE()` with `dialect.current_date()`
     - _Requirements: 5.2, 11.6_
 
-  - [ ] 9.7 Refactor `backend/src/services/time_tracking_service.py` (Inventory #21)
+  - [x] 9.7 Refactor `backend/src/services/time_tracking_service.py` (Inventory #21)
     - Replace `DATE_FORMAT(entry_date, ...)` with `dialect.date_format('entry_date', ...)`
     - _Requirements: 5.5, 11.6_
 
-  - [ ] 9.8 Refactor `backend/src/services/pdf_generator_service.py` (Inventory #22)
+  - [x] 9.8 Refactor `backend/src/services/pdf_generator_service.py` (Inventory #22)
     - Replace `JSON_UNQUOTE(JSON_EXTRACT(parameters, ...))` with `dialect.json_unquote_extract()`
     - _Requirements: 4.2, 11.6_
 
-- [ ] 10. Refactor remaining production code files
-  - [ ] 10.1 Refactor `backend/src/migrations/backfill_rekeningschema_flags.py` (Inventory #23)
+- [x] 10. Refactor remaining production code files
+  - [x] 10.1 Refactor `backend/src/migrations/backfill_rekeningschema_flags.py` (Inventory #23)
     - Replace `JSON_EXTRACT(...)`, `JSON_SET(COALESCE(...))` in 10+ locations with dialect helpers
     - _Requirements: 4.1, 4.3, 11.6_
 
-  - [ ] 10.2 Refactor `backend/src/pattern_analyzer.py` (Inventory #24)
+  - [x] 10.2 Refactor `backend/src/pattern_analyzer.py` (Inventory #24)
     - Replace `DATE_SUB(CURDATE(), ...)` in 2 queries with dialect helpers
     - _Requirements: 5.2, 5.3, 11.6_
 
-  - [ ] 10.3 Refactor `backend/src/validate_pattern/pattern_analyzer_test.py` (Inventory #25)
+  - [x] 10.3 Refactor `backend/src/validate_pattern/pattern_analyzer_test.py` (Inventory #25)
     - Replace `DATE_SUB(CURDATE(), ...)` in 2 queries with dialect helpers
     - _Requirements: 5.2, 5.3, 11.6_
 
-  - [ ] 10.4 Refactor `backend/src/duplicate_checker.py` (Inventory #26)
+  - [x] 10.4 Refactor `backend/src/duplicate_checker.py` (Inventory #26)
     - Replace `CURDATE()` with `dialect.current_date()`
     - _Requirements: 5.2, 11.6_
 
-  - [ ] 10.5 Refactor `backend/src/duplicate_query_optimizer.py` (Inventory #27)
+  - [x] 10.5 Refactor `backend/src/duplicate_query_optimizer.py` (Inventory #27)
     - Replace `CURDATE()` with `dialect.current_date()`
     - _Requirements: 5.2, 11.6_
 
-  - [ ] 10.6 Refactor `backend/src/database_migrations.py` (Inventory #28)
+  - [x] 10.6 Refactor `backend/src/database_migrations.py` (Inventory #28)
     - Replace `CURDATE()` in cleanup query with `dialect.current_date()`
     - _Requirements: 5.2, 11.6_
 
-  - [ ] 10.7 Refactor `backend/src/bnb_cache.py` (Inventory #29)
+  - [x] 10.7 Refactor `backend/src/bnb_cache.py` (Inventory #29)
     - Replace `YEAR()`, `MONTH()`, `QUARTER()` with dialect helpers
     - _Requirements: 5.1, 11.6_
 
-  - [ ] 10.8 Refactor `backend/src/app.py` (Inventory #30)
+  - [x] 10.8 Refactor `backend/src/app.py` (Inventory #30)
     - Replace `CURDATE()` with `dialect.current_date()`
     - _Requirements: 5.2, 11.6_
 
-  - [ ] 10.9 Refactor `backend/src/error_handlers.py` (Inventory #31)
+  - [x] 10.9 Refactor `backend/src/error_handlers.py` (Inventory #31)
     - Update string references to `mysql.connector.errors.DatabaseError` and `mysql.connector.errors.InterfaceError` to use agnostic exception class names
     - _Requirements: 7.4, 11.1_
 
-  - [ ] 10.10 Verify `backend/src/reporting_routes.py` (Inventory #32)
+  - [x] 10.10 Verify `backend/src/reporting_routes.py` (Inventory #32)
     - Verify no raw MySQL SQL exists (the `date_format` key is Python-level, not SQL)
     - No changes expected — confirm and document
     - _Requirements: 11.6_
 
-- [ ] 11. Checkpoint — All production code refactored
+- [x] 11. Checkpoint — All production code refactored
   - Ensure all tests pass, ask the user if questions arise.
   - Run `python backend/scripts/check_db_imports.py` to verify zero violations in `backend/src/`
 

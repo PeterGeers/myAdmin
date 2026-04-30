@@ -322,12 +322,12 @@ class DuplicateDetectionErrorHandler:
         """Initialize error code mappings."""
         return {
             # Database errors
-            'mysql.connector.errors.DatabaseError': {
+            'db_exceptions.DatabaseError': {
                 'category': ErrorCategory.DATABASE,
                 'severity': ErrorSeverity.HIGH,
                 'retry_recommended': True
             },
-            'mysql.connector.errors.InterfaceError': {
+            'db_exceptions.ConnectionError': {
                 'category': ErrorCategory.DATABASE,
                 'severity': ErrorSeverity.HIGH,
                 'retry_recommended': True

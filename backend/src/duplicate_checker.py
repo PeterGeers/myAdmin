@@ -10,6 +10,7 @@ import traceback
 from typing import List, Dict, Optional
 from datetime import datetime
 from database import DatabaseManager
+from dialect_helpers import dialect
 from duplicate_performance_monitor import get_performance_monitor
 
 # Configure logger for duplicate detection
@@ -93,7 +94,7 @@ class DuplicateChecker:
                 WHERE ReferenceNumber = %s
                 AND TransactionDate = %s
                 AND TransactionAmount = %s
-                AND TransactionDate > (CURDATE() - INTERVAL 2 YEAR)
+                AND TransactionDate > ({dialect.current_date()} - INTERVAL 2 YEAR)
                 ORDER BY ID DESC
             """
             
