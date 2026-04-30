@@ -86,3 +86,9 @@ That said, once the abstraction layer is in place, adopting an ORM later becomes
 # Import errors on bdc
 failing urls 
 - https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/search_reservations.html?source=nav&upcoming_reservations=1&hotel_id=5620035&lang=en&ses=ddc3b11e6559a324b0778f09821fd4fe&date_from=2026-04-01&date_to=2027-05-01&date_type=arrival
+
+# Ideas for agentic AI in the scope of this project. 
+- We now have AI invoice summary that works very well. We could remove the hard coded ones
+- We have AI template support for solving templates (i have still never used)
+- We have AI supported STR Price prediction (but that is still complete rubbish)
+
