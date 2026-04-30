@@ -5,6 +5,7 @@ Check database view naming conventions
 import sys
 sys.path.append('src')
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 def check_view_naming():
     db = DatabaseManager()
@@ -13,7 +14,7 @@ def check_view_naming():
     print("=" * 50)
     
     # Get all views
-    views = db.execute_query('SHOW FULL TABLES WHERE Table_type = "VIEW"')
+    views = db.execute_query(dialect.list_tables() + ' WHERE Table_type = "VIEW"')
     
     print(f"Found {len(views)} views:")
     

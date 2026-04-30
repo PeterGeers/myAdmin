@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from database_migrations import DatabaseMigration
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 
 def apply_pattern_migrations(test_mode=False):
@@ -57,14 +58,14 @@ def apply_pattern_migrations(test_mode=False):
             
             # Check pattern_analysis_metadata table
             try:
-                result = db.execute_query("DESCRIBE pattern_analysis_metadata")
+                result = db.execute_query(dialect.describe_table('pattern_analysis_metadata'))
                 print(f"   ✅ pattern_analysis_metadata table exists ({len(result)} columns)")
             except Exception as e:
                 print(f"   ❌ pattern_analysis_metadata table missing: {e}")
             
             # Check pattern_verb_patterns table
             try:
-                result = db.execute_query("DESCRIBE pattern_verb_patterns")
+                result = db.execute_query(dialect.describe_table('pattern_verb_patterns'))
                 print(f"   ✅ pattern_verb_patterns table exists ({len(result)} columns)")
                 
                 # Check for compound verb columns

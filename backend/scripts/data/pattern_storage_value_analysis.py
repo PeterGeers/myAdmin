@@ -7,11 +7,12 @@ Focus on the fact that current implementation always queries mutaties table
 import sys
 import os
 import time
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from pattern_analyzer import PatternAnalyzer
 from banking_processor import BankingProcessor
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 
 def analyze_current_database_impact():
@@ -30,9 +31,9 @@ def analyze_current_database_impact():
     total_transactions = db.execute_query("SELECT COUNT(*) as count FROM mutaties")[0]['count']
     
     # Count transactions from last 2 years (what pattern analysis uses)
-    two_year_transactions = db.execute_query("""
+    two_year_transactions = db.execute_query(f"""
         SELECT COUNT(*) as count FROM mutaties 
-        WHERE TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+        WHERE TransactionDate >= {dialect.date_subtract(dialect.current_date(), 2, 'YEAR')}
     """)[0]['count']
     
     print(f"📊 Database Impact:")

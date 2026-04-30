@@ -41,6 +41,7 @@ from typing import List, Dict, Optional, Tuple
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.database import DatabaseManager
+from src.dialect_helpers import dialect
 
 
 class OpeningBalanceMigrator:
@@ -522,15 +523,16 @@ class OpeningBalanceMigrator:
         """
         import json
         
+        jc_roles = dialect.json_contains("parameters->'$.roles'", '%s')
         conn = self.db_manager.get_connection()
         cursor = conn.cursor(dictionary=True)
         
         try:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT Account
                 FROM rekeningschema
                 WHERE administration = %s
-                AND JSON_CONTAINS(parameters->'$.roles', %s)
+                AND {jc_roles}
                 LIMIT 1
             """, (tenant, json.dumps(role)))
             

@@ -15,9 +15,10 @@ Advanced Optimizations:
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/src')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 from pattern_analyzer import PatternAnalyzer
 from datetime import datetime, timedelta
 import re
@@ -28,10 +29,10 @@ def calculate_target_patterns(administration: str, target_reduction: float = 99.
     db = DatabaseManager(test_mode=False)
     
     # Get transaction count
-    transaction_result = db.execute_query("""
+    transaction_result = db.execute_query(f"""
         SELECT COUNT(*) as count FROM mutaties 
         WHERE Administration = %s 
-        AND TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+        AND TransactionDate >= {dialect.date_subtract(dialect.current_date(), 2, 'YEAR')}
         AND (Debet IS NOT NULL OR Credit IS NOT NULL)
     """, (administration,))
     
@@ -78,9 +79,9 @@ def aggressive_pattern_optimization(administration: str, target_patterns: int):
     # Step 2: Keep only recent patterns (last 3 months)
     if current_patterns > target_patterns:
         print("2️⃣ Keeping only recent patterns (last 3 months)...")
-        removed_old = db.execute_query("""
+        removed_old = db.execute_query(f"""
             DELETE FROM pattern_verb_patterns 
-            WHERE administration = %s AND last_seen < DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+            WHERE administration = %s AND last_seen < {dialect.date_subtract(dialect.current_date(), 3, 'MONTH')}
         """, (administration,), fetch=False, commit=True)
         print(f"   Removed {removed_old} old patterns")
         
@@ -109,15 +110,15 @@ def aggressive_pattern_optimization(administration: str, target_patterns: int):
         print(f"4️⃣ Keeping only top {target_patterns} patterns by score...")
         
         # Remove patterns with lowest confidence*occurrences*recency score
-        removed_low_score = db.execute_query("""
+        removed_low_score = db.execute_query(f"""
             DELETE FROM pattern_verb_patterns 
             WHERE administration = %s
             ORDER BY (
                 confidence * 
                 occurrences * 
                 (CASE 
-                    WHEN last_seen >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN 3
-                    WHEN last_seen >= DATE_SUB(CURDATE(), INTERVAL 2 MONTH) THEN 2
+                    WHEN last_seen >= {dialect.date_subtract(dialect.current_date(), 1, 'MONTH')} THEN 3
+                    WHEN last_seen >= {dialect.date_subtract(dialect.current_date(), 2, 'MONTH')} THEN 2
                     ELSE 1
                 END)
             ) ASC
@@ -253,10 +254,10 @@ def test_final_performance(administration: str, target_reduction: float = 99.0):
     analyzer.persistent_cache.clear_all_cache()
     
     # Get transaction count
-    transaction_result = db.execute_query("""
+    transaction_result = db.execute_query(f"""
         SELECT COUNT(*) as count FROM mutaties 
         WHERE Administration = %s 
-        AND TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+        AND TransactionDate >= {dialect.date_subtract(dialect.current_date(), 2, 'YEAR')}
         AND (Debet IS NOT NULL OR Credit IS NOT NULL)
     """, (administration,))
     

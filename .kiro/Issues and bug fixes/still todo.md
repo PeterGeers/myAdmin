@@ -94,3 +94,8 @@ failing urls
 
 
 why do you keep testing all unit tests of which some fail and takes a lot of time. You do not want to fix them. Either focus on the scope or fix the failing tests
+
+Update to use database framework .kiro\steering\database-patterns.md 
+
+# ai use log table
+- ad ai use in invoice processor

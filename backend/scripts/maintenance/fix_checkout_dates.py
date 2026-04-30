@@ -9,10 +9,11 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 # Add backend/src to path
-backend_src = Path(__file__).parent / 'src'
+backend_src = Path(__file__).parent.parent / 'src'
 sys.path.insert(0, str(backend_src))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 def fix_checkout_dates(dry_run=True):
     """
@@ -90,9 +91,9 @@ def fix_checkout_dates(dry_run=True):
             print()
             
             # Update the records
-            update_query = """
+            update_query = f"""
             UPDATE bnb
-            SET checkoutDate = DATE_ADD(checkinDate, INTERVAL nights DAY)
+            SET checkoutDate = {dialect.date_add('checkinDate', 'nights', 'DAY')}
             WHERE id = %s
             """
             

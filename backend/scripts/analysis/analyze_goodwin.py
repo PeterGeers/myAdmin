@@ -3,31 +3,30 @@
 Analyze Goodwin administration data from vw_mutaties view
 """
 
-import mysql.connector
 import os
-from dotenv import load_dotenv
+import sys
+from pathlib import Path
 from collections import defaultdict, Counter
 from datetime import datetime
 import pandas as pd
 
-load_dotenv('backend/.env')
+# Add src to path
+backend_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_dir / 'src'))
+sys.path.insert(0, str(backend_dir))
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASSWORD', ''),
-        database=os.getenv('DB_NAME', 'finance')
-    )
+from dotenv import load_dotenv
+load_dotenv(backend_dir / '.env')
+
+from database import DatabaseManager
+from db_exceptions import DatabaseError
 
 def analyze_goodwin_data():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    db = DatabaseManager()
     
     # Query Goodwin administration data
-    query = "SELECT * FROM mutaties WHERE Administration LIKE 'Goodwin%'"
-    cursor.execute(query)
-    results = cursor.fetchall()
+    query = "SELECT * FROM mutaties WHERE Administration LIKE %s"
+    results = db.execute_query(query, ('Goodwin%',), fetch=True)
     
     if not results:
         print("No Goodwin administration data found.")
@@ -157,9 +156,6 @@ def analyze_goodwin_data():
             print(f"ID: {row['ID']} | Date: {row['TransactionDate']} | Amount: ${row['TransactionAmount']:.2f} | Debet: {row['Debet']} | Credit: {row['Credit']} | Desc: {row['TransactionDescription'][:40]}...")
         print()
     
-    cursor.close()
-    conn.close()
-    
     return df
 
 def generate_recommendations(df):
@@ -216,5 +212,7 @@ if __name__ == "__main__":
         df = analyze_goodwin_data()
         if df is not None:
             generate_recommendations(df)
+    except DatabaseError as e:
+        print(f"Database error analyzing data: {e}")
     except Exception as e:
         print(f"Error analyzing data: {e}")

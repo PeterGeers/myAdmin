@@ -3,43 +3,51 @@
 Check column names in vw_mutaties view
 """
 
-import mysql.connector
 import os
-from dotenv import load_dotenv
+import sys
+from pathlib import Path
 
-load_dotenv('backend/.env')
+# Add src to path
+backend_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_dir / 'src'))
+sys.path.insert(0, str(backend_dir))
+
+from dotenv import load_dotenv
+load_dotenv(backend_dir / '.env')
+
+from database import DatabaseManager
+from db_exceptions import DatabaseError
+
 
 def check_columns():
-    conn = mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASSWORD', ''),
-        database=os.getenv('DB_NAME', 'finance')
-    )
-    
-    cursor = conn.cursor()
-    
+    db = DatabaseManager()
+
     # Get column information
-    cursor.execute("DESCRIBE vw_mutaties")
-    columns = cursor.fetchall()
-    
+    columns = db.execute_query("DESCRIBE vw_mutaties", fetch=True)
+
     print("=== VW_MUTATIES COLUMNS ===")
     for col in columns:
-        print(f"{col[0]} - {col[1]}")
-    
+        print(f"{col['Field']} - {col['Type']}")
+
     # Get sample data
-    cursor.execute("SELECT * FROM vw_mutaties WHERE Administration LIKE 'Goodwin%' LIMIT 3")
-    sample = cursor.fetchall()
-    
+    sample = db.execute_query(
+        "SELECT * FROM vw_mutaties WHERE Administration LIKE 'Goodwin%' LIMIT 3",
+        fetch=True
+    )
+
     print("\n=== SAMPLE DATA ===")
-    col_names = [desc[0] for desc in cursor.description]
-    print("Columns:", col_names)
-    
-    for i, row in enumerate(sample):
-        print(f"Row {i+1}:", dict(zip(col_names, row)))
-    
-    cursor.close()
-    conn.close()
+    if sample:
+        col_names = list(sample[0].keys())
+        print("Columns:", col_names)
+
+        for i, row in enumerate(sample):
+            print(f"Row {i+1}:", row)
+
 
 if __name__ == "__main__":
-    check_columns()
+    try:
+        check_columns()
+    except DatabaseError as e:
+        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")

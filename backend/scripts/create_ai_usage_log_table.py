@@ -14,6 +14,7 @@ sys.path.insert(0, str(backend_dir / 'src'))
 
 from dotenv import load_dotenv
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 # Load environment variables
 load_dotenv(backend_dir / '.env')

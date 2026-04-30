@@ -147,11 +147,11 @@ def main():
     if all_violations:
         print(f"Found {len(all_violations)} mysql.connector import violation(s):\n")
         for v in all_violations:
-            print(f"  ❌ {v}")
+            print(f"  [FAIL] {v}")
         print(f"\nAll database access must go through DatabaseManager (database.py).")
         sys.exit(1)
     else:
-        print("✅ No direct mysql.connector imports found outside allowed files.")
+        print("[OK] No direct mysql.connector imports found outside allowed files.")
         sys.exit(0)
 
 

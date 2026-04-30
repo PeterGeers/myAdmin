@@ -1,20 +1,14 @@
 """Verify country backfill results"""
-import mysql.connector
 import os
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 from dotenv import load_dotenv
+from database import DatabaseManager
 
 load_dotenv()
 
-conn = mysql.connector.connect(
-    host=os.getenv('DB_HOST'),
-    user=os.getenv('DB_USER'),
-    password=os.getenv('DB_PASSWORD'),
-    database=os.getenv('DB_NAME')
-)
-cursor = conn.cursor()
+db = DatabaseManager()
 
 print("\n" + "="*60)
 print("Country Detection Verification")
@@ -23,22 +17,25 @@ print("="*60 + "\n")
 # Overall statistics
 print("1. Overall Statistics:")
 print("-" * 60)
-cursor.execute("""
+stats = db.execute_query("""
     SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN country IS NOT NULL THEN 1 ELSE 0 END) as with_country,
         SUM(CASE WHEN country IS NULL THEN 1 ELSE 0 END) as without_country
     FROM bnb
 """)
-row = cursor.fetchone()
-print(f"Total records:        {row[0]}")
-print(f"With country:         {row[1]} ({row[1]/row[0]*100:.1f}%)")
-print(f"Without country:      {row[2]} ({row[2]/row[0]*100:.1f}%)")
+row = stats[0]
+total = row['total']
+with_country = row['with_country']
+without_country = row['without_country']
+print(f"Total records:        {total}")
+print(f"With country:         {with_country} ({with_country/total*100:.1f}%)")
+print(f"Without country:      {without_country} ({without_country/total*100:.1f}%)")
 
 # Top countries by channel
 print("\n2. Top Countries by Channel (bnb table):")
 print("-" * 60)
-cursor.execute("""
+channel_data = db.execute_query("""
     SELECT channel, country, COUNT(*) as count 
     FROM bnb 
     WHERE country IS NOT NULL 
@@ -47,16 +44,16 @@ cursor.execute("""
     LIMIT 30
 """)
 current_channel = None
-for row in cursor.fetchall():
-    if current_channel != row[0]:
-        current_channel = row[0]
+for row in channel_data:
+    if current_channel != row['channel']:
+        current_channel = row['channel']
         print(f"\n{current_channel}:")
-    print(f"  {row[1]:2s} - {row[2]:4d} bookings")
+    print(f"  {row['country']:2s} - {row['count']:4d} bookings")
 
 # Sample records
 print("\n3. Sample Records with Country:")
 print("-" * 60)
-cursor.execute("""
+samples = db.execute_query("""
     SELECT id, channel, country, guestName, LEFT(phone, 15) as phone_sample
     FROM bnb 
     WHERE country IS NOT NULL 
@@ -65,11 +62,9 @@ cursor.execute("""
 """)
 print(f"{'ID':>6s} | {'Channel':15s} | {'Country':7s} | {'Guest':20s} | {'Phone':15s}")
 print("-" * 60)
-for row in cursor.fetchall():
-    print(f"{row[0]:6d} | {row[1]:15s} | {row[2]:7s} | {row[3][:20]:20s} | {row[4] if row[4] else 'N/A':15s}")
-
-cursor.close()
-conn.close()
+for row in samples:
+    phone = row['phone_sample'] if row['phone_sample'] else 'N/A'
+    print(f"{row['id']:6d} | {row['channel']:15s} | {row['country']:7s} | {row['guestName'][:20]:20s} | {phone:15s}")
 
 print("\n" + "="*60)
 print("Verification Complete!")
