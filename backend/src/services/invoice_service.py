@@ -14,6 +14,7 @@ import os
 import shutil
 from werkzeug.utils import secure_filename
 from database import DatabaseManager
+from dialect_helpers import dialect
 from google_drive_service import GoogleDriveService
 from pdf_processor import PDFProcessor
 from transaction_logic import TransactionLogic
@@ -68,12 +69,12 @@ class InvoiceService:
         try:
             # Check if this exact file already exists in the database
             # Look for transactions with the same filename in Ref4 and same folder in ReferenceNumber
-            query = """
+            query = f"""
                 SELECT ID, TransactionDate, TransactionAmount, TransactionDescription, Ref3, Ref4
                 FROM mutaties 
                 WHERE Ref4 = %s 
                 AND ReferenceNumber = %s
-                AND TransactionDate > (CURDATE() - INTERVAL 6 MONTH)
+                AND TransactionDate > ({dialect.date_subtract(dialect.current_date(), 6, 'MONTH')})
                 ORDER BY ID DESC
                 LIMIT 5
             """

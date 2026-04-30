@@ -115,6 +115,18 @@ class MySQLDialect:
         return f"MONTH({column})"
 
     @staticmethod
+    def quarter(column: str) -> str:
+        """Generate ``QUARTER(column)``.
+
+        Args:
+            column: Column or expression containing a date.
+
+        Returns:
+            SQL fragment string.
+        """
+        return f"QUARTER({column})"
+
+    @staticmethod
     def current_date() -> str:
         """Generate ``CURDATE()``.
 

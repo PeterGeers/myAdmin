@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 import calendar
 from database import DatabaseManager
+from dialect_helpers import dialect
 from services.tax_rate_service import TaxRateService
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -75,10 +76,10 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         channel_data = cursor.fetchall()
         
         # Resolve STR revenue account from rekeningschema.parameters
-        str_revenue_query = """
+        str_revenue_query = f"""
             SELECT Account FROM rekeningschema
             WHERE administration = %s
-              AND JSON_EXTRACT(parameters, '$.str_revenue_account') = true
+              AND {dialect.json_extract('parameters', '$.str_revenue_account')} = true
             ORDER BY Account LIMIT 1
         """
         cursor.execute(str_revenue_query, (administration,))

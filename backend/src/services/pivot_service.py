@@ -9,7 +9,7 @@ tenant isolation, column validation, and optional column pivoting
 via conditional aggregation.
 
 **Zero hardcoded column definitions.** Everything is derived at startup:
-  - Column names and types: introspected from ``DESCRIBE <view>``
+  - Column names and types: introspected via ``dialect.describe_table(<view>)``
   - Excluded columns:       parameter ``ui.pivot / exclude_columns.<ds>``
   - Force-groupable cols:   parameter ``ui.pivot / force_groupable.<ds>``
   - Allowed columns:        parameter ``ui.pivot / allowed_columns.<ds>``
@@ -26,6 +26,8 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
+
+from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +91,7 @@ def derive_columns_from_schema(
     Returns:
         ``(groupable, aggregatable, type_map)``
     """
-    rows = db.execute_query(f"DESCRIBE {data_source}", fetch=True)
+    rows = db.execute_query(dialect.describe_table(data_source), fetch=True)
 
     groupable: List[str] = []
     aggregatable: List[str] = []

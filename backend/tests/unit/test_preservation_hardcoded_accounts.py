@@ -232,7 +232,7 @@ class TestPatternValidationPreservation:
         identify bank accounts. When the flag resolves to the same set of
         accounts as the old threshold, results are identical.
         """
-        from validate_pattern.database import DatabaseManager as PatternDB
+        from database import DatabaseManager as PatternDB
 
         db = PatternDB(test_mode=True)
 

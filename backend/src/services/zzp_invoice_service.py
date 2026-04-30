@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
+from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -683,10 +684,10 @@ class ZZPInvoiceService(FieldConfigMixin):
         Returns count of invoices updated.
         """
         result = self.db.execute_query(
-            """UPDATE invoices SET status = 'overdue'
+            f"""UPDATE invoices SET status = 'overdue'
                WHERE administration = %s
                  AND status = 'sent'
-                 AND due_date < CURDATE()""",
+                 AND due_date < {dialect.current_date()}""",
             (tenant,),
             fetch=False, commit=True,
         )

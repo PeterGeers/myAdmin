@@ -12,6 +12,7 @@ Note: Opening balances use equity_result account for balancing (no separate inte
 """
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 
 class YearEndConfigService:

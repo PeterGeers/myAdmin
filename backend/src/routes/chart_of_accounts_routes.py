@@ -20,6 +20,7 @@ from flask import Blueprint, request, jsonify, send_file
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin, tenant_required
 from database import DatabaseManager
+from dialect_helpers import dialect
 import os
 import json as json_lib
 import logging
@@ -215,13 +216,13 @@ def list_accounts(user_email, user_roles):
         db = DatabaseManager(test_mode=test_mode)
         
         # Build query
-        query = """
+        query = f"""
             SELECT AccountID, Account, AccountName, AccountLookup, 
                    SubParent, Parent, VW, Belastingaangifte, 
                    administration,
-                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.purpose')) as purpose,
-                   IFNULL(JSON_EXTRACT(parameters, '$.bank_account'), false) as bank_account,
-                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) as iban,
+                   {dialect.json_unquote_extract('parameters', '$.purpose')} as purpose,
+                   {dialect.ifnull(dialect.json_extract('parameters', '$.bank_account'), 'false')} as bank_account,
+                   {dialect.json_unquote_extract('parameters', '$.iban')} as iban,
                    parameters
             FROM rekeningschema
             WHERE administration = %s
@@ -330,13 +331,13 @@ def get_account(user_email, user_roles, account):
         db = DatabaseManager(test_mode=test_mode)
         
         # Query account
-        query = """
+        query = f"""
             SELECT AccountID, Account, AccountName, AccountLookup, 
                    SubParent, Parent, VW, Belastingaangifte, 
                    administration,
-                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.purpose')) as purpose,
-                   IFNULL(JSON_EXTRACT(parameters, '$.bank_account'), false) as bank_account,
-                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) as iban
+                   {dialect.json_unquote_extract('parameters', '$.purpose')} as purpose,
+                   {dialect.ifnull(dialect.json_extract('parameters', '$.bank_account'), 'false')} as bank_account,
+                   {dialect.json_unquote_extract('parameters', '$.iban')} as iban
             FROM rekeningschema
             WHERE administration = %s AND Account = %s
         """
@@ -760,12 +761,12 @@ def export_accounts(user_email, user_roles):
         db = DatabaseManager(test_mode=test_mode)
         
         # Get all accounts
-        query = """
+        query = f"""
             SELECT AccountID, Account, AccountName, AccountLookup, 
                    SubParent, Parent, VW, Belastingaangifte, 
                    administration,
-                   IFNULL(JSON_EXTRACT(parameters, '$.bank_account'), false) as bank_account,
-                   JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) as iban
+                   {dialect.ifnull(dialect.json_extract('parameters', '$.bank_account'), 'false')} as bank_account,
+                   {dialect.json_unquote_extract('parameters', '$.iban')} as iban
             FROM rekeningschema
             WHERE administration = %s
             ORDER BY Account

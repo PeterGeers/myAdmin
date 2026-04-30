@@ -17,6 +17,11 @@ refactor /retest of unit, integrationand e2e tests to solve broken tests
 The 2 remaining failing suites are both authentication tests (authentication-flow.test.tsx and authentication.integration.test.tsx) — these are pre-existing failures unrelated to this spec (Login component import issue with React 19)
 authentication-flow.test.tsx and authentication.integration.test.tsx — These are authentication integration tests that fail due to missing auth tokens/Cognito setup. These are pre-existing failures unrelated to the table filter framework migration.
 
+## Missing tests
+Changed file: 
+missing_invoices_routes.py
+ — this is a refactoring of an existing route file, not a new file. No existing test file for this route. No new test file needed per the coverage check (only new source files require new tests). No scoped tests to run.
+
 # Time tracking
 
 - Quick add part
@@ -86,3 +91,6 @@ That said, once the abstraction layer is in place, adopting an ORM later becomes
 # Import errors on bdc
 failing urls 
 - https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/search_reservations.html?source=nav&upcoming_reservations=1&hotel_id=5620035&lang=en&ses=ddc3b11e6559a324b0778f09821fd4fe&date_from=2026-04-01&date_to=2027-05-01&date_type=arrival
+
+
+why do you keep testing all unit tests of which some fail and takes a lot of time. You do not want to fix them. Either focus on the scope or fix the failing tests
