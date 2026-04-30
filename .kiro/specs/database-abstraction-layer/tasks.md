@@ -10,69 +10,69 @@ Centralize all database access through `DatabaseManager`, eliminate direct `mysq
 
 ### Phase 1: Build the Abstraction Layer Foundation
 
-- [ ] 1. Create database-agnostic exception hierarchy (`backend/src/db_exceptions.py`)
-  - [ ] 1.1 Create `db_exceptions.py` with `DatabaseError`, `IntegrityError`, `ConnectionError`, `OperationalError`
+- [x] 1. Create database-agnostic exception hierarchy (`backend/src/db_exceptions.py`)
+  - [x] 1.1 Create `db_exceptions.py` with `DatabaseError`, `IntegrityError`, `ConnectionError`, `OperationalError`
     - Each exception stores `message`, `error_code`, `original_error`
     - `__cause__` set automatically when `original_error` is provided
     - _Requirements: 7.1, 7.5_
 
-  - [ ] 1.2 Write property test: Error wrapping preserves type, code, and cause (Property 2)
+  - [x] 1.2 Write property test: Error wrapping preserves type, code, and cause (Property 2)
     - **Property 2: Error wrapping preserves type, code, and cause**
     - Generate random MySQL error types/codes/messages, verify correct agnostic exception with preserved cause
     - Test file: `backend/tests/unit/test_database_abstraction.py`
     - **Validates: Requirements 2.5, 7.2, 7.3, 7.5**
 
-  - [ ] 1.3 Write unit tests for exception hierarchy (`backend/tests/unit/test_db_exceptions.py`)
+  - [x] 1.3 Write unit tests for exception hierarchy (`backend/tests/unit/test_db_exceptions.py`)
     - Verify class inheritance (`IntegrityError` is a `DatabaseError`, etc.)
     - Verify `error_code` attribute, `__cause__` chaining
     - _Requirements: 7.1, 7.5_
 
-- [ ] 2. Create SQL dialect helpers (`backend/src/dialect_helpers.py`)
-  - [ ] 2.1 Implement `MySQLDialect` class with JSON operations
+- [x] 2. Create SQL dialect helpers (`backend/src/dialect_helpers.py`)
+  - [x] 2.1 Implement `MySQLDialect` class with JSON operations
     - `json_extract(column, path)`, `json_unquote_extract(column, path)`, `json_set(column, path, value_placeholder)`, `json_contains(column, value)`
     - Module-level singleton: `dialect = MySQLDialect()`
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-  - [ ] 2.2 Implement date and utility operations in `MySQLDialect`
+  - [x] 2.2 Implement date and utility operations in `MySQLDialect`
     - `year(column)`, `month(column)`, `current_date()`, `current_timestamp()`, `date_subtract(...)`, `date_add(...)`, `date_diff(...)`, `date_format(...)`, `str_to_date(...)`, `ifnull(...)`
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-  - [ ] 2.3 Implement identifier quoting and introspection in `MySQLDialect`
+  - [x] 2.3 Implement identifier quoting and introspection in `MySQLDialect`
     - `quote_identifier(name)` — idempotent backtick quoting
     - `get_view_definition(view_name)`, `list_tables()`, `describe_table(table_name)`
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-  - [ ] 2.4 Write property test: JSON dialect helpers produce valid SQL fragments (Property 3)
+  - [x] 2.4 Write property test: JSON dialect helpers produce valid SQL fragments (Property 3)
     - **Property 3: JSON dialect helpers produce valid SQL fragments**
     - Generate random column names and JSON paths, verify output contains inputs and is structurally valid
     - Test file: `backend/tests/unit/test_dialect_helpers.py`
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 12.1**
 
-  - [ ] 2.5 Write property test: Date and utility dialect helpers produce valid SQL fragments (Property 4)
+  - [x] 2.5 Write property test: Date and utility dialect helpers produce valid SQL fragments (Property 4)
     - **Property 4: Date and utility dialect helpers produce valid SQL fragments**
     - Generate random columns, intervals, units, formats, verify output contains inputs
     - Test file: `backend/tests/unit/test_dialect_helpers.py`
     - **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 12.2**
 
-  - [ ] 2.6 Write property test: Identifier quoting is idempotent (Property 5)
+  - [x] 2.6 Write property test: Identifier quoting is idempotent (Property 5)
     - **Property 5: Identifier quoting is idempotent**
     - Generate random identifier names, verify `quote_identifier(quote_identifier(name)) == quote_identifier(name)`
     - Test file: `backend/tests/unit/test_dialect_helpers.py`
     - **Validates: Requirements 6.1, 12.3**
 
-  - [ ] 2.7 Write property test: Introspection query generators produce valid SQL (Property 6)
+  - [x] 2.7 Write property test: Introspection query generators produce valid SQL (Property 6)
     - **Property 6: Introspection query generators produce valid SQL containing the target name**
     - Generate random table/view names, verify output contains the name
     - Test file: `backend/tests/unit/test_dialect_helpers.py`
     - **Validates: Requirements 6.2, 6.3, 6.4**
 
-- [ ] 3. Enhance DatabaseManager (`backend/src/database.py`)
-  - [ ] 3.1 Add `transaction()` context manager to DatabaseManager
+- [x] 3. Enhance DatabaseManager (`backend/src/database.py`)
+  - [x] 3.1 Add `transaction()` context manager to DatabaseManager
     - Auto-commits on success, auto-rollbacks on exception
     - Uses existing `get_cursor()` internally
     - _Requirements: 2.2_
 
-  - [ ] 3.2 Add exception wrapping to `execute_query()` and `get_cursor()`
+  - [x] 3.2 Add exception wrapping to `execute_query()` and `get_cursor()`
     - Catch `mysql.connector.IntegrityError` → `IntegrityError` (preserve existing FK errno 1452 handling)
     - Catch `mysql.connector.OperationalError` → `OperationalError`
     - Catch `mysql.connector.InterfaceError` → `ConnectionError`
@@ -80,24 +80,24 @@ Centralize all database access through `DatabaseManager`, eliminate direct `mysq
     - Preserve `error_code` and `__cause__` on all wrapped exceptions
     - _Requirements: 2.5, 7.2, 7.3, 7.4, 7.5_
 
-  - [ ] 3.3 Add `execute_ddl()` method and re-export exception types
+  - [x] 3.3 Add `execute_ddl()` method and re-export exception types
     - `execute_ddl(statement)` calls `execute_query(fetch=False, commit=True)`
     - Add `from db_exceptions import DatabaseError, IntegrityError, ConnectionError, OperationalError` re-exports
     - _Requirements: 3.4, 9.1_
 
-  - [ ] 3.4 Write property test: Transaction context manager commits on success, rolls back on failure (Property 1)
+  - [x] 3.4 Write property test: Transaction context manager commits on success, rolls back on failure (Property 1)
     - **Property 1: Transaction context manager commits on success and rolls back on failure**
     - Mock-based: verify commit on success, rollback on exception for random query sequences
     - Test file: `backend/tests/unit/test_database_abstraction.py`
     - **Validates: Requirements 2.2**
 
-  - [ ] 3.5 Write property test: Connection pool resource management (Property 7)
+  - [x] 3.5 Write property test: Connection pool resource management (Property 7)
     - **Property 7: Connection pool resource management**
     - Mock-based: verify connection.close() called on both success and exception paths
     - Test file: `backend/tests/unit/test_database_abstraction.py`
     - **Validates: Requirements 8.4**
 
-  - [ ] 3.6 Write unit tests for DatabaseManager enhancements
+  - [x] 3.6 Write unit tests for DatabaseManager enhancements
     - Test `execute_ddl()` delegates correctly
     - Test backward compatibility of `execute_query`, `execute_batch_queries`, `get_connection`, `get_cursor` signatures
     - _Requirements: 3.4, 9.1_
