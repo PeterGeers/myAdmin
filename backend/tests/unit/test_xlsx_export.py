@@ -17,12 +17,13 @@ class TestXLSXExportProcessor:
         
         assert processor.test_mode is True
         mock_db.assert_called_once_with(test_mode=True)
-        # Should use Docker path if in container, otherwise Windows path
+        # Should use Docker path if in container, otherwise cwd-based path
         if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
             expected_path = '/app/reports'
         else:
-            expected_path = r'C:\Users\peter\OneDrive\Admin\reports'
-        assert processor.default_output_base_path == expected_path
+            expected_path = os.path.join(os.getcwd(), 'reports')
+        # Use normpath for platform-independent comparison
+        assert os.path.normpath(processor.default_output_base_path) == os.path.normpath(expected_path)
         assert processor.folder_search_log == []
         assert processor.template_service is not None
     

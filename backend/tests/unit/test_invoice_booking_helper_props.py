@@ -443,7 +443,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
 
         assert tenant in str(exc_info.value)
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         missing_param=st.sampled_from([

@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "last_updated": "",
+  "tests": {},
+  "metadata": {
+    "total_tests": 0,
+    "triaged": 0,
+    "untriaged": 0,
+    "by_status": {
+      "passing": 0,
+      "failing": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "quarantined": 0
+    }
+  }
+}

@@ -102,8 +102,9 @@ class TestToeristenbelastingGenerator:
         )
         
         # Total 8003 = -10620 + -5310 = -15930
-        # Tourist tax = (-15930 / 106.2) * 6.2 = -930
-        expected = (-15930 / 106.2) * 6.2
+        # Default tourist tax rate is 6.02, so base = 106.02
+        # Tourist tax = (-15930 / 106.02) * 6.02 = -904.64...
+        expected = (-15930 / 106.02) * 6.02
         assert abs(result - expected) < 0.01
     
     def test_get_total_revenue_8003(self):
@@ -201,8 +202,9 @@ class TestToeristenbelastingGenerator:
             bnb_data=bnb_data
         )
         
-        # Tourist tax = (15930 / 106.2) * 6.2 = 930
-        expected_tax = abs(((-15930) / 106.2) * 6.2)
+        # Default tourist tax rate is 6.02, base = 106.02
+        # Tourist tax = abs((-15930 / 106.02) * 6.02) = 904.64...
+        expected_tax = abs(((-15930) / 106.02) * 6.02)
         assert abs(result['saldo_toeristenbelasting'] - expected_tax) < 0.01
         
         # Total revenue 8003

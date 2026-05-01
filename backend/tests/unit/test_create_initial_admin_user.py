@@ -792,8 +792,8 @@ class TestResendInvitationEndpoint:
 
         # Tenant exists
         mocks['db'].execute_query.side_effect = lambda q, p=None, fetch=True, commit=False: (
-            [{'administration': 'AcmeCorp'}]
-            if 'SELECT administration FROM tenants' in q
+            [{'administration': 'AcmeCorp', 'status': 'active'}]
+            if 'SELECT administration' in q and 'FROM tenants' in q
             else [{'id': 1}]  # role exists
             if 'user_tenant_roles' in q and 'SELECT' in q.upper()
             else None
@@ -857,8 +857,8 @@ class TestResendInvitationEndpoint:
         mocks['cognito'].get_user.return_value = None
 
         mocks['db'].execute_query.side_effect = lambda q, p=None, fetch=True, commit=False: (
-            [{'administration': 'AcmeCorp'}]
-            if 'SELECT administration FROM tenants' in q
+            [{'administration': 'AcmeCorp', 'status': 'active'}]
+            if 'SELECT administration' in q and 'FROM tenants' in q
             else []  # no existing role
             if 'user_tenant_roles' in q and 'SELECT' in q.upper()
             else None
@@ -882,8 +882,8 @@ class TestResendInvitationEndpoint:
         call_count = [0]
 
         def db_side_effect(q, p=None, fetch=True, commit=False):
-            if 'SELECT administration FROM tenants' in q:
-                return [{'administration': 'AcmeCorp'}]
+            if 'SELECT administration' in q and 'FROM tenants' in q:
+                return [{'administration': 'AcmeCorp', 'status': 'active'}]
             if 'user_tenant_roles' in q and 'SELECT' in q.upper():
                 return []  # no existing role
             return None

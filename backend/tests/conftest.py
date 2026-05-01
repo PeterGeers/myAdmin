@@ -3,13 +3,9 @@ import os
 import sys
 import tempfile
 import shutil
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 from contextlib import contextmanager
 from pathlib import Path
-
-# Load .env file so tests pick up environment variables
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / '.env')
 
 # Add src directory to Python path for imports
 backend_dir = Path(__file__).parent.parent
@@ -51,15 +47,95 @@ def mock_database():
             'connect': mock_connect
         }
 
+
+@pytest.fixture
+def mock_db():
+    """
+    Mock DatabaseManager for unit tests.
+    Patches all DatabaseManager methods with configurable returns.
+    """
+    with patch('database.DatabaseManager') as MockDBClass:
+        mock_instance = MagicMock()
+        MockDBClass.return_value = mock_instance
+
+        # Default return values
+        mock_instance.execute_query.return_value = []
+        mock_instance.execute_batch_queries.return_value = None
+
+        # Transaction context manager
+        mock_cursor = MagicMock()
+        mock_conn = MagicMock()
+        mock_instance.transaction.return_value.__enter__ = MagicMock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_instance.transaction.return_value.__exit__ = MagicMock(return_value=False)
+
+        # get_cursor context manager
+        mock_instance.get_cursor.return_value.__enter__ = MagicMock(
+            return_value=(mock_cursor, mock_conn)
+        )
+        mock_instance.get_cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        yield mock_instance
+
+
+@pytest.fixture
+def mock_env():
+    """
+    Set standard test environment variables WITHOUT loading .env.
+    Provides hardcoded test values only.
+    """
+    test_env = {
+        'TEST_MODE': 'true',
+        'DB_HOST': 'localhost',
+        'DB_PORT': '3306',
+        'DB_USER': 'test',
+        'DB_PASSWORD': 'test',
+        'DB_NAME': 'testfinance',
+        'COGNITO_USER_POOL_ID': 'us-east-1_test',
+        'COGNITO_CLIENT_ID': 'test-client-id',
+        'GOOGLE_DRIVE_FOLDER_ID': 'test-folder-id',
+        'AWS_REGION': 'us-east-1',
+        'FLASK_ENV': 'testing',
+    }
+    with patch.dict(os.environ, test_env, clear=False):
+        yield test_env
+
+
+@pytest.fixture
+def mock_cognito():
+    """Mock AWS Cognito authentication calls."""
+    with patch('services.cognito_service.boto3.client') as mock_client:
+        mock_cognito_client = MagicMock()
+        mock_client.return_value = mock_cognito_client
+
+        # Default responses
+        mock_cognito_client.admin_get_user.return_value = {
+            'Username': 'test-user',
+            'UserAttributes': [
+                {'Name': 'email', 'Value': 'test@example.com'},
+                {'Name': 'custom:tenant_id', 'Value': 'test-tenant'},
+            ],
+        }
+        yield mock_cognito_client
+
+
 @pytest.fixture
 def mock_google_drive():
-    """Mock Google Drive service for testing"""
-    mock_service = Mock()
-    mock_service.files.return_value.list.return_value.execute.return_value = {'files': []}
-    mock_service.files.return_value.get.return_value.execute.return_value = {
-        'id': 'test_file', 'name': 'test.pdf', 'mimeType': 'application/pdf'
-    }
-    yield mock_service
+    """Mock Google Drive API calls with proper patching."""
+    with patch('google_drive_service.build') as mock_build:
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+        mock_service.files.return_value.list.return_value.execute.return_value = {
+            'files': []
+        }
+        mock_service.files.return_value.get.return_value.execute.return_value = {
+            'id': 'test_file_id',
+            'name': 'test.pdf',
+            'mimeType': 'application/pdf',
+        }
+        yield mock_service
+
 
 @pytest.fixture
 def test_environment():
@@ -73,7 +149,7 @@ def test_environment():
         'FACTUREN_FOLDER_NAME': 'Facturen',
         'TEST_FACTUREN_FOLDER_NAME': 'testFacturen'
     }
-    
+
     with patch.dict(os.environ, test_env):
         yield test_env
 
@@ -86,7 +162,7 @@ def production_environment():
         'FACTUREN_FOLDER_ID': 'prod_folder_id',
         'FACTUREN_FOLDER_NAME': 'Facturen'
     }
-    
+
     with patch.dict(os.environ, prod_env, clear=True):
         yield prod_env
 
@@ -211,7 +287,7 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         # Get test file path (works with both Unix and Windows paths)
         test_path = str(item.fspath).replace('\\', '/')
-        
+
         # Auto-mark based on directory structure
         if '/tests/unit/' in test_path:
             item.add_marker(pytest.mark.unit)

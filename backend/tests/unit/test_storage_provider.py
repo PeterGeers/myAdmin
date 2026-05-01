@@ -37,11 +37,16 @@ def make_param_service(provider_type=None, extra=None):
 
 class TestStorageProviderFactory:
 
-    def test_defaults_to_google_drive(self):
-        ps = make_param_service(provider_type=None)
-        provider = get_storage_provider('T1', ps)
-        from storage.google_drive_storage import GoogleDriveStorage
-        assert isinstance(provider, GoogleDriveStorage)
+    def test_defaults_to_s3_shared(self):
+        """Default changed from google_drive to s3_shared — provide bucket config."""
+        ps = make_param_service(
+            provider_type=None,
+            extra={('storage', 's3_shared_bucket'): 'default-bucket'}
+        )
+        with patch('storage.s3_shared_storage.boto3'):
+            provider = get_storage_provider('T1', ps)
+        from storage.s3_shared_storage import S3SharedStorage
+        assert isinstance(provider, S3SharedStorage)
 
     def test_explicit_google_drive(self):
         ps = make_param_service(provider_type='google_drive')

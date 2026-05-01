@@ -235,9 +235,9 @@ class TestValidateYearClosure:
         """Test validation when previous year not closed"""
         # Setup mocks
         mock_db.execute_query.side_effect = [
-            [{'count': 0}],  # Year not closed
-            [{'first_year': 2020}],  # First year
-            [{'count': 0}],  # Previous year not closed
+            [{'count': 0}],  # Year not closed (_is_year_closed)
+            [{'first_date': datetime(2020, 1, 1)}],  # First year (_get_first_year)
+            [{'count': 0}],  # Previous year not closed (_is_year_closed)
             [{'net_result': 10000}],  # Net P&L result (needed even if validation fails)
             [{'count': 1}],  # Balance sheet accounts count
         ]
@@ -252,8 +252,8 @@ class TestValidateYearClosure:
         """Test validation with missing configuration"""
         # Setup mocks
         mock_db.execute_query.side_effect = [
-            [{'count': 0}],  # Year not closed
-            [{'first_year': 2023}],  # First year (no previous check needed)
+            [{'count': 0}],  # Year not closed (_is_year_closed)
+            [{'first_date': datetime(2023, 1, 1)}],  # First year (_get_first_year)
             [{'net_result': 10000}],  # Net P&L result (calculated even if config invalid)
             [{'count': 1}],  # Balance sheet accounts count
         ]
@@ -271,8 +271,8 @@ class TestValidateYearClosure:
         """Test successful validation"""
         # Setup mocks
         mock_db.execute_query.side_effect = [
-            [{'count': 0}],  # Year not closed
-            [{'first_year': 2023}],  # First year
+            [{'count': 0}],  # Year not closed (_is_year_closed)
+            [{'first_date': datetime(2023, 1, 1)}],  # First year (_get_first_year)
             [{'net_result': 10000}],  # Net P&L result
             [{'count': 2}],  # Balance sheet accounts count
         ]
@@ -289,8 +289,8 @@ class TestValidateYearClosure:
         """Test validation with zero P&L result shows warning"""
         # Setup mocks
         mock_db.execute_query.side_effect = [
-            [{'count': 0}],  # Year not closed
-            [{'first_year': 2023}],  # First year
+            [{'count': 0}],  # Year not closed (_is_year_closed)
+            [{'first_date': datetime(2023, 1, 1)}],  # First year (_get_first_year)
             [{'net_result': 0}],  # Zero net result
             [{'count': 1}],  # Balance sheet accounts count
         ]
@@ -327,7 +327,7 @@ class TestGetFirstYear:
     
     def test_get_first_year(self, service, mock_db, test_administration):
         """Test getting first year"""
-        mock_db.execute_query.return_value = [{'first_year': 2020}]
+        mock_db.execute_query.return_value = [{'first_date': datetime(2020, 3, 15)}]
         
         first_year = service._get_first_year(test_administration)
         
@@ -335,7 +335,7 @@ class TestGetFirstYear:
     
     def test_get_first_year_no_data(self, service, mock_db, test_administration):
         """Test with no transaction data"""
-        mock_db.execute_query.return_value = [{'first_year': None}]
+        mock_db.execute_query.return_value = [{'first_date': None}]
         
         first_year = service._get_first_year(test_administration)
         
@@ -618,8 +618,8 @@ class TestCloseYear:
         """Test successful year closure"""
         # Setup mocks for validation
         mock_db.execute_query.side_effect = [
-            [{'count': 0}],  # Year not closed
-            [{'first_year': 2023}],  # First year
+            [{'count': 0}],  # Year not closed (_is_year_closed)
+            [{'first_date': datetime(2023, 1, 1)}],  # First year (_get_first_year)
             [{'net_result': -10000}],  # Net P&L result (negative = profit)
             [{'count': 2}],  # Balance sheet accounts count
             [{'net_result': -10000}],  # Net P&L result (called again in _create_closure_transaction)
@@ -661,8 +661,8 @@ class TestCloseYear:
         """Test rollback when error occurs during closure"""
         # Setup mocks for validation
         mock_db.execute_query.side_effect = [
-            [{'count': 0}],  # Year not closed
-            [{'first_year': 2023}],  # First year
+            [{'count': 0}],  # Year not closed (_is_year_closed)
+            [{'first_date': datetime(2023, 1, 1)}],  # First year (_get_first_year)
             [{'net_result': 10000}],  # Net P&L result
             [{'count': 1}],  # Balance sheet accounts count
         ]

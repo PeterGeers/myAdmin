@@ -206,10 +206,13 @@ class TestSeedModuleParams:
 
         count = svc.seed_module_params('T1', 'STR')
 
-        # aantal_kamers and aantal_slaapplaatsen have default=None, not seeded
+        # aantal_kamers and aantal_slaapplaatsen have default=None in MODULE_REGISTRY,
+        # so they are NOT seeded to the DB. However, get_param falls back to
+        # CODE_DEFAULTS (populated from PARAMETER_SCHEMA), which assigns 0 for
+        # number types without an explicit default.
         assert count == 1
         assert svc.get_param('str', 'platforms', tenant='T1') == ['airbnb', 'booking']
-        assert svc.get_param('str', 'aantal_kamers', tenant='T1') is None
+        assert svc.get_param('str', 'aantal_kamers', tenant='T1') == 0
 
     def test_seeds_tenadmin_returns_zero(self):
         db = make_mock_db()
