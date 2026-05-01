@@ -12,6 +12,7 @@ from banking_processor import BankingProcessor
 from str_processor import STRProcessor
 from str_database import STRDatabase
 from database import DatabaseManager
+from dialect_helpers import dialect
 from btw_processor import BTWProcessor
 from toeristenbelasting_processor import ToeristenbelastingProcessor
 from pdf_validation import PDFValidator
@@ -394,12 +395,12 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
         
         # Check if this exact file already exists in the database
         # Look for transactions with the same filename in Ref4 and same folder in ReferenceNumber
-        query = """
+        query = f"""
             SELECT ID, TransactionDate, TransactionAmount, TransactionDescription, Ref3, Ref4
             FROM mutaties 
             WHERE Ref4 = %s 
             AND ReferenceNumber = %s
-            AND TransactionDate > (CURDATE() - INTERVAL 6 MONTH)
+            AND TransactionDate > ({dialect.current_date()} - INTERVAL 6 MONTH)
             ORDER BY ID DESC
             LIMIT 5
         """

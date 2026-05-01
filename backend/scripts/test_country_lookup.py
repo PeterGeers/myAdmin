@@ -10,23 +10,17 @@ __test__ = False
 
 import sys
 from pathlib import Path
-import mysql.connector
 import os
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 from dotenv import load_dotenv
+from database import DatabaseManager
 
 def run_tests():
     """Run the country lookup tests"""
     load_dotenv()
 
-    conn = mysql.connector.connect(
-        host=os.getenv('DB_HOST'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD'),
-        database=os.getenv('DB_NAME')
-    )
-    cursor = conn.cursor()
+    db = DatabaseManager()
 
     print("\n" + "="*80)
     print("Country Lookup Table Test")
@@ -35,16 +29,18 @@ def run_tests():
     # Test 1: Show all countries in lookup table
     print("1. Countries Lookup Table (first 20):")
     print("-" * 80)
-    cursor.execute("SELECT code, name, name_nl, region FROM countries ORDER BY name LIMIT 20")
+    countries = db.execute_query(
+        "SELECT code, name, name_nl, region FROM countries ORDER BY name LIMIT 20"
+    )
     print(f"{'Code':4s} | {'English Name':25s} | {'Dutch Name':25s} | {'Region':15s}")
     print("-" * 80)
-    for row in cursor.fetchall():
-        print(f"{row[0]:4s} | {row[1]:25s} | {row[2] or 'N/A':25s} | {row[3] or 'N/A':15s}")
+    for row in countries:
+        print(f"{row['code']:4s} | {row['name']:25s} | {row['name_nl'] or 'N/A':25s} | {row['region'] or 'N/A':15s}")
 
     # Test 2: Query view with country names
     print("\n2. Sample Bookings with Country Names (from view):")
     print("-" * 80)
-    cursor.execute("""
+    bookings = db.execute_query("""
         SELECT id, channel, country, countryName, countryNameNL, guestName
         FROM vw_bnb_total
         WHERE country IS NOT NULL
@@ -53,13 +49,13 @@ def run_tests():
     """)
     print(f"{'ID':>6s} | {'Channel':12s} | {'Code':4s} | {'English':15s} | {'Dutch':15s} | {'Guest':20s}")
     print("-" * 80)
-    for row in cursor.fetchall():
-        print(f"{row[0]:6d} | {row[1]:12s} | {row[2]:4s} | {row[3] or 'N/A':15s} | {row[4] or 'N/A':15s} | {row[5][:20]:20s}")
+    for row in bookings:
+        print(f"{row['id']:6d} | {row['channel']:12s} | {row['country']:4s} | {row['countryName'] or 'N/A':15s} | {row['countryNameNL'] or 'N/A':15s} | {row['guestName'][:20]:20s}")
 
     # Test 3: Bookings by country with names
     print("\n3. Top 15 Countries by Booking Count:")
     print("-" * 80)
-    cursor.execute("""
+    top_countries = db.execute_query("""
         SELECT 
             country, 
             countryName, 
@@ -74,13 +70,13 @@ def run_tests():
     """)
     print(f"{'Code':4s} | {'English Name':20s} | {'Dutch Name':20s} | {'Region':15s} | {'Count':>6s}")
     print("-" * 80)
-    for row in cursor.fetchall():
-        print(f"{row[0]:4s} | {row[1]:20s} | {row[2] or 'N/A':20s} | {row[3] or 'N/A':15s} | {row[4]:6d}")
+    for row in top_countries:
+        print(f"{row['country']:4s} | {row['countryName']:20s} | {row['countryNameNL'] or 'N/A':20s} | {row['countryRegion'] or 'N/A':15s} | {row['bookings']:6d}")
 
     # Test 4: Bookings by region
     print("\n4. Bookings by Region:")
     print("-" * 80)
-    cursor.execute("""
+    regions = db.execute_query("""
         SELECT 
             countryRegion,
             COUNT(*) as bookings
@@ -91,11 +87,8 @@ def run_tests():
     """)
     print(f"{'Region':20s} | {'Bookings':>8s}")
     print("-" * 80)
-    for row in cursor.fetchall():
-        print(f"{row[0]:20s} | {row[1]:8d}")
-
-    cursor.close()
-    conn.close()
+    for row in regions:
+        print(f"{row['countryRegion']:20s} | {row['bookings']:8d}")
 
     print("\n" + "="*80)
     print("Test Complete!")

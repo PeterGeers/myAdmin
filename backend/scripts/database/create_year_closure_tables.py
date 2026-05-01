@@ -21,6 +21,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 
 def create_year_closure_status_table(db, dry_run=False):
@@ -100,13 +101,14 @@ def add_parameters_column(db, dry_run=False):
 def create_indexes(db, dry_run=False):
     """Create additional indexes for performance"""
     
+    je_role = dialect.json_extract('parameters', '$.role')
     indexes = [
         {
             'name': 'idx_parameters_role',
             'table': 'rekeningschema',
-            'sql': """
+            'sql': f"""
                 CREATE INDEX idx_parameters_role 
-                ON rekeningschema ((CAST(JSON_EXTRACT(parameters, '$.role') AS CHAR(50))))
+                ON rekeningschema ((CAST({je_role} AS CHAR(50))))
             """
         }
     ]

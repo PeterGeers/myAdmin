@@ -8,6 +8,7 @@ for fast querying and filtering operations.
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
+from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class BnbCache:
         
         try:
             # Use vw_bnb_total view to get both actual and planned bookings
-            query = """
+            query = f"""
             SELECT 
                 checkinDate,
                 checkoutDate,
@@ -56,9 +57,9 @@ class BnbCache:
                 reservationCode,
                 status,
                 source_type,
-                YEAR(checkinDate) as year,
-                QUARTER(checkinDate) as quarter,
-                MONTH(checkinDate) as month
+                {dialect.year('checkinDate')} as year,
+                {dialect.quarter('checkinDate')} as quarter,
+                {dialect.month('checkinDate')} as month
             FROM vw_bnb_total
             ORDER BY checkinDate DESC
             """

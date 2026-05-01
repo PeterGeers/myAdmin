@@ -94,11 +94,11 @@ def setup_test_bookings():
     
     # Cleanup - delete test bookings
     try:
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM bnb WHERE reservationCode IN ('1234567890', '9876543210', '1111111111', '2026123456')")
-        conn.commit()
-        cursor.close()
+        db.execute_query(
+            "DELETE FROM bnb WHERE reservationCode IN ('1234567890', '9876543210', '1111111111', '2026123456')",
+            fetch=False,
+            commit=True
+        )
         print("Cleanup: Deleted test bookings")
     except Exception as e:
         print(f"Cleanup error: {e}")
@@ -131,12 +131,10 @@ def test_payout_processing_and_database_update(sample_payout_csv, setup_test_boo
     
     # Verify database was actually updated
     db = DatabaseManager(test_mode=True)
-    conn = db.get_connection()
-    cursor = conn.cursor(dictionary=True)
     
     # Check first booking
-    cursor.execute("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
-    booking1 = cursor.fetchone()
+    result1 = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
+    booking1 = result1[0] if result1 else None
     
     assert booking1 is not None
     assert float(booking1['amountGross']) == 450.00  # Updated from 400.00
@@ -144,14 +142,12 @@ def test_payout_processing_and_database_update(sample_payout_csv, setup_test_boo
     assert 'PAYOUT_' in booking1['sourceFile']  # Source file updated
     
     # Check second booking
-    cursor.execute("SELECT * FROM bnb WHERE reservationCode = '9876543210'")
-    booking2 = cursor.fetchone()
+    result2 = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '9876543210'")
+    booking2 = result2[0] if result2 else None
     
     assert booking2 is not None
     assert float(booking2['amountGross']) == 750.00  # Updated from 700.00
     assert float(booking2['amountChannelFee']) == 83.00  # abs(-75) + abs(-8)
-    
-    cursor.close()
 
 
 def test_payout_vat_calculation_2025(sample_payout_csv, setup_test_bookings, tmp_path):
@@ -169,17 +165,13 @@ def test_payout_vat_calculation_2025(sample_payout_csv, setup_test_bookings, tmp
     
     # Verify VAT calculation (9% for 2025)
     db = DatabaseManager(test_mode=True)
-    conn = db.get_connection()
-    cursor = conn.cursor(dictionary=True)
     
-    cursor.execute("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
-    booking = cursor.fetchone()
+    result = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
+    booking = result[0] if result else None
     
     # VAT should be calculated as: (450 / 109) * 9 = 37.16
     expected_vat = round((450.00 / 109) * 9, 2)
     assert float(booking['amountVat']) == expected_vat
-    
-    cursor.close()
 
 
 def test_payout_vat_calculation_2026(setup_test_bookings, tmp_path):
@@ -231,17 +223,12 @@ Reservation,2026123456,2026-02-15,2026-02-18,3,450.00,-45.00,-5.00,7.50
     str_db.update_from_payout(payout_result['updates'])
     
     # Verify VAT calculation (21% for 2026)
-    conn = db.get_connection()
-    cursor = conn.cursor(dictionary=True)
-    
-    cursor.execute("SELECT * FROM bnb WHERE reservationCode = '2026123456'")
-    booking = cursor.fetchone()
+    result = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '2026123456'")
+    booking = result[0] if result else None
     
     # VAT should be calculated as: (450 / 121) * 21 = 78.10
     expected_vat = round((450.00 / 121) * 21, 2)
     assert float(booking['amountVat']) == expected_vat
-    
-    cursor.close()
 
 
 def test_payout_tourist_tax_calculation(sample_payout_csv, setup_test_bookings, tmp_path):
@@ -259,11 +246,9 @@ def test_payout_tourist_tax_calculation(sample_payout_csv, setup_test_bookings, 
     
     # Verify tourist tax calculation
     db = DatabaseManager(test_mode=True)
-    conn = db.get_connection()
-    cursor = conn.cursor(dictionary=True)
     
-    cursor.execute("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
-    booking = cursor.fetchone()
+    result = db.execute_query("SELECT * FROM bnb WHERE reservationCode = '1234567890'")
+    booking = result[0] if result else None
     
     # Tourist tax calculation:
     # 1. VAT-exclusive amount = 450 - 37.16 = 412.84
@@ -273,8 +258,6 @@ def test_payout_tourist_tax_calculation(sample_payout_csv, setup_test_bookings, 
     expected_tourist_tax = round((vat_exclusive / 106.02) * 6.02, 2)
     
     assert float(booking['amountTouristTax']) == expected_tourist_tax
-    
-    cursor.close()
 
 
 def test_payout_empty_csv(tmp_path):

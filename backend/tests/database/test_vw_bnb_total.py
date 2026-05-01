@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, 'src')
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 def test_view_exists():
     """Test if vw_bnb_total view exists"""
@@ -15,15 +16,12 @@ def test_view_exists():
     
     try:
         db = DatabaseManager(test_mode=False)
-        connection = db.get_connection()
-        cursor = connection.cursor(dictionary=True)
         
-        # Test 1: Check if view exists
+        # Test 1: Check if view exists using dialect helper
         print("\n1. Checking if view exists...")
-        cursor.execute("SHOW FULL TABLES WHERE Table_type = 'VIEW'")
-        views = cursor.fetchall()
+        views = db.execute_query(dialect.list_tables() + " WHERE Table_type = 'VIEW'")
         
-        view_names = [v[f'Tables_in_{db.config["database"]}'] for v in views]
+        view_names = [list(v.values())[0] for v in views]
         print(f"   Found {len(views)} views in database")
         
         if 'vw_bnb_total' in view_names:
@@ -31,14 +29,11 @@ def test_view_exists():
         else:
             print(f"   ❌ vw_bnb_total view NOT FOUND")
             print(f"   Available views: {view_names}")
-            cursor.close()
-            connection.close()
             return False
         
-        # Test 2: Query the view structure
+        # Test 2: Query the view structure using dialect helper
         print("\n2. Checking view structure...")
-        cursor.execute("DESCRIBE vw_bnb_total")
-        columns = cursor.fetchall()
+        columns = db.execute_query(dialect.describe_table('vw_bnb_total'))
         print(f"   View has {len(columns)} columns:")
         for col in columns[:10]:  # Show first 10 columns
             print(f"     - {col['Field']} ({col['Type']})")
@@ -47,9 +42,8 @@ def test_view_exists():
         
         # Test 3: Count records
         print("\n3. Counting records...")
-        cursor.execute("SELECT COUNT(*) as count FROM vw_bnb_total")
-        result = cursor.fetchone()
-        record_count = result['count']
+        count_result = db.execute_query("SELECT COUNT(*) as count FROM vw_bnb_total")
+        record_count = count_result[0]['count']
         print(f"   ✅ View contains {record_count} records")
         
         # Test 4: Sample query (like the search endpoint)
@@ -62,8 +56,7 @@ def test_view_exists():
             ORDER BY checkinDate DESC
             LIMIT 5
             """
-            cursor.execute(search_query)
-            results = cursor.fetchall()
+            results = db.execute_query(search_query)
             
             print(f"   ✅ Retrieved {len(results)} sample records:")
             for i, booking in enumerate(results, 1):
@@ -82,13 +75,9 @@ def test_view_exists():
             SELECT COUNT(*) as count FROM vw_bnb_total 
             WHERE guestName LIKE %s OR reservationCode LIKE %s
             """
-            cursor.execute(search_query, [search_pattern, search_pattern])
-            result = cursor.fetchone()
-            match_count = result['count']
+            result = db.execute_query(search_query, (search_pattern, search_pattern))
+            match_count = result[0]['count']
             print(f"   ✅ Found {match_count} records matching pattern '%a%'")
-        
-        cursor.close()
-        connection.close()
         
         print("\n" + "="*60)
         print("✅ All tests PASSED - vw_bnb_total is working correctly!")

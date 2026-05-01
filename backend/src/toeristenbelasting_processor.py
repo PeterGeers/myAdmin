@@ -43,18 +43,17 @@ class ToeristenbelastingProcessor:
             
             # Try to get template metadata from database
             # Note: Toeristenbelasting is typically tenant-specific
-            # For now, we'll use a default administration or get it from raw_data
             administration = raw_data.get('administration')
-            if not administration:
-                logger.warning("No administration provided in raw_data for toeristenbelasting")
-                return None
             template_type = 'toeristenbelasting_html'
             metadata = None
             
-            try:
-                metadata = template_service.get_template_metadata(administration, template_type)
-            except Exception as e:
-                logger.warning(f"Could not get template metadata from database: {e}")
+            if administration:
+                try:
+                    metadata = template_service.get_template_metadata(administration, template_type)
+                except Exception as e:
+                    logger.warning(f"Could not get template metadata from database: {e}")
+            else:
+                logger.info("No administration in raw_data, using filesystem template fallback")
             
             # Load template
             if metadata and metadata.get('template_file_id'):

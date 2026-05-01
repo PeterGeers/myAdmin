@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, 'src')
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 db = DatabaseManager(test_mode=False)
 
@@ -29,7 +30,7 @@ else:
 # Check vw_rekeningnummers view definition
 print("\n3. Checking vw_rekeningnummers view:")
 try:
-    result = db.execute_query("SHOW CREATE VIEW vw_rekeningnummers")
+    result = db.execute_query(dialect.get_view_definition("vw_rekeningnummers"))
     if result:
         print(f"   View definition: {result[0].get('Create View', 'N/A')}")
 except Exception as e:

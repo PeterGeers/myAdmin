@@ -24,10 +24,10 @@ SIGNUP_ENV = {
 
 @pytest.fixture
 def service():
-    """Create a SignupService with mocked boto3 and mysql"""
+    """Create a SignupService with mocked boto3 and DatabaseManager"""
     with patch.dict('os.environ', SIGNUP_ENV), \
          patch('services.signup_service.boto3') as mock_boto3, \
-         patch('services.signup_service.mysql.connector') as mock_mysql:
+         patch('services.signup_service.DatabaseManager') as MockDBManager:
 
         mock_cognito = MagicMock()
         mock_boto3.client.return_value = mock_cognito
@@ -35,7 +35,11 @@ def service():
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
-        mock_mysql.connect.return_value = mock_conn
+
+        # DatabaseManager() returns a mock instance whose get_connection() returns mock_conn
+        mock_db_instance = MockDBManager.return_value
+        mock_db_instance.get_connection.return_value = mock_conn
+        mock_db_instance.config = {}
 
         from services.signup_service import SignupService
         svc = SignupService()
@@ -44,7 +48,7 @@ def service():
         svc._mock_cognito = mock_cognito
         svc._mock_conn = mock_conn
         svc._mock_cursor = mock_cursor
-        svc._mock_mysql = mock_mysql
+        svc._mock_db = mock_db_instance
 
         yield svc
 

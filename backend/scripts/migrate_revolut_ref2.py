@@ -23,10 +23,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import mysql.connector
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Add src to path
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir / 'src'))
+
+from database import DatabaseManager
+from db_exceptions import DatabaseError
 
 # Default Railway production connection (overridden by env vars when using railway-run.ps1)
 DEFAULT_HOST = 'shinkansen.proxy.rlwy.net'
@@ -217,65 +223,63 @@ def run_migration(apply: bool = False, csv_only: bool = False):
     if not db_password:
         db_password = getpass.getpass(f"MySQL password for {db_user}@{db_host}:{db_port}: ")
 
-    railway_config = {
+    # Create DatabaseManager and override config for Railway connection
+    db = DatabaseManager()
+    db.config.update({
         'host': db_host,
+        'port': db_port,
         'user': db_user,
         'password': db_password,
         'database': db_name,
-        'port': db_port
-    }
-
-    try:
-        conn = mysql.connector.connect(**railway_config)
-        cursor = conn.cursor(dictionary=True)
-        # Switch to the finance database where mutaties lives
-        cursor.execute(f"USE {target_db}")
-        print(f"Connected to {db_host}:{db_port}/{target_db}")
-    except mysql.connector.Error as e:
-        print(f"Database connection failed: {e}")
-        sys.exit(1)
+    })
 
     total_matches = 0
     total_updated = 0
     no_match = 0
 
-    for old_ref2, txn in changes_needed.items():
-        new_ref2 = txn['new_ref2']
+    try:
+        with db.get_cursor() as (cursor, conn):
+            # Switch to the finance database where mutaties lives
+            cursor.execute(f"USE {target_db}")
+            print(f"Connected to {db_host}:{db_port}/{target_db}")
 
-        # Check if record exists
-        cursor.execute(
-            "SELECT ID, Ref2 FROM mutaties WHERE Ref1 = %s AND Ref2 = %s",
-            (REVOLUT_IBAN, old_ref2)
-        )
-        matches = cursor.fetchall()
+            for old_ref2, txn in changes_needed.items():
+                new_ref2 = txn['new_ref2']
 
-        if not matches:
-            no_match += 1
-            print(f"  NO MATCH: {old_ref2}")
-            continue
+                # Check if record exists
+                cursor.execute(
+                    "SELECT ID, Ref2 FROM mutaties WHERE Ref1 = %s AND Ref2 = %s",
+                    (REVOLUT_IBAN, old_ref2)
+                )
+                matches = cursor.fetchall()
 
-        total_matches += len(matches)
+                if not matches:
+                    no_match += 1
+                    print(f"  NO MATCH: {old_ref2}")
+                    continue
 
-        if apply:
-            cursor.execute(
-                "UPDATE mutaties SET Ref2 = %s WHERE Ref1 = %s AND Ref2 = %s",
-                (new_ref2, REVOLUT_IBAN, old_ref2)
-            )
-            rows_affected = cursor.rowcount
-            total_updated += rows_affected
-            print(f"  UPDATED ({rows_affected} row{'s' if rows_affected != 1 else ''}): "
-                  f"{old_ref2} → {new_ref2}")
-        else:
-            print(f"  WOULD UPDATE ({len(matches)} row{'s' if len(matches) != 1 else ''}): "
-                  f"{old_ref2} → {new_ref2}")
-            total_updated += len(matches)
+                total_matches += len(matches)
 
-    if apply:
-        conn.commit()
-        print("\nChanges committed to database.")
+                if apply:
+                    cursor.execute(
+                        "UPDATE mutaties SET Ref2 = %s WHERE Ref1 = %s AND Ref2 = %s",
+                        (new_ref2, REVOLUT_IBAN, old_ref2)
+                    )
+                    rows_affected = cursor.rowcount
+                    total_updated += rows_affected
+                    print(f"  UPDATED ({rows_affected} row{'s' if rows_affected != 1 else ''}): "
+                          f"{old_ref2} → {new_ref2}")
+                else:
+                    print(f"  WOULD UPDATE ({len(matches)} row{'s' if len(matches) != 1 else ''}): "
+                          f"{old_ref2} → {new_ref2}")
+                    total_updated += len(matches)
 
-    cursor.close()
-    conn.close()
+            if apply:
+                conn.commit()
+                print("\nChanges committed to database.")
+    except DatabaseError as e:
+        print(f"Database connection failed: {e}")
+        sys.exit(1)
 
     # Summary
     print("\n" + "=" * 70)

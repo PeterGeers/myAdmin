@@ -4,7 +4,6 @@ import sys
 import tempfile
 import shutil
 from unittest.mock import Mock, patch
-import mysql.connector
 from contextlib import contextmanager
 from pathlib import Path
 

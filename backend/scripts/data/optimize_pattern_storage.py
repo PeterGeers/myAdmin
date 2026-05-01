@@ -15,9 +15,10 @@ Optimizations:
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/src')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 from pattern_analyzer import PatternAnalyzer
 from datetime import datetime, timedelta
 
@@ -30,12 +31,12 @@ def analyze_current_patterns(administration: str):
     db = DatabaseManager(test_mode=False)
     
     # Get current pattern statistics
-    patterns = db.execute_query("""
+    patterns = db.execute_query(f"""
         SELECT 
             COUNT(*) as total_patterns,
             COUNT(CASE WHEN confidence < 0.8 THEN 1 END) as low_confidence,
             COUNT(CASE WHEN occurrences = 1 THEN 1 END) as single_occurrence,
-            COUNT(CASE WHEN last_seen < DATE_SUB(CURDATE(), INTERVAL 6 MONTH) THEN 1 END) as old_patterns,
+            COUNT(CASE WHEN last_seen < {dialect.date_subtract(dialect.current_date(), 6, 'MONTH')} THEN 1 END) as old_patterns,
             AVG(confidence) as avg_confidence,
             AVG(occurrences) as avg_occurrences
         FROM pattern_verb_patterns 
@@ -56,11 +57,11 @@ def analyze_current_patterns(administration: str):
         # Calculate potential reduction
         patterns_to_remove = stats['low_confidence'] + stats['single_occurrence'] + stats['old_patterns']
         # Account for overlap (patterns might be in multiple categories)
-        overlap_query = db.execute_query("""
+        overlap_query = db.execute_query(f"""
             SELECT COUNT(*) as overlap_count
             FROM pattern_verb_patterns 
             WHERE administration = %s
-            AND (confidence < 0.8 OR occurrences = 1 OR last_seen < DATE_SUB(CURDATE(), INTERVAL 6 MONTH))
+            AND (confidence < 0.8 OR occurrences = 1 OR last_seen < {dialect.date_subtract(dialect.current_date(), 6, 'MONTH')})
         """, (administration,))
         
         actual_removable = overlap_query[0]['overlap_count'] if overlap_query else patterns_to_remove
@@ -111,9 +112,9 @@ def optimize_patterns(administration: str, target_patterns: int = 408):
     
     # Step 3: Remove old patterns (>6 months)
     print("3️⃣ Removing old patterns (>6 months)...")
-    removed_old = db.execute_query("""
+    removed_old = db.execute_query(f"""
         DELETE FROM pattern_verb_patterns 
-        WHERE administration = %s AND last_seen < DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        WHERE administration = %s AND last_seen < {dialect.date_subtract(dialect.current_date(), 6, 'MONTH')}
     """, (administration,), fetch=False, commit=True)
     print(f"   Removed {removed_old} old patterns")
     
@@ -169,10 +170,10 @@ def test_optimized_performance(administration: str):
     analyzer.persistent_cache.clear_all_cache()
     
     # Measure transaction count (baseline)
-    transaction_result = db.execute_query("""
+    transaction_result = db.execute_query(f"""
         SELECT COUNT(*) as count FROM mutaties 
         WHERE Administration = %s 
-        AND TransactionDate >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+        AND TransactionDate >= {dialect.date_subtract(dialect.current_date(), 2, 'YEAR')}
         AND (Debet IS NOT NULL OR Credit IS NOT NULL)
     """, (administration,))
     

@@ -7,7 +7,6 @@ This script:
 3. Updates records with detected country codes
 """
 
-import mysql.connector
 import os
 import sys
 from pathlib import Path
@@ -17,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from dotenv import load_dotenv
 from country_detector import detect_country
+from database import DatabaseManager
+from db_exceptions import DatabaseError
 
 # Load environment variables
 load_dotenv()
@@ -62,7 +63,12 @@ def backfill_table(cursor, table_name: str, dry_run: bool = True):
     
     updates = []
     
-    for record_id, channel, phone, addinfo, current_country in records:
+    for record in records:
+        record_id = record['id'] if isinstance(record, dict) else record[0]
+        channel = record['channel'] if isinstance(record, dict) else record[1]
+        phone = record['phone'] if isinstance(record, dict) else record[2]
+        addinfo = record['addInfo'] if isinstance(record, dict) else record[3]
+
         # Detect country
         detected_country = detect_country(channel, phone, addinfo)
         
@@ -111,43 +117,31 @@ def backfill_table(cursor, table_name: str, dry_run: bool = True):
 def run_backfill(dry_run: bool = True):
     """Run the backfill process"""
     
-    # Database connection
-    db_config = {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'user': os.getenv('DB_USER'),
-        'password': os.getenv('DB_PASSWORD'),
-        'database': os.getenv('DB_NAME'),
-        'port': int(os.getenv('DB_PORT', 3306))
-    }
+    db = DatabaseManager()
     
     mode = "DRY RUN" if dry_run else "EXECUTE"
     print(f"\n{'='*60}")
     print(f"Country Backfill Script - {mode} MODE")
     print(f"{'='*60}")
-    print(f"Database: {db_config['database']} at {db_config['host']}")
+    print(f"Database: {db.config['database']} at {db.config['host']}")
     print(f"{'='*60}\n")
     
     try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
+        with db.get_cursor(dictionary=False) as (cursor, conn):
+            # Backfill bnb table (actual bookings)
+            backfill_table(cursor, 'bnb', dry_run)
+            
+            # Backfill bnbplanned table (planned bookings)
+            backfill_table(cursor, 'bnbplanned', dry_run)
+            
+            # Commit changes if not dry run
+            if not dry_run:
+                conn.commit()
+                print(f"\n{'='*60}")
+                print("✓ All changes committed successfully")
+                print(f"{'='*60}\n")
         
-        # Backfill bnb table (actual bookings)
-        backfill_table(cursor, 'bnb', dry_run)
-        
-        # Backfill bnbplanned table (planned bookings)
-        backfill_table(cursor, 'bnbplanned', dry_run)
-        
-        # Commit changes if not dry run
-        if not dry_run:
-            conn.commit()
-            print(f"\n{'='*60}")
-            print("✓ All changes committed successfully")
-            print(f"{'='*60}\n")
-        
-        cursor.close()
-        conn.close()
-        
-    except mysql.connector.Error as e:
+    except DatabaseError as e:
         print(f"\n✗ Database error: {e}")
         sys.exit(1)
     except Exception as e:

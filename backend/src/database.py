@@ -7,6 +7,9 @@ from contextlib import contextmanager
 import threading
 import time
 import logging
+from db_exceptions import (
+    DatabaseError, IntegrityError, ConnectionError, OperationalError
+)
 
 load_dotenv()
 
@@ -92,17 +95,57 @@ class DatabaseManager:
         return mysql.connector.connect(**self.config)
     
     @contextmanager
+    def transaction(self, pool_type='primary'):
+        """Context manager for multi-statement transactions.
+
+        Usage:
+            with db.transaction() as (cursor, conn):
+                cursor.execute("INSERT ...", params1)
+                cursor.execute("UPDATE ...", params2)
+            # auto-commits on success, auto-rollbacks on exception
+        """
+        with self.get_cursor(pool_type=pool_type) as (cursor, conn):
+            try:
+                yield cursor, conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    @contextmanager
     def get_cursor(self, dictionary=True, pool_type='primary'):
         """Context manager for database operations with scalability improvements"""
         start_time = time.time()
         
         # Use scalability manager's connection context if available
         if DatabaseManager._scalability_manager:
+            _yielded = False
             try:
                 with DatabaseManager._scalability_manager.get_database_connection(pool_type) as conn:
                     cursor = conn.cursor(dictionary=dictionary)
                     try:
+                        _yielded = True
                         yield cursor, conn
+                    except mysql.connector.IntegrityError as e:
+                        conn.rollback()
+                        raise IntegrityError(
+                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                        ) from e
+                    except mysql.connector.OperationalError as e:
+                        conn.rollback()
+                        raise OperationalError(
+                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                        ) from e
+                    except mysql.connector.InterfaceError as e:
+                        conn.rollback()
+                        raise ConnectionError(
+                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                        ) from e
+                    except mysql.connector.Error as e:
+                        conn.rollback()
+                        raise DatabaseError(
+                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                        ) from e
                     except Exception as e:
                         conn.rollback()
                         raise e
@@ -113,7 +156,13 @@ class DatabaseManager:
                         response_time = time.time() - start_time
                         DatabaseManager._scalability_manager.record_request_metrics(response_time)
                 return
+            except (DatabaseError, IntegrityError, ConnectionError, OperationalError):
+                raise
             except Exception as e:
+                # Only fall back to legacy if the scalability manager failed during setup
+                # (before yield). If user code raised inside the yield, re-raise directly.
+                if _yielded:
+                    raise
                 logger.warning(f"⚠️ Scalability manager cursor failed, falling back: {e}")
         
         # Fallback to legacy approach
@@ -121,6 +170,26 @@ class DatabaseManager:
         cursor = conn.cursor(dictionary=dictionary)
         try:
             yield cursor, conn
+        except mysql.connector.IntegrityError as e:
+            conn.rollback()
+            raise IntegrityError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
+        except mysql.connector.OperationalError as e:
+            conn.rollback()
+            raise OperationalError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
+        except mysql.connector.InterfaceError as e:
+            conn.rollback()
+            raise ConnectionError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
+        except mysql.connector.Error as e:
+            conn.rollback()
+            raise DatabaseError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
         except Exception as e:
             conn.rollback()
             raise e
@@ -145,9 +214,30 @@ class DatabaseManager:
                     conn.commit()
                     return cursor.lastrowid if cursor.lastrowid else cursor.rowcount
                 return cursor.fetchall() if fetch else None
+        except IntegrityError as e:
+            # Check for FK constraint violation (errno 1452) — preserve existing behavior
+            original = e.original_error or e.__cause__
+            errno = e.error_code
+            if errno == 1452:
+                msg = str(e)
+                if 'fk_mutaties_debet' in msg:
+                    raise ValueError(
+                        "Debet account does not exist in the chart of accounts (rekeningschema) "
+                        "for this administration. Please check the account number."
+                    ) from (original or e)
+                elif 'fk_mutaties_credit' in msg:
+                    raise ValueError(
+                        "Credit account does not exist in the chart of accounts (rekeningschema) "
+                        "for this administration. Please check the account number."
+                    ) from (original or e)
+                else:
+                    raise ValueError(
+                        f"Foreign key constraint violation: {msg}"
+                    ) from (original or e)
+            raise
         except mysql.connector.IntegrityError as e:
+            # Direct mysql.connector.IntegrityError (not yet wrapped by get_cursor)
             if e.errno == 1452:
-                # FK constraint violation — extract useful info for the caller
                 msg = str(e)
                 if 'fk_mutaties_debet' in msg:
                     raise ValueError(
@@ -163,8 +253,29 @@ class DatabaseManager:
                     raise ValueError(
                         f"Foreign key constraint violation: {msg}"
                     ) from e
-            raise
+            raise IntegrityError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
+        except mysql.connector.OperationalError as e:
+            raise OperationalError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
+        except mysql.connector.InterfaceError as e:
+            raise ConnectionError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
+        except mysql.connector.Error as e:
+            raise DatabaseError(
+                str(e), error_code=getattr(e, 'errno', None), original_error=e
+            ) from e
     
+    def execute_ddl(self, statement):
+        """Execute a DDL statement (CREATE, ALTER, DROP) with auto-commit.
+
+        For migration scripts that need database-specific DDL.
+        """
+        return self.execute_query(statement, fetch=False, commit=True)
+
     def execute_batch_queries(self, queries_with_params, commit=True):
         """Execute multiple queries in batch for better performance"""
         if not queries_with_params:
@@ -377,7 +488,7 @@ class DatabaseManager:
             results = self.execute_query(query, (reference_number, transaction_date, transaction_amount))
             return results if results else []
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             # Log the error but don't raise it to allow graceful degradation
             print(f"Database error during duplicate check: {e}")
             raise Exception(f"Database connection failed during duplicate check: {str(e)}")

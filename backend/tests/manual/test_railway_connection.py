@@ -24,6 +24,7 @@ def test_database_connection():
     # Import database manager
     try:
         from database import DatabaseManager
+        from dialect_helpers import dialect
         print("✅ Successfully imported DatabaseManager")
     except Exception as e:
         print(f"❌ Failed to import DatabaseManager: {e}")
@@ -160,9 +161,9 @@ def test_database_connection():
         print(f"❌ Failed to retrieve sample data: {e}")
         return False
     
-    # Test 7: Check views
+    # Test 7: Check views using dialect helper
     try:
-        views = db.execute_query("SHOW FULL TABLES WHERE Table_type = 'VIEW'")
+        views = db.execute_query(dialect.list_tables() + " WHERE Table_type = 'VIEW'")
         if views:
             print(f"✅ Found {len(views)} views in database")
             view_names = [list(v.values())[0] for v in views]

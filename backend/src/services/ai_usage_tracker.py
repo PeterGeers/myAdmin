@@ -13,6 +13,8 @@ import logging
 from typing import Optional
 from decimal import Decimal
 
+from dialect_helpers import dialect
+
 logger = logging.getLogger(__name__)
 
 
@@ -163,14 +165,14 @@ class AIUsageTracker:
         """
         try:
             # Get aggregated usage
-            query = """
+            query = f"""
                 SELECT 
                     COUNT(*) as total_requests,
                     SUM(tokens_used) as total_tokens,
                     SUM(cost_estimate) as total_cost
                 FROM ai_usage_log
                 WHERE administration = %s
-                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+                AND created_at >= {dialect.date_subtract(dialect.current_timestamp(), '%s', 'DAY')}
             """
             
             result = self.db.execute_query(query, [administration, days])
@@ -186,7 +188,7 @@ class AIUsageTracker:
             row = result[0]
             
             # Get breakdown by feature
-            feature_query = """
+            feature_query = f"""
                 SELECT 
                     feature,
                     COUNT(*) as requests,
@@ -194,7 +196,7 @@ class AIUsageTracker:
                     SUM(cost_estimate) as cost
                 FROM ai_usage_log
                 WHERE administration = %s
-                AND created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+                AND created_at >= {dialect.date_subtract(dialect.current_timestamp(), '%s', 'DAY')}
                 GROUP BY feature
                 ORDER BY cost DESC
             """

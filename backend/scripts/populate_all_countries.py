@@ -3,28 +3,23 @@ Populate countries table with all ISO 3166-1 alpha-2 countries
 Complete list of 249 countries with English and Dutch names
 """
 
-import mysql.connector
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 from dotenv import load_dotenv
+from database import DatabaseManager
+from db_exceptions import DatabaseError
 
 load_dotenv()
 
 def populate_all_countries():
     """Populate countries table with complete ISO 3166-1 list"""
     
-    db_config = {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'user': os.getenv('DB_USER'),
-        'password': os.getenv('DB_PASSWORD'),
-        'database': os.getenv('DB_NAME'),
-        'port': int(os.getenv('DB_PORT', 3306))
-    }
+    db = DatabaseManager()
     
-    print(f"\nConnecting to database: {db_config['database']} at {db_config['host']}")
+    print(f"\nConnecting to database: {db.config['database']} at {db.config['host']}")
     print("="*60)
     
     # Complete list of all ISO 3166-1 alpha-2 countries
@@ -290,51 +285,46 @@ def populate_all_countries():
     ]
     
     try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
-        
-        print(f"\nPopulating countries table with {len(all_countries)} countries...")
-        print("-"*60)
-        
-        insert_query = """
-            INSERT INTO countries (code, name, name_nl, region) 
-            VALUES (%s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE 
-                name = VALUES(name),
-                name_nl = VALUES(name_nl),
-                region = VALUES(region)
-        """
-        
-        cursor.executemany(insert_query, all_countries)
-        conn.commit()
-        
-        print(f"✓ Successfully populated {len(all_countries)} countries")
-        
-        # Verification
-        cursor.execute("SELECT COUNT(*) FROM countries")
-        count = cursor.fetchone()[0]
-        print(f"✓ Total countries in table: {count}")
-        
-        # Show breakdown by region
-        print("\nCountries by region:")
-        print("-"*60)
-        cursor.execute("""
-            SELECT region, COUNT(*) as count 
-            FROM countries 
-            GROUP BY region 
-            ORDER BY count DESC
-        """)
-        for row in cursor.fetchall():
-            print(f"  {row[0]:25s}: {row[1]:3d} countries")
-        
-        cursor.close()
-        conn.close()
+        with db.get_cursor(dictionary=False) as (cursor, conn):
+            print(f"\nPopulating countries table with {len(all_countries)} countries...")
+            print("-"*60)
+            
+            insert_query = """
+                INSERT INTO countries (code, name, name_nl, region) 
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE 
+                    name = VALUES(name),
+                    name_nl = VALUES(name_nl),
+                    region = VALUES(region)
+            """
+            
+            cursor.executemany(insert_query, all_countries)
+            conn.commit()
+            
+            print(f"✓ Successfully populated {len(all_countries)} countries")
+            
+            # Verification
+            cursor.execute("SELECT COUNT(*) FROM countries")
+            count = cursor.fetchone()[0]
+            print(f"✓ Total countries in table: {count}")
+            
+            # Show breakdown by region
+            print("\nCountries by region:")
+            print("-"*60)
+            cursor.execute("""
+                SELECT region, COUNT(*) as count 
+                FROM countries 
+                GROUP BY region 
+                ORDER BY count DESC
+            """)
+            for row in cursor.fetchall():
+                print(f"  {row[0]:25s}: {row[1]:3d} countries")
         
         print("\n" + "="*60)
         print("✓ All countries populated successfully!")
         print("="*60 + "\n")
         
-    except mysql.connector.Error as e:
+    except DatabaseError as e:
         print(f"\n✗ Database error: {e}")
         sys.exit(1)
     except Exception as e:

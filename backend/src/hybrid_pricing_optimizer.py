@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from database import DatabaseManager
 from business_pricing_model import BusinessPricingModel
+from dialect_helpers import dialect
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
 
@@ -523,7 +524,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             events_query = """
             SELECT event_name, start_date, end_date, uplift_percentage
             FROM pricing_events 
-            WHERE active = TRUE AND end_date >= CURDATE()
+            WHERE active = TRUE AND end_date >= {dialect.current_date()}
             ORDER BY start_date
             """
             
@@ -589,15 +590,15 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 
                 monthly_query = """
                 SELECT 
-                    YEAR(checkinDate) as year,
-                    MONTH(checkinDate) as month,
+                    {dialect.year('checkinDate')} as year,
+                    {dialect.month('checkinDate')} as month,
                     COUNT(*) as bookings,
                     AVG(amountGross/nights) as avg_adr,
                     AVG(nights) as avg_los,
                     SUM(amountGross) as total_revenue
                 FROM bnb 
-                WHERE listing = %s AND checkinDate >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH)
-                GROUP BY YEAR(checkinDate), MONTH(checkinDate)
+                WHERE listing = %s AND checkinDate >= {dialect.date_subtract(dialect.current_date(), 24, 'MONTH')}
+                GROUP BY {dialect.year('checkinDate')}, {dialect.month('checkinDate')}
                 ORDER BY year, month
                 """
                 
@@ -605,21 +606,21 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 seasonal_query = """
                 SELECT 
                     CASE 
-                        WHEN MONTH(checkinDate) IN (3,4,5) THEN 'Spring'
-                        WHEN MONTH(checkinDate) IN (6,7,8) THEN 'Summer'
-                        WHEN MONTH(checkinDate) IN (9,10,11) THEN 'Autumn'
+                        WHEN {dialect.month('checkinDate')} IN (3,4,5) THEN 'Spring'
+                        WHEN {dialect.month('checkinDate')} IN (6,7,8) THEN 'Summer'
+                        WHEN {dialect.month('checkinDate')} IN (9,10,11) THEN 'Autumn'
                         ELSE 'Winter'
                     END as season,
                     COUNT(*) as bookings,
                     AVG(amountGross/nights) as avg_adr,
                     AVG(nights) as avg_los
                 FROM bnb 
-                WHERE listing = %s AND checkinDate >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH)
+                WHERE listing = %s AND checkinDate >= {dialect.date_subtract(dialect.current_date(), 24, 'MONTH')}
                 GROUP BY 
                     CASE 
-                        WHEN MONTH(checkinDate) IN (3,4,5) THEN 'Spring'
-                        WHEN MONTH(checkinDate) IN (6,7,8) THEN 'Summer'
-                        WHEN MONTH(checkinDate) IN (9,10,11) THEN 'Autumn'
+                        WHEN {dialect.month('checkinDate')} IN (3,4,5) THEN 'Spring'
+                        WHEN {dialect.month('checkinDate')} IN (6,7,8) THEN 'Summer'
+                        WHEN {dialect.month('checkinDate')} IN (9,10,11) THEN 'Autumn'
                         ELSE 'Winter'
                     END
                 ORDER BY avg_adr DESC
@@ -633,7 +634,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                     MIN(checkinDate) as earliest_planned,
                     MAX(checkoutDate) as latest_planned
                 FROM bnbplanned 
-                WHERE listing = %s AND checkinDate >= CURDATE()
+                WHERE listing = %s AND checkinDate >= {dialect.current_date()}
                 """
                 
                 import pandas as pd
@@ -654,13 +655,13 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 # General market data
                 monthly_query = """
                 SELECT 
-                    YEAR(checkinDate) as year,
-                    MONTH(checkinDate) as month,
+                    {dialect.year('checkinDate')} as year,
+                    {dialect.month('checkinDate')} as month,
                     COUNT(*) as bookings,
                     AVG(amountGross/nights) as avg_adr
                 FROM bnb 
-                WHERE checkinDate >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
-                GROUP BY YEAR(checkinDate), MONTH(checkinDate)
+                WHERE checkinDate >= {dialect.date_subtract(dialect.current_date(), 12, 'MONTH')}
+                GROUP BY {dialect.year('checkinDate')}, {dialect.month('checkinDate')}
                 ORDER BY year, month
                 """
                 
@@ -699,7 +700,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             ) as avg_adr
             FROM bnb 
             WHERE listing = %s 
-            AND checkinDate BETWEEN DATE_SUB(%s, INTERVAL 7 DAY) AND DATE_ADD(%s, INTERVAL 7 DAY)
+            AND checkinDate BETWEEN {dialect.date_subtract('%s', 7, 'DAY')} AND {dialect.date_add('%s', 7, 'DAY')}
             AND nights > 0
             """
             

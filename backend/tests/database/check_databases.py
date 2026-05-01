@@ -1,30 +1,21 @@
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-import mysql.connector
 from dotenv import load_dotenv
+
+from database import DatabaseManager
 
 load_dotenv()
 
 def check_databases():
     try:
-        # Connect without database to list all databases
-        conn = mysql.connector.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
-            user=os.getenv('DB_USER', 'root'),
-            password=os.getenv('DB_PASSWORD', '')
-        )
-        cursor = conn.cursor()
+        db = DatabaseManager()
         
-        cursor.execute("SHOW DATABASES")
-        databases = cursor.fetchall()
+        databases = db.execute_query("SHOW DATABASES")
         
         print("Available databases:")
-        for db in databases:
-            print(f"  - {db[0]}")
-        
-        cursor.close()
-        conn.close()
+        for db_row in databases:
+            print(f"  - {list(db_row.values())[0]}")
         
     except Exception as e:
         print(f"Error: {e}")

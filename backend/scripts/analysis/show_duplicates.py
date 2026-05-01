@@ -3,39 +3,54 @@
 Show duplicate transactions in Goodwin administration data
 """
 
-import mysql.connector
 import os
-from dotenv import load_dotenv
+import sys
+from pathlib import Path
+
 import pandas as pd
 
-load_dotenv('backend/.env')
+# Add src to path
+backend_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_dir / 'src'))
+sys.path.insert(0, str(backend_dir))
+
+from dotenv import load_dotenv
+load_dotenv(backend_dir / '.env')
+
+from database import DatabaseManager
+from db_exceptions import DatabaseError
+
 
 def show_duplicates():
-    conn = mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASSWORD', ''),
-        database=os.getenv('DB_NAME', 'finance')
-    )
-    
-    cursor = conn.cursor(dictionary=True)
-    
+    db = DatabaseManager()
+
     # Query Goodwin administration data
-    query = "SELECT * FROM mutaties WHERE Administration LIKE 'Goodwin%'"
-    cursor.execute(query)
-    results = cursor.fetchall()
-    
+    results = db.execute_query(
+        "SELECT * FROM mutaties WHERE Administration LIKE 'Goodwin%'",
+        fetch=True
+    )
+
     df = pd.DataFrame(results)
-    
+
     # Find duplicates based on date, description, amount, debet, and credit
-    duplicate_mask = df.duplicated(subset=['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit', 'ReferenceNumber'], keep=False)
-    duplicates = df[duplicate_mask].sort_values(['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit', 'ReferenceNumber'])
-    
+    duplicate_mask = df.duplicated(
+        subset=['TransactionDate', 'TransactionDescription', 'TransactionAmount',
+                'Debet', 'Credit', 'ReferenceNumber'],
+        keep=False
+    )
+    duplicates = df[duplicate_mask].sort_values(
+        ['TransactionDate', 'TransactionDescription', 'TransactionAmount',
+         'Debet', 'Credit', 'ReferenceNumber']
+    )
+
     print(f"=== DUPLICATE TRANSACTIONS ({len(duplicates)} records) ===\n")
-    
+
     # Group duplicates for better display
-    grouped = duplicates.groupby(['TransactionDate', 'TransactionDescription', 'TransactionAmount', 'Debet', 'Credit', 'ReferenceNumber'])
-    
+    grouped = duplicates.groupby(
+        ['TransactionDate', 'TransactionDescription', 'TransactionAmount',
+         'Debet', 'Credit', 'ReferenceNumber']
+    )
+
     for (date, desc, amount, debet, credit, ref), group in grouped:
         print(f"Date: {date}")
         print(f"Description: {desc}")
@@ -48,9 +63,12 @@ def show_duplicates():
             print(f"    Ref: {row['ReferenceNumber']}")
             print(f"    Transaction#: {row['TransactionNumber']}")
         print("-" * 80)
-    
-    cursor.close()
-    conn.close()
+
 
 if __name__ == "__main__":
-    show_duplicates()
+    try:
+        show_duplicates()
+    except DatabaseError as e:
+        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")

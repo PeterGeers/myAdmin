@@ -13,6 +13,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 import json
+from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +296,7 @@ class DuplicateQueryOptimizer:
                 WHERE ReferenceNumber = %s
                     AND TransactionDate = %s
                     AND ABS(TransactionAmount - %s) < 0.01
-                    AND TransactionDate > (CURDATE() - INTERVAL 2 YEAR)
+                    AND TransactionDate > ({dialect.current_date()} - INTERVAL 2 YEAR)
                 ORDER BY ID DESC
                 LIMIT 100
             """

@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 import argparse
 
 
@@ -37,12 +38,12 @@ def configure_vat_netting(administration, vat_accounts, primary_account, test_mo
     print(f"Configuring VAT Netting for {administration}")
     print(f"{'='*60}\n")
     
-    # Update query
-    update_query = """
+    # Update query — nest two json_set calls for multi-path update
+    inner_set = dialect.json_set('parameters', '$.vat_netting', 'true')
+    update_query = f"""
         UPDATE rekeningschema 
         SET parameters = JSON_SET(
-            COALESCE(parameters, '{}'), 
-            '$.vat_netting', true,
+            {inner_set}, 
             '$.vat_primary', %s
         )
         WHERE Account = %s
@@ -50,18 +51,24 @@ def configure_vat_netting(administration, vat_accounts, primary_account, test_mo
     """
     
     # Verify query
+    je_netting = dialect.json_extract('parameters', '$.vat_netting')
+    je_primary = dialect.json_extract('parameters', '$.vat_primary')
     verify_query = """
         SELECT 
             Account,
             AccountName,
             VW,
-            JSON_EXTRACT(parameters, '$.vat_netting') as vat_netting,
-            JSON_EXTRACT(parameters, '$.vat_primary') as vat_primary
+            {netting} as vat_netting,
+            {primary} as vat_primary
         FROM rekeningschema
-        WHERE Account IN ({})
+        WHERE Account IN ({placeholders})
         AND administration = %s
         ORDER BY Account
-    """.format(','.join(['%s'] * len(vat_accounts)))
+    """.format(
+        netting=je_netting,
+        primary=je_primary,
+        placeholders=','.join(['%s'] * len(vat_accounts))
+    )
     
     try:
         # Configure each VAT account

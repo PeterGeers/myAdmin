@@ -9,7 +9,7 @@ tenant isolation, column validation, and optional column pivoting
 via conditional aggregation.
 
 **Zero hardcoded column definitions.** Everything is derived at startup:
-  - Column names and types: introspected from ``DESCRIBE <view>``
+  - Column names and types: introspected via ``dialect.describe_table(<view>)``
   - Excluded columns:       parameter ``ui.pivot / exclude_columns.<ds>``
   - Force-groupable cols:   parameter ``ui.pivot / force_groupable.<ds>``
   - Allowed columns:        parameter ``ui.pivot / allowed_columns.<ds>``
@@ -26,6 +26,8 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
+
+from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +91,7 @@ def derive_columns_from_schema(
     Returns:
         ``(groupable, aggregatable, type_map)``
     """
-    rows = db.execute_query(f"DESCRIBE {data_source}", fetch=True)
+    rows = db.execute_query(dialect.describe_table(data_source), fetch=True)
 
     groupable: List[str] = []
     aggregatable: List[str] = []
@@ -159,8 +161,10 @@ def build_registry_from_db(db, parameter_service=None) -> None:
     """
     Populate the module-level lookup dicts by introspecting the database.
 
-    **Must** be called once at application startup (e.g. in ``app.py``).
-    If the database is unreachable or a view is missing this will raise.
+    Called at application startup (e.g. in ``app.py``).  If the database
+    is unreachable or a view is missing this will raise — but the
+    registry can be lazily initialised on first request via
+    :func:`ensure_registry`.
 
     The list of data sources to register is read from the parameter
     ``ui.pivot / registered_sources`` (a JSON list of view/table names).
@@ -175,6 +179,7 @@ def build_registry_from_db(db, parameter_service=None) -> None:
         RuntimeError: if any data source cannot be introspected.
     """
     global SYSTEM_ALLOWED_COLUMNS, COLUMN_TYPE_MAP, DATA_SOURCE_LABELS, DATA_SOURCE_MODULES
+    global _registry_initialised
 
     # Which views/tables to register
     sources = _get_param_list(parameter_service, 'registered_sources')
@@ -207,10 +212,37 @@ def build_registry_from_db(db, parameter_service=None) -> None:
         DATA_SOURCE_LABELS[ds_name] = label
         DATA_SOURCE_MODULES[ds_name] = module
 
+    _registry_initialised = True
     logger.info(
         "Pivot registry initialised from DB for %d data source(s): %s",
         len(sources), ', '.join(sources),
     )
+
+
+def ensure_registry(db=None, parameter_service=None) -> None:
+    """Lazily initialise the pivot registry if startup init failed.
+
+    Safe to call on every request — returns immediately when the
+    registry is already populated.  When *db* or *parameter_service*
+    are ``None`` the function creates throwaway instances using the
+    current ``TEST_MODE`` environment variable.
+    """
+    global _registry_initialised
+    if _registry_initialised:
+        return
+
+    import os
+    from database import DatabaseManager
+    from services.parameter_service import ParameterService
+
+    if db is None:
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+    if parameter_service is None:
+        parameter_service = ParameterService(db)
+
+    build_registry_from_db(db, parameter_service)
+    logger.info("Pivot registry lazily initialised on first request")
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +253,7 @@ SYSTEM_ALLOWED_COLUMNS: Dict[str, Dict[str, List[str]]] = {}
 COLUMN_TYPE_MAP: Dict[str, Dict[str, str]] = {}
 DATA_SOURCE_LABELS: Dict[str, str] = {}
 DATA_SOURCE_MODULES: Dict[str, Optional[str]] = {}
+_registry_initialised: bool = False
 
 
 # ===================================================================
@@ -240,6 +273,7 @@ class AllowedColumnsRegistry:
         self.parameter_service = parameter_service
 
     def get_available_columns(self, data_source: str, tenant: str) -> Dict[str, list]:
+        ensure_registry()
         system_cols = SYSTEM_ALLOWED_COLUMNS.get(data_source)
         if system_cols is None:
             raise ValueError(f"Unknown data source '{data_source}'")
@@ -263,6 +297,7 @@ class AllowedColumnsRegistry:
         }
 
     def get_registered_sources(self) -> List[Dict[str, Any]]:
+        ensure_registry()
         return [
             {
                 'name': name,

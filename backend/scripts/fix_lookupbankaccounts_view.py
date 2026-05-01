@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
+from src.dialect_helpers import dialect
 
 db = DatabaseManager()
 
@@ -19,7 +20,7 @@ print("=" * 60)
 # Check current definition
 print("\n1. Checking current view definition...")
 try:
-    result = db.execute_query("SHOW CREATE VIEW lookupbankaccounts_r")
+    result = db.execute_query(dialect.get_view_definition("lookupbankaccounts_r"))
     if result:
         create_view = result[0]['Create View']
         print(f"   Current definition length: {len(create_view)} chars")
@@ -98,7 +99,7 @@ except Exception as e:
 # Check the new definition
 print("\n4. Checking new view definition...")
 try:
-    result = db.execute_query("SHOW CREATE VIEW lookupbankaccounts_r")
+    result = db.execute_query(dialect.get_view_definition("lookupbankaccounts_r"))
     if result:
         create_view = result[0]['Create View']
         

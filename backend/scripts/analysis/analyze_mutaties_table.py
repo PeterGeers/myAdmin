@@ -3,57 +3,68 @@
 Analyze the base mutaties table for Goodwin administration
 """
 
-import mysql.connector
 import os
-from dotenv import load_dotenv
+import sys
+from pathlib import Path
+
 import pandas as pd
 
-load_dotenv('backend/.env')
+# Add src to path
+backend_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_dir / 'src'))
+sys.path.insert(0, str(backend_dir))
+
+from dotenv import load_dotenv
+load_dotenv(backend_dir / '.env')
+
+from database import DatabaseManager
+from db_exceptions import DatabaseError
+
 
 def analyze_mutaties_table():
-    conn = mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASSWORD', ''),
-        database=os.getenv('DB_NAME', 'finance')
-    )
-    
-    cursor = conn.cursor(dictionary=True)
-    
+    db = DatabaseManager()
+
     # Check table structure
-    cursor.execute("DESCRIBE mutaties")
-    columns = cursor.fetchall()
-    
+    columns = db.execute_query("DESCRIBE mutaties", fetch=True)
+
     print("=== MUTATIES TABLE STRUCTURE ===")
     for col in columns:
         print(f"{col['Field']} - {col['Type']}")
-    
+
     # Query Goodwin data from base table
     query = "SELECT * FROM mutaties WHERE Administration LIKE 'Goodwin%' LIMIT 10"
-    cursor.execute(query)
-    sample = cursor.fetchall()
-    
+    sample = db.execute_query(query, fetch=True)
+
     print("\n=== SAMPLE MUTATIES RECORDS ===")
     for i, row in enumerate(sample):
         print(f"Row {i+1}:")
         for key, value in row.items():
             print(f"  {key}: {value}")
         print("-" * 50)
-    
+
     # Count records
-    cursor.execute("SELECT COUNT(*) as count FROM mutaties WHERE Administration LIKE 'Goodwin%'")
-    count = cursor.fetchone()['count']
+    result = db.execute_query(
+        "SELECT COUNT(*) as count FROM mutaties WHERE Administration LIKE 'Goodwin%'",
+        fetch=True
+    )
+    count = result[0]['count']
     print(f"\n=== RECORD COUNT ===")
     print(f"Total mutaties records: {count}")
-    
+
     # Compare with view count
-    cursor.execute("SELECT COUNT(*) as count FROM vw_mutaties WHERE Administration LIKE 'Goodwin%'")
-    view_count = cursor.fetchone()['count']
+    view_result = db.execute_query(
+        "SELECT COUNT(*) as count FROM vw_mutaties WHERE Administration LIKE 'Goodwin%'",
+        fetch=True
+    )
+    view_count = view_result[0]['count']
     print(f"Total vw_mutaties records: {view_count}")
     print(f"View multiplier: {view_count / count if count > 0 else 0:.1f}x")
-    
-    cursor.close()
-    conn.close()
+
 
 if __name__ == "__main__":
-    analyze_mutaties_table()
+    try:
+        analyze_mutaties_table()
+    except DatabaseError as e:
+        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")

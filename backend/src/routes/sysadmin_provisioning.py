@@ -13,6 +13,7 @@ import boto3
 from flask import Blueprint, request, jsonify
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -143,9 +144,9 @@ def provision_signup(user_email, user_roles):
 
         # Set plan to trial with 2-month expiry
         finance_db.execute_query(
-            """
+            f"""
             UPDATE tenants
-            SET plan = 'trial', plan_expires_at = DATE_ADD(NOW(), INTERVAL 2 MONTH)
+            SET plan = 'trial', plan_expires_at = {dialect.date_add(dialect.current_timestamp(), 2, 'MONTH')}
             WHERE administration = %s
             """,
             (admin_name,), commit=True
@@ -156,7 +157,7 @@ def provision_signup(user_email, user_roles):
 
         # Step 5: Mark provisioned
         promo_db.execute_query(
-            "UPDATE pending_signups SET status = 'provisioned', provisioned_at = NOW() WHERE email = %s",
+            f"UPDATE pending_signups SET status = 'provisioned', provisioned_at = {dialect.current_timestamp()} WHERE email = %s",
             (email,), commit=True
         )
 
