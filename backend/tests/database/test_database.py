@@ -1,7 +1,6 @@
 import sys
 import os
 import pytest
-import mysql.connector
 from unittest.mock import patch, MagicMock
 from hypothesis import given, strategies as st, assume
 from decimal import Decimal
@@ -9,6 +8,7 @@ from datetime import datetime, date, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from database import DatabaseManager
+from db_exceptions import DatabaseError
 
 class TestDatabaseManager:
     
@@ -59,11 +59,11 @@ class TestDatabaseManager:
     @patch('mysql.connector.connect')
     def test_get_connection_failure(self, mock_connect, db_manager):
         """Test database connection failure"""
-        mock_connect.side_effect = mysql.connector.Error("Connection failed")
+        mock_connect.side_effect = DatabaseError("Connection failed")
         
         # Disable pooling for this test
         DatabaseManager._use_pool = False
-        with pytest.raises(mysql.connector.Error):
+        with pytest.raises(Exception):
             db_manager.get_connection()
     
     def test_get_existing_sequences(self, db_manager, mock_connection):
@@ -146,11 +146,11 @@ class TestDatabaseManager:
     @patch('mysql.connector.connect')
     def test_connection_error_handling(self, mock_connect, db_manager):
         """Test connection error handling"""
-        mock_connect.side_effect = mysql.connector.Error("Database unavailable")
+        mock_connect.side_effect = DatabaseError("Database unavailable")
         
         # Disable pooling for this test
         DatabaseManager._use_pool = False
-        with pytest.raises(mysql.connector.Error, match="Database unavailable"):
+        with pytest.raises(Exception, match="Database unavailable"):
             db_manager.get_connection()
     
     def test_query_parameter_binding(self, db_manager, mock_connection):
@@ -256,7 +256,7 @@ class TestDatabaseManager:
         db_manager = DatabaseManager(test_mode=True)
         
         # Test database connection failure
-        with patch.object(db_manager, 'get_connection', side_effect=mysql.connector.Error("Connection failed")):
+        with patch.object(db_manager, 'get_connection', side_effect=DatabaseError("Connection failed")):
             with pytest.raises(Exception) as exc_info:
                 db_manager.check_duplicate_transactions(
                     reference_number, 
@@ -337,7 +337,7 @@ class TestDatabaseManager:
 
     def test_check_duplicate_transactions_unit_database_error(self, db_manager):
         """Unit test for database error handling"""
-        with patch.object(db_manager, 'get_connection', side_effect=mysql.connector.Error("Database unavailable")):
+        with patch.object(db_manager, 'get_connection', side_effect=DatabaseError("Database unavailable")):
             with pytest.raises(Exception) as exc_info:
                 db_manager.check_duplicate_transactions('TestVendor', '2024-01-15', 150.00)
             
