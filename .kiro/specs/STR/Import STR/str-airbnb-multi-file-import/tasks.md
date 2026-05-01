@@ -168,16 +168,16 @@ Enhance the Airbnb import workflow to support uploading multiple CSV files simul
 - [x] 8. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 9. Commit and push to main
-  - [ ] 9.1 Stage all changed files related to this feature
+- [x] 9. Commit and push to main
+  - [x] 9.1 Stage all changed files related to this feature
     - Stage backend changes: `backend/src/str_processor.py`
     - Stage frontend changes: `frontend/src/components/STRProcessor.tsx`
     - Stage new test files: `backend/tests/unit/test_str_airbnb_multi_import.py`, `backend/tests/integration/test_str_airbnb_multi_file_integration.py`, `frontend/src/components/STRProcessor.test.tsx`
     - Stage spec files: `.kiro/specs/str-airbnb-multi-file-import/`
     - Use `git add` with specific files — avoid `git add .`
-  - [ ] 9.2 Commit with descriptive message
+  - [x] 9.2 Commit with descriptive message
     - Commit message: `feat(str): add Airbnb multi-file import with concat, dedup by Bevestigingscode, and 15% channel fee calculation`
-  - [ ] 9.3 Push to main
+  - [x] 9.3 Push to main
     - `git push origin main`
 
 ## Notes
