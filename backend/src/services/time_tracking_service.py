@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
+from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +171,7 @@ class TimeTrackingService(FieldConfigMixin):
         else:
             # period grouping (week/month/quarter/year)
             date_fmt = {'week': '%x-%v', 'month': '%Y-%m',
-                        'quarter': "CONCAT(YEAR(entry_date),'-Q',QUARTER(entry_date))",
+                        'quarter': f"CONCAT({dialect.year('entry_date')},'-Q',QUARTER(entry_date))",
                         'year': '%Y'}.get(period or 'month', '%Y-%m')
             if period == 'quarter':
                 query = f"""SELECT {date_fmt} as period,
@@ -179,7 +180,7 @@ class TimeTrackingService(FieldConfigMixin):
                             FROM time_entries WHERE administration = %s
                             GROUP BY period"""
             else:
-                query = f"""SELECT DATE_FORMAT(entry_date, '{date_fmt}') as period,
+                query = f"""SELECT {dialect.date_format('entry_date', date_fmt)} as period,
                                    SUM(hours) as total_hours,
                                    SUM(hours * hourly_rate) as total_amount
                             FROM time_entries WHERE administration = %s

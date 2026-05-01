@@ -16,7 +16,14 @@ import json
 import os
 import sys
 import boto3
-import mysql.connector
+from pathlib import Path
+
+# Add src to path
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir / 'src'))
+sys.path.insert(0, str(backend_dir))
+
+from database import DatabaseManager
 
 GLOBAL_ROLES = {'SysAdmin', 'Administrators', 'System_CRUD'}
 
@@ -40,17 +47,19 @@ def main():
     print(f'=== Migration: Cognito roles → user_tenant_roles ({mode}) ===')
     print(f'DB: {args.db_host}:{args.db_port}/{args.db_name}')
 
-    # Connect to DB
-    conn = mysql.connector.connect(
-        host=args.db_host, port=args.db_port,
-        user=args.db_user, password=args.db_password,
-        database=args.db_name
-    )
-    cursor = conn.cursor(dictionary=True)
+    # Create DatabaseManager and override config with CLI args
+    db = DatabaseManager()
+    db.config.update({
+        'host': args.db_host,
+        'port': args.db_port,
+        'user': args.db_user,
+        'password': args.db_password,
+        'database': args.db_name,
+    })
 
     # Get valid tenants
-    cursor.execute('SELECT administration FROM tenants')
-    valid_tenants = {r['administration'] for r in cursor.fetchall()}
+    rows = db.execute_query('SELECT administration FROM tenants')
+    valid_tenants = {r['administration'] for r in rows}
     print(f'Valid tenants: {sorted(valid_tenants)}')
 
     # Get Cognito users
@@ -86,18 +95,16 @@ def main():
                     inserted += 1
                 else:
                     try:
-                        cursor.execute(
+                        db.execute_query(
                             'INSERT IGNORE INTO user_tenant_roles (email, administration, role, created_by) VALUES (%s, %s, %s, %s)',
-                            (email, tenant, role, 'migration')
+                            (email, tenant, role, 'migration'),
+                            fetch=False, commit=True
                         )
-                        conn.commit()
                         inserted += 1
                         print(f'  OK {email} | {tenant} | {role}')
                     except Exception as e:
                         print(f'  ERR {email} | {tenant} | {role}: {e}')
 
-    cursor.close()
-    conn.close()
     print(f'\nDone: {inserted} {"would be inserted" if args.dry_run else "inserted"}, {skipped} skipped')
 
 

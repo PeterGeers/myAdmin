@@ -17,6 +17,12 @@ refactor /retest of unit, integrationand e2e tests to solve broken tests
 The 2 remaining failing suites are both authentication tests (authentication-flow.test.tsx and authentication.integration.test.tsx) — these are pre-existing failures unrelated to this spec (Login component import issue with React 19)
 authentication-flow.test.tsx and authentication.integration.test.tsx — These are authentication integration tests that fail due to missing auth tokens/Cognito setup. These are pre-existing failures unrelated to the table filter framework migration.
 
+## Missing tests
+
+Changed file:
+missing_invoices_routes.py
+— this is a refactoring of an existing route file, not a new file. No existing test file for this route. No new test file needed per the coverage check (only new source files require new tests). No scoped tests to run.
+
 # Time tracking
 
 - Quick add part
@@ -30,7 +36,6 @@ authentication-flow.test.tsx and authentication.integration.test.tsx — These a
 
 System Admin Role management I am sorry no precence values in the table and the updated precedence is not retrieved after save. I will note it for further investigation now
 -- is it in cognito
-
 
 # Inmvoice processing
 
@@ -74,21 +79,33 @@ For the pivot feature specifically: the TENANT_COLUMN_MAP pattern in the extensi
 -- heeft een transactie geboektn met een datum in een al afgesloten periode, Zou niet mogen kunnen
 
 # Documentaion
-- Outdated documentation 
+
+- Outdated documentation
 - Code changes on the fly, Local document updates but lot of referral documents not updated
 
 # Is an orm layer fioreseen in the scope
+
 Kiro
 No. This spec deliberately avoids introducing an ORM (like SQLAlchemy). The approach is a lightweight abstraction layer — dialect helpers and a centralized DatabaseManager — while keeping raw SQL queries.
 The reasoning from the root cause analysis still applies: the codebase has 1,200+ hand-written SQL queries across 96 files. Introducing an ORM on top of the abstraction layer refactoring would double the scope and risk. The abstraction layer is the pragmatic middle ground — it gives you database portability without rewriting every query into ORM model calls.
 That said, once the abstraction layer is in place, adopting an ORM later becomes much more feasible since all database access is already centralized. It could be a future phase if there's a need for it.
 
 # Import errors on bdc
-failing urls 
+
+failing urls
+
 - https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/search_reservations.html?source=nav&upcoming_reservations=1&hotel_id=5620035&lang=en&ses=ddc3b11e6559a324b0778f09821fd4fe&date_from=2026-04-01&date_to=2027-05-01&date_type=arrival
 
-# Ideas for agentic AI in the scope of this project. 
+why do you keep testing all unit tests of which some fail and takes a lot of time. You do not want to fix them. Either focus on the scope or fix the failing tests
+
+Update to use database framework .kiro\steering\database-patterns.md
+
+# ai use log table
+
+- ad ai use in invoice processor
+
+# Ideas for agentic AI in the scope of this project.
+
 - We now have AI invoice summary that works very well. We could remove the hard coded ones
 - We have AI template support for solving templates (i have still never used)
 - We have AI supported STR Price prediction (but that is still complete rubbish)
-

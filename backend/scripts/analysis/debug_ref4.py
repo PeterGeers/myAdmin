@@ -3,49 +3,60 @@
 Debug Ref4 values in mutaties table
 """
 
-import mysql.connector
 import os
-from dotenv import load_dotenv
+import sys
+from pathlib import Path
 
-load_dotenv('backend/.env')
+# Add src to path
+backend_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(backend_dir / 'src'))
+sys.path.insert(0, str(backend_dir))
+
+from dotenv import load_dotenv
+load_dotenv(backend_dir / '.env')
+
+from database import DatabaseManager
+from db_exceptions import DatabaseError
+
 
 def debug_ref4():
-    conn = mysql.connector.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        user=os.getenv('DB_USER', 'root'),
-        password=os.getenv('DB_PASSWORD', ''),
-        database=os.getenv('DB_NAME', 'finance')
-    )
-    
-    cursor = conn.cursor(dictionary=True)
-    
+    db = DatabaseManager()
+
     # Check Ref4 values in mutaties table
-    cursor.execute("SELECT Ref4, COUNT(*) as count FROM mutaties WHERE Administration LIKE 'Goodwin%' GROUP BY Ref4 ORDER BY count DESC LIMIT 10")
-    results = cursor.fetchall()
-    
+    results = db.execute_query(
+        "SELECT Ref4, COUNT(*) as count FROM mutaties "
+        "WHERE Administration LIKE 'Goodwin%' GROUP BY Ref4 ORDER BY count DESC LIMIT 10",
+        fetch=True
+    )
+
     print("=== REF4 VALUES IN MUTATIES ===")
     for row in results:
         print(f"Ref4: '{row['Ref4']}', Count: {row['count']}")
-    
+
     # Check a specific account's last transactions
-    cursor.execute("""
+    last_transactions = db.execute_query(
+        """
         SELECT TransactionDate, TransactionDescription, Ref2, Ref4
         FROM mutaties 
         WHERE Administration = 'GoodwinSolutions' 
         AND (Debet = '1002' OR Credit = '1002')
         ORDER BY TransactionDate DESC, Ref2 DESC
         LIMIT 5
-    """)
-    
-    last_transactions = cursor.fetchall()
+        """,
+        fetch=True
+    )
+
     print("\n=== LAST 5 TRANSACTIONS FOR ACCOUNT 1002 ===")
     for tx in last_transactions:
         print(f"Date: {tx['TransactionDate']}, Ref2: {tx['Ref2']}, Ref4: '{tx['Ref4']}'")
         print(f"Description: {tx['TransactionDescription']}")
         print("-" * 50)
-    
-    cursor.close()
-    conn.close()
+
 
 if __name__ == "__main__":
-    debug_ref4()
+    try:
+        debug_ref4()
+    except DatabaseError as e:
+        print(f"Database error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")

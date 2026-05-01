@@ -18,6 +18,8 @@ from babel.dates import format_date as babel_format_date
 
 logger = logging.getLogger(__name__)
 
+from dialect_helpers import dialect
+
 # Map ISO 3166-1 country codes/names to Babel locale identifiers
 COUNTRY_LOCALE_MAP = {
     'NL': 'nl_NL', 'Nederland': 'nl_NL', 'Netherlands': 'nl_NL',
@@ -218,12 +220,12 @@ class PDFGeneratorService:
             # Try ZZP-specific flag first, then generic fallback
             for flag in ('zzp_invoice_ledger', 'invoice_bank_account'):
                 rows = self.db.execute_query(
-                    """SELECT JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')) AS iban
+                    f"""SELECT {dialect.json_unquote_extract('parameters', '$.iban')} AS iban
                        FROM rekeningschema
                        WHERE administration = %s
-                         AND JSON_EXTRACT(parameters, %s) = true
+                         AND {dialect.json_extract('parameters', f'$.{flag}')} = true
                        LIMIT 1""",
-                    (tenant, f'$.{flag}'),
+                    (tenant,),
                 )
                 if rows and isinstance(rows, list) and len(rows) > 0:
                     iban = rows[0].get('iban') if isinstance(rows[0], dict) else None

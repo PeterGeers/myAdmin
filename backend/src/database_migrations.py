@@ -2,6 +2,7 @@ import os
 import json
 from datetime import datetime
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 class DatabaseMigration:
     """Database migration system for schema changes and data updates"""
@@ -319,7 +320,7 @@ class DatabaseMigration:
             # Remove transactions with empty references
             "DELETE FROM mutaties WHERE Ref1 IS NULL OR Ref1 = '' OR Ref2 IS NULL OR Ref2 = ''",
             # Remove old temporary records
-            "DELETE FROM mutaties WHERE TransactionDescription LIKE '%TEMP%' AND TransactionDate < (CURDATE() - INTERVAL 1 YEAR)"
+            f"DELETE FROM mutaties WHERE TransactionDescription LIKE '%TEMP%' AND TransactionDate < ({dialect.current_date()} - INTERVAL 1 YEAR)"
         ]
 
         results = []

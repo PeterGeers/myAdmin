@@ -13,6 +13,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.module_registry import module_required, MODULE_REGISTRY
 from database import DatabaseManager
+from dialect_helpers import dialect
 from services.parameter_service import ParameterService
 from services.tax_rate_service import TaxRateService
 from services.zzp_invoice_service import ZZPInvoiceService
@@ -563,14 +564,16 @@ def get_aging(user_email, user_roles, tenant, user_tenants):
         db = DatabaseManager(test_mode=_test_mode)
         rows = db.execute_query(
             """SELECT i.id, i.invoice_number, i.due_date, i.grand_total,
-                      i.status, DATEDIFF(CURDATE(), i.due_date) as days_overdue,
+                      i.status, {datediff} as days_overdue,
                       c.id as contact_id, c.client_id, c.company_name
                FROM invoices i
                JOIN contacts c ON i.contact_id = c.id
                WHERE i.administration = %s
                  AND i.status IN ('sent', 'overdue')
                  AND i.invoice_type = 'invoice'
-               ORDER BY c.company_name, i.due_date""",
+               ORDER BY c.company_name, i.due_date""".format(
+                datediff=dialect.date_diff(dialect.current_date(), 'i.due_date')
+            ),
             (tenant,),
         ) or []
 
@@ -889,10 +892,10 @@ def _validate_booking_account(tenant: str, key: str, account_code: str) -> None:
 
     db = DatabaseManager(test_mode=_test_mode)
     rows = db.execute_query(
-        """SELECT Account FROM rekeningschema
+        f"""SELECT Account FROM rekeningschema
            WHERE administration = %s AND Account = %s
-             AND JSON_EXTRACT(parameters, %s) = true""",
-        (tenant, account_code, f'$.{flag}'),
+             AND {dialect.json_extract('parameters', f'$.{flag}')} = true""",
+        (tenant, account_code),
     )
     if not rows:
         raise ValueError(
@@ -969,10 +972,10 @@ def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants):
     try:
         db = DatabaseManager(test_mode=_test_mode)
         rows = db.execute_query(
-            """SELECT Account AS nummer, AccountName AS naam
+            f"""SELECT Account AS nummer, AccountName AS naam
                FROM rekeningschema
                WHERE administration = %s
-                 AND JSON_EXTRACT(parameters, '$.zzp_revenue_ledger') = true
+                 AND {dialect.json_extract('parameters', '$.zzp_revenue_ledger')} = true
                ORDER BY Account""",
             (tenant,),
         )

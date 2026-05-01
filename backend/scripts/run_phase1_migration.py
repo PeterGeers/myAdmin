@@ -22,7 +22,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
-import mysql.connector
+from src.db_exceptions import DatabaseError
 
 class Phase1Migration:
     def __init__(self, dry_run=False, backup=False):
@@ -195,7 +195,7 @@ class Phase1Migration:
                         if i % 10 == 0:
                             print(f"   Progress: {i}/{len(statements)} statements executed")
                         
-                    except mysql.connector.Error as e:
+                    except DatabaseError as e:
                         # Some errors are expected (like "column already exists")
                         if 'Duplicate column name' in str(e) or 'already exists' in str(e):
                             print(f"   ℹ️  Skipping: {str(e)[:100]}")

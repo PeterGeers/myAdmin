@@ -54,8 +54,8 @@ class TestGetPatternsUsesFlag:
         )
 
     def test_validate_pattern_database_get_patterns_no_threshold(self):
-        """validate_pattern/database.py get_patterns() must not contain < '1300'."""
-        from validate_pattern.database import DatabaseManager as PatternDB
+        """database.py get_patterns() must not contain < '1300'."""
+        from database import DatabaseManager as PatternDB
         source = inspect.getsource(PatternDB.get_patterns)
 
         assert "< '1300'" not in source, (
@@ -63,8 +63,8 @@ class TestGetPatternsUsesFlag:
         )
 
     def test_validate_pattern_database_get_patterns_has_flag_query(self):
-        """validate_pattern/database.py get_patterns() must use $.bank_account flag."""
-        from validate_pattern.database import DatabaseManager as PatternDB
+        """database.py get_patterns() must use $.bank_account flag."""
+        from database import DatabaseManager as PatternDB
         source = inspect.getsource(PatternDB.get_patterns)
 
         assert 'bank_account' in source, (
@@ -100,8 +100,8 @@ class TestGetPatternsUsesFlag:
         )
 
     def test_validate_pattern_get_patterns_passes_admin_three_times(self):
-        """validate_pattern get_patterns() must pass administration 3 times."""
-        from validate_pattern.database import DatabaseManager as PatternDB
+        """get_patterns() must pass administration 3 times."""
+        from database import DatabaseManager as PatternDB
 
         captured_params = []
 
@@ -155,8 +155,8 @@ class TestDuplicateGetLastTransactionsRemoved:
     """Verify duplicate get_last_transactions() is removed from DatabaseManager classes."""
 
     def test_validate_pattern_database_no_get_last_transactions(self):
-        """validate_pattern/database.py DatabaseManager must not have get_last_transactions."""
-        from validate_pattern.database import DatabaseManager as PatternDB
+        """DatabaseManager must not have get_last_transactions."""
+        from database import DatabaseManager as PatternDB
 
         assert not hasattr(PatternDB, 'get_last_transactions'), (
             "validate_pattern/database.py still has get_last_transactions() — "

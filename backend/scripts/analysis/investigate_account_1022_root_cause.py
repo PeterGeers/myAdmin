@@ -18,6 +18,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 from pattern_analyzer import PatternAnalyzer
 
 
@@ -190,7 +191,7 @@ def investigate_view_definition(db):
     print_section("5. Checking View Definition")
     
     # Get view definition
-    query = "SHOW CREATE VIEW vw_rekeningnummers"
+    query = dialect.get_view_definition("vw_rekeningnummers")
     
     try:
         results = db.execute_query(query, ())

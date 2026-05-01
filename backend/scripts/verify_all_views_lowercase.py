@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.database import DatabaseManager
+from src.dialect_helpers import dialect
 
 db = DatabaseManager()
 
@@ -34,7 +35,7 @@ for view_name in views:
     
     # Get view definition
     try:
-        result = db.execute_query(f"SHOW CREATE VIEW {view_name}")
+        result = db.execute_query(dialect.get_view_definition(view_name))
         if result:
             create_view = result[0]['Create View']
             

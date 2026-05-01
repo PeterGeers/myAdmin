@@ -1,6 +1,7 @@
-import mysql.connector
 from typing import List, Dict
 from database import DatabaseManager
+from db_exceptions import DatabaseError
+from dialect_helpers import dialect
 
 class STRDatabase(DatabaseManager):
     def __init__(self, test_mode: bool = False):
@@ -77,7 +78,7 @@ class STRDatabase(DatabaseManager):
             cursor.close()
             return inserted
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             return 0
     
     def insert_planned_bookings(self, bookings: List[Dict]) -> int:
@@ -141,7 +142,7 @@ class STRDatabase(DatabaseManager):
             cursor.close()
             return inserted
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             return 0
     
     def insert_future_summary(self, summary_data: List[Dict]) -> int:
@@ -174,7 +175,7 @@ class STRDatabase(DatabaseManager):
             cursor.close()
             return inserted
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             return 0
     
     def get_existing_reservation_codes_for_channel(self, channel: str) -> set:
@@ -185,21 +186,21 @@ class STRDatabase(DatabaseManager):
             codes = {str(row[0]) for row in cursor.fetchall()}
             cursor.close()
             return codes
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             return set()
     
     def check_bnb_table_structure(self):
         """Check the actual structure of the bnb table"""
         try:
             cursor = self.connection.cursor()
-            cursor.execute("DESCRIBE bnb")
+            cursor.execute(dialect.describe_table('bnb'))
             columns = cursor.fetchall()
             cursor.close()
             
 
             
             return [col[0] for col in columns]
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             return []
     
     def write_bnb_future_summary(self) -> Dict:
@@ -264,7 +265,7 @@ class STRDatabase(DatabaseManager):
                 'summary': results
             }
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             return {'success': False, 'error': str(e)}
     
     def _ensure_bnbfuture_structure(self):
@@ -299,7 +300,7 @@ class STRDatabase(DatabaseManager):
             self.connection.commit()
             cursor.close()
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             print(f"Error ensuring bnbfuture structure: {e}")
             if cursor:
                 cursor.close()
@@ -342,7 +343,7 @@ class STRDatabase(DatabaseManager):
             
             return summary
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             return {}
     
     def update_from_payout(self, payout_updates: List[Dict]) -> Dict:
@@ -421,6 +422,6 @@ class STRDatabase(DatabaseManager):
             
             return results
             
-        except mysql.connector.Error as e:
+        except DatabaseError as e:
             results['errors'].append(f"Database error: {str(e)}")
             return results

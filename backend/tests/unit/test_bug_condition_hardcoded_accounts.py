@@ -179,43 +179,26 @@ class TestTransactionLogicGammaFallback:
         with 'error': True. FAILS on unfixed code because it falls back to Gamma.
         """
         from transaction_logic import TransactionLogic
+        from contextlib import contextmanager
 
         tl = TransactionLogic(test_mode=True)
 
-        # Mock the database connection to return 0 results for vendor,
-        # then return Gamma results for the fallback query
+        # Mock the database cursor to return 0 results for vendor
         mock_conn = Mock()
         mock_cursor = Mock()
         mock_conn.cursor.return_value = mock_cursor
 
         # First query (vendor search): 0 results
-        # Second query (Gamma fallback): some results
-        mock_cursor.fetchall.side_effect = [
-            [],  # No results for vendor
-            [    # Gamma fallback results
-                {
-                    'ID': 1, 'TransactionNumber': 'Gamma Test',
-                    'TransactionDate': '2025-01-01',
-                    'TransactionDescription': 'Gamma fallback',
-                    'TransactionAmount': 100.0,
-                    'Debet': '4000', 'Credit': '1300',
-                    'ReferenceNumber': 'Gamma', 'Ref1': '', 'Ref2': '',
-                    'Ref3': '', 'Ref4': '', 'Administration': admin
-                },
-                {
-                    'ID': 2, 'TransactionNumber': 'Gamma Test',
-                    'TransactionDate': '2025-01-01',
-                    'TransactionDescription': 'Gamma fallback BTW',
-                    'TransactionAmount': 21.0,
-                    'Debet': '2010', 'Credit': '4000',
-                    'ReferenceNumber': 'Gamma', 'Ref1': '', 'Ref2': '',
-                    'Ref3': '', 'Ref4': '', 'Administration': admin
-                }
-            ]
-        ]
+        mock_cursor.fetchall.return_value = []
 
-        with patch.object(tl, 'get_connection', return_value=mock_conn):
-            result = tl.get_last_transactions(vendor, administration=admin)
+        @contextmanager
+        def mock_get_cursor(**kwargs):
+            yield mock_cursor, mock_conn
+
+        tl.db = MagicMock()
+        tl.db.get_cursor = mock_get_cursor
+
+        result = tl.get_last_transactions(vendor, administration=admin)
 
         # BUG CONDITION: If result is a list (not an error dict), the code
         # silently fell back to Gamma transactions
@@ -257,6 +240,7 @@ class TestTransactionLogicSingleResultVAT:
         because it hardcodes '2010'.
         """
         from transaction_logic import TransactionLogic
+        from contextlib import contextmanager
 
         tl = TransactionLogic(test_mode=True)
 
@@ -276,19 +260,22 @@ class TestTransactionLogicSingleResultVAT:
         }
         mock_cursor.fetchall.return_value = [single_result]
 
-        # Mock TaxRateService and DatabaseManager used inside get_last_transactions
-        # to avoid real DB connections when resolving VAT account
+        # Mock TaxRateService to return the expected VAT account
         mock_tax_svc = Mock()
         mock_tax_svc.get_tax_rate.return_value = {
             'rate': 21.0,
             'ledger_account': expected_vat_account,
             'description': 'BTW hoog'
         }
-        mock_db_manager = Mock()
 
-        with patch.object(tl, 'get_connection', return_value=mock_conn), \
-             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc), \
-             patch('database.DatabaseManager', return_value=mock_db_manager):
+        @contextmanager
+        def mock_get_cursor(**kwargs):
+            yield mock_cursor, mock_conn
+
+        tl.db = MagicMock()
+        tl.db.get_cursor = mock_get_cursor
+
+        with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             result = tl.get_last_transactions(vendor, administration=admin)
 
         # Should have 2 results (original + created VAT line)
@@ -388,7 +375,7 @@ class TestPatternValidationBankAccountFlag:
         EXPECTED: get_patterns() query uses JSON_EXTRACT(parameters, '$.bank_account')
         instead of '< 1300'. FAILS on unfixed code because it uses the threshold.
         """
-        from validate_pattern.database import DatabaseManager as PatternDB
+        from database import DatabaseManager as PatternDB
 
         source = inspect.getsource(PatternDB.get_patterns)
 
@@ -412,7 +399,7 @@ class TestPatternValidationBankAccountFlag:
         EXPECTED: The SQL query executed by get_patterns() references
         $.bank_account flag. FAILS on unfixed code.
         """
-        from validate_pattern.database import DatabaseManager as PatternDB
+        from database import DatabaseManager as PatternDB
 
         db = PatternDB(test_mode=True)
 

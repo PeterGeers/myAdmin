@@ -44,10 +44,7 @@ class TestMigrationIntegration:
     
     def _cleanup_tenant_data(self, db_manager, tenant):
         """Remove all test data for tenant."""
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
-        
-        try:
+        with db_manager.transaction() as (cursor, conn):
             # Delete all transactions for test tenant
             cursor.execute("""
                 DELETE FROM mutaties
@@ -59,18 +56,10 @@ class TestMigrationIntegration:
                 DELETE FROM rekeningschema
                 WHERE administration = %s
             """, (tenant,))
-            
-            conn.commit()
-        finally:
-            cursor.close()
-            conn.close()
     
     def _create_test_accounts(self, db_manager, tenant):
         """Create test chart of accounts."""
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
-        
-        try:
+        with db_manager.transaction() as (cursor, conn):
             accounts = [
                 ('0999', 'Interim Opening Balance', 'N', '{"roles": ["interim_opening_balance"]}'),
                 ('1000', 'Bank Account', 'N', None),
@@ -84,18 +73,10 @@ class TestMigrationIntegration:
                     INSERT INTO rekeningschema (Account, AccountName, VW, administration, parameters)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (account, name, vw, tenant, params))
-            
-            conn.commit()
-        finally:
-            cursor.close()
-            conn.close()
     
     def _create_test_transactions(self, db_manager, tenant, year):
         """Create test transactions for a year (balance sheet only)."""
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
-        
-        try:
+        with db_manager.transaction() as (cursor, conn):
             transactions = [
                 # Balance sheet transactions only
                 (f'Test {year}-01', f'{year}-01-15', 'Initial deposit', 1000.00, '1000', '3080'),
@@ -109,50 +90,29 @@ class TestMigrationIntegration:
                         TransactionAmount, Debet, Credit, administration
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (trans_num, trans_date, desc, amount, debit, credit, tenant))
-            
-            conn.commit()
-        finally:
-            cursor.close()
-            conn.close()
     
     def _get_transaction_count(self, db_manager, tenant, trans_number_pattern):
         """Get count of transactions matching pattern."""
-        conn = db_manager.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        result = db_manager.execute_query("""
+            SELECT COUNT(*) as count
+            FROM mutaties
+            WHERE administration = %s
+            AND TransactionNumber LIKE %s
+        """, (tenant, trans_number_pattern))
         
-        try:
-            cursor.execute("""
-                SELECT COUNT(*) as count
-                FROM mutaties
-                WHERE administration = %s
-                AND TransactionNumber LIKE %s
-            """, (tenant, trans_number_pattern))
-            
-            result = cursor.fetchone()
-            return result['count']
-        finally:
-            cursor.close()
-            conn.close()
+        return result[0]['count']
     
     def _get_balance_for_account(self, db_manager, tenant, account, end_date):
         """Get balance for account up to end date."""
-        conn = db_manager.get_connection()
-        cursor = conn.cursor(dictionary=True)
+        result = db_manager.execute_query("""
+            SELECT SUM(Amount) as balance
+            FROM vw_mutaties
+            WHERE administration = %s
+            AND Reknum = %s
+            AND TransactionDate <= %s
+        """, (tenant, account, end_date))
         
-        try:
-            cursor.execute("""
-                SELECT SUM(Amount) as balance
-                FROM vw_mutaties
-                WHERE administration = %s
-                AND Reknum = %s
-                AND TransactionDate <= %s
-            """, (tenant, account, end_date))
-            
-            result = cursor.fetchone()
-            return float(result['balance']) if result['balance'] else 0.0
-        finally:
-            cursor.close()
-            conn.close()
+        return float(result[0]['balance']) if result[0]['balance'] else 0.0
     
     def test_full_migration_single_tenant(self, db_manager, test_tenant, cleanup_test_data):
         """Test complete migration for a single tenant."""
@@ -282,11 +242,8 @@ class TestMigrationIntegration:
         data_year = current_year - 2
         migration_year = current_year - 1
         
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
-        
-        try:
-            # Create accounts without interim role
+        # Create accounts without interim role using transaction()
+        with db_manager.transaction() as (cursor, conn):
             accounts = [
                 ('1000', 'Bank Account', 'N', None),  # No role
                 ('3080', 'Equity Result', 'N', None),
@@ -297,11 +254,6 @@ class TestMigrationIntegration:
                     INSERT INTO rekeningschema (Account, AccountName, VW, administration, parameters)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (account, name, vw, test_tenant, params))
-            
-            conn.commit()
-        finally:
-            cursor.close()
-            conn.close()
         
         # Create transactions in both years so year range includes migration_year
         self._create_test_transactions(db_manager, test_tenant, data_year)
@@ -323,22 +275,14 @@ class TestMigrationIntegration:
         
         self._create_test_accounts(db_manager, test_tenant)
         
-        # Create only P&L transactions
-        conn = db_manager.get_connection()
-        cursor = conn.cursor()
-        
-        try:
+        # Create only P&L transactions using transaction()
+        with db_manager.transaction() as (cursor, conn):
             cursor.execute("""
                 INSERT INTO mutaties (
                     TransactionNumber, TransactionDate, TransactionDescription,
                     TransactionAmount, Debet, Credit, administration
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, (f'Test {test_year}-01', f'{test_year}-01-15', 'Revenue', 1000.00, '8000', '8000', test_tenant))
-            
-            conn.commit()
-        finally:
-            cursor.close()
-            conn.close()
         
         # Run migration
         migrator = OpeningBalanceMigrator(dry_run=False, verbose=False)

@@ -9,9 +9,10 @@ backend_src = Path(__file__).parent.parent / 'backend' / 'src'
 sys.path.insert(0, str(backend_src))
 
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 db = DatabaseManager()
-result = db.execute_query('DESCRIBE tenant_template_config')
+result = db.execute_query(dialect.describe_table('tenant_template_config'))
 
 print("\nTable: tenant_template_config")
 print("="*80)

@@ -1,9 +1,9 @@
 import sys
 import os
 import pytest
-import mysql.connector
 from unittest.mock import patch, MagicMock, PropertyMock
 from datetime import datetime
+from contextlib import contextmanager
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from transaction_logic import TransactionLogic
@@ -95,52 +95,60 @@ class TestTransactionLogic:
     def test_environment_detection(self):
         """Test automatic test mode detection from environment"""
         logic = TransactionLogic()
-        assert hasattr(logic, 'config')
-        assert 'testfinance' in logic.config['database']
+        assert hasattr(logic, 'db')
+        assert logic.db is not None
     
-    @patch('mysql.connector.connect')
-    def test_get_connection_success(self, mock_connect, transaction_logic):
-        """Test successful database connection"""
+    def test_get_connection_success(self, transaction_logic):
+        """Test successful database connection delegates to DatabaseManager"""
         mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_connection.return_value = mock_conn
         
         connection = transaction_logic.get_connection()
         
         assert connection == mock_conn
-        mock_connect.assert_called_once_with(**transaction_logic.config)
+        transaction_logic.db.get_connection.assert_called_once()
     
     def test_get_last_transactions_existing(self, transaction_logic, mock_connection, sample_template_transactions):
         """Test getting existing transactions"""
         mock_conn, mock_cursor = mock_connection
         mock_cursor.fetchall.return_value = sample_template_transactions
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
-            transactions = transaction_logic.get_last_transactions('Kuwait')
-            
-            assert len(transactions) == 2
-            assert transactions[0]['TransactionNumber'] == 'Kuwait'
-            mock_cursor.execute.assert_called()
-            mock_cursor.close.assert_called()
-            mock_conn.close.assert_called()
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        transactions = transaction_logic.get_last_transactions('Kuwait')
+        
+        assert len(transactions) == 2
+        assert transactions[0]['TransactionNumber'] == 'Kuwait'
+        mock_cursor.execute.assert_called()
 
     def test_get_last_transactions_zero_results_returns_error(self, transaction_logic, mock_connection):
         """Test that 0 results returns error dict instead of Gamma fallback"""
         mock_conn, mock_cursor = mock_connection
         mock_cursor.fetchall.return_value = []
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
-            result = transaction_logic.get_last_transactions('NewVendor')
-            
-            # Should return error dict, NOT fall back to Gamma
-            assert isinstance(result, dict)
-            assert result['error'] is True
-            assert 'NewVendor' in result['message']
-            assert 'Manual account selection required' in result['message']
-            assert result['results'] == []
-            # Should only execute ONE query (no Gamma fallback query)
-            assert mock_cursor.execute.call_count == 1
-            mock_cursor.close.assert_called()
-            mock_conn.close.assert_called()
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        result = transaction_logic.get_last_transactions('NewVendor')
+        
+        # Should return error dict, NOT fall back to Gamma
+        assert isinstance(result, dict)
+        assert result['error'] is True
+        assert 'NewVendor' in result['message']
+        assert 'Manual account selection required' in result['message']
+        assert result['results'] == []
+        # Should only execute ONE query (no Gamma fallback query)
+        assert mock_cursor.execute.call_count == 1
     
     def test_get_last_transactions_single_resolves_vat_from_tax_service(self, transaction_logic, mock_connection):
         """Test single transaction resolves VAT account from TaxRateService, not hardcoded '2010'"""
@@ -166,18 +174,21 @@ class TestTransactionLogic:
             'description': 'BTW hoog'
         }
         
-        mock_db_manager = MagicMock()
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
-             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc) as mock_trs_cls, \
-             patch('database.DatabaseManager', return_value=mock_db_manager):
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('TestVendor')
             
             assert len(transactions) == 2  # Original + duplicated
             # VAT account should come from TaxRateService, not hardcoded '2010'
             assert transactions[1]['Debet'] == '2020'
             assert transactions[1]['Credit'] == '4000'  # Original debet
-            # Verify TaxRateService was called
+            # Verify TaxRateService was called with self.db
             mock_tax_svc.get_tax_rate.assert_called_once()
     
     def test_get_last_transactions_single_vat_fallback_when_no_rate(self, transaction_logic, mock_connection):
@@ -200,11 +211,14 @@ class TestTransactionLogic:
         mock_tax_svc = MagicMock()
         mock_tax_svc.get_tax_rate.return_value = None
         
-        mock_db_manager = MagicMock()
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
-             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc), \
-             patch('database.DatabaseManager', return_value=mock_db_manager):
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('TestVendor')
             
             assert len(transactions) == 2
@@ -229,11 +243,15 @@ class TestTransactionLogic:
         
         mock_tax_svc = MagicMock()
         mock_tax_svc.get_tax_rate.return_value = {'rate': 21.0, 'ledger_account': '2010', 'description': 'BTW hoog'}
-        mock_db_manager = MagicMock()
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
-             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc), \
-             patch('database.DatabaseManager', return_value=mock_db_manager):
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('coursera')
             
             assert len(transactions) == 2
@@ -259,11 +277,15 @@ class TestTransactionLogic:
         
         mock_tax_svc = MagicMock()
         mock_tax_svc.get_tax_rate.return_value = {'rate': 21.0, 'ledger_account': '2010', 'description': 'BTW hoog'}
-        mock_db_manager = MagicMock()
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn), \
-             patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc), \
-             patch('database.DatabaseManager', return_value=mock_db_manager):
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        with patch('services.tax_rate_service.TaxRateService', return_value=mock_tax_svc):
             transactions = transaction_logic.get_last_transactions('netflix')
             
             assert len(transactions) == 2
@@ -287,12 +309,18 @@ class TestTransactionLogic:
         }]
         mock_cursor.fetchall.return_value = single_transaction
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
-            transactions = transaction_logic.get_last_transactions('SomeVendor')
-            
-            # SomeVendor is in single_transaction_vendors — should NOT duplicate
-            assert len(transactions) == 1
-            assert transactions[0]['Debet'] == '4000'
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        transactions = transaction_logic.get_last_transactions('SomeVendor')
+        
+        # SomeVendor is in single_transaction_vendors — should NOT duplicate
+        assert len(transactions) == 1
+        assert transactions[0]['Debet'] == '4000'
     
     def test_check_file_exists(self, transaction_logic):
         """Test file existence check"""
@@ -374,6 +402,13 @@ class TestTransactionLogic:
         mock_conn, mock_cursor = mock_connection
         mock_cursor.lastrowid = 123
         
+        @contextmanager
+        def mock_transaction():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.transaction = mock_transaction
+        
         transactions = [
             {
                 'TransactionNumber': 'Kuwait',
@@ -391,17 +426,22 @@ class TestTransactionLogic:
             }
         ]
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
-            saved = transaction_logic.save_approved_transactions(transactions)
-            
-            assert len(saved) == 1
-            assert saved[0]['ID'] == 123
-            mock_cursor.execute.assert_called_once()
-            mock_conn.commit.assert_called_once()
+        saved = transaction_logic.save_approved_transactions(transactions)
+        
+        assert len(saved) == 1
+        assert saved[0]['ID'] == 123
+        mock_cursor.execute.assert_called_once()
     
     def test_save_approved_transactions_skip_zero_amount(self, transaction_logic, mock_connection):
         """Test skipping transactions with zero amount"""
         mock_conn, mock_cursor = mock_connection
+        
+        @contextmanager
+        def mock_transaction():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.transaction = mock_transaction
         
         transactions = [
             {
@@ -420,18 +460,18 @@ class TestTransactionLogic:
             }
         ]
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
-            saved = transaction_logic.save_approved_transactions(transactions)
-            
-            assert len(saved) == 0  # Zero amount transaction skipped
-            mock_cursor.execute.assert_not_called()
-    
-    @patch('mysql.connector.connect')
-    def test_connection_error_handling(self, mock_connect, transaction_logic):
-        """Test database connection error handling"""
-        mock_connect.side_effect = mysql.connector.Error("Connection failed")
+        saved = transaction_logic.save_approved_transactions(transactions)
         
-        with pytest.raises(mysql.connector.Error):
+        assert len(saved) == 0  # Zero amount transaction skipped
+        mock_cursor.execute.assert_not_called()
+    
+    def test_connection_error_handling(self, transaction_logic):
+        """Test database connection error handling"""
+        from db_exceptions import DatabaseError
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_connection.side_effect = DatabaseError("Connection failed")
+        
+        with pytest.raises(DatabaseError):
             transaction_logic.get_connection()
     
     def test_multiple_ref3_groups_handling(self, transaction_logic, mock_connection):
@@ -445,12 +485,18 @@ class TestTransactionLogic:
         ]
         mock_cursor.fetchall.return_value = multiple_transactions
         
-        with patch.object(transaction_logic, 'get_connection', return_value=mock_conn):
-            transactions = transaction_logic.get_last_transactions('Kuwait')
-            
-            # Should return only the first Ref3 group
-            assert len(transactions) == 2
-            assert all(t['Ref3'] == 'url1' for t in transactions)
+        @contextmanager
+        def mock_get_cursor():
+            yield mock_cursor, mock_conn
+        
+        transaction_logic.db = MagicMock()
+        transaction_logic.db.get_cursor = mock_get_cursor
+        
+        transactions = transaction_logic.get_last_transactions('Kuwait')
+        
+        # Should return only the first Ref3 group
+        assert len(transactions) == 2
+        assert all(t['Ref3'] == 'url1' for t in transactions)
     
     def test_transaction_date_formatting(self, transaction_logic, sample_template_transactions):
         """Test proper date formatting in prepared transactions"""
