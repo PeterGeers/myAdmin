@@ -144,8 +144,18 @@ def test_get_available_columns_no_tenant_restriction():
 
     result = registry.get_available_columns('vw_mutaties', 'admin1')
 
-    assert result['groupable'] == SYSTEM_ALLOWED_COLUMNS['vw_mutaties']['groupable']
-    assert result['aggregatable'] == SYSTEM_ALLOWED_COLUMNS['vw_mutaties']['aggregatable']
+    # Service now returns list of dicts with name/type/label keys
+    type_map = COLUMN_TYPE_MAP['vw_mutaties']
+    expected_groupable = [
+        {'name': c, 'type': type_map.get(c, 'varchar'), 'label': c}
+        for c in SYSTEM_ALLOWED_COLUMNS['vw_mutaties']['groupable']
+    ]
+    expected_aggregatable = [
+        {'name': c, 'type': type_map.get(c, 'varchar'), 'label': c}
+        for c in SYSTEM_ALLOWED_COLUMNS['vw_mutaties']['aggregatable']
+    ]
+    assert result['groupable'] == expected_groupable
+    assert result['aggregatable'] == expected_aggregatable
 
 
 @pytest.mark.unit
@@ -158,8 +168,15 @@ def test_get_available_columns_with_tenant_restriction():
 
     result = registry.get_available_columns('vw_mutaties', 'admin1')
 
-    assert result['groupable'] == ['Aangifte', 'jaar']
-    assert result['aggregatable'] == ['Amount']
+    # Service now returns list of dicts with name/type/label keys
+    type_map = COLUMN_TYPE_MAP['vw_mutaties']
+    assert result['groupable'] == [
+        {'name': 'Aangifte', 'type': type_map.get('Aangifte', 'varchar'), 'label': 'Aangifte'},
+        {'name': 'jaar', 'type': type_map.get('jaar', 'varchar'), 'label': 'jaar'},
+    ]
+    assert result['aggregatable'] == [
+        {'name': 'Amount', 'type': type_map.get('Amount', 'varchar'), 'label': 'Amount'},
+    ]
 
 
 @pytest.mark.unit

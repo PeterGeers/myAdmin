@@ -1,70 +1,49 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "backend/src/**/*.py"
+fileMatchPattern: "backend/**/*.py"
 ---
 
 # Database Patterns
 
-## Tenant Isolation
+## Abstraction Layer
 
-Every query that touches tenant data MUST include tenant filtering:
-
-```python
-query = "SELECT * FROM mutaties WHERE tenant_id = %s AND ..."
-params = (tenant_id, ...)
-result = db.execute_query(query, params)
-```
-
-Never trust client-provided tenant IDs — always use the tenant from `@tenant_required()` decorator context.
-
-## Parameterized Queries
-
-Always use `%s` placeholders, never string interpolation:
+All database access goes through `DatabaseManager`, `dialect_helpers`, and `db_exceptions`. No file outside `database.py` and `scalability_manager.py` may import `mysql.connector`.
 
 ```python
-# CORRECT
-query = "SELECT * FROM mutaties WHERE ref1 = %s AND amount = %s"
-db.execute_query(query, (ref1, amount))
-
-# WRONG — SQL injection risk
-query = f"SELECT * FROM mutaties WHERE ref1 = '{ref1}'"
+from database import DatabaseManager
+from dialect_helpers import dialect
+from db_exceptions import DatabaseError, IntegrityError, ConnectionError, OperationalError
 ```
 
-## DatabaseManager Usage
+## DatabaseManager
 
 ```python
-# Single query
-result = db.execute_query(query, params, fetch=True)
-
-# Write operation
-db.execute_query(insert_query, params, fetch=False, commit=True)
-
-# Batch operations
-db.execute_batch_queries([(query1, params1), (query2, params2)], commit=True)
+db.execute_query(query, params, fetch=True)                          # read
+db.execute_query(query, params, fetch=False, commit=True)            # write
+db.execute_batch_queries([(q1, p1), (q2, p2)], commit=True)         # batch
+db.execute_ddl("ALTER TABLE ...")                                     # DDL
+with db.transaction() as (cursor, conn):                              # multi-statement
+    cursor.execute(...)
+with db.get_cursor() as (cursor, conn):                               # raw cursor
+    cursor.executemany(...)
+    conn.commit()
 ```
 
-## Naming Conventions
+## Dialect Helpers
 
-- Tables: `snake_case`, descriptive (e.g., `mutaties`, `bnb`, `pricing_recommendations`)
-- Columns: `snake_case` (e.g., `created_at`, `tenant_id`, `transaction_date`)
-- Foreign keys: `{table_singular}_id` (e.g., `tenant_id`, `listing_id`)
-- Views: `vw_` prefix (e.g., `vw_mutaties`)
+Use `dialect` instead of raw MySQL syntax. Key methods: `json_extract`, `json_unquote_extract`, `json_set`, `json_contains`, `year`, `month`, `quarter`, `current_date`, `current_timestamp`, `date_subtract`, `date_add`, `date_diff`, `date_format`, `str_to_date`, `ifnull`, `quote_identifier`, `describe_table`, `get_view_definition`, `list_tables`.
 
-## Key Tables
+## Exceptions
 
-- `mutaties` — financial transactions
-- `bnb` — realized BNB bookings
-- `bnbplanned` — planned bookings
-- `bnbfuture` — future revenue
-- `listings` — property listings
-- `tenants` — tenant configuration
-- `audit_log` — audit trail
+Catch `DatabaseError` (base), `IntegrityError`, `ConnectionError`, `OperationalError` — never `mysql.connector.Error`. All carry `error_code`, `original_error`, `__cause__`.
 
-## Test Mode
+## Reference
 
-The project uses `test_mode` flag to switch databases:
+Full spec: #[[file:.kiro/specs/database-abstraction-layer/design.md]]
 
-- Production: `DB_NAME` from env
-- Test: `TEST_DB_NAME` from env
+## Core Rules
 
-Services receive `test_mode` via `set_test_mode()` — never hardcode database names.
+- Tenant isolation: every tenant query filters by tenant from `@tenant_required()`
+- Parameterized queries: always `%s` placeholders, never f-string interpolation
+- Tables: `snake_case`, views: `vw_` prefix, FKs: `{table}_id`
+- Environments: local Docker (dev), Railway (production) — database config comes from env vars, never hardcode

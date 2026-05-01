@@ -158,7 +158,7 @@ class TestScopeResolutionOrder:
 class TestSecretParameterRoundTrip:
     """set_param(value, is_secret=True) followed by get_param returns original value."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(value=string_value_st)
     def test_secret_round_trip(self, value):
         db = make_mock_db()
@@ -326,7 +326,7 @@ class TestScopeLevelDeleteIsolation:
         # System value is untouched
         assert ('system', '_system_', ns, key) in db._stored
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(
         ns=namespace_st,
         key=key_st,

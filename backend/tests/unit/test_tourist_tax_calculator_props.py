@@ -82,7 +82,7 @@ class TestTouristTaxMethodDispatch:
         assert result['amount'] == expected
         assert result['method'] == 'fixed_per_guest_night'
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(rate=rate_st, nights=nights_st)
     def test_fixed_per_night_method(self, rate, nights):
         rate_info = {

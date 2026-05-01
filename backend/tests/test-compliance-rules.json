@@ -1,0 +1,99 @@
+{
+  "version": "1.0",
+  "rules": {
+    "backend_unit": {
+      "required": [
+        {
+          "id": "BU001",
+          "name": "use_shared_mock_db",
+          "description": "Unit tests must use shared mock_db fixture",
+          "pattern": "mock_db",
+          "anti_patterns": [
+            "MagicMock.*cursor",
+            "mysql\\.connector",
+            "DatabaseManager\\(test_mode"
+          ],
+          "reference": ".kiro/steering/database-patterns.md"
+        },
+        {
+          "id": "BU002",
+          "name": "pytest_marker_required",
+          "description": "All test files must have pytest markers",
+          "pattern": "@pytest\\.mark\\.(unit|integration|api|e2e)",
+          "reference": "backend/pytest.ini"
+        },
+        {
+          "id": "BU003",
+          "name": "no_sys_path_manipulation",
+          "description": "Tests must not manipulate sys.path",
+          "anti_patterns": [
+            "sys\\.path\\.append",
+            "sys\\.path\\.insert"
+          ],
+          "reference": "Use conftest.py for path setup"
+        }
+      ],
+      "recommended": [
+        {
+          "id": "BU004",
+          "name": "use_mock_env",
+          "description": "Unit tests should use mock_env fixture for environment variables",
+          "pattern": "mock_env",
+          "anti_patterns": [
+            "load_dotenv",
+            "os\\.environ\\["
+          ],
+          "reference": "backend/tests/conftest.py"
+        }
+      ],
+      "forbidden": [
+        {
+          "id": "BU005",
+          "name": "no_real_db_in_unit",
+          "description": "Unit tests must not import mysql.connector directly",
+          "anti_patterns": [
+            "import mysql\\.connector",
+            "from mysql\\.connector"
+          ],
+          "reference": ".kiro/steering/database-patterns.md"
+        }
+      ]
+    },
+    "frontend_unit": {
+      "required": [
+        {
+          "id": "FU001",
+          "name": "use_test_utils_render",
+          "description": "Component tests must use test-utils.tsx render wrapper",
+          "pattern": "from.*test-utils.*import.*render|from.*@/test-utils.*import|import.*from.*test-utils|import.*from.*@/test-utils",
+          "anti_patterns": [
+            "from '@testing-library/react' import.*render"
+          ],
+          "reference": "frontend/src/test-utils.tsx"
+        },
+        {
+          "id": "FU002",
+          "name": "use_msw_for_api",
+          "description": "API tests must use MSW handlers",
+          "pattern": "setupServer|http\\.(get|post|put|delete|patch)",
+          "anti_patterns": [
+            "vi\\.fn.*fetch",
+            "mock.*axios"
+          ],
+          "reference": "frontend/src/setupTests.ts"
+        }
+      ]
+    },
+    "backend_route": {
+      "required": [
+        {
+          "id": "BR001",
+          "name": "blueprint_naming",
+          "description": "Route files must use Blueprint with _bp suffix",
+          "pattern": "_bp\\s*=\\s*Blueprint",
+          "reference": ".kiro/steering/structure.md"
+        }
+      ]
+    }
+  }
+}

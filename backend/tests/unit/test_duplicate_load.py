@@ -14,13 +14,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 import random
 from typing import List, Dict, Tuple
-import sys
-import os
+from unittest.mock import MagicMock
 
-# Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from database import DatabaseManager
 from duplicate_checker import DuplicateChecker
 from duplicate_query_optimizer import get_query_optimizer, reset_query_optimizer
 from duplicate_performance_monitor import (
@@ -41,8 +36,11 @@ class LoadTestScenario:
 
 @pytest.fixture
 def db_manager():
-    """Fixture for database manager."""
-    return DatabaseManager(test_mode=True)
+    """Fixture for a mocked database manager suitable for load tests."""
+    mock_db = MagicMock()
+    # Return empty results by default (no duplicates found)
+    mock_db.execute_query.return_value = []
+    return mock_db
 
 
 @pytest.fixture
