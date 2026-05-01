@@ -1,31 +1,24 @@
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-import mysql.connector
 from dotenv import load_dotenv
+
+from database import DatabaseManager
+from dialect_helpers import dialect
 
 load_dotenv()
 
 def check_table_structure():
     try:
-        conn = mysql.connector.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
-            user=os.getenv('DB_USER', 'root'),
-            password=os.getenv('DB_PASSWORD', ''),
-            database=os.getenv('DB_NAME', 'finance')
-        )
-        cursor = conn.cursor()
+        db = DatabaseManager()
         
-        # Show table structure
-        cursor.execute("DESCRIBE mutaties")
-        columns = cursor.fetchall()
+        # Show table structure using dialect helper
+        columns = db.execute_query(dialect.describe_table('mutaties'))
         
         print("=== MUTATIES TABLE STRUCTURE ===")
         for column in columns:
-            print(f"  {column[0]} - {column[1]} - {column[2]} - {column[3]} - {column[4]} - {column[5]}")
-        
-        cursor.close()
-        conn.close()
+            values = list(column.values())
+            print(f"  {' - '.join(str(v) for v in values)}")
         
     except Exception as e:
         print(f"Error: {e}")

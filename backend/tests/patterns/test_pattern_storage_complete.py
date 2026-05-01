@@ -28,6 +28,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from pattern_analyzer import PatternAnalyzer
 from database import DatabaseManager
+from dialect_helpers import dialect
 
 def test_database_structure():
     """Test that pattern storage tables exist and have correct structure"""
@@ -46,7 +47,7 @@ def test_database_structure():
     
     for table in tables_to_check:
         try:
-            result = db.execute_query(f"DESCRIBE {table}")
+            result = db.execute_query(dialect.describe_table(table))
             print(f"✅ Table {table} exists with {len(result)} columns")
         except Exception as e:
             print(f"❌ Table {table} missing or invalid: {e}")

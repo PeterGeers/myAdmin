@@ -17,6 +17,8 @@ from pathlib import Path
 ALLOWED_FILES = {
     'backend/src/database.py',
     'backend/src/scalability_manager.py',
+    # Property test that creates real mysql.connector exceptions to verify error wrapping
+    'backend/tests/unit/test_database_abstraction.py',
 }
 
 # Directories to skip during scanning (virtual envs, dependencies, caches, etc.)

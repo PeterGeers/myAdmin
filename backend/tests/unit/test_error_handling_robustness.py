@@ -14,9 +14,6 @@ import shutil
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
 from hypothesis import given, strategies as st, settings, assume
-import mysql.connector
-from mysql.connector import Error as MySQLError
-
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from duplicate_checker import (
     DuplicateChecker, DuplicateDetectionError, DatabaseConnectionError,
@@ -29,6 +26,7 @@ from file_cleanup_manager import (
 from session_manager import SessionManager, SessionTimeoutError as SessionTimeout
 from error_handlers import handle_duplicate_detection_error, user_friendly_error
 from database import DatabaseManager
+from db_exceptions import DatabaseError
 
 
 class TestErrorHandlingRobustness:
@@ -87,7 +85,7 @@ class TestErrorHandlingRobustness:
         mock_db = components['db']
         
         # Simulate database connection error
-        mock_db.execute_query.side_effect = MySQLError("Connection refused")
+        mock_db.execute_query.side_effect = DatabaseError("Connection refused")
         
         # Convert date to string format
         date_str = transaction_date.strftime('%Y-%m-%d')
@@ -126,7 +124,7 @@ class TestErrorHandlingRobustness:
         mock_db = components['db']
         
         # Simulate database logging error
-        mock_db.execute_query.side_effect = MySQLError("Table doesn't exist")
+        mock_db.execute_query.side_effect = DatabaseError("Table doesn't exist")
         
         # Create test data
         duplicate_info = {
@@ -326,7 +324,7 @@ class TestErrorHandlingRobustness:
         
         # Test different error types
         test_errors = [
-            (MySQLError("Connection failed"), "database"),
+            (DatabaseError("Connection failed"), "database"),
             (FileNotFoundError("File not found"), "filesystem"),
             (PermissionError("Access denied"), "filesystem"),
             (ValueError("Invalid value"), "validation"),
@@ -375,7 +373,7 @@ class TestErrorHandlingRobustness:
             if "SELECT" in query.upper():
                 return []  # Duplicate check succeeds
             else:
-                raise MySQLError("Connection lost")  # Logging fails
+                raise DatabaseError("Connection lost")  # Logging fails
         
         mock_db.execute_query.side_effect = mock_execute_query
         
