@@ -1,0 +1,103 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** — Transactions in closed fiscal years are saved without error
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists in both `TransactionLogic` and `BankingProcessor`
+  - **Scoped PBT Approach**: Scope the property to concrete failing cases — generate transactions with `TransactionDate` in a year that exists in `year_closure_status` for the same `administration`
+  - **Bug Condition from design**: `isBugCondition(transaction)` returns true when `EXTRACT_YEAR(transaction.TransactionDate)` has a matching row in `year_closure_status` for `transaction.Administration`
+  - **Test setup**:
+    - Mock `DatabaseManager` to simulate `year_closure_status` containing closed year(s) (e.g., year 2023 closed for 'TenantA')
+    - Use Hypothesis to generate transaction batches where at least one transaction has `TransactionDate` in a closed year
+    - Call `TransactionLogic.save_approved_transactions()` with the batch
+  - **Assertions** (expected behavior from design):
+    - `save_approved_transactions()` SHALL raise `ClosedPeriodError` before any database insert occurs
+    - The error SHALL identify which transactions target closed periods
+    - No rows shall be inserted into `mutaties`
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (transactions are saved without error — this confirms the bug exists)
+  - Document counterexamples found (e.g., "transaction with date 2023-06-15 for TenantA saved successfully despite year 2023 being closed")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** — Transactions in open fiscal years save identically to original function
+  - **IMPORTANT**: Follow observation-first methodology
+  - **Observe on UNFIXED code**:
+    - Observe: `TransactionLogic.save_approved_transactions()` with transactions dated in open years (no matching `year_closure_status` entry) saves all non-zero-amount transactions and returns the saved list
+    - Observe: Zero-amount transactions are skipped regardless of date
+    - Observe: When `year_closure_status` has no entries for the tenant, all transactions save normally
+    - Observe: `BankingProcessor.save_approved_transactions()` with open-year transactions saves and returns count, duplicate detection still works
+  - **Write property-based tests using Hypothesis**:
+    - Generate random transaction batches with `TransactionDate` in years NOT present in `year_closure_status` for the tenant
+    - Property: for all non-zero-amount transactions in open years, `save_approved_transactions()` saves successfully and returns the same count/results as the original function
+    - Property: zero-amount transactions are always skipped (never counted in saved results)
+    - Property: when `year_closure_status` is empty for the tenant, all non-zero transactions save
+  - **Preservation scope from design**: All inputs where NO transaction in the batch has a `TransactionDate` in a closed fiscal year should be completely unaffected
+  - Verify tests PASS on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 3. Implement closed-period transaction guard
+  - [x] 3.1 Add `ClosedPeriodError` exception to `backend/src/db_exceptions.py`
+    - Add `ClosedPeriodError` class inheriting from `DatabaseError`
+    - Include attributes for offending transactions and their closed years
+    - Follow existing exception hierarchy pattern (`IntegrityError`, `OperationalError`)
+    - _Bug_Condition: isBugCondition(transaction) where EXTRACT_YEAR(TransactionDate) exists in year_closure_status for Administration_
+    - _Expected_Behavior: raise ClosedPeriodError with details about which transactions target closed periods_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+
+  - [x] 3.2 Add closed-period guard to `TransactionLogic.save_approved_transactions()` in `backend/src/transaction_logic.py`
+    - Before the `db.transaction()` context, collect distinct `(year, administration)` pairs from non-zero-amount transactions
+    - Query `year_closure_status` using `db.execute_query()` with `WHERE administration = %s AND year IN (...)` for each administration
+    - If any transaction targets a closed year, raise `ClosedPeriodError` with details (which transactions, which years) — before any insert occurs
+    - Import `ClosedPeriodError` from `db_exceptions`
+    - Zero-amount transactions are skipped before the guard applies (they are filtered out of the year check)
+    - _Bug_Condition: isBugCondition(transaction) where EXTRACT_YEAR(TransactionDate) exists in year_closure_status for Administration_
+    - _Expected_Behavior: raise ClosedPeriodError before db.transaction() context, no partial inserts_
+    - _Preservation: Non-closed-year transactions continue through existing insert loop unchanged_
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.6, 3.1, 3.2, 3.4, 3.5_
+
+  - [x] 3.3 Add closed-period guard to `BankingProcessor.save_approved_transactions()` in `backend/src/banking_processor.py`
+    - Before the transaction loop, extract distinct years and administrations from non-zero-amount transactions
+    - Query `year_closure_status` using `self.db.execute_query()` (separate from the raw cursor used for saves)
+    - If any transaction targets a closed year, raise `ClosedPeriodError` with details
+    - Import `ClosedPeriodError` from `db_exceptions`
+    - _Bug_Condition: isBugCondition(transaction) where EXTRACT_YEAR(TransactionDate) exists in year_closure_status for Administration_
+    - _Expected_Behavior: raise ClosedPeriodError before any insert, no partial saves_
+    - _Preservation: Open-year transactions continue through existing save loop with duplicate detection unchanged_
+    - _Requirements: 2.5, 2.6, 3.3, 3.5_
+
+  - [x] 3.4 Catch `ClosedPeriodError` in `approve_transactions()` route in `backend/src/routes/invoice_routes.py`
+    - Add specific `except ClosedPeriodError` clause before the generic `except Exception`
+    - Return 400 response with `{'success': False, 'error': str(e)}` so the frontend receives a clear closed-period message
+    - Import `ClosedPeriodError` from `db_exceptions`
+    - _Expected_Behavior: HTTP 400 with clear error message identifying closed period_
+    - _Preservation: Generic exception handling for other errors remains unchanged_
+    - _Requirements: 2.1, 2.6_
+
+  - [x] 3.5 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** — Transactions in closed fiscal years are rejected with ClosedPeriodError
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior (raise `ClosedPeriodError`, no inserts)
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+
+  - [x] 3.6 Verify preservation tests still pass
+    - **Property 2: Preservation** — Transactions in open fiscal years save identically to original function
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run preservation property tests from step 2
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all preservation tests still pass after fix (no regressions)
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [x] 4. Checkpoint — Ensure all tests pass
+  - Run full test suite to confirm no regressions
+  - Verify bug condition exploration test passes (Property 1)
+  - Verify preservation property tests pass (Property 2)
+  - Ensure all tests pass, ask the user if questions arise

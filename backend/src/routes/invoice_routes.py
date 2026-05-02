@@ -10,6 +10,7 @@ from werkzeug.utils import secure_filename
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.invoice_service import InvoiceService
+from db_exceptions import ClosedPeriodError
 import os
 
 invoice_bp = Blueprint('invoices', __name__)
@@ -159,6 +160,9 @@ def approve_transactions(user_email, user_roles):
             'skippedCount': skipped,
             'message': msg
         })
+    except ClosedPeriodError as e:
+        print(f"Closed period error: {e}", flush=True)
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         print(f"Approval error: {e}", flush=True)
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -26,7 +26,14 @@ backend/
 │   ├── services/         # Business logic services
 │   └── report_generators/# Report generation
 ├── tests/                # unit/, api/, integration/, database/, patterns/
+│   ├── unit/conftest.py  # Connection guard + isolation fixtures (mock_db, mock_env, etc.)
+│   ├── unit/test_maintenance/  # Test maintenance framework tests (382 tests)
+│   ├── reports/          # Scanner JSON/Markdown reports (timestamped)
+│   ├── test-compliance-rules.json      # Compliance checker rules
+│   ├── test-classification-registry.json  # Test status tracking
+│   └── quarantine-log.json             # Flaky test quarantine data
 ├── scripts/              # analysis/, database/, data/
+│   └── test_maintenance/ # Test health scanner, dependency mapper, scoped runner
 ├── powershell/           # PowerShell automation
 └── requirements.txt
 ```

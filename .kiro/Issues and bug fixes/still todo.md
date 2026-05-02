@@ -32,11 +32,11 @@ The tenant switching slowness is a separate concern from the onboarding spec. Wa
 
 # Kimmetje
 
-url hoofdletter gevoelig // Als ik het test is het niet zo. Wel als ik het lowercase intik dat het weer met de hoofdletter A weergeeft
+CLOSED: url hoofdletter gevoelig // Als ik het test is het niet zo. Wel als ik het lowercase intik dat het weer met de hoofdletter A weergeeft
 
 ING import bouwen // Begonnen aan de opzet// Waxht op download van Kim
 
-Duidelijk maken filter tabel ipv invul tabel. (Zoek icoon in het veld gezet)
+CLOSED: Duidelijk maken filter tabel ipv invul tabel. (Zoek icoon in het veld gezet)
 
 verwijder knop contacten + producten (verwijderen kan business wise alleen als er nog geen transacties mee zijn gemaakt, wel kun je de teksten en details aanpassen)
 
@@ -59,9 +59,6 @@ For the pivot feature specifically: the TENANT_COLUMN_MAP pattern in the extensi
 - Check Reference Numbers Main and sub
 - STR Invoice Generator
 
-# Facturen importeren
-
--- heeft een transactie geboektn met een datum in een al afgesloten periode, Zou niet mogen kunnen
 
 # Documentaion
 - Outdated documentation 

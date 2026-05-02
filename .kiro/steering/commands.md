@@ -31,10 +31,34 @@ python src/app.py             # Flask server (port 5000)
 
 pytest                        # All tests
 pytest tests/unit/            # Unit tests only
+pytest tests/unit/test_maintenance/ -v  # Test maintenance framework tests
 pytest tests/api/             # API tests only
 pytest tests/integration/     # Integration tests only
 pytest --cov=src tests/       # With coverage
 .\powershell\run_tests.ps1    # Or use PowerShell script
+```
+
+## Test Maintenance Tools
+
+Run from the project root (not `backend/`):
+
+```bash
+# Health scan — detect mock violations, drift, compliance issues
+python -m backend.scripts.test_maintenance.scanner
+
+# Maintenance session — prioritised fix list grouped by root cause
+python -m backend.scripts.test_maintenance.scanner --maintenance-session
+
+# Baseline snapshot — record current failing tests
+python -m backend.scripts.test_maintenance.scanner --baseline
+
+# Frontend-only scan
+python -m backend.scripts.test_maintenance.scanner --frontend-only
+
+# Scoped test runner — run only tests affected by changes
+python -m backend.scripts.test_maintenance.scoped_runner --git-diff
+python -m backend.scripts.test_maintenance.scoped_runner backend/src/services/my_service.py
+python -m backend.scripts.test_maintenance.scoped_runner --full
 ```
 
 ## Docker
