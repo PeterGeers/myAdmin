@@ -28,6 +28,8 @@ import {
 } from '@chakra-ui/react';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
+import { useFilterableTable } from '../hooks/useFilterableTable';
+import { FilterableHeader } from './filters/FilterableHeader';
 
 interface Booking {
   reservationCode: string;
@@ -41,11 +43,19 @@ interface Booking {
   amountGross: number;
 }
 
+const INITIAL_FILTERS: Record<string, string> = {
+  reservationCode: '',
+  guestName: '',
+  channel: '',
+  listing: '',
+  checkinDate: '',
+  nights: '',
+  amountGross: '',
+};
+
 const STRInvoice: React.FC = () => {
   const { t } = useTypedTranslation('str');
-  const [searchQuery, setSearchQuery] = useState('');
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
-  const [searchResults, setSearchResults] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [language, setLanguage] = useState('nl');
   const [invoiceHtml, setInvoiceHtml] = useState('');
@@ -67,6 +77,19 @@ const STRInvoice: React.FC = () => {
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
+  const {
+    filters,
+    setFilter,
+    hasActiveFilters,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<Booking>(allBookings, {
+    initialFilters: INITIAL_FILTERS,
+    defaultSort: { field: 'checkinDate', direction: 'desc' },
+  });
+
   const loadAllBookings = useCallback(async () => {
     setLoading(true);
     try {
@@ -76,7 +99,6 @@ const STRInvoice: React.FC = () => {
 
       if (data.success) {
         setAllBookings(data.bookings || []);
-        setSearchResults(data.bookings || []);
         console.log(`Loaded ${data.bookings?.length || 0} bookings`);
         
         if (data.bookings && data.bookings.length > 0) {
@@ -102,7 +124,6 @@ const STRInvoice: React.FC = () => {
       });
       // Set empty arrays to prevent undefined errors
       setAllBookings([]);
-      setSearchResults([]);
     } finally {
       setLoading(false);
     }
@@ -112,35 +133,6 @@ const STRInvoice: React.FC = () => {
   useEffect(() => {
     loadAllBookings();
   }, [loadAllBookings]);
-
-  const searchBookings = () => {
-    if (!searchQuery.trim()) {
-      // If search is empty, show all bookings
-      setSearchResults(allBookings);
-      return;
-    }
-
-    // Filter locally from all bookings
-    const query = searchQuery.toLowerCase();
-    const filtered = allBookings.filter(booking => 
-      booking.guestName?.toLowerCase().includes(query) ||
-      booking.reservationCode?.toLowerCase().includes(query) ||
-      booking.channel?.toLowerCase().includes(query) ||
-      booking.listing?.toLowerCase().includes(query)
-    );
-
-    setSearchResults(filtered);
-
-    if (filtered.length === 0) {
-      toast({
-        title: t('invoice.messages.noResults'),
-        description: t('invoice.messages.noBookingsFound'),
-        status: 'info',
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
 
   const generateInvoice = async (booking: Booking) => {
     setLoading(true);
@@ -227,30 +219,6 @@ const STRInvoice: React.FC = () => {
                   size="md"
                 />
               </FormControl>
-              <FormControl flex="1">
-                <FormLabel fontSize="sm">{t('invoice.search')}</FormLabel>
-                <Input
-                  placeholder={t('invoice.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    // Auto-filter as user types
-                    if (e.target.value.trim()) {
-                      const query = e.target.value.toLowerCase();
-                      const filtered = allBookings.filter(booking => 
-                        booking.guestName?.toLowerCase().includes(query) ||
-                        booking.reservationCode?.toLowerCase().includes(query) ||
-                        booking.channel?.toLowerCase().includes(query) ||
-                        booking.listing?.toLowerCase().includes(query)
-                      );
-                      setSearchResults(filtered);
-                    } else {
-                      setSearchResults(allBookings);
-                    }
-                  }}
-                  onKeyPress={(e) => e.key === 'Enter' && searchBookings()}
-                />
-              </FormControl>
               <FormControl maxW="150px">
                 <FormLabel fontSize="sm">{t('invoice.language')}</FormLabel>
                 <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
@@ -258,37 +226,19 @@ const STRInvoice: React.FC = () => {
                   <option value="en">{t('invoice.languages.en')}</option>
                 </Select>
               </FormControl>
-            </HStack>
-            <HStack>
-              <Button 
-                colorScheme="blue" 
-                onClick={searchBookings}
-                isLoading={loading}
-                loadingText={t('invoice.filtering')}
-                size="sm"
-              >
-                {t('invoice.filter')}
-              </Button>
-              <Button 
-                colorScheme="gray" 
-                onClick={() => {
-                  setSearchQuery('');
-                  setSearchResults(allBookings);
-                }}
-                isDisabled={loading}
-                size="sm"
-              >
-                {t('invoice.clear')}
-              </Button>
-              <Button 
-                colorScheme="green" 
-                onClick={loadAllBookings}
-                isLoading={loading}
-                loadingText={t('invoice.reloading')}
-                size="sm"
-              >
-                {t('invoice.reload')}
-              </Button>
+              <FormControl maxW="150px">
+                <FormLabel fontSize="sm">&nbsp;</FormLabel>
+                <Button 
+                  colorScheme="green" 
+                  onClick={loadAllBookings}
+                  isLoading={loading}
+                  loadingText={t('invoice.reloading')}
+                  size="md"
+                  w="full"
+                >
+                  {t('invoice.reload')}
+                </Button>
+              </FormControl>
             </HStack>
           </VStack>
         </Box>
@@ -302,34 +252,85 @@ const STRInvoice: React.FC = () => {
 
         {/* Bookings Table - Show when data is loaded */}
         {!loading && allBookings.length > 0 && (
-          <Box borderWidth={1} borderRadius="md" p={4}>
-            <Text fontSize="lg" fontWeight="semibold" mb={4}>
-              {searchQuery ? t('invoice.filteredResults', { filtered: searchResults.length, total: allBookings.length }) : t('invoice.allBookings', { count: searchResults.length })}
+          <Box bg="gray.800" borderRadius="md" p={4}>
+            <Text fontSize="lg" fontWeight="semibold" mb={4} color="white">
+              {t('invoice.filteredResults', { filtered: processedData.length, total: allBookings.length })}
             </Text>
             
             <Table size="sm">
               <Thead>
                 <Tr>
-                  <Th>{t('invoice.table.reservationCode')}</Th>
-                  <Th>{t('invoice.table.guestName')}</Th>
-                  <Th>{t('invoice.table.channel')}</Th>
-                  <Th>{t('invoice.table.listing')}</Th>
-                  <Th>{t('invoice.table.checkIn')}</Th>
-                  <Th>{t('invoice.table.nights')}</Th>
-                  <Th>{t('invoice.table.amount')}</Th>
+                  <FilterableHeader
+                    label={t('invoice.table.reservationCode')}
+                    filterValue={filters.reservationCode}
+                    onFilterChange={(v) => setFilter('reservationCode', v)}
+                    sortable
+                    sortDirection={sortField === 'reservationCode' ? sortDirection : null}
+                    onSort={() => handleSort('reservationCode')}
+                  />
+                  <FilterableHeader
+                    label={t('invoice.table.guestName')}
+                    filterValue={filters.guestName}
+                    onFilterChange={(v) => setFilter('guestName', v)}
+                    sortable
+                    sortDirection={sortField === 'guestName' ? sortDirection : null}
+                    onSort={() => handleSort('guestName')}
+                  />
+                  <FilterableHeader
+                    label={t('invoice.table.channel')}
+                    filterValue={filters.channel}
+                    onFilterChange={(v) => setFilter('channel', v)}
+                    sortable
+                    sortDirection={sortField === 'channel' ? sortDirection : null}
+                    onSort={() => handleSort('channel')}
+                  />
+                  <FilterableHeader
+                    label={t('invoice.table.listing')}
+                    filterValue={filters.listing}
+                    onFilterChange={(v) => setFilter('listing', v)}
+                    sortable
+                    sortDirection={sortField === 'listing' ? sortDirection : null}
+                    onSort={() => handleSort('listing')}
+                  />
+                  <FilterableHeader
+                    label={t('invoice.table.checkIn')}
+                    filterValue={filters.checkinDate}
+                    onFilterChange={(v) => setFilter('checkinDate', v)}
+                    sortable
+                    sortDirection={sortField === 'checkinDate' ? sortDirection : null}
+                    onSort={() => handleSort('checkinDate')}
+                  />
+                  <FilterableHeader
+                    label={t('invoice.table.nights')}
+                    filterValue={filters.nights}
+                    onFilterChange={(v) => setFilter('nights', v)}
+                    sortable
+                    sortDirection={sortField === 'nights' ? sortDirection : null}
+                    onSort={() => handleSort('nights')}
+                    isNumeric
+                  />
+                  <FilterableHeader
+                    label={t('invoice.table.amount')}
+                    filterValue={filters.amountGross}
+                    onFilterChange={(v) => setFilter('amountGross', v)}
+                    sortable
+                    sortDirection={sortField === 'amountGross' ? sortDirection : null}
+                    onSort={() => handleSort('amountGross')}
+                    isNumeric
+                  />
                   <Th>{t('invoice.table.action')}</Th>
                 </Tr>
               </Thead>
               <Tbody>
-                {searchResults.map((booking, index) => (
-                  <Tr key={index}>
-                    <Td>{booking.reservationCode}</Td>
-                    <Td>{booking.guestName}</Td>
-                    <Td>{booking.channel}</Td>
-                    <Td>{booking.listing}</Td>
-                    <Td>{booking.checkinDate}</Td>
-                    <Td>{booking.nights}</Td>
-                    <Td>€{booking.amountGross?.toFixed(2)}</Td>
+                {processedData.map((booking, index) => (
+                  <Tr key={index} _hover={{ bg: 'gray.700' }}>
+                    <Td color="white">{booking.reservationCode}</Td>
+                    <Td color="white">{booking.guestName}</Td>
+                    <Td color="white">{booking.channel}</Td>
+                    <Td color="white">{booking.listing}</Td>
+                    <Td color="white">{booking.checkinDate}</Td>
+                    <Td color="white">{booking.nights}</Td>
+                    <Td color="white">€{booking.amountGross?.toFixed(2)}</Td>
                     <Td>
                       <VStack spacing={2}>
                         <Button
@@ -359,17 +360,11 @@ const STRInvoice: React.FC = () => {
         )}
 
         {/* No Results After Filter */}
-        {!loading && allBookings.length > 0 && searchResults.length === 0 && searchQuery && (
+        {!loading && allBookings.length > 0 && processedData.length === 0 && hasActiveFilters && (
           <Box borderWidth={1} borderRadius="md" p={8} textAlign="center">
             <Text fontSize="lg" color="gray.600">
-              {t('invoice.messages.noMatchingBookings', { query: searchQuery })}
+              {t('invoice.messages.noMatchingBookings', { query: '' })}
             </Text>
-            <Button mt={4} onClick={() => {
-              setSearchQuery('');
-              setSearchResults(allBookings);
-            }}>
-              {t('invoice.messages.clearFilter')}
-            </Button>
           </Box>
         )}
 

@@ -4,17 +4,21 @@
  * Shared component for viewing email delivery logs.
  * - SysAdmin mode: shows all tenants, no tenant filter
  * - Tenant Admin mode: shows only current tenant's logs
+ *
+ * Uses Table Filter Framework v2 (useFilterableTable + FilterableHeader)
+ * for consistent filtering, sorting, debounce, and accessibility.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box, VStack, HStack, Table, Thead, Tbody, Tr, Th, Td,
-  Badge, Input, Select, Button, Text, Spinner,
-  Alert, AlertIcon, InputGroup, InputLeftElement,
+  Badge, Select, Button, Text, Spinner,
+  Alert, AlertIcon,
 } from '@chakra-ui/react';
-import { SearchIcon } from '@chakra-ui/icons';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
 import { useTenant } from '../../context/TenantContext';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
+import { FilterableHeader } from '../filters/FilterableHeader';
 
 interface EmailLogEntry {
   id: number;
@@ -62,17 +66,41 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
   const [logs, setLogs] = useState<EmailLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [recipientFilter, setRecipientFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [limit, setLimit] = useState(100);
   const { currentTenant } = useTenant();
+
+  // Build initial filters — include administration column for sysadmin mode
+  const INITIAL_FILTERS = useMemo(() => {
+    const base: Record<string, string> = {
+      recipient: '',
+      email_type: '',
+      subject: '',
+      sent_by: '',
+      status: '',
+    };
+    if (mode === 'sysadmin') {
+      base.administration = '';
+    }
+    return base;
+  }, [mode]);
+
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<EmailLogEntry>(logs, {
+    initialFilters: INITIAL_FILTERS,
+    defaultSort: { field: 'created_at', direction: 'desc' },
+  });
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({ limit: String(limit) });
-      if (recipientFilter) params.set('recipient', recipientFilter);
       if (mode === 'tenant' && currentTenant) {
         params.set('administration', currentTenant);
       }
@@ -83,11 +111,7 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
       const data = await response.json();
 
       if (data.success) {
-        let filtered = data.logs || [];
-        if (statusFilter) {
-          filtered = filtered.filter((l: EmailLogEntry) => l.status === statusFilter);
-        }
-        setLogs(filtered);
+        setLogs(data.logs || []);
       } else {
         setError(data.error || 'Failed to load email logs');
       }
@@ -96,7 +120,7 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [recipientFilter, statusFilter, limit, mode, currentTenant]);
+  }, [limit, mode, currentTenant]);
 
   useEffect(() => {
     fetchLogs();
@@ -104,32 +128,8 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
 
   return (
     <VStack spacing={4} align="stretch">
-      {/* Filters */}
+      {/* Controls: Limit selector + Refresh */}
       <HStack spacing={4} flexWrap="wrap">
-        <InputGroup maxW="300px">
-          <InputLeftElement pointerEvents="none">
-            <SearchIcon color="gray.500" />
-          </InputLeftElement>
-          <Input
-            placeholder="Filter by email..."
-            value={recipientFilter}
-            onChange={(e) => setRecipientFilter(e.target.value)}
-            bg="gray.800" color="white" borderColor="gray.600"
-            onKeyDown={(e) => e.key === 'Enter' && fetchLogs()}
-          />
-        </InputGroup>
-        <Select
-          maxW="180px" value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          bg="gray.800" color="white" borderColor="gray.600"
-        >
-          <option value="">All statuses</option>
-          <option value="sent">Sent</option>
-          <option value="delivered">Delivered</option>
-          <option value="bounced">Bounced</option>
-          <option value="complained">Complained</option>
-          <option value="failed">Failed</option>
-        </Select>
         <Select
           maxW="140px" value={String(limit)}
           onChange={(e) => setLimit(Number(e.target.value))}
@@ -158,23 +158,72 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
           No email logs found.
         </Text>
       ) : (
-        <Box overflowX="auto">
+        <Box overflowX="auto" bg="gray.800" borderRadius="md" p={4}>
           <Table size="sm" variant="simple">
             <Thead>
               <Tr>
-                <Th color="gray.400">Date</Th>
-                <Th color="gray.400">Recipient</Th>
-                <Th color="gray.400">Type</Th>
-                {mode === 'sysadmin' && <Th color="gray.400">Tenant</Th>}
-                <Th color="gray.400">Subject</Th>
-                <Th color="gray.400">Status</Th>
-                <Th color="gray.400">Sent by</Th>
-                <Th color="gray.400">Error</Th>
+                <FilterableHeader
+                  label="Date"
+                  sortable
+                  sortDirection={sortField === 'created_at' ? sortDirection : null}
+                  onSort={() => handleSort('created_at')}
+                />
+                <FilterableHeader
+                  label="Recipient"
+                  filterValue={filters.recipient}
+                  onFilterChange={(v) => setFilter('recipient', v)}
+                  sortable
+                  sortDirection={sortField === 'recipient' ? sortDirection : null}
+                  onSort={() => handleSort('recipient')}
+                />
+                <FilterableHeader
+                  label="Type"
+                  filterValue={filters.email_type}
+                  onFilterChange={(v) => setFilter('email_type', v)}
+                  sortable
+                  sortDirection={sortField === 'email_type' ? sortDirection : null}
+                  onSort={() => handleSort('email_type')}
+                />
+                {mode === 'sysadmin' && (
+                  <FilterableHeader
+                    label="Tenant"
+                    filterValue={filters.administration}
+                    onFilterChange={(v) => setFilter('administration', v)}
+                    sortable
+                    sortDirection={sortField === 'administration' ? sortDirection : null}
+                    onSort={() => handleSort('administration')}
+                  />
+                )}
+                <FilterableHeader
+                  label="Subject"
+                  filterValue={filters.subject}
+                  onFilterChange={(v) => setFilter('subject', v)}
+                  sortable
+                  sortDirection={sortField === 'subject' ? sortDirection : null}
+                  onSort={() => handleSort('subject')}
+                />
+                <FilterableHeader
+                  label="Status"
+                  filterValue={filters.status}
+                  onFilterChange={(v) => setFilter('status', v)}
+                  sortable
+                  sortDirection={sortField === 'status' ? sortDirection : null}
+                  onSort={() => handleSort('status')}
+                />
+                <FilterableHeader
+                  label="Sent by"
+                  filterValue={filters.sent_by}
+                  onFilterChange={(v) => setFilter('sent_by', v)}
+                  sortable
+                  sortDirection={sortField === 'sent_by' ? sortDirection : null}
+                  onSort={() => handleSort('sent_by')}
+                />
+                <Th color="gray.400" bg="gray.700">Error</Th>
               </Tr>
             </Thead>
             <Tbody>
-              {logs.map((log) => (
-                <Tr key={log.id} _hover={{ bg: 'gray.800' }}>
+              {processedData.map((log) => (
+                <Tr key={log.id} _hover={{ bg: 'gray.700', cursor: 'pointer' }}>
                   <Td color="gray.300" whiteSpace="nowrap">{formatDate(log.created_at)}</Td>
                   <Td color="gray.300">{log.recipient}</Td>
                   <Td color="gray.300">{TYPE_LABELS[log.email_type] || log.email_type}</Td>
@@ -197,7 +246,7 @@ export default function EmailLogPanel({ mode }: EmailLogPanelProps) {
       )}
 
       <Text color="gray.500" fontSize="sm">
-        Showing {logs.length} log(s)
+        Showing {processedData.length} of {logs.length} log(s)
       </Text>
     </VStack>
   );

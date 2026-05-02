@@ -26,9 +26,6 @@ System Admin Role management I am sorry no precence values in the table and the 
 
 Check what happens if multiple tenants are loading invoices for processing at the same time.
 
-## tenant switching slowness
-
-The tenant switching slowness is a separate concern from the onboarding spec. Want me to note it as a finding and continue with the onboarding testing, or investigate it now?
 
 # Kimmetje
 
@@ -43,21 +40,6 @@ verwijder knop contacten + producten (verwijderen kan business wise alleen als e
 downloaden contacten / producten.
 
 Viool grafiek ook totaal omzet
-
-# tenant/administration missing in invoice lines
-
-This means that for all new tables we stick to tenant in stead of administration, I see the initial scope risks in invoices and the related invoice lines where in invoice lines there is no tgenant notr administration field.
-Kiro
-That's an important observation, but it's outside the scope of this pivot views feature. The naming convention (tenant vs administration) and the missing tenant isolation on invoice lines are broader architectural concerns that should be addressed in a separate spec — probably a data model normalization or tenant isolation audit.
-For the pivot feature specifically: the TENANT_COLUMN_MAP pattern in the extensibility section already handles the fact that different tables may use different column names. If invoice lines don't have a tenant column at all, they'd need to be joined through their parent invoice to get tenant isolation — which is a data model concern, not a pivot concern.
-
-# use filter frame work to replace filters
-
-- BNB Revenue Analysis (STR Reports) + Remove startdate and end date fields
-- BNB Returning guests
-- email log system administrator
-- Check Reference Numbers Main and sub
-- STR Invoice Generator
 
 
 # Documentaion

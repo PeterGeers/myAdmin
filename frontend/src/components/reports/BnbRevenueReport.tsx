@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Button,
   Card,
   CardBody,
   Checkbox,
   HStack,
-  Input,
   Menu,
   MenuButton,
   MenuItem,
@@ -15,13 +14,14 @@ import {
   Tbody,
   Td,
   Text,
-  Th,
   Thead,
   Tr,
   VStack
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
+import { FilterableHeader } from '../filters/FilterableHeader';
 
 interface BnbRecord {
   checkinDate: string;
@@ -39,78 +39,48 @@ interface BnbRecord {
   reservationCode: string;
 }
 
+const INITIAL_FILTERS: Record<string, string> = {
+  channel: '',
+  listing: '',
+  guestName: '',
+  checkinDate: '',
+  checkoutDate: '',
+};
+
 const BnbRevenueReport: React.FC = () => {
   const { t } = useTypedTranslation('reports');
   const [bnbData, setBnbData] = useState<BnbRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [bnbSortField, setBnbSortField] = useState<string>('');
-  const [bnbSortDirection, setBnbSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [bnbSearchFilters, setBnbSearchFilters] = useState({
-    channel: '',
-    listing: '',
-    guestName: '',
-    reservationCode: ''
-  });
-  
+
   const [bnbFilters, setBnbFilters] = useState({
-    dateFrom: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
-    dateTo: new Date().toISOString().split('T')[0],
     channel: 'all',
     listing: 'all',
     selectedAmounts: ['amountGross', 'amountNett']
   });
 
-  const handleBnbSort = (field: string) => {
-    const newDirection = bnbSortField === field && bnbSortDirection === 'asc' ? 'desc' : 'asc';
-    setBnbSortField(field);
-    setBnbSortDirection(newDirection);
-    
-    const sortedData = [...bnbData].sort((a, b) => {
-      let aVal = a[field as keyof BnbRecord];
-      let bVal = b[field as keyof BnbRecord];
-      
-      if (field === 'checkinDate' || field === 'checkoutDate') {
-        aVal = new Date(aVal as string).getTime();
-        bVal = new Date(bVal as string).getTime();
-      } else if (field === 'nights' || field === 'guests' || field === 'amountGross' || field === 'amountNett' || field === 'amountChannelFee' || field === 'amountTouristTax' || field === 'amountVat') {
-        aVal = Number(aVal) || 0;
-        bVal = Number(bVal) || 0;
-      }
-      
-      const safeAVal = aVal ?? '';
-      const safeBVal = bVal ?? '';
-      
-      if (safeAVal < safeBVal) return newDirection === 'asc' ? -1 : 1;
-      if (safeAVal > safeBVal) return newDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-    
-    setBnbData(sortedData);
-  };
-
-  const filteredBnbData = useMemo(() => {
-    return bnbData.filter(row => {
-      return Object.entries(bnbSearchFilters).every(([key, value]) => {
-        if (!value) return true;
-        const fieldValue = row[key as keyof BnbRecord]?.toString().toLowerCase() || '';
-        return fieldValue.includes(value.toLowerCase());
-      });
-    });
-  }, [bnbData, bnbSearchFilters]);
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<BnbRecord>(bnbData, {
+    initialFilters: INITIAL_FILTERS,
+    defaultSort: { field: 'checkinDate', direction: 'desc' },
+  });
 
   const fetchBnbData = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        dateFrom: bnbFilters.dateFrom,
-        dateTo: bnbFilters.dateTo,
         channel: bnbFilters.channel,
         listing: bnbFilters.listing
       });
-      
+
       const response = await authenticatedGet(buildEndpoint('/api/bnb/bnb-table', params));
       const data = await response.json();
-      
+
       if (data.success) {
         setBnbData(data.data);
       }
@@ -124,7 +94,7 @@ const BnbRevenueReport: React.FC = () => {
   const exportBnbCsv = useCallback(() => {
     const csvContent = [
       ['Check-in Date', 'Check-out Date', 'Channel', 'Listing', 'Nights', 'Guests', 'Gross Amount', 'Net Amount', 'Guest Name', 'Reservation Code'],
-      ...filteredBnbData.map(row => [
+      ...processedData.map(row => [
         row.checkinDate,
         row.checkoutDate,
         row.channel,
@@ -137,15 +107,15 @@ const BnbRevenueReport: React.FC = () => {
         row.reservationCode
       ])
     ].map(row => row.join(',')).join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bnb-${bnbFilters.dateFrom}-${bnbFilters.dateTo}.csv`;
+    a.download = `bnb-revenue-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filteredBnbData, bnbFilters.dateFrom, bnbFilters.dateTo]);
+  }, [processedData]);
 
   useEffect(() => {
     fetchBnbData();
@@ -157,30 +127,6 @@ const BnbRevenueReport: React.FC = () => {
       <Card bg="gray.700">
         <CardBody>
           <HStack spacing={4} wrap="wrap">
-            <VStack spacing={1}>
-              <Text color="white" fontSize="sm">{t('filters.startDate')}</Text>
-              <Input
-                type="date"
-                value={bnbFilters.dateFrom}
-                onChange={(e) => setBnbFilters(prev => ({...prev, dateFrom: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-                w="150px"
-              />
-            </VStack>
-            <VStack spacing={1}>
-              <Text color="white" fontSize="sm">{t('filters.endDate')}</Text>
-              <Input
-                type="date"
-                value={bnbFilters.dateTo}
-                onChange={(e) => setBnbFilters(prev => ({...prev, dateTo: e.target.value}))}
-                bg="gray.600"
-                color="white"
-                size="sm"
-                w="150px"
-              />
-            </VStack>
             <Button colorScheme="orange" onClick={fetchBnbData} isLoading={loading} size="sm">
               {t('bnb.updateBnbData')}
             </Button>
@@ -188,7 +134,7 @@ const BnbRevenueReport: React.FC = () => {
               {t('export.exportToCsv')}
             </Button>
           </HStack>
-          
+
           <HStack spacing={4} wrap="wrap" mt={4}>
             <Text color="white" fontSize="sm">{t('filters.showAmounts')}:</Text>
             <Menu closeOnSelect={false}>
@@ -218,7 +164,7 @@ const BnbRevenueReport: React.FC = () => {
                         const isChecked = e.target.checked;
                         setBnbFilters(prev => ({
                           ...prev,
-                          selectedAmounts: isChecked 
+                          selectedAmounts: isChecked
                             ? [...prev.selectedAmounts, amount.key]
                             : prev.selectedAmounts.filter(a => a !== amount.key)
                         }));
@@ -235,89 +181,109 @@ const BnbRevenueReport: React.FC = () => {
         </CardBody>
       </Card>
 
-      <Card bg="gray.700">
+      <Card bg="gray.800">
         <CardBody>
-          <HStack spacing={2} mb={4} wrap="wrap">
-            <Input
-              placeholder={t('bnb.searchChannel')}
-              value={bnbSearchFilters.channel}
-              onChange={(e) => setBnbSearchFilters(prev => ({...prev, channel: e.target.value}))}
-              bg="gray.600"
-              color="white"
-              size="sm"
-              w="150px"
-            />
-            <Input
-              placeholder={t('bnb.searchListing')}
-              value={bnbSearchFilters.listing}
-              onChange={(e) => setBnbSearchFilters(prev => ({...prev, listing: e.target.value}))}
-              bg="gray.600"
-              color="white"
-              size="sm"
-              w="150px"
-            />
-            <Input
-              placeholder={t('bnb.searchGuest')}
-              value={bnbSearchFilters.guestName}
-              onChange={(e) => setBnbSearchFilters(prev => ({...prev, guestName: e.target.value}))}
-              bg="gray.600"
-              color="white"
-              size="sm"
-              w="150px"
-            />
-          </HStack>
           <TableContainer>
             <Table size="sm" variant="simple">
               <Thead>
                 <Tr>
-                  <Th color="white" cursor="pointer" onClick={() => handleBnbSort('checkinDate')}>
-                    {t('tables.checkIn')} {bnbSortField === 'checkinDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th color="white" cursor="pointer" onClick={() => handleBnbSort('checkoutDate')}>
-                    {t('tables.checkOut')} {bnbSortField === 'checkoutDate' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th color="white" cursor="pointer" onClick={() => handleBnbSort('channel')}>
-                    {t('filters.channel')} {bnbSortField === 'channel' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th color="white" cursor="pointer" onClick={() => handleBnbSort('listing')}>
-                    {t('filters.listing')} {bnbSortField === 'listing' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                  </Th>
-                  <Th color="white" cursor="pointer" onClick={() => handleBnbSort('nights')}>
-                    {t('tables.nights')} {bnbSortField === 'nights' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                  </Th>
+                  <FilterableHeader
+                    label={t('tables.checkIn')}
+                    filterValue={filters.checkinDate}
+                    onFilterChange={(v) => setFilter('checkinDate', v)}
+                    sortable
+                    sortDirection={sortField === 'checkinDate' ? sortDirection : null}
+                    onSort={() => handleSort('checkinDate')}
+                  />
+                  <FilterableHeader
+                    label={t('tables.checkOut')}
+                    filterValue={filters.checkoutDate}
+                    onFilterChange={(v) => setFilter('checkoutDate', v)}
+                    sortable
+                    sortDirection={sortField === 'checkoutDate' ? sortDirection : null}
+                    onSort={() => handleSort('checkoutDate')}
+                  />
+                  <FilterableHeader
+                    label={t('filters.channel')}
+                    filterValue={filters.channel}
+                    onFilterChange={(v) => setFilter('channel', v)}
+                    sortable
+                    sortDirection={sortField === 'channel' ? sortDirection : null}
+                    onSort={() => handleSort('channel')}
+                  />
+                  <FilterableHeader
+                    label={t('filters.listing')}
+                    filterValue={filters.listing}
+                    onFilterChange={(v) => setFilter('listing', v)}
+                    sortable
+                    sortDirection={sortField === 'listing' ? sortDirection : null}
+                    onSort={() => handleSort('listing')}
+                  />
+                  <FilterableHeader
+                    label={t('tables.nights')}
+                    sortable
+                    sortDirection={sortField === 'nights' ? sortDirection : null}
+                    onSort={() => handleSort('nights')}
+                    isNumeric
+                  />
                   {bnbFilters.selectedAmounts.includes('amountGross') && (
-                    <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountGross')}>
-                      {t('tables.gross')} {bnbSortField === 'amountGross' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                    </Th>
+                    <FilterableHeader
+                      label={t('tables.gross')}
+                      sortable
+                      sortDirection={sortField === 'amountGross' ? sortDirection : null}
+                      onSort={() => handleSort('amountGross')}
+                      isNumeric
+                    />
                   )}
                   {bnbFilters.selectedAmounts.includes('amountNett') && (
-                    <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountNett')}>
-                      {t('tables.net')} {bnbSortField === 'amountNett' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                    </Th>
+                    <FilterableHeader
+                      label={t('tables.net')}
+                      sortable
+                      sortDirection={sortField === 'amountNett' ? sortDirection : null}
+                      onSort={() => handleSort('amountNett')}
+                      isNumeric
+                    />
                   )}
                   {bnbFilters.selectedAmounts.includes('amountChannelFee') && (
-                    <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountChannelFee')}>
-                      {t('tables.channelFee')} {bnbSortField === 'amountChannelFee' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                    </Th>
+                    <FilterableHeader
+                      label={t('tables.channelFee')}
+                      sortable
+                      sortDirection={sortField === 'amountChannelFee' ? sortDirection : null}
+                      onSort={() => handleSort('amountChannelFee')}
+                      isNumeric
+                    />
                   )}
                   {bnbFilters.selectedAmounts.includes('amountTouristTax') && (
-                    <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountTouristTax')}>
-                      {t('tables.touristTax')} {bnbSortField === 'amountTouristTax' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                    </Th>
+                    <FilterableHeader
+                      label={t('tables.touristTax')}
+                      sortable
+                      sortDirection={sortField === 'amountTouristTax' ? sortDirection : null}
+                      onSort={() => handleSort('amountTouristTax')}
+                      isNumeric
+                    />
                   )}
                   {bnbFilters.selectedAmounts.includes('amountVat') && (
-                    <Th color="white" cursor="pointer" onClick={() => handleBnbSort('amountVat')}>
-                      {t('tables.vat')} {bnbSortField === 'amountVat' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                    </Th>
+                    <FilterableHeader
+                      label={t('tables.vat')}
+                      sortable
+                      sortDirection={sortField === 'amountVat' ? sortDirection : null}
+                      onSort={() => handleSort('amountVat')}
+                      isNumeric
+                    />
                   )}
-                  <Th color="white" cursor="pointer" onClick={() => handleBnbSort('guestName')}>
-                    {t('tables.guest')} {bnbSortField === 'guestName' && (bnbSortDirection === 'asc' ? '↑' : '↓')}
-                  </Th>
+                  <FilterableHeader
+                    label={t('tables.guest')}
+                    filterValue={filters.guestName}
+                    onFilterChange={(v) => setFilter('guestName', v)}
+                    sortable
+                    sortDirection={sortField === 'guestName' ? sortDirection : null}
+                    onSort={() => handleSort('guestName')}
+                  />
                 </Tr>
               </Thead>
               <Tbody>
-                {filteredBnbData.slice(0, 100).map((row, index) => (
-                  <Tr key={index}>
+                {processedData.map((row, index) => (
+                  <Tr key={index} _hover={{ bg: 'gray.700' }}>
                     <Td color="white" fontSize="sm">{new Date(row.checkinDate).toLocaleDateString('nl-NL')}</Td>
                     <Td color="white" fontSize="sm">{new Date(row.checkoutDate).toLocaleDateString('nl-NL')}</Td>
                     <Td color="white" fontSize="sm">{row.channel}</Td>
@@ -344,6 +310,9 @@ const BnbRevenueReport: React.FC = () => {
               </Tbody>
             </Table>
           </TableContainer>
+          <Text color="gray.400" fontSize="xs" mt={2}>
+            {t('tables.showing')} {processedData.length} {t('tables.of')} {bnbData.length} {t('tables.records')}
+          </Text>
         </CardBody>
       </Card>
     </VStack>
