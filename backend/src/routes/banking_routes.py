@@ -13,6 +13,7 @@ Extracted from app.py during refactoring (Phase 3.2)
 
 from flask import Blueprint, request, jsonify
 from auth.cognito_utils import cognito_required
+from db_exceptions import ClosedPeriodError
 from auth.tenant_context import tenant_required
 from services.banking_service import BankingService
 
@@ -120,6 +121,10 @@ def banking_save_transactions(user_email, user_roles, tenant, user_tenants):
         
         result = banking_service.save_transactions(transactions, tenant, test_mode)
         return jsonify(result)
+    
+    except ClosedPeriodError as e:
+        print(f"Closed period error: {e}", flush=True)
+        return jsonify({'success': False, 'error': str(e)}), 400
         
     except Exception as e:
         print(f"Banking save transactions error: {e}", flush=True)
@@ -240,6 +245,28 @@ def banking_update_mutatie(user_email, user_roles, tenant, user_tenants):
         if not record_id:
             return jsonify({'success': False, 'error': 'No ID provided'}), 400
         
+        # --- Closed-period guard ---
+        from db_exceptions import ClosedPeriodError
+        txn_date = str(data.get('TransactionDate', ''))
+        amount = float(data.get('TransactionAmount', 0))
+        if amount != 0 and txn_date and len(txn_date) >= 4:
+            try:
+                year = int(txn_date[:4])
+                from database import DatabaseManager
+                db = DatabaseManager(test_mode=False)
+                rows = db.execute_query(
+                    "SELECT year FROM year_closure_status WHERE administration = %s AND year = %s",
+                    [tenant, year]
+                )
+                if rows:
+                    raise ClosedPeriodError(
+                        [{'transaction': data, 'year': year}]
+                    )
+            except ClosedPeriodError:
+                raise
+            except (ValueError, IndexError):
+                pass
+        
         result = banking_service.update_mutatie(record_id, data, tenant)
         
         if result['success']:
@@ -247,6 +274,10 @@ def banking_update_mutatie(user_email, user_roles, tenant, user_tenants):
         else:
             status_code = 404 if 'not found' in result.get('error', '').lower() else 403
             return jsonify(result), status_code
+    
+    except ClosedPeriodError as e:
+        print(f"Closed period error: {e}", flush=True)
+        return jsonify({'success': False, 'error': str(e)}), 400
         
     except Exception as e:
         print(f"Update error: {e}", flush=True)
@@ -269,9 +300,28 @@ def banking_insert_mutatie(user_email, user_roles, tenant, user_tenants):
         # Force administration to current tenant
         data['Administration'] = tenant
         
-        # Use the existing insert_transaction method
+        # --- Closed-period guard ---
+        from db_exceptions import ClosedPeriodError
         from database import DatabaseManager
         db = DatabaseManager(test_mode=False)
+        
+        txn_date = str(data.get('TransactionDate', ''))
+        amount = float(data.get('TransactionAmount', 0))
+        if amount != 0 and txn_date and len(txn_date) >= 4:
+            try:
+                year = int(txn_date[:4])
+                rows = db.execute_query(
+                    "SELECT year FROM year_closure_status WHERE administration = %s AND year = %s",
+                    [tenant, year]
+                )
+                if rows:
+                    raise ClosedPeriodError(
+                        [{'transaction': data, 'year': year}]
+                    )
+            except ClosedPeriodError:
+                raise
+            except (ValueError, IndexError):
+                pass
         
         table_name = 'mutaties'
         success = db.insert_transaction(data, table_name)
@@ -286,6 +336,10 @@ def banking_insert_mutatie(user_email, user_roles, tenant, user_tenants):
                 'success': False,
                 'error': 'Failed to insert record'
             }), 500
+    
+    except ClosedPeriodError as e:
+        print(f"Closed period error: {e}", flush=True)
+        return jsonify({'success': False, 'error': str(e)}), 400
         
     except Exception as e:
         print(f"Insert error: {e}", flush=True)

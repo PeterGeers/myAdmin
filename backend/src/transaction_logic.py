@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from database import DatabaseManager
+from db_exceptions import ClosedPeriodError
 
 load_dotenv()
 
@@ -182,8 +183,58 @@ class TransactionLogic:
         """Save approved transactions to database.
         
         Zero-amount transactions are silently skipped (e.g. VAT line when VAT = 0).
+        Before saving, checks that no non-zero-amount transaction targets a closed
+        fiscal year.  If any do, raises ``ClosedPeriodError`` and no inserts occur.
         Returns only the transactions that were actually saved.
         """
+        # --- Closed-period guard (before any DB writes) ---
+        # Collect distinct (year, administration) pairs from non-zero-amount txns
+        year_admin_pairs = {}  # admin -> set of years
+        for txn in transactions:
+            if float(txn.get('TransactionAmount', 0)) == 0:
+                continue
+            admin = txn.get('Administration') or txn.get('administration')
+            if not admin:
+                continue
+            txn_date = str(txn.get('TransactionDate', ''))
+            try:
+                year = int(txn_date[:4])
+            except (ValueError, IndexError):
+                continue
+            year_admin_pairs.setdefault(admin, set()).add(year)
+
+        # Query year_closure_status for each administration
+        offending = []
+        for admin, years in year_admin_pairs.items():
+            if not years:
+                continue
+            placeholders = ','.join(['%s'] * len(years))
+            query = (
+                f"SELECT year FROM year_closure_status "
+                f"WHERE administration = %s AND year IN ({placeholders})"
+            )
+            params = [admin] + sorted(years)
+            rows = self.db.execute_query(query, params)
+            closed_years = {row['year'] for row in rows} if rows else set()
+            if closed_years:
+                for txn in transactions:
+                    if float(txn.get('TransactionAmount', 0)) == 0:
+                        continue
+                    txn_admin = txn.get('Administration') or txn.get('administration')
+                    if txn_admin != admin:
+                        continue
+                    txn_date = str(txn.get('TransactionDate', ''))
+                    try:
+                        txn_year = int(txn_date[:4])
+                    except (ValueError, IndexError):
+                        continue
+                    if txn_year in closed_years:
+                        offending.append({'transaction': txn, 'year': txn_year})
+
+        if offending:
+            raise ClosedPeriodError(offending)
+
+        # --- Existing save logic ---
         saved_transactions = []
         skipped_count = 0
         

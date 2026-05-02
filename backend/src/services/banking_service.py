@@ -13,6 +13,7 @@ Extracted from app.py during refactoring (Phase 3.1)
 
 from database import DatabaseManager
 from banking_processor import BankingProcessor
+from db_exceptions import ClosedPeriodError
 
 
 class BankingService:
@@ -395,6 +396,9 @@ class BankingService:
                 'message': f'Saved {saved_count} new transactions for {tenant}, skipped {duplicate_count} duplicates'
             }
             
+        except ClosedPeriodError:
+            raise
+            
         except Exception as e:
             print(f"Banking save transactions error: {e}", flush=True)
             import traceback
@@ -403,8 +407,6 @@ class BankingService:
                 'success': False,
                 'error': str(e)
             }
-
-    def get_lookups(self, tenant):
         """
         Get mapping data for account codes and descriptions
         

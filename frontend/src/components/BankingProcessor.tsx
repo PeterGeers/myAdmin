@@ -283,6 +283,7 @@ const BankingProcessor: React.FC = () => {
   const [testMode] = useState(false); // Always use production mode
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [modalError, setModalError] = useState('');
   const [patternResults, setPatternResults] = useState<any>(null);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState<boolean>(false);
   const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [] });
@@ -361,10 +362,12 @@ const BankingProcessor: React.FC = () => {
   const openEditModal = (record: Transaction) => {
     setEditingRecord({ ...record });
     setIsInsertMode(false);
+    setModalError('');
     onOpen();
   };
 
   const openInsertModal = () => {
+    setModalError('');
     const currentTenant = localStorage.getItem('selectedTenant') || 'PeterPrive';
     const newRecord: Transaction = {
       ID: 0,
@@ -391,6 +394,7 @@ const BankingProcessor: React.FC = () => {
     if (!editingRecord) return;
     try {
       setLoading(true);
+      setModalError('');
       const response = await authenticatedPost('/api/banking/update-mutatie', editingRecord);
       const data = await response.json();
       if (data.success) {
@@ -398,10 +402,10 @@ const BankingProcessor: React.FC = () => {
         fetchMutaties();
         onClose();
       } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
+        setModalError(data.error || t('messages.errorUpdating'));
       }
     } catch (error) {
-      setMessage(t('messages.errorUpdating') + `: ${error}`);
+      setModalError(t('messages.errorUpdating') + `: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -411,6 +415,7 @@ const BankingProcessor: React.FC = () => {
     if (!editingRecord) return;
     try {
       setLoading(true);
+      setModalError('');
       const response = await authenticatedPost('/api/banking/insert-mutatie', editingRecord);
       const data = await response.json();
       if (data.success) {
@@ -418,10 +423,10 @@ const BankingProcessor: React.FC = () => {
         fetchMutaties();
         onClose();
       } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
+        setModalError(data.error || t('messages.errorInserting'));
       }
     } catch (error) {
-      setMessage(t('messages.errorInserting') + `: ${error}`);
+      setModalError(t('messages.errorInserting') + `: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -2015,6 +2020,12 @@ const BankingProcessor: React.FC = () => {
             )}
           </ModalBody>
           <ModalFooter>
+            {modalError && (
+              <Alert status="error" mb={3} mr="auto" borderRadius="md" flex="1" bg="red.100" color="red.900" borderWidth="1px" borderColor="red.300">
+                <AlertIcon color="red.600" />
+                {modalError}
+              </Alert>
+            )}
             <Button colorScheme="gray" mr={3} onClick={onClose}>{t('labels.cancel')}</Button>
             <Button colorScheme="orange" onClick={handleSaveRecord} isLoading={loading}>
               {isInsertMode ? t('mutaties.insertRecord') : t('mutaties.updateRecord')}
