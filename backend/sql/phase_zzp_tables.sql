@@ -36,11 +36,13 @@ CREATE TABLE IF NOT EXISTS contacts (
 CREATE TABLE IF NOT EXISTS contact_emails (
     id INT AUTO_INCREMENT PRIMARY KEY,
     contact_id INT NOT NULL,
+    administration VARCHAR(50) NOT NULL,
     email VARCHAR(255) NOT NULL,
     email_type ENUM('general', 'invoice', 'other') DEFAULT 'general',
     is_primary BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
-    INDEX idx_contact_id (contact_id)
+    INDEX idx_contact_id (contact_id),
+    INDEX idx_administration (administration)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 -- ============================================================================
 -- 3. products — Shared product/service registry
@@ -111,6 +113,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 CREATE TABLE IF NOT EXISTS invoice_lines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_id INT NOT NULL,
+    administration VARCHAR(50) NOT NULL,
     product_id INT DEFAULT NULL,
     description VARCHAR(512) NOT NULL,
     quantity DECIMAL(10, 4) DEFAULT 1.0000,
@@ -122,19 +125,23 @@ CREATE TABLE IF NOT EXISTS invoice_lines (
     sort_order INT DEFAULT 0,
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id),
-    INDEX idx_invoice_id (invoice_id)
+    INDEX idx_invoice_id (invoice_id),
+    INDEX idx_administration (administration),
+    INDEX idx_admin_invoice (administration, invoice_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 -- ============================================================================
 -- 6. vw_invoice_vat_summary — VAT breakdown per rate per invoice (view)
 -- ============================================================================
 CREATE OR REPLACE VIEW vw_invoice_vat_summary AS
-SELECT invoice_id,
+SELECT administration,
+    invoice_id,
     vat_code,
     vat_rate,
     ROUND(SUM(line_total), 2) AS base_amount,
     ROUND(SUM(vat_amount), 2) AS vat_amount
 FROM invoice_lines
-GROUP BY invoice_id,
+GROUP BY administration,
+    invoice_id,
     vat_code,
     vat_rate;
 -- ============================================================================

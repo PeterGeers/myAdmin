@@ -43,7 +43,47 @@ Full spec: #[[file:.kiro/specs/database-abstraction-layer/design.md]]
 
 ## Core Rules
 
-- Tenant isolation: every tenant query filters by tenant from `@tenant_required()`
 - Parameterized queries: always `%s` placeholders, never f-string interpolation
 - Tables: `snake_case`, views: `vw_` prefix, FKs: `{table}_id`
 - Environments: local Docker (dev), Railway (production) — database config comes from env vars, never hardcode
+
+## Tenant Isolation (REQ13 — Defense in Depth)
+
+Every tenant-scoped table and view must support direct tenant filtering without JOINs.
+
+### Table Creation Checklist
+
+When creating a new table that holds tenant data:
+
+1. **Add `administration VARCHAR(50) NOT NULL`** — no exceptions, even for child tables
+2. **Add `INDEX idx_administration (administration)`** — enables standalone tenant queries
+3. **Add a composite index** for the primary query pattern (e.g., `idx_admin_parent (administration, parent_id)`)
+4. **Do NOT rely on parent FKs for tenant scope** — a child table like `invoice_lines` must have its own `administration` column, not inherit it via JOIN to `invoices`
+
+### Query Rules
+
+- Every SELECT, UPDATE, DELETE on a tenant-scoped table must include `WHERE ... administration = %s`
+- The `administration` value comes from `@tenant_required()` — passed as `tenant` parameter through the service layer
+- INSERT statements must include the `administration` value explicitly
+
+### View Rules
+
+- Views over tenant-scoped tables must include `administration` in the SELECT list and GROUP BY clause
+- This allows consumers to filter by `WHERE administration = %s` directly on the view
+
+### Why Child Tables Need Their Own Column
+
+Relying on JOINs to parent tables for tenant filtering creates two risks:
+
+- **Performance**: every child query requires a JOIN just for access control
+- **Security**: if a developer forgets the JOIN, the query returns cross-tenant data
+
+The `administration` column on child tables is intentional denormalization for defense-in-depth. The application layer must ensure the child's `administration` matches the parent's.
+
+### Exceptions
+
+These table types do NOT need `administration`:
+
+- Generic/reference tables (e.g., `countries`, `database_migrations`)
+- System tables only accessible to SysAdmin
+- Tables explicitly documented as tenant-agnostic

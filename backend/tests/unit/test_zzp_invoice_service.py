@@ -215,7 +215,7 @@ def test_update_totals_multi_line_correct_sums():
         {'line_total': 100.0, 'vat_amount': 21.0},
         {'line_total': 100.0, 'vat_amount': 21.0},
     ]
-    result = svc._update_totals(1, lines)
+    result = svc._update_totals(1, lines, 'T1')
     assert result['subtotal'] == 200.0
     assert result['vat_total'] == 42.0
     assert result['grand_total'] == 242.0
@@ -232,7 +232,7 @@ def test_update_totals_reads_vat_summary_from_view():
     result = svc._update_totals(1, [
         {'line_total': 15200.0, 'vat_amount': 3192.0},
         {'line_total': 500.0, 'vat_amount': 45.0},
-    ])
+    ], 'T1')
     assert len(result['vat_summary']) == 2
 
 
