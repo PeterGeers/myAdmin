@@ -184,8 +184,7 @@ class ProductService(FieldConfigMixin):
 
     def _check_product_in_use(self, tenant: str, product_id: int) -> bool:
         rows = self.db.execute_query(
-            "SELECT 1 FROM invoice_lines il JOIN invoices i ON il.invoice_id = i.id "
-            "WHERE il.product_id = %s AND i.administration = %s LIMIT 1",
+            "SELECT 1 FROM invoice_lines WHERE product_id = %s AND administration = %s LIMIT 1",
             (product_id, tenant),
         )
         return bool(rows)

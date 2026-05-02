@@ -47,7 +47,7 @@ class ContactService(FieldConfigMixin):
         contacts = self.db.execute_query(query, tuple(params)) or []
 
         for c in contacts:
-            c['emails'] = self._get_emails(c['id'])
+            c['emails'] = self._get_emails(c['id'], tenant)
 
         return [self.strip_hidden_fields(tenant, c) for c in contacts]
 
@@ -60,7 +60,7 @@ class ContactService(FieldConfigMixin):
         if not rows:
             return None
         contact = rows[0]
-        contact['emails'] = self._get_emails(contact['id'])
+        contact['emails'] = self._get_emails(contact['id'], tenant)
         return self.strip_hidden_fields(tenant, contact)
 
     def get_contact_by_client_id(self, tenant: str, client_id: str) -> Optional[dict]:
@@ -72,7 +72,7 @@ class ContactService(FieldConfigMixin):
         if not rows:
             return None
         contact = rows[0]
-        contact['emails'] = self._get_emails(contact['id'])
+        contact['emails'] = self._get_emails(contact['id'], tenant)
         return self.strip_hidden_fields(tenant, contact)
 
     # ── Write ───────────────────────────────────────────────
@@ -112,7 +112,7 @@ class ContactService(FieldConfigMixin):
         )
 
         if emails:
-            self._save_emails(contact_id, emails)
+            self._save_emails(contact_id, emails, tenant)
 
         return self.get_contact(tenant, contact_id)
 
@@ -151,7 +151,7 @@ class ContactService(FieldConfigMixin):
             )
 
         if emails is not None:
-            self._replace_emails(contact_id, emails)
+            self._replace_emails(contact_id, emails, tenant)
 
         return self.get_contact(tenant, contact_id)
 
@@ -178,8 +178,9 @@ class ContactService(FieldConfigMixin):
         """Return invoice email, falling back to primary email."""
         rows = self.db.execute_query(
             """SELECT email, email_type, is_primary FROM contact_emails
-               WHERE contact_id = %s ORDER BY FIELD(email_type,'invoice','general','other')""",
-            (contact_id,),
+               WHERE contact_id = %s AND administration = %s
+               ORDER BY FIELD(email_type,'invoice','general','other')""",
+            (contact_id, tenant),
         )
         if not rows:
             return None
@@ -241,27 +242,27 @@ class ContactService(FieldConfigMixin):
         )
         return bool(rows)
 
-    def _get_emails(self, contact_id: int) -> List[dict]:
+    def _get_emails(self, contact_id: int, tenant: str) -> List[dict]:
         rows = self.db.execute_query(
-            "SELECT id, email, email_type, is_primary FROM contact_emails WHERE contact_id = %s",
-            (contact_id,),
+            "SELECT id, email, email_type, is_primary FROM contact_emails WHERE contact_id = %s AND administration = %s",
+            (contact_id, tenant),
         )
         return rows or []
 
-    def _save_emails(self, contact_id: int, emails: List[dict]) -> None:
+    def _save_emails(self, contact_id: int, emails: List[dict], tenant: str) -> None:
         for em in emails:
             self.db.execute_query(
-                """INSERT INTO contact_emails (contact_id, email, email_type, is_primary)
-                   VALUES (%s, %s, %s, %s)""",
-                (contact_id, em['email'], em.get('email_type', 'general'),
+                """INSERT INTO contact_emails (contact_id, administration, email, email_type, is_primary)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (contact_id, tenant, em['email'], em.get('email_type', 'general'),
                  em.get('is_primary', False)),
                 fetch=False, commit=True,
             )
 
-    def _replace_emails(self, contact_id: int, emails: List[dict]) -> None:
+    def _replace_emails(self, contact_id: int, emails: List[dict], tenant: str) -> None:
         """Delete existing emails and re-insert."""
         self.db.execute_query(
-            "DELETE FROM contact_emails WHERE contact_id = %s",
-            (contact_id,), fetch=False, commit=True,
+            "DELETE FROM contact_emails WHERE contact_id = %s AND administration = %s",
+            (contact_id, tenant), fetch=False, commit=True,
         )
-        self._save_emails(contact_id, emails)
+        self._save_emails(contact_id, emails, tenant)

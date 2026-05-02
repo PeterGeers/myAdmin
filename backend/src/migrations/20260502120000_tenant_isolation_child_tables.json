@@ -1,0 +1,26 @@
+{
+  "name": "tenant_isolation_child_tables",
+  "description": "Add administration column to invoice_lines and contact_emails for defense-in-depth tenant isolation (REQ13). Backfills from parent tables, adds indexes, recreates vw_invoice_vat_summary with administration.",
+  "timestamp": "20260502120000",
+  "up": [
+    "SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_lines' AND COLUMN_NAME = 'administration'); SET @sql = IF(@col_exists = 0, 'ALTER TABLE invoice_lines ADD COLUMN administration VARCHAR(50) DEFAULT NULL AFTER invoice_id', 'SELECT 1'); PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt",
+    "UPDATE invoice_lines il JOIN invoices i ON il.invoice_id = i.id SET il.administration = i.administration WHERE il.administration IS NULL",
+    "ALTER TABLE invoice_lines MODIFY COLUMN administration VARCHAR(50) NOT NULL",
+    "CREATE INDEX idx_administration ON invoice_lines (administration)",
+    "CREATE INDEX idx_admin_invoice ON invoice_lines (administration, invoice_id)",
+    "SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contact_emails' AND COLUMN_NAME = 'administration'); SET @sql = IF(@col_exists = 0, 'ALTER TABLE contact_emails ADD COLUMN administration VARCHAR(50) DEFAULT NULL AFTER contact_id', 'SELECT 1'); PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt",
+    "UPDATE contact_emails ce JOIN contacts c ON ce.contact_id = c.id SET ce.administration = c.administration WHERE ce.administration IS NULL",
+    "ALTER TABLE contact_emails MODIFY COLUMN administration VARCHAR(50) NOT NULL",
+    "CREATE INDEX idx_administration ON contact_emails (administration)",
+    "CREATE OR REPLACE VIEW vw_invoice_vat_summary AS SELECT administration, invoice_id, vat_code, vat_rate, ROUND(SUM(line_total), 2) AS base_amount, ROUND(SUM(vat_amount), 2) AS vat_amount FROM invoice_lines GROUP BY administration, invoice_id, vat_code, vat_rate"
+  ],
+  "down": [
+    "CREATE OR REPLACE VIEW vw_invoice_vat_summary AS SELECT invoice_id, vat_code, vat_rate, ROUND(SUM(line_total), 2) AS base_amount, ROUND(SUM(vat_amount), 2) AS vat_amount FROM invoice_lines GROUP BY invoice_id, vat_code, vat_rate",
+    "DROP INDEX idx_administration ON contact_emails",
+    "ALTER TABLE contact_emails DROP COLUMN administration",
+    "DROP INDEX idx_admin_invoice ON invoice_lines",
+    "DROP INDEX idx_administration ON invoice_lines",
+    "ALTER TABLE invoice_lines DROP COLUMN administration"
+  ],
+  "version": "1.0"
+}

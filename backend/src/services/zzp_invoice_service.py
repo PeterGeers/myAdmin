@@ -139,11 +139,12 @@ class ZZPInvoiceService(FieldConfigMixin):
             calc = self._calculate_line(tenant, line, invoice_date)
             self.db.execute_query(
                 """INSERT INTO invoice_lines
-                   (invoice_id, product_id, description, quantity, unit_price,
-                    vat_code, vat_rate, vat_amount, line_total, sort_order)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                   (invoice_id, administration, product_id, description, quantity,
+                    unit_price, vat_code, vat_rate, vat_amount, line_total, sort_order)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (
                     invoice_id,
+                    tenant,
                     calc.get('product_id'),
                     calc['description'],
                     calc['quantity'],
@@ -159,7 +160,7 @@ class ZZPInvoiceService(FieldConfigMixin):
             calculated.append(calc)
         return calculated
 
-    def _update_totals(self, invoice_id: int, lines: list) -> dict:
+    def _update_totals(self, invoice_id: int, lines: list, tenant: str) -> dict:
         """Calculate and persist invoice header totals from lines."""
         subtotal = round(sum(l['line_total'] for l in lines), 2)
         vat_total = round(sum(l['vat_amount'] for l in lines), 2)
@@ -175,8 +176,9 @@ class ZZPInvoiceService(FieldConfigMixin):
         # Read VAT summary from view
         vat_summary = self.db.execute_query(
             """SELECT vat_code, vat_rate, base_amount, vat_amount
-               FROM vw_invoice_vat_summary WHERE invoice_id = %s""",
-            (invoice_id,),
+               FROM vw_invoice_vat_summary
+               WHERE invoice_id = %s AND administration = %s""",
+            (invoice_id, tenant),
         ) or []
 
         return {
@@ -236,7 +238,7 @@ class ZZPInvoiceService(FieldConfigMixin):
         lines = data.get('lines', [])
         if lines:
             calculated = self._save_lines(invoice_id, lines, tenant, invoice_date)
-            self._update_totals(invoice_id, calculated)
+            self._update_totals(invoice_id, calculated, tenant)
 
         return self.get_invoice(tenant, invoice_id)
 
@@ -279,11 +281,11 @@ class ZZPInvoiceService(FieldConfigMixin):
         # Replace lines if provided
         if 'lines' in data:
             self.db.execute_query(
-                "DELETE FROM invoice_lines WHERE invoice_id = %s",
-                (invoice_id,), fetch=False, commit=True,
+                "DELETE FROM invoice_lines WHERE invoice_id = %s AND administration = %s",
+                (invoice_id, tenant), fetch=False, commit=True,
             )
             calculated = self._save_lines(invoice_id, data['lines'], tenant, inv_date)
-            self._update_totals(invoice_id, calculated)
+            self._update_totals(invoice_id, calculated, tenant)
 
         return self.get_invoice(tenant, invoice_id)
 
@@ -304,15 +306,18 @@ class ZZPInvoiceService(FieldConfigMixin):
         inv['lines'] = self.db.execute_query(
             """SELECT id, product_id, description, quantity, unit_price,
                       vat_code, vat_rate, vat_amount, line_total, sort_order
-               FROM invoice_lines WHERE invoice_id = %s ORDER BY sort_order""",
-            (invoice_id,),
+               FROM invoice_lines
+               WHERE invoice_id = %s AND administration = %s
+               ORDER BY sort_order""",
+            (invoice_id, tenant),
         ) or []
 
         # Attach VAT summary
         inv['vat_summary'] = self.db.execute_query(
             """SELECT vat_code, vat_rate, base_amount, vat_amount
-               FROM vw_invoice_vat_summary WHERE invoice_id = %s""",
-            (invoice_id,),
+               FROM vw_invoice_vat_summary
+               WHERE invoice_id = %s AND administration = %s""",
+            (invoice_id, tenant),
         ) or []
 
         return inv
@@ -467,7 +472,7 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         if negated_lines:
             calculated = self._save_lines(cn_id, negated_lines, tenant, invoice_date)
-            self._update_totals(cn_id, calculated)
+            self._update_totals(cn_id, calculated, tenant)
 
         return self.get_invoice(tenant, cn_id)
 
@@ -777,8 +782,8 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         last_invoice = last[0]
         last_lines = self.db.execute_query(
-            "SELECT * FROM invoice_lines WHERE invoice_id = %s ORDER BY sort_order",
-            (last_invoice['id'],),
+            "SELECT * FROM invoice_lines WHERE invoice_id = %s AND administration = %s ORDER BY sort_order",
+            (last_invoice['id'], tenant),
         ) or []
 
         new_date = self._advance_date(tenant, contact_id, last_invoice['invoice_date'])
