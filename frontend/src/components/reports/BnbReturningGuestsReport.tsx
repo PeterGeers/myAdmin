@@ -31,6 +31,8 @@ import {
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
+import { useFilterableTable } from '../../hooks/useFilterableTable';
+import { FilterableHeader } from '../filters/FilterableHeader';
 
 interface ReturningGuest {
   guestName: string;
@@ -57,6 +59,20 @@ const BnbReturningGuestsReport: React.FC = () => {
   const [selectedGuestBookings, setSelectedGuestBookings] = useState<GuestBooking[]>([]);
   const [selectedGuestName, setSelectedGuestName] = useState<string>('');
   const [returningGuestsLoading, setReturningGuestsLoading] = useState(false);
+
+  const INITIAL_FILTERS: Record<string, string> = { guestName: '', aantal: '' };
+
+  const {
+    filters,
+    setFilter,
+    handleSort,
+    sortField,
+    sortDirection,
+    processedData,
+  } = useFilterableTable<ReturningGuest>(returningGuests, {
+    initialFilters: INITIAL_FILTERS,
+    defaultSort: { field: 'aantal', direction: 'desc' },
+  });
 
   /**
    * Fetch returning guests data from API
@@ -119,7 +135,7 @@ const BnbReturningGuestsReport: React.FC = () => {
           <HStack justify="space-between">
             <Heading size="md" color="white">{t('bnb.returningGuests')}</Heading>
             <Text color="orange.300" fontSize="sm" fontWeight="bold">
-              {t('bnb.guestsFound', { count: returningGuests.length })}
+              {t('bnb.guestsFound', { count: processedData.length })}
             </Text>
           </HStack>
         </CardHeader>
@@ -138,13 +154,28 @@ const BnbReturningGuestsReport: React.FC = () => {
             <Table size="sm" variant="simple">
               <Thead>
                 <Tr>
-                  <Th color="white" w="50px"></Th>
-                  <Th color="white" w="80px">{t('bnb.count')}</Th>
-                  <Th color="white">{t('tables.guestName')}</Th>
+                  <Th bg="gray.700" color="white" w="50px"></Th>
+                  <FilterableHeader
+                    label={t('bnb.count')}
+                    filterValue={filters.aantal}
+                    onFilterChange={(v) => setFilter('aantal', v)}
+                    sortable
+                    sortDirection={sortField === 'aantal' ? sortDirection : null}
+                    onSort={() => handleSort('aantal')}
+                    isNumeric
+                  />
+                  <FilterableHeader
+                    label={t('tables.guestName')}
+                    filterValue={filters.guestName}
+                    onFilterChange={(v) => setFilter('guestName', v)}
+                    sortable
+                    sortDirection={sortField === 'guestName' ? sortDirection : null}
+                    onSort={() => handleSort('guestName')}
+                  />
                 </Tr>
               </Thead>
               <Tbody>
-                {returningGuests.map((guest, index) => (
+                {processedData.map((guest, index) => (
                   <React.Fragment key={index}>
                     <Tr 
                       cursor="pointer"

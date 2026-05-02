@@ -43,6 +43,8 @@ import { FieldHelp } from './help';
 import AccountSelect from './common/AccountSelect';
 import { useAccountLookup } from '../hooks/useAccountLookup';
 import BankingMutatiesTab from './banking/BankingMutatiesTab';
+import { useFilterableTable } from '../hooks/useFilterableTable';
+import { FilterableHeader } from './filters/FilterableHeader';
 
 export interface Transaction {
   ID?: number;
@@ -314,6 +316,34 @@ const BankingProcessor: React.FC = () => {
   const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
   const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
   const [selectedReference, setSelectedReference] = useState<string>('');
+
+  // Check Reference - filterable table hooks
+  const REF_SUMMARY_FILTERS: Record<string, string> = { ReferenceNumber: "", transaction_count: "", total_amount: "" };
+  const REF_DETAILS_FILTERS: Record<string, string> = { TransactionNumber: "", TransactionDate: "", Amount: "", TransactionDescription: "" };
+
+  const {
+    filters: refSummaryFilters,
+    setFilter: setRefSummaryFilter,
+    handleSort: handleRefSummarySort,
+    sortField: refSummarySortField,
+    sortDirection: refSummarySortDirection,
+    processedData: processedRefSummary,
+  } = useFilterableTable(refSummaryData, {
+    initialFilters: REF_SUMMARY_FILTERS,
+    defaultSort: { field: "ReferenceNumber", direction: "asc" },
+  });
+
+  const {
+    filters: refDetailsFilters,
+    setFilter: setRefDetailsFilter,
+    handleSort: handleRefDetailsSort,
+    sortField: refDetailsSortField,
+    sortDirection: refDetailsSortDirection,
+    processedData: processedRefDetails,
+  } = useFilterableTable(selectedReferenceDetails, {
+    initialFilters: REF_DETAILS_FILTERS,
+    defaultSort: { field: "TransactionDate", direction: "desc" },
+  });
   
   // STR Channel Revenue state
   const [strChannelFilters, setStrChannelFilters] = useState({
@@ -1700,7 +1730,7 @@ const BankingProcessor: React.FC = () => {
                 {refSummaryData.length > 0 && (
                   <VStack align="stretch" spacing={4}>
                     <HStack justify="space-between">
-                      <Heading size="xs" color="white">Reference Summary ({refSummaryData.length})</Heading>
+                      <Heading size="xs" color="white">Reference Summary ({processedRefSummary.length})</Heading>
                       <Text color="orange.300" fontWeight="bold" fontSize="sm">
                         Total: {formatAmount(refSummaryData.reduce((sum, row) => sum + (parseFloat(row.total_amount) || 0), 0))}
                       </Text>
@@ -1709,29 +1739,47 @@ const BankingProcessor: React.FC = () => {
                       <Table size="sm" variant="simple">
                         <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
                           <Tr>
-                            <Th color="white" fontSize="xs">Reference</Th>
-                            <Th color="white" fontSize="xs" isNumeric>Count</Th>
-                            <Th color="white" fontSize="xs" isNumeric>Total Amount</Th>
-                            <Th color="white" fontSize="xs">Actions</Th>
+                            <FilterableHeader
+                              label="Reference"
+                              filterValue={refSummaryFilters.ReferenceNumber}
+                              onFilterChange={(v) => setRefSummaryFilter('ReferenceNumber', v)}
+                              sortable
+                              sortDirection={refSummarySortField === 'ReferenceNumber' ? refSummarySortDirection : null}
+                              onSort={() => handleRefSummarySort('ReferenceNumber')}
+                            />
+                            <FilterableHeader
+                              label="Count"
+                              filterValue={refSummaryFilters.transaction_count}
+                              onFilterChange={(v) => setRefSummaryFilter('transaction_count', v)}
+                              sortable
+                              sortDirection={refSummarySortField === 'transaction_count' ? refSummarySortDirection : null}
+                              onSort={() => handleRefSummarySort('transaction_count')}
+                              isNumeric
+                            />
+                            <FilterableHeader
+                              label="Total Amount"
+                              filterValue={refSummaryFilters.total_amount}
+                              onFilterChange={(v) => setRefSummaryFilter('total_amount', v)}
+                              sortable
+                              sortDirection={refSummarySortField === 'total_amount' ? refSummarySortDirection : null}
+                              onSort={() => handleRefSummarySort('total_amount')}
+                              isNumeric
+                            />
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {refSummaryData.map((row, index) => (
-                            <Tr key={index}>
+                          {processedRefSummary.map((row, index) => (
+                            <Tr
+                              key={index}
+                              onClick={() => fetchReferenceDetails(row.ReferenceNumber)}
+                              _hover={{ bg: 'gray.700', cursor: 'pointer' }}
+                              bg={selectedReference === row.ReferenceNumber ? 'gray.600' : 'transparent'}
+                            >
                               <Td color="white" fontSize="xs" maxW="200px" isTruncated title={row.ReferenceNumber}>
                                 {row.ReferenceNumber}
                               </Td>
                               <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
                               <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
-                              <Td>
-                                <Button
-                                  size="xs"
-                                  colorScheme="blue"
-                                  onClick={() => fetchReferenceDetails(row.ReferenceNumber)}
-                                >
-                                  Details
-                                </Button>
-                              </Td>
                             </Tr>
                           ))}
                         </Tbody>
@@ -1741,20 +1789,49 @@ const BankingProcessor: React.FC = () => {
                     {selectedReferenceDetails.length > 0 && (
                       <Box>
                         <Heading size="xs" color="white" mb={2}>
-                          Transactions for Reference: {selectedReference} ({selectedReferenceDetails.length})
+                          Transactions for Reference: {selectedReference} ({processedRefDetails.length})
                         </Heading>
                         <TableContainer maxH="300px" overflowY="auto">
                           <Table size="sm" variant="simple">
                             <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
                               <Tr>
-                                <Th color="white" fontSize="xs">Transaction Number</Th>
-                                <Th color="white" fontSize="xs">Date</Th>
-                                <Th color="white" fontSize="xs" isNumeric>Amount</Th>
-                                <Th color="white" fontSize="xs">Description</Th>
+                                <FilterableHeader
+                                  label="Transaction Number"
+                                  filterValue={refDetailsFilters.TransactionNumber}
+                                  onFilterChange={(v) => setRefDetailsFilter('TransactionNumber', v)}
+                                  sortable
+                                  sortDirection={refDetailsSortField === 'TransactionNumber' ? refDetailsSortDirection : null}
+                                  onSort={() => handleRefDetailsSort('TransactionNumber')}
+                                />
+                                <FilterableHeader
+                                  label="Date"
+                                  filterValue={refDetailsFilters.TransactionDate}
+                                  onFilterChange={(v) => setRefDetailsFilter('TransactionDate', v)}
+                                  sortable
+                                  sortDirection={refDetailsSortField === 'TransactionDate' ? refDetailsSortDirection : null}
+                                  onSort={() => handleRefDetailsSort('TransactionDate')}
+                                />
+                                <FilterableHeader
+                                  label="Amount"
+                                  filterValue={refDetailsFilters.Amount}
+                                  onFilterChange={(v) => setRefDetailsFilter('Amount', v)}
+                                  sortable
+                                  sortDirection={refDetailsSortField === 'Amount' ? refDetailsSortDirection : null}
+                                  onSort={() => handleRefDetailsSort('Amount')}
+                                  isNumeric
+                                />
+                                <FilterableHeader
+                                  label="Description"
+                                  filterValue={refDetailsFilters.TransactionDescription}
+                                  onFilterChange={(v) => setRefDetailsFilter('TransactionDescription', v)}
+                                  sortable
+                                  sortDirection={refDetailsSortField === 'TransactionDescription' ? refDetailsSortDirection : null}
+                                  onSort={() => handleRefDetailsSort('TransactionDescription')}
+                                />
                               </Tr>
                             </Thead>
                             <Tbody>
-                              {selectedReferenceDetails.map((transaction, index) => (
+                              {processedRefDetails.map((transaction, index) => (
                                 <Tr key={index}>
                                   <Td color="white" fontSize="xs">{transaction.TransactionNumber || '-'}</Td>
                                   <Td color="white" fontSize="xs">
