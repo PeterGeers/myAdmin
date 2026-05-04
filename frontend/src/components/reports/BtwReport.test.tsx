@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import '@testing-library/jest-dom';
 import BtwReport from './BtwReport';
 import { useTenant } from '../../context/TenantContext';
@@ -25,34 +25,7 @@ vi.mock('../../hooks/useTypedTranslation', () => ({
   })
 }));
 
-// Mock Chakra UI components to avoid dependency issues
-vi.mock('@chakra-ui/react', () => ({
-  VStack: ({ children, ...props }: any) => <div data-testid="vstack" {...props}>{children}</div>,
-  Alert: ({ children, status, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,
-  AlertIcon: () => <span data-testid="alert-icon">!</span>,
-  Card: ({ children, bg, ...props }: any) => <div data-testid="card" {...props}>{children}</div>,
-  CardBody: ({ children, ...props }: any) => <div data-testid="card-body" {...props}>{children}</div>,
-  CardHeader: ({ children, ...props }: any) => <div data-testid="card-header" {...props}>{children}</div>,
-  Grid: ({ children, templateColumns, ...props }: any) => <div data-testid="grid" {...props}>{children}</div>,
-  GridItem: ({ children, colSpan, ...props }: any) => <div data-testid="grid-item" {...props}>{children}</div>,
-  Heading: ({ children, ...props }: any) => <h2 data-testid="heading" {...props}>{children}</h2>,
-  HStack: ({ children, ...props }: any) => <div data-testid="hstack" {...props}>{children}</div>,
-  Select: ({ children, value, onChange, ...props }: any) => (
-    <select data-testid="select" value={value} onChange={onChange} {...props}>{children}</select>
-  ),
-  Text: ({ children, ...props }: any) => <span data-testid="text" {...props}>{children}</span>,
-  Button: ({ children, onClick, isDisabled, isLoading, colorScheme, ...props }: any) => (
-    <button 
-      data-testid="button" 
-      onClick={onClick} 
-      disabled={isDisabled || isLoading}
-      {...props}
-    >
-      {children}
-    </button>
-  ),
-  Box: ({ children, bg, ...props }: any) => <div data-testid="box" {...props}>{children}</div>,
-}));
+
 
 vi.mock('../filters/FilterPanel', () => {
   return {

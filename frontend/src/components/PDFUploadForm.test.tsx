@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@/test-utils';
 
 // Mock the API service
 vi.mock('../services/apiService', () => ({

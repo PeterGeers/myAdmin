@@ -1,7 +1,7 @@
 // Feature: str-bookingcom-multi-file-import + str-airbnb-multi-file-import
 // Tests for STRProcessor multi-file booking and airbnb import functionality
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { test as fcTest } from '@fast-check/vitest';
 import fc from 'fast-check';

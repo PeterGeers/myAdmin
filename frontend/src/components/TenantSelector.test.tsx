@@ -4,7 +4,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '@/test-utils';
 import TenantSelector from './TenantSelector';
 
 // Mock the tenant context
@@ -14,16 +14,6 @@ vi.mock('../context/TenantContext', () => ({
   useTenant: () => mockUseTenant()
 }));
 
-// Mock Chakra UI components to avoid dependency issues
-vi.mock('@chakra-ui/react', () => ({
-  HStack: ({ children }: any) => <div data-testid="hstack">{children}</div>,
-  Text: ({ children }: any) => <span>{children}</span>,
-  Select: ({ children, value, onChange }: any) => (
-    <select data-testid="tenant-select" value={value} onChange={onChange}>
-      {children}
-    </select>
-  )
-}));
 
 describe('TenantSelector', () => {
   it('should render tenant selector for users with multiple tenants', () => {
@@ -36,7 +26,7 @@ describe('TenantSelector', () => {
 
     render(<TenantSelector />);
 
-    expect(screen.getByTestId('tenant-select')).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
   it('should not render for users with single tenant', () => {

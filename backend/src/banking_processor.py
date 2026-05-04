@@ -3,8 +3,6 @@ import glob
 import os
 import re
 from datetime import datetime
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 from pattern_analyzer import PatternAnalyzer
@@ -308,23 +306,11 @@ class BankingProcessor:
             end_date: Optional end date for balance calculation
             administration: Tenant to filter accounts by (required for multi-tenant)
         """
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
         # Get opening balance date from year closure status
         opening_balance_date = _get_opening_balance_date(self.db, administration)
         
-        # Get bank accounts filtered by tenant using vw_rekeningnummers
-        if administration:
-            cursor.execute("""
-                SELECT rekeningNummer, Account, Administration as administration 
-                FROM vw_rekeningnummers 
-                WHERE Administration = %s
-            """, (administration,))
-        else:
-            cursor.execute("SELECT rekeningNummer, Account, Administration as administration FROM vw_rekeningnummers")
-        
-        accounts = cursor.fetchall()
+        # Get bank accounts using canonical $.bank_account flag source
+        accounts = self.db.get_bank_account_lookups(administration=administration)
         
         if not accounts:
             return []
@@ -366,8 +352,7 @@ class BankingProcessor:
             if opening_balance_date:
                 params.append(opening_balance_date)
         
-        cursor.execute(query, params)
-        balances = cursor.fetchall()
+        balances = self.db.execute_query(query, params)
         
         # For each balance, find the last transaction description from mutaties table
         for balance in balances:
@@ -401,7 +386,6 @@ class BankingProcessor:
                 ])
                 if opening_balance_date:
                     last_tx_params.append(opening_balance_date)
-                cursor.execute(last_tx_query, last_tx_params)
             else:
                 last_tx_query = """
                     SELECT TransactionDate, TransactionDescription, TransactionAmount, 
@@ -429,9 +413,8 @@ class BankingProcessor:
                 ])
                 if opening_balance_date:
                     last_tx_params.append(opening_balance_date)
-                cursor.execute(last_tx_query, last_tx_params)
             
-            last_transactions = cursor.fetchall()
+            last_transactions = self.db.execute_query(last_tx_query, last_tx_params)
             
             if last_transactions:
                 balance['last_transaction_date'] = last_transactions[0]['TransactionDate']
@@ -449,9 +432,6 @@ class BankingProcessor:
                 balance['last_transaction_description'] = 'No transactions found'
                 balance['last_transaction_amount'] = 0
                 balance['last_transactions'] = []
-        
-        cursor.close()
-        conn.close()
         
         return balances
     
@@ -633,7 +613,7 @@ class BankingProcessor:
             'has_gaps': len(sequence_issues) > 0
         }
     
-    def check_revolut_balance_gaps(self, iban='NL08REVO7549383472', account_code='1022', 
+    def check_revolut_balance_gaps(self, iban, account_code, 
                                    start_date='2025-05-01', expected_final_balance=262.54):
         """
         Check for gaps in Revolut balance by comparing calculated running balance 
@@ -644,8 +624,8 @@ class BankingProcessor:
         - Ref3 contains: the balance from the bank statement
         
         Args:
-            iban: Revolut IBAN (default: NL08REVO7549383472)
-            account_code: Account code (default: 1022)
+            iban: Revolut IBAN
+            account_code: Account code
             start_date: Start date for analysis (default: 2025-05-01)
             expected_final_balance: Expected final balance from Revolut (default: 262.54)
         
@@ -841,7 +821,7 @@ class BankingProcessor:
                 'error': str(e)
             }
     
-    def analyze_patterns_for_administration(self, administration='GoodwinSolutions',
+    def analyze_patterns_for_administration(self, administration,
                                           reference_number=None, debet_account=None, 
                                           credit_account=None):
         """
@@ -884,7 +864,7 @@ class BankingProcessor:
             print(f"❌ Pattern analysis failed: {e}")
             raise e
     
-    def apply_enhanced_patterns(self, transactions, administration='GoodwinSolutions'):
+    def apply_enhanced_patterns(self, transactions, administration):
         """
         Apply enhanced pattern matching to predict missing values
         
@@ -916,171 +896,10 @@ class BankingProcessor:
             print(f"❌ Enhanced pattern application failed: {e}")
             raise e
     
-    def get_pattern_summary(self, administration='GoodwinSolutions'):
+    def get_pattern_summary(self, administration):
         """Get a summary of discovered patterns for an administration"""
         try:
             return self.pattern_analyzer.get_pattern_summary(administration)
         except Exception as e:
             print(f"❌ Failed to get pattern summary: {e}")
             raise e
-
-# Flask routes for the banking processor
-app = Flask(__name__)
-CORS(app)
-
-@app.route('/api/banking/scan-files', methods=['GET'])
-def scan_files():
-    """Scan download folder for CSV files"""
-    processor = BankingProcessor()
-    folder_path = request.args.get('folder', processor.download_folder)
-    
-    try:
-        files = processor.get_csv_files(folder_path)
-        return jsonify({
-            'success': True,
-            'files': files,
-            'folder': folder_path
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/banking/process-files', methods=['POST'])
-def process_files():
-    """Process selected CSV files"""
-    data = request.get_json()
-    file_paths = data.get('files', [])
-    test_mode = data.get('test_mode', True)
-    
-    processor = BankingProcessor(test_mode=test_mode)
-    
-    try:
-        # Process files
-        df = processor.process_csv_files(file_paths)
-        
-        if df.empty:
-            return jsonify({'success': False, 'error': 'No data found in files'}), 400
-        
-        # Prepare for review
-        records = processor.prepare_for_review(df)
-        
-        return jsonify({
-            'success': True,
-            'transactions': records,
-            'count': len(records),
-            'test_mode': test_mode
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/banking/save-transactions', methods=['POST'])
-def save_transactions():
-    """Save approved transactions to database"""
-    data = request.get_json()
-    transactions = data.get('transactions', [])
-    test_mode = data.get('test_mode', True)
-    
-    processor = BankingProcessor(test_mode=test_mode)
-    
-    try:
-        saved_count = processor.save_approved_transactions(transactions)
-        
-        return jsonify({
-            'success': True,
-            'saved_count': saved_count,
-            'table': 'mutaties_test' if test_mode else 'mutaties'
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/banking/check-accounts', methods=['GET'])
-def check_banking_accounts():
-    """Check banking account balances"""
-    test_mode = request.args.get('test_mode', 'false').lower() == 'true'
-    processor = BankingProcessor(test_mode=test_mode)
-    
-    try:
-        balances = processor.check_banking_accounts()
-        
-        return jsonify({
-            'success': True,
-            'balances': balances,
-            'count': len(balances)
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/banking/check-sequence', methods=['GET'])
-def check_sequence_numbers():
-    """Check sequence numbers for IBAN"""
-    test_mode = request.args.get('test_mode', 'false').lower() == 'true'
-    iban = request.args.get('iban', 'NL80RABO0107936917')
-    start_date = request.args.get('start_date', '2025-01-01')
-    
-    processor = BankingProcessor(test_mode=test_mode)
-    
-    try:
-        result = processor.check_sequence_numbers(iban, start_date)
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/banking/analyze-patterns', methods=['POST'])
-def analyze_patterns():
-    """
-    Analyze historical patterns for an administration
-    Implements REQ-PAT-002: Filter patterns by Administration, ReferenceNumber, Debet/Credit values, and Date
-    - Administration: Filter by administration
-    - Date: Filter by last 2 years
-    - ReferenceNumber: Use historical reference numbers to match descriptions  
-    - Debet/Credit: Use bank account logic to predict opposite account
-    """
-    try:
-        data = request.get_json()
-        administration = data.get('administration', 'GoodwinSolutions')
-        test_mode = data.get('test_mode', True)
-        
-        processor = BankingProcessor(test_mode=test_mode)
-        patterns = processor.analyze_patterns_for_administration(administration)
-        
-        return jsonify({
-            'success': True,
-            'patterns': patterns,
-            'implementation': {
-                'administration_filter': f'Filtered by {administration}',
-                'date_filter': 'Last 2 years of transaction data',
-                'reference_matching': 'Historical reference numbers used for description matching',
-                'bank_account_logic': 'Debet/Credit prediction based on bank account identification'
-            }
-        })
-        
-    except Exception as e:
-        print(f"Pattern analysis error: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/banking/pattern-summary', methods=['GET'])
-def get_pattern_summary():
-    """Get pattern summary for an administration"""
-    try:
-        administration = request.args.get('administration', 'GoodwinSolutions')
-        test_mode = request.args.get('test_mode', 'false').lower() == 'true'
-        
-        processor = BankingProcessor(test_mode=test_mode)
-        summary = processor.get_pattern_summary(administration)
-        
-        return jsonify({
-            'success': True,
-            'summary': summary
-        })
-        
-    except Exception as e:
-        print(f"Pattern summary error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5001)

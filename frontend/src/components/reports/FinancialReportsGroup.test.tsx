@@ -9,14 +9,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import FinancialReportsGroup from './FinancialReportsGroup';
 
-// Mock Chakra UI components
-vi.mock('@chakra-ui/react', () => ({
-  Tabs: ({ children, ...props }: any) => <div data-testid="tabs" {...props}>{children}</div>,
-  TabList: ({ children, ...props }: any) => <div data-testid="tablist" {...props}>{children}</div>,
-  Tab: ({ children, ...props }: any) => <button data-testid="tab" {...props}>{children}</button>,
-  TabPanels: ({ children, ...props }: any) => <div data-testid="tabpanels" {...props}>{children}</div>,
-  TabPanel: ({ children, ...props }: any) => <div data-testid="tabpanel" {...props}>{children}</div>,
-}));
+
 
 // Mock hooks and services
 vi.mock('../../hooks/useTypedTranslation', () => ({

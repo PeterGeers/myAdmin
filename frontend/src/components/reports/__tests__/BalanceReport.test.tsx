@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@/test-utils';
 import '@testing-library/jest-dom';
 import BalanceReport from '../BalanceReport';
 import { useTenant } from '../../../context/TenantContext';
@@ -42,34 +42,7 @@ vi.mock('../../../utils/financialReportUtils', async () => {
   };
 });
 
-// Mock Chakra UI
-vi.mock('@chakra-ui/react', () => ({
-  Alert: ({ children, ...p }: any) => <div data-testid="alert" {...p}>{children}</div>,
-  AlertIcon: () => <span data-testid="alert-icon">!</span>,
-  Button: ({ children, onClick, isLoading, ...p }: any) => (
-    <button onClick={onClick} data-loading={isLoading} {...p}>{children}</button>
-  ),
-  Card: ({ children }: any) => <div>{children}</div>,
-  CardBody: ({ children }: any) => <div>{children}</div>,
-  CardHeader: ({ children }: any) => <div>{children}</div>,
-  Grid: ({ children }: any) => <div>{children}</div>,
-  GridItem: ({ children }: any) => <div>{children}</div>,
-  HStack: ({ children }: any) => <div>{children}</div>,
-  Heading: ({ children }: any) => <h2>{children}</h2>,
-  Select: ({ children, onChange, value }: any) => (
-    <select onChange={onChange} value={value} data-testid="select">{children}</select>
-  ),
-  Table: ({ children }: any) => <table>{children}</table>,
-  TableContainer: ({ children }: any) => <div>{children}</div>,
-  Tbody: ({ children }: any) => <tbody>{children}</tbody>,
-  Td: ({ children }: any) => <td>{children}</td>,
-  Text: ({ children }: any) => <span>{children}</span>,
-  Th: ({ children }: any) => <th>{children}</th>,
-  Thead: ({ children }: any) => <thead>{children}</thead>,
-  Tr: ({ children }: any) => <tr>{children}</tr>,
-  VStack: ({ children }: any) => <div>{children}</div>,
-  useToast: () => vi.fn(),
-}));
+
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,

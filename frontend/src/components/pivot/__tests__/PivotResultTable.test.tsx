@@ -10,7 +10,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@/test-utils';
 import '@testing-library/jest-dom';
 import { PivotResultTable } from '../PivotResultTable';
 import type { PivotColumnMeta, PivotConfig } from '../../../types/pivot';

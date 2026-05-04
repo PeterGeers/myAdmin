@@ -44,7 +44,7 @@ describe('TaxRateManagement', () => {
     test('shows loading spinner initially', () => {
       getTaxRates.mockReturnValue(new Promise(() => {}));
       render(<TaxRateManagement tenant="T1" />);
-      expect(document.querySelector('.chakra-spinner')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
     });
 
     test('renders tax rate table after loading', async () => {

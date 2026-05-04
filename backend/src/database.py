@@ -391,9 +391,19 @@ class DatabaseManager:
         """Get existing transaction numbers for duplicate prevention"""
         return self.execute_query(f"SELECT Ref2 FROM {table_name} WHERE Ref1 = %s", (ref1,))
     
-    def get_bank_account_lookups(self):
-        """Get bank account lookup data from vw_rekeningnummers (actual bank accounts only)"""
-        return self.execute_query("SELECT rekeningNummer, Account, administration FROM vw_rekeningnummers")
+    def get_bank_account_lookups(self, administration=None):
+        """Get bank account lookup data from rekeningschema using parameters $.bank_account flag"""
+        base_query = """
+            SELECT AccountLookup AS rekeningNummer, Account, administration 
+            FROM rekeningschema 
+            WHERE JSON_EXTRACT(parameters, '$.bank_account') = true
+        """
+        if administration:
+            return self.execute_query(
+                base_query + " AND administration = %s ORDER BY administration, Account",
+                (administration,)
+            )
+        return self.execute_query(base_query + " ORDER BY administration, Account")
     
     def get_existing_sequences(self, iban, table_name='mutaties', administration=None):
         """Get existing Ref2 sequences for a specific IBAN within last 2 years, optionally filtered by administration"""
@@ -435,8 +445,14 @@ class DatabaseManager:
             ORDER BY Date DESC
         """, (administration, administration, administration))
     
-    def get_recent_transactions(self, limit=100, table_name='mutaties'):
+    def get_recent_transactions(self, limit=100, table_name='mutaties', administration=None):
         """Get recent transactions for lookup data"""
+        if administration:
+            return self.execute_query(f"""
+                SELECT TransactionDescription, Debet, Credit, administration FROM {table_name} 
+                WHERE administration = %s
+                ORDER BY ID DESC LIMIT %s
+            """, (administration, limit))
         return self.execute_query(f"""
             SELECT TransactionDescription, Debet, Credit, administration FROM {table_name} 
             ORDER BY ID DESC LIMIT %s

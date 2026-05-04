@@ -9,7 +9,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, cleanup } from '@/test-utils';
 import '@testing-library/jest-dom';
 import type {
   PivotDataSource,
@@ -84,71 +84,6 @@ const mockPivotResult: PivotResult = {
   ],
   row_count: 1,
 };
-
-// ---------------------------------------------------------------------------
-// Mocks — Chakra UI (simple HTML equivalents)
-// ---------------------------------------------------------------------------
-
-/** Filter out non-DOM props to avoid React warnings. */
-function mockFilterDomProps(props: Record<string, any>): Record<string, any> {
-  const {
-    bg, color, colorScheme, fontSize, fontWeight, spacing, align, justify,
-    wrap, gap, maxW, minW, flex, mb, mt, borderRadius, borderColor,
-    borderWidth, variant, size, labelColor, sx, isAttached, ...rest
-  } = props;
-  return rest;
-}
-
-vi.mock('@chakra-ui/react', () => ({
-  Box: ({ children, ...p }: any) => <div {...mockFilterDomProps(p)}>{children}</div>,
-  Flex: ({ children, ...p }: any) => <div {...mockFilterDomProps(p)}>{children}</div>,
-  VStack: ({ children, ...p }: any) => <div {...mockFilterDomProps(p)}>{children}</div>,
-  HStack: ({ children, ...p }: any) => <div {...mockFilterDomProps(p)}>{children}</div>,
-  Wrap: ({ children }: any) => <div>{children}</div>,
-  WrapItem: ({ children }: any) => <div>{children}</div>,
-  Text: ({ children, as: _as, ...p }: any) => <span {...mockFilterDomProps(p)}>{children}</span>,
-  FormControl: ({ children }: any) => <div>{children}</div>,
-  FormLabel: ({ children }: any) => <label>{children}</label>,
-  Select: ({ children, placeholder, 'aria-label': ariaLabel, value, onChange, disabled, ...p }: any) => (
-    <select aria-label={ariaLabel || placeholder} value={value} onChange={onChange} disabled={disabled}>
-      {placeholder && <option value="">{placeholder}</option>}
-      {children}
-    </select>
-  ),
-  Button: ({ children, onClick, isLoading, disabled, isDisabled, ...p }: any) => (
-    <button onClick={onClick} disabled={disabled || isDisabled || isLoading}>
-      {isLoading ? 'Loading...' : children}
-    </button>
-  ),
-  ButtonGroup: ({ children }: any) => <div>{children}</div>,
-  IconButton: ({ 'aria-label': ariaLabel, onClick, isDisabled, disabled }: any) => (
-    <button aria-label={ariaLabel} onClick={onClick} disabled={isDisabled || disabled} />
-  ),
-  Tag: ({ children }: any) => <span>{children}</span>,
-  TagLabel: ({ children }: any) => <span>{children}</span>,
-  Spinner: () => <span data-testid="spinner">Loading...</span>,
-  Alert: ({ children, status }: any) => <div role="alert" data-status={status}>{children}</div>,
-  AlertIcon: () => <span />,
-  Input: ({ value, onChange, placeholder, ...p }: any) => (
-    <input value={value} onChange={onChange} placeholder={placeholder} />
-  ),
-  Modal: ({ children, isOpen }: any) => isOpen ? <div data-testid="modal">{children}</div> : null,
-  ModalOverlay: () => null,
-  ModalContent: ({ children }: any) => <div>{children}</div>,
-  ModalHeader: ({ children }: any) => <div>{children}</div>,
-  ModalBody: ({ children }: any) => <div>{children}</div>,
-  ModalFooter: ({ children }: any) => <div>{children}</div>,
-  ModalCloseButton: () => null,
-  useDisclosure: () => ({ isOpen: false, onOpen: vi.fn(), onClose: vi.fn() }),
-}));
-
-vi.mock('@chakra-ui/icons', () => ({
-  ArrowUpIcon: () => <span>↑</span>,
-  ArrowDownIcon: () => <span>↓</span>,
-  AddIcon: () => <span>+</span>,
-  CloseIcon: () => <span>×</span>,
-  DeleteIcon: () => <span>🗑</span>,
-}));
 
 // ---------------------------------------------------------------------------
 // Mocks — Services

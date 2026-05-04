@@ -6,21 +6,11 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { TemplateManagement } from '../TemplateManagement';
 import * as templateApi from '../../../../services/templateApi';
 import type { PreviewResponse, AIHelpResponse, ApprovalResponse, RejectionResponse } from '../../../../types/template';
-
-// Use centralized Chakra UI mocks
-vi.mock('@chakra-ui/react', async () => {
-  const { chakraMock } = await import('../chakraMock');
-  return chakraMock;
-});
-vi.mock('@chakra-ui/icons', async () => {
-  const { iconsMock } = await import('../chakraMock');
-  return iconsMock;
-});
 
 // Mock the template API
 vi.mock('../../../../services/templateApi');

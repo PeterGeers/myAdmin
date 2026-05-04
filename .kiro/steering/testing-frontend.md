@@ -10,7 +10,7 @@ This project uses **Vitest 4.x** with **jsdom**, **React Testing Library**, and 
 ## Key Rules
 
 - Use `vi.fn()`, `vi.mock()`, `vi.spyOn()` — never `jest.*`
-- Import `render` from `src/test-utils` (wraps with ChakraProvider) unless mocking Chakra entirely
+- Import `render` from `@/test-utils` (wraps with mock ChakraProvider automatically via resolve alias) — never from `@testing-library/react` directly
 - Use `vi.mocked(x)` for type-safe mock access instead of `(x as any)`
 - Use `vi.clearAllMocks()` in `beforeEach`
 - Add `{ timeout: 30000 }` on property-based tests with 100+ iterations
@@ -18,9 +18,16 @@ This project uses **Vitest 4.x** with **jsdom**, **React Testing Library**, and 
 
 ## Chakra UI Components
 
-- Simple components: use real Chakra via `test-utils`
-- Components with Checkbox/Radio/Accordion: mock `@chakra-ui/react` using `chakraMock.tsx` and import from `@testing-library/react` directly
-- `vi.mock()` does NOT intercept transitive node_modules deps — mock the top-level package instead
+Chakra UI is automatically mocked via `test.alias` in `vite.config.ts`. All imports of `@chakra-ui/react` and `@chakra-ui/icons` — including transitive imports from source components — resolve to centralized mock modules during test runs.
+
+- **No mock setup needed**: just write your test and import `render` from `@/test-utils`
+- **Mock modules**: `frontend/src/__mocks__/chakra-ui-react.tsx` and `frontend/src/__mocks__/chakra-ui-icons.tsx`
+- **Prop filtering**: Chakra style props are automatically stripped to prevent React DOM warnings
+- **Interactive behavior preserved**: `Modal`/`Drawer`/`AlertDialog` respect `isOpen`, `Button` maps `isDisabled`/`isLoading` to `disabled`, `Collapse` respects `in`
+- **Adding new mocks**: if a Chakra component is missing from the mock module, add it to `chakra-ui-react.tsx` following the existing patterns (Pattern A–D in the design doc)
+- **Known limitations**: no style assertions (`toHaveStyle`), fixed color mode (`"light"`), instant animations, no internal state management (Tabs/Accordion/Menu) — use Playwright for those
+
+Design reference: `.kiro\specs\Common\Frameworks\chakra-test-mock-framework\design.md`
 
 ## Compliance (enforced by frontend scanner)
 

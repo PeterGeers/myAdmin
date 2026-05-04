@@ -61,6 +61,10 @@ export default defineConfig(async ({ command }) => {
       css: true,
       include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
       exclude: ['tests/e2e/**', 'node_modules/**', 'build/**'],
+      alias: {
+        '@chakra-ui/react': path.resolve(__dirname, './src/__mocks__/chakra-ui-react.tsx'),
+        '@chakra-ui/icons': path.resolve(__dirname, './src/__mocks__/chakra-ui-icons.tsx'),
+      },
     },
   };
 });

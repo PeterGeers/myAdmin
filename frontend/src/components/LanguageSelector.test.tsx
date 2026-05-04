@@ -4,7 +4,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import { LanguageSelector } from './LanguageSelector';
 
 // Track language state for tests
@@ -31,33 +31,6 @@ vi.mock('../services/apiService', () => ({
   apiRequest: vi.fn(() => Promise.resolve({ success: true }))
 }));
 
-// Mock Chakra UI components
-vi.mock('@chakra-ui/react', () => {
-  const React = require('react');
-  return {
-    Menu: ({ children }: any) => <div data-testid="menu">{children}</div>,
-    MenuButton: ({ children, as: _As, ...props }: any) => {
-      const { rightIcon, variant, fontWeight, color, _hover, _active, size, ...domProps } = props;
-      return <button data-testid="language-selector" {...domProps}>{children}</button>;
-    },
-    MenuList: ({ children, ...props }: any) => {
-      const { minWidth, ...domProps } = props;
-      return <div data-testid="menu-list" {...domProps}>{children}</div>;
-    },
-    MenuItem: ({ children, onClick, ...props }: any) => {
-      const { bg, _hover, ...domProps } = props;
-      return <button onClick={onClick} {...domProps}>{children}</button>;
-    },
-    Button: React.forwardRef(({ children, ...props }: any, ref: any) => (
-      <button ref={ref} {...props}>{children}</button>
-    )),
-    useToast: () => vi.fn(),
-  };
-});
-
-vi.mock('@chakra-ui/icons', () => ({
-  ChevronDownIcon: () => <span data-testid="chevron-down">▼</span>,
-}));
 
 describe('LanguageSelector', () => {
   beforeEach(() => {

@@ -107,7 +107,7 @@ describe('UserManagement Component', () => {
     test('renders component with loading state', () => {
       render(<UserManagement tenant={mockTenant} />);
       // Component shows a Spinner while loading
-      expect(document.querySelector('.chakra-spinner')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
     });
 
     test('renders user list after loading', async () => {

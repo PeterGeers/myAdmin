@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import '@testing-library/jest-dom';
 import MutatiesReport from './MutatiesReport';
 import { useTenant } from '../../context/TenantContext';
@@ -53,31 +53,7 @@ vi.mock('../filters/YearFilter', () => ({
   ),
 }));
 
-// Mock Chakra UI components
-vi.mock('@chakra-ui/react', () => ({
-  Alert: ({ children, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,
-  AlertIcon: () => <span data-testid="alert-icon">!</span>,
-  Button: ({ children, onClick, ...props }: any) => (
-    <button data-testid="button" onClick={onClick} {...props}>{children}</button>
-  ),
-  Card: ({ children, ...props }: any) => <div data-testid="card" {...props}>{children}</div>,
-  CardBody: ({ children, ...props }: any) => <div data-testid="card-body" {...props}>{children}</div>,
-  HStack: ({ children, ...props }: any) => <div data-testid="hstack" {...props}>{children}</div>,
-  Input: ({ onChange, value, ...props }: any) => (
-    <input data-testid="input" onChange={onChange} value={value} {...props} />
-  ),
-  Table: ({ children, ...props }: any) => <table data-testid="table" {...props}>{children}</table>,
-  TableContainer: ({ children, ...props }: any) => <div data-testid="table-container" {...props}>{children}</div>,
-  Tbody: ({ children, ...props }: any) => <tbody data-testid="tbody" {...props}>{children}</tbody>,
-  Td: ({ children, ...props }: any) => <td data-testid="td" {...props}>{children}</td>,
-  Text: ({ children, ...props }: any) => <span data-testid="text" {...props}>{children}</span>,
-  Th: ({ children, onClick, ...props }: any) => (
-    <th data-testid="th" onClick={onClick} {...props}>{children}</th>
-  ),
-  Thead: ({ children, ...props }: any) => <thead data-testid="thead" {...props}>{children}</thead>,
-  Tr: ({ children, ...props }: any) => <tr data-testid="tr" {...props}>{children}</tr>,
-  VStack: ({ children, ...props }: any) => <div data-testid="vstack" {...props}>{children}</div>
-}));
+
 
 const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
 const mockAuthenticatedGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
@@ -154,7 +130,7 @@ describe('MutatiesReport', () => {
       render(<MutatiesReport />);
       
       await waitFor(() => {
-        expect(screen.getByTestId('table')).toBeInTheDocument();
+        expect(document.querySelector('table')).toBeInTheDocument();
       });
     });
   });

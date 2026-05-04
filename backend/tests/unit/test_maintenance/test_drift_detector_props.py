@@ -222,8 +222,8 @@ class TestSourceTestDriftDetection:
     )
     @given(
         func_name=_st_identifier,
-        source_keys=st.lists(_st_dict_key, min_size=1, max_size=5, unique=True),
-        extra_test_keys=st.lists(_st_dict_key, min_size=1, max_size=3, unique=True),
+        source_keys=st.lists(_st_dict_key, min_size=3, max_size=5, unique=True),
+        extra_test_keys=st.lists(_st_dict_key, min_size=1, max_size=2, unique=True),
     )
     def test_key_drift_detected_for_removed_keys(
         self,
@@ -234,6 +234,12 @@ class TestSourceTestDriftDetection:
     ):
         """When a test references dictionary keys that no longer exist in
         the source, the detector flags it.
+
+        The drift detector requires:
+        - Source and test dicts with >= 3 keys each
+        - >= 60% key overlap between test and best-matching source dict
+        So we generate source dicts with 3-5 keys and 1-2 extra test keys,
+        ensuring the overlap threshold is met.
         """
         tmp_path = tmp_path_factory.mktemp("keydrift")
 

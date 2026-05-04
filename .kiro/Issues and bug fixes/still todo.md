@@ -22,7 +22,7 @@ System Admin Role management I am sorry no precence values in the table and the 
 -- is it in cognito
 
 
-# Inmvoice processing
+# Invoice processing
 
 Check what happens if multiple tenants are loading invoices for processing at the same time.
 
@@ -46,11 +46,7 @@ Viool grafiek ook totaal omzet
 - Outdated documentation 
 - Code changes on the fly, Local document updates but lot of referral documents not updated
 
-# Is an orm layer fioreseen in the scope
-Kiro
-No. This spec deliberately avoids introducing an ORM (like SQLAlchemy). The approach is a lightweight abstraction layer — dialect helpers and a centralized DatabaseManager — while keeping raw SQL queries.
-The reasoning from the root cause analysis still applies: the codebase has 1,200+ hand-written SQL queries across 96 files. Introducing an ORM on top of the abstraction layer refactoring would double the scope and risk. The abstraction layer is the pragmatic middle ground — it gives you database portability without rewriting every query into ORM model calls.
-That said, once the abstraction layer is in place, adopting an ORM later becomes much more feasible since all database access is already centralized. It could be a future phase if there's a need for it.
+
 
 # Import errors on bdc
 failing urls 
@@ -62,8 +58,8 @@ why do you keep testing all unit tests of which some fail and takes a lot of tim
 Update to use database framework .kiro\steering\database-patterns.md 
 
 # ai use log table
-- ad ai use in invoice processor
+ad ai use in invoice processor
 
-# test=maintence-framework
-- add chakra mock test
 
+# Import Credit Cards (official feature)
+Out of scope: Credit card file processing (CSV_CC_*) with its hardcoded account codes ('4002', '2001') and IBAN-to-tenant mapping (NL71RABO0148034454) — this requires a separate $.credit_card parameter flag or similar identifier and will be addressed in a future spec

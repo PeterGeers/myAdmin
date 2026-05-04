@@ -80,82 +80,78 @@ class TestGetOpeningBalanceDate:
 class TestCheckBankingAccountsClosure:
 
     @pytest.fixture
-    def processor(self):
-        return BankingProcessor(test_mode=True)
+    def mock_db(self):
+        mock_instance = MagicMock()
+        mock_instance.execute_query.return_value = []
+        mock_instance.get_bank_account_lookups.return_value = []
+        return mock_instance
 
     @pytest.fixture
-    def mock_connection(self):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        return mock_conn, mock_cursor
+    def processor(self, mock_db):
+        with patch('banking_processor.DatabaseManager', return_value=mock_db):
+            proc = BankingProcessor(test_mode=True)
+        return proc
 
-    def test_with_closure_query_includes_date_lower_bound(self, processor, mock_connection):
+    def test_with_closure_query_includes_date_lower_bound(self, processor):
         """With closure: verify query includes TransactionDate >= '2025-01-01'"""
-        mock_conn, mock_cursor = mock_connection
-
-        # fetchall calls: accounts, balances, last_transactions
-        mock_cursor.fetchall.side_effect = [
-            [{'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'TestAdmin'}],
-            [{'Reknum': '1600', 'administration': 'TestAdmin', 'calculated_balance': 500.00, 'account_name': 'Bank'}],
-            []  # no last transactions
+        processor.db.get_bank_account_lookups.return_value = [
+            {'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'TestAdmin'}
         ]
 
-        with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
-             patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'):
+        processor.db.execute_query.side_effect = [
+            # Balance query
+            [{'Reknum': '1600', 'administration': 'TestAdmin', 'calculated_balance': 500.00, 'account_name': 'Bank'}],
+            # Last transactions
+            []
+        ]
 
+        with patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'):
             processor.check_banking_accounts(administration='TestAdmin')
 
-        # Check the balance query (second execute call) includes the date filter
-        execute_calls = mock_cursor.execute.call_args_list
-        # Call 0: account lookup, Call 1: balance query, Call 2: last tx query
-        balance_query_call = execute_calls[1]
-        query_str = balance_query_call[0][0]
-        params = balance_query_call[0][1]
+        # Check the balance query (first execute_query call) includes the date filter
+        balance_call = processor.db.execute_query.call_args_list[0]
+        query_str = balance_call[0][0]
+        params = balance_call[0][1]
 
         assert 'TransactionDate >= %s' in query_str
         assert '2025-01-01' in params
 
-    def test_without_closure_no_date_lower_bound(self, processor, mock_connection):
+    def test_without_closure_no_date_lower_bound(self, processor):
         """Without closure: verify query has no lower date bound (preservation)"""
-        mock_conn, mock_cursor = mock_connection
+        processor.db.get_bank_account_lookups.return_value = [
+            {'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'TestAdmin'}
+        ]
 
-        mock_cursor.fetchall.side_effect = [
-            [{'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'TestAdmin'}],
+        processor.db.execute_query.side_effect = [
             [{'Reknum': '1600', 'administration': 'TestAdmin', 'calculated_balance': 500.00, 'account_name': 'Bank'}],
             []
         ]
 
-        with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
-             patch('banking_processor._get_opening_balance_date', return_value=None):
-
+        with patch('banking_processor._get_opening_balance_date', return_value=None):
             processor.check_banking_accounts(administration='TestAdmin')
 
-        execute_calls = mock_cursor.execute.call_args_list
-        balance_query_call = execute_calls[1]
-        query_str = balance_query_call[0][0]
+        balance_call = processor.db.execute_query.call_args_list[0]
+        query_str = balance_call[0][0]
 
         assert 'TransactionDate >= %s' not in query_str
 
-    def test_with_closure_and_end_date_both_bounds_applied(self, processor, mock_connection):
+    def test_with_closure_and_end_date_both_bounds_applied(self, processor):
         """With closure + end_date: verify both bounds applied"""
-        mock_conn, mock_cursor = mock_connection
+        processor.db.get_bank_account_lookups.return_value = [
+            {'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'TestAdmin'}
+        ]
 
-        mock_cursor.fetchall.side_effect = [
-            [{'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'TestAdmin'}],
+        processor.db.execute_query.side_effect = [
             [{'Reknum': '1600', 'administration': 'TestAdmin', 'calculated_balance': 300.00, 'account_name': 'Bank'}],
             []
         ]
 
-        with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
-             patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'):
-
+        with patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'):
             processor.check_banking_accounts(end_date='2025-06-30', administration='TestAdmin')
 
-        execute_calls = mock_cursor.execute.call_args_list
-        balance_query_call = execute_calls[1]
-        query_str = balance_query_call[0][0]
-        params = balance_query_call[0][1]
+        balance_call = processor.db.execute_query.call_args_list[0]
+        query_str = balance_call[0][0]
+        params = balance_call[0][1]
 
         assert 'TransactionDate <= %s' in query_str
         assert 'TransactionDate >= %s' in query_str

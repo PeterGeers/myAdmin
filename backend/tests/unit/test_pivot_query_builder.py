@@ -294,6 +294,10 @@ class TestTenantIsolation:
     @given(config=valid_config_st())
     def test_empty_tenant_still_filters(self, config):
         """With empty string tenant, WHERE still contains administration = %s."""
+        # Ensure registry is populated (guards against stale Hypothesis replays
+        # where the autouse fixture teardown may have cleared globals)
+        if not SYSTEM_ALLOWED_COLUMNS:
+            build_registry_from_db(_mock_db(), _mock_ps())
         svc = _make_service()
         query, params = svc.build_pivot_query(config, '')
         # Even with empty tenant, the filter is present (prevents data leakage)

@@ -240,6 +240,19 @@ class ComplianceChecker:
             logger.warning("File does not exist: %s", path)
             return []
 
+        # Skip files that intentionally violate rules for testing purposes.
+        # Test maintenance framework tests and the DB-import lint tests
+        # contain forbidden patterns as test data, not as real violations.
+        _normalized = str(path).replace("\\", "/")
+        _EXCLUDED_PATTERNS = (
+            "test_maintenance/",
+            "test_check_db_imports",
+            "test_database_abstraction",
+        )
+        if any(pat in _normalized for pat in _EXCLUDED_PATTERNS):
+            logger.debug("Skipping excluded test file: %s", path)
+            return []
+
         try:
             source = path.read_text(encoding="utf-8")
         except (PermissionError, OSError) as exc:

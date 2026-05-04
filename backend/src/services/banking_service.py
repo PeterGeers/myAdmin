@@ -63,6 +63,9 @@ class BankingService:
         """
         Validate that an IBAN belongs to the specified tenant
         
+        Uses get_bank_account_lookups() to resolve bank accounts from
+        rekeningschema with $.bank_account flag instead of vw_lookup_accounts.
+        
         Args:
             iban (str): IBAN to validate
             tenant (str): Tenant/administration name
@@ -71,20 +74,18 @@ class BankingService:
             dict: Validation result with 'valid', 'tenant', and optional 'error' keys
         """
         try:
-            conn = self.db.get_connection()
-            cursor = conn.cursor(dictionary=True)
+            # Get all bank accounts using canonical $.bank_account flag source
+            all_accounts = self.db.get_bank_account_lookups(administration=None)
             
-            cursor.execute("""
-                SELECT administration FROM vw_lookup_accounts 
-                WHERE rekeningNummer = %s
-            """, (iban,))
-            result = cursor.fetchone()
+            # Find the IBAN in the bank account list
+            matching_account = None
+            for account in all_accounts:
+                if account['rekeningNummer'] == iban:
+                    matching_account = account
+                    break
             
-            cursor.close()
-            conn.close()
-            
-            if result:
-                iban_tenant = result['administration']
+            if matching_account:
+                iban_tenant = matching_account['administration']
                 if iban_tenant != tenant:
                     return {
                         'valid': False,
@@ -98,7 +99,7 @@ class BankingService:
                     }
             else:
                 # IBAN not found in lookup - might be okay for new accounts
-                print(f"Warning: IBAN {iban} not found in vw_lookup_accounts", flush=True)
+                print(f"Warning: IBAN {iban} not found in bank account lookups", flush=True)
                 return {
                     'valid': True,  # Allow processing
                     'tenant': None,
@@ -407,6 +408,8 @@ class BankingService:
                 'success': False,
                 'error': str(e)
             }
+
+    def get_lookups(self, tenant):
         """
         Get mapping data for account codes and descriptions
         
@@ -419,13 +422,11 @@ class BankingService:
         try:
             db = DatabaseManager(test_mode=self.test_mode)
             
-            # Get bank account lookups - FILTERED BY CURRENT TENANT
-            all_bank_accounts = db.get_bank_account_lookups()
-            bank_accounts = [acc for acc in all_bank_accounts if acc.get('administration') == tenant]
+            # Get bank account lookups filtered by tenant at SQL level
+            bank_accounts = db.get_bank_account_lookups(administration=tenant)
             
-            # Get recent transactions for account mapping - FILTERED BY CURRENT TENANT
-            all_recent_transactions = db.get_recent_transactions(limit=100)
-            recent_transactions = [tx for tx in all_recent_transactions if tx.get('administration') == tenant]
+            # Get recent transactions for account mapping filtered by tenant at SQL level
+            recent_transactions = db.get_recent_transactions(limit=100, administration=tenant)
             
             # Extract unique account codes and descriptions
             accounts = set()

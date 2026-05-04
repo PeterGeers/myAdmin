@@ -8,16 +8,13 @@ Requirements: 2.5, 7.2, 7.3, 7.5
 Reference: .kiro/specs/database-abstraction-layer/design.md
 """
 
-import sys
 import os
 import pytest
 from unittest.mock import Mock
 from hypothesis import given, strategies as st, settings
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
 import db_exceptions
-import mysql.connector
+import mysql.connector  # Intentional: testing error wrapping from mysql.connector → agnostic exceptions
 
 
 # ---------------------------------------------------------------------------

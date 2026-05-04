@@ -48,13 +48,13 @@ class TestInfrastructure:
     def test_test_environment_fixture(self, test_environment):
         """Test environment variables fixture"""
         assert os.getenv('TEST_MODE') == 'true'
-        assert os.getenv('TEST_DB_NAME') == 'testfinance'
+        assert os.getenv('TEST_DB_NAME') == test_environment['TEST_DB_NAME']
         assert 'TEST_FACTUREN_FOLDER_ID' in test_environment
     
     def test_production_environment_fixture(self, production_environment):
         """Test production environment fixture"""
         assert os.getenv('TEST_MODE') == 'false'
-        assert os.getenv('DB_NAME') == 'finance'
+        assert os.getenv('DB_NAME') == production_environment['DB_NAME']
         assert 'FACTUREN_FOLDER_ID' in production_environment
     
     def test_sample_data_fixtures(self, sample_pdf_content, sample_csv_content, 

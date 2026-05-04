@@ -288,15 +288,19 @@ class ReportGenerator:
             parts.append("")
             parts.append("| Severity | Count |")
             parts.append("|----------|------:|")
-            for sev in ("critical", "high", "medium", "low"):
+            _SEV_ORDER = (
+                "critical", "forbidden", "high", "medium",
+                "required", "recommended", "low",
+            )
+            for sev in _SEV_ORDER:
                 count = rpt.summary.issues_by_severity.get(sev, 0)
                 if count > 0:
                     parts.append(f"| {sev} | {count} |")
-            # Include any non-standard severities
+            # Include any severities not in the predefined order
             for sev, count in sorted(
                 rpt.summary.issues_by_severity.items()
             ):
-                if sev not in ("critical", "high", "medium", "low"):
+                if sev not in _SEV_ORDER:
                     parts.append(f"| {sev} | {count} |")
             parts.append("")
 

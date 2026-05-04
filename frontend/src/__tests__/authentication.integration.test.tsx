@@ -11,7 +11,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 
@@ -52,47 +52,6 @@ vi.mock('../services/authService', () => ({
   signInWithPassword: vi.fn(),
   signInWithPasskey: vi.fn(),
   isPasskeySupported: vi.fn().mockReturnValue(true),
-}));
-
-// Mock Chakra UI components to avoid dependency issues
-vi.mock('@chakra-ui/react', () => ({
-  ChakraProvider: ({ children }: any) => <div>{children}</div>,
-  Box: ({ children, as: As, onSubmit, ...props }: any) => As === 'form' ? <form onSubmit={onSubmit} {...props}>{children}</form> : <div {...props}>{children}</div>,
-  VStack: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  HStack: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Heading: ({ children, ...props }: any) => <h1 {...props}>{children}</h1>,
-  Text: ({ children, ...props }: any) => <p {...props}>{children}</p>,
-  Button: ({ children, onClick, type, isLoading, loadingText, isDisabled, ...props }: any) => <button onClick={onClick} type={type} disabled={isDisabled || isLoading} {...props}>{isLoading ? loadingText : children}</button>,
-  Image: (props: any) => <img alt="" {...props} />,
-  Container: ({ children }: any) => <div>{children}</div>,
-  Divider: () => <hr />,
-  Link: ({ children, onClick, ...props }: any) => <a onClick={onClick} {...props}>{children}</a>,
-  Alert: ({ children }: any) => <div role="alert">{children}</div>,
-  AlertIcon: () => <span>ℹ️</span>,
-  AlertDescription: ({ children }: any) => <div>{children}</div>,
-  CloseButton: ({ onClick }: any) => <button onClick={onClick}>×</button>,
-  Badge: ({ children }: any) => <span>{children}</span>,
-  Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
-  List: ({ children }: any) => <ul>{children}</ul>,
-  ListItem: ({ children }: any) => <li>{children}</li>,
-  ListIcon: () => <span>✓</span>,
-  FormControl: ({ children }: any) => <div>{children}</div>,
-  FormLabel: ({ children }: any) => <label>{children}</label>,
-  Input: ({ value, onChange, type, placeholder, disabled, ...props }: any) => <input type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} aria-label={placeholder} />,
-  InputGroup: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  InputRightElement: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  IconButton: ({ 'aria-label': ariaLabel, onClick, icon, ...props }: any) => (
-    <button aria-label={ariaLabel} onClick={onClick}>{icon || 'icon-btn'}</button>
-  ),
-  useToast: () => vi.fn(),
-}));
-
-vi.mock('@chakra-ui/icons', () => ({
-  ViewIcon: () => <span>👁</span>,
-  ViewOffIcon: () => <span>👁‍🗨</span>,
-  LockIcon: { name: 'LockIcon' },
-  WarningIcon: { name: 'WarningIcon' },
-  CheckCircleIcon: { name: 'CheckCircleIcon' },
 }));
 
 // Mock react-i18next — t() returns the key as-is

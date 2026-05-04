@@ -1,0 +1,247 @@
+
+ RUN  v4.1.5 C:/Users/peter/aws/myAdmin/frontend
+
+ ÔØ» src/tests/authentication-flow.test.tsx (0 test)
+ ÔØ» src/tests/template-upload-integration.test.tsx (0 test)
+ ÔØ» src/components/LanguageSelector.test.tsx (0 test)
+ ÔØ» src/__tests__/ReferenceAnalysisReport.test.tsx (0 test)
+ ÔØ» src/components/filters/GenericFilter.test.tsx (0 test)
+ ÔØ» src/components/FINReports.test.tsx (0 test)
+ ÔØ» src/components/ProtectedRoute.test.tsx (6 tests | 1 failed) 2587ms
+     ├ù should show loading state when authentication is loading 1450ms
+ ÔØ» src/components/filters/FilterPanel.test.tsx (0 test)
+ ÔØ» src/components/filters/YearFilter.test.tsx (0 test)
+ ÔØ» src/tests/template-management-integration.test.tsx (0 test)
+ ÔØ» src/components/reports/BnbActualsReport.test.tsx (0 test)
+ ÔØ» src/components/reports/BtwReport.test.tsx (0 test)
+ ÔØ» src/__tests__/authentication.integration.test.tsx (0 test)
+ ÔØ» src/components/reports/MutatiesReport.test.tsx (0 test)
+ ÔØ» src/components/TenantSelector.test.tsx (0 test)
+ ÔØ» src/components/filters/__tests__/FilterableHeader.property.test.tsx (0 test)
+ ÔØ» src/components/pivot/__tests__/PivotBuilder.test.tsx (0 test)
+ ÔØ» src/components/reports/__tests__/ProfitLossReport.test.tsx (0 test)
+ ÔØ» src/components/TenantAdmin/TemplateManagement/__tests__/AIHelpButton.test.tsx (0 test)
+ ÔØ» src/components/TenantAdmin/TemplateManagement/__tests__/TemplateManagement.test.tsx (0 test)
+ ÔØ» src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx (0 test)
+ ÔØ» src/components/reports/AangifteIbReport.test.tsx (0 test)
+ ÔØ» src/components/filters/__tests__/FilterableHeader.test.tsx (0 test)
+ ÔØ» src/components/reports/__tests__/BalanceReport.test.tsx (0 test)
+ ÔØ» src/components/TenantAdmin/TemplateManagement/__tests__/TemplateApproval.test.tsx (0 test)
+ ÔØ» src/components/TenantAdmin/TemplateManagement/__tests__/TemplatePreview.test.tsx (0 test)
+ ÔØ» src/components/DuplicateWarningDialog.test.tsx (3 tests | 1 failed) 35478ms
+     ├ù should display duplicate information consistently and provide clear user controls for any duplicate scenario 34953ms
+ ÔØ» src/components/TenantAdmin/TemplateManagement/__tests__/ValidationResults.test.tsx (0 test)
+ ÔØ» src/components/TenantAdmin/__tests__/TaxRateManagement.test.tsx (9 tests | 3 failed) 26825ms
+       ├ù shows loading spinner initially 5341ms
+       ├ù clicking tenant row opens edit modal 7089ms
+       ├ù clicking system row opens modal for sysadmin 6280ms
+ ÔØ» src/components/STRProcessor.test.tsx (31 tests | 3 failed) 70321ms
+     ├ù renders platform selection 5379ms
+     ├ù all selected filenames appear in the rendered output (with seed=-205860349) 27250ms
+     ├ù all selected filenames appear in the rendered output for airbnb platform (with seed=-967479870) 27989ms
+ ÔØ» src/components/TenantAdmin/__tests__/CredentialsManagement.test.tsx (24 tests | 2 failed) 57616ms
+       ├ù renders credential type selector inside upload modal 5624ms
+       ├ù displays error when upload fails 5262ms
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ» Failed Suites 26 ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»
+
+ FAIL  src/components/FINReports.test.tsx [ src/components/FINReports.test.tsx ]
+ FAIL  src/components/LanguageSelector.test.tsx [ src/components/LanguageSelector.test.tsx ]
+ FAIL  src/components/TenantSelector.test.tsx [ src/components/TenantSelector.test.tsx ]
+ FAIL  src/tests/authentication-flow.test.tsx [ src/tests/authentication-flow.test.tsx ]
+ FAIL  src/tests/template-management-integration.test.tsx [ src/tests/template-management-integration.test.tsx ]
+ FAIL  src/tests/template-upload-integration.test.tsx [ src/tests/template-upload-integration.test.tsx ]
+ FAIL  src/__tests__/authentication.integration.test.tsx [ src/__tests__/authentication.integration.test.tsx ]
+ FAIL  src/__tests__/ReferenceAnalysisReport.test.tsx [ src/__tests__/ReferenceAnalysisReport.test.tsx ]
+ FAIL  src/components/filters/FilterPanel.test.tsx [ src/components/filters/FilterPanel.test.tsx ]
+ FAIL  src/components/filters/GenericFilter.test.tsx [ src/components/filters/GenericFilter.test.tsx ]
+ FAIL  src/components/filters/YearFilter.test.tsx [ src/components/filters/YearFilter.test.tsx ]
+ FAIL  src/components/reports/AangifteIbReport.test.tsx [ src/components/reports/AangifteIbReport.test.tsx ]
+ FAIL  src/components/reports/BnbActualsReport.test.tsx [ src/components/reports/BnbActualsReport.test.tsx ]
+ FAIL  src/components/reports/BtwReport.test.tsx [ src/components/reports/BtwReport.test.tsx ]
+ FAIL  src/components/reports/MutatiesReport.test.tsx [ src/components/reports/MutatiesReport.test.tsx ]
+ FAIL  src/components/filters/__tests__/FilterableHeader.property.test.tsx [ src/components/filters/__tests__/FilterableHeader.property.test.tsx ]
+ FAIL  src/components/filters/__tests__/FilterableHeader.test.tsx [ src/components/filters/__tests__/FilterableHeader.test.tsx ]
+ FAIL  src/components/pivot/__tests__/PivotBuilder.test.tsx [ src/components/pivot/__tests__/PivotBuilder.test.tsx ]
+ FAIL  src/components/reports/__tests__/BalanceReport.test.tsx [ src/components/reports/__tests__/BalanceReport.test.tsx ]
+ FAIL  src/components/reports/__tests__/ProfitLossReport.test.tsx [ src/components/reports/__tests__/ProfitLossReport.test.tsx ]
+ FAIL  src/components/TenantAdmin/TemplateManagement/__tests__/AIHelpButton.test.tsx [ src/components/TenantAdmin/TemplateManagement/__tests__/AIHelpButton.test.tsx ]
+ FAIL  src/components/TenantAdmin/TemplateManagement/__tests__/TemplateApproval.test.tsx [ src/components/TenantAdmin/TemplateManagement/__tests__/TemplateApproval.test.tsx ]
+ FAIL  src/components/TenantAdmin/TemplateManagement/__tests__/TemplateManagement.test.tsx [ src/components/TenantAdmin/TemplateManagement/__tests__/TemplateManagement.test.tsx ]
+ FAIL  src/components/TenantAdmin/TemplateManagement/__tests__/TemplatePreview.test.tsx [ src/components/TenantAdmin/TemplateManagement/__tests__/TemplatePreview.test.tsx ]
+ FAIL  src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx [ src/components/TenantAdmin/TemplateManagement/__tests__/TemplateUpload.test.tsx ]
+ FAIL  src/components/TenantAdmin/TemplateManagement/__tests__/ValidationResults.test.tsx [ src/components/TenantAdmin/TemplateManagement/__tests__/ValidationResults.test.tsx ]
+Error: [vitest] No "extendTheme" export is defined on the "@chakra-ui/react" mock. Did you forget to return it from "vi.mock"?
+If you need to partially mock a module, you can use "importOriginal" helper inside:
+
+vi.mock(import("@chakra-ui/react"), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    // your mocked methods
+  }
+})
+
+ ÔØ» src/theme.js:3:15
+      1| import { extendTheme } from '@chakra-ui/react';
+      2|
+      3| const theme = extendTheme({
+       |               ^
+      4|     styles: {
+      5|         global: {
+ ÔØ» src/test-utils.tsx:11:1
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[1/36]ÔÄ»
+
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ» Failed Tests 10 ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»
+
+ FAIL  src/components/DuplicateWarningDialog.test.tsx > DuplicateWarningDialog Property Tests > should display duplicate information consistently and provide clear user controls for any duplicate scenario
+Error: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» src/components/DuplicateWarningDialog.test.tsx:466:3
+    464|    * **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 7.1, 7.2, 7.3,ÔÇª
+    465|    */
+    466|   it('should display duplicate information consistently and provide clÔÇª
+       |   ^
+    467|     // Run property-based test with 100 random test cases
+    468|     for (let i = 0; i < 100; i++) {
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[2/36]ÔÄ»
+
+ FAIL  src/components/ProtectedRoute.test.tsx > ProtectedRoute > should show loading state when authentication is loading
+AssertionError: expected <span id="__chakra_env" hidden></span> to be null
+
+- Expected:
+null
+
++ Received:
+<span
+  hidden=""
+  id="__chakra_env"
+/>
+
+ ÔØ» src/components/ProtectedRoute.test.tsx:63:34
+     61|
+     62|     // Should render nothing during loading
+     63|     expect(container.firstChild).toBeNull();
+       |                                  ^
+     64|   });
+     65|
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[3/36]ÔÄ»
+
+ FAIL  src/components/STRProcessor.test.tsx > STRProcessor Component > renders platform selection
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» src/components/STRProcessor.test.tsx:185:3
+    183| // -------------------------------------------------------------------ÔÇª
+    184| describe('STRProcessor Component', () => {
+    185|   it('renders platform selection', () => {
+       |   ^
+    186|     render(<MockSTRProcessor />);
+    187|     expect(screen.getByRole('option', { name: 'Airbnb' })).toBeInTheDoÔÇª
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[4/36]ÔÄ»
+
+ FAIL  src/components/STRProcessor.test.tsx > Property 7: All selected filenames are displayed > all selected filenames appear in the rendered output (with seed=-205860349)
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» buildTestWithPropRunner node_modules/@fast-check/vitest/lib/vitest-fast-check.js:52:2
+ ÔØ» node_modules/@fast-check/vitest/lib/vitest-fast-check.js:114:71
+ ÔØ» src/components/STRProcessor.test.tsx:214:4
+    212|     [fc.array(filenameArb, { minLength: 1, maxLength: 10 })],
+    213|     { numRuns: 100 },
+    214|   )(
+       |    ^
+    215|     'all selected filenames appear in the rendered output',
+    216|     (filenames) => {
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[5/36]ÔÄ»
+
+ FAIL  src/components/STRProcessor.test.tsx > Property 8: All selected filenames are displayed (Airbnb) > all selected filenames appear in the rendered output for airbnb platform (with seed=-967479870)
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» buildTestWithPropRunner node_modules/@fast-check/vitest/lib/vitest-fast-check.js:52:2
+ ÔØ» node_modules/@fast-check/vitest/lib/vitest-fast-check.js:114:71
+ ÔØ» src/components/STRProcessor.test.tsx:462:4
+    460|     [fc.array(filenameArb, { minLength: 1, maxLength: 10 })],
+    461|     { numRuns: 100 },
+    462|   )(
+       |    ^
+    463|     'all selected filenames appear in the rendered output for airbnb pÔÇª
+    464|     (filenames) => {
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[6/36]ÔÄ»
+
+ FAIL  src/components/TenantAdmin/__tests__/CredentialsManagement.test.tsx > CredentialsManagement Component > Rendering > renders credential type selector inside upload modal
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» src/components/TenantAdmin/__tests__/CredentialsManagement.test.tsx:102:5
+    100|     });
+    101|
+    102|     test('renders credential type selector inside upload modal', asyncÔÇª
+       |     ^
+    103|       render(<CredentialsManagement tenant={mockTenant} />);
+    104|
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[7/36]ÔÄ»
+
+ FAIL  src/components/TenantAdmin/__tests__/CredentialsManagement.test.tsx > CredentialsManagement Component > Error Handling > displays error when upload fails
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» src/components/TenantAdmin/__tests__/CredentialsManagement.test.tsx:491:5
+    489|     });
+    490|
+    491|     test('displays error when upload fails', async () => {
+       |     ^
+    492|       vi.mocked(global.fetch)
+    493|         .mockResolvedValueOnce({
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[8/36]ÔÄ»
+
+ FAIL  src/components/TenantAdmin/__tests__/TaxRateManagement.test.tsx > TaxRateManagement > Rendering > shows loading spinner initially
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» src/components/TenantAdmin/__tests__/TaxRateManagement.test.tsx:44:5
+     42|
+     43|   describe('Rendering', () => {
+     44|     test('shows loading spinner initially', () => {
+       |     ^
+     45|       getTaxRates.mockReturnValue(new Promise(() => {}));
+     46|       render(<TaxRateManagement tenant="T1" />);
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[9/36]ÔÄ»
+
+ FAIL  src/components/TenantAdmin/__tests__/TaxRateManagement.test.tsx > TaxRateManagement > Row Click > clicking tenant row opens edit modal
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» src/components/TenantAdmin/__tests__/TaxRateManagement.test.tsx:81:5
+     79|
+     80|   describe('Row Click', () => {
+     81|     test('clicking tenant row opens edit modal', async () => {
+       |     ^
+     82|       const { container } = render(<TaxRateManagement tenant="T1" />);
+     83|       await waitFor(() => expect(screen.getByText('Toeristenbelasting'ÔÇª
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[10/36]ÔÄ»
+
+ FAIL  src/components/TenantAdmin/__tests__/TaxRateManagement.test.tsx > TaxRateManagement > Row Click > clicking system row opens modal for sysadmin
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ÔØ» src/components/TenantAdmin/__tests__/TaxRateManagement.test.tsx:101:5
+     99|     });
+    100|
+    101|     test('clicking system row opens modal for sysadmin', async () => {
+       |     ^
+    102|       const { container } = render(<TaxRateManagement tenant="T1" isSyÔÇª
+    103|       await waitFor(() => expect(screen.getByText('BTW Hoog')).toBeInTÔÇª
+
+ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»ÔÄ»[11/36]ÔÄ»
+
+
+ Test Files  31 failed | 85 passed (116)
+      Tests  10 failed | 1125 passed (1135)
+   Start at  13:20:16
+   Duration  327.06s (transform 51.74s, setup 141.51s, import 535.81s, tests 760.60s, environment 1401.86s)
+
