@@ -168,6 +168,8 @@ class BankingProcessor:
             # Determine file type and process accordingly
             if 'CSV_' in os.path.basename(file_path):
                 df = self.read_rabo_csv(file_path)
+            elif os.path.basename(file_path).startswith('RA_CC_'):
+                df = self.read_generic_csv(file_path)
             else:
                 df = self.read_generic_csv(file_path)
             

@@ -453,11 +453,24 @@ const BankingProcessor: React.FC = () => {
     }
   };
 
+  /** Map backend credit_card_accounts fields to frontend interface */
+  const mapLookupData = (data: any): any => {
+    if (data.credit_card_accounts) {
+      data.credit_card_accounts = data.credit_card_accounts.map((cc: any) => ({
+        iban: cc.cc_bank_iban || cc.iban || '',
+        Account: cc.Account,
+        card_number: cc.card_number || '',
+        administration: cc.administration,
+      }));
+    }
+    return data;
+  };
+
   const fetchLookupData = useCallback(async () => {
     try {
       const response = await authenticatedGet('/api/banking/lookups');
       const data = await response.json();
-      if (data.success) setLookupData(data);
+      if (data.success) setLookupData(mapLookupData(data));
     } catch (error) {
       console.error('Error fetching lookup data:', error);
     }
@@ -731,7 +744,7 @@ const BankingProcessor: React.FC = () => {
       if (lookupData.bank_accounts.length === 0) {
         const response = await authenticatedGet('/api/banking/lookups');
         const data = await response.json();
-        if (data.success) setLookupData(data);
+        if (data.success) setLookupData(mapLookupData(data));
       }
 
       // Get current tenant for validation
@@ -780,7 +793,7 @@ const BankingProcessor: React.FC = () => {
           
           if (iban) {
             // Look up which tenant this IBAN belongs to
-            const isCreditCardFile = file.name.startsWith('CSV_CC_');
+            const isCreditCardFile = file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_');
             
             if (isCreditCardFile) {
               // Credit card files: look up IBAN in credit_card_accounts
@@ -844,7 +857,7 @@ const BankingProcessor: React.FC = () => {
               header
             );
             allTransactions.push(...revolutTransactions);
-          } else if (file.name.startsWith('CSV_CC_')) {
+          } else if (file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_')) {
             const ccResult = processCreditCardTransactions(columns, currentIndex, lookupData, file.name);
             allTransactions.push(...ccResult.transactions);
             if (ccResult.warnings.length > 0) {
