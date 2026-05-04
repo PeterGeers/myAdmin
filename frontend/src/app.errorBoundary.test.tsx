@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '@/test-utils';
 
 export {};
 

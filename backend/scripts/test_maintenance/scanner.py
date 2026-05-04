@@ -883,6 +883,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         # Default: full scan
         report = scanner.scan()
 
+        # Save JSON + Markdown reports
+        from .report_generator import ReportGenerator
+        gen = ReportGenerator(report)
+        saved = gen.save()
+        if saved.get("json"):
+            print(f"\nJSON report saved:     {saved['json']}")
+        if saved.get("markdown"):
+            print(f"Markdown report saved: {saved['markdown']}")
+
         # Print summary
         print("\n=== Test Health Scanner Report ===")
         print(f"Timestamp: {report.timestamp}")
@@ -908,8 +917,18 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         if report.summary.issues_by_severity:
             print("\nIssues by severity:")
+            _SEVERITY_DISPLAY_ORDER = [
+                "critical", "forbidden", "high", "medium",
+                "required", "recommended", "low",
+            ]
+            for sev in _SEVERITY_DISPLAY_ORDER:
+                count = report.summary.issues_by_severity.get(sev, 0)
+                if count:
+                    print(f"  {sev}: {count}")
+            # Any severities not in the predefined order
             for sev, count in sorted(report.summary.issues_by_severity.items()):
-                print(f"  {sev}: {count}")
+                if sev not in _SEVERITY_DISPLAY_ORDER:
+                    print(f"  {sev}: {count}")
 
         total_issues = (
             len(report.mock_violations)

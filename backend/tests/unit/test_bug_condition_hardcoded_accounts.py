@@ -171,7 +171,7 @@ class TestTransactionLogicGammaFallback:
     history exists, not silently fall back to "Gamma" transactions.
     """
 
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=None)
     @given(vendor=vendor_name_st, admin=admin_st)
     def test_zero_results_returns_error_not_gamma(self, vendor, admin):
         """

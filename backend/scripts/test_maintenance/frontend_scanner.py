@@ -99,6 +99,10 @@ _MSW_SETUP_PATTERNS = [
     re.compile(r"""\bhttp\s*\.\s*(get|post|put|delete|patch|all)\s*\("""),
     re.compile(r"""\brest\s*\.\s*(get|post|put|delete|patch|all)\s*\("""),
     re.compile(r"""\bserver\s*\.\s*(use|listen|resetHandlers|close)\b"""),
+    # vi.fn() / vi.mocked() fetch mocking is an acceptable alternative
+    re.compile(r"""global\s*\.\s*fetch\s*=\s*vi\s*\.\s*fn\b"""),
+    re.compile(r"""\bvi\s*\.\s*mocked\s*\(\s*(global\s*\.\s*)?fetch\s*\)"""),
+    re.compile(r"""\bjest\s*\.\s*fn\s*\(\s*\).*fetch"""),
 ]
 
 # Direct render import from @testing-library/react

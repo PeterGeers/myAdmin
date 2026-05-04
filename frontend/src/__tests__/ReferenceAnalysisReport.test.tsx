@@ -11,80 +11,12 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 
 // Import the component after mocks
 import ReferenceAnalysisReport from '../components/reports/ReferenceAnalysisReport';
 import { authenticatedGet } from '../services/apiService';
-
-// Mock all Chakra UI components
-vi.mock('@chakra-ui/react', () => ({
-  Alert: ({ children, ...props }: any) => <div data-testid={props['data-testid'] || 'alert'} {...props}>{children}</div>,
-  AlertIcon: () => <span data-testid="alert-icon">⚠️</span>,
-  Box: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Button: ({ children, onClick, isDisabled, isLoading, ...props }: any) => (
-    <button 
-      onClick={onClick} 
-      disabled={isDisabled} 
-      data-loading={isLoading}
-      {...props}
-    >
-      {children}
-    </button>
-  ),
-  Card: ({ children }: any) => <div data-testid="card">{children}</div>,
-  CardBody: ({ children }: any) => <div data-testid="card-body">{children}</div>,
-  CardHeader: ({ children }: any) => <div data-testid="card-header">{children}</div>,
-  Checkbox: ({ children, isChecked, onChange }: any) => (
-    <label>
-      <input type="checkbox" checked={isChecked} onChange={onChange} />
-      {children}
-    </label>
-  ),
-  Heading: ({ children, ...props }: any) => <h1 {...props}>{children}</h1>,
-  HStack: ({ children }: any) => <div style={{ display: 'flex' }}>{children}</div>,
-  Input: ({ value, onChange, placeholder, ...props }: any) => (
-    <input 
-      value={value} 
-      onChange={onChange} 
-      placeholder={placeholder}
-      {...props}
-    />
-  ),
-  Menu: ({ children, isOpen }: any) => isOpen ? <div data-testid="menu">{children}</div> : null,
-  MenuButton: ({ children, as: Component = 'button', onClick, ...props }: any) => (
-    <Component onClick={onClick} {...props}>{children}</Component>
-  ),
-  MenuItem: ({ children, onClick }: any) => (
-    <div data-testid="menu-item" onClick={onClick}>{children}</div>
-  ),
-  MenuList: ({ children }: any) => <div data-testid="menu-list">{children}</div>,
-  Table: ({ children }: any) => <table>{children}</table>,
-  TableContainer: ({ children }: any) => <div>{children}</div>,
-  Tbody: ({ children }: any) => <tbody>{children}</tbody>,
-  Td: ({ children }: any) => <td>{children}</td>,
-  Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
-  Th: ({ children }: any) => <th>{children}</th>,
-  Thead: ({ children }: any) => <thead>{children}</thead>,
-  Tr: ({ children }: any) => <tr>{children}</tr>,
-  VStack: ({ children }: any) => <div style={{ display: 'flex', flexDirection: 'column' }}>{children}</div>,
-  FormControl: ({ children }: any) => <div data-testid="form-control">{children}</div>,
-  FormLabel: ({ children, htmlFor }: any) => <label htmlFor={htmlFor}>{children}</label>,
-  Select: ({ children, value, onChange, placeholder, ...props }: any) => (
-    <select value={value} onChange={onChange} {...props}>
-      {placeholder && <option value="">{placeholder}</option>}
-      {children}
-    </select>
-  ),
-  SimpleGrid: ({ children }: any) => <div data-testid="simple-grid">{children}</div>,
-  useDisclosure: () => ({
-    isOpen: false,
-    onOpen: vi.fn(),
-    onClose: vi.fn(),
-  }),
-  ChevronDownIcon: () => <span>▼</span>,
-}));
 
 // Mock the API service
 vi.mock('../services/apiService', () => ({

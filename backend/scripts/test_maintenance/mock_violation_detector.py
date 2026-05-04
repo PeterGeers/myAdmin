@@ -158,6 +158,26 @@ class MockViolationDetector:
         file_str = str(path)
         violations: List[MockViolation] = []
 
+        # Skip test maintenance framework's own tests — they intentionally
+        # import mysql.connector and create real-looking patterns to verify
+        # that the detector catches them.  Reporting these as violations is
+        # a false positive.
+        #
+        # Also skip database abstraction layer tests — they intentionally
+        # import mysql.connector to test the error wrapping layer that maps
+        # driver-specific exceptions to agnostic ones.
+        _normalized = file_str.replace("\\", "/")
+        _EXCLUDED_PATTERNS = (
+            "test_maintenance/",
+            "test_maintenance\\",
+            "test_database_abstraction",
+        )
+        if any(pat in _normalized or pat in file_str for pat in _EXCLUDED_PATTERNS):
+            logger.debug(
+                "Skipping excluded test file: %s", file_str
+            )
+            return []
+
         # Collect names that are patched in this file so we can suppress
         # false positives for properly-mocked code.
         patched_targets = _collect_patched_targets(tree, source)

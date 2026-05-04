@@ -10,7 +10,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, cleanup } from '@/test-utils';
 import '@testing-library/jest-dom';
 import { PivotViewsTab } from '../PivotViewsTab';
 import type {

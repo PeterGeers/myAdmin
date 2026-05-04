@@ -11,7 +11,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import ProtectedRoute from '../components/ProtectedRoute';
 import Login from '../pages/Login';
@@ -52,77 +52,6 @@ vi.mock('../services/authService', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', changeLanguage: vi.fn() } }),
   Trans: ({ children }: any) => children,
-}));
-
-// Mock Chakra UI components to avoid dependency issues
-vi.mock('@chakra-ui/react', () => ({
-  ChakraProvider: ({ children }: any) => <div>{children}</div>,
-  Box: ({ children, as: As, onSubmit, ...props }: any) => {
-    const { bg, p, spacing, borderRadius, boxShadow, minH, alignItems, justifyContent, display, px, maxW, ...domProps } = props;
-    if (As === 'form') return <form onSubmit={onSubmit} {...domProps}>{children}</form>;
-    return <div {...domProps}>{children}</div>;
-  },
-  VStack: ({ children, ...props }: any) => {
-    const { spacing, w, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  HStack: ({ children, ...props }: any) => {
-    const { spacing, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  Heading: ({ children, ...props }: any) => {
-    const { color, ...domProps } = props;
-    return <h1 {...domProps}>{children}</h1>;
-  },
-  Text: ({ children, ...props }: any) => {
-    const { color, fontSize, textAlign, whiteSpace, ...domProps } = props;
-    return <p {...domProps}>{children}</p>;
-  },
-  Button: ({ children, onClick, type, isLoading, loadingText, isDisabled, ...props }: any) => {
-    const { colorScheme, w, variant, leftIcon, size, ...domProps } = props;
-    return <button onClick={onClick} type={type} disabled={isDisabled || isLoading} {...domProps}>{isLoading ? loadingText : children}</button>;
-  },
-  Image: ({ ...props }: any) => {
-    const { maxW, mb, ...domProps } = props;
-    return <img alt="" {...domProps} />;
-  },
-  Container: ({ children, ...props }: any) => {
-    const { maxW, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  Divider: ({ ...props }: any) => <hr />,
-  Link: ({ children, onClick, ...props }: any) => {
-    const { color, cursor, fontSize, _hover, ...domProps } = props;
-    return <a onClick={onClick} {...domProps}>{children}</a>;
-  },
-  Alert: ({ children, ...props }: any) => <div role="alert">{children}</div>,
-  AlertIcon: ({ ...props }: any) => <span>ℹ️</span>,
-  AlertDescription: ({ children }: any) => <div>{children}</div>,
-  Badge: ({ children }: any) => <span>{children}</span>,
-  Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
-  List: ({ children }: any) => <ul>{children}</ul>,
-  ListItem: ({ children }: any) => <li>{children}</li>,
-  ListIcon: () => <span>✓</span>,
-  FormControl: ({ children }: any) => <div>{children}</div>,
-  FormLabel: ({ children }: any) => <label>{children}</label>,
-  Input: ({ value, onChange, type, placeholder, disabled, ...props }: any) => (
-    <input type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} aria-label={placeholder} />
-  ),
-  InputGroup: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  InputRightElement: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  IconButton: ({ 'aria-label': ariaLabel, onClick, icon, ...props }: any) => (
-    <button aria-label={ariaLabel} onClick={onClick}>{icon || 'icon-btn'}</button>
-  ),
-  useToast: () => vi.fn(),
-}));
-
-// Mock @chakra-ui/icons
-vi.mock('@chakra-ui/icons', () => ({
-  ViewIcon: () => <span>👁</span>,
-  ViewOffIcon: () => <span>👁‍🗨</span>,
-  LockIcon: () => <span>🔒</span>,
-  WarningIcon: { name: 'WarningIcon' },
-  CheckCircleIcon: { name: 'CheckCircleIcon' },
 }));
 
 // Mock user data

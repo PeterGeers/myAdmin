@@ -6,20 +6,10 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { AIHelpButton } from '../AIHelpButton';
 import type { AIHelpResponse } from '../../../../types/template';
-
-// Use centralized Chakra UI mocks
-vi.mock('@chakra-ui/react', async () => {
-  const { chakraMock } = await import('../chakraMock');
-  return chakraMock;
-});
-vi.mock('@chakra-ui/icons', async () => {
-  const { iconsMock } = await import('../chakraMock');
-  return iconsMock;
-});
 
 
 
@@ -151,8 +141,9 @@ describe('AIHelpButton', () => {
       const button = screen.getByRole('button', { name: /get ai help/i });
       await user.click(button);
       
-      // Close modal
-      const closeButton = screen.getByRole('button', { name: /close/i });
+      // Close modal - pick the footer Close button (not the ModalCloseButton with aria-label)
+      const closeButtons = screen.getAllByRole('button', { name: /close/i });
+      const closeButton = closeButtons[closeButtons.length - 1];
       await user.click(closeButton);
       
       await waitFor(() => {

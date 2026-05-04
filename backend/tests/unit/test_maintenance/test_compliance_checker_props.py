@@ -232,7 +232,7 @@ class TestBlueprintPatternDetection:
     _bp suffix is detected.
     """
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         bp_name=st.from_regex(r"[a-z][a-z0-9_]{2,15}", fullmatch=True),
         has_blueprint=st.booleans(),

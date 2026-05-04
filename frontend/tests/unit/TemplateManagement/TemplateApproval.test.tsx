@@ -6,18 +6,8 @@
 
 import { vi } from 'vitest';
 
-// Use centralized Chakra UI mocks to avoid @zag-js/focus-visible crash in jsdom
-vi.mock('@chakra-ui/react', async () => {
-  const { chakraMock } = await import('../../../src/components/TenantAdmin/TemplateManagement/chakraMock');
-  return chakraMock;
-});
-vi.mock('@chakra-ui/icons', async () => {
-  const { iconsMock } = await import('../../../src/components/TenantAdmin/TemplateManagement/chakraMock');
-  return iconsMock;
-});
-
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { TemplateApproval } from '../../../src/components/TenantAdmin/TemplateManagement/TemplateApproval';
 

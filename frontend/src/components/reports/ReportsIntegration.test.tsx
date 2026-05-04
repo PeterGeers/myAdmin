@@ -8,11 +8,7 @@
 import { vi } from 'vitest';
 import React from 'react';
 
-vi.mock('@chakra-ui/icons', () => ({
-  ChevronDownIcon: () => <span>▼</span>,
-  ChevronUpIcon: () => <span>▲</span>,
-  CloseIcon: () => <span>✕</span>,
-}));
+
 
 import BnbReportsGroup from './BnbReportsGroup';
 import FinancialReportsGroup from './FinancialReportsGroup';
@@ -29,13 +25,7 @@ import BtwReport from './BtwReport';
 import ReferenceAnalysisReport from './ReferenceAnalysisReport';
 import AangifteIbReport from './AangifteIbReport';
 
-vi.mock('@chakra-ui/react', () => ({
-  Box: 'div', VStack: 'div', Tabs: 'div', TabList: 'div', Tab: 'button',
-  TabPanels: 'div', TabPanel: 'div', Button: 'button', Input: 'input',
-  Select: 'select', Text: 'span', Heading: 'h1', Flex: 'div', Stack: 'div',
-  HStack: 'div', Spinner: 'div', Table: 'table', Thead: 'thead', Tbody: 'tbody',
-  Tr: 'tr', Th: 'th', Td: 'td',
-}));
+
 
 vi.mock('axios');
 vi.mock('../PlotlyChart', () => () => null);

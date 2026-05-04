@@ -30,7 +30,7 @@ const ENGLISH_HEADER = [
 ];
 
 // Minimal bankLookup matching the Revolut IBAN pattern used in production
-const bankLookup = { Account: '1023', administration: 'PeterPrive' };
+const bankLookup = { Account: '1023', administration: 'PeterPrive', rekeningNummer: 'NL08REVO7549383472' };
 
 // =========================================================================
 // Step 1 — Observe behavior on UNFIXED code (concrete deterministic tests)

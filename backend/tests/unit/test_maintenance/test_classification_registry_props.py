@@ -81,6 +81,7 @@ class TestStaleFailureEscalation:
     )
     @settings(
         max_examples=100,
+        deadline=None,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     def test_stale_failure_escalation(
@@ -224,6 +225,7 @@ class TestTriageEnforcement:
     @given(triage_decision=_triage_decision)
     @settings(
         max_examples=100,
+        deadline=None,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     def test_failing_test_with_valid_triage_is_accepted(

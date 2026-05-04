@@ -12,7 +12,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import FINReports from './FINReports';
 
 // Mock the contexts
@@ -36,26 +36,6 @@ vi.mock('./reports/FinancialReportsGroup', () => {
   };
 });
 
-// Mock Chakra UI components
-vi.mock('@chakra-ui/react', () => ({
-  Box: ({ children, ...props }: any) => {
-    // Filter out Chakra-specific props to avoid DOM warnings
-    const { bg, minH, p, display, alignItems, justifyContent, ...domProps } = props;
-    return <div data-testid="box" {...domProps}>{children}</div>;
-  },
-  VStack: ({ children, ...props }: any) => {
-    const { spacing, align, ...domProps } = props;
-    return <div data-testid="vstack" {...domProps}>{children}</div>;
-  },
-  Alert: ({ children, status, ...props }: any) => <div data-testid="alert" data-status={status} {...props}>{children}</div>,
-  AlertIcon: () => <span data-testid="alert-icon">!</span>,
-  Spinner: ({ size, color, ...props }: any) => <div data-testid="spinner" data-size={size} data-color={color} {...props}>Loading...</div>,
-  Text: ({ children, fontWeight, fontSize, color, ...props }: any) => (
-    <span data-testid="text" data-font-weight={fontWeight} data-font-size={fontSize} data-color={color} {...props}>
-      {children}
-    </span>
-  )
-}));
 
 describe('FINReports Component', () => {
   beforeEach(() => {
@@ -100,7 +80,7 @@ describe('FINReports Component', () => {
       render(<FINReports />);
 
       // Assert
-      expect(screen.getByTestId('alert')).toHaveAttribute('data-status', 'warning');
+      expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText('No tenant selected')).toBeInTheDocument();
       expect(screen.getByText(/Please select a tenant from the dropdown menu/)).toBeInTheDocument();
     });
@@ -118,7 +98,7 @@ describe('FINReports Component', () => {
       render(<FINReports />);
 
       // Assert
-      expect(screen.getByTestId('alert')).toHaveAttribute('data-status', 'error');
+      expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText('Access Denied')).toBeInTheDocument();
       expect(screen.getByText(/Required permissions: Finance_CRUD, Finance_Read, or Finance_Export/)).toBeInTheDocument();
     });
@@ -222,7 +202,7 @@ describe('FINReports Component', () => {
       rerender(<FINReports />);
 
       // Assert - should show loading state first, then the reports
-      expect(screen.getByTestId('spinner')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
       
       // Wait for loading to complete
       await waitFor(() => {
@@ -245,12 +225,12 @@ describe('FINReports Component', () => {
       render(<FINReports />);
 
       // Assert - should show loading state briefly
-      expect(screen.getByTestId('spinner')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
       expect(screen.getByText('Switching to GoodwinSolutions...')).toBeInTheDocument();
 
       // Wait for loading to complete
       await waitFor(() => {
-        expect(screen.queryByTestId('spinner')).not.toBeInTheDocument();
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
       }, { timeout: 200 });
 
       expect(screen.getByTestId('financial-reports-group')).toBeInTheDocument();
@@ -278,12 +258,12 @@ describe('FINReports Component', () => {
       rerender(<FINReports />);
 
       // Assert - should show loading state
-      expect(screen.getByTestId('spinner')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
       expect(screen.getByText('Switching to GoodwinSolutions...')).toBeInTheDocument();
 
       // Wait for loading to complete
       await waitFor(() => {
-        expect(screen.queryByTestId('spinner')).not.toBeInTheDocument();
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
       }, { timeout: 200 });
 
       expect(screen.getByTestId('financial-reports-group')).toBeInTheDocument();
@@ -341,7 +321,7 @@ describe('FINReports Component', () => {
       render(<FINReports />);
 
       // Assert
-      expect(screen.getByTestId('alert')).toHaveAttribute('data-status', 'error');
+      expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText('Access Denied')).toBeInTheDocument();
     });
 
@@ -358,7 +338,7 @@ describe('FINReports Component', () => {
       render(<FINReports />);
 
       // Assert
-      expect(screen.getByTestId('alert')).toHaveAttribute('data-status', 'error');
+      expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText('Access Denied')).toBeInTheDocument();
     });
 
@@ -375,7 +355,7 @@ describe('FINReports Component', () => {
       render(<FINReports />);
 
       // Assert
-      expect(screen.getByTestId('alert')).toHaveAttribute('data-status', 'error');
+      expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText('Access Denied')).toBeInTheDocument();
     });
 

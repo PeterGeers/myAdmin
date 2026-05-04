@@ -63,7 +63,7 @@ export interface Transaction {
   Administration: string;
 }
 
-interface LookupData {
+export interface LookupData {
   accounts: string[];
   descriptions: string[];
   bank_accounts: Array<{ rekeningNummer: string; Account: string; administration: string }>;
@@ -110,6 +110,10 @@ const parseCSVRow = (row: string): string[] => {
 };
 
 export const processRevolutTransaction = (columns: string[], index: number, bankLookup: any, fileName: string, header?: string[]): Transaction[] => {
+  if (!bankLookup) {
+    throw new Error('Bank account not configured for Revolut. Please add it in Chart of Accounts with the bank_account flag.');
+  }
+
   const transactions: Transaction[] = [];
   
   // Helper to find column index by name (supports Dutch and English)
@@ -152,7 +156,6 @@ export const processRevolutTransaction = (columns: string[], index: number, bank
 
   if (amount === 0 && fee === 0) return transactions;
 
-  const revolutIban = 'NL08REVO7549383472';
   const currentDate = new Date().toISOString().split('T')[0];
 
   // Main transaction
@@ -168,14 +171,14 @@ export const processRevolutTransaction = (columns: string[], index: number, bank
       TransactionDate: startdatum.split(' ')[0] || '',
       TransactionDescription: beschrijving,
       TransactionAmount: absAmount,
-      Debet: isNegative ? '' : (bankLookup?.Account || '1023'),
-      Credit: isNegative ? (bankLookup?.Account || '1023') : '',
+      Debet: isNegative ? '' : bankLookup.Account,
+      Credit: isNegative ? bankLookup.Account : '',
       ReferenceNumber: '',
-      Ref1: revolutIban,
+      Ref1: bankLookup.rekeningNummer,
       Ref2: ref2,
       Ref3: balance.toString(),
       Ref4: fileName,
-      Administration: bankLookup?.administration || 'PeterPrive'
+      Administration: bankLookup.administration
     });
   }
 
@@ -191,13 +194,13 @@ export const processRevolutTransaction = (columns: string[], index: number, bank
       TransactionDescription: 'Revo Charges',
       TransactionAmount: fee,
       Debet: '',
-      Credit: bankLookup?.Account || '1023',
+      Credit: bankLookup.Account,
       ReferenceNumber: '',
-      Ref1: revolutIban,
+      Ref1: bankLookup.rekeningNummer,
       Ref2: feeRef2,
       Ref3: balance.toString(),
       Ref4: fileName,
-      Administration: bankLookup?.administration || 'PeterPrive'
+      Administration: bankLookup.administration
     });
   }
 
@@ -237,7 +240,7 @@ const processCreditCardTransaction = (columns: string[], index: number, lookupDa
   };
 };
 
-const processRabobankTransaction = (columns: string[], index: number, lookupData: LookupData, fileName: string): Transaction | null => {
+export const processRabobankTransaction = (columns: string[], index: number, lookupData: LookupData, fileName: string): Transaction | null => {
   if (columns.length < 20) return null;
 
   const amountStr = columns[6] || '0';
@@ -248,6 +251,9 @@ const processRabobankTransaction = (columns: string[], index: number, lookupData
 
   const iban = columns[0] || '';
   const bankLookup = lookupData.bank_accounts.find(ba => ba.rekeningNummer === iban);
+  if (!bankLookup) {
+    throw new Error(`Bank account ${iban} is not configured for this tenant. Please add it in Chart of Accounts with the bank_account flag.`);
+  }
   const bankCode = iban.includes('RABO') ? 'RABO' : 'BANK';
   const currentDate = new Date().toISOString().split('T')[0];
 
@@ -264,14 +270,14 @@ const processRabobankTransaction = (columns: string[], index: number, lookupData
     TransactionDate: columns[4] || '',
     TransactionDescription: description,
     TransactionAmount: amount,
-    Debet: isNegative ? '' : (bankLookup?.Account || '1002'),
-    Credit: isNegative ? (bankLookup?.Account || '1002') : '',
+    Debet: isNegative ? '' : bankLookup.Account,
+    Credit: isNegative ? bankLookup.Account : '',
     ReferenceNumber: '', // Leave empty for pattern prediction to fill
     Ref1: columns[0] || '',
     Ref2: parseInt(columns[3] || '0').toString(),
     Ref3: columns[7] || '', // Saldo na trn (balance after transaction)
     Ref4: fileName,
-    Administration: bankLookup?.administration || 'GoodwinSolutions'
+    Administration: bankLookup.administration
   };
 };
 
@@ -776,10 +782,16 @@ const BankingProcessor: React.FC = () => {
                                file.name.toLowerCase().startsWith('account-statement');
           
           if (isRevolutFile) {
-            // Revolut files (TSV or CSV) - use hardcoded IBAN
-            iban = 'NL08REVO7549383472';
+            // Revolut files (TSV or CSV) - find Revolut account from tenant's bank accounts
+            const revolutAccount = lookupData.bank_accounts.find(ba => ba.rekeningNummer.includes('REVO'));
+            if (!revolutAccount) {
+              setMessage('No Revolut bank account configured for this tenant. Please add it in Chart of Accounts with the bank_account flag.');
+              setLoading(false);
+              return;
+            }
+            iban = revolutAccount.rekeningNummer;
             console.log('[TENANT VALIDATION] File:', file.name);
-            console.log('[TENANT VALIDATION] Revolut file detected - using hardcoded IBAN:', iban);
+            console.log('[TENANT VALIDATION] Revolut file detected - using tenant IBAN:', iban);
           } else {
             // Other CSV files - extract IBAN from first column
             const firstDataRow = allRows[1]; // Skip header
@@ -834,7 +846,7 @@ const BankingProcessor: React.FC = () => {
               : parseCSVRow(headerRow);
             const revolutTransactions = processRevolutTransaction(
               columns, currentIndex,
-              lookupData.bank_accounts.find(ba => ba.rekeningNummer === 'NL08REVO7549383472'),
+              lookupData.bank_accounts.find(ba => ba.rekeningNummer.includes('REVO')),
               file.name,
               header
             );
@@ -1070,6 +1082,9 @@ const BankingProcessor: React.FC = () => {
       console.log('[TENANT CHANGE] Auto-refreshing mutaties...');
       fetchMutaties();
       fetchLookupData(); // Also refresh lookup data for new tenant
+      setBankingBalances([]); // Clear stale Check Accounts data from previous tenant
+      setSelectedAccount(''); // Reset account selection for new tenant
+      setSequenceResult(null); // Clear stale sequence check from previous tenant
     }
   }, [currentTenant, fetchMutaties, fetchLookupData]);
 
@@ -1494,7 +1509,7 @@ const BankingProcessor: React.FC = () => {
                           key={`${account.Account}-${account.administration}`} 
                           value={`${account.Account}-${account.administration}`}
                         >
-                          {account.Account} - {account.administration}
+                          {account.Account} - {account.rekeningNummer}
                         </option>
                       ))}
                     </Select>

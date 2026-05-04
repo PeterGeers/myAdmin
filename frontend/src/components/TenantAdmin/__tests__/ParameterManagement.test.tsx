@@ -27,8 +27,8 @@ import { render, screen, waitFor, fireEvent, act } from '../../../test-utils';
 const mockToast = vi.fn();
 
 vi.mock('@chakra-ui/react', async () => {
-  const actual = await vi.importActual('@chakra-ui/react');
-  const React = require('react');
+  const mocks = await vi.importActual<typeof import('@/__mocks__/chakra-ui-react')>('@/__mocks__/chakra-ui-react');
+  const React = await import('react');
 
   // Stable useDisclosure that doesn't trigger cascading re-renders
   function useDisclosure() {
@@ -39,10 +39,14 @@ vi.mock('@chakra-ui/react', async () => {
   }
 
   return {
-    ...actual,
+    ...mocks,
     useDisclosure,
     useToast: () => mockToast,
-    // Portal-free modal components
+    // Tr override: forward cursor as inline style so toHaveStyle assertions work
+    Tr: ({ children, cursor, ...props }: any) => (
+      <tr style={cursor ? { cursor } : undefined} {...props}>{children}</tr>
+    ),
+    // Portal-free modal components with data-testid for test queries
     Modal: ({ isOpen, children }: any) =>
       isOpen ? <div data-testid="modal">{children}</div> : null,
     ModalOverlay: ({ children }: any) => <>{children}</>,

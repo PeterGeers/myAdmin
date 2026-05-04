@@ -6,18 +6,8 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '@/test-utils';
 import { TemplatePreview } from '../TemplatePreview';
-
-// Mock Chakra UI
-vi.mock('@chakra-ui/react', async () => {
-  const { chakraMock } = await import('../chakraMock');
-  return chakraMock;
-});
-vi.mock('@chakra-ui/icons', async () => {
-  const { iconsMock } = await import('../chakraMock');
-  return iconsMock;
-});
 
 describe('TemplatePreview', () => {
   describe('No Preview State', () => {

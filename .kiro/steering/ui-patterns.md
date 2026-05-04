@@ -57,4 +57,4 @@ Use the Table Filter Framework v2 — a hybrid approach: text search filters in 
 - Components: `FilterPanel` (above table), `FilterableHeader` (in `<Th>`)
 - Clear all / reset button to return to default view
 
-When implementing or modifying tables or filters, read the full framework guide at `.kiro/specs/Common/Filters a generic approach/TABLE_FILTER_FRAMEWORK_V2.md`
+When implementing or modifying tables or filters, read the full framework guide at `.kiro\specs\Common\Frameworks\table-filter-framework-v2\design.md`

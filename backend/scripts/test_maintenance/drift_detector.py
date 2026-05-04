@@ -93,6 +93,7 @@ class _FunctionSignature:
     params: List[str]
     line_number: int
     defaults_count: int = 0
+    has_kwargs: bool = False  # True when the function accepts **kwargs
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +156,33 @@ class DriftDetector:
         source_sigs = _extract_function_signatures(source_file)
         if not source_sigs:
             return []
+
+        # When multiple source functions share the same name (e.g. a class
+        # method and a standalone route function), keep only the one with
+        # the most parameters.  Tests typically call the richer signature
+        # (the class method), so matching against the bare route function
+        # produces false positives.
+        best_by_name: Dict[str, "_FunctionSignature"] = {}
+        for sig in source_sigs:
+            existing = best_by_name.get(sig.name)
+            if existing is None or len(sig.params) > len(existing.params):
+                best_by_name[sig.name] = sig
+
+        # Also consult the global best-signature map (built by
+        # detect_all_drift) so that when a route file defines
+        # send_invoice() with few params but a service file defines
+        # send_invoice(self, tenant, invoice_id, options, ...), we use
+        # the richer service signature.
+        global_best = getattr(self, "_global_best_sig", {})
+        for name in list(best_by_name.keys()):
+            g_sig = global_best.get(name)
+            if g_sig is not None and g_sig is not best_by_name[name]:
+                # Always prefer the global best — it was selected using
+                # source-priority (service > other > route) and param
+                # count, so it's the most representative signature.
+                best_by_name[name] = g_sig
+
+        source_sigs = list(best_by_name.values())
 
         issues: List[DriftIssue] = []
 
@@ -259,6 +287,56 @@ class DriftDetector:
         all_issues: List[DriftIssue] = []
 
         backend_map = getattr(self._dep_map, "backend", {})
+
+        # --- Pre-compute a global "best signature" lookup ----------------
+        # When multiple source files define a function with the same name
+        # (e.g. a route function and a service method), keep the one from
+        # the service layer.  Tests typically call service methods, not
+        # route functions directly.  Route functions have decorator-injected
+        # params (user_email, user_roles, tenant, user_tenants) that don't
+        # appear in test calls.
+        #
+        # Priority: service > other > route
+        global_best_sig: Dict[str, _FunctionSignature] = {}
+        _global_best_source: Dict[str, str] = {}  # func_name -> source_file
+
+        def _source_priority(path: str) -> int:
+            """Higher = preferred."""
+            norm = path.replace("\\", "/")
+            if "/services/" in norm:
+                return 2
+            if "/routes/" in norm:
+                return 0
+            return 1
+
+        for source_file in backend_map:
+            sigs = _extract_function_signatures(source_file)
+            if not sigs:
+                continue
+            prio = _source_priority(source_file)
+            for sig in sigs:
+                existing = global_best_sig.get(sig.name)
+                if existing is None:
+                    global_best_sig[sig.name] = sig
+                    _global_best_source[sig.name] = source_file
+                else:
+                    existing_prio = _source_priority(
+                        _global_best_source.get(sig.name, "")
+                    )
+                    # Prefer higher priority source, or more params at
+                    # same priority, or **kwargs
+                    if (
+                        prio > existing_prio
+                        or (prio == existing_prio
+                            and len(sig.params) > len(existing.params))
+                        or (not existing.has_kwargs and sig.has_kwargs)
+                    ):
+                        global_best_sig[sig.name] = sig
+                        _global_best_source[sig.name] = source_file
+
+        # Store the global lookup so detect_signature_drift can use it
+        self._global_best_sig = global_best_sig
+
         for source_file, test_files in backend_map.items():
             if not test_files:
                 continue
@@ -294,6 +372,11 @@ class DriftDetector:
         func_name = src_sig.name
 
         if func_name not in test_calls:
+            return issues
+
+        # If the source function accepts **kwargs, any keyword argument is
+        # valid — skip drift detection entirely for this function.
+        if src_sig.has_kwargs:
             return issues
 
         src_params = set(src_sig.params)
@@ -336,6 +419,9 @@ class DriftDetector:
         if func_name not in test_mock_setups:
             return issues
 
+        if src_sig.has_kwargs:
+            return issues
+
         src_params = set(src_sig.params)
 
         for line_number, mock_kwargs in test_mock_setups[func_name]:
@@ -370,37 +456,103 @@ class DriftDetector:
     ) -> List[DriftIssue]:
         """Compare dictionary keys between source and test files.
 
-        Looks for keys that appear in test mock return values or assertions
-        but are not present in the source file's dictionary definitions.
+        Detects two kinds of drift:
+
+        1. **Source key missing from tests** — a key that the source file
+           defines in a dictionary literal is not referenced anywhere in
+           the test file.  This suggests the test's mock data may be stale.
+        2. **Overlapping-context mismatch** — when a source dict and a test
+           dict share at least half their keys, any key present in the test
+           dict but absent from the source dict is flagged.  This catches
+           renamed keys while ignoring unrelated test fixture data.
+
+        The previous approach (flag every test key absent from source)
+        produced massive false-positive counts because test files naturally
+        contain many keys that have no counterpart in the source (HTTP
+        headers, JWT claims, fixture data, etc.).
         """
         issues: List[DriftIssue] = []
 
-        # Build a flat set of all keys used in the source
+        # Build flat sets
         all_source_keys: Set[str] = set()
-        source_key_contexts: Dict[str, str] = {}
-        for context, keys in source_keys.items():
+        for keys in source_keys.values():
             all_source_keys.update(keys)
-            for key in keys:
-                source_key_contexts[key] = context
 
-        # Check each test key context
-        for context, keys in test_keys.items():
-            for key in keys:
-                if key not in all_source_keys and _is_likely_data_key(key):
-                    # This key appears in the test but not in the source
+        all_test_keys: Set[str] = set()
+        for keys in test_keys.values():
+            all_test_keys.update(keys)
+
+        # --- Strategy 1: source keys missing from overlapping test dicts ---
+        # Only flag a source key as missing when the test file already
+        # references *other* keys from the same source dict context.
+        # This avoids false positives where a test simply doesn't mock
+        # that particular dict at all.
+        for s_context, s_keys in source_keys.items():
+            if len(s_keys) < 3:
+                continue  # skip tiny source dicts
+
+            # How many of this source dict's keys appear in the test?
+            matched = s_keys & all_test_keys
+            if len(matched) < max(2, len(s_keys) * 0.5):
+                # Test doesn't reference enough keys from this dict —
+                # it's probably not trying to mock it.
+                continue
+
+            for key in s_keys - all_test_keys:
+                if _is_likely_data_key(key):
                     issues.append(DriftIssue(
                         source_file=source_file,
                         test_file=test_file,
-                        line_number=0,  # Line-level tracking for keys is approximate
+                        line_number=0,
                         drift_type="key_rename",
-                        severity="medium",
+                        severity="low",
                         old_value=key,
-                        new_value="(key not found in source)",
+                        new_value="(key not found in test)",
                         description=(
-                            f"Test references dictionary key '{key}' "
-                            f"(in context '{context}') that does not appear "
-                            f"in the source file. The key may have been "
-                            f"renamed or removed."
+                            f"Source defines dictionary key '{key}' "
+                            f"(in context '{s_context}') that is not "
+                            f"referenced in the test file, but the test "
+                            f"does reference {len(matched)} other key(s) "
+                            f"from the same source dict. The test's mock "
+                            f"data may be outdated."
+                        ),
+                    ))
+
+        # --- Strategy 2: overlapping-context mismatch ---
+        # For each test dict, find the best-matching source dict.  If they
+        # share ≥50 % of keys, flag test-only keys as potential renames.
+        for t_context, t_keys in test_keys.items():
+            if len(t_keys) < 3:
+                continue  # skip tiny dicts
+
+            best_overlap = 0
+            best_s_keys: Set[str] = set()
+
+            for s_keys in source_keys.values():
+                overlap = len(t_keys & s_keys)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_s_keys = s_keys
+
+            # Require ≥60 % overlap with the best-matching source dict
+            if best_overlap < max(2, len(t_keys) * 0.6):
+                continue
+
+            for key in t_keys - best_s_keys:
+                if _is_likely_data_key(key):
+                    issues.append(DriftIssue(
+                        source_file=source_file,
+                        test_file=test_file,
+                        line_number=0,
+                        drift_type="key_rename",
+                        severity="low",
+                        old_value=key,
+                        new_value="(key not found in matching source dict)",
+                        description=(
+                            f"Test dict (context '{t_context}') shares "
+                            f"{best_overlap} key(s) with a source dict but "
+                            f"also contains '{key}' which is absent from "
+                            f"the source. The key may have been renamed."
                         ),
                     ))
 
@@ -469,12 +621,14 @@ def _extract_function_signatures(
                 for arg in node.args.args
             ]
             defaults_count = len(node.args.defaults)
+            has_kwargs = node.args.kwarg is not None
 
             signatures.append(_FunctionSignature(
                 name=node.name,
                 params=params,
                 line_number=node.lineno,
                 defaults_count=defaults_count,
+                has_kwargs=has_kwargs,
             ))
 
     return signatures
@@ -636,12 +790,27 @@ def _get_string_constant(node: ast.AST) -> Optional[str]:
 
 
 def _is_likely_data_key(key: str) -> bool:
-    """Return ``True`` if *key* looks like a data/business key.
+    """Return ``True`` if *key* looks like a genuine data/business key
+    that warrants drift detection.
 
-    Filters out common non-data keys like ``'return_value'``,
-    ``'side_effect'``, etc. that are mock framework artifacts.
+    Filters out:
+    - Mock framework artifacts (``return_value``, ``side_effect``, …)
+    - HTTP headers and standard request/response keys
+    - JWT / Cognito / auth claim keys
+    - Common test fixture data (env vars, config keys)
+    - Flask / WSGI keys
+    - Python builtins and very short keys
+
+    The goal is to only flag keys that represent *application-specific*
+    data structures (e.g. database column names, API response fields)
+    where a rename in the source should be reflected in the test.
     """
-    # Skip mock framework keys
+    # Skip very short keys (likely loop variables or similar)
+    if len(key) <= 1:
+        return False
+
+    # --- Exact-match skip sets ---
+
     _MOCK_KEYS = {
         "return_value", "side_effect", "called", "call_count",
         "call_args", "call_args_list", "assert_called",
@@ -649,19 +818,84 @@ def _is_likely_data_key(key: str) -> bool:
         "assert_called_once_with", "assert_not_called",
         "reset_mock", "configure_mock",
     }
-    if key in _MOCK_KEYS:
-        return False
 
-    # Skip very short keys (likely loop variables or similar)
-    if len(key) <= 1:
-        return False
-
-    # Skip keys that look like Python builtins or test framework artifacts
-    _SKIP_KEYS = {
+    _PYTHON_KEYS = {
         "type", "class", "module", "name", "args", "kwargs",
         "self", "cls", "True", "False", "None",
     }
-    if key in _SKIP_KEYS:
+
+    # Standard HTTP headers (case-sensitive as they appear in test code)
+    _HTTP_HEADER_KEYS = {
+        "Authorization", "Content-Type", "Accept", "Accept-Encoding",
+        "Accept-Language", "Cache-Control", "Connection", "Cookie",
+        "Host", "Origin", "Referer", "User-Agent",
+        "X-Forwarded-For", "X-Forwarded-Proto", "X-Request-ID",
+        "X-Tenant", "X-Correlation-ID", "X-Api-Key",
+        "Location", "Set-Cookie", "WWW-Authenticate",
+        "Access-Control-Allow-Origin", "Access-Control-Allow-Headers",
+        "Access-Control-Allow-Methods",
+    }
+
+    # JWT / Cognito / auth keys
+    _AUTH_KEYS = {
+        "alg", "typ", "kid", "iss", "sub", "aud", "exp", "iat", "nbf",
+        "jti", "nonce", "at_hash", "c_hash", "auth_time", "token_use",
+        "scope", "client_id",
+        "email", "email_verified", "phone_number", "phone_number_verified",
+        "username", "Username", "UserAttributes",
+        "custom:tenants", "custom:tenant_id", "custom:role",
+        "cognito:groups", "cognito:username",
+        "Name", "Value",  # Cognito UserAttributes structure
+        "AccessToken", "IdToken", "RefreshToken", "TokenType",
+        "ExpiresIn", "AuthenticationResult",
+    }
+
+    # Flask / WSGI / test client keys
+    _FLASK_KEYS = {
+        "TESTING", "DEBUG", "SECRET_KEY", "SERVER_NAME",
+        "APPLICATION_ROOT", "PREFERRED_URL_SCHEME",
+        "json", "data", "status_code", "status", "headers",
+        "content_type", "mimetype", "charset",
+    }
+
+    # Environment variable names commonly used in test fixtures
+    _ENV_KEYS = {
+        "TEST_MODE", "DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD",
+        "DB_NAME", "DATABASE_URL",
+        "COGNITO_USER_POOL_ID", "COGNITO_CLIENT_ID", "COGNITO_REGION",
+        "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+        "GOOGLE_DRIVE_FOLDER_ID", "GOOGLE_CREDENTIALS",
+        "FLASK_ENV", "FLASK_APP", "FLASK_DEBUG",
+        "OPENROUTER_API_KEY", "SNS_TOPIC_ARN",
+    }
+
+    # Common generic / structural keys in test assertions
+    _GENERIC_KEYS = {
+        "id", "key", "value", "error", "message", "detail", "details",
+        "success", "result", "results", "count", "total", "page",
+        "limit", "offset", "sort", "order", "filter", "query",
+        "created_at", "updated_at", "deleted_at", "timestamp",
+        "description", "title", "label", "text", "code",
+        "url", "path", "method", "params", "body", "response",
+        "files", "items", "entries",
+    }
+
+    all_skip = (
+        _MOCK_KEYS | _PYTHON_KEYS | _HTTP_HEADER_KEYS | _AUTH_KEYS
+        | _FLASK_KEYS | _ENV_KEYS | _GENERIC_KEYS
+    )
+    if key in all_skip:
+        return False
+
+    # --- Pattern-based filtering ---
+
+    # Keys starting with common prefixes for headers / env / config
+    _lower = key.lower()
+    if _lower.startswith(("x-", "http_", "content-", "access-control-")):
+        return False
+
+    # Cognito / AWS custom attributes (custom:*, cognito:*)
+    if ":" in key:
         return False
 
     return True

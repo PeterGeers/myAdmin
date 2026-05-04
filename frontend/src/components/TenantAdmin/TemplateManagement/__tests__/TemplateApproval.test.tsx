@@ -6,19 +6,9 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { TemplateApproval } from '../TemplateApproval';
-
-// Mock Chakra UI
-vi.mock('@chakra-ui/react', async () => {
-  const { chakraMock } = await import('../chakraMock');
-  return chakraMock;
-});
-vi.mock('@chakra-ui/icons', async () => {
-  const { iconsMock } = await import('../chakraMock');
-  return iconsMock;
-});
 
 describe('TemplateApproval', () => {
   const mockOnApprove = vi.fn();

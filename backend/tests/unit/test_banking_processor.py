@@ -25,7 +25,7 @@ class TestBankingProcessor:
     @pytest.fixture
     def mock_connection(self):
         """Provide a mock connection and cursor pair for methods that use
-        db.get_connection() directly (check_banking_accounts, check_sequence_numbers,
+        db.get_connection() directly (check_sequence_numbers,
         save_approved_transactions)."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -256,55 +256,53 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert saved_count == 0
 
     @patch('banking_processor._get_opening_balance_date', return_value=None)
-    def test_check_banking_accounts(self, mock_opening_date, banking_processor, mock_connection):
+    def test_check_banking_accounts(self, mock_opening_date, banking_processor):
         """Test banking account balance checking"""
-        mock_conn, mock_cursor = mock_connection
+        # Mock get_bank_account_lookups (step 1)
+        banking_processor.db.get_bank_account_lookups.return_value = [
+            {'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'GoodwinSolutions'}
+        ]
 
-        # The source code does three fetchall() calls:
-        # 1. accounts query → keys: rekeningNummer, Account, administration
-        # 2. balances query → keys: Reknum, administration, calculated_balance, account_name
-        # 3. last transactions → keys: TransactionDate, TransactionDescription,
-        #    TransactionAmount, Debet, Credit, Ref2, Ref3, Ref4
-        mock_cursor.fetchall.side_effect = [
-            [{'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'GoodwinSolutions'}],
+        # Mock execute_query for balances (step 2) and last_transactions (step 3)
+        banking_processor.db.execute_query.side_effect = [
+            # Balance query result
             [{'Reknum': '1600', 'administration': 'GoodwinSolutions', 'calculated_balance': 1000.00, 'account_name': 'Bank Account'}],
+            # Last transactions query result
             [{'TransactionDate': '2025-01-15', 'TransactionDescription': 'Last transaction',
               'TransactionAmount': 100.00, 'Debet': '1600', 'Credit': '',
               'Ref2': 'REF001', 'Ref3': 'https://test.com', 'Ref4': ''}]
         ]
 
-        with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
-            balances = banking_processor.check_banking_accounts()
+        balances = banking_processor.check_banking_accounts()
 
         assert len(balances) == 1
         assert balances[0]['calculated_balance'] == 1000.00
         assert balances[0]['last_transaction_description'] == 'Last transaction'
         assert 'last_transactions' in balances[0]
+        banking_processor.db.get_bank_account_lookups.assert_called_once()
 
     @patch('banking_processor._get_opening_balance_date', return_value=None)
-    def test_check_banking_accounts_no_accounts(self, mock_opening_date, banking_processor, mock_connection):
+    def test_check_banking_accounts_no_accounts(self, mock_opening_date, banking_processor):
         """Test banking account checking with no accounts"""
-        mock_conn, mock_cursor = mock_connection
-        mock_cursor.fetchall.return_value = []
+        banking_processor.db.get_bank_account_lookups.return_value = []
 
-        with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
-            balances = banking_processor.check_banking_accounts()
+        balances = banking_processor.check_banking_accounts()
 
         assert balances == []
 
     @patch('banking_processor._get_opening_balance_date', return_value=None)
-    def test_check_banking_accounts_with_end_date(self, mock_opening_date, banking_processor, mock_connection):
+    def test_check_banking_accounts_with_end_date(self, mock_opening_date, banking_processor):
         """Test banking account checking with end date"""
-        mock_conn, mock_cursor = mock_connection
+        banking_processor.db.get_bank_account_lookups.return_value = [
+            {'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'GoodwinSolutions'}
+        ]
 
-        mock_cursor.fetchall.side_effect = [
-            [{'rekeningNummer': 'NL80RABO0107936917', 'Account': '1600', 'administration': 'GoodwinSolutions'}],
+        banking_processor.db.execute_query.side_effect = [
             [{'Reknum': '1600', 'administration': 'GoodwinSolutions', 'calculated_balance': 500.00, 'account_name': 'Bank Account'}],
             []  # No last transactions
         ]
 
-        with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
-            balances = banking_processor.check_banking_accounts(end_date='2025-01-31')
+        balances = banking_processor.check_banking_accounts(end_date='2025-01-31')
 
         assert len(balances) == 1
         assert balances[0]['last_transaction_description'] == 'No transactions found'

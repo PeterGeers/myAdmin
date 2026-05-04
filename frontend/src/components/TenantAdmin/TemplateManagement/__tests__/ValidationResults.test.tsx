@@ -6,20 +6,10 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { ValidationResults } from '../ValidationResults';
 import type { ValidationResult } from '../../../../types/template';
-
-// Use centralized Chakra UI mocks
-vi.mock('@chakra-ui/react', async () => {
-  const { chakraMock } = await import('../chakraMock');
-  return chakraMock;
-});
-vi.mock('@chakra-ui/icons', async () => {
-  const { iconsMock } = await import('../chakraMock');
-  return iconsMock;
-});
 
 
 

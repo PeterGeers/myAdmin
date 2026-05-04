@@ -71,7 +71,7 @@ describe('CredentialsManagement Component', () => {
     test('renders component with loading state', () => {
       render(<CredentialsManagement tenant={mockTenant} />);
       // Component shows a Spinner while loading
-      expect(document.querySelector('.chakra-spinner')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
     });
 
     test('renders credentials list after loading', async () => {

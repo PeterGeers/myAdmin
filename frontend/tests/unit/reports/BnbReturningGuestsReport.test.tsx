@@ -10,45 +10,6 @@
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-// Mock Chakra UI to avoid @zag-js/focus-visible crash in jsdom
-vi.mock('@chakra-ui/react', () => ({
-  Box: ({ children, ...props }: any) => <div data-testid={props['data-testid']} {...filterDomProps(props)}>{children}</div>,
-  Button: ({ children, onClick, isLoading, ...props }: any) => (
-    <button onClick={onClick} disabled={isLoading} aria-label={props['aria-label']}>
-      {isLoading ? 'Loading...' : children}
-    </button>
-  ),
-  Card: ({ children }: any) => <div>{children}</div>,
-  CardBody: ({ children }: any) => <div>{children}</div>,
-  CardHeader: ({ children }: any) => <div>{children}</div>,
-  Heading: ({ children }: any) => <h2>{children}</h2>,
-  HStack: ({ children, ...props }: any) => <div role={props.role} aria-label={props['aria-label']} onClick={props.onClick}>{children}</div>,
-  Table: ({ children }: any) => <table>{children}</table>,
-  TableContainer: ({ children }: any) => <div>{children}</div>,
-  Tbody: ({ children }: any) => <tbody>{children}</tbody>,
-  Td: ({ children, ...props }: any) => <td colSpan={props.colSpan}>{children}</td>,
-  Text: ({ children }: any) => <span>{children}</span>,
-  Th: ({ children, ...props }: any) => (
-    <th aria-sort={props['aria-sort']} data-isnumeric={props.isNumeric}>
-      {children}
-    </th>
-  ),
-  Thead: ({ children }: any) => <thead>{children}</thead>,
-  Tr: ({ children, onClick, ...props }: any) => (
-    <tr onClick={onClick} data-testid={props['data-testid']}>
-      {children}
-    </tr>
-  ),
-  VStack: ({ children }: any) => <div>{children}</div>,
-  Input: (props: any) => <input {...filterDomProps(props)} />,
-  InputGroup: ({ children }: any) => <div>{children}</div>,
-  InputLeftElement: ({ children }: any) => <span>{children}</span>,
-}));
-
-vi.mock('@chakra-ui/icons', () => ({
-  SearchIcon: () => <span>🔍</span>,
-}));
-
 // Mock translation hook
 vi.mock('../../../src/hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({
@@ -94,25 +55,9 @@ vi.mock('../../../src/services/apiService', () => ({
 }));
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@/test-utils';
 import BnbReturningGuestsReport from '../../../src/components/reports/BnbReturningGuestsReport';
 import { authenticatedGet } from '../../../src/services/apiService';
-
-/** Filter out non-DOM props to avoid React warnings */
-function filterDomProps(props: Record<string, any>) {
-  const nonDom = ['bg', 'color', 'fontSize', 'fontWeight', 'spacing', 'align',
-    'justify', 'size', 'variant', 'colorScheme', 'isNumeric', 'isLoading',
-    'textTransform', 'borderRadius', 'p', 'mb', 'mt', 'w', 'h', '_hover',
-    'cursor', 'pointerEvents', 'boxSize', 'pl', 'autoComplete', 'autoCorrect',
-    'autoCapitalize', 'spellCheck'];
-  const filtered: Record<string, any> = {};
-  for (const [key, value] of Object.entries(props)) {
-    if (!nonDom.includes(key)) {
-      filtered[key] = value;
-    }
-  }
-  return filtered;
-}
 
 const mockGuests = [
   { guestName: 'Alice Johnson', aantal: 5 },

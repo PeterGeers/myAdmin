@@ -33,8 +33,8 @@ import fc from 'fast-check';
 const mockToast = vi.fn();
 
 vi.mock('@chakra-ui/react', async () => {
-  const actual = await vi.importActual('@chakra-ui/react');
-  const React = require('react');
+  const mocks = await vi.importActual<typeof import('@/__mocks__/chakra-ui-react')>('@/__mocks__/chakra-ui-react');
+  const React = await import('react');
 
   function useDisclosure() {
     const [isOpen, setIsOpen] = React.useState(false);
@@ -44,7 +44,7 @@ vi.mock('@chakra-ui/react', async () => {
   }
 
   return {
-    ...actual,
+    ...mocks,
     useDisclosure,
     useToast: () => mockToast,
     Modal: ({ isOpen, children }: any) =>

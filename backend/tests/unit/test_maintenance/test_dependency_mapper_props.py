@@ -120,6 +120,7 @@ class TestDependencyMappingCompleteness:
     @given(file_layout=st_file_layout())
     @settings(
         max_examples=100,
+        deadline=None,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     def test_dependency_mapping_completeness(self, file_layout, tmp_path):

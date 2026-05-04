@@ -1,14 +1,4815 @@
 {
   "version": "1.0",
-  "last_updated": "",
-  "tests": {},
+  "last_updated": "2026-05-02T21:30:09.106060+00:00",
+  "tests": {
+    "backend\\tests\\unit\\test_database_abstraction.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Direct import of 'mysql.connector' in unit test. Unit tests must not import the database driver directly.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_duplicate_performance.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "DatabaseManager(test_mode=True) creates a real database connection. Unit tests must not connect to real databases.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_duplicate_performance.py:262": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "DatabaseManager(test_mode=True) creates a real database connection. Unit tests must not connect to real databases.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_duplicate_performance.py:354": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "DatabaseManager(test_mode=True) creates a real database connection. Unit tests must not connect to real databases.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_infrastructure.py:51": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Hardcoded database name literal found. This couples the test to a specific database name.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_infrastructure.py:57": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Hardcoded database name literal found. This couples the test to a specific database name.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_maintenance\\test_isolation_layer_props.py:45": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Direct import of 'mysql.connector' in unit test. Unit tests must not import the database driver directly.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_maintenance\\test_isolation_layer_props.py:48": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Direct call to mysql.connector.connect() without a mock. This creates a real database connection.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_maintenance\\test_mock_violation_detector.py:78": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Hardcoded database name literal found. This couples the test to a specific database name.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_maintenance\\test_mock_violation_detector.py:196": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Hardcoded database name literal found. This couples the test to a specific database name.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_maintenance\\test_mock_violation_detector.py:113": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Fixture 'setup_test_table' creates real database tables. Unit tests must not perform DDL against a real database.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:96": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Hardcoded database name literal found. This couples the test to a specific database name.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:113": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "Fixture 'setup_test_table' creates real database tables. Unit tests must not perform DDL against a real database.",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_aangifte_ib_details_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_aangifte_ib_export_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_aangifte_ib_xlsx_export_stream_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_aangifte_ib_xlsx_export_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_actuals_balance_per_year.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_actuals_profitloss_ref.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_actuals_routes_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_api_alignment.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_api_manual.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_api_manual.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_bnb_routes_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_both_endpoints.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_cache_and_endpoints_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_duplicate_api.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_mutaties_table_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_pattern_api.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_pattern_api.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_payout_api.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_payout_api.py:32": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_payout_api.py:133": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_payout_api.py:167": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_payout_api.py:180": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_payout_api.py:248": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_payout_api.py:10": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_pivot_routes.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_pivot_routes.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_reference_prediction_api.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_reference_prediction_api.py:11": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_reporting_routes.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_reporting_routes_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:87": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:117": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:138": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:158": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:178": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:203": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:224": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:246": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:265": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:291": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:319": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:339": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:362": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:390": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:422": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:447": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:467": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:490": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:513": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_signup_routes.py:528": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_str_api_live.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_str_error_handling.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_str_error_handling.py:10": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_str_limit_param.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_str_limit_param.py:6": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_str_search.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_sysadmin_pivot_routes.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_template_management_api.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_template_management_api.py:23": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_template_management_api.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_integration.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_integration.py:282": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:46": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:71": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:93": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:122": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:141": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_api_simple.py:166": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_tenant_admin_template_preview.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_year_end_routes.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_year_end_routes.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_zzp_phase12_routes.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_zzp_phase1_routes.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_zzp_phase3_routes.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_zzp_phase3_routes.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_zzp_phase4_routes.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_zzp_phase5_routes.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\api\\test_zzp_phase5_routes.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\conftest.py:39": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\conftest.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU002] @pytest\\.mark\\.(unit|integration|api|e2e)",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\conftest.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\conftest.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_databases.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_databases.py:3": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_databases.py:4": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_databases.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_mutaties_structure.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_mutaties_structure.py:3": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_mutaties_structure.py:4": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\check_mutaties_structure.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_connection.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:45": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:46": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:59": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:146": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:30": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:35": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:125": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:131": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:187": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:256": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:286": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database_views.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database_views.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_database_views.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_mysql_pool_bug_condition.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_mysql_pool_bug_condition.py:38": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_mysql_pool_bug_condition.py:26": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_mysql_pool_preservation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_mysql_pool_preservation.py:47": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_mysql_pool_preservation.py:35": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_query_2.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_query_2.py:4": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_revolut_balance_check.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_search_validation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_vw_bnb_total.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_vw_bnb_total.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\database\\test_vw_bnb_total.py:6": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_aangifte_ib_generator_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_account_summary_tenant_filtering.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_account_summary_tenant_filtering.py:34": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_account_summary_tenant_filtering.py:10": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_btw_aangifte_template_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_credential_rotation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_credential_rotation.py:42": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_credential_rotation.py:26": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_csp_headers.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_duplicate_integration_e2e.py:23": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_duplicate_system_comprehensive.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_google_drive_real_access.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_google_drive_real_access.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_google_drive_real_access.py:11": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_google_drive_real_access.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_google_drive_service_tenants.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_google_drive_service_tenants.py:43": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_google_drive_service_tenants.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_i18n_api.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_invoice_upload_tenant.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_migration_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_migration_integration.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_multi_tenant_scenarios.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_multi_tenant_scenarios.py:44": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_multitenant_phase5.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_multitenant_phase5.py:49": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_payout_real_file.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_payout_upload_manual.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_reference_requirement_validation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_reference_requirement_validation.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_scalability_10x.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_scalability_10x.py:174": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_scalability_10x.py:40": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_airbnb_multi_file_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_airbnb_multi_file_integration.py:21": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_generation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_simple.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_simple.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_template_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_template_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_template_service.py:44": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_template_service.py:129": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_tenant_filtering.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_tenant_filtering.py:29": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_invoice_tenant_filtering.py:351": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_multi_file_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_str_multi_file_integration.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_accessibility.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_accessibility.py:49": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_accessibility.py:518": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_accessibility.py:39": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_accessibility.py:44": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_accessibility.py:508": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_accessibility.py:513": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_ai_help_endpoint.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_ai_help_endpoint.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_ai_help_endpoint.py:177": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_ai_help_endpoint.py:196": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_apply_fixes_endpoint.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_apply_fixes_endpoint.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_approve_endpoint.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_approve_endpoint.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_management_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_management_integration.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_preview_endpoint.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_preview_endpoint.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_preview_endpoint.py:206": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_reject_endpoint.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_service_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_service_integration.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_template_service_integration.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tenant_admin_endpoints_accessible.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tenant_credentials_table.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tenant_credentials_table.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tenant_filtering_comprehensive.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tenant_filtering_comprehensive.py:44": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tenant_filtering_performance.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tenant_filtering_performance.py:53": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_toeristenbelasting_template_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_tourist_tax_rates.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_year_end_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_year_end_integration.py:33": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_year_end_integration.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_zzp_cross_requirement_flows.py:22": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_zzp_full_flow.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\integration\\test_zzp_overdue_reminder_flow.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_aangifte_ib_e2e.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_aangifte_ib_e2e.py:229": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_aangifte_ib_e2e.py:21": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_aangifte_ib_e2e.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_aangifte_ib_e2e.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_cognito_auth.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_cognito_auth.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_cognito_auth.py:11": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_country_query.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_country_query.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_direct_booking_dates.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_email_templates.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_email_templates.py:11": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_integration_workflows.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_integration_workflows.py:80": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_integration_workflows.py:146": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_integration_workflows.py:222": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_integration_workflows.py:325": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_integration_workflows.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_invitation_flow.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_invitation_flow.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_pattern_loading.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_pattern_loading.py:5": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_prediction.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_prediction.py:5": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_railway_connection.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_railway_connection.py:54": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_railway_connection.py:12": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_railway_connection.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_railway_connection.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_rbac_verification.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_rbac_verification.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_resultaat_calc.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_role_checks.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_role_checks.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_sns_email.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_sns_email.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_sns_email.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_sns_email.py:12": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_sysadmin_auth.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_sysadmin_auth.py:10": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_sysadmin_auth.py:12": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_template_preview_api_manual.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_template_validation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_tenant_isolation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_tenant_isolation.py:32": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_tenant_isolation.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_verb_extraction.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\manual\\test_verb_extraction.py:5": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_apply_patterns_button.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_apply_patterns_button.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_apply_patterns_button.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_cache_optimization.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_cache_optimization.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_cache_optimization.py:45": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_cache_optimization.py:90": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_cache_optimization.py:136": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_cache_optimization.py:184": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_cache_optimization.py:230": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_patterns.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_patterns.py:95": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_patterns.py:267": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_patterns.py:299": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_patterns.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_real_data.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_real_data.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_compound_verb_real_data.py:10": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_debet_credit_prediction.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_debet_credit_prediction.py:9": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_enhanced_pattern_analysis.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_enhanced_pattern_analysis.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_improvements.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_improvements.py:29": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_improvements.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_improvements.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_discovery.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_discovery.py:26": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_discovery.py:11": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_discovery.py:12": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_updates.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_updates.py:26": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_updates.py:155": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_incremental_pattern_updates.py:12": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_analysis.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_analysis.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_analysis.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_cache_performance.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_cache_performance.py:28": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_conflict_resolution.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_conflict_resolution.py:28": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_conflict_resolution.py:229": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_conflict_resolution.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_database_storage.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_database_storage.py:42": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_database_storage.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_fix.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_fix.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_fix.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_storage_complete.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_storage_complete.py:38": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_storage_complete.py:67": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_pattern_storage_complete.py:27": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_persistent_cache.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_persistent_cache.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_realistic_pattern_performance.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_realistic_pattern_performance.py:22": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_verb_pattern_logic.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_verb_pattern_logic.py:50": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_verb_pattern_logic.py:152": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\patterns\\test_verb_pattern_logic.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\run_tenant_filtering_tests.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU002] @pytest\\.mark\\.(unit|integration|api|e2e)",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\run_tenant_filtering_tests.py:150": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_integration.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_integration.py:27": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_integration.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_integration.py:26": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_sample_data.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_sample_data.py:29": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_sample_data.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_credential_service_sample_data.py:28": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\test_tenant_context.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU002] @pytest\\.mark\\.(unit|integration|api|e2e)",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\conftest.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\conftest.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_aangifte_ib_generator.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_ai_template_assistant.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_ai_usage_tracker.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_allowed_columns_registry.py:26": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_auth.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_backfill_rekeningschema_flags.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_backward_compatibility.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_banking_balance_closure.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_booking_payout_import.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_booking_payout_import.py:10": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_btw_aangifte_generator.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_bug_condition_closed_period.py:34": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_bug_condition_hardcoded_accounts.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_bug_condition_hardcoded_accounts.py:26": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:1": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:4": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:5": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:30": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:32": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:35": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:39": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:41": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:44": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:47": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:49": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:52": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:55": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:58": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:63": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:69": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:70": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:71": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:77": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:89": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:108": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:117": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:125": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:139": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:150": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:151": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:161": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:163": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:175": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:190": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:210": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:212": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:222": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:231": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:240": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:305": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_check_db_imports.py:21": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_cognito_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_cognito_service.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_common_formatters.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_common_formatters.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_contact_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_credential_service.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:28": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:31": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:32": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:33": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:34": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:41": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:43": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:45": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:60": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:61": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:62": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:63": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:74": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_database_abstraction.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_db_exceptions.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_db_exceptions.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_dead_code_removal.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_dead_code_removal.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_delete_tenant_template.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_dialect_helpers.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_dialect_helpers.py:22": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_docs_build_hook.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_download_default_template.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_duplicate_checker.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_duplicate_performance.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_duplicate_performance.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_duplicate_performance.py:262": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_duplicate_performance.py:354": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_duplicate_performance.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:59": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:65": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:142": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:165": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:174": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:259": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:272": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:60": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:66": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:263": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:273": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:274": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_environment.py:6": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_error_handling.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_error_handling.py:4": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_error_handling_robustness.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_field_config_mixin.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_file_cleanup_manager.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_file_cleanup_manager.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_financial_report_generator.py:11": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_google_drive.py:6": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_image_ai.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_image_ai.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_initial_admin_preservation.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_invitation_service.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_invitation_service_simple.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_invitation_service_simple.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_invoice_booking_helper.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_invoice_booking_helper_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_invoice_booking_helper_props.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_invoice_email_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\__init__.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_classification_registry_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker.py:37": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker.py:75": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker.py:210": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker.py:212": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker.py:320": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker.py:196": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker.py:200": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker_props.py:371": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker_props.py:435": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker_props.py:461": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker_props.py:373": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker_props.py:462": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_compliance_checker_props.py:330": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU004] mock_env",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_dependency_mapper.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_dependency_mapper_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_drift_detector.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_drift_detector_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_flaky_quarantine.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_flaky_quarantine_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_frontend_scanner.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_frontend_scanner_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_import_analyzer.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_isolation_layer_props.py:40": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_isolation_layer_props.py:45": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_isolation_layer_props.py:48": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_maintenance_session_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:28": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:34": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:40": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:126": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:128": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:151": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:191": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:195": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector.py:140": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:64": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:67": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:72": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:99": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:297": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_mock_violation_detector_props.py:102": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_report_generator.py:83": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_report_generator.py:96": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_report_generator.py:97": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_report_generator_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_scanner.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_scanner.py:47": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_scanner.py:75": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU005] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_scanner.py:77": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_scoped_runner.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_maintenance\\test_scoped_runner_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_module_registry.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_module_registry_props.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_nl_template_completeness.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_opening_balance_migrator.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_opening_balance_migrator.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_parameter_admin_routes.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_parameter_service.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_parameter_service_props.py:18": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pattern_validation_fix.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pattern_validation_fix.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_payment_check_helper.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pdf_generator_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pdf_locale_formatting_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pdf_locale_formatting_props.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pdf_processor.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pdf_processor.py:10": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pdf_validation.py:7": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_phase12_ledger_and_booking.py:24": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_phase13_branding.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_phase13_branding.py:19": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pivot_config_validation.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pivot_model_serialization.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pivot_model_store.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pivot_model_store.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pivot_query_builder.py:30": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pivot_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_pivot_service.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_preservation_closed_period.py:32": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_preservation_hardcoded_accounts.py:25": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_product_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_query_helpers.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_query_helpers.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_seed_system_btw_rates.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_seed_system_btw_rates.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_send_flow_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_send_flow_props.py:21": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_ses_email_attachments.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_ses_email_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_storage_provider.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_storage_provider.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_airbnb_multi_import.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_airbnb_multi_import.py:21": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_booking_multi_import.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_booking_multi_import.py:21": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_channel.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_channel.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_channel_routes_fix.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_invoice_generator.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_processor.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_str_processor.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_strict_send_flow.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_sysadmin_provisioning.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tax_rate_admin_routes.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tax_rate_admin_routes.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tax_rate_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tax_rate_service.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tax_rate_service_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tax_rate_service_props.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_template_approval.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_template_preview_service.py:12": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_template_rendering.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_template_service.py:20": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tenant_admin_users_routes.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tenant_admin_users_routes.py:14": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_time_tracking_service.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_toeristenbelasting_generator.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tourist_tax_calculator.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tourist_tax_calculator.py:16": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tourist_tax_calculator_props.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_tourist_tax_calculator_props.py:17": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_transaction_logic.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_valid_template_types.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_vrbo_processor.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_xlsx_export.py:8": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_year_end_config.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU001] mock_db",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_year_end_config.py:13": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend/tests\\unit\\test_year_end_service.py:15": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BU003] ",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\src\\routes\\__init__.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BR001] _bp\\s*=\\s*Blueprint",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    },
+    "backend\\src\\routes\\sysadmin_helpers.py:0": {
+      "category": "unit",
+      "status": "failing",
+      "failure_reason": "[BR001] _bp\\s*=\\s*Blueprint",
+      "triage_decision": "fix",
+      "triage_date": "2026-05-02",
+      "notes": "Auto-populated by baseline snapshot"
+    }
+  },
   "metadata": {
-    "total_tests": 0,
-    "triaged": 0,
+    "total_tests": 600,
+    "triaged": 600,
     "untriaged": 0,
     "by_status": {
       "passing": 0,
-      "failing": 0,
+      "failing": 600,
       "skipped": 0,
       "flaky": 0,
       "quarantined": 0

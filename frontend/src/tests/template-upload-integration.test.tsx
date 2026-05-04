@@ -6,7 +6,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
 import { TemplateUpload } from '../components/TenantAdmin/TemplateManagement/TemplateUpload';
 import * as templateApi from '../services/templateApi';
@@ -24,105 +24,6 @@ vi.mock('../services/templateApi', () => ({
     TOERISTENBELASTING: 'toeristenbelasting',
     FINANCIAL_REPORT: 'financial_report',
   },
-}));
-
-// Mock Chakra UI
-vi.mock('@chakra-ui/react', () => ({
-  Box: ({ children, ...props }: any) => {
-    const { bg, p, borderRadius, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  VStack: ({ children, ...props }: any) => {
-    const { spacing, align, color, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  HStack: ({ children, ...props }: any) => {
-    const { spacing, flex, mt, borderRadius, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  Heading: ({ children }: any) => <h1>{children}</h1>,
-  Text: ({ children, ...props }: any) => {
-    const { fontSize, color, fontWeight, mb, ...domProps } = props;
-    return <p {...domProps}>{children}</p>;
-  },
-  Button: ({ children, onClick, ...props }: any) => {
-    const { colorScheme, isLoading, loadingText, isDisabled, variant, size, w, flex, mb, ...domProps } = props;
-    return (
-      <button onClick={onClick} disabled={isDisabled || isLoading} {...domProps}>
-        {isLoading && loadingText ? loadingText : children}
-      </button>
-    );
-  },
-  Input: ({ ...props }: any) => {
-    const { display, ...domProps } = props;
-    return <input {...domProps} style={display === 'none' ? { display: 'none' } : undefined} />;
-  },
-  Textarea: ({ ...props }: any) => {
-    const { fontFamily, fontSize, bg, isDisabled, minHeight, whiteSpace, overflowX, resize, ...domProps } = props;
-    return <textarea disabled={isDisabled} {...domProps} />;
-  },
-  Select: ({ children, ...props }: any) => {
-    const { isDisabled, placeholder, ...domProps } = props;
-    return <select disabled={isDisabled} {...domProps}>{placeholder && <option value="">{placeholder}</option>}{children}</select>;
-  },
-  FormControl: ({ children, ...props }: any) => {
-    const { isInvalid, isRequired, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  FormLabel: ({ children, ...props }: any) => {
-    const { fontSize, ...domProps } = props;
-    return <label {...domProps}>{children}</label>;
-  },
-  FormErrorMessage: ({ children }: any) => <div role="alert">{children}</div>,
-  FormHelperText: ({ children, ...props }: any) => {
-    const { color, fontSize, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  Alert: ({ children, ...props }: any) => {
-    const { status, variant, bg, borderColor, ...domProps } = props;
-    return <div role="alert" data-status={status} {...domProps}>{children}</div>;
-  },
-  AlertIcon: () => <span>ℹ️</span>,
-  AlertTitle: ({ children, ...props }: any) => {
-    const { fontSize, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  AlertDescription: ({ children, ...props }: any) => {
-    const { fontSize, color, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  AlertDialog: ({ children, ...props }: any) => {
-    const { isOpen, onClose, leastDestructiveRef, ...domProps } = props;
-    return isOpen ? <div role="alertdialog" {...domProps}>{children}</div> : null;
-  },
-  AlertDialogOverlay: () => <div />,
-  AlertDialogContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  AlertDialogHeader: ({ children, ...props }: any) => {
-    const { fontSize, fontWeight, ...domProps } = props;
-    return <h2 {...domProps}>{children}</h2>;
-  },
-  AlertDialogBody: ({ children }: any) => <div>{children}</div>,
-  AlertDialogFooter: ({ children }: any) => <div>{children}</div>,
-  Spinner: ({ ...props }: any) => {
-    const { size, ...domProps } = props;
-    return <div role="status" {...domProps}>Loading...</div>;
-  },
-  Badge: ({ children, ...props }: any) => {
-    const { colorScheme, ml, fontSize, ...domProps } = props;
-    return <span {...domProps}>{children}</span>;
-  },
-  Collapse: ({ children, ...props }: any) => {
-    const { animateOpacity, in: inProp, ...domProps } = props;
-    return <div {...domProps}>{children}</div>;
-  },
-  Icon: ({ as }: any) => <span>{as?.name || 'icon'}</span>,
-  useDisclosure: () => ({
-    isOpen: true,
-    onOpen: vi.fn(),
-    onClose: vi.fn(),
-    onToggle: vi.fn(),
-  }),
-  useToast: () => vi.fn(),
 }));
 
 describe('Template Upload Integration Tests', () => {
@@ -167,6 +68,8 @@ describe('Template Upload Integration Tests', () => {
       expect(screen.getByText(/KB/i)).toBeInTheDocument();
 
       // Step 3: Add field mappings (optional)
+      const expandButton = screen.getByRole('button', { name: /advanced: field mappings/i });
+      await user.click(expandButton);
       const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
       fireEvent.change(textarea, {
         target: { value: '{"invoice_number": "{{invoice_id}}", "total": "{{amount}}"}' },
@@ -273,6 +176,8 @@ describe('Template Upload Integration Tests', () => {
       fireEvent.change(input);
 
       // Enter invalid JSON
+      const expandButton = screen.getByRole('button', { name: /advanced: field mappings/i });
+      await user.click(expandButton);
       const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
       fireEvent.change(textarea, { target: { value: '{invalid json}' } });
 
@@ -303,6 +208,8 @@ describe('Template Upload Integration Tests', () => {
       fireEvent.change(input);
 
       // Leave field mappings as default ({})
+      const expandButton = screen.getByRole('button', { name: /advanced: field mappings/i });
+      await user.click(expandButton);
       const textarea = screen.getByRole('textbox', { name: /field mappings \(json\)/i });
       expect(textarea).toHaveValue('{}');
 

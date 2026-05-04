@@ -7,7 +7,7 @@
 
 import { vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@/test-utils';
 import '@testing-library/jest-dom';
 import AangifteIbReport from './AangifteIbReport';
 import { useTenant } from '../../context/TenantContext';
@@ -31,38 +31,7 @@ vi.mock('../../config', () => ({
   })
 }));
 
-// Mock Chakra UI components with proper prop destructuring (strip colorScheme, bg, etc.)
-vi.mock('@chakra-ui/react', () => ({
-  VStack: ({ children, ...props }: any) => <div data-testid="vstack" {...props}>{children}</div>,
-  Alert: ({ children, status, ...props }: any) => <div data-testid="alert" {...props}>{children}</div>,
-  AlertIcon: () => <span data-testid="alert-icon">!</span>,
-  Card: ({ children, bg, ...props }: any) => <div data-testid="card" {...props}>{children}</div>,
-  CardBody: ({ children, ...props }: any) => <div data-testid="card-body" {...props}>{children}</div>,
-  CardHeader: ({ children, ...props }: any) => <div data-testid="card-header" {...props}>{children}</div>,
-  Heading: ({ children, ...props }: any) => <h2 data-testid="heading" {...props}>{children}</h2>,
-  HStack: ({ children, ...props }: any) => <div data-testid="hstack" {...props}>{children}</div>,
-  Text: ({ children, ...props }: any) => <span data-testid="text" {...props}>{children}</span>,
-  Button: ({ children, onClick, isDisabled, isLoading, colorScheme, ...props }: any) => (
-    <button
-      data-testid="button"
-      onClick={onClick}
-      disabled={isDisabled || isLoading}
-      {...props}
-    >
-      {children}
-    </button>
-  ),
-  Box: ({ children, bg, ...props }: any) => <div data-testid="box" {...props}>{children}</div>,
-  Progress: ({ value, colorScheme, bg, ...props }: any) => <div data-testid="progress" data-value={value} {...props} />,
-  Table: ({ children, ...props }: any) => <table data-testid="table" {...props}>{children}</table>,
-  TableContainer: ({ children, ...props }: any) => <div data-testid="table-container" {...props}>{children}</div>,
-  Tbody: ({ children, ...props }: any) => <tbody data-testid="tbody" {...props}>{children}</tbody>,
-  Td: ({ children, isNumeric, ...props }: any) => <td data-testid="td" {...props}>{children}</td>,
-  Th: ({ children, isNumeric, ...props }: any) => <th data-testid="th" {...props}>{children}</th>,
-  Thead: ({ children, ...props }: any) => <thead data-testid="thead" {...props}>{children}</thead>,
-  Tr: ({ children, bg, _hover, ...props }: any) => <tr data-testid="tr" {...props}>{children}</tr>,
-  useToast: () => vi.fn(),
-}));
+
 
 // Mock FilterPanel
 vi.mock('../filters/FilterPanel', () => {
@@ -186,7 +155,7 @@ describe('AangifteIbReport', () => {
       
       // Should show warning
       await waitFor(() => {
-        expect(screen.getByTestId('alert')).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
       });
     });
   });
