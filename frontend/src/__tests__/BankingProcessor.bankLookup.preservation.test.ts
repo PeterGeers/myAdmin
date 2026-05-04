@@ -47,6 +47,8 @@ describe('Preservation — Observe Rabobank current behavior on unfixed code', (
       bank_accounts: [
         { rekeningNummer: 'NL44RABO0123456789', Account: '1100', administration: 'TestTenant' },
       ],
+      credit_card_accounts: [],
+      exchange_rate_account: null,
     };
 
     // Build a valid Rabobank CSV row (22 columns)
@@ -180,6 +182,8 @@ describe('Preservation — Property: Rabobank valid bank lookups produce correct
             bank_accounts: [
               { rekeningNummer: iban, Account: accountCode, administration: admin },
             ],
+            credit_card_accounts: [],
+            exchange_rate_account: null,
           };
 
           // Build valid Rabobank CSV row (22 columns)

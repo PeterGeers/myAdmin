@@ -425,6 +425,12 @@ class BankingService:
             # Get bank account lookups filtered by tenant at SQL level
             bank_accounts = db.get_bank_account_lookups(administration=tenant)
             
+            # Get credit card account lookups filtered by tenant
+            credit_card_accounts = db.get_credit_card_lookups(administration=tenant)
+            
+            # Get exchange rate account for foreign currency difference bookings
+            exchange_rate_accounts = db.get_exchange_rate_account(administration=tenant)
+            
             # Get recent transactions for account mapping filtered by tenant at SQL level
             recent_transactions = db.get_recent_transactions(limit=100, administration=tenant)
             
@@ -444,7 +450,9 @@ class BankingService:
                 'success': True,
                 'accounts': sorted(list(accounts)),
                 'descriptions': sorted(list(descriptions)),
-                'bank_accounts': bank_accounts
+                'bank_accounts': bank_accounts,
+                'credit_card_accounts': credit_card_accounts,
+                'exchange_rate_account': exchange_rate_accounts[0]['Account'] if exchange_rate_accounts else None
             }
             
         except Exception as e:

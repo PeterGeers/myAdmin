@@ -95,7 +95,7 @@ const QuickAddBar: React.FC<QuickAddBarProps> = ({ contacts, onAdded }) => {
 
 /* ─── Summary Tabs ─── */
 interface SummaryTabsProps {
-  t: (key: string, fallback?: string) => string;
+  t: (key: string, options?: Record<string, any>) => string;
 }
 
 const SummaryTabs: React.FC<SummaryTabsProps> = ({ t }) => {

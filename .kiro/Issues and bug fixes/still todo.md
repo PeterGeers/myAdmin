@@ -2,9 +2,9 @@
 
 Same colour for all functions within a module like the module title
 
-# Make som functions tenant dependant
+# Make some functions tenant optional
 
-- Activa beheer is CRUD and/or Read
+- Activa beheer is CRUD and/or Read 
 - STR Kanaal omzet (a real FIN function but strongly related to STR)
 
 # Time tracking
@@ -58,8 +58,20 @@ why do you keep testing all unit tests of which some fail and takes a lot of tim
 Update to use database framework .kiro\steering\database-patterns.md 
 
 # ai use log table
-ad ai use in invoice processor
 
+# Create a new spec under .kiro/specs/Common/Frameworks/ for "frontend-test-type-safety" to systematically fix all 41 files
+Here's the situation:
 
-# Import Credit Cards (official feature)
-Out of scope: Credit card file processing (CSV_CC_*) with its hardcoded account codes ('4002', '2001') and IBAN-to-tenant mapping (NL71RABO0148034454) — this requires a separate $.credit_card parameter flag or similar identifier and will be addressed in a future spec
+Both existing specs are essentially complete (test-maintenance-framework is fully done, chakra-mock-framework has tasks 9-10 remaining but those are cleanup/docs, not related to these TS errors).
+
+The 210 TypeScript errors are a separate concern — they're about:
+
+vi.MockedFunction namespace not being recognized by tsc (Vitest 4.x typing issue)
+Partial Response mock objects missing required properties
+mockImplementation() signature changes in Vitest 4.x
+A few possibly undefined strictness issues
+These don't fit naturally into either existing spec. They need their own fix — either a new spec or a direct fix. Since both existing framework specs are done, I'd recommend one of:
+
+Create a new spec under .kiro/specs/Common/Frameworks/ for "frontend-test-type-safety" to systematically fix all 41 files
+Fix them directly — the patterns are mechanical (3 repeatable transforms across 41 files)
+Skip for now — they don't block runtime (all tests pass), only tsc --noEmit

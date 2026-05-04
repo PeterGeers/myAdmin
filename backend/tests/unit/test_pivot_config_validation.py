@@ -206,7 +206,7 @@ class TestColumnRoleOverlapRejection:
                 [],
             )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, database=None)
     @given(
         shared_col=groupable_col_st,
         extra_group=st.lists(groupable_col_st, max_size=3),

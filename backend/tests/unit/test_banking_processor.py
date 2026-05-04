@@ -406,6 +406,112 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert processor.download_folder == '/home/user/Downloads'
         mock_expanduser.assert_called_with("~/Downloads")
 
+    # --- Ref2-based duplicate detection tests ---
+
+    def test_save_ref2_duplicate_is_skipped(self, banking_processor, mock_connection):
+        """Test that a transaction with a Ref2 matching an existing record is skipped"""
+        mock_conn, mock_cursor = mock_connection
+        transactions = [
+            {
+                'row_id': 0,
+                'TransactionNumber': 'Visa 2025-06-01',
+                'TransactionAmount': 42.50,
+                'TransactionDescription': 'AWS Services',
+                'TransactionDate': '2025-06-01',
+                'administration': 'TestTenant',
+                'Ref2': 'TXN-REF-001',
+            }
+        ]
+
+        # Ref2 check returns a match → duplicate
+        mock_cursor.fetchone.return_value = {'ID': 999}
+
+        with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
+            saved_count = banking_processor.save_approved_transactions(transactions)
+
+        assert saved_count == 0
+        banking_processor.db.insert_transaction.assert_not_called()
+
+    def test_save_ref2_no_match_proceeds_to_save(self, banking_processor, mock_connection):
+        """Test that a transaction with a Ref2 NOT matching any existing record proceeds to save"""
+        mock_conn, mock_cursor = mock_connection
+        transactions = [
+            {
+                'row_id': 0,
+                'TransactionNumber': 'Visa 2025-06-01',
+                'TransactionAmount': 42.50,
+                'TransactionDescription': 'AWS Services',
+                'TransactionDate': '2025-06-01',
+                'administration': 'TestTenant',
+                'Ref2': 'TXN-REF-NEW',
+            }
+        ]
+
+        # Ref2 check returns no match, fuzzy check also returns no match
+        mock_cursor.fetchone.return_value = None
+        mock_cursor.fetchall.return_value = []
+
+        with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
+            saved_count = banking_processor.save_approved_transactions(transactions)
+
+        assert saved_count == 1
+        banking_processor.db.insert_transaction.assert_called_once()
+
+    def test_save_empty_ref2_falls_through_to_fuzzy_check(self, banking_processor, mock_connection):
+        """Test that a transaction with empty Ref2 falls through to the existing fuzzy check"""
+        mock_conn, mock_cursor = mock_connection
+        transactions = [
+            {
+                'row_id': 0,
+                'TransactionNumber': 'Rabo 2025-06-01',
+                'TransactionAmount': 100.00,
+                'TransactionDescription': 'Some payment',
+                'TransactionDate': '2025-06-01',
+                'administration': 'TestTenant',
+                'Ref2': '',
+            }
+        ]
+
+        # Fuzzy check returns no match
+        mock_cursor.fetchall.return_value = []
+
+        with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
+            saved_count = banking_processor.save_approved_transactions(transactions)
+
+        assert saved_count == 1
+        banking_processor.db.insert_transaction.assert_called_once()
+        # Verify the Ref2 SELECT was NOT executed (empty Ref2 skips it)
+        # The only cursor.execute calls should be for the fuzzy check
+        ref2_calls = [
+            call for call in mock_cursor.execute.call_args_list
+            if 'Ref2 = %s' in str(call)
+        ]
+        assert len(ref2_calls) == 0
+
+    def test_save_ref2_fx_suffix_deduplicated(self, banking_processor, mock_connection):
+        """Test that _FX suffixed Ref2 values are also deduplicated correctly"""
+        mock_conn, mock_cursor = mock_connection
+        transactions = [
+            {
+                'row_id': 0,
+                'TransactionNumber': 'Visa Koers 2025-06-01',
+                'TransactionAmount': 1.23,
+                'TransactionDescription': 'Koersverschil USD 25,00 @ 1.08',
+                'TransactionDate': '2025-06-01',
+                'administration': 'TestTenant',
+                'Ref2': 'TXN-REF-001_FX',
+            }
+        ]
+
+        # Ref2 check returns a match → duplicate (the _FX transaction was already imported)
+        mock_cursor.fetchone.return_value = {'ID': 1000}
+
+        with patch.object(banking_processor.db, 'get_connection', return_value=mock_conn):
+            saved_count = banking_processor.save_approved_transactions(transactions)
+
+        assert saved_count == 0
+        banking_processor.db.insert_transaction.assert_not_called()
+
 
 if __name__ == '__main__':
     pytest.main([__file__])
