@@ -97,11 +97,26 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
         str_revenue_account = str_revenue_rows[0]['Account']
         
         # Resolve VAT rate and account from TaxRateService
+        # btw_accommodation rates are stored with tax_type='btw_accommodation'
+        # and tax_code='high' or 'low' depending on the effective date.
+        # We query all active btw_accommodation codes and pick the one valid for this date.
         transaction_date = datetime.strptime(end_date, '%Y-%m-%d').date()
         tax_svc = TaxRateService(db)
-        rate_info = tax_svc.get_tax_rate(
-            administration, 'btw', 'accommodation', transaction_date
-        )
+        
+        # Try btw_accommodation codes (high, low) for the transaction date
+        rate_info = None
+        for code in ('high', 'low'):
+            rate_info = tax_svc.get_tax_rate(
+                administration, 'btw_accommodation', code, transaction_date
+            )
+            if rate_info:
+                break
+        
+        # Fallback: try legacy format (btw / accommodation)
+        if not rate_info:
+            rate_info = tax_svc.get_tax_rate(
+                administration, 'btw', 'accommodation', transaction_date
+            )
         
         if not rate_info:
             cursor.close()
