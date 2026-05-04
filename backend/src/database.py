@@ -405,6 +405,52 @@ class DatabaseManager:
             )
         return self.execute_query(base_query + " ORDER BY administration, Account")
     
+    def get_credit_card_lookups(self, administration=None):
+        """Get credit card lookup data from rekeningschema using parameters $.credit_card flag.
+
+        Args:
+            administration: Optional tenant filter
+
+        Returns:
+            List of dicts with keys: cc_bank_iban, Account, card_number, administration
+        """
+        base_query = """
+            SELECT
+                JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.cc_bank_iban')) AS cc_bank_iban,
+                Account,
+                JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.card_number')) AS card_number,
+                administration
+            FROM rekeningschema
+            WHERE JSON_EXTRACT(parameters, '$.credit_card') = true
+        """
+        if administration:
+            return self.execute_query(
+                base_query + " AND administration = %s ORDER BY administration, Account",
+                (administration,)
+            )
+        return self.execute_query(base_query + " ORDER BY administration, Account")
+    
+    def get_exchange_rate_account(self, administration=None):
+        """Get the exchange rate difference account from rekeningschema.
+
+        Args:
+            administration: Optional tenant filter
+
+        Returns:
+            List of dicts with keys: Account, administration
+        """
+        base_query = """
+            SELECT Account, administration
+            FROM rekeningschema
+            WHERE JSON_EXTRACT(parameters, '$.exchange_rate_account') = true
+        """
+        if administration:
+            return self.execute_query(
+                base_query + " AND administration = %s",
+                (administration,)
+            )
+        return self.execute_query(base_query)
+    
     def get_existing_sequences(self, iban, table_name='mutaties', administration=None):
         """Get existing Ref2 sequences for a specific IBAN within last 2 years, optionally filtered by administration"""
         query = f"""

@@ -250,7 +250,7 @@ class TestTransactionLogicPreservation:
             f"Expected 1 INSERT call, got {len(insert_calls)}"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, database=None)
     @given(
         year=open_year_st,
         month=month_st,

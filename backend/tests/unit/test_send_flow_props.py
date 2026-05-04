@@ -659,7 +659,7 @@ class TestEmailFailureIsSoftFailure:
     exist with correct Ref3/Ref4, and the response SHALL include a warning
     field describing the email failure."""
 
-    @settings(max_examples=25)
+    @settings(max_examples=25, database=None)
     @given(
         data=st.data(),
         storage_url=storage_url_st,

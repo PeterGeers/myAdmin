@@ -43,6 +43,7 @@ import { FieldHelp } from './help';
 import AccountSelect from './common/AccountSelect';
 import { useAccountLookup } from '../hooks/useAccountLookup';
 import BankingMutatiesTab from './banking/BankingMutatiesTab';
+import { processCreditCardTransactions } from './banking/CreditCardProcessor';
 import { useFilterableTable } from '../hooks/useFilterableTable';
 import { FilterableHeader } from './filters/FilterableHeader';
 
@@ -63,10 +64,19 @@ export interface Transaction {
   Administration: string;
 }
 
+export interface CreditCardAccount {
+  iban: string;
+  Account: string;
+  card_number: string;
+  administration: string;
+}
+
 export interface LookupData {
   accounts: string[];
   descriptions: string[];
   bank_accounts: Array<{ rekeningNummer: string; Account: string; administration: string }>;
+  credit_card_accounts: CreditCardAccount[];
+  exchange_rate_account: string | null;
 }
 
 interface BankingBalance {
@@ -207,39 +217,6 @@ export const processRevolutTransaction = (columns: string[], index: number, bank
   return transactions;
 };
 
-const processCreditCardTransaction = (columns: string[], index: number, lookupData: LookupData, fileName: string): Transaction | null => {
-  if (columns.length < 13) return null;
-
-  const amountStr = columns[8] || '0';
-  const amount = Math.abs(parseFloat(amountStr.replace(',', '.')));
-  
-  if (amount === 0) return null;
-
-  const isNegative = amountStr.startsWith('-');
-  const iban = columns[0] || '';
-  const administration = iban.includes('NL71RABO0148034454') ? 'PeterPrive' : 'GoodwinSolutions';
-  const currentDate = new Date().toISOString().split('T')[0];
-  
-  // Build description from multiple columns (index 9 onwards)
-  const description = columns.slice(9).filter(col => col && col.trim()).join(' ').trim();
-  
-  return {
-    row_id: index,
-    TransactionNumber: `Visa ${currentDate}`,
-    TransactionDate: columns[7] || '', // Datum column
-    TransactionDescription: description,
-    TransactionAmount: amount,
-    Debet: isNegative ? '4002' : '2001', // Negative = expense (4002), Positive = credit (2001)
-    Credit: isNegative ? '2001' : '2001', // Always credit to 2001
-    ReferenceNumber: 'Default',
-    Ref1: columns[3] || '', // Productnaam (Rabo BusinessCard Visa)
-    Ref2: columns[6] || '', // Transactiereferentie (UNIQUE transaction ID)
-    Ref3: iban,
-    Ref4: '',
-    Administration: administration
-  };
-};
-
 export const processRabobankTransaction = (columns: string[], index: number, lookupData: LookupData, fileName: string): Transaction | null => {
   if (columns.length < 20) return null;
 
@@ -294,7 +271,7 @@ const BankingProcessor: React.FC = () => {
   const [modalError, setModalError] = useState('');
   const [patternResults, setPatternResults] = useState<any>(null);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState<boolean>(false);
-  const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [] });
+  const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [], credit_card_accounts: [], exchange_rate_account: null });
   const [filterOptions, setFilterOptions] = useState<{ years: string[], administrations: string[] }>({ years: [], administrations: [] });
   const [mutatiesFilters, setMutatiesFilters] = useState({
     years: [new Date().getFullYear().toString()]
@@ -803,18 +780,34 @@ const BankingProcessor: React.FC = () => {
           
           if (iban) {
             // Look up which tenant this IBAN belongs to
-            const bankLookup = lookupData.bank_accounts.find(ba => ba.rekeningNummer === iban);
-            console.log('[TENANT VALIDATION] Bank lookup result:', bankLookup);
+            const isCreditCardFile = file.name.startsWith('CSV_CC_');
             
-            if (bankLookup) {
-              // IBAN found in current tenant's accounts - validation passed
-              console.log('[TENANT VALIDATION] IBAN belongs to current tenant - validation passed');
+            if (isCreditCardFile) {
+              // Credit card files: look up IBAN in credit_card_accounts
+              const ccLookup = lookupData.credit_card_accounts?.find(cc => cc.iban === iban);
+              console.log('[TENANT VALIDATION] Credit card lookup result:', ccLookup);
+              
+              if (ccLookup) {
+                console.log('[TENANT VALIDATION] IBAN found in credit card accounts - validation passed');
+              } else {
+                console.log('[TENANT VALIDATION] IBAN not found in credit card accounts - BLOCKED');
+                setMessage(t('messages.accessDenied', { iban, file: file.name }));
+                setLoading(false);
+                return;
+              }
             } else {
-              // IBAN not found in current tenant's accounts - REJECT
-              console.log('[TENANT VALIDATION] IBAN not found in current tenant accounts - BLOCKED');
-              setMessage(t('messages.accessDenied', { iban, file: file.name }));
-              setLoading(false);
-              return;
+              // Regular bank files: look up IBAN in bank_accounts
+              const bankLookup = lookupData.bank_accounts.find(ba => ba.rekeningNummer === iban);
+              console.log('[TENANT VALIDATION] Bank lookup result:', bankLookup);
+              
+              if (bankLookup) {
+                console.log('[TENANT VALIDATION] IBAN belongs to current tenant - validation passed');
+              } else {
+                console.log('[TENANT VALIDATION] IBAN not found in current tenant accounts - BLOCKED');
+                setMessage(t('messages.accessDenied', { iban, file: file.name }));
+                setLoading(false);
+                return;
+              }
             }
           }
         }
@@ -852,8 +845,12 @@ const BankingProcessor: React.FC = () => {
             );
             allTransactions.push(...revolutTransactions);
           } else if (file.name.startsWith('CSV_CC_')) {
-            const creditCardTransaction = processCreditCardTransaction(columns, currentIndex, lookupData, file.name);
-            if (creditCardTransaction) allTransactions.push(creditCardTransaction);
+            const ccResult = processCreditCardTransactions(columns, currentIndex, lookupData, file.name);
+            allTransactions.push(...ccResult.transactions);
+            if (ccResult.warnings.length > 0) {
+              ccResult.warnings.forEach(w => console.warn('[CreditCard]', w));
+              setMessage(ccResult.warnings.join('\n'));
+            }
           } else {
             const rabobankTransaction = processRabobankTransaction(columns, currentIndex, lookupData, file.name);
             if (rabobankTransaction) allTransactions.push(rabobankTransaction);

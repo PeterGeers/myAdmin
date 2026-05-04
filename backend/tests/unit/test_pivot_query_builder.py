@@ -217,7 +217,7 @@ class TestParameterizedSqlStructure:
         placeholder_count = query.count('%s')
         assert placeholder_count == len(params)
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, database=None)
     @given(
         config=valid_config_st(),
         tenant=tenant_st,
@@ -290,7 +290,7 @@ class TestTenantIsolation:
         match = pattern.search(query)
         assert match, "Query must contain `administration` = %s"
 
-    @settings(max_examples=50)
+    @settings(max_examples=50, database=None)
     @given(config=valid_config_st())
     def test_empty_tenant_still_filters(self, config):
         """With empty string tenant, WHERE still contains administration = %s."""

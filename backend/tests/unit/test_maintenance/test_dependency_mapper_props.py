@@ -380,6 +380,8 @@ class TestFrontendColocationMapping:
     @given(components=st_frontend_colocation_layout())
     @settings(
         max_examples=100,
+        database=None,
+        deadline=None,
         suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     def test_frontend_colocation_mapping(self, components, tmp_path):

@@ -19,6 +19,44 @@
     "depends_on": "bank_account"
   },
   {
+    "key": "credit_card",
+    "type": "boolean",
+    "label_en": "Credit Card Account",
+    "label_nl": "Creditcardrekening",
+    "description_en": "Account holds credit card transactions",
+    "description_nl": "Rekening voor creditcardtransacties",
+    "module": "FIN"
+  },
+  {
+    "key": "cc_bank_iban",
+    "type": "string",
+    "label_en": "Credit Card IBAN",
+    "label_nl": "Creditcard IBAN",
+    "description_en": "IBAN as shown in the credit card CSV (column 0)",
+    "description_nl": "IBAN zoals vermeld in het creditcard CSV-bestand (kolom 0)",
+    "module": "FIN",
+    "depends_on": "credit_card"
+  },
+  {
+    "key": "card_number",
+    "type": "string",
+    "label_en": "Card Number (last 4 digits)",
+    "label_nl": "Kaartnummer (laatste 4 cijfers)",
+    "description_en": "Last 4 digits of the credit card number",
+    "description_nl": "Laatste 4 cijfers van het creditcardnummer",
+    "module": "FIN",
+    "depends_on": "credit_card"
+  },
+  {
+    "key": "exchange_rate_account",
+    "type": "boolean",
+    "label_en": "Exchange Rate Account",
+    "label_nl": "Koersverschillenrekening",
+    "description_en": "Account for exchange rate differences",
+    "description_nl": "Rekening voor koersverschillen",
+    "module": "FIN"
+  },
+  {
     "key": "asset_account",
     "type": "boolean",
     "label_en": "Asset Account",

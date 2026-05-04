@@ -264,6 +264,20 @@ class BankingProcessor:
                 if float(transaction.get('TransactionAmount', 0)) == 0:
                     continue
                 
+                # Ref2-based duplicate detection (exact match, takes priority)
+                ref2 = transaction.get('Ref2', '').strip()
+                if ref2:
+                    cursor.execute(f"""
+                        SELECT ID FROM {table_name}
+                        WHERE Ref2 = %s
+                        AND administration = %s
+                        LIMIT 1
+                    """, (ref2, transaction.get('administration')))
+                    
+                    if cursor.fetchone():
+                        print(f"Skipping duplicate (Ref2 match): {ref2}")
+                        continue
+                
                 # Check for duplicate using normalized text
                 desc_normalized = self.normalize_text(transaction.get('TransactionDescription', ''))
                 cursor.execute(f"""

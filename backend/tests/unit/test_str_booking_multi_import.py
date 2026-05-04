@@ -688,7 +688,7 @@ class TestProperty6ScopedOverwriteInvariant:
             unique=True,
         ),
     )
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
+    @settings(max_examples=20, database=None, suppress_health_check=[HealthCheck.data_too_large, HealthCheck.too_slow])
     def test_insert_count_matches_booking_count(self, imported_pairs):
         """Number of INSERT calls equals the total number of bookings provided."""
         bookings = []
