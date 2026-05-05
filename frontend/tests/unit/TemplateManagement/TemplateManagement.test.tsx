@@ -17,11 +17,11 @@ import type { PreviewResponse, AIHelpResponse, ApprovalResponse, RejectionRespon
 vi.mock('../../../src/services/templateApi');
 
 describe('TemplateManagement', () => {
-  const mockPreviewTemplate = templateApi.previewTemplate as vi.MockedFunction<typeof templateApi.previewTemplate>;
-  const mockApproveTemplate = templateApi.approveTemplate as vi.MockedFunction<typeof templateApi.approveTemplate>;
-  const mockRejectTemplate = templateApi.rejectTemplate as vi.MockedFunction<typeof templateApi.rejectTemplate>;
-  const mockGetAIHelp = templateApi.getAIHelp as vi.MockedFunction<typeof templateApi.getAIHelp>;
-  const mockApplyAIFixes = templateApi.applyAIFixes as vi.MockedFunction<typeof templateApi.applyAIFixes>;
+  const mockPreviewTemplate = vi.mocked(templateApi.previewTemplate);
+  const mockApproveTemplate = vi.mocked(templateApi.approveTemplate);
+  const mockRejectTemplate = vi.mocked(templateApi.rejectTemplate);
+  const mockGetAIHelp = vi.mocked(templateApi.getAIHelp);
+  const mockApplyAIFixes = vi.mocked(templateApi.applyAIFixes);
 
   beforeEach(() => {
     vi.clearAllMocks();

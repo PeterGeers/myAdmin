@@ -59,19 +59,13 @@ Update to use database framework .kiro\steering\database-patterns.md
 
 # ai use log table
 
-# Create a new spec under .kiro/specs/Common/Frameworks/ for "frontend-test-type-safety" to systematically fix all 41 files
-Here's the situation:
-
-Both existing specs are essentially complete (test-maintenance-framework is fully done, chakra-mock-framework has tasks 9-10 remaining but those are cleanup/docs, not related to these TS errors).
-
-The 210 TypeScript errors are a separate concern — they're about:
-
-vi.MockedFunction namespace not being recognized by tsc (Vitest 4.x typing issue)
-Partial Response mock objects missing required properties
-mockImplementation() signature changes in Vitest 4.x
-A few possibly undefined strictness issues
-These don't fit naturally into either existing spec. They need their own fix — either a new spec or a direct fix. Since both existing framework specs are done, I'd recommend one of:
-
-Create a new spec under .kiro/specs/Common/Frameworks/ for "frontend-test-type-safety" to systematically fix all 41 files
-Fix them directly — the patterns are mechanical (3 repeatable transforms across 41 files)
-Skip for now — they don't block runtime (all tests pass), only tsc --noEmit
+# Sorting on dates does not always work since date types (generic table and filters framework) from mysql to ptyhton to??
+- Import Banking accounts >> Check reference >> Transactions tbl
+- FIN Reports >> Transactions table
+- STR Invoice Generator >> STR Invoice Generator 
+- STR Reports >>  BNB Revenue Analysis 2 date columns Check-in and check-out
+Please check all other sortiing of Date objects
+ 
+- Works perfect in 
+-- Import Banking accounts >> Transactions table
+-- 📈 BNB Future Revenue

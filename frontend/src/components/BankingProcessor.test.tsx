@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 export {};
 
@@ -195,10 +196,9 @@ global.fetch = vi.fn();
 describe('Banking Processor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ success: true, data: [] })
-    });
+    vi.mocked(global.fetch).mockResolvedValue(
+      createMockResponse({ body: { success: true, data: [] } })
+    );
   });
 
   describe('File Upload', () => {

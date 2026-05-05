@@ -10,11 +10,12 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent, act } from '../../../test-utils';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { CredentialsManagement } from '../CredentialsManagement';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = vi.mocked(fetchAuthSession);
 
 describe('CredentialsManagement Component', () => {
   const mockToken = 'mock-jwt-token';
@@ -45,17 +46,12 @@ describe('CredentialsManagement Component', () => {
     } as any);
 
     // Mock successful API responses
-    global.fetch = vi.fn((url: string) => {
-      if (typeof url === 'string' && url.includes('/api/tenant-admin/credentials')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ credentials: mockCredentials }),
-        } as Response);
+    global.fetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : String(input);
+      if (url.includes('/api/tenant-admin/credentials')) {
+        return createMockResponse({ body: { credentials: mockCredentials } });
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      } as Response);
+      return createMockResponse({ body: {} });
     });
   });
 
@@ -153,7 +149,7 @@ describe('CredentialsManagement Component', () => {
       await waitFor(() => {
         const calls = vi.mocked(global.fetch).mock.calls;
         const credentialsCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/credentials'));
-        expect(credentialsCall[1].headers['Authorization']).toBe(`Bearer ${mockToken}`);
+        expect((credentialsCall![1]!.headers as Record<string, string>)['Authorization']).toBe(`Bearer ${mockToken}`);
       });
     });
 
@@ -163,7 +159,7 @@ describe('CredentialsManagement Component', () => {
       await waitFor(() => {
         const calls = vi.mocked(global.fetch).mock.calls;
         const credentialsCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/credentials'));
-        expect(credentialsCall[1].headers['X-Tenant']).toBe(mockTenant);
+        expect((credentialsCall![1]!.headers as Record<string, string>)['X-Tenant']).toBe(mockTenant);
       });
     });
 
@@ -287,14 +283,8 @@ describe('CredentialsManagement Component', () => {
       window.open = mockOpen;
 
       vi.mocked(global.fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ credentials: mockCredentials }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ oauth_url: 'https://oauth.example.com', state: 'abc123' }),
-        });
+        .mockResolvedValueOnce(createMockResponse({ body: { credentials: mockCredentials } }))
+        .mockResolvedValueOnce(createMockResponse({ body: { oauth_url: 'https://oauth.example.com', state: 'abc123' } }));
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
@@ -320,14 +310,8 @@ describe('CredentialsManagement Component', () => {
       window.open = mockOpen;
 
       vi.mocked(global.fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ credentials: mockCredentials }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ oauth_url: 'https://oauth.example.com', state: 'abc123' }),
-        });
+        .mockResolvedValueOnce(createMockResponse({ body: { credentials: mockCredentials } }))
+        .mockResolvedValueOnce(createMockResponse({ body: { oauth_url: 'https://oauth.example.com', state: 'abc123' } }));
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
@@ -363,14 +347,8 @@ describe('CredentialsManagement Component', () => {
 
     test('tests connection when button clicked', async () => {
       vi.mocked(global.fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ credentials: mockCredentials }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ test_result: { success: true, message: 'Connected' } }),
-        });
+        .mockResolvedValueOnce(createMockResponse({ body: { credentials: mockCredentials } }))
+        .mockResolvedValueOnce(createMockResponse({ body: { test_result: { success: true, message: 'Connected' } } }));
 
       render(<CredentialsManagement tenant={mockTenant} />);
 
@@ -393,15 +371,11 @@ describe('CredentialsManagement Component', () => {
 
     test('shows loading state during connection test', async () => {
       vi.mocked(global.fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ credentials: mockCredentials }),
-        })
+        .mockResolvedValueOnce(createMockResponse({ body: { credentials: mockCredentials } }))
         .mockImplementationOnce(() =>
-          new Promise(resolve => setTimeout(() => resolve({
-            ok: true,
-            json: async () => ({ test_result: { success: true, message: 'Connected' } }),
-          }), 5000))
+          new Promise(resolve => setTimeout(() => resolve(
+            createMockResponse({ body: { test_result: { success: true, message: 'Connected' } } })
+          ), 5000))
         );
 
       render(<CredentialsManagement tenant={mockTenant} />);
@@ -490,10 +464,7 @@ describe('CredentialsManagement Component', () => {
 
     test('displays error when upload fails', async () => {
       vi.mocked(global.fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ credentials: mockCredentials }),
-        })
+        .mockResolvedValueOnce(createMockResponse({ body: { credentials: mockCredentials } }))
         .mockRejectedValueOnce(new Error('Upload failed'));
 
       render(<CredentialsManagement tenant={mockTenant} />);
@@ -532,10 +503,7 @@ describe('CredentialsManagement Component', () => {
 
     test('displays error message when connection test fails', async () => {
       vi.mocked(global.fetch)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ credentials: mockCredentials }),
-        })
+        .mockResolvedValueOnce(createMockResponse({ body: { credentials: mockCredentials } }))
         .mockRejectedValueOnce(new Error('Connection test failed'));
 
       render(<CredentialsManagement tenant={mockTenant} />);

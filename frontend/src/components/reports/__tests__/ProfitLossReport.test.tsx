@@ -13,6 +13,7 @@ import ProfitLossReport from '../ProfitLossReport';
 import { useTenant } from '../../../context/TenantContext';
 import { authenticatedGet } from '../../../services/apiService';
 import { invalidateAndFetch } from '../../../utils/financialReportUtils';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // --- Mocks ---
 
@@ -55,8 +56,8 @@ vi.mock('../../filters/YearFilter', () => ({
 
 // --- Test data ---
 
-const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
-const mockAuthGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
+const mockUseTenant = vi.mocked(useTenant);
+const mockAuthGet = vi.mocked(authenticatedGet);
 
 const plResponse = {
   success: true,
@@ -96,9 +97,9 @@ beforeEach(() => {
   mockUseTenant.mockReturnValue(tenantCtx);
   mockAuthGet.mockImplementation((url: string) => {
     if (url?.includes('includeRef=true')) {
-      return Promise.resolve({ json: () => Promise.resolve(refResponse) } as Response);
+      return Promise.resolve(createMockResponse({ body: refResponse }));
     }
-    return Promise.resolve({ json: () => Promise.resolve(plResponse) } as Response);
+    return Promise.resolve(createMockResponse({ body: plResponse }));
   });
 });
 

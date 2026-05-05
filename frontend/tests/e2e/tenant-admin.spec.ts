@@ -248,7 +248,7 @@ test.describe('E2E Test 3: Storage Configuration Workflow', () => {
     await page.click('text=Storage');
     
     // Click Test Access button for a folder
-    await page.click('button:has-text("Test Access")').first();
+    await page.locator('button:has-text("Test Access")').first().click();
     
     // Wait for test result
     await page.waitForSelector('text=Folder is accessible', { timeout: 10000 });

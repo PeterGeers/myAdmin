@@ -289,8 +289,16 @@ class FrontendScanner:
         Flags test files that import ``render`` from
         ``@testing-library/react`` instead of the project's ``test-utils``
         module.
+
+        Excludes files under ``__mocks__/`` directories — mock framework
+        tests intentionally use raw render without providers.
         """
         violations: List[FrontendViolation] = []
+
+        # Mock framework tests intentionally bypass providers
+        normalised = file_path.replace("\\", "/")
+        if "/__mocks__/" in normalised or "\\__mocks__\\" in file_path:
+            return violations
 
         source_lines = source.splitlines()
 

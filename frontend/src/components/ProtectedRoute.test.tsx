@@ -48,12 +48,12 @@ describe('ProtectedRoute', () => {
   });
 
   it('should show loading state when authentication is loading', () => {
-    useAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: false,
       loading: true,
       user: null,
       hasAnyRole: vi.fn(),
-    });
+    } as any);
 
     const { container } = render(
       <ProtectedRoute>{mockChild}</ProtectedRoute>
@@ -64,12 +64,12 @@ describe('ProtectedRoute', () => {
   });
 
   it('should show login page when user is not authenticated', () => {
-    useAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: false,
       loading: false,
       user: null,
       hasAnyRole: vi.fn(),
-    });
+    } as any);
 
     render(
       <ProtectedRoute>{mockChild}</ProtectedRoute>
@@ -80,12 +80,12 @@ describe('ProtectedRoute', () => {
   });
 
   it('should show protected content when user is authenticated and no roles required', () => {
-    useAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Administrators'] },
       hasAnyRole: vi.fn(() => true),
-    });
+    } as any);
 
     render(
       <ProtectedRoute>{mockChild}</ProtectedRoute>
@@ -96,12 +96,12 @@ describe('ProtectedRoute', () => {
   });
 
   it('should show protected content when user has required role', () => {
-    useAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Administrators'] },
       hasAnyRole: vi.fn((roles) => roles.includes('Administrators')),
-    });
+    } as any);
 
     render(
       <ProtectedRoute requiredRoles={['Administrators']}>
@@ -114,12 +114,12 @@ describe('ProtectedRoute', () => {
   });
 
   it('should show unauthorized page when user lacks required role', () => {
-    useAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Viewers'] },
       hasAnyRole: vi.fn((roles) => !roles.includes('Administrators')),
-    });
+    } as any);
 
     render(
       <ProtectedRoute requiredRoles={['Administrators']}>
@@ -132,12 +132,12 @@ describe('ProtectedRoute', () => {
   });
 
   it('should show protected content when user has any of the required roles', () => {
-    useAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue({
       isAuthenticated: true,
       loading: false,
       user: { email: 'test@example.com', roles: ['Accountants'] },
       hasAnyRole: vi.fn((roles) => roles.includes('Accountants')),
-    });
+    } as any);
 
     render(
       <ProtectedRoute requiredRoles={['Administrators', 'Accountants']}>

@@ -23,10 +23,10 @@ vi.mock('./apiService', () => ({
   authenticatedDelete: vi.fn()
 }));
 
-const mockAuthenticatedGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
-const mockAuthenticatedPost = authenticatedPost as vi.MockedFunction<typeof authenticatedPost>;
-const mockAuthenticatedPut = authenticatedPut as vi.MockedFunction<typeof authenticatedPut>;
-const mockAuthenticatedDelete = authenticatedDelete as vi.MockedFunction<typeof authenticatedDelete>;
+const mockAuthenticatedGet = vi.mocked(authenticatedGet);
+const mockAuthenticatedPost = vi.mocked(authenticatedPost);
+const mockAuthenticatedPut = vi.mocked(authenticatedPut);
+const mockAuthenticatedDelete = vi.mocked(authenticatedDelete);
 
 describe('tenantApiService', () => {
   beforeEach(() => {

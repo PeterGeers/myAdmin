@@ -14,9 +14,7 @@ import * as parameterService from '../../services/parameterService';
 
 // Mock the parameter service
 vi.mock('../../services/parameterService');
-const mockGetParameters = parameterService.getParameters as vi.MockedFunction<
-  typeof parameterService.getParameters
->;
+const mockGetParameters = vi.mocked(parameterService.getParameters);
 
 // Suppress console.error in tests that trigger error paths
 const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

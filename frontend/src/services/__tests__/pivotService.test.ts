@@ -24,6 +24,7 @@ import {
   fromBackendConfig,
 } from '../pivotService';
 import type { PivotConfig, PivotDataSource } from '../../types/pivot';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // ---------------------------------------------------------------------------
 // Mock apiService
@@ -48,21 +49,20 @@ vi.mock('../apiService', () => ({
 
 /** Build a mock Response with ok=true and the given JSON body. */
 const okJson = (data: any): Response =>
-  ({ ok: true, status: 200, json: async () => data } as unknown as Response);
+  createMockResponse({ body: data });
 
 /** Build a mock Response with ok=false and an error body. */
 const errJson = (status: number, error: string): Response =>
-  ({ ok: false, status, json: async () => ({ error }) } as unknown as Response);
+  createMockResponse({ ok: false, status, body: { error } });
 
 /** Build a mock Response where .json() itself rejects (network-level issue). */
-const brokenJson = (status: number): Response =>
-  ({
-    ok: false,
-    status,
-    json: async () => {
-      throw new Error('body parse failed');
-    },
-  } as unknown as Response);
+const brokenJson = (status: number): Response => {
+  const response = createMockResponse({ ok: false, status });
+  response.json = async () => {
+    throw new Error('body parse failed');
+  };
+  return response;
+};
 
 /** A minimal valid PivotConfig for reuse across tests. */
 const SAMPLE_CONFIG: PivotConfig = {
@@ -517,11 +517,7 @@ describe('deletePivotModel', () => {
 
 describe('error handling', () => {
   it('uses status code in error message when body has no error field', async () => {
-    const res = {
-      ok: false,
-      status: 500,
-      json: async () => ({}),
-    } as unknown as Response;
+    const res = createMockResponse({ ok: false, status: 500, body: {} });
     mockGet.mockResolvedValue(res);
 
     await expect(getRegisteredSources()).rejects.toThrow('Request failed with status 500');

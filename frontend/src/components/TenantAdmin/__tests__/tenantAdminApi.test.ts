@@ -8,11 +8,12 @@
 import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import * as api from '../../../services/tenantAdminApi';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = vi.mocked(fetchAuthSession);
 
 describe('Tenant Admin API Service', () => {
   const mockToken = 'mock-jwt-token';
@@ -52,10 +53,7 @@ describe('Tenant Admin API Service', () => {
   describe('User Management API', () => {
     test('createUser sends POST request with correct data', async () => {
       const mockResponse = { success: true, username: 'test@example.com' };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const userData = {
         email: 'test@example.com',
@@ -81,10 +79,7 @@ describe('Tenant Admin API Service', () => {
 
     test('listUsers sends GET request with filters', async () => {
       const mockResponse = { users: [] };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.listUsers({ role: 'Tenant_Admin', search: 'test' });
 
@@ -100,10 +95,7 @@ describe('Tenant Admin API Service', () => {
 
     test('assignRole sends POST request to correct endpoint', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.assignRole('testuser', 'Tenant_Admin');
 
@@ -118,10 +110,7 @@ describe('Tenant Admin API Service', () => {
 
     test('removeRole sends DELETE request to correct endpoint', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.removeRole('testuser', 'Tenant_Admin');
 
@@ -135,10 +124,7 @@ describe('Tenant Admin API Service', () => {
 
     test('removeUser sends DELETE request', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.removeUser('testuser');
 
@@ -158,10 +144,7 @@ describe('Tenant Admin API Service', () => {
   describe('Credentials Management API', () => {
     test('uploadCredentials sends FormData with file', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const mockFile = new File(['{}'], 'credentials.json', { type: 'application/json' });
       await api.uploadCredentials(mockFile, 'google_drive');
@@ -177,16 +160,13 @@ describe('Tenant Admin API Service', () => {
         })
       );
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0];
-      expect(callArgs[1].body).toBeInstanceOf(FormData);
+      const callArgs = vi.mocked(global.fetch).mock.calls[0]!;
+      expect(callArgs[1]!.body).toBeInstanceOf(FormData);
     });
 
     test('listCredentials sends GET request', async () => {
       const mockResponse = { credentials: [] };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const result = await api.listCredentials();
 
@@ -199,10 +179,7 @@ describe('Tenant Admin API Service', () => {
 
     test('testCredentials sends POST request with credential type', async () => {
       const mockResponse = { success: true, accessible: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.testCredentials('google_drive');
 
@@ -217,10 +194,7 @@ describe('Tenant Admin API Service', () => {
 
     test('startOAuth sends POST request with service', async () => {
       const mockResponse = { auth_url: 'https://oauth.example.com', state: 'abc123' };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const result = await api.startOAuth('google_drive');
 
@@ -236,10 +210,7 @@ describe('Tenant Admin API Service', () => {
 
     test('completeOAuth sends POST request with code and state', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.completeOAuth('auth-code', 'state-token');
 
@@ -260,10 +231,7 @@ describe('Tenant Admin API Service', () => {
   describe('Storage Configuration API', () => {
     test('browseFolders sends GET request', async () => {
       const mockResponse = { folders: [] };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const result = await api.browseFolders();
 
@@ -276,10 +244,7 @@ describe('Tenant Admin API Service', () => {
 
     test('getStorageConfig sends GET request', async () => {
       const mockResponse = { config: {} };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const result = await api.getStorageConfig();
 
@@ -292,10 +257,7 @@ describe('Tenant Admin API Service', () => {
 
     test('updateStorageConfig sends PUT request with config', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const config = { google_drive_invoices_folder_id: 'folder123' };
       await api.updateStorageConfig(config, true);
@@ -311,10 +273,7 @@ describe('Tenant Admin API Service', () => {
 
     test('testFolder sends POST request with folder ID', async () => {
       const mockResponse = { accessible: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.testFolder('folder123');
 
@@ -329,10 +288,7 @@ describe('Tenant Admin API Service', () => {
 
     test('getStorageUsage sends GET request', async () => {
       const mockResponse = { usage: {} };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const result = await api.getStorageUsage();
 
@@ -351,10 +307,7 @@ describe('Tenant Admin API Service', () => {
   describe('Tenant Details API', () => {
     test('getTenantDetails sends GET request', async () => {
       const mockResponse = { tenant: { administration: 'TestTenant' } };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const result = await api.getTenantDetails();
 
@@ -367,10 +320,7 @@ describe('Tenant Admin API Service', () => {
 
     test('updateTenantDetails sends PUT request with details', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const details = { display_name: 'New Name', contact_email: 'test@example.com' };
       await api.updateTenantDetails(details);
@@ -391,12 +341,7 @@ describe('Tenant Admin API Service', () => {
 
   describe('Error Handling', () => {
     test('handles HTTP error responses', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-        statusText: 'Forbidden',
-        json: async () => ({ error: 'Access denied' }),
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ ok: false, status: 403, statusText: 'Forbidden', body: { error: 'Access denied' } }));
 
       await expect(api.listUsers()).rejects.toThrow('Access denied');
     });
@@ -421,10 +366,7 @@ describe('Tenant Admin API Service', () => {
   describe('Settings API', () => {
     test('getSettings sends GET request', async () => {
       const mockResponse = { settings: {} };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const result = await api.getSettings();
 
@@ -437,10 +379,7 @@ describe('Tenant Admin API Service', () => {
 
     test('updateSettings sends PUT request', async () => {
       const mockResponse = { success: true };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       const settings = { notifications: { email_enabled: true } };
       await api.updateSettings(settings);
@@ -456,10 +395,7 @@ describe('Tenant Admin API Service', () => {
 
     test('getActivity sends GET request with date range', async () => {
       const mockResponse = { activity: { total_actions: 0 } };
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockResponse }));
 
       await api.getActivity({ start_date: '2026-01-01', end_date: '2026-01-31' });
 

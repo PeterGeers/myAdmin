@@ -30,6 +30,7 @@ import json
 import logging
 import re
 
+import platform
 import subprocess
 
 import sys
@@ -56,6 +57,9 @@ _DEFAULT_MAP_PATH = "backend/tests/reports/dependency-map.json"
 # Timeout for individual test runner processes (seconds).
 
 _TEST_TIMEOUT = 600
+
+# On Windows, npx must be invoked as 'npx.cmd' without shell=True.
+_NPX = "npx.cmd" if platform.system() == "Windows" else "npx"
 
 
 
@@ -243,7 +247,7 @@ class ScopedTestRunner:
 
         """Execute vitest --related with changed source files."""
 
-        cmd = ["npx", "vitest", "--related", "--run"] + changed_files
+        cmd = [_NPX, "vitest", "--related", "--run"] + changed_files
 
         logger.info("Running frontend tests: %s", " ".join(cmd))
 
@@ -409,7 +413,8 @@ class ScopedTestRunner:
 
         # Backend: pytest on the whole test directory.
 
-        backend_cmd = [sys.executable, "-m", "pytest", "-q", "--tb=short"]
+        backend_cmd = [sys.executable, "-m", "pytest", "-q", "--tb=short",
+                       "--ignore=tests/manual"]
 
         try:
 
@@ -422,6 +427,8 @@ class ScopedTestRunner:
                 text=True,
 
                 timeout=_TEST_TIMEOUT,
+
+                cwd="backend",
 
             )
 
@@ -440,7 +447,7 @@ class ScopedTestRunner:
 
         # Frontend: vitest --run (full).
 
-        frontend_cmd = ["npx", "vitest", "--run"]
+        frontend_cmd = [_NPX, "vitest", "--run"]
 
         try:
 

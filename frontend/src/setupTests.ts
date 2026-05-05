@@ -4,6 +4,7 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Suppress React 19 "not wrapped in act(...)" warnings.
 // React 19 aggressively warns about state updates outside act() even when
@@ -51,23 +52,9 @@ if (typeof global.BroadcastChannel === 'undefined') {
 // Mock fetch for tests
 if (typeof global.fetch === 'undefined') {
   global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-    Promise.resolve({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Headers(),
-      redirected: false,
-      type: 'basic' as ResponseType,
-      url: '',
-      clone: vi.fn(),
-      body: null,
-      bodyUsed: false,
-      arrayBuffer: vi.fn(),
-      blob: vi.fn(),
-      formData: vi.fn(),
-      text: vi.fn(),
-      json: () => Promise.resolve({ mode: 'Test', database: 'testfinance', folder: 'testFacturen' }),
-    } as Response)
+    Promise.resolve(createMockResponse({
+      body: { mode: 'Test', database: 'testfinance', folder: 'testFacturen' },
+    }))
   );
 }
 

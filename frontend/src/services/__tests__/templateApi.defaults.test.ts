@@ -7,6 +7,7 @@
 
 import { vi } from 'vitest';
 import { downloadDefaultTemplate, deleteTenantTemplate } from '../templateApi';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock the authenticatedRequest dependency
 vi.mock('../apiService', () => ({
@@ -15,7 +16,7 @@ vi.mock('../apiService', () => ({
 
 import { authenticatedRequest } from '../apiService';
 
-const mockAuthRequest = authenticatedRequest as vi.MockedFunction<typeof authenticatedRequest>;
+const mockAuthRequest = vi.mocked(authenticatedRequest);
 
 describe('templateApi - default template functions', () => {
   beforeEach(() => {
@@ -33,10 +34,9 @@ describe('templateApi - default template functions', () => {
     };
 
     it('calls GET /api/tenant-admin/templates/{type}/default', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ body: mockResponse })
+      );
 
       await downloadDefaultTemplate('str_invoice_nl' as any);
 
@@ -47,10 +47,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('returns the response on success', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ body: mockResponse })
+      );
 
       const result = await downloadDefaultTemplate('str_invoice_nl' as any);
 
@@ -60,10 +59,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('throws Error with server error message on non-OK response', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: false,
-        json: async () => ({ error: 'No default template available for type: unknown_type' }),
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ ok: false, body: { error: 'No default template available for type: unknown_type' } })
+      );
 
       await expect(downloadDefaultTemplate('unknown_type' as any)).rejects.toThrow(
         'No default template available for type: unknown_type'
@@ -71,10 +69,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('throws Error with fallback message when server provides message field', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: false,
-        json: async () => ({ message: 'Something went wrong' }),
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ ok: false, body: { message: 'Something went wrong' } })
+      );
 
       await expect(downloadDefaultTemplate('str_invoice_nl' as any)).rejects.toThrow(
         'Something went wrong'
@@ -82,10 +79,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('throws default Error when server provides no message', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: false,
-        json: async () => ({}),
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ ok: false, body: {} })
+      );
 
       await expect(downloadDefaultTemplate('str_invoice_nl' as any)).rejects.toThrow(
         'Failed to download default template'
@@ -102,10 +98,9 @@ describe('templateApi - default template functions', () => {
     };
 
     it('calls DELETE /api/tenant-admin/templates/{type}', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ body: mockResponse })
+      );
 
       await deleteTenantTemplate('btw_aangifte' as any);
 
@@ -116,10 +111,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('returns the response on success', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ body: mockResponse })
+      );
 
       const result = await deleteTenantTemplate('btw_aangifte' as any);
 
@@ -129,10 +123,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('throws Error with server error message on non-OK response', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: false,
-        json: async () => ({ error: 'No active tenant template found for type: btw_aangifte' }),
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ ok: false, body: { error: 'No active tenant template found for type: btw_aangifte' } })
+      );
 
       await expect(deleteTenantTemplate('btw_aangifte' as any)).rejects.toThrow(
         'No active tenant template found for type: btw_aangifte'
@@ -140,10 +133,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('throws Error with fallback message when server provides message field', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: false,
-        json: async () => ({ message: 'Tenant admin access required' }),
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ ok: false, body: { message: 'Tenant admin access required' } })
+      );
 
       await expect(deleteTenantTemplate('btw_aangifte' as any)).rejects.toThrow(
         'Tenant admin access required'
@@ -151,10 +143,9 @@ describe('templateApi - default template functions', () => {
     });
 
     it('throws default Error when server provides no message', async () => {
-      mockAuthRequest.mockResolvedValue({
-        ok: false,
-        json: async () => ({}),
-      } as Response);
+      mockAuthRequest.mockResolvedValue(
+        createMockResponse({ ok: false, body: {} })
+      );
 
       await expect(deleteTenantTemplate('btw_aangifte' as any)).rejects.toThrow(
         'Failed to delete tenant template'

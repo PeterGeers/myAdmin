@@ -12,6 +12,7 @@ import '@testing-library/jest-dom';
 import MutatiesReport from './MutatiesReport';
 import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet } from '../../services/apiService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock dependencies
 vi.mock('../../context/TenantContext');
@@ -55,8 +56,8 @@ vi.mock('../filters/YearFilter', () => ({
 
 
 
-const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
-const mockAuthenticatedGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
+const mockUseTenant = vi.mocked(useTenant);
+const mockAuthenticatedGet = vi.mocked(authenticatedGet);
 
 const mockMutatiesData = [
   {
@@ -84,12 +85,12 @@ describe('MutatiesReport', () => {
     vi.clearAllMocks();
     
     // Default mock response
-    mockAuthenticatedGet.mockResolvedValue({
-      json: () => Promise.resolve({
+    mockAuthenticatedGet.mockResolvedValue(createMockResponse({
+      body: {
         success: true,
         data: mockMutatiesData
-      })
-    } as Response);
+      }
+    }));
   });
 
   describe('Tenant Context Integration', () => {
@@ -269,7 +270,7 @@ describe('MutatiesReport', () => {
 
       mockAuthenticatedGet.mockRejectedValue(new Error('API Error'));
       
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       render(<MutatiesReport />);
       
@@ -288,14 +289,14 @@ describe('MutatiesReport', () => {
         hasMultipleTenants: false
       });
 
-      mockAuthenticatedGet.mockResolvedValue({
-        json: () => Promise.resolve({
+      mockAuthenticatedGet.mockResolvedValue(createMockResponse({
+        body: {
           success: false,
           message: 'Data not found'
-        })
-      } as Response);
+        }
+      }));
       
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       render(<MutatiesReport />);
       

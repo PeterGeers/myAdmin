@@ -4,6 +4,7 @@
  */
 
 import { vi } from 'vitest';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 const API_ENDPOINTS = [
   '/api/test',
   '/api/reports/mutaties-table',
@@ -37,15 +38,14 @@ describe('API Alignment Tests', () => {
 
   describe('API Endpoint Validation', () => {
     it.each(API_ENDPOINTS)('should have working endpoint: %s', async (endpoint) => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: {
-          get: (name: string) => name === 'content-type' ? 'application/json' : null
-        },
-        json: async () => ({ success: true, data: [] }),
-        text: async () => '{"success": true, "data": []}'
-      });
+      const headers = new Headers({ 'content-type': 'application/json' });
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: { success: true, data: [] },
+          textBody: '{"success": true, "data": []}',
+          headers,
+        })
+      );
 
       const response = await fetch(`${BASE_URL}${endpoint}`);
       

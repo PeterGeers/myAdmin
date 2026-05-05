@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@/test-utils';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 export {};
 
@@ -29,12 +30,9 @@ const MockAppWithLoading = ({ isLoading = false, hasError = false }) => {
 
 // Mock fetch for API calls
 const mockFetch = (response: any, delay = 0) => {
-  global.fetch = vi.fn(() =>
+  global.fetch = vi.fn((): Promise<Response> =>
     new Promise((resolve) =>
-      setTimeout(() => resolve({
-        ok: true,
-        json: () => Promise.resolve(response)
-      } as Response), delay)
+      setTimeout(() => resolve(createMockResponse({ body: response })), delay)
     )
   );
 };

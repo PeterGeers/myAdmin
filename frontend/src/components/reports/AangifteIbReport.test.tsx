@@ -12,6 +12,7 @@ import '@testing-library/jest-dom';
 import AangifteIbReport from './AangifteIbReport';
 import { useTenant } from '../../context/TenantContext';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock dependencies
 vi.mock('../../context/TenantContext');
@@ -59,10 +60,10 @@ vi.mock('../YearEndClosureSection', () => {
   };
 });
 
-const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
-const mockTenantAwareGet = tenantAwareGet as vi.MockedFunction<typeof tenantAwareGet>;
-const mockTenantAwarePost = tenantAwarePost as vi.MockedFunction<typeof tenantAwarePost>;
-const mockRequireTenant = requireTenant as vi.MockedFunction<typeof requireTenant>;
+const mockUseTenant = vi.mocked(useTenant);
+const mockTenantAwareGet = vi.mocked(tenantAwareGet);
+const mockTenantAwarePost = vi.mocked(tenantAwarePost);
+const mockRequireTenant = vi.mocked(requireTenant);
 
 // Helper to render and wait for async mount effects (fetchAangifteIbData)
 async function renderAndSettle(ui: React.ReactElement) {
@@ -85,13 +86,13 @@ describe('AangifteIbReport', () => {
       hasMultipleTenants: true
     });
 
-    mockTenantAwareGet.mockResolvedValue({
-      json: () => Promise.resolve({ 
+    mockTenantAwareGet.mockResolvedValue(createMockResponse({
+      body: { 
         success: true, 
         data: [],
         available_years: ['2024', '2023'] 
-      })
-    } as Response);
+      }
+    }));
 
     mockRequireTenant.mockReturnValue('GoodwinSolutions');
   });

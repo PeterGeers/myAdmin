@@ -5,6 +5,7 @@
 import { vi } from 'vitest';
 import { authenticatedRequest } from './apiService';
 import i18n from '../i18n';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -15,12 +16,9 @@ describe('API Service X-Language Header', () => {
     vi.clearAllMocks();
     
     // Mock successful response
-    vi.mocked(global.fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ success: true, data: {} }),
-      headers: new Headers(),
-    });
+    vi.mocked(global.fetch).mockResolvedValue(
+      createMockResponse({ body: { success: true, data: {} } })
+    );
   });
 
   afterEach(() => {
@@ -75,10 +73,10 @@ describe('API Service X-Language Header', () => {
       skipAuth: true,
     });
 
-    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-    const headers = fetchCall[1].headers;
+    const fetchCall = vi.mocked(global.fetch).mock.calls[0]!;
+    const headers = fetchCall[1]!.headers!;
     
-    expect(headers['X-Language']).toBe('nl');
+    expect((headers as Record<string, string>)['X-Language']).toBe('nl');
   });
 
   test('sends X-Language header with POST requests', async () => {
@@ -90,10 +88,10 @@ describe('API Service X-Language Header', () => {
       skipAuth: true,
     });
 
-    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-    const headers = fetchCall[1].headers;
+    const fetchCall = vi.mocked(global.fetch).mock.calls[0]!;
+    const headers = fetchCall[1]!.headers!;
     
-    expect(headers['X-Language']).toBe('en');
+    expect((headers as Record<string, string>)['X-Language']).toBe('en');
   });
 
   test('sends X-Language header with PUT requests', async () => {
@@ -105,10 +103,10 @@ describe('API Service X-Language Header', () => {
       skipAuth: true,
     });
 
-    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-    const headers = fetchCall[1].headers;
+    const fetchCall = vi.mocked(global.fetch).mock.calls[0]!;
+    const headers = fetchCall[1]!.headers!;
     
-    expect(headers['X-Language']).toBe('nl');
+    expect((headers as Record<string, string>)['X-Language']).toBe('nl');
   });
 
   test('sends X-Language header with DELETE requests', async () => {
@@ -119,10 +117,10 @@ describe('API Service X-Language Header', () => {
       skipAuth: true,
     });
 
-    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-    const headers = fetchCall[1].headers;
+    const fetchCall = vi.mocked(global.fetch).mock.calls[0]!;
+    const headers = fetchCall[1]!.headers!;
     
-    expect(headers['X-Language']).toBe('en');
+    expect((headers as Record<string, string>)['X-Language']).toBe('en');
   });
 
   test('X-Language header persists across multiple requests', async () => {
@@ -137,8 +135,8 @@ describe('API Service X-Language Header', () => {
     const calls = vi.mocked(global.fetch).mock.calls;
     
     calls.forEach(call => {
-      const headers = call[1].headers;
-      expect(headers['X-Language']).toBe('nl');
+      const headers = call[1]!.headers!;
+      expect((headers as Record<string, string>)['X-Language']).toBe('nl');
     });
   });
 
@@ -154,10 +152,10 @@ describe('API Service X-Language Header', () => {
     const calls = vi.mocked(global.fetch).mock.calls;
     
     // First call should have nl
-    expect(calls[0][1].headers['X-Language']).toBe('nl');
+    expect((calls[0]![1]!.headers! as Record<string, string>)['X-Language']).toBe('nl');
     
     // Second call should have en
-    expect(calls[1][1].headers['X-Language']).toBe('en');
+    expect((calls[1]![1]!.headers! as Record<string, string>)['X-Language']).toBe('en');
   });
 
   test('X-Language header defaults to nl if language not set', async () => {
@@ -169,10 +167,10 @@ describe('API Service X-Language Header', () => {
       skipAuth: true,
     });
 
-    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-    const headers = fetchCall[1].headers;
+    const fetchCall = vi.mocked(global.fetch).mock.calls[0]!;
+    const headers = fetchCall[1]!.headers!;
     
     // Should default to nl
-    expect(headers['X-Language']).toBe('nl');
+    expect((headers as Record<string, string>)['X-Language']).toBe('nl');
   });
 });

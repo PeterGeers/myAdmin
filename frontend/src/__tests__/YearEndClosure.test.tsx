@@ -22,6 +22,7 @@ import {
   getClosedYears,
 } from '../services/yearEndClosureService';
 import { authenticatedGet, authenticatedPost } from '../services/apiService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock the API service
 vi.mock('../services/apiService', () => ({
@@ -34,13 +35,14 @@ vi.mock('../config', () => ({
   buildApiUrl: vi.fn((endpoint: string) => `http://localhost:5000${endpoint}`),
 }));
 
-// Helper to create mock Response
-const createMockResponse = (data: any, ok = true) => ({
-  ok,
-  json: async () => data,
-  status: ok ? 200 : 400,
-  statusText: ok ? 'OK' : 'Bad Request',
-});
+// Helper to create mock Response using the shared factory
+const mockResponse = (data: any, ok = true) =>
+  createMockResponse({
+    ok,
+    status: ok ? 200 : 400,
+    statusText: ok ? 'OK' : 'Bad Request',
+    body: data,
+  });
 
 describe('Year-End Closure Service', () => {
   beforeEach(() => {
@@ -55,7 +57,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 is not closed',
       };
 
-      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedGet).mockResolvedValue(mockResponse(mockData));
 
       const result = await getYearStatus(2025);
 
@@ -74,7 +76,7 @@ describe('Year-End Closure Service', () => {
         notes: 'Year-end closure completed',
       };
 
-      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedGet).mockResolvedValue(mockResponse(mockData));
 
       const result = await getYearStatus(2024);
 
@@ -85,7 +87,7 @@ describe('Year-End Closure Service', () => {
 
     it('should handle API errors', async () => {
       vi.mocked(authenticatedGet).mockResolvedValue(
-        createMockResponse({ error: 'API Error' }, false)
+        mockResponse({ error: 'API Error' }, false)
       );
 
       await expect(getYearStatus(2025)).rejects.toThrow();
@@ -106,7 +108,7 @@ describe('Year-End Closure Service', () => {
         },
       };
 
-      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(mockResponse(mockData));
 
       const result = await validateYear(2025);
 
@@ -130,7 +132,7 @@ describe('Year-End Closure Service', () => {
         },
       };
 
-      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(mockResponse(mockData));
 
       const result = await validateYear(2025);
 
@@ -151,7 +153,7 @@ describe('Year-End Closure Service', () => {
         },
       };
 
-      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(mockResponse(mockData));
 
       const result = await validateYear(2025);
 
@@ -174,7 +176,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 closed successfully',
       };
 
-      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(mockResponse(mockData));
 
       const result = await closeYear(2025, 'Closing year 2025');
 
@@ -185,7 +187,7 @@ describe('Year-End Closure Service', () => {
 
     it('should handle close year errors', async () => {
       vi.mocked(authenticatedPost).mockResolvedValue(
-        createMockResponse(
+        mockResponse(
           { error: 'Cannot close year 2025: Previous year must be closed first' },
           false
         )
@@ -203,7 +205,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2024 reopened successfully',
       };
 
-      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(mockResponse(mockData));
 
       const result = await reopenYear(2024);
 
@@ -213,7 +215,7 @@ describe('Year-End Closure Service', () => {
 
     it('should handle sequential reopening validation error', async () => {
       vi.mocked(authenticatedPost).mockResolvedValue(
-        createMockResponse(
+        mockResponse(
           { error: 'Cannot reopen year 2024 because year 2025 is already closed' },
           false
         )
@@ -244,7 +246,7 @@ describe('Year-End Closure Service', () => {
         },
       ];
 
-      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedGet).mockResolvedValue(mockResponse(mockData));
 
       const result = await getClosedYears();
 
@@ -254,7 +256,7 @@ describe('Year-End Closure Service', () => {
     });
 
     it('should return empty array when no years are closed', async () => {
-      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse([]));
+      vi.mocked(authenticatedGet).mockResolvedValue(mockResponse([]));
 
       const result = await getClosedYears();
 
@@ -272,7 +274,7 @@ describe('Year-End Closure Service', () => {
         closed_by: 'peter@pgeers.nl',
       };
 
-      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData2024));
+      vi.mocked(authenticatedGet).mockResolvedValue(mockResponse(mockData2024));
 
       const year2024Status = await getYearStatus(2024);
       expect(year2024Status.closed).toBe(true);
@@ -285,14 +287,14 @@ describe('Year-End Closure Service', () => {
         closed_by: 'peter@pgeers.nl',
       };
 
-      vi.mocked(authenticatedGet).mockResolvedValue(createMockResponse(mockData2025));
+      vi.mocked(authenticatedGet).mockResolvedValue(mockResponse(mockData2025));
 
       const year2025Status = await getYearStatus(2025);
       expect(year2025Status.closed).toBe(true);
 
       // Attempting to reopen 2024 should fail
       vi.mocked(authenticatedPost).mockResolvedValue(
-        createMockResponse(
+        mockResponse(
           { error: 'Cannot reopen year 2024 because year 2025 is already closed' },
           false
         )
@@ -315,7 +317,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 closed successfully',
       };
 
-      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(mockResponse(mockData));
 
       const result = await closeYear(2025, '');
 
@@ -335,7 +337,7 @@ describe('Year-End Closure Service', () => {
         message: 'Year 2025 closed successfully',
       };
 
-      vi.mocked(authenticatedPost).mockResolvedValue(createMockResponse(mockData));
+      vi.mocked(authenticatedPost).mockResolvedValue(mockResponse(mockData));
 
       const result = await closeYear(2025, '');
 

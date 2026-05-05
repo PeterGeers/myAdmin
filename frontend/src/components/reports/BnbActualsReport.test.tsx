@@ -12,6 +12,7 @@ import '@testing-library/jest-dom';
 import BnbActualsReport from './BnbActualsReport';
 import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock dependencies
 vi.mock('../../context/TenantContext');
@@ -103,9 +104,9 @@ vi.mock('../filters/FilterPanel', () => ({
   }
 }));
 
-const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
-const mockAuthenticatedGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
-const mockBuildEndpoint = buildEndpoint as vi.MockedFunction<typeof buildEndpoint>;
+const mockUseTenant = vi.mocked(useTenant);
+const mockAuthenticatedGet = vi.mocked(authenticatedGet);
+const mockBuildEndpoint = vi.mocked(buildEndpoint);
 
 const mockBnbListingData = [
   {
@@ -172,34 +173,34 @@ describe('BnbActualsReport', () => {
 
     mockAuthenticatedGet.mockImplementation((endpoint: string) => {
       if (endpoint.includes('/api/bnb/bnb-filter-options')) {
-        return Promise.resolve({
-          json: () => Promise.resolve({
+        return Promise.resolve(createMockResponse({
+          body: {
             success: true,
             years: ['2023', '2024'],
             listings: ['Property A', 'Property B'],
             channels: ['Airbnb', 'Booking.com']
-          })
-        } as Response);
+          }
+        }));
       }
       if (endpoint.includes('/api/bnb/bnb-listing-data')) {
-        return Promise.resolve({
-          json: () => Promise.resolve({
+        return Promise.resolve(createMockResponse({
+          body: {
             success: true,
             data: mockBnbListingData
-          })
-        } as Response);
+          }
+        }));
       }
       if (endpoint.includes('/api/bnb/bnb-channel-data')) {
-        return Promise.resolve({
-          json: () => Promise.resolve({
+        return Promise.resolve(createMockResponse({
+          body: {
             success: true,
             data: mockBnbChannelData
-          })
-        } as Response);
+          }
+        }));
       }
-      return Promise.resolve({
-        json: () => Promise.resolve({ success: true, data: [] })
-      } as Response);
+      return Promise.resolve(createMockResponse({
+        body: { success: true, data: [] }
+      }));
     });
   });
 
@@ -348,9 +349,9 @@ describe('BnbActualsReport', () => {
     });
 
     it('handles empty data gracefully', async () => {
-      mockAuthenticatedGet.mockResolvedValue({
-        json: () => Promise.resolve({ success: true, data: [] })
-      } as Response);
+      mockAuthenticatedGet.mockResolvedValue(createMockResponse({
+        body: { success: true, data: [] }
+      }));
       
       render(<BnbActualsReport />);
       

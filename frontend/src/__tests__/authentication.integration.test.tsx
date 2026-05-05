@@ -110,7 +110,7 @@ const mockAccountantToken = createMockToken(['Accountants']);
 const mockViewerToken = createMockToken(['Viewers']);
 
 // Mock session with tokens
-const createMockSession = (token: string) => ({
+const createMockSession = (token: string): any => ({
   tokens: {
     idToken: {
       toString: () => token
@@ -195,7 +195,7 @@ describe('Authentication Integration Tests', () => {
 
     it('should call signInWithPassword on form submit', async () => {
       setupUnauthenticatedMocks();
-      vi.mocked(authService.signInWithPassword).mockResolvedValue({ isSignedIn: true });
+      vi.mocked(authService.signInWithPassword).mockResolvedValue({ isSignedIn: true } as any);
 
       renderWithProviders(<Login onLoginSuccess={vi.fn()} />);
 
@@ -215,7 +215,7 @@ describe('Authentication Integration Tests', () => {
 
     it('should call signInWithPasskey when passkey button clicked', async () => {
       setupUnauthenticatedMocks();
-      vi.mocked(authService.signInWithPasskey).mockResolvedValue({ isSignedIn: true });
+      vi.mocked(authService.signInWithPasskey).mockResolvedValue({ isSignedIn: true } as any);
 
       renderWithProviders(<Login onLoginSuccess={vi.fn()} />);
 

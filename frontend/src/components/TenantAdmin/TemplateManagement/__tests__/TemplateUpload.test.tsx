@@ -42,7 +42,7 @@ vi.mock('@chakra-ui/react', async () => {
 
 describe('TemplateUpload', () => {
   const mockOnUpload = vi.fn();
-  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as vi.MockedFunction<typeof templateApi.getCurrentTemplate>;
+  const mockGetCurrentTemplate = vi.mocked(templateApi.getCurrentTemplate);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -491,7 +491,7 @@ describe('TemplateUpload', () => {
     });
 
     it('calls downloadDefaultTemplate on click', async () => {
-      const mockDownload = templateApi.downloadDefaultTemplate as vi.MockedFunction<any>;
+      const mockDownload = vi.mocked(templateApi.downloadDefaultTemplate);
       mockDownload.mockResolvedValue({
         success: true,
         template_type: 'str_invoice_nl',
@@ -587,7 +587,7 @@ describe('TemplateUpload', () => {
     });
 
     it('calls deleteTenantTemplate on confirm and resets state', async () => {
-      const mockDelete = templateApi.deleteTenantTemplate as vi.MockedFunction<any>;
+      const mockDelete = vi.mocked(templateApi.deleteTenantTemplate);
       mockDelete.mockResolvedValue({
         success: true,
         message: 'Template deactivated successfully.',

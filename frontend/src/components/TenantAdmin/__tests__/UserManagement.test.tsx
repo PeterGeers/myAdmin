@@ -10,6 +10,7 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '../../../test-utils';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import UserManagement from '../UserManagement';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');
@@ -28,7 +29,7 @@ vi.mock('../../../hooks/useTypedTranslation', () => ({
   })
 }));
 
-const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = vi.mocked(fetchAuthSession);
 
 describe('UserManagement Component', () => {
   const mockToken = 'mock-jwt-token';
@@ -75,23 +76,15 @@ describe('UserManagement Component', () => {
     } as any);
 
     // Mock successful API responses
-    global.fetch = vi.fn((url: string) => {
-      if (typeof url === 'string' && url.includes('/api/tenant-admin/users')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ users: mockUsers }),
-        } as Response);
+    global.fetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : String(input);
+      if (url.includes('/api/tenant-admin/users')) {
+        return createMockResponse({ body: { users: mockUsers } });
       }
-      if (typeof url === 'string' && url.includes('/api/tenant-admin/roles')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ roles: mockRoles }),
-        } as Response);
+      if (url.includes('/api/tenant-admin/roles')) {
+        return createMockResponse({ body: { roles: mockRoles } });
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      } as Response);
+      return createMockResponse({ body: {} });
     });
   });
 
@@ -193,7 +186,7 @@ describe('UserManagement Component', () => {
       await waitFor(() => {
         const calls = vi.mocked(global.fetch).mock.calls;
         const usersCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/users'));
-        expect(usersCall[1].headers['Authorization']).toBe(`Bearer ${mockToken}`);
+        expect((usersCall![1]!.headers as Record<string, string>)['Authorization']).toBe(`Bearer ${mockToken}`);
       });
     });
 
@@ -203,7 +196,7 @@ describe('UserManagement Component', () => {
       await waitFor(() => {
         const calls = vi.mocked(global.fetch).mock.calls;
         const usersCall = calls.find((call: any[]) => call[0].includes('/api/tenant-admin/users'));
-        expect(usersCall[1].headers['X-Tenant']).toBe(mockTenant);
+        expect((usersCall![1]!.headers as Record<string, string>)['X-Tenant']).toBe(mockTenant);
       });
     });
 
@@ -472,23 +465,15 @@ describe('UserManagement Component', () => {
     });
 
     test('displays error message when roles fail to load', async () => {
-      vi.mocked(global.fetch).mockImplementation((url: string) => {
-        if (typeof url === 'string' && url.includes('/api/tenant-admin/roles')) {
-          return Promise.resolve({
-            ok: false,
-            text: async () => 'Failed to load roles',
-          } as Response);
+      vi.mocked(global.fetch).mockImplementation(async (input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+        const url = typeof input === 'string' ? input : String(input);
+        if (url.includes('/api/tenant-admin/roles')) {
+          return createMockResponse({ ok: false, textBody: 'Failed to load roles' });
         }
-        if (typeof url === 'string' && url.includes('/api/tenant-admin/users')) {
-          return Promise.resolve({
-            ok: false,
-            text: async () => 'Failed to load users',
-          } as Response);
+        if (url.includes('/api/tenant-admin/users')) {
+          return createMockResponse({ ok: false, textBody: 'Failed to load users' });
         }
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({}),
-        } as Response);
+        return createMockResponse({ body: {} });
       });
 
       render(<UserManagement tenant={mockTenant} />);

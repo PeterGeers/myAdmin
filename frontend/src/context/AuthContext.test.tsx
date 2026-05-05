@@ -25,9 +25,9 @@ vi.mock('../services/authService', () => ({
   hasAllRoles: vi.fn(),
 }));
 
-const mockGetCurrentUser = getCurrentUser as vi.MockedFunction<typeof getCurrentUser>;
-const mockSignOut = signOut as vi.MockedFunction<typeof signOut>;
-const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+const mockGetCurrentUser = vi.mocked(getCurrentUser);
+const mockSignOut = vi.mocked(signOut);
+const mockFetchAuthSession = vi.mocked(fetchAuthSession);
 
 // Mock JWT token creation
 const createMockToken = (email: string, groups: string[]) => {
@@ -120,7 +120,7 @@ describe('AuthContext', () => {
 
   it('should throw error when useAuth is used outside AuthProvider', () => {
     // Suppress console.error for this test
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     expect(() => {
       render(<TestComponent />);
@@ -185,7 +185,7 @@ describe('AuthContext', () => {
     mockFetchAuthSession.mockRejectedValue(new Error('Auth error'));
     vi.mocked(authService.isAuthenticated).mockRejectedValue(new Error('Auth error'));
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation();
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(
       <AuthProvider>

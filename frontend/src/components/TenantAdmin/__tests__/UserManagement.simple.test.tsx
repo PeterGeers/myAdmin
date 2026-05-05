@@ -7,6 +7,7 @@
 
 import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');
@@ -17,7 +18,7 @@ vi.mock('../../../config', () => ({
   API_BASE_URL: 'http://localhost:5000',
 }));
 
-const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = vi.mocked(fetchAuthSession);
 
 describe('UserManagement Component Logic', () => {
   const mockToken = 'mock-jwt-token';
@@ -63,23 +64,15 @@ describe('UserManagement Component Logic', () => {
       },
     } as any);
 
-    global.fetch = vi.fn((url: string) => {
+    global.fetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+      const url = typeof input === 'string' ? input : String(input);
       if (url.includes('/api/tenant-admin/users')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ users: mockUsers }),
-        } as Response);
+        return createMockResponse({ body: { users: mockUsers } });
       }
       if (url.includes('/api/tenant-admin/roles')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ roles: mockRoles }),
-        } as Response);
+        return createMockResponse({ body: { roles: mockRoles } });
       }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({}),
-      } as Response);
+      return createMockResponse({ body: {} });
     });
   });
 
