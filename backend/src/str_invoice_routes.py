@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import os
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from utils.date_utils import normalize_dates
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
         cursor.close()
         connection.close()
         
+        normalize_dates(results, ['checkinDate', 'checkoutDate'])
         return jsonify({
             'success': True, 
             'bookings': results, 

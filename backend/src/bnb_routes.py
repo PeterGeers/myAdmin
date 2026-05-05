@@ -4,6 +4,7 @@ from database import DatabaseManager
 from collections import defaultdict
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from utils.date_utils import normalize_dates
 
 logger = logging.getLogger(__name__)
 
@@ -411,6 +412,7 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
         cursor.close()
         connection.close()
         
+        normalize_dates(results, ['checkinDate', 'checkoutDate'])
         return jsonify({'success': True, 'data': results})
         
     except Exception as e:
@@ -468,6 +470,7 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
         cursor.close()
         connection.close()
         
+        normalize_dates(results, ['checkinDate', 'checkoutDate'])
         return jsonify({'success': True, 'data': results})
     except Exception as e:
         logger.error(f'Error in endpoint: {str(e)}')

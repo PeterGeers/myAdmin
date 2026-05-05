@@ -5,6 +5,7 @@ from datetime import datetime
 from contextlib import contextmanager
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from utils.date_utils import normalize_dates
 
 reporting_bp = Blueprint('reporting', __name__)
 
@@ -237,6 +238,7 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
             """, params)
             results = cursor.fetchall()
         
+        normalize_dates(results, ['TransactionDate'])
         return jsonify({'success': True, 'data': results})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -535,6 +537,7 @@ def get_check_reference(user_email, user_roles, tenant, user_tenants):
             
             transactions = db.execute_query(transactions_query, tuple(detail_params))
         
+        normalize_dates(transactions, ['TransactionDate'])
         return jsonify({'success': True, 'transactions': transactions, 'summary': summary})
     except Exception as e:
         print(f"Error in get_check_reference: {e}", flush=True)
