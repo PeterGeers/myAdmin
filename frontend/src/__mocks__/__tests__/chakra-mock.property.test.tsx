@@ -65,7 +65,8 @@ describe('Property 1: Prop filter correctly partitions Chakra and DOM props', ()
     ],
     { numRuns: 100 },
   )('filterChakraProps removes all Chakra props and preserves all DOM props', (props) => {
-    const result = filterChakraProps(props);
+    const result = filterChakraProps(props) as Record<string, any>;
+    const propsRecord = props as Record<string, any>;
 
     // No Chakra props in output
     for (const key of CHAKRA_PROP_NAMES) {
@@ -74,8 +75,8 @@ describe('Property 1: Prop filter correctly partitions Chakra and DOM props', ()
 
     // All DOM props with defined values are preserved
     for (const key of DOM_ATTR_NAMES) {
-      if (key in props && props[key] !== undefined) {
-        expect(result[key]).toEqual(props[key]);
+      if (key in propsRecord && propsRecord[key] !== undefined) {
+        expect(result[key]).toEqual(propsRecord[key]);
       }
     }
   });

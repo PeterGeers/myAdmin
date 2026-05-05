@@ -112,18 +112,18 @@ vi.mock('../../../hooks/useColumnFilters', () => {
 
   return {
     useColumnFilters: (data: any[], initialFilters: Record<string, string>) => {
-      const [filters, setFiltersState] = useState<Record<string, string>>(
+      const [filters, setFiltersState] = (useState as any)(
         () => Object.fromEntries(Object.keys(initialFilters).map((k) => [k, ''])),
       );
       const setFilter = useCallback((key: string, value: string) => {
         setFiltersState((prev: Record<string, string>) => ({ ...prev, [key]: value }));
       }, []);
       const resetFilters = useCallback(() => {
-        setFiltersState(Object.fromEntries(Object.keys(filters).map((k) => [k, ''])));
+        setFiltersState(Object.fromEntries(Object.keys(filters).map((k: string) => [k, ''])));
       }, [filters]);
       const filteredData = useMemo(() => applyFilters(data, filters), [data, filters]);
       const hasActiveFilters = useMemo(
-        () => Object.values(filters).some((v: string) => v !== ''),
+        () => Object.values(filters).some((v) => v !== ''),
         [filters],
       );
       return { filters, setFilter, resetFilters, filteredData, hasActiveFilters };
@@ -173,7 +173,7 @@ const valueTypeArb = fc.oneof(
 /* ------------------------------------------------------------------ */
 
 async function renderWithParam(param: any) {
-  getParameters.mockResolvedValue({
+  vi.mocked(getParameters).mockResolvedValue({
     success: true,
     tenant: 'T1',
     parameters: { [param.namespace]: [param] },
@@ -281,7 +281,7 @@ describe('Feature: parameter-reset-to-default, Property 3: Confirmation Dialog I
         has_code_default: true,
       };
 
-      getParameterDefault.mockResolvedValue({
+      vi.mocked(getParameterDefault).mockResolvedValue({
         success: true,
         has_default: true,
         value: defaultValue,
@@ -358,7 +358,7 @@ describe('Feature: parameter-reset-to-default, Property 4: JSON Values Formatted
         has_code_default: true,
       };
 
-      getParameterDefault.mockResolvedValue({
+      vi.mocked(getParameterDefault).mockResolvedValue({
         success: true,
         has_default: true,
         value: defaultJson,

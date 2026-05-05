@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-05-05T12:54:31.867627+00:00",
+  "failing_tests": {
+    "C:\\Users\\peter\\AppData\\Local\\Temp\\pytest-of-peter\\pytest-252\\test_generate_baseline_populat0\\unit\\test_bad.py:1": "[BU005] ",
+    "C:\\Users\\peter\\AppData\\Local\\Temp\\pytest-of-peter\\pytest-252\\test_generate_baseline_populat0\\unit\\test_bad.py:3": "Direct call to mysql.connector.connect() without a mock. This creates a real database connection."
+  },
+  "total_failing": 2
+}

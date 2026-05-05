@@ -8,11 +8,12 @@
 import { vi } from 'vitest';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import * as api from '../../../services/tenantAdminApi';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = vi.mocked(fetchAuthSession);
 
 describe('Tenant Admin Integration Tests', () => {
   const mockToken = 'mock-jwt-token';
@@ -57,10 +58,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'User created successfully',
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => createUserResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: createUserResponse }));
 
       const userData = {
         email: 'newuser@example.com',
@@ -79,10 +77,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'Role assigned successfully',
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => assignRoleResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: assignRoleResponse }));
 
       const assignResult = await api.assignRole('newuser@example.com', 'Tenant_Admin');
 
@@ -104,10 +99,7 @@ describe('Tenant Admin Integration Tests', () => {
         ],
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => listUsersResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: listUsersResponse }));
 
       const listResult = await api.listUsers();
 
@@ -120,11 +112,7 @@ describe('Tenant Admin Integration Tests', () => {
     });
 
     test('handles user creation failure gracefully', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({ error: 'User already exists' }),
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ ok: false, status: 400, body: { error: 'User already exists' } }));
 
       const userData = {
         email: 'existing@example.com',
@@ -149,10 +137,7 @@ describe('Tenant Admin Integration Tests', () => {
         credential_type: 'google_drive',
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => uploadResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: uploadResponse }));
 
       const file = new File(['{"key": "value"}'], 'credentials.json', {
         type: 'application/json',
@@ -170,10 +155,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'Connection successful',
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => testResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: testResponse }));
 
       const testResult = await api.testCredentials('google_drive');
 
@@ -191,10 +173,7 @@ describe('Tenant Admin Integration Tests', () => {
         ],
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => listResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: listResponse }));
 
       const listResult = await api.listCredentials();
 
@@ -206,11 +185,7 @@ describe('Tenant Admin Integration Tests', () => {
     });
 
     test('handles upload failure and shows error', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({ error: 'Invalid credentials format' }),
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ ok: false, status: 400, body: { error: 'Invalid credentials format' } }));
 
       const file = new File(['invalid'], 'credentials.json', {
         type: 'application/json',
@@ -236,10 +211,7 @@ describe('Tenant Admin Integration Tests', () => {
         ],
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => browseFoldersResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: browseFoldersResponse }));
 
       const browseFoldersResult = await api.browseFolders();
 
@@ -251,10 +223,7 @@ describe('Tenant Admin Integration Tests', () => {
         message: 'Storage configured successfully',
       };
 
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => configureResponse,
-      });
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: configureResponse }));
 
       const storageConfig = {
         google_drive_invoices_folder_id: 'folder1',
@@ -281,11 +250,7 @@ describe('Tenant Admin Integration Tests', () => {
     });
 
     test('handles 403 Forbidden errors', async () => {
-      vi.mocked(global.fetch).mockResolvedValue({
-        ok: false,
-        status: 403,
-        json: async () => ({ error: 'Access denied' }),
-      });
+      vi.mocked(global.fetch).mockResolvedValue(createMockResponse({ ok: false, status: 403, body: { error: 'Access denied' } }));
 
       await expect(api.listUsers()).rejects.toThrow('Access denied');
     });
@@ -306,10 +271,7 @@ describe('Tenant Admin Integration Tests', () => {
           new Promise((resolve) =>
             setTimeout(
               () =>
-                resolve({
-                  ok: true,
-                  json: async () => ({ success: true }),
-                }),
+                resolve(createMockResponse({ body: { success: true } })),
               50
             )
           )

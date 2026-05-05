@@ -13,6 +13,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Import the component after mocks
 import ReferenceAnalysisReport from '../components/reports/ReferenceAnalysisReport';
@@ -125,9 +126,9 @@ const mockApiResponse = {
 describe('ReferenceAnalysisReport Tenant Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(authenticatedGet).mockResolvedValue({
-      json: () => Promise.resolve(mockApiResponse),
-    });
+    vi.mocked(authenticatedGet).mockResolvedValue(
+      createMockResponse({ body: mockApiResponse })
+    );
   });
 
   describe('Tenant Context Integration', () => {

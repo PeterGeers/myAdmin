@@ -411,7 +411,7 @@ describe('Property 11: Hierarchical tree nesting', () => {
           .chain((groupCols) =>
             fc.tuple(
               fc.constant(groupCols),
-              fc.constant(['SUM_Amount']),
+              fc.constant(['SUM_Amount'] as string[]),
               fc.array(rowArbitrary(groupCols, ['SUM_Amount']), {
                 minLength: 2,
                 maxLength: 30,
@@ -452,7 +452,7 @@ describe('Property 11: Hierarchical tree nesting', () => {
           .chain((groupCols) =>
             fc.tuple(
               fc.constant(groupCols),
-              fc.constant(['SUM_Amount']),
+              fc.constant(['SUM_Amount'] as string[]),
               fc.array(rowArbitrary(groupCols, ['SUM_Amount']), {
                 minLength: 2,
                 maxLength: 30,
@@ -487,7 +487,7 @@ describe('Property 11: Hierarchical tree nesting', () => {
           .chain((groupCols) =>
             fc.tuple(
               fc.constant(groupCols),
-              fc.constant(['SUM_Amount']),
+              fc.constant(['SUM_Amount'] as string[]),
               fc.array(rowArbitrary(groupCols, ['SUM_Amount']), {
                 minLength: 2,
                 maxLength: 30,

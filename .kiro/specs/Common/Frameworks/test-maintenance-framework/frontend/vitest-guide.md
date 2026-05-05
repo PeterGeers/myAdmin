@@ -127,16 +127,35 @@ vi.mock("../services/apiService", async () => {
 
 ### Mocking fetch
 
-The global `fetch` mock is in `setupTests.ts`. To override per-test:
+The global `fetch` mock is in `setupTests.ts`. To override per-test, use `createMockResponse()` from `@/test-utils/mockHelpers`:
 
 ```typescript
-vi.mocked(global.fetch).mockResolvedValueOnce({
-  ok: true,
-  json: async () => ({ data: "test" }),
-} as Response);
+import { createMockResponse } from "@/test-utils/mockHelpers";
+
+// Success response with JSON body
+vi.mocked(global.fetch).mockResolvedValueOnce(
+  createMockResponse({ body: { data: "test" } }),
+);
+
+// Error response
+vi.mocked(global.fetch).mockResolvedValueOnce(
+  createMockResponse({ ok: false, status: 404, body: { error: "Not found" } }),
+);
+
+// Response with custom headers
+vi.mocked(global.fetch).mockResolvedValueOnce(
+  createMockResponse({
+    body: { result: "ok" },
+    headers: new Headers({ "Content-Type": "application/json" }),
+  }),
+);
 ```
 
+> **Do NOT** use inline partial objects with `as Response` casts. The `createMockResponse()` factory provides a complete `Response` object that satisfies TypeScript's strict type checker without casts.
+
 ### Type-safe mock access
+
+Use `vi.mocked()` to get type-safe access to mock methods. Never use `as vi.MockedFunction<typeof fn>` casts.
 
 ```typescript
 // Access mock calls/results
@@ -160,6 +179,103 @@ vi.mock('@chakra-ui/react', () => ({ Box: ({ children }) => <div>{children}</div
 ```
 
 For transitive mocks, use `resolve.alias` in `vite.config.ts` instead.
+
+## Type Safety Patterns
+
+These patterns ensure `tsc --noEmit` passes with zero errors across all test files. Follow them in all new and modified tests.
+
+### vi.mocked() — the only way to type mock functions
+
+Always use `vi.mocked(fn)` to access mock methods. Never use `as vi.MockedFunction<typeof fn>` casts.
+
+```typescript
+import { fetchAuthSession } from 'aws-amplify/auth';
+vi.mock('aws-amplify/auth');
+
+// ✅ Correct — vi.mocked() returns properly typed mock
+vi.mocked(fetchAuthSession).mockResolvedValue({ tokens: { ... } } as any);
+
+// ✅ Also correct — variable for repeated use
+const mockFetchAuth = vi.mocked(fetchAuthSession);
+mockFetchAuth.mockResolvedValue({ tokens: { ... } } as any);
+
+// ❌ NEVER do this — causes namespace resolution errors
+const mockFn = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+```
+
+### createMockResponse() — the only way to mock fetch responses
+
+Import from `@/test-utils/mockHelpers`. Never create partial Response objects with `as Response` casts.
+
+```typescript
+import { createMockResponse } from "@/test-utils/mockHelpers";
+
+// ✅ Correct — complete Response object, no casts needed
+vi.mocked(global.fetch).mockResolvedValue(
+  createMockResponse({ body: { users: [] } }),
+);
+
+// ❌ NEVER do this — missing required Response properties
+vi.mocked(global.fetch).mockResolvedValue({
+  ok: true,
+  json: async () => ({ users: [] }),
+} as Response);
+```
+
+`createMockResponse()` options (all optional):
+
+| Option       | Default         | Description                      |
+| ------------ | --------------- | -------------------------------- |
+| `status`     | `200`           | HTTP status code                 |
+| `ok`         | `true`          | Whether response is ok (200-299) |
+| `statusText` | `"OK"`          | HTTP status text                 |
+| `headers`    | `new Headers()` | Response headers                 |
+| `body`       | `{}`            | Value returned by `.json()`      |
+| `textBody`   | `""`            | Value returned by `.text()`      |
+| `redirected` | `false`         | Whether response was redirected  |
+| `type`       | `"basic"`       | Response type                    |
+| `url`        | `""`            | Response URL                     |
+
+### mockImplementation() — always pass a function argument
+
+Vitest 4.x requires at least one argument. Always pass an explicit no-op function:
+
+```typescript
+// ✅ Correct
+vi.spyOn(console, "error").mockImplementation(() => {});
+
+// ❌ Type error in Vitest 4.x — zero arguments not allowed
+vi.spyOn(console, "error").mockImplementation();
+```
+
+### Null guards for .mock.calls access
+
+Use non-null assertions (`!`) when accessing mock call arguments:
+
+```typescript
+// ✅ Correct — non-null assertion for array element access
+const fetchCall = vi.mocked(global.fetch).mock.calls[0]!;
+const requestInit = fetchCall[1]!;
+const headers = requestInit.headers;
+
+// ❌ Type error — possibly undefined
+const fetchCall = vi.mocked(global.fetch).mock.calls[0];
+const headers = fetchCall[1].headers; // TS2532: Object is possibly 'undefined'
+```
+
+### tsconfig.json types configuration
+
+The `types` array must include both `vitest/globals` (for global describe/it/expect) and `vitest` (for the `vi` namespace types):
+
+```jsonc
+{
+  "compilerOptions": {
+    "types": ["vitest/globals", "vitest", "node"],
+  },
+}
+```
+
+New test files automatically get Vitest types — no per-file triple-slash directives needed.
 
 ## Chakra UI Testing
 
@@ -290,7 +406,10 @@ frontend/
 5. Use `waitFor` for async assertions
 6. Use `userEvent.setup()` for user interactions (not `fireEvent` unless necessary)
 7. Add `{ timeout: 30000 }` for property-based tests with 100+ iterations
-8. Use `vi.mocked(x)` instead of `(x as any)` for type-safe mock access
+8. Use `vi.mocked(fn)` for type-safe mock access — never `as vi.MockedFunction<typeof fn>`
+9. Use `createMockResponse()` from `@/test-utils/mockHelpers` for fetch mocks — never inline `as Response`
+10. Pass `() => {}` to `mockImplementation()` — never call with zero arguments
+11. Use `!` non-null assertions when accessing `.mock.calls[n]` elements
 
 ## Best Practices — Do's and Don'ts
 

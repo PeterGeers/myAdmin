@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -139,9 +140,9 @@ describe('Integration Tests', () => {
   describe('API integration', () => {
     it('fetches and displays data', async () => {
       const user = userEvent.setup();
-      vi.mocked(fetch).mockResolvedValue({
-        json: () => Promise.resolve({ message: 'API data loaded' })
-      });
+      vi.mocked(fetch).mockResolvedValue(
+        createMockResponse({ body: { message: 'API data loaded' } })
+      );
 
       render(<APIComponent />);
 

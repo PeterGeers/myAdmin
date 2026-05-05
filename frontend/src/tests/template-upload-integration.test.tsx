@@ -28,7 +28,7 @@ vi.mock('../services/templateApi', () => ({
 
 describe('Template Upload Integration Tests', () => {
   const mockOnUpload = vi.fn();
-  const mockGetCurrentTemplate = templateApi.getCurrentTemplate as vi.MockedFunction<typeof templateApi.getCurrentTemplate>;
+  const mockGetCurrentTemplate = vi.mocked(templateApi.getCurrentTemplate);
 
   beforeEach(() => {
     vi.clearAllMocks();

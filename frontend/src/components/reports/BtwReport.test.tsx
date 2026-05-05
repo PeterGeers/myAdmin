@@ -12,6 +12,7 @@ import '@testing-library/jest-dom';
 import BtwReport from './BtwReport';
 import { useTenant } from '../../context/TenantContext';
 import { tenantAwareGet, tenantAwarePost, requireTenant } from '../../services/tenantApiService';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // Mock dependencies
 vi.mock('../../context/TenantContext');
@@ -54,10 +55,10 @@ vi.mock('../filters/FilterPanel', () => {
   };
 });
 
-const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
-const mockTenantAwareGet = tenantAwareGet as vi.MockedFunction<typeof tenantAwareGet>;
-const mockTenantAwarePost = tenantAwarePost as vi.MockedFunction<typeof tenantAwarePost>;
-const mockRequireTenant = requireTenant as vi.MockedFunction<typeof requireTenant>;
+const mockUseTenant = vi.mocked(useTenant);
+const mockTenantAwareGet = vi.mocked(tenantAwareGet);
+const mockTenantAwarePost = vi.mocked(tenantAwarePost);
+const mockRequireTenant = vi.mocked(requireTenant);
 
 // Helper to render and wait for async effects (fetchBtwAvailableYears on mount)
 async function renderAndSettle(ui: React.ReactElement) {
@@ -81,9 +82,9 @@ describe('BtwReport', () => {
       hasMultipleTenants: true
     });
 
-    mockTenantAwareGet.mockResolvedValue({
-      json: () => Promise.resolve({ success: true, years: ['2024', '2023'] })
-    } as Response);
+    mockTenantAwareGet.mockResolvedValue(createMockResponse({
+      body: { success: true, years: ['2024', '2023'] }
+    }));
 
     mockRequireTenant.mockReturnValue('GoodwinSolutions');
   });
@@ -153,13 +154,13 @@ describe('BtwReport', () => {
     });
 
     it('uses tenant-aware API for generating report', async () => {
-      mockTenantAwarePost.mockResolvedValueOnce({
-        json: () => Promise.resolve({
+      mockTenantAwarePost.mockResolvedValueOnce(createMockResponse({
+        body: {
           success: true,
           html_report: '<div>Test Report</div>',
           transaction: { TransactionNumber: 'T001' }
-        })
-      } as Response);
+        }
+      }));
 
       await renderAndSettle(<BtwReport />);
       
@@ -208,12 +209,12 @@ describe('BtwReport', () => {
 
   describe('Error Handling', () => {
     it('handles API errors during report generation', async () => {
-      mockTenantAwarePost.mockResolvedValueOnce({
-        json: () => Promise.resolve({
+      mockTenantAwarePost.mockResolvedValueOnce(createMockResponse({
+        body: {
           success: false,
           error: 'Test error'
-        })
-      } as Response);
+        }
+      }));
 
       const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
@@ -262,13 +263,13 @@ describe('BtwReport', () => {
     });
 
     it('shows report content after successful generation', async () => {
-      mockTenantAwarePost.mockResolvedValueOnce({
-        json: () => Promise.resolve({
+      mockTenantAwarePost.mockResolvedValueOnce(createMockResponse({
+        body: {
           success: true,
           html_report: '<div>Test BTW Report Content</div>',
           transaction: { TransactionNumber: 'T001', TransactionDate: '2024-01-01' }
-        })
-      } as Response);
+        }
+      }));
 
       await renderAndSettle(<BtwReport />);
       

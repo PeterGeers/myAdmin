@@ -28,21 +28,21 @@ import { getTaxRates } from '../../../services/taxRateService';
 const mockRates = {
   success: true, tenant: 'T1',
   tax_rates: [
-    { id: 1, tax_type: 'btw', tax_code: 'high', rate: 21, ledger_account: '2020', effective_from: '2000-01-01', effective_to: '9999-12-31', scope_origin: 'system', description: 'BTW Hoog', calc_method: 'percentage' },
-    { id: 2, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.9, ledger_account: null, effective_from: '2026-01-01', effective_to: '9999-12-31', scope_origin: 'tenant', description: 'Toeristenbelasting', calc_method: 'percentage' },
-    { id: 3, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.02, ledger_account: null, effective_from: '2000-01-01', effective_to: '2025-12-31', scope_origin: 'tenant', description: 'Toeristenbelasting oud', calc_method: 'percentage' },
+    { id: 1, tax_type: 'btw', tax_code: 'high', rate: 21, ledger_account: '2020', effective_from: '2000-01-01', effective_to: '9999-12-31', scope_origin: 'system' as const, description: 'BTW Hoog', calc_method: 'percentage' },
+    { id: 2, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.9, ledger_account: null, effective_from: '2026-01-01', effective_to: '9999-12-31', scope_origin: 'tenant' as const, description: 'Toeristenbelasting', calc_method: 'percentage' },
+    { id: 3, tax_type: 'tourist_tax', tax_code: 'standard', rate: 6.02, ledger_account: null, effective_from: '2000-01-01', effective_to: '2025-12-31', scope_origin: 'tenant' as const, description: 'Toeristenbelasting oud', calc_method: 'percentage' },
   ],
 };
 
 describe('TaxRateManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getTaxRates.mockResolvedValue(mockRates);
+    vi.mocked(getTaxRates).mockResolvedValue(mockRates);
   });
 
   describe('Rendering', () => {
     test('shows loading spinner initially', () => {
-      getTaxRates.mockReturnValue(new Promise(() => {}));
+      vi.mocked(getTaxRates).mockReturnValue(new Promise(() => {}));
       render(<TaxRateManagement tenant="T1" />);
       expect(screen.getByRole('status')).toBeInTheDocument();
     });
@@ -71,7 +71,7 @@ describe('TaxRateManagement', () => {
     });
 
     test('shows empty state when no rates', async () => {
-      getTaxRates.mockResolvedValue({ success: true, tenant: 'T1', tax_rates: [] });
+      vi.mocked(getTaxRates).mockResolvedValue({ success: true, tenant: 'T1', tax_rates: [] });
       render(<TaxRateManagement tenant="T1" />);
       await waitFor(() => expect(screen.getByText('tenantAdmin.taxRates.noTaxRates')).toBeInTheDocument());
     });

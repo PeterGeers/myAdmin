@@ -2,14 +2,13 @@ import { vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@/test-utils';
 import userEvent from '@testing-library/user-event';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 import App from './App';
 
 // Mock fetch for API calls
-global.fetch = vi.fn(() =>
-  Promise.resolve({
-    json: () => Promise.resolve({ mode: 'Test', database: 'testfinance', folder: 'testFacturen' }),
-  })
+global.fetch = vi.fn((): Promise<Response> =>
+  Promise.resolve(createMockResponse({ body: { mode: 'Test', database: 'testfinance', folder: 'testFacturen' } }))
 );
 
 // Mock the entire App component to avoid Chakra UI issues

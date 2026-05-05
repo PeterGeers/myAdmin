@@ -11,7 +11,7 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');
 
-const mockFetchAuthSession = fetchAuthSession as vi.MockedFunction<typeof fetchAuthSession>;
+const mockFetchAuthSession = vi.mocked(fetchAuthSession);
 
 describe('CredentialsManagement Component Logic', () => {
   const mockToken = 'mock-jwt-token';

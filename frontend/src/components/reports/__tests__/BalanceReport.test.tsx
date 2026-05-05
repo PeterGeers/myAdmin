@@ -14,6 +14,7 @@ import { useTenant } from '../../../context/TenantContext';
 import { authenticatedGet } from '../../../services/apiService';
 import { getClosedYears } from '../../../services/yearEndClosureService';
 import { invalidateAndFetch } from '../../../utils/financialReportUtils';
+import { createMockResponse } from '@/test-utils/mockHelpers';
 
 // --- Mocks ---
 
@@ -58,9 +59,9 @@ vi.mock('../../filters/YearFilter', () => ({
 
 // --- Test data ---
 
-const mockUseTenant = useTenant as vi.MockedFunction<typeof useTenant>;
-const mockAuthGet = authenticatedGet as vi.MockedFunction<typeof authenticatedGet>;
-const mockGetClosedYears = getClosedYears as vi.MockedFunction<typeof getClosedYears>;
+const mockUseTenant = vi.mocked(useTenant);
+const mockAuthGet = vi.mocked(authenticatedGet);
+const mockGetClosedYears = vi.mocked(getClosedYears);
 
 const mockBalanceResponse = {
   success: true,
@@ -98,9 +99,9 @@ beforeEach(() => {
     { year: 2024, closed_date: '2025-01-15', closed_by: 'admin',
       closure_transaction_number: 'YC2024', opening_balance_transaction_number: 'OB2025', notes: '' },
   ]);
-  mockAuthGet.mockResolvedValue({
-    json: () => Promise.resolve(mockBalanceResponse),
-  } as Response);
+  mockAuthGet.mockResolvedValue(createMockResponse({
+    body: mockBalanceResponse,
+  }));
 });
 
 // --- Tests ---

@@ -23,10 +23,6 @@ vi.mock('../context/TenantContext', () => ({
 
 import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
 
-vi.mocked(authenticatedGet);
-vi.mocked(authenticatedPost);
-vi.mocked(authenticatedFormData);
-
 import { useTenant } from '../context/TenantContext';
 
 // Mock PDFUploadForm component for testing tenant functionality
@@ -106,9 +102,9 @@ describe('PDFUploadForm - Tenant Handling', () => {
     mockUseTenant.currentTenant = 'tenant1';
     
     // Mock successful folders API response
-    authenticatedGet.mockResolvedValue({
+    vi.mocked(authenticatedGet).mockResolvedValue({
       json: () => Promise.resolve(['General', 'Booking.com', 'Utilities']),
-    });
+    } as any);
   });
 
   describe('Tenant Context Integration', () => {
@@ -163,7 +159,7 @@ describe('PDFUploadForm - Tenant Handling', () => {
         json: () => Promise.resolve(['folder1', 'folder2']),
       });
       
-      authenticatedGet.mockImplementation(mockFetchFolders);
+      vi.mocked(authenticatedGet).mockImplementation(mockFetchFolders);
 
       // Simulate the API call that would happen in the real component
       await authenticatedGet('/api/folders', { tenant: 'tenant1' });
@@ -172,7 +168,7 @@ describe('PDFUploadForm - Tenant Handling', () => {
     });
 
     it('should handle API errors gracefully', async () => {
-      authenticatedGet.mockRejectedValue(new Error('API Error'));
+      vi.mocked(authenticatedGet).mockRejectedValue(new Error('API Error'));
 
       await expect(authenticatedGet('/api/folders', { tenant: 'tenant1' })).rejects.toThrow('API Error');
     });

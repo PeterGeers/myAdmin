@@ -117,18 +117,18 @@ vi.mock('../../../hooks/useColumnFilters', () => {
 
   return {
     useColumnFilters: (data: any[], initialFilters: Record<string, string>) => {
-      const [filters, setFiltersState] = useState<Record<string, string>>(
+      const [filters, setFiltersState] = (useState as any)(
         () => Object.fromEntries(Object.keys(initialFilters).map((k) => [k, ''])),
       );
       const setFilter = useCallback((key: string, value: string) => {
         setFiltersState((prev: Record<string, string>) => ({ ...prev, [key]: value }));
       }, []);
       const resetFilters = useCallback(() => {
-        setFiltersState(Object.fromEntries(Object.keys(filters).map((k) => [k, ''])));
+        setFiltersState(Object.fromEntries(Object.keys(filters).map((k: string) => [k, ''])));
       }, [filters]);
       const filteredData = useMemo(() => applyFilters(data, filters), [data, filters]);
       const hasActiveFilters = useMemo(
-        () => Object.values(filters).some((v: string) => v !== ''),
+        () => Object.values(filters).some((v) => v !== ''),
         [filters],
       );
       return { filters, setFilter, resetFilters, filteredData, hasActiveFilters };
@@ -147,11 +147,11 @@ const mockParams = {
   tenant: 'T1',
   parameters: {
     storage: [
-      { id: 1, namespace: 'storage', key: 'provider', value: 'google_drive', value_type: 'string', scope_origin: 'tenant', is_secret: false },
-      { id: null, namespace: 'storage', key: 'bucket', value: 'default', value_type: 'string', scope_origin: 'system', is_secret: false },
+      { id: 1, namespace: 'storage', key: 'provider', value: 'google_drive', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false },
+      { id: null, namespace: 'storage', key: 'bucket', value: 'default', value_type: 'string' as const, scope_origin: 'system' as const, is_secret: false },
     ],
     fin: [
-      { id: 2, namespace: 'fin', key: 'currency', value: 'EUR', value_type: 'string', scope_origin: 'tenant', is_secret: false },
+      { id: 2, namespace: 'fin', key: 'currency', value: 'EUR', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false },
     ],
   },
 };
@@ -164,7 +164,7 @@ describe('ParameterManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockToast.mockClear();
-    getParameters.mockResolvedValue(mockParams);
+    vi.mocked(getParameters).mockResolvedValue(mockParams);
   });
 
   /** Helper: render and wait for data to load */
@@ -182,7 +182,7 @@ describe('ParameterManagement', () => {
 
   describe('Rendering', () => {
     test('shows loading spinner initially', () => {
-      getParameters.mockReturnValue(new Promise(() => {}));
+      vi.mocked(getParameters).mockReturnValue(new Promise(() => {}));
       render(<ParameterManagement tenant="T1" />);
       expect(screen.getByText('Loading parameters...')).toBeInTheDocument();
     });
@@ -207,16 +207,16 @@ describe('ParameterManagement', () => {
     });
 
     test('shows secret values as masked', async () => {
-      getParameters.mockResolvedValue({
+      vi.mocked(getParameters).mockResolvedValue({
         success: true, tenant: 'T1',
-        parameters: { ns: [{ id: 3, namespace: 'ns', key: 'api_key', value: '********', value_type: 'string', scope_origin: 'tenant', is_secret: true }] },
+        parameters: { ns: [{ id: 3, namespace: 'ns', key: 'api_key', value: '********', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: true }] },
       });
       render(<ParameterManagement tenant="T1" />);
       await waitFor(() => expect(screen.getByText('********')).toBeInTheDocument());
     });
 
     test('shows empty state when no parameters', async () => {
-      getParameters.mockResolvedValue({ success: true, tenant: 'T1', parameters: {} });
+      vi.mocked(getParameters).mockResolvedValue({ success: true, tenant: 'T1', parameters: {} });
       render(<ParameterManagement tenant="T1" />);
       await waitFor(() => expect(screen.getByText('tenantAdmin.parameters.noParameters')).toBeInTheDocument());
     });
@@ -365,7 +365,7 @@ describe('ParameterManagement', () => {
     });
 
     test('Customize creates tenant copy via createParameter', async () => {
-      createParameter.mockResolvedValue({ success: true });
+      vi.mocked(createParameter).mockResolvedValue({ success: true });
 
       await renderAndWait();
       fireEvent.click(screen.getByText('bucket'));
@@ -411,11 +411,11 @@ describe('ParameterManagement', () => {
     });
 
     test('Reset to Default button shown when has_code_default is true', async () => {
-      getParameters.mockResolvedValue({
+      vi.mocked(getParameters).mockResolvedValue({
         success: true, tenant: 'T1',
         parameters: {
           storage: [
-            { id: 10, namespace: 'storage', key: 'provider', value: 'custom', value_type: 'string', scope_origin: 'tenant', is_secret: false, has_code_default: true },
+            { id: 10, namespace: 'storage', key: 'provider', value: 'custom', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false, has_code_default: true },
           ],
         },
       });
@@ -432,11 +432,11 @@ describe('ParameterManagement', () => {
     });
 
     test('Delete button shown when has_code_default is false', async () => {
-      getParameters.mockResolvedValue({
+      vi.mocked(getParameters).mockResolvedValue({
         success: true, tenant: 'T1',
         parameters: {
           custom: [
-            { id: 20, namespace: 'custom', key: 'my_setting', value: 'abc', value_type: 'string', scope_origin: 'tenant', is_secret: false, has_code_default: false },
+            { id: 20, namespace: 'custom', key: 'my_setting', value: 'abc', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false, has_code_default: false },
           ],
         },
       });
@@ -462,15 +462,15 @@ describe('ParameterManagement', () => {
       success: true, tenant: 'T1',
       parameters: {
         storage: [
-          { id: 10, namespace: 'storage', key: 'provider', value: 'custom_val', value_type: 'string', scope_origin: 'tenant', is_secret: false, has_code_default: true },
+          { id: 10, namespace: 'storage', key: 'provider', value: 'custom_val', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false, has_code_default: true },
         ],
       },
     };
 
     /** Open the edit modal and click Reset to Default to open the confirmation dialog */
     async function openResetDialog() {
-      getParameters.mockResolvedValue(paramsWithCodeDefault);
-      getParameterDefault.mockResolvedValue({
+      vi.mocked(getParameters).mockResolvedValue(paramsWithCodeDefault);
+      vi.mocked(getParameterDefault).mockResolvedValue({
         success: true, has_default: true,
         value: 'google_drive', value_type: 'string', source: 'code_default',
       });
@@ -492,7 +492,7 @@ describe('ParameterManagement', () => {
     }
 
     test('confirm reset calls deleteParameter and refreshes list', async () => {
-      deleteParameter.mockResolvedValue({ success: true });
+      vi.mocked(deleteParameter).mockResolvedValue({ success: true });
 
       await openResetDialog();
 
@@ -508,7 +508,7 @@ describe('ParameterManagement', () => {
       });
 
       // List refreshed after reset
-      const callCount = getParameters.mock.calls.length;
+      const callCount = vi.mocked(getParameters).mock.calls.length;
       expect(callCount).toBeGreaterThanOrEqual(2);
     });
 
@@ -527,7 +527,7 @@ describe('ParameterManagement', () => {
     });
 
     test('success toast on reset', async () => {
-      deleteParameter.mockResolvedValue({ success: true });
+      vi.mocked(deleteParameter).mockResolvedValue({ success: true });
 
       await openResetDialog();
 
@@ -547,7 +547,7 @@ describe('ParameterManagement', () => {
     });
 
     test('error toast on reset failure', async () => {
-      deleteParameter.mockRejectedValue(new Error('Network error'));
+      vi.mocked(deleteParameter).mockRejectedValue(new Error('Network error'));
 
       await openResetDialog();
 
@@ -575,13 +575,13 @@ describe('ParameterManagement', () => {
       success: true, tenant: 'T1',
       parameters: {
         table: [
-          { id: 30, namespace: 'table', key: 'sort_config', value: { field: 'name', direction: 'asc' }, value_type: 'json', scope_origin: 'tenant', is_secret: false, has_code_default: true },
+          { id: 30, namespace: 'table', key: 'sort_config', value: { field: 'name', direction: 'asc' }, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false, has_code_default: true },
         ],
       },
     };
 
     test('invalid JSON disables Save and shows error', async () => {
-      getParameters.mockResolvedValue(jsonParams);
+      vi.mocked(getParameters).mockResolvedValue(jsonParams);
 
       render(<ParameterManagement tenant="T1" />);
       await waitFor(() => {
@@ -605,7 +605,7 @@ describe('ParameterManagement', () => {
     });
 
     test('Format button re-indents valid JSON', async () => {
-      getParameters.mockResolvedValue(jsonParams);
+      vi.mocked(getParameters).mockResolvedValue(jsonParams);
 
       render(<ParameterManagement tenant="T1" />);
       await waitFor(() => {

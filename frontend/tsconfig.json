@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["dom", "dom.iterable", "esnext"],
-    "types": ["vitest/globals", "node"],
+    "types": ["vitest/globals", "vitest", "node"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
