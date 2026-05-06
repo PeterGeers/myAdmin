@@ -297,7 +297,9 @@ class ComplianceChecker:
 
         For required rules with a ``pattern``, the file must contain at
         least one match.  Special handling for ``pytest_marker_required``:
-        files in auto-marking directories are exempt.
+        files in auto-marking directories are exempt.  Special handling
+        for ``use_shared_mock_db``: only applies when the test file
+        actually uses database-related imports or references.
 
         Anti-patterns are also checked — each match is a violation.
         """
@@ -307,6 +309,12 @@ class ComplianceChecker:
         if rule.name == "pytest_marker_required":
             if self._is_in_auto_marking_dir(path):
                 # Auto-marked by conftest.py — no explicit marker needed
+                return violations
+
+        # Special case: mock_db rule only applies to tests that use DB
+        if rule.name == "use_shared_mock_db":
+            if not self._file_uses_database(source):
+                # File doesn't interact with the database — skip rule
                 return violations
 
         # Check that the required pattern is present
@@ -411,6 +419,35 @@ class ComplianceChecker:
                     ))
 
         return violations
+
+    @staticmethod
+    def _file_uses_database(source: str) -> bool:
+        """Return ``True`` if *source* references database-related modules.
+
+        Checks for imports or references to DatabaseManager, database module,
+        execute_query, cursor, transaction, or other DB indicators.  If none
+        are found, the test file is considered pure logic and doesn't need
+        the ``mock_db`` fixture.
+        """
+        _DB_INDICATORS = (
+            r"from\s+(?:src\.)?database\b",
+            r"import\s+(?:src\.)?database\b",
+            r"DatabaseManager",
+            r"execute_query",
+            r"execute_batch_queries",
+            r"execute_ddl",
+            r"\.get_cursor\(",
+            r"\.transaction\(",
+            r"mock_db",
+            r"mysql\.connector",
+            r"db\.execute",
+            r"cursor\.execute",
+            r"MagicMock.*cursor",
+        )
+        for pattern in _DB_INDICATORS:
+            if re.search(pattern, source):
+                return True
+        return False
 
     @staticmethod
     def _is_in_auto_marking_dir(path: Path) -> bool:
