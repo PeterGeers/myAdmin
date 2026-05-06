@@ -78,6 +78,8 @@ storage/
 
 # Backend reports (uploaded/generated files)
 backend/reports/
+backend/tests/reports/*
+!backend/tests/reports/.gitkeep
 
 # Build artifacts (should not be in git)
 backend/frontend/
