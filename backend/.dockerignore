@@ -19,6 +19,7 @@ __pycache__/
 node_modules/
 frontend/
 /storage/
+!src/storage/
 uploads/
 test/
 testFacturen/
