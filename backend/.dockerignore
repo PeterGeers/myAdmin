@@ -18,8 +18,6 @@ __pycache__/
 *.swo
 node_modules/
 frontend/
-/storage/
-!src/storage/
 uploads/
 test/
 testFacturen/
