@@ -364,9 +364,25 @@ const BankingProcessor: React.FC = () => {
     });
   };
 
-  const handleRef3Click = (ref3: string) => {
+  const handleRef3Click = async (ref3: string) => {
     if (ref3.startsWith('https://drive.goo')) {
       window.open(ref3, '_blank');
+    } else if (ref3 && !ref3.startsWith('http')) {
+      // S3 key — fetch pre-signed URL from backend
+      try {
+        const resp = await authenticatedGet(
+          `/api/storage/presigned-url?key=${encodeURIComponent(ref3)}`,
+          { tenant: currentTenant || undefined }
+        );
+        const data = await resp.json();
+        if (data.success && data.url) {
+          window.open(data.url, '_blank');
+        } else {
+          copyToClipboard(ref3);
+        }
+      } catch {
+        copyToClipboard(ref3);
+      }
     } else {
       copyToClipboard(ref3);
     }

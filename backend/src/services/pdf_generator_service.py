@@ -15,6 +15,7 @@ from typing import Optional
 
 from babel.numbers import format_currency, format_decimal
 from babel.dates import format_date as babel_format_date
+from services.logo_resolver import resolve_tenant_logo
 
 logger = logging.getLogger(__name__)
 
@@ -286,37 +287,14 @@ class PDFGeneratorService:
     def _get_tenant_logo(self, tenant: str) -> Optional[str]:
         """Get logo as base64 data URI from tenant's branding config.
 
-        Reads company_logo_file_id from branding parameters (same as STR invoices),
-        fetches the image from Google, and returns a data URI for reliable PDF embedding.
-        Returns None if no logo is configured.
+        Delegates to the shared resolve_tenant_logo helper which handles
+        both Google Drive (legacy) and S3 storage providers.
+        Returns a data URI string or None if no logo is configured.
         """
-        logo_file_id = None
-
-        # Try zzp_branding parameter first
-        if self.parameter_service:
-            logo_file_id = self.parameter_service.get_param(
-                'zzp_branding', 'company_logo_file_id', tenant=tenant
-            )
-
-        if not logo_file_id:
+        if not self.parameter_service:
             return None
 
-        # Fetch logo and convert to base64 data URI (same approach as STR invoices)
-        try:
-            import requests as http_requests
-            import base64
-            logo_url = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
-            resp = http_requests.get(logo_url, timeout=10)
-            if resp.status_code == 200:
-                content_type = resp.headers.get('Content-Type', 'image/png')
-                b64 = base64.b64encode(resp.content).decode('utf-8')
-                return f'data:{content_type};base64,{b64}'
-            else:
-                logger.warning("Logo fetch returned %s, using URL fallback", resp.status_code)
-                return logo_url
-        except Exception as e:
-            logger.warning("Could not fetch logo as base64: %s, using URL fallback", e)
-            return f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
+        return resolve_tenant_logo(tenant, 'zzp_branding', self.parameter_service)
 
     @staticmethod
     def _default_template() -> str:

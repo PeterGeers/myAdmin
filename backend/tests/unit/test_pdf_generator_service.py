@@ -104,11 +104,21 @@ def test_render_html_no_copy_no_watermark():
 
 
 def test_render_html_with_logo_includes_img_tag():
-    param_svc = Mock(get_param=Mock(return_value='https://example.com/logo.png'))
+    param_svc = Mock()
+    param_svc.get_param = Mock(side_effect=lambda ns, key, tenant=None: {
+        ('storage', 'invoice_provider'): 'google_drive',
+        ('zzp_branding', 'company_logo_file_id'): 'abc123fileid',
+    }.get((ns, key)))
     svc = _make_service(param_svc=param_svc)
-    html = svc._render_html('T1', _sample_invoice())
+    with patch('services.logo_resolver.requests.get') as mock_get:
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {'Content-Type': 'image/png'}
+        mock_resp.content = b'\x89PNG\r\n\x1a\n'
+        mock_get.return_value = mock_resp
+        html = svc._render_html('T1', _sample_invoice())
     assert '<img' in html
-    assert 'logo.png' in html
+    assert 'logo' in html
 
 
 def test_render_html_no_logo_no_img_tag():
@@ -153,14 +163,22 @@ def test_html_to_pdf_missing_weasyprint_raises_runtime_error():
 
 
 def test_get_tenant_logo_returns_url_from_params():
-    """Logo file ID is used to construct a Google Drive thumbnail URL or data URI."""
-    param_svc = Mock(get_param=Mock(return_value='abc123fileid'))
+    """Logo resolution delegates to resolve_tenant_logo helper."""
+    param_svc = Mock()
+    param_svc.get_param = Mock(side_effect=lambda ns, key, tenant=None: {
+        ('storage', 'invoice_provider'): 'google_drive',
+        ('zzp_branding', 'company_logo_file_id'): 'abc123fileid',
+    }.get((ns, key)))
     svc = _make_service(param_svc=param_svc)
-    result = svc._get_tenant_logo('T1')
-    # Should return something (data URI or fallback URL) when a file ID is configured
+    with patch('services.logo_resolver.requests.get') as mock_get:
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {'Content-Type': 'image/png'}
+        mock_resp.content = b'\x89PNG\r\n\x1a\n'
+        mock_get.return_value = mock_resp
+        result = svc._get_tenant_logo('T1')
     assert result is not None
-    # The file ID should appear in the result (either in the URL or was used to fetch)
-    assert 'abc123fileid' in result or result.startswith('data:')
+    assert result.startswith('data:image/png;base64,')
 
 
 def test_get_tenant_logo_no_config_returns_none():
