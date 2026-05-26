@@ -63,6 +63,7 @@ from routes.tax_rate_admin_routes import tax_rate_admin_bp
 from routes.contact_routes import contact_bp
 from routes.product_routes import product_bp
 from routes.zzp_routes import zzp_bp
+from routes.storage import storage_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -175,6 +176,7 @@ app.register_blueprint(tax_rate_admin_bp)  # Tax rate admin
 app.register_blueprint(contact_bp)  # Shared contact registry (ZZP)
 app.register_blueprint(product_bp)  # Shared product registry (ZZP)
 app.register_blueprint(zzp_bp)  # ZZP module routes
+app.register_blueprint(storage_bp)  # S3 storage endpoints (pre-signed URLs, logo upload)
 app.register_blueprint(email_log_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')

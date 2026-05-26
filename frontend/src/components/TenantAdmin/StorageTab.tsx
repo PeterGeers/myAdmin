@@ -7,7 +7,7 @@
  * Flow: Pick provider → configure that provider → folder mappings
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, VStack, HStack, Text, Spinner, useToast, Badge,
   FormControl, FormLabel, Select, Input, Button,
@@ -15,11 +15,12 @@ import {
   Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon,
   Table, Thead, Tbody, Tr, Th, Td,
 } from '@chakra-ui/react';
-import { ExternalLinkIcon, RepeatIcon, CheckCircleIcon } from '@chakra-ui/icons';
+import { ExternalLinkIcon, RepeatIcon, CheckCircleIcon, AttachmentIcon } from '@chakra-ui/icons';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { getParameterSchema } from '../../services/parameterSchemaService';
 import { createParameter } from '../../services/parameterService';
+import { authenticatedFormData, buildEndpoint } from '../../services/apiService';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -59,6 +60,11 @@ export default function StorageTab({ tenant }: StorageTabProps) {
   // Google Drive specific
   const [gdFolderId, setGdFolderId] = useState('');
 
+  // Logo upload state (S3 tenants)
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoS3Key, setLogoS3Key] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const getToken = async () => {
     const session = await fetchAuthSession();
     return session.tokens?.idToken?.toString() || '';
@@ -90,6 +96,13 @@ export default function StorageTab({ tenant }: StorageTabProps) {
         if (gdFolder?.current_value) {
           setGdFolderId(String(gdFolder.current_value));
         }
+      }
+
+      // Load company_logo_s3_key from branding namespace if available
+      const brandingSection = data.schema?.str_branding || data.schema?.zzp_branding;
+      if (brandingSection?.params?.company_logo_s3_key) {
+        const logoKey = brandingSection.params.company_logo_s3_key.current_value;
+        if (logoKey) setLogoS3Key(String(logoKey));
       }
     } catch (e: any) {
       toast({ title: 'Failed to load storage settings', description: e.message, status: 'error', duration: 5000 });
@@ -174,6 +187,47 @@ export default function StorageTab({ tenant }: StorageTabProps) {
     } catch (e: any) {
       toast({ title: 'Save failed', description: e.message, status: 'error', duration: 5000 });
     } finally { setProviderSaving(false); }
+  };
+
+  // Upload logo file (S3 tenants)
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({ title: 'Invalid file type', description: 'Please select a PNG, JPG, or SVG image.', status: 'warning', duration: 4000 });
+      event.target.value = '';
+      return;
+    }
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      toast({ title: 'File too large', description: 'Maximum file size is 2MB.', status: 'warning', duration: 4000 });
+      event.target.value = '';
+      return;
+    }
+
+    setLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const resp = await authenticatedFormData(buildEndpoint('/api/storage/upload-logo'), formData);
+      const data = await resp.json();
+
+      if (resp.ok && data.success) {
+        setLogoS3Key(data.key);
+        toast({ title: 'Logo uploaded', description: `Stored as: ${data.key}`, status: 'success', duration: 3000 });
+      } else {
+        toast({ title: 'Upload failed', description: data.error || 'Unknown error', status: 'error', duration: 5000 });
+      }
+    } catch (e: any) {
+      toast({ title: 'Upload failed', description: e.message, status: 'error', duration: 5000 });
+    } finally {
+      setLogoUploading(false);
+      event.target.value = '';
+    }
   };
 
   // Start Google Drive OAuth
@@ -444,6 +498,54 @@ export default function StorageTab({ tenant }: StorageTabProps) {
                   S3 tenant bucket configuration — bucket name and cross-account credentials can be set in the Advanced tab.
                 </Text>
               </Alert>
+            </AccordionPanel>
+          </AccordionItem>
+        )}
+
+        {/* Branding / Logo Upload — shown for S3 tenants */}
+        {(provider === 's3_shared' || provider === 's3_tenant') && (
+          <AccordionItem border="none" mb={4}>
+            <AccordionButton bg="gray.700" borderRadius="md" _hover={{ bg: 'gray.600' }}>
+              <Box flex="1" textAlign="left">
+                <Text color="white" fontWeight="bold">Branding — Company Logo</Text>
+              </Box>
+              <AccordionIcon color="gray.400" />
+            </AccordionButton>
+            <AccordionPanel bg="gray.800" borderRadius="md" mt={1} p={4}>
+              <VStack spacing={4} align="stretch">
+                <Text color="gray.300" fontSize="sm">
+                  Upload your company logo (PNG, JPG, or SVG, max 2MB). This logo will be used on generated invoices.
+                </Text>
+                <FormControl>
+                  <FormLabel color="gray.300">Logo File</FormLabel>
+                  <Input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml"
+                    onChange={handleLogoUpload}
+                    bg="gray.700"
+                    color="white"
+                    borderColor="gray.600"
+                    p={1}
+                    size="sm"
+                    disabled={logoUploading}
+                  />
+                </FormControl>
+                {logoUploading && (
+                  <HStack>
+                    <Spinner size="sm" color="orange.400" />
+                    <Text color="gray.400" fontSize="sm">Uploading...</Text>
+                  </HStack>
+                )}
+                {logoS3Key && (
+                  <HStack>
+                    <AttachmentIcon color="green.400" />
+                    <Text color="gray.300" fontSize="sm">
+                      Current logo: <Text as="span" fontFamily="mono" fontSize="xs" color="gray.400">{logoS3Key}</Text>
+                    </Text>
+                  </HStack>
+                )}
+              </VStack>
             </AccordionPanel>
           </AccordionItem>
         )}

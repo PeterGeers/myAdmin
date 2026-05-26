@@ -160,7 +160,7 @@ class TestS3SharedStorage:
         with patch('storage.s3_shared_storage.boto3') as mock_boto:
             provider = S3SharedStorage('T1', ps)
             ref = provider.upload(b'data', 'invoice.pdf', {'reference_number': 'INV001'})
-            assert ref.startswith('T1/INV001/')
+            assert ref.startswith('T1/invoices/INV001/')
             assert 'invoice.pdf' in ref
             mock_boto.client.return_value.put_object.assert_called_once()
 

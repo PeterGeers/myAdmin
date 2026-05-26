@@ -188,6 +188,7 @@ def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str,
         try:
             from database import DatabaseManager
             from services.parameter_service import ParameterService
+            from services.logo_resolver import resolve_tenant_logo
             db = DatabaseManager(test_mode=False)
             ps = ParameterService(db)
             tenant = booking_data.get('administration', '')
@@ -200,25 +201,8 @@ def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str,
                 val = ps.get_param('str_branding', key, tenant=tenant)
                 company_info[key] = str(val) if val else ''
 
-            # Resolve company logo as base64 data URI for reliable embedding
-            logo_file_id = ps.get_param('str_branding', 'company_logo_file_id', tenant=tenant)
-            company_logo = ''
-            if logo_file_id:
-                try:
-                    import requests
-                    import base64
-                    logo_url = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
-                    resp = requests.get(logo_url, timeout=10)
-                    if resp.status_code == 200:
-                        content_type = resp.headers.get('Content-Type', 'image/png')
-                        b64 = base64.b64encode(resp.content).decode('utf-8')
-                        company_logo = f'data:{content_type};base64,{b64}'
-                    else:
-                        logger.warning(f"Logo fetch returned {resp.status_code}, falling back to URL")
-                        company_logo = logo_url
-                except Exception as logo_err:
-                    logger.warning(f"Could not fetch logo as base64: {logo_err}, falling back to URL")
-                    company_logo = f'https://lh3.googleusercontent.com/d/{logo_file_id}=w600'
+            # Resolve company logo as base64 data URI via provider-aware resolver
+            company_logo = resolve_tenant_logo(tenant, 'str_branding', ps) or ''
             company_info['company_logo'] = company_logo
         except Exception as e:
             logger.warning(f"Could not resolve tenant company info: {e}")

@@ -82,7 +82,62 @@ This feature provisions the complete S3 infrastructure: bucket creation via Terr
 4. THE CORS configuration SHALL expose the `ETag` and `Content-Length` headers in responses
 5. THE CORS configuration SHALL set a max age of 3600 seconds for preflight caching
 
-### Requirement 6: Terraform State Consistency
+### Requirement 7: Pre-signed URL Download Endpoint
+
+**User Story:** As a user viewing banking transactions, I want to click an invoice reference and have the PDF open in a new tab, so that I can view S3-stored documents the same way I view Google Drive documents.
+
+#### Acceptance Criteria
+
+1. THE Backend_Service SHALL expose a GET endpoint `/api/storage/presigned-url` that accepts a `key` query parameter containing the S3 object key
+2. THE endpoint SHALL require authentication via `@cognito_required` and tenant context via `@tenant_required()`
+3. THE endpoint SHALL validate that the requested key starts with the authenticated tenant's administration name (e.g., `KimGeers/`) to prevent cross-tenant access
+4. IF the key does not start with the tenant prefix, THEN THE endpoint SHALL return HTTP 403 with an error message
+5. THE endpoint SHALL generate a pre-signed S3 URL with a 5-minute (300 second) expiration using `generate_presigned_url('get_object', ...)` and include `ResponseContentDisposition: inline` so the browser displays the file rather than downloading it
+6. THE endpoint SHALL return `{'success': true, 'url': '<presigned-url>', 'expires_in': 300, 'content_type': '<mime-type>'}` on success
+7. THE endpoint SHALL support all file formats stored by S3SharedStorage including PDF, PNG, JPG, and EML/MHTML, relying on the object's stored `Content-Type` for correct browser rendering
+8. THE Frontend SHALL update `handleRef3Click` to detect S3 keys (values not starting with `http`) and call the pre-signed URL endpoint, then open the resulting URL in a new tab
+9. THE Frontend SHALL fall through to the existing `copyToClipboard` behavior if the pre-signed URL request fails
+
+### Requirement 8: Provider-Aware Logo Resolution
+
+**User Story:** As a tenant using S3 storage, I want my company logo to be fetched from S3 when generating invoices, so that PDF invoices display my branding correctly without depending on Google Drive.
+
+#### Acceptance Criteria
+
+1. THE STR invoice generator (`str_invoice_generator.py`) SHALL check the tenant's `storage.invoice_provider` parameter to determine the logo source
+2. WHEN `invoice_provider` is `google_drive`, THE generator SHALL continue to fetch the logo from `https://lh3.googleusercontent.com/d/{company_logo_file_id}=w600` (existing behavior unchanged)
+3. WHEN `invoice_provider` is `s3_shared` or `s3_tenant`, THE generator SHALL read `company_logo_s3_key` from the branding parameters and download the logo from the S3 bucket using boto3
+4. THE ZZP PDF generator (`pdf_generator_service.py`) SHALL apply the same provider-aware logo resolution logic as the STR invoice generator
+5. THE logo resolution logic SHALL be extracted into a shared helper function to avoid duplication between STR and ZZP generators
+6. THE shared helper SHALL convert the downloaded S3 object to a base64 data URI (same format as the existing Google Drive approach) for reliable PDF embedding
+7. IF `company_logo_s3_key` is not set for an S3 tenant, THEN THE generator SHALL render the invoice without a logo (same as when `company_logo_file_id` is empty for Google Drive tenants)
+
+### Requirement 9: S3 Logo Upload via Branding Settings
+
+**User Story:** As a tenant administrator using S3 storage, I want to upload my company logo through the branding settings UI, so that it is stored in S3 and used on generated invoices.
+
+#### Acceptance Criteria
+
+1. THE Backend_Service SHALL expose a POST endpoint for logo upload that accepts a multipart file and stores it in the shared S3 bucket under the fixed key `{tenant}/branding/company_logo.{ext}`, overwriting any previous logo (S3 versioning preserves the old version)
+2. THE endpoint SHALL require authentication and tenant context, and validate that the uploaded file is an image (PNG, JPG, or SVG) with a maximum size of 2MB
+3. WHEN the upload succeeds, THE endpoint SHALL update the tenant's `company_logo_s3_key` branding parameter with the key `{tenant}/branding/company_logo.{ext}`
+4. THE Frontend branding settings page SHALL show a file upload control for the logo field when the tenant's `invoice_provider` is `s3_shared` or `s3_tenant`
+5. WHEN the tenant's `invoice_provider` is `google_drive`, THE Frontend SHALL continue to show the existing text input for Google Drive file ID (unchanged behavior)
+
+### Requirement 10: S3 Key Structure Convention
+
+**User Story:** As a developer, I want a clear and consistent key structure within each tenant's S3 prefix, so that different content types (invoices, branding, templates) are organized and easy to manage.
+
+#### Acceptance Criteria
+
+1. THE S3SharedStorage class SHALL use the key pattern `{tenant}/{category}/{reference}/{uuid}_{filename}` where category distinguishes content types
+2. THE following categories SHALL be defined: `invoices` for uploaded invoice/document PDFs, `branding` for logos and letterheads, `templates` for invoice and report templates
+3. THE `_make_key` method SHALL accept a `category` parameter defaulting to `invoices` for backward compatibility with the existing upload flow
+4. THE logo upload endpoint SHALL use category `branding` producing keys like `{tenant}/branding/{uuid}_{filename}`
+5. THE template upload flow SHALL use category `templates` producing keys like `{tenant}/templates/{uuid}_{filename}`
+6. WHEN listing files for a specific category, THE `list_files` method SHALL accept an optional `category` parameter to scope the prefix to `{tenant}/{category}/`
+
+### Requirement 11: Terraform State Consistency
 
 **User Story:** As a system administrator, I want the new S3 resources to integrate cleanly with the existing Terraform state, so that applying the configuration does not disrupt other managed resources.
 
