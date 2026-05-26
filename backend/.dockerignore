@@ -19,8 +19,6 @@ __pycache__/
 node_modules/
 frontend/
 uploads/
-storage
-!src/storage
 test/
 testFacturen/
 ai_insights/
