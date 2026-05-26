@@ -83,7 +83,7 @@ def upload_file_authenticated(user_email, user_roles, tenant, user_tenants):
                 # Early duplicate detection - check before processing
                 print("Checking for duplicates before processing...", flush=True)
                 duplicate_check_result = invoice_service.check_early_duplicates(
-                    filename, folder_name, drive_result
+                    filename, folder_name, drive_result, tenant
                 )
                 if duplicate_check_result['has_duplicates']:
                     print(f"Duplicate detected - stopping upload: {duplicate_check_result['message']}", flush=True)

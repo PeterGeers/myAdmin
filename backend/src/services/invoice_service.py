@@ -50,15 +50,16 @@ class InvoiceService:
         """
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
     
-    def check_early_duplicates(self, filename, folder_name, drive_result):
+    def check_early_duplicates(self, filename, folder_name, drive_result, tenant=None):
         """
         Check for duplicate files before processing to prevent unnecessary work.
-        This is an early check based on filename and folder.
+        This is an early check based on filename and folder, scoped to the tenant.
         
         Args:
             filename (str): Name of the file
             folder_name (str): Name of the folder/vendor
-            drive_result (dict): Google Drive upload result with 'id' and 'url'
+            drive_result (dict): Upload result with 'id' and 'url'
+            tenant (str): Tenant/administration for isolation
             
         Returns:
             dict: Duplicate check result with keys:
@@ -67,19 +68,32 @@ class InvoiceService:
                 - duplicate_info (dict|None): Details about found duplicates
         """
         try:
-            # Check if this exact file already exists in the database
-            # Look for transactions with the same filename in Ref4 and same folder in ReferenceNumber
+            # Check if this exact file already exists in the database for THIS tenant
             query = f"""
                 SELECT ID, TransactionDate, TransactionAmount, TransactionDescription, Ref3, Ref4
                 FROM mutaties 
                 WHERE Ref4 = %s 
                 AND ReferenceNumber = %s
+                AND administration = %s
                 AND TransactionDate > ({dialect.date_subtract(dialect.current_date(), 6, 'MONTH')})
                 ORDER BY ID DESC
                 LIMIT 5
             """
             
-            results = self.db.execute_query(query, (filename, folder_name), fetch=True)
+            params = (filename, folder_name, tenant) if tenant else (filename, folder_name)
+            if not tenant:
+                # Fallback without tenant filter (shouldn't happen but graceful degradation)
+                query = f"""
+                    SELECT ID, TransactionDate, TransactionAmount, TransactionDescription, Ref3, Ref4
+                    FROM mutaties 
+                    WHERE Ref4 = %s 
+                    AND ReferenceNumber = %s
+                    AND TransactionDate > ({dialect.date_subtract(dialect.current_date(), 6, 'MONTH')})
+                    ORDER BY ID DESC
+                    LIMIT 5
+                """
+            
+            results = self.db.execute_query(query, params, fetch=True)
             
             if results and len(results) > 0:
                 # Found potential duplicates
