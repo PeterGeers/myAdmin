@@ -227,6 +227,13 @@ def activate_module(db, tenant: str, module_name: str, activated_by: str = 'syst
         """
         db.execute_query(query, (tenant, module_name, activated_by), fetch=False, commit=True)
         logger.info("Module %s activated for tenant %s by %s", module_name, tenant, activated_by)
+
+        # Seed required parameters for the newly activated module
+        from services.parameter_service import ParameterService
+        param_service = ParameterService(db)
+        params_seeded = param_service.seed_module_params(tenant, module_name)
+        logger.info("Seeded %d params for module %s on tenant %s", params_seeded, module_name, tenant)
+
         return True
     except Exception as e:
         logger.error("Failed to activate module %s for tenant %s: %s", module_name, tenant, e)

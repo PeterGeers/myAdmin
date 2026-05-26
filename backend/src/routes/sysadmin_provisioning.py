@@ -80,7 +80,7 @@ def provision_signup(user_email, user_roles):
     {
         "email": "user@example.com",
         "administration_name": "CompanyName",   (optional — auto-generated if omitted)
-        "modules": ["FIN", "STR"],              (optional — default: FIN, STR, TENADMIN)
+        "modules": ["FIN", "STR"],              (optional — default: FIN, TENADMIN)
         "locale": "nl"                          (optional — default from signup record)
     }
 
@@ -123,7 +123,7 @@ def provision_signup(user_email, user_roles):
             )
 
         # Determine modules and locale
-        modules = data.get('modules', ['FIN', 'STR', 'TENADMIN'])
+        modules = data.get('modules', ['FIN', 'TENADMIN'])
         locale = data.get('locale', signup.get('locale', 'nl'))
         display_name = signup.get('company_name') or f"{signup['first_name']} {signup['last_name']}"
 

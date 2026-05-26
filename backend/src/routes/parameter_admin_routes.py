@@ -42,11 +42,30 @@ def list_parameters(user_email, user_roles, tenant, user_tenants):
         ns_filter = request.args.get('namespace')
         is_admin = _is_sysadmin(user_roles)
 
+        # Get tenant's active modules for filtering
+        db = DatabaseManager(test_mode=flag)
+        module_rows = db.execute_query(
+            "SELECT module_name FROM tenant_modules "
+            "WHERE administration = %s AND is_active = TRUE",
+            (tenant,), fetch=True
+        )
+        active_modules = [r['module_name'] for r in module_rows] if module_rows else []
+
+        # Build set of allowed namespaces based on active modules
+        from services.parameter_schema import PARAMETER_SCHEMA
+        excluded_namespaces = set()
+        for ns, section in PARAMETER_SCHEMA.items():
+            module = section.get('module')
+            if module and module not in active_modules:
+                excluded_namespaces.add(ns)
+
         if ns_filter:
-            params = svc.get_params_by_namespace(ns_filter, tenant)
+            if ns_filter in excluded_namespaces:
+                params = []
+            else:
+                params = svc.get_params_by_namespace(ns_filter, tenant)
         else:
             all_params = []
-            db = DatabaseManager(test_mode=flag)
 
             # Discover namespaces from DB rows
             rows = db.execute_query(
@@ -61,6 +80,9 @@ def list_parameters(user_email, user_roles, tenant, user_tenants):
             from services.parameter_service import CODE_DEFAULTS
             for (ns, _key) in CODE_DEFAULTS:
                 db_namespaces.add(ns)
+
+            # Filter out namespaces belonging to inactive modules
+            db_namespaces -= excluded_namespaces
 
             for ns in sorted(db_namespaces):
                 ns_params = svc.get_params_by_namespace(ns, tenant)

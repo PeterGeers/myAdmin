@@ -4,7 +4,7 @@ Same colour for all functions within a module like the module title
 
 # Make some functions tenant optional
 
-- Activa beheer is CRUD and/or Read 
+- Activa beheer is CRUD and/or Read
 - STR Kanaal omzet (a real FIN function but strongly related to STR)
 
 # Time tracking
@@ -18,14 +18,13 @@ Same colour for all functions within a module like the module title
 
 # Precedence cognito
 
-System Admin Role management I am sorry no precence values in the table and the updated precedence is not retrieved after save. I will note it for further investigation now
+System Admin Role management I am sorry no precedence values in the table and the updated precedence is not retrieved after save. I will note it for further investigation now
 -- is it in cognito
-
+-- WHAT is the impact of precedence
 
 # Invoice processing
 
 Check what happens if multiple tenants are loading invoices for processing at the same time.
-
 
 # Kimmetje
 
@@ -41,31 +40,21 @@ downloaden contacten / producten.
 
 Viool grafiek ook totaal omzet
 
-
 # Documentaion
-- Outdated documentation 
+
+- Outdated documentation
 - Code changes on the fly, Local document updates but lot of referral documents not updated
 
-
-
 # Import errors on bdc
-failing urls 
+
+failing urls
+
 - https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/search_reservations.html?source=nav&upcoming_reservations=1&hotel_id=5620035&lang=en&ses=ddc3b11e6559a324b0778f09821fd4fe&date_from=2026-04-01&date_to=2027-05-01&date_type=arrival
-
-
-why do you keep testing all unit tests of which some fail and takes a lot of time. You do not want to fix them. Either focus on the scope or fix the failing tests
-
-Update to use database framework .kiro\steering\database-patterns.md 
 
 # ai use log table
 
-# Sorting on dates does not always work since date types (generic table and filters framework) from mysql to ptyhton to??
-- Import Banking accounts >> Check reference >> Transactions tbl
-- FIN Reports >> Transactions table
-- STR Invoice Generator >> STR Invoice Generator 
-- STR Reports >>  BNB Revenue Analysis 2 date columns Check-in and check-out
-Please check all other sortiing of Date objects
- 
-- Works perfect in 
--- Import Banking accounts >> Transactions table
--- 📈 BNB Future Revenue
+- Invoice processing
+- Template management
+- STR Price predicition
+
+# STR Import Guesty

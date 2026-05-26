@@ -335,6 +335,9 @@ __marimo__/
 .cache_ggshield
 
 
+# Kiro MCP settings (contains API tokens)
+.kiro/settings/mcp.json
+
 # Added by ggshield
 .cache_ggshield
 

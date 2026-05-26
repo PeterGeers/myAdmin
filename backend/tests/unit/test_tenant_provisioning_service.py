@@ -123,7 +123,9 @@ class TestInsertTenant:
 
 class TestInsertModules:
 
-    def test_inserts_modules_and_always_adds_tenadmin(self, service, mock_db):
+    @patch('services.parameter_service.ParameterService.seed_module_params', return_value=0)
+    @patch('services.parameter_service.ParameterService.set_param')
+    def test_inserts_modules_and_always_adds_tenadmin(self, mock_set_param, mock_seed, service, mock_db):
         _db_returns(mock_db, [
             [],      # tenant doesn't exist
             None,    # insert tenant
@@ -150,7 +152,9 @@ class TestInsertModules:
         assert 'TENADMIN' in module_names
         assert all(m['status'] == 'created' for m in results['modules'])
 
-    def test_skips_existing_modules(self, service, mock_db):
+    @patch('services.parameter_service.ParameterService.seed_module_params', return_value=0)
+    @patch('services.parameter_service.ParameterService.set_param')
+    def test_skips_existing_modules(self, mock_set_param, mock_seed, service, mock_db):
         _db_returns(mock_db, [
             [],                          # tenant doesn't exist
             None,                        # insert tenant
@@ -407,7 +411,9 @@ class TestLocaleFallback:
 
 class TestIdempotency:
 
-    def test_full_rerun_skips_everything(self, service, mock_db):
+    @patch('services.parameter_service.ParameterService.seed_module_params', return_value=0)
+    @patch('services.parameter_service.ParameterService.set_param')
+    def test_full_rerun_skips_everything(self, mock_set_param, mock_seed, service, mock_db):
         """Rerunning on a fully provisioned tenant skips all steps"""
         _db_returns(mock_db, [
             [{'administration': 'TestCorp'}],  # tenant exists
@@ -428,7 +434,9 @@ class TestIdempotency:
         assert all(m['status'] == 'skipped' for m in results['modules'])
         assert results['chart'] == 'skipped'
 
-    def test_partial_rerun_fills_gaps(self, service, mock_db, sample_chart_template, tmp_path):
+    @patch('services.parameter_service.ParameterService.seed_module_params', return_value=0)
+    @patch('services.parameter_service.ParameterService.set_param')
+    def test_partial_rerun_fills_gaps(self, mock_set_param, mock_seed, service, mock_db, sample_chart_template, tmp_path):
         """Rerunning after partial failure fills in the missing pieces"""
         _db_returns(mock_db, [
             [{'administration': 'TestCorp'}],  # tenant exists (from first run)

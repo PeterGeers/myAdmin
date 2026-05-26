@@ -22,6 +22,8 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from services.parameter_service import ParameterService
+
 logger = logging.getLogger(__name__)
 
 # Path to chart of accounts JSON templates
@@ -105,6 +107,27 @@ class TenantProvisioningService:
 
         # Step 2: Insert modules
         results['modules'] = self._insert_modules(administration, modules)
+
+        # Step 2b: Seed module parameters
+        param_service = ParameterService(self.db)
+        params_seeded = 0
+        for module in modules:
+            params_seeded += param_service.seed_module_params(administration, module)
+
+        # Seed storage params (only when S3_SHARED_BUCKET is configured)
+        s3_bucket = os.getenv('S3_SHARED_BUCKET')
+        if s3_bucket:
+            param_service.set_param(
+                'tenant', administration, 'storage', 'invoice_provider',
+                's3_shared', value_type='string', created_by='provisioning'
+            )
+            param_service.set_param(
+                'tenant', administration, 'storage', 's3_shared_bucket',
+                s3_bucket,
+                value_type='string', created_by='provisioning'
+            )
+            params_seeded += 2
+        results['params_seeded'] = params_seeded
 
         # Step 3: Load chart of accounts from JSON template
         chart_result = self._load_chart_of_accounts(administration, locale, results['warnings'])
