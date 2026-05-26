@@ -61,12 +61,18 @@ def get_presigned_url(user_email, user_roles, tenant, user_tenants):
             return jsonify({'error': 'S3 storage not configured'}), 503
 
         s3_client = boto3.client('s3')
+        
+        # Determine content type from file extension for inline display
+        import mimetypes
+        content_type = mimetypes.guess_type(key)[0] or 'application/octet-stream'
+        
         url = s3_client.generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': bucket,
                 'Key': key,
                 'ResponseContentDisposition': 'inline',
+                'ResponseContentType': content_type,
             },
             ExpiresIn=300
         )
