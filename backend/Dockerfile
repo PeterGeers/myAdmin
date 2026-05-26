@@ -20,11 +20,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code (cache-bust: storage module fix)
+# Copy application code
 COPY . .
-
-# Ensure src/storage package is present (explicit copy to bypass cache)
-COPY src/storage/ /app/src/storage/
 
 # Add /app/src to PYTHONPATH so imports work correctly
 ENV PYTHONPATH=/app/src
