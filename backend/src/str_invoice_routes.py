@@ -344,7 +344,7 @@ def get_basic_template(language='nl'):
 @cognito_required(required_permissions=['str_create'])
 @tenant_required()
 def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
-    """Upload STR invoice templates to Google Drive - tenant-specific
+    """Upload STR invoice templates to storage - tenant-specific
     
     DESIGN DECISION: STR Templates are TENANT-SPECIFIC
     
@@ -356,98 +356,209 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
     
     Security: This endpoint requires tenant filtering to ensure templates are uploaded
     to tenant-specific folders and users can only manage their own tenant's templates.
+    
+    Provider-aware: Routes to S3SharedStorage for s3_shared tenants, preserves
+    Google Drive path for google_drive tenants.
     """
     try:
-        from google_drive_service import GoogleDriveService
-        
-        drive_service = GoogleDriveService(tenant)
-        
-        # Use tenant-specific folder structure
-        # Read base template folder ID from tenant_config
-        from auth.tenant_context import get_tenant_config
-        base_template_folder_id = get_tenant_config(
-            DatabaseManager(test_mode=os.getenv('TEST_MODE', 'false').lower() == 'true'),
-            tenant, 'google_drive_templates_folder_id'
-        )
-        if not base_template_folder_id:
-            return jsonify({
-                'success': False,
-                'error': 'Google Drive templates folder not configured for this tenant. '
-                         'Set google_drive_templates_folder_id in tenant config.'
-            }), 400
-        
-        # Create or find tenant-specific subfolder
-        tenant_folder_name = f"templates_{tenant}"
-        
-        # Check if tenant folder exists, create if not
-        tenant_folder_result = drive_service.check_file_exists(tenant_folder_name, base_template_folder_id)
-        
-        if tenant_folder_result['exists']:
-            tenant_folder_id = tenant_folder_result['file']['id']
+        from services.storage_resolver import resolve_storage_provider, get_s3_storage
+
+        provider = resolve_storage_provider(tenant)
+
+        if provider == 's3_shared':
+            return _upload_template_s3(tenant)
         else:
-            # Create tenant-specific folder
-            tenant_folder = drive_service.create_folder(tenant_folder_name, base_template_folder_id)
-            tenant_folder_id = tenant_folder['id']
-        
-        results = []
-        templates = ['str_invoice_nl.html', 'str_invoice_en.html']
-        
-        for template_name in templates:
-            # Use tenant-specific template naming
-            tenant_template_name = f"{tenant}_{template_name}"
-            template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', template_name)
-            
-            if os.path.exists(template_path):
-                try:
-                    # Check if tenant-specific template already exists
-                    existing = drive_service.check_file_exists(tenant_template_name, tenant_folder_id)
-                    
-                    if existing['exists']:
-                        results.append({
-                            'template': tenant_template_name,
-                            'status': 'already_exists',
-                            'url': existing['file']['url'],
-                            'tenant': tenant
-                        })
-                    else:
-                        # Read and upload content with tenant-specific naming
-                        with open(template_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                        
-                        upload_result = drive_service.upload_text_file(
-                            content, tenant_template_name, tenant_folder_id, 'text/html'
-                        )
-                        
-                        results.append({
-                            'template': tenant_template_name,
-                            'status': 'uploaded',
-                            'url': upload_result['url'],
-                            'tenant': tenant
-                        })
-                        
-                except Exception as e:
-                    results.append({
-                        'template': tenant_template_name,
-                        'status': 'error',
-                        'error': 'Internal server error',
-                        'tenant': tenant
-                    })
-            else:
-                results.append({
-                    'template': tenant_template_name,
-                    'status': 'not_found',
-                    'tenant': tenant
-                })
-        
-        return jsonify({
-            'success': True,
-            'message': f'Template upload completed for tenant: {tenant}',
-            'results': results,
-            'tenant': tenant,
-            'tenant_folder_url': f'https://drive.google.com/drive/folders/{tenant_folder_id}',
-            'base_folder_url': f'https://drive.google.com/drive/folders/{base_template_folder_id}'
-        })
-        
+            return _upload_template_gdrive(tenant)
+
     except Exception as e:
         logger.error(f'Error in endpoint: {str(e)}')
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
+
+
+def _upload_template_s3(tenant):
+    """Upload STR invoice templates to S3 for s3_shared tenants."""
+    from services.storage_resolver import get_s3_storage
+
+    s3_storage = get_s3_storage(tenant)
+    db = DatabaseManager(test_mode=os.getenv('TEST_MODE', 'false').lower() == 'true')
+
+    results = []
+    templates = ['str_invoice_nl.html', 'str_invoice_en.html']
+
+    for template_name in templates:
+        tenant_template_name = f"{tenant}_{template_name}"
+        template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', template_name)
+
+        if os.path.exists(template_path):
+            try:
+                with open(template_path, 'rb') as f:
+                    content_bytes = f.read()
+
+                # Upload to S3 with category='templates'
+                s3_key = s3_storage.upload(
+                    content_bytes,
+                    tenant_template_name,
+                    metadata={'mime_type': 'text/html'},
+                    category='templates'
+                )
+
+                # Store the S3 key in tenant_template_config
+                template_type = template_name.replace('.html', '')
+                _store_template_file_id(db, tenant, template_type, s3_key)
+
+                results.append({
+                    'template': tenant_template_name,
+                    'status': 'uploaded',
+                    'key': s3_key,
+                    'tenant': tenant
+                })
+
+            except Exception as e:
+                logger.error(f"S3 template upload error for {tenant_template_name}: {e}")
+                results.append({
+                    'template': tenant_template_name,
+                    'status': 'error',
+                    'error': 'Internal server error',
+                    'tenant': tenant
+                })
+        else:
+            results.append({
+                'template': tenant_template_name,
+                'status': 'not_found',
+                'tenant': tenant
+            })
+
+    return jsonify({
+        'success': True,
+        'message': f'Template upload completed for tenant: {tenant}',
+        'results': results,
+        'tenant': tenant
+    })
+
+
+def _upload_template_gdrive(tenant):
+    """Upload STR invoice templates to Google Drive for google_drive tenants."""
+    from google_drive_service import GoogleDriveService
+
+    drive_service = GoogleDriveService(tenant)
+
+    # Use tenant-specific folder structure
+    # Read base template folder ID from tenant_config
+    from auth.tenant_context import get_tenant_config
+    base_template_folder_id = get_tenant_config(
+        DatabaseManager(test_mode=os.getenv('TEST_MODE', 'false').lower() == 'true'),
+        tenant, 'google_drive_templates_folder_id'
+    )
+    if not base_template_folder_id:
+        return jsonify({
+            'success': False,
+            'error': 'Google Drive templates folder not configured for this tenant. '
+                     'Set google_drive_templates_folder_id in tenant config.'
+        }), 400
+
+    # Create or find tenant-specific subfolder
+    tenant_folder_name = f"templates_{tenant}"
+
+    # Check if tenant folder exists, create if not
+    tenant_folder_result = drive_service.check_file_exists(tenant_folder_name, base_template_folder_id)
+
+    if tenant_folder_result['exists']:
+        tenant_folder_id = tenant_folder_result['file']['id']
+    else:
+        # Create tenant-specific folder
+        tenant_folder = drive_service.create_folder(tenant_folder_name, base_template_folder_id)
+        tenant_folder_id = tenant_folder['id']
+
+    results = []
+    templates = ['str_invoice_nl.html', 'str_invoice_en.html']
+
+    for template_name in templates:
+        # Use tenant-specific template naming
+        tenant_template_name = f"{tenant}_{template_name}"
+        template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', template_name)
+
+        if os.path.exists(template_path):
+            try:
+                # Check if tenant-specific template already exists
+                existing = drive_service.check_file_exists(tenant_template_name, tenant_folder_id)
+
+                if existing['exists']:
+                    results.append({
+                        'template': tenant_template_name,
+                        'status': 'already_exists',
+                        'url': existing['file']['url'],
+                        'tenant': tenant
+                    })
+                else:
+                    # Read and upload content with tenant-specific naming
+                    with open(template_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+
+                    upload_result = drive_service.upload_text_file(
+                        content, tenant_template_name, tenant_folder_id, 'text/html'
+                    )
+
+                    results.append({
+                        'template': tenant_template_name,
+                        'status': 'uploaded',
+                        'url': upload_result['url'],
+                        'tenant': tenant
+                    })
+
+            except Exception as e:
+                results.append({
+                    'template': tenant_template_name,
+                    'status': 'error',
+                    'error': 'Internal server error',
+                    'tenant': tenant
+                })
+        else:
+            results.append({
+                'template': tenant_template_name,
+                'status': 'not_found',
+                'tenant': tenant
+            })
+
+    return jsonify({
+        'success': True,
+        'message': f'Template upload completed for tenant: {tenant}',
+        'results': results,
+        'tenant': tenant,
+        'tenant_folder_url': f'https://drive.google.com/drive/folders/{tenant_folder_id}',
+        'base_folder_url': f'https://drive.google.com/drive/folders/{base_template_folder_id}'
+    })
+
+
+def _store_template_file_id(db, tenant, template_type, file_id):
+    """Store or update the template_file_id in tenant_template_config."""
+    check_query = """
+        SELECT id FROM tenant_template_config
+        WHERE administration = %s AND template_type = %s
+    """
+    existing = db.execute_query(check_query, (tenant, template_type))
+
+    if existing:
+        update_query = """
+            UPDATE tenant_template_config
+            SET template_file_id = %s, updated_at = NOW()
+            WHERE administration = %s AND template_type = %s
+        """
+        db.execute_query(
+            update_query,
+            (file_id, tenant, template_type),
+            fetch=False,
+            commit=True
+        )
+    else:
+        insert_query = """
+            INSERT INTO tenant_template_config
+            (administration, template_type, template_file_id, is_active)
+            VALUES (%s, %s, %s, TRUE)
+        """
+        db.execute_query(
+            insert_query,
+            (tenant, template_type, file_id),
+            fetch=False,
+            commit=True
+        )
+    logger.info(f"Stored template file_id for tenant={tenant}, type={template_type}")

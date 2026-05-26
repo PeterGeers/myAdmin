@@ -738,16 +738,30 @@ def get_current_template_endpoint(template_type, user_email, user_roles):
         template_metadata = result[0]
         file_id = template_metadata.get('template_file_id')
         
-        # Fetch template content from Google Drive
+        # Fetch template content from configured storage backend
         try:
-            from google_drive_service import GoogleDriveService
-            drive_service = GoogleDriveService(administration=tenant)
-            template_content = drive_service.download_file_content(file_id)
+            from services.storage_resolver import resolve_storage_provider, get_s3_storage
+            provider = resolve_storage_provider(tenant)
+
+            # S3 keys contain '/' (e.g., 'AcmeBV/templates/uuid_template.html')
+            # Google Drive file IDs do not contain '/'
+            if provider == 's3_shared' and '/' in file_id:
+                # Download from S3
+                s3_storage = get_s3_storage(tenant)
+                template_content = s3_storage.download(file_id)
+                # S3 download returns bytes, decode to string for HTML templates
+                if isinstance(template_content, bytes):
+                    template_content = template_content.decode('utf-8')
+            else:
+                # Use Google Drive for google_drive provider or Drive-style file IDs
+                from google_drive_service import GoogleDriveService
+                drive_service = GoogleDriveService(administration=tenant)
+                template_content = drive_service.download_file_content(file_id)
         except Exception as e:
-            logger.error(f"Error fetching template from Google Drive: {e}")
+            logger.error(f"Error fetching template content: {e}")
             return jsonify({
                 'success': False,
-                'error': 'Failed to fetch template from Google Drive',
+                'error': 'Failed to fetch template content',
                 'details': str(e)
             }), 500
         

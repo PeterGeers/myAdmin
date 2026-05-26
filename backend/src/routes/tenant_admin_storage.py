@@ -19,6 +19,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
+from services.storage_resolver import resolve_storage_provider, get_s3_storage
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ tenant_admin_storage_bp = Blueprint('tenant_admin_storage', __name__, url_prefix
 @cognito_required(required_roles=['Tenant_Admin'])
 def list_folders(user_email, user_roles):
     """
-    List available Google Drive folders
+    List available storage folders (Google Drive or S3 prefixes)
     
     Authorization: Tenant_Admin role required
     
@@ -42,13 +43,48 @@ def list_folders(user_email, user_roles):
         # Get current tenant
         tenant = get_current_tenant(request)
         
-        # Initialize Google Drive service for this tenant
-        drive_service = GoogleDriveService(tenant)
+        # Resolve storage provider for this tenant
+        provider = resolve_storage_provider(tenant)
         
-        # Get list of subfolders
-        folders = drive_service.list_subfolders()
-        
-        logger.info(f"Listed {len(folders)} folders for tenant {tenant} by {user_email}")
+        if provider == 's3_shared':
+            # S3 path: list top-level prefixes under {tenant}/
+            storage = get_s3_storage(tenant)
+            prefix = f"{tenant}/"
+            folders = []
+            
+            continuation_token = None
+            while True:
+                kwargs = {
+                    'Bucket': storage.bucket,
+                    'Prefix': prefix,
+                    'Delimiter': '/',
+                }
+                if continuation_token:
+                    kwargs['ContinuationToken'] = continuation_token
+                
+                response = storage._client.list_objects_v2(**kwargs)
+                
+                for cp in response.get('CommonPrefixes', []):
+                    folder_path = cp['Prefix']
+                    # Strip base prefix and trailing slash to get folder name
+                    folder_name = folder_path[len(prefix):].rstrip('/')
+                    if folder_name:
+                        folders.append({
+                            'id': folder_path,
+                            'name': folder_name
+                        })
+                
+                if response.get('IsTruncated'):
+                    continuation_token = response.get('NextContinuationToken')
+                else:
+                    break
+            
+            logger.info(f"Listed {len(folders)} S3 prefixes for tenant {tenant} by {user_email}")
+        else:
+            # Google Drive path: unchanged
+            drive_service = GoogleDriveService(tenant)
+            folders = drive_service.list_subfolders()
+            logger.info(f"Listed {len(folders)} folders for tenant {tenant} by {user_email}")
         
         return jsonify({
             'success': True,
@@ -143,20 +179,46 @@ def update_storage_config(user_email, user_roles):
         folder_ids = [v for k, v in data.items() if k.endswith('_folder_id') and v]
         
         # Test folder accessibility if requested
-        if data.get('validate', False) and folder_ids:
-            try:
-                drive_service = GoogleDriveService(tenant)
-                for folder_id in folder_ids:
-                    # Try to list files in folder (limit 1)
-                    drive_service.service.files().list(
-                        q=f"'{folder_id}' in parents",
-                        pageSize=1,
-                        fields="files(id)"
-                    ).execute()
-            except Exception as e:
-                return jsonify({
-                    'error': f'Folder validation failed: {str(e)}'
-                }), 400
+        if data.get('validate', False):
+            # Resolve storage provider for this tenant
+            provider = resolve_storage_provider(tenant)
+            
+            if provider == 's3_shared':
+                # S3 validation: head_bucket + put/delete cycle
+                try:
+                    storage = get_s3_storage(tenant)
+                    # Verify bucket exists and is accessible
+                    storage._client.head_bucket(Bucket=storage.bucket)
+                    # Test write access with put/delete cycle
+                    test_key = f"{tenant}/_test_access"
+                    storage._client.put_object(
+                        Bucket=storage.bucket,
+                        Key=test_key,
+                        Body=b'access_test',
+                    )
+                    storage._client.delete_object(
+                        Bucket=storage.bucket,
+                        Key=test_key,
+                    )
+                except Exception as e:
+                    return jsonify({
+                        'error': f'S3 storage validation failed: {str(e)}'
+                    }), 400
+            elif folder_ids:
+                # Google Drive validation: test folder accessibility
+                try:
+                    drive_service = GoogleDriveService(tenant)
+                    for folder_id in folder_ids:
+                        # Try to list files in folder (limit 1)
+                        drive_service.service.files().list(
+                            q=f"'{folder_id}' in parents",
+                            pageSize=1,
+                            fields="files(id)"
+                        ).execute()
+                except Exception as e:
+                    return jsonify({
+                        'error': f'Folder validation failed: {str(e)}'
+                    }), 400
         
         # Update configuration in tenant_config table
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
@@ -241,7 +303,64 @@ def test_folder_access(user_email, user_roles):
         if not folder_id:
             return jsonify({'error': 'folder_id is required'}), 400
         
-        # Initialize Google Drive service
+        # Resolve storage provider for this tenant
+        provider = resolve_storage_provider(tenant)
+        
+        if provider == 's3_shared':
+            # S3 path: head_bucket for read access, put/delete cycle for write access
+            read_access = False
+            write_access = False
+            read_error = None
+            write_error = None
+            
+            try:
+                storage = get_s3_storage(tenant)
+                # Test read access via head_bucket
+                storage._client.head_bucket(Bucket=storage.bucket)
+                read_access = True
+            except Exception as e:
+                read_error = str(e)
+            
+            # Test write access via put_object/delete_object cycle
+            if read_access:
+                try:
+                    test_key = f"{tenant}/_test_access"
+                    storage._client.put_object(
+                        Bucket=storage.bucket,
+                        Key=test_key,
+                        Body=b'access_test',
+                    )
+                    storage._client.delete_object(
+                        Bucket=storage.bucket,
+                        Key=test_key,
+                    )
+                    write_access = True
+                except Exception as e:
+                    write_error = str(e)
+            
+            # Build response
+            test_result = {
+                'folder_id': folder_id,
+                'read_access': read_access,
+                'write_access': write_access,
+                'accessible': read_access and write_access
+            }
+            
+            if not read_access:
+                test_result['read_error'] = read_error
+            
+            if not write_access:
+                test_result['write_error'] = write_error
+            
+            logger.info(f"Tested S3 access for tenant {tenant} by {user_email}: {test_result}")
+            
+            return jsonify({
+                'success': True,
+                'tenant': tenant,
+                'test_result': test_result
+            })
+        
+        # Google Drive path: unchanged
         drive_service = GoogleDriveService(tenant)
         
         # Test 1: Read access - list files in folder
@@ -333,6 +452,54 @@ def get_storage_usage(user_email, user_roles):
         # Get current tenant
         tenant = get_current_tenant(request)
         
+        # Resolve storage provider for this tenant
+        provider = resolve_storage_provider(tenant)
+        
+        if provider == 's3_shared':
+            # S3 path: list all objects under {tenant}/ prefix and sum sizes
+            storage = get_s3_storage(tenant)
+            prefix = f"{tenant}/"
+            total_size_bytes = 0
+            file_count = 0
+            
+            continuation_token = None
+            while True:
+                kwargs = {
+                    'Bucket': storage.bucket,
+                    'Prefix': prefix,
+                }
+                if continuation_token:
+                    kwargs['ContinuationToken'] = continuation_token
+                
+                response = storage._client.list_objects_v2(**kwargs)
+                
+                for obj in response.get('Contents', []):
+                    # Skip .folder marker objects (zero-byte directory markers)
+                    if obj['Key'].endswith('/.folder') and obj.get('Size', 0) == 0:
+                        continue
+                    total_size_bytes += obj.get('Size', 0)
+                    file_count += 1
+                
+                if response.get('IsTruncated'):
+                    continuation_token = response.get('NextContinuationToken')
+                else:
+                    break
+            
+            usage_stats = {
+                'file_count': file_count,
+                'total_size_bytes': total_size_bytes,
+                'total_size_mb': round(total_size_bytes / (1024 * 1024), 2),
+            }
+            
+            logger.info(f"Retrieved S3 storage usage for tenant {tenant} by {user_email}: {file_count} files, {total_size_bytes} bytes")
+            
+            return jsonify({
+                'success': True,
+                'tenant': tenant,
+                'usage': usage_stats
+            })
+        
+        # Google Drive path: unchanged
         # Get storage configuration from tenant_config
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
