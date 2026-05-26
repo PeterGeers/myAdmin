@@ -9,6 +9,7 @@ from flask import Blueprint, jsonify, request
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from google_drive_service import GoogleDriveService
+from services.storage_resolver import resolve_storage_provider, list_s3_folders, create_s3_folder
 from config import Config
 import os
 
@@ -44,31 +45,40 @@ def get_folders(user_email, user_roles):
         if flag:  # Test mode - use local folders
             folders = list(config.vendor_folders.values())
             print(f"Test mode: returning {len(folders)} local folders", flush=True)
-        else:  # Production mode - use Google Drive folders
+        else:  # Production mode - resolve storage provider
             try:
-                print(f"Production mode: fetching Google Drive folders for tenant={tenant}", flush=True)
-                drive_service = GoogleDriveService(administration=tenant)
-                drive_folders = drive_service.list_subfolders()
-                print(f"Raw drive_folders result: {type(drive_folders)}, length: {len(drive_folders) if drive_folders else 0}", flush=True)
+                provider = resolve_storage_provider(tenant)
+                print(f"Production mode: provider={provider} for tenant={tenant}", flush=True)
                 
-                # Extract folder names and deduplicate (Google Drive allows duplicate folder names)
-                folder_names = [folder['name'] for folder in drive_folders]
-                # Use dict.fromkeys() to preserve order while removing duplicates
-                folders = list(dict.fromkeys(folder_names))
-                
-                if len(folder_names) != len(folders):
-                    print(f"Warning: Deduplicated {len(folder_names)} folders to {len(folders)} unique names", flush=True)
-                    # Log which folders were duplicated
-                    from collections import Counter
-                    duplicates = [name for name, count in Counter(folder_names).items() if count > 1]
-                    print(f"Duplicate folder names found: {duplicates}", flush=True)
-                
-                print(f"Google Drive: found {len(folders)} unique folders for tenant={tenant}", flush=True)
+                if provider == 's3_shared':
+                    # S3 tenant: list folders from S3 prefixes
+                    folders = list_s3_folders(tenant)
+                    print(f"S3: found {len(folders)} folders for tenant={tenant}", flush=True)
+                else:
+                    # Google Drive tenant: use existing Drive service
+                    print(f"Production mode: fetching Google Drive folders for tenant={tenant}", flush=True)
+                    drive_service = GoogleDriveService(administration=tenant)
+                    drive_folders = drive_service.list_subfolders()
+                    print(f"Raw drive_folders result: {type(drive_folders)}, length: {len(drive_folders) if drive_folders else 0}", flush=True)
+                    
+                    # Extract folder names and deduplicate (Google Drive allows duplicate folder names)
+                    folder_names = [folder['name'] for folder in drive_folders]
+                    # Use dict.fromkeys() to preserve order while removing duplicates
+                    folders = list(dict.fromkeys(folder_names))
+                    
+                    if len(folder_names) != len(folders):
+                        print(f"Warning: Deduplicated {len(folder_names)} folders to {len(folders)} unique names", flush=True)
+                        # Log which folders were duplicated
+                        from collections import Counter
+                        duplicates = [name for name, count in Counter(folder_names).items() if count > 1]
+                        print(f"Duplicate folder names found: {duplicates}", flush=True)
+                    
+                    print(f"Google Drive: found {len(folders)} unique folders for tenant={tenant}", flush=True)
             except Exception as e:
-                print(f"Google Drive error for tenant={tenant}: {type(e).__name__}: {e}", flush=True)
+                print(f"Storage error for tenant={tenant}: {type(e).__name__}: {e}", flush=True)
                 import traceback
                 traceback.print_exc()
-                # Fallback to local folders if Google Drive fails
+                # Fallback to local folders if storage backend fails
                 folders = list(config.vendor_folders.values())
                 print(f"Fallback: returning {len(folders)} local folders", flush=True)
         
@@ -99,23 +109,37 @@ def create_folder(user_email, user_roles, tenant, user_tenants):
         data = request.get_json()
         folder_name = data.get('folderName')
         if folder_name:
-            # Create local folder
+            # Create local folder (always happens regardless of provider)
             folder_path = config.get_storage_folder(folder_name)
             config.ensure_folder_exists(folder_path)
             
-            # Create Google Drive folder in correct parent
-            try:
-                print(f"Creating Google Drive folder for tenant: {tenant}", flush=True)
-                drive_service = GoogleDriveService(administration=tenant)
-                use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
-                parent_folder_id = os.getenv('TEST_FACTUREN_FOLDER_ID') if use_test else os.getenv('FACTUREN_FOLDER_ID')
-                
-                if parent_folder_id:
-                    drive_result = drive_service.create_folder(folder_name, parent_folder_id)
-                    print(f"Created Google Drive folder: {folder_name} in {'test' if use_test else 'production'} parent for tenant {tenant}", flush=True)
-                    return jsonify({'success': True, 'path': folder_path, 'drive_folder': drive_result})
-            except Exception as drive_error:
-                print(f"Google Drive folder creation failed for tenant {tenant}: {drive_error}", flush=True)
+            # Resolve storage provider for this tenant
+            provider = resolve_storage_provider(tenant)
+            print(f"create_folder: provider={provider} for tenant={tenant}", flush=True)
+            
+            if provider == 's3_shared':
+                # S3 tenant: create folder marker in S3
+                try:
+                    s3_result = create_s3_folder(tenant, folder_name)
+                    print(f"Created S3 folder marker for: {folder_name}, tenant={tenant}", flush=True)
+                    return jsonify({'success': True, 'path': folder_path, 'drive_folder': s3_result})
+                except Exception as s3_error:
+                    print(f"S3 folder creation failed for tenant {tenant}: {s3_error}", flush=True)
+                    return jsonify({'success': True, 'path': folder_path})
+            else:
+                # Google Drive tenant: create folder in correct parent
+                try:
+                    print(f"Creating Google Drive folder for tenant: {tenant}", flush=True)
+                    drive_service = GoogleDriveService(administration=tenant)
+                    use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
+                    parent_folder_id = os.getenv('TEST_FACTUREN_FOLDER_ID') if use_test else os.getenv('FACTUREN_FOLDER_ID')
+                    
+                    if parent_folder_id:
+                        drive_result = drive_service.create_folder(folder_name, parent_folder_id)
+                        print(f"Created Google Drive folder: {folder_name} in {'test' if use_test else 'production'} parent for tenant {tenant}", flush=True)
+                        return jsonify({'success': True, 'path': folder_path, 'drive_folder': drive_result})
+                except Exception as drive_error:
+                    print(f"Google Drive folder creation failed for tenant {tenant}: {drive_error}", flush=True)
             
             return jsonify({'success': True, 'path': folder_path})
         return jsonify({'success': False, 'error': 'No folder name provided'}), 400

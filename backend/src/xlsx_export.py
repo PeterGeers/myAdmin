@@ -10,6 +10,7 @@ from google_drive_service import GoogleDriveService
 import io
 from googleapiclient.http import MediaIoBaseDownload
 from services.template_service import TemplateService
+from services.storage_resolver import resolve_storage_provider, get_s3_storage
 import logging
 
 logger = logging.getLogger(__name__)
@@ -172,65 +173,99 @@ class XLSXExportProcessor:
             folder_path = tempfile.mkdtemp(prefix=f"{administration}{year}_")
             print(f"Using temporary directory: {folder_path}")
         
-        # Filter data for Google Drive files
+        # Filter data for files with DocUrl
         df = pd.DataFrame(data)
         print(f"Total records: {len(df)}")
         print(f"Columns available: {df.columns.tolist()}")
         
-        # Check if DocUrl column exists and has Google Drive links
+        # Check if DocUrl column exists
         if 'DocUrl' not in df.columns:
             print("DocUrl column not found in data")
             return 0
-            
-        df = df[df['DocUrl'].str.contains('drive.google', na=False)]
-        print(f"Records with Google Drive URLs: {len(df)}")
         
-        if len(df) == 0:
-            print("No Google Drive files found")
+        # Separate S3 keys and Google Drive URLs
+        df_with_url = df[df['DocUrl'].notna() & (df['DocUrl'] != '')]
+        df_s3 = df_with_url[df_with_url['DocUrl'].apply(self._is_s3_key)]
+        df_drive = df_with_url[df_with_url['DocUrl'].str.contains('drive.google', na=False)]
+        
+        print(f"Records with S3 keys: {len(df_s3)}")
+        print(f"Records with Google Drive URLs: {len(df_drive)}")
+        
+        if len(df_s3) == 0 and len(df_drive) == 0:
+            print("No downloadable files found")
             return 0
-            
-        df['ReferenceNumber'] = df['ReferenceNumber'].str.strip()
-        df = df.drop_duplicates()
         
-        # Create reference number folders
-        reference_numbers = sorted(df['ReferenceNumber'].unique())
-        reference_numbers = [ref for ref in reference_numbers if ref]
-        
-        for ref_num in reference_numbers:
-            ref_folder = os.path.join(folder_path, ref_num)
-            os.makedirs(ref_folder, exist_ok=True)
-        
-        # Download files from Google Drive
         downloaded_count = 0
         failed_downloads = []
-        print(f"Found {len(df)} Google Drive files to download")
-        try:
-            service = self._get_drive_service(administration)
-            if service:
-                for _, row in df.iterrows():
-                    print(f"Processing file: {row['DocUrl']} -> {row['ReferenceNumber']}")
-                    if row['ReferenceNumber']:
-                        success = self._download_drive_file(
-                            service, 
-                            row['DocUrl'], 
-                            os.path.join(folder_path, row['ReferenceNumber']),
-                            row.get('Document', '')
-                        )
-                        if success:
-                            downloaded_count += 1
-                            print(f"Successfully downloaded file {downloaded_count}")
-                        else:
-                            failed_downloads.append({
-                                'ReferenceNumber': row['ReferenceNumber'],
-                                'Document': row.get('Document', ''),
-                                'DocUrl': row['DocUrl']
-                            })
-            else:
-                print("Could not get Google Drive service")
-        except Exception as e:
-            print(f"Error downloading files: {e}")
-            import traceback
-            traceback.print_exc()
+        
+        # Process S3 files
+        if len(df_s3) > 0:
+            df_s3 = df_s3.copy()
+            df_s3['ReferenceNumber'] = df_s3['ReferenceNumber'].str.strip()
+            df_s3 = df_s3.drop_duplicates()
+            
+            # Create reference number folders for S3 files
+            s3_refs = sorted(df_s3['ReferenceNumber'].unique())
+            s3_refs = [ref for ref in s3_refs if ref]
+            for ref_num in s3_refs:
+                ref_folder = os.path.join(folder_path, ref_num)
+                os.makedirs(ref_folder, exist_ok=True)
+            
+            print(f"Found {len(df_s3)} S3 files to download")
+            for _, row in df_s3.iterrows():
+                if row['ReferenceNumber']:
+                    dest = os.path.join(folder_path, row['ReferenceNumber'])
+                    success = self._download_s3_file(row['DocUrl'], dest, administration)
+                    if success:
+                        downloaded_count += 1
+                    else:
+                        failed_downloads.append({
+                            'ReferenceNumber': row['ReferenceNumber'],
+                            'Document': row.get('Document', ''),
+                            'DocUrl': row['DocUrl']
+                        })
+        
+        # Process Google Drive files
+        if len(df_drive) > 0:
+            df_drive = df_drive.copy()
+            df_drive['ReferenceNumber'] = df_drive['ReferenceNumber'].str.strip()
+            df_drive = df_drive.drop_duplicates()
+            
+            # Create reference number folders for Drive files
+            drive_refs = sorted(df_drive['ReferenceNumber'].unique())
+            drive_refs = [ref for ref in drive_refs if ref]
+            for ref_num in drive_refs:
+                ref_folder = os.path.join(folder_path, ref_num)
+                os.makedirs(ref_folder, exist_ok=True)
+            
+            print(f"Found {len(df_drive)} Google Drive files to download")
+            try:
+                service = self._get_drive_service(administration)
+                if service:
+                    for _, row in df_drive.iterrows():
+                        print(f"Processing file: {row['DocUrl']} -> {row['ReferenceNumber']}")
+                        if row['ReferenceNumber']:
+                            success = self._download_drive_file(
+                                service, 
+                                row['DocUrl'], 
+                                os.path.join(folder_path, row['ReferenceNumber']),
+                                row.get('Document', '')
+                            )
+                            if success:
+                                downloaded_count += 1
+                                print(f"Successfully downloaded file {downloaded_count}")
+                            else:
+                                failed_downloads.append({
+                                    'ReferenceNumber': row['ReferenceNumber'],
+                                    'Document': row.get('Document', ''),
+                                    'DocUrl': row['DocUrl']
+                                })
+                else:
+                    print("Could not get Google Drive service")
+            except Exception as e:
+                print(f"Error downloading files: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Write log file for failed downloads and folder contents
         log_file = os.path.join(folder_path, 'download_log.txt')
@@ -500,7 +535,7 @@ class XLSXExportProcessor:
                         'total_combinations': total_combinations,
                         'current_administration': administration,
                         'current_year': year,
-                        'status': f'Downloading Google Drive files for {administration} {year}...'
+                        'status': f'Downloading files for {administration} {year}...'
                     }
                     
                     # Use generator for file-level progress
@@ -596,79 +631,112 @@ class XLSXExportProcessor:
             folder_path = tempfile.mkdtemp(prefix=f"{administration}{year}_")
             print(f"Using temporary directory: {folder_path}")
         
-        # Filter data for Google Drive files
+        # Filter data for files with DocUrl
         df = pd.DataFrame(data)
         print(f"Total records: {len(df)}")
         
-        # Check if DocUrl column exists and has Google Drive links
+        # Check if DocUrl column exists
         if 'DocUrl' not in df.columns:
             print("DocUrl column not found in data")
             yield {'type': 'complete', 'downloaded_count': 0}
             return
-            
-        df = df[df['DocUrl'].str.contains('drive.google', na=False)]
-        print(f"Records with Google Drive URLs: {len(df)}")
         
-        if len(df) == 0:
-            print("No Google Drive files found")
+        # Separate S3 keys and Google Drive URLs
+        df_with_url = df[df['DocUrl'].notna() & (df['DocUrl'] != '')]
+        df_s3 = df_with_url[df_with_url['DocUrl'].apply(self._is_s3_key)]
+        df_drive = df_with_url[df_with_url['DocUrl'].str.contains('drive.google', na=False)]
+        
+        print(f"Records with S3 keys: {len(df_s3)}")
+        print(f"Records with Google Drive URLs: {len(df_drive)}")
+        
+        if len(df_s3) == 0 and len(df_drive) == 0:
+            print("No downloadable files found")
             yield {'type': 'complete', 'downloaded_count': 0}
             return
-            
-        df['ReferenceNumber'] = df['ReferenceNumber'].str.strip()
-        df = df.drop_duplicates()
+        
+        # Combine both sets for progress tracking
+        all_files = []
+        
+        if len(df_s3) > 0:
+            df_s3 = df_s3.copy()
+            df_s3['ReferenceNumber'] = df_s3['ReferenceNumber'].str.strip()
+            df_s3 = df_s3.drop_duplicates()
+            df_s3 = df_s3.copy()
+            df_s3['_source'] = 's3'
+            all_files.append(df_s3)
+        
+        if len(df_drive) > 0:
+            df_drive = df_drive.copy()
+            df_drive['ReferenceNumber'] = df_drive['ReferenceNumber'].str.strip()
+            df_drive = df_drive.drop_duplicates()
+            df_drive = df_drive.copy()
+            df_drive['_source'] = 'drive'
+            all_files.append(df_drive)
+        
+        combined_df = pd.concat(all_files, ignore_index=True)
         
         # Create reference number folders
-        reference_numbers = sorted(df['ReferenceNumber'].unique())
+        reference_numbers = sorted(combined_df['ReferenceNumber'].unique())
         reference_numbers = [ref for ref in reference_numbers if ref]
         
         for ref_num in reference_numbers:
             ref_folder = os.path.join(folder_path, ref_num)
             os.makedirs(ref_folder, exist_ok=True)
         
-        # Download files from Google Drive with progress reporting
+        # Download files with progress reporting
         downloaded_count = 0
         failed_downloads = []
-        total_files = len(df)
+        total_files = len(combined_df)
         
-        print(f"Found {total_files} Google Drive files to download")
+        print(f"Found {total_files} files to download")
         
-        try:
-            service = self._get_drive_service(administration)
-            if service:
-                for index, (_, row) in enumerate(df.iterrows()):
-                    # Yield progress for each file
-                    yield {
-                        'type': 'file_progress',
-                        'current_file': index + 1,
-                        'total_files': total_files,
-                        'file_status': f'Downloading file {index + 1}/{total_files}: {row.get("Document", "Unknown")}',
-                        'reference_number': row['ReferenceNumber']
-                    }
-                    
-                    print(f"Processing file {index + 1}/{total_files}: {row['DocUrl']} -> {row['ReferenceNumber']}")
-                    
-                    if row['ReferenceNumber']:
-                        success = self._download_drive_file(
-                            service, 
-                            row['DocUrl'], 
-                            os.path.join(folder_path, row['ReferenceNumber']),
-                            row.get('Document', '')
-                        )
-                        if success:
-                            downloaded_count += 1
-                            print(f"Successfully downloaded file {downloaded_count}")
-                        else:
-                            failed_downloads.append({
-                                'ReferenceNumber': row['ReferenceNumber'],
-                                'Document': row.get('Document', ''),
-                                'DocUrl': row['DocUrl']
-                            })
-            else:
-                print("Could not get Google Drive service")
-        except Exception as e:
-            print(f"Error downloading files: {e}")
-            import traceback
-            traceback.print_exc()
+        # Get Drive service only if needed
+        service = None
+        if len(df_drive) > 0:
+            try:
+                service = self._get_drive_service(administration)
+            except Exception as e:
+                print(f"Error initializing Drive service: {e}")
+        
+        for index, (_, row) in enumerate(combined_df.iterrows()):
+            # Yield progress for each file
+            yield {
+                'type': 'file_progress',
+                'current_file': index + 1,
+                'total_files': total_files,
+                'file_status': f'Downloading file {index + 1}/{total_files}: {row.get("Document", "Unknown")}',
+                'reference_number': row['ReferenceNumber']
+            }
+            
+            print(f"Processing file {index + 1}/{total_files}: {row['DocUrl']} -> {row['ReferenceNumber']}")
+            
+            if row['ReferenceNumber']:
+                if row['_source'] == 's3':
+                    success = self._download_s3_file(
+                        row['DocUrl'],
+                        os.path.join(folder_path, row['ReferenceNumber']),
+                        administration
+                    )
+                elif service:
+                    success = self._download_drive_file(
+                        service,
+                        row['DocUrl'],
+                        os.path.join(folder_path, row['ReferenceNumber']),
+                        row.get('Document', '')
+                    )
+                else:
+                    print("Could not get Google Drive service")
+                    success = False
+                
+                if success:
+                    downloaded_count += 1
+                    print(f"Successfully downloaded file {downloaded_count}")
+                else:
+                    failed_downloads.append({
+                        'ReferenceNumber': row['ReferenceNumber'],
+                        'Document': row.get('Document', ''),
+                        'DocUrl': row['DocUrl']
+                    })
         
         # Write log file for failed downloads and folder contents
         log_file = os.path.join(folder_path, 'download_log.txt')
@@ -714,78 +782,111 @@ class XLSXExportProcessor:
             folder_path = tempfile.mkdtemp(prefix=f"{administration}{year}_")
             print(f"Using temporary directory: {folder_path}")
         
-        # Filter data for Google Drive files
+        # Filter data for files with DocUrl
         df = pd.DataFrame(data)
         print(f"Total records: {len(df)}")
         
-        # Check if DocUrl column exists and has Google Drive links
+        # Check if DocUrl column exists
         if 'DocUrl' not in df.columns:
             print("DocUrl column not found in data")
             return 0
-            
-        df = df[df['DocUrl'].str.contains('drive.google', na=False)]
-        print(f"Records with Google Drive URLs: {len(df)}")
         
-        if len(df) == 0:
-            print("No Google Drive files found")
+        # Separate S3 keys and Google Drive URLs
+        df_with_url = df[df['DocUrl'].notna() & (df['DocUrl'] != '')]
+        df_s3 = df_with_url[df_with_url['DocUrl'].apply(self._is_s3_key)]
+        df_drive = df_with_url[df_with_url['DocUrl'].str.contains('drive.google', na=False)]
+        
+        print(f"Records with S3 keys: {len(df_s3)}")
+        print(f"Records with Google Drive URLs: {len(df_drive)}")
+        
+        if len(df_s3) == 0 and len(df_drive) == 0:
+            print("No downloadable files found")
             return 0
-            
-        df['ReferenceNumber'] = df['ReferenceNumber'].str.strip()
-        df = df.drop_duplicates()
+        
+        # Combine both sets for progress tracking
+        all_files = []
+        
+        if len(df_s3) > 0:
+            df_s3 = df_s3.copy()
+            df_s3['ReferenceNumber'] = df_s3['ReferenceNumber'].str.strip()
+            df_s3 = df_s3.drop_duplicates()
+            df_s3 = df_s3.copy()
+            df_s3['_source'] = 's3'
+            all_files.append(df_s3)
+        
+        if len(df_drive) > 0:
+            df_drive = df_drive.copy()
+            df_drive['ReferenceNumber'] = df_drive['ReferenceNumber'].str.strip()
+            df_drive = df_drive.drop_duplicates()
+            df_drive = df_drive.copy()
+            df_drive['_source'] = 'drive'
+            all_files.append(df_drive)
+        
+        combined_df = pd.concat(all_files, ignore_index=True)
         
         # Create reference number folders
-        reference_numbers = sorted(df['ReferenceNumber'].unique())
+        reference_numbers = sorted(combined_df['ReferenceNumber'].unique())
         reference_numbers = [ref for ref in reference_numbers if ref]
         
         for ref_num in reference_numbers:
             ref_folder = os.path.join(folder_path, ref_num)
             os.makedirs(ref_folder, exist_ok=True)
         
-        # Download files from Google Drive with progress reporting
+        # Download files with progress reporting
         downloaded_count = 0
         failed_downloads = []
-        total_files = len(df)
+        total_files = len(combined_df)
         
-        print(f"Found {total_files} Google Drive files to download")
+        print(f"Found {total_files} files to download")
         
-        try:
-            service = self._get_drive_service(administration)
-            if service:
-                for index, (_, row) in enumerate(df.iterrows()):
-                    # Report progress for each file
-                    if progress_callback:
-                        progress_callback({
-                            'type': 'file_progress',
-                            'current_file': index + 1,
-                            'total_files': total_files,
-                            'file_status': f'Downloading file {index + 1}/{total_files}: {row.get("Document", "Unknown")}',
-                            'reference_number': row['ReferenceNumber']
-                        })
-                    
-                    print(f"Processing file {index + 1}/{total_files}: {row['DocUrl']} -> {row['ReferenceNumber']}")
-                    
-                    if row['ReferenceNumber']:
-                        success = self._download_drive_file(
-                            service, 
-                            row['DocUrl'], 
-                            os.path.join(folder_path, row['ReferenceNumber']),
-                            row.get('Document', '')
-                        )
-                        if success:
-                            downloaded_count += 1
-                            print(f"Successfully downloaded file {downloaded_count}")
-                        else:
-                            failed_downloads.append({
-                                'ReferenceNumber': row['ReferenceNumber'],
-                                'Document': row.get('Document', ''),
-                                'DocUrl': row['DocUrl']
-                            })
-            else:
-                print("Could not get Google Drive service")
-        except Exception as e:
-            print(f"Error downloading files: {e}")
-            import traceback
-            traceback.print_exc()
+        # Get Drive service only if needed
+        service = None
+        if len(df_drive) > 0:
+            try:
+                service = self._get_drive_service(administration)
+            except Exception as e:
+                print(f"Error initializing Drive service: {e}")
+        
+        for index, (_, row) in enumerate(combined_df.iterrows()):
+            # Report progress for each file
+            if progress_callback:
+                progress_callback({
+                    'type': 'file_progress',
+                    'current_file': index + 1,
+                    'total_files': total_files,
+                    'file_status': f'Downloading file {index + 1}/{total_files}: {row.get("Document", "Unknown")}',
+                    'reference_number': row['ReferenceNumber']
+                })
+            
+            print(f"Processing file {index + 1}/{total_files}: {row['DocUrl']} -> {row['ReferenceNumber']}")
+            
+            if row['ReferenceNumber']:
+                if row['_source'] == 's3':
+                    success = self._download_s3_file(
+                        row['DocUrl'],
+                        os.path.join(folder_path, row['ReferenceNumber']),
+                        administration
+                    )
+                elif service:
+                    success = self._download_drive_file(
+                        service,
+                        row['DocUrl'],
+                        os.path.join(folder_path, row['ReferenceNumber']),
+                        row.get('Document', '')
+                    )
+                else:
+                    print("Could not get Google Drive service")
+                    success = False
+                
+                if success:
+                    downloaded_count += 1
+                    print(f"Successfully downloaded file {downloaded_count}")
+                else:
+                    failed_downloads.append({
+                        'ReferenceNumber': row['ReferenceNumber'],
+                        'Document': row.get('Document', ''),
+                        'DocUrl': row['DocUrl']
+                    })
         
         # Write log file for failed downloads and folder contents
         log_file = os.path.join(folder_path, 'download_log.txt')
@@ -873,14 +974,60 @@ class XLSXExportProcessor:
         
         Args:
             administration: Tenant/administration identifier
+            
+        Returns:
+            Google Drive service object, or None if provider is S3 or initialization fails
         """
         try:
+            provider = resolve_storage_provider(administration)
+            if provider == 's3_shared':
+                return None
             drive_service = GoogleDriveService(administration)
             return drive_service.service
         except Exception as e:
             print(f"Could not initialize Google Drive service: {e}")
         return None
     
+    def _download_s3_file(self, key, destination_folder, administration):
+        """Download file from S3 by key and save to destination folder.
+        
+        Args:
+            key: S3 object key (e.g. 'AcmeBV/invoices/Supplier1/uuid_file.pdf')
+            destination_folder: Local folder path to save the file
+            administration: Tenant/administration identifier
+            
+        Returns:
+            True if download succeeded, False otherwise
+        """
+        try:
+            storage = get_s3_storage(administration)
+            file_data = storage.download(key)
+            # Extract filename from the key (last segment after '/')
+            filename = os.path.basename(key)
+            file_path = os.path.join(destination_folder, filename)
+            with open(file_path, 'wb') as f:
+                f.write(file_data)
+            print(f"Successfully downloaded S3 file: {filename}")
+            return True
+        except Exception as e:
+            print(f"Error downloading S3 file {key}: {e}")
+            return False
+
+    def _is_s3_key(self, doc_url):
+        """Check if a DocUrl value is an S3 key rather than a Google Drive URL.
+        
+        S3 keys contain '/' but do not contain 'drive.google'.
+        
+        Args:
+            doc_url: The document URL or S3 key string
+            
+        Returns:
+            True if the value looks like an S3 key, False otherwise
+        """
+        if not doc_url or not isinstance(doc_url, str):
+            return False
+        return '/' in doc_url and 'drive.google' not in doc_url
+
     def _download_drive_file(self, service, doc_url, dest_folder, document_name=''):
         """Download file from Google Drive"""
         try:

@@ -76,6 +76,13 @@ class OutputService:
         if destination == 'download':
             return self._handle_download(content, filename, content_type)
         elif destination == 'gdrive':
+            # Check provider: S3 tenants should route to S3 upload, not Google Drive
+            from services.storage_resolver import resolve_storage_provider
+            provider = resolve_storage_provider(administration)
+            if provider in ('s3_shared', 's3_tenant'):
+                return self._handle_s3_upload(
+                    content, filename, administration, content_type
+                )
             return self._handle_gdrive_upload(
                 content, filename, administration, content_type, folder_id
             )

@@ -123,7 +123,7 @@ class InvoiceService:
     
     def upload_to_drive(self, temp_path, filename, folder_name, tenant):
         """
-        Upload file to Google Drive
+        Upload file to storage (Google Drive or S3 depending on tenant provider)
         
         Args:
             temp_path (str): Path to temporary file
@@ -132,7 +132,7 @@ class InvoiceService:
             tenant (str): Tenant/administration name
             
         Returns:
-            dict: Drive result with 'id' and 'url'
+            dict: Upload result with 'id' and 'url'
         """
         if self.test_mode:
             # Test mode - local storage
@@ -141,58 +141,87 @@ class InvoiceService:
                 'url': f'http://localhost:5000/uploads/{filename}'
             }
         
-        # Production mode - Google Drive upload
-        try:
-            # Check cache first
-            cache_key = f"{folder_name}_{filename}"
-            if cache_key in self.upload_cache:
-                print(f"Using cached file info for {filename}", flush=True)
-                return self.upload_cache[cache_key]
-            
-            print(f"Initializing Google Drive service for tenant: {tenant}", flush=True)
-            drive_service = GoogleDriveService(administration=tenant)
-            drive_folders = drive_service.list_subfolders()
-            
-            # Find the folder ID for the selected folder
-            folder_id = None
-            for folder in drive_folders:
-                if folder['name'] == folder_name:
-                    folder_id = folder['id']
-                    print(f"Found folder: {folder_name} (ID: {folder_id})", flush=True)
-                    break
-            
-            if folder_id:
-                # Check if file already exists
-                existing_file = drive_service.check_file_exists(filename, folder_id)
+        # Resolve storage provider for this tenant
+        from services.storage_resolver import resolve_storage_provider, get_s3_storage
+        provider = resolve_storage_provider(tenant)
+        
+        if provider == 's3_shared':
+            # S3 storage path
+            try:
+                print(f"Using S3 storage for tenant: {tenant}", flush=True)
+                with open(temp_path, 'rb') as f:
+                    file_data = f.read()
                 
-                if existing_file['exists']:
-                    print(f"File {filename} already exists in Google Drive", flush=True)
-                    drive_result = existing_file['file']
-                else:
-                    print(f"Uploading new file to Google Drive folder: {folder_name} (ID: {folder_id})", flush=True)
-                    drive_result = drive_service.upload_file(temp_path, filename, folder_id)
-                
-                # Cache the result
-                self.upload_cache[cache_key] = drive_result
-                print(f"Cached file info for {cache_key}", flush=True)
-                print(f"File result: {drive_result['url']}", flush=True)
-                return drive_result
-            else:
-                print(f"Folder '{folder_name}' not found in Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
-                print("Using local storage as fallback", flush=True)
+                storage = get_s3_storage(tenant)
+                s3_key = storage.upload(
+                    file_data,
+                    filename,
+                    metadata={'reference_number': folder_name}
+                )
+                print(f"File uploaded to S3: {s3_key}", flush=True)
+                return {'id': s3_key, 'url': s3_key}
+            except Exception as e:
+                print(f"S3 upload failed for tenant {tenant}: {type(e).__name__}: {str(e)}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Fallback to local storage
                 return {
                     'id': filename,
                     'url': f'http://localhost:5000/uploads/{filename}'
                 }
-        except Exception as e:
-            print(f"Google Drive upload failed for tenant {tenant}: {type(e).__name__}: {str(e)}", flush=True)
-            import traceback
-            traceback.print_exc()
-            # Fallback to local storage
-            return {
-                'id': filename,
-                'url': f'http://localhost:5000/uploads/{filename}'
-            }
+        else:
+            # Production mode - Google Drive upload
+            try:
+                # Check cache first
+                cache_key = f"{folder_name}_{filename}"
+                if cache_key in self.upload_cache:
+                    print(f"Using cached file info for {filename}", flush=True)
+                    return self.upload_cache[cache_key]
+                
+                print(f"Initializing Google Drive service for tenant: {tenant}", flush=True)
+                drive_service = GoogleDriveService(administration=tenant)
+                drive_folders = drive_service.list_subfolders()
+                
+                # Find the folder ID for the selected folder
+                folder_id = None
+                for folder in drive_folders:
+                    if folder['name'] == folder_name:
+                        folder_id = folder['id']
+                        print(f"Found folder: {folder_name} (ID: {folder_id})", flush=True)
+                        break
+                
+                if folder_id:
+                    # Check if file already exists
+                    existing_file = drive_service.check_file_exists(filename, folder_id)
+                    
+                    if existing_file['exists']:
+                        print(f"File {filename} already exists in Google Drive", flush=True)
+                        drive_result = existing_file['file']
+                    else:
+                        print(f"Uploading new file to Google Drive folder: {folder_name} (ID: {folder_id})", flush=True)
+                        drive_result = drive_service.upload_file(temp_path, filename, folder_id)
+                    
+                    # Cache the result
+                    self.upload_cache[cache_key] = drive_result
+                    print(f"Cached file info for {cache_key}", flush=True)
+                    print(f"File result: {drive_result['url']}", flush=True)
+                    return drive_result
+                else:
+                    print(f"Folder '{folder_name}' not found in Google Drive folders: {[f['name'] for f in drive_folders]}", flush=True)
+                    print("Using local storage as fallback", flush=True)
+                    return {
+                        'id': filename,
+                        'url': f'http://localhost:5000/uploads/{filename}'
+                    }
+            except Exception as e:
+                print(f"Google Drive upload failed for tenant {tenant}: {type(e).__name__}: {str(e)}", flush=True)
+                import traceback
+                traceback.print_exc()
+                # Fallback to local storage
+                return {
+                    'id': filename,
+                    'url': f'http://localhost:5000/uploads/{filename}'
+                }
     
     def process_invoice_file(self, temp_path, drive_result, folder_name, tenant):
         """

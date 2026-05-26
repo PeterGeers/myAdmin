@@ -34,21 +34,25 @@ class EmailTemplateService:
         format: str = 'html'
     ) -> Optional[str]:
         """
-        Load template from Google Drive (tenant-specific)
+        Load template from storage backend (tenant-specific).
+        
+        Routes to S3 or Google Drive based on the tenant's configured
+        storage provider. Falls back to None if no custom template found,
+        allowing the caller to use local filesystem templates.
         
         Args:
             template_name: Name of the template (e.g., 'user_invitation')
             format: 'html' or 'txt'
         
         Returns:
-            Template content from Google Drive or None if not found
+            Template content from storage backend or None if not found
         """
         if not self.administration:
             return None
         
         try:
             from database import DatabaseManager
-            from google_drive_service import GoogleDriveService
+            from services.storage_resolver import resolve_storage_provider, get_s3_storage
             
             # Get active template from database
             db = DatabaseManager()
@@ -73,21 +77,39 @@ class EmailTemplateService:
                     logger.info(f"Loaded {template_name} template from database for {self.administration}")
                     return template_data['template_content']
                 
-                # Otherwise, load from Google Drive
+                # Otherwise, load from configured storage backend
                 file_id = template_data.get('template_file_id')
                 if file_id:
-                    drive_service = GoogleDriveService(administration=self.administration)
-                    content = drive_service.download_file_content(file_id)
+                    provider = resolve_storage_provider(self.administration)
                     
-                    if content:
-                        logger.info(f"Loaded {template_name} template from Google Drive for {self.administration}")
-                        return content
+                    # S3 keys contain '/' (e.g., 'AcmeBV/templates/uuid_template.html')
+                    # Google Drive file IDs do not contain '/'
+                    if provider == 's3_shared' and '/' in file_id:
+                        # Download from S3
+                        s3_storage = get_s3_storage(self.administration)
+                        content = s3_storage.download(file_id)
+                        
+                        if content:
+                            # S3 download returns bytes, decode to string for HTML templates
+                            if isinstance(content, bytes):
+                                content = content.decode('utf-8')
+                            logger.info(f"Loaded {template_name} template from S3 for {self.administration}")
+                            return content
+                    else:
+                        # Use Google Drive for google_drive provider or Drive-style file IDs
+                        from google_drive_service import GoogleDriveService
+                        drive_service = GoogleDriveService(administration=self.administration)
+                        content = drive_service.download_file_content(file_id)
+                        
+                        if content:
+                            logger.info(f"Loaded {template_name} template from Google Drive for {self.administration}")
+                            return content
             
             logger.debug(f"No custom {template_name} template found for {self.administration}")
             return None
             
         except Exception as e:
-            logger.error(f"Error loading template from Google Drive: {e}")
+            logger.error(f"Error loading template from storage backend: {e}")
             return None
     
     def render_template(
