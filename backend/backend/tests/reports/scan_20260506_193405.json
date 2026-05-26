@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-05-06T19:34:05.285652+00:00",
+  "scan_duration_seconds": 0.016,
+  "summary": {
+    "total_test_files": 0,
+    "total_tests": 0,
+    "passing": 0,
+    "failing": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "quarantined": 0,
+    "by_category": {},
+    "issues_by_severity": {},
+    "warnings": []
+  },
+  "mock_violations": [],
+  "drift_issues": [],
+  "compliance_violations": [],
+  "frontend_violations": [],
+  "untested_sources": [],
+  "stale_failures": []
+}

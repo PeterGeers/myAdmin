@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"match": "c65f39d3de2eaf75fa9d6bc0a896dcdb5c957cec4e03209252e35a308ddea5ea", "name": "Generic Password - C:\\Users\\peter\\aws\\myAdmin\\backend\\tests\\unit\\test_create_initial_admin_user.py"}]}
+{"last_found_secrets": [{"name": "Generic High Entropy Secret - C:\\Users\\peter\\aws\\myAdmin\\.kiro\\settings\\mcp.json", "match": "6e18e74bf7828f2af1e5cbdf5e1846a7f25d95d09dde818da7c501df82b1f95b"}]}

@@ -81,10 +81,18 @@ PARAMETER_SCHEMA = {
         'module': 'STR',
         'params': {
             'company_logo_file_id': {
-                'label': 'Company Logo (Google Drive File ID)',
-                'label_nl': 'Bedrijfslogo (Google Drive Bestands-ID)',
+                'label': 'Company Logo',
+                'label_nl': 'Bedrijfslogo',
                 'type': 'string',
-                'description': 'Google Drive file ID for company logo',
+                'visible_when': {'invoice_provider': 'google_drive'},
+                'description': 'File identifier for company logo',
+            },
+            'company_logo_s3_key': {
+                'label': 'Company Logo (S3 Key)',
+                'label_nl': 'Bedrijfslogo (S3 Sleutel)',
+                'type': 'string',
+                'visible_when': {'invoice_provider': ['s3_shared', 's3_tenant']},
+                'description': 'S3 object key for company logo image',
             },
             'company_name': {
                 'label': 'Company Name',
@@ -136,10 +144,18 @@ PARAMETER_SCHEMA = {
         'module': 'ZZP',
         'params': {
             'company_logo_file_id': {
-                'label': 'Company Logo (Google Drive File ID)',
-                'label_nl': 'Bedrijfslogo (Google Drive Bestands-ID)',
+                'label': 'Company Logo',
+                'label_nl': 'Bedrijfslogo',
                 'type': 'string',
-                'description': 'Google Drive file ID for company logo',
+                'visible_when': {'invoice_provider': 'google_drive'},
+                'description': 'File identifier for company logo',
+            },
+            'company_logo_s3_key': {
+                'label': 'Company Logo (S3 Key)',
+                'label_nl': 'Bedrijfslogo (S3 Sleutel)',
+                'type': 'string',
+                'visible_when': {'invoice_provider': ['s3_shared', 's3_tenant']},
+                'description': 'S3 object key for company logo image',
             },
             'company_name': {
                 'label': 'Company Name',
