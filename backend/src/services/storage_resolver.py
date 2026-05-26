@@ -72,6 +72,13 @@ def get_s3_storage(tenant: str, parameter_service=None):
         from services.parameter_service import ParameterService
         parameter_service = ParameterService(db)
 
+    import sys
+    import os
+    src_storage = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'storage')
+    logger.info("Storage package path: %s, exists: %s, sys.path[0:3]: %s", 
+                src_storage, os.path.exists(src_storage), sys.path[:3])
+    if os.path.exists(src_storage) and os.path.dirname(src_storage) not in sys.path:
+        sys.path.insert(0, os.path.dirname(src_storage))
     from storage.s3_shared_storage import S3SharedStorage
     return S3SharedStorage(tenant, parameter_service)
 
