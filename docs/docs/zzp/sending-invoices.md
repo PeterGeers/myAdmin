@@ -36,13 +36,13 @@ graph LR
     D --> E[Status: Verstuurd]
 ```
 
-| Stap               | Beschrijving                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------- |
-| PDF genereren      | Factuur wordt omgezet naar een professionele PDF met je bedrijfslogo en klantgegevens  |
-| Opslaan in archief | De PDF wordt opgeslagen via Google Drive of S3                                         |
-| Boeken in FIN      | Dubbele boeking: debiteurenrekening (debet) en omzetrekening (credit), plus BTW-regels |
-| E-mail versturen   | PDF wordt als bijlage verstuurd naar het factuur-e-mailadres van het contact           |
-| Status bijwerken   | Factuurstatus verandert van "concept" naar "verstuurd"                                 |
+| Stap               | Beschrijving                                                                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PDF genereren      | Factuur wordt omgezet naar een professionele PDF met je bedrijfslogo en klantgegevens                                                                |
+| Opslaan in archief | De PDF wordt opgeslagen via Google Drive of S3                                                                                                       |
+| Boeken in FIN      | Dubbele boeking: debiteurenrekening (debet) en omzetrekening (credit), plus BTW-regels                                                               |
+| E-mail versturen   | PDF wordt als bijlage verstuurd naar het factuur-e-mailadres van het contact, vanuit je geverifieerde e-mailadres (of het systeemadres als terugval) |
+| Status bijwerken   | Factuurstatus verandert van "concept" naar "verstuurd"                                                                                               |
 
 !!! info
 Het Klant-ID van het contact wordt opgenomen in de betalingsreferentie. Zo kan het systeem later bankbetalingen automatisch matchen met deze factuur.
@@ -67,6 +67,26 @@ Je kunt extra documenten meesturen met de factuur-e-mail:
 
 !!! tip
 Gebruik bijlagen voor urenstaten, contracten of leveringsbevestigingen die je klant nodig heeft bij de factuur.
+
+## De factuur-e-mail
+
+### Afzender
+
+Factuur-e-mails worden verstuurd vanuit je eigen geverifieerde e-mailadres met je bedrijfsnaam als afzendernaam. Als je e-mail niet is geverifieerd, wordt het systeemadres (`myAdmin <support@jabaki.nl>`) gebruikt met jouw e-mailadres als Reply-To.
+
+Je kunt je afzender-e-mail configureren via **Tenant Beheer** → **Factuur E-mail**.
+
+### Handtekening
+
+Elke factuur-e-mail bevat automatisch een professionele handtekening onderaan het bericht:
+
+- **Afsluiting** — "Met vriendelijke groet," (Nederlands) of "Kind regards," (Engels)
+- **Bedrijfsnaam** — Je bedrijfsnaam uit de huisstijl-instellingen
+- **E-mailadres** — Je contact-e-mailadres
+- **Logo** — Je bedrijfslogo (indien geconfigureerd), weergegeven als inline afbeelding
+
+!!! tip
+Stel je bedrijfslogo en bedrijfsnaam in via de tenant-instellingen (huisstijl parameters) voor een professionele handtekening.
 
 ## De factuur-PDF
 

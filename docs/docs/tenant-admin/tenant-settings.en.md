@@ -1,19 +1,20 @@
 # Settings
 
-> Manage your organization through 6 clear tabs.
+> Manage your organization through 7 clear tabs.
 
 ## Overview
 
-The Tenant Admin dashboard has 6 tabs. Which tabs you see depends on your modules and role.
+The Tenant Admin dashboard has 7 tabs. Which tabs you see depends on your modules and role.
 
-| Tab         | Contents                                                    | Visible to         |
-| ----------- | ----------------------------------------------------------- | ------------------ |
-| Users       | Add users, assign roles                                     | Tenant Admin       |
-| Financial   | Chart of Accounts + Tax Rates                               | Tenant Admin (FIN) |
-| Storage     | Choose storage provider, Google Drive credentials & folders | Tenant Admin       |
-| Templates   | Upload, edit, and approve report templates                  | Tenant Admin       |
-| Tenant Info | Company details, contact info, bank details + Email log     | Tenant Admin       |
-| Advanced    | Raw parameters table                                        | SysAdmin only      |
+| Tab           | Contents                                                    | Visible to         |
+| ------------- | ----------------------------------------------------------- | ------------------ |
+| Users         | Add users, assign roles                                     | Tenant Admin       |
+| Financial     | Chart of Accounts + Tax Rates                               | Tenant Admin (FIN) |
+| Storage       | Choose storage provider, Google Drive credentials & folders | Tenant Admin       |
+| Templates     | Upload, edit, and approve report templates                  | Tenant Admin       |
+| Tenant Info   | Company details, contact info, bank details + Email log     | Tenant Admin       |
+| Invoice Email | Email address verification for invoice sending              | Tenant Admin       |
+| Advanced      | Raw parameters table                                        | SysAdmin only      |
 
 ## Financial tab
 
@@ -148,6 +149,58 @@ The settings you configure on this tab (and on the Financial tab) are stored as 
 - Some parameters (like **branding** settings) affect how invoices and documents look
 - Some parameters (like **field configurations**) control which fields are visible or required in forms
 - Changes take effect immediately — no restart needed
+
+## Invoice Email tab
+
+Configure the email address used to send invoices. When your email is verified, invoices are sent from your own address instead of the default system address.
+
+### How it works
+
+When your tenant is created, a verification email is automatically sent to your contact email address via AWS SES. Once you confirm the verification, all invoice emails are sent from your own address with your company name as the sender.
+
+### Status overview
+
+The tab shows your current sender email address with a status badge:
+
+| Status   | Color  | Meaning                                                       |
+| -------- | ------ | ------------------------------------------------------------- |
+| Verified | Green  | Your email is confirmed — invoices are sent from your address |
+| Pending  | Yellow | Verification email sent — check your inbox                    |
+| Failed   | Red    | Verification failed — try resending                           |
+| Expired  | Orange | Verification has expired — resend to re-verify                |
+
+### Resend verification
+
+If you didn't receive the verification email or it has expired:
+
+1. Click **Resend Verification**
+2. Check your inbox (and spam folder) for the AWS SES verification email
+3. Click the confirmation link in the email
+
+!!! info
+You can resend at most once every 60 seconds. The button shows a countdown timer.
+
+### Change email address
+
+You can set a different email address as your invoice sender:
+
+1. Enter the new email address in **Update Sender Email**
+2. Click **Update Email**
+3. A new verification email is sent to the new address
+4. Until the new address is verified, invoices are sent from the system address
+
+### Fallback to system address
+
+When your email is not verified, invoices are sent from the default system address (`myAdmin <support@jabaki.nl>`). The Reply-To header is set to your email address, so client replies still reach you.
+
+### Email signature
+
+Invoice emails automatically include a professional signature with:
+
+- Your company name
+- Your contact email address
+- Your company logo (if configured)
+- A locale-aware closing ("Met vriendelijke groet," for Dutch, "Kind regards," for English)
 
 ## Advanced tab
 

@@ -1477,6 +1477,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-invoice-email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The invoice email
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The invoice email">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sender" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sender
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#signature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signature
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-invoice-pdf" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3039,7 +3078,7 @@
 </tr>
 <tr>
 <td>Send email</td>
-<td>PDF is sent as attachment to the contact's invoice email address</td>
+<td>PDF is sent as attachment to the contact's invoice email address, from your verified email (or system address as fallback)</td>
 </tr>
 <tr>
 <td>Update status</td>
@@ -3070,6 +3109,22 @@
 <p class="admonition-title">Tip</p>
 </div>
 <p>Use attachments for timesheets, contracts, or delivery confirmations that your client needs with the invoice.</p>
+<h2 id="the-invoice-email">The invoice email<a class="headerlink" href="#the-invoice-email" title="Permanent link">&para;</a></h2>
+<h3 id="sender">Sender<a class="headerlink" href="#sender" title="Permanent link">&para;</a></h3>
+<p>Invoice emails are sent from your own verified email address with your company name as the sender name. If your email is not verified, the system address (<code>myAdmin &lt;support@jabaki.nl&gt;</code>) is used with your email as the Reply-To address.</p>
+<p>You can configure your sender email via <strong>Tenant Admin</strong> → <strong>Invoice Email</strong>.</p>
+<h3 id="signature">Signature<a class="headerlink" href="#signature" title="Permanent link">&para;</a></h3>
+<p>Every invoice email automatically includes a professional signature at the bottom:</p>
+<ul>
+<li><strong>Closing</strong> — "Met vriendelijke groet," (Dutch) or "Kind regards," (English)</li>
+<li><strong>Company name</strong> — Your company name from branding settings</li>
+<li><strong>Email address</strong> — Your contact email address</li>
+<li><strong>Logo</strong> — Your company logo (if configured), displayed as an inline image</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+</div>
+<p>Set up your company logo and company name via tenant settings (branding parameters) for a professional signature.</p>
 <h2 id="the-invoice-pdf">The invoice PDF<a class="headerlink" href="#the-invoice-pdf" title="Permanent link">&para;</a></h2>
 <p>The generated PDF contains:</p>
 <table>
