@@ -8,7 +8,7 @@ Reference: .kiro/specs/zzp-module/design.md §2 (Field Config API)
 """
 
 import logging
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, make_response, send_file
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.module_registry import module_required, MODULE_REGISTRY
@@ -364,6 +364,69 @@ def get_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id):
         return jsonify({'success': False, 'error': 'PDF not available'}), 404
     except Exception as e:
         logger.error("get_invoice_pdf error for %s/%s: %s", tenant, invoice_id, e)
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+
+
+# ── PDF Preview Endpoint ────────────────────────────────────
+
+
+@zzp_bp.route('/api/zzp/invoices/<int:invoice_id>/preview', methods=['GET'])
+@cognito_required(required_permissions=['zzp_read'])
+@tenant_required()
+def preview_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id):
+    """Generate and return a preview PDF for a draft invoice."""
+    try:
+        svc = _get_invoice_service()
+
+        # Fetch invoice to get invoice_number for Content-Disposition header
+        invoice = svc.get_invoice(tenant, invoice_id)
+        if not invoice:
+            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+
+        pdf_bytes = svc.preview_invoice(tenant, invoice_id)
+
+        invoice_number = invoice.get('invoice_number', f'INV-{invoice_id}')
+        response = make_response(pdf_bytes.getvalue())
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = (
+            f'inline; filename="{invoice_number}_PREVIEW.pdf"'
+        )
+        return response
+
+    except ValueError as ve:
+        error_msg = str(ve)
+        if 'not found' in error_msg.lower():
+            return jsonify({'success': False, 'error': error_msg}), 404
+        return jsonify({'success': False, 'error': error_msg}), 400
+    except RuntimeError as re:
+        logger.error("preview_invoice_pdf generation error for %s/%s: %s",
+                     tenant, invoice_id, re)
+        return jsonify({'success': False, 'error': 'PDF generation failed'}), 500
+    except Exception as e:
+        logger.error("preview_invoice_pdf error for %s/%s: %s", tenant, invoice_id, e)
+        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+
+
+# ── Email Preview Endpoint ──────────────────────────────────
+
+
+@zzp_bp.route('/api/zzp/invoices/<int:invoice_id>/email-preview', methods=['GET'])
+@cognito_required(required_permissions=['zzp_read'])
+@tenant_required()
+def preview_invoice_email(user_email, user_roles, tenant, user_tenants, invoice_id):
+    """Return a preview of the email that will be sent with the invoice."""
+    try:
+        svc = _get_invoice_service()
+        result = svc.get_email_preview(tenant, invoice_id)
+        return jsonify({'success': True, 'data': result})
+    except ValueError as ve:
+        error_msg = str(ve)
+        if 'not found' in error_msg.lower():
+            return jsonify({'success': False, 'error': error_msg}), 404
+        return jsonify({'success': False, 'error': error_msg}), 400
+    except Exception as e:
+        logger.error("preview_invoice_email error for %s/%s: %s",
+                     tenant, invoice_id, e)
         return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
 
 

@@ -417,6 +417,58 @@ class ZZPInvoiceService(FieldConfigMixin):
                 return str(p)
         return None
 
+    # ── PDF Preview (Req 1) ─────────────────────────────────
+
+    def preview_invoice(self, tenant: str, invoice_id: int):
+        """Generate a preview PDF for a draft invoice.
+
+        Fetches the invoice with tenant isolation, validates draft status,
+        and delegates to PDFGeneratorService for watermarked PDF generation.
+
+        Returns:
+            BytesIO containing the preview PDF bytes.
+
+        Raises:
+            ValueError: If invoice not found or not in draft status.
+            RuntimeError: If PDF generation fails.
+        """
+        invoice = self.get_invoice(tenant, invoice_id)
+        if not invoice:
+            raise ValueError("Invoice not found")
+        if invoice['status'] != 'draft':
+            raise ValueError("Only draft invoices can be previewed")
+
+        if not self.pdf_generator:
+            raise RuntimeError("PDFGeneratorService not configured")
+
+        try:
+            return self.pdf_generator.generate_preview_pdf(tenant, invoice)
+        except Exception as e:
+            raise RuntimeError(f"PDF generation failed: {e}")
+
+    def get_email_preview(self, tenant: str, invoice_id: int) -> dict:
+        """Compose an email preview without sending.
+
+        Fetches the invoice with tenant isolation, validates draft status,
+        and delegates to InvoiceEmailService for email composition.
+
+        Returns:
+            dict with subject, html_body, recipient, bcc, attachment_filename
+
+        Raises:
+            ValueError: If invoice not found, not draft, or contact has no email.
+        """
+        invoice = self.get_invoice(tenant, invoice_id)
+        if not invoice:
+            raise ValueError("Invoice not found")
+        if invoice['status'] != 'draft':
+            raise ValueError("Only draft invoices can be previewed")
+
+        if not self.email_service:
+            raise RuntimeError("InvoiceEmailService not configured")
+
+        return self.email_service.compose_email_preview(tenant, invoice)
+
     # ── Credit Notes (Req 10) ──────────────────────────────
 
     def create_credit_note(self, tenant: str, original_invoice_id: int,
@@ -509,11 +561,11 @@ class ZZPInvoiceService(FieldConfigMixin):
         if not destination and self.parameter_service:
             provider = self.parameter_service.get_param(
                 'storage', 'invoice_provider', tenant=tenant
-            ) or 'google_drive'
+            ) or 's3_shared'
             destination = {'google_drive': 'gdrive', 's3_shared': 's3', 's3_tenant': 's3'}.get(
-                provider, 'gdrive'
+                provider, 's3'
             )
-        destination = destination or 'gdrive'
+        destination = destination or 's3'
 
         # 0. Pre-flight storage health check
         try:
@@ -646,11 +698,11 @@ class ZZPInvoiceService(FieldConfigMixin):
         if not destination and self.parameter_service:
             provider = self.parameter_service.get_param(
                 'storage', 'invoice_provider', tenant=tenant
-            ) or 'google_drive'
+            ) or 's3_shared'
             destination = {'google_drive': 'gdrive', 's3_shared': 's3', 's3_tenant': 's3'}.get(
-                provider, 'gdrive'
+                provider, 's3'
             )
-        destination = destination or 'gdrive'
+        destination = destination or 's3'
 
         if not output_service:
             raise RuntimeError("OutputService not available for PDF storage")

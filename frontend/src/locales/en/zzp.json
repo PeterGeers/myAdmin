@@ -34,6 +34,26 @@
       "overdue": "Overdue",
       "cancelled": "Cancelled",
       "credited": "Credited"
+    },
+    "preview": {
+      "button": "Preview PDF",
+      "loading": "Generating preview...",
+      "error": "Preview could not be generated",
+      "timeout": "Preview request timed out",
+      "modalTitle": "Invoice Preview",
+      "close": "Close",
+      "download": "Download",
+      "renderError": "Preview could not be displayed"
+    },
+    "email": {
+      "panelTitle": "Email Preview",
+      "sendButton": "Confirm Send",
+      "subjectLabel": "Subject",
+      "recipientLabel": "Recipient",
+      "bccLabel": "BCC (copy to)",
+      "attachmentLabel": "Attachment",
+      "missingEmail": "Contact has no email address",
+      "sendError": "Failed to send invoice"
     }
   },
   "contacts": {

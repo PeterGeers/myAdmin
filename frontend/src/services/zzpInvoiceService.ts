@@ -4,6 +4,19 @@
 import { authenticatedGet, authenticatedPost, authenticatedPut, buildEndpoint } from './apiService';
 import { InvoiceFilters, InvoiceInput } from '../types/zzp';
 
+/** Response shape for the email preview endpoint. */
+export interface EmailPreviewResponse {
+  success: boolean;
+  data?: {
+    subject: string;
+    html_body: string;
+    recipient: string;
+    bcc: string;
+    attachment_filename: string;
+  };
+  error?: string;
+}
+
 const BASE = '/api/zzp/invoices';
 
 export async function getInvoices(filters?: InvoiceFilters): Promise<any> {
@@ -84,5 +97,49 @@ export async function createInvoiceFromTimeEntries(
     buildEndpoint(`${BASE}/from-time-entries`),
     { contact_id: contactId, entry_ids: entryIds, data: data || {} },
   );
+  return resp.json();
+}
+
+/**
+ * Generate a PDF preview for a draft invoice.
+ * GET /api/zzp/invoices/{id}/preview
+ *
+ * Supports an optional AbortController signal for timeout/cancellation.
+ * If no signal is provided, a 30-second timeout is applied automatically.
+ */
+export async function getInvoicePreview(
+  id: number,
+  options?: { signal?: AbortSignal },
+): Promise<Blob> {
+  let signal = options?.signal;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  // Apply a 30s timeout if no external signal is provided
+  if (!signal) {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(() => controller.abort(), 30_000);
+  }
+
+  try {
+    const resp = await authenticatedGet(buildEndpoint(`${BASE}/${id}/preview`), { signal });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Preview failed');
+    }
+    return resp.blob();
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+/**
+ * Fetch the email preview for a draft invoice (subject, body, recipient, BCC, attachment).
+ * GET /api/zzp/invoices/{id}/email-preview
+ */
+export async function getEmailPreview(id: number): Promise<EmailPreviewResponse> {
+  const resp = await authenticatedGet(buildEndpoint(`${BASE}/${id}/email-preview`));
   return resp.json();
 }

@@ -51,8 +51,20 @@ class PDFGeneratorService:
         html = self._render_html(tenant, invoice, is_copy=True)
         return self._html_to_pdf(html)
 
+    def generate_preview_pdf(self, tenant: str, invoice: dict) -> BytesIO:
+        """Generate a PDF with a locale-aware watermark (CONCEPT/DRAFT).
+
+        Uses the same template pipeline as the final send but injects a
+        watermark based on the contact's resolved locale:
+        - nl_NL → CONCEPT
+        - All other locales → DRAFT
+        """
+        html = self._render_html(tenant, invoice, is_preview=True)
+        return self._html_to_pdf(html)
+
     def _render_html(self, tenant: str, invoice: dict,
-                     is_copy: bool = False) -> str:
+                     is_copy: bool = False,
+                     is_preview: bool = False) -> str:
         """Render the invoice HTML from template + data."""
         template_html = self._load_template(tenant)
         logo_url = self._get_tenant_logo(tenant)
@@ -106,7 +118,15 @@ class PDFGeneratorService:
             )
 
         logo_tag = f'<img src="{logo_url}" class="logo" />' if logo_url else ''
-        copy_watermark = '<div class="watermark">COPY</div>' if is_copy else ''
+
+        # Determine watermark: preview (locale-aware) takes precedence, then copy
+        if is_preview:
+            watermark_text = 'CONCEPT' if locale == 'nl_NL' else 'DRAFT'
+            copy_watermark = f'<div class="watermark">{watermark_text}</div>'
+        elif is_copy:
+            copy_watermark = '<div class="watermark">COPY</div>'
+        else:
+            copy_watermark = ''
 
         replacements = {
             '{{logo}}': logo_tag,

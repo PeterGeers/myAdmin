@@ -41,18 +41,18 @@ def resolve_storage_provider(tenant: str, parameter_service=None) -> str:
             'storage', 'invoice_provider', tenant=tenant
         )
 
-        if provider in ('s3_shared', 's3_tenant'):
-            return 's3_shared'
+        if provider == 'google_drive':
+            return 'google_drive'
 
-        return 'google_drive'
+        return 's3_shared'
 
     except Exception as e:
         logger.warning(
             "Failed to resolve storage provider for tenant '%s': %s. "
-            "Defaulting to 'google_drive'.",
+            "Defaulting to 's3_shared'.",
             tenant, e
         )
-        return 'google_drive'
+        return 's3_shared'
 
 
 def get_s3_storage(tenant: str, parameter_service=None):

@@ -42,7 +42,7 @@ def get_storage_provider(tenant: str, parameter_service) -> StorageProvider:
     """
     Factory: resolves tenant's configured storage provider from
     ParameterService (namespace=storage, key=invoice_provider).
-    Defaults to google_drive if no provider is configured.
+    Defaults to s3_shared if no provider is configured.
     """
     provider_type = parameter_service.get_param(
         'storage', 'invoice_provider', tenant=tenant
