@@ -36,6 +36,7 @@
       "storage": "Opslag",
       "templates": "Sjablonen",
       "tenantInfo": "Tenantinfo",
+      "senderSettings": "Factuur E-mail",
       "advanced": "Geavanceerd",
       "emailLog": "E-maillog",
       "pivotViews": "Draaitabelweergaven"

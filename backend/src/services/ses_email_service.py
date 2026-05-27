@@ -169,6 +169,9 @@ class SESEmailService:
         html_body: str,
         attachments: List[Dict],
         bcc: Optional[List[str]] = None,
+        reply_to: Optional[str] = None,
+        from_name: Optional[str] = None,
+        source_email: Optional[str] = None,
         email_type: Optional[str] = None,
         administration: Optional[str] = None,
         sent_by: Optional[str] = None,
@@ -182,6 +185,10 @@ class SESEmailService:
             html_body: HTML content
             attachments: List of dicts with 'filename', 'content' (bytes), 'content_type'
             bcc: Optional list of BCC addresses
+            reply_to: Optional reply-to address (overrides global default)
+            from_name: Optional display name for the From header (e.g. tenant company name)
+            source_email: Optional sender email address (overrides default self.sender).
+                Used when tenant has a verified SES email identity.
             email_type: Type for logging (e.g. 'invoice', 'reminder')
             administration: Tenant for logging
             sent_by: User who triggered the send
@@ -195,10 +202,13 @@ class SESEmailService:
         try:
             msg = MIMEMultipart('mixed')
             msg['Subject'] = subject
-            msg['From'] = f'myAdmin <{self.sender}>'
+            display_name = from_name or 'myAdmin'
+            sender_address = source_email or self.sender
+            msg['From'] = f'{display_name} <{sender_address}>'
             msg['To'] = to_email
-            if self.reply_to:
-                msg['Reply-To'] = self.reply_to
+            effective_reply_to = reply_to or self.reply_to
+            if effective_reply_to:
+                msg['Reply-To'] = effective_reply_to
             if bcc:
                 msg['Bcc'] = ', '.join(bcc)
 

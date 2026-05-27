@@ -36,6 +36,7 @@
       "storage": "Storage",
       "templates": "Templates",
       "tenantInfo": "Tenant Info",
+      "senderSettings": "Invoice Email",
       "advanced": "Advanced",
       "emailLog": "Email Log",
       "pivotViews": "Pivot Views"

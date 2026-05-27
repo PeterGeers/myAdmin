@@ -129,6 +129,37 @@ class TenantProvisioningService:
             params_seeded += 2
         results['params_seeded'] = params_seeded
 
+        # Step 2c: Initiate SES email verification (non-blocking)
+        try:
+            from services.email_verification_service import EmailVerificationService
+            verification_service = EmailVerificationService(db_manager=self.db)
+            verification_result = verification_service.initiate_verification(
+                administration=administration,
+                email=contact_email
+            )
+            results['email_verification'] = verification_result
+            if verification_result.get('success'):
+                logger.info(
+                    f"Email verification initiated for '{contact_email}' "
+                    f"(tenant: {administration})"
+                )
+            else:
+                logger.warning(
+                    f"Email verification initiation returned non-success for "
+                    f"'{contact_email}' (tenant: {administration}): "
+                    f"{verification_result.get('error')}"
+                )
+        except Exception as e:
+            logger.warning(
+                f"Email verification initiation failed for '{contact_email}' "
+                f"(tenant: {administration}): {e} — provisioning continues"
+            )
+            results['email_verification'] = {
+                'success': False,
+                'status': 'failed',
+                'error': str(e)
+            }
+
         # Step 3: Load chart of accounts from JSON template
         chart_result = self._load_chart_of_accounts(administration, locale, results['warnings'])
         results['chart'] = chart_result['status']
