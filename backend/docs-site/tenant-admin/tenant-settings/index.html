@@ -2805,6 +2805,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#factuur-e-mail-tabblad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Factuur E-mail tabblad
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Factuur E-mail tabblad">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hoe-het-werkt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hoe het werkt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status-overzicht" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status overzicht
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verificatie-opnieuw-versturen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verificatie opnieuw versturen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-mailadres-wijzigen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E-mailadres wijzigen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#terugval-naar-systeemadres" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Terugval naar systeemadres
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-mail-handtekening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        E-mail handtekening
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#geavanceerd-tabblad" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3126,10 +3209,10 @@
 
 <h1 id="instellingen">Instellingen<a class="headerlink" href="#instellingen" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>Beheer je organisatie via 6 overzichtelijke tabbladen.</p>
+<p>Beheer je organisatie via 7 overzichtelijke tabbladen.</p>
 </blockquote>
 <h2 id="overzicht">Overzicht<a class="headerlink" href="#overzicht" title="Permanent link">&para;</a></h2>
-<p>Het Tenant Beheer dashboard is opgebouwd uit 6 tabbladen. Welke tabbladen je ziet hangt af van je modules en rol.</p>
+<p>Het Tenant Beheer dashboard is opgebouwd uit 7 tabbladen. Welke tabbladen je ziet hangt af van je modules en rol.</p>
 <table>
 <thead>
 <tr>
@@ -3162,6 +3245,11 @@
 <tr>
 <td>Tenantinfo</td>
 <td>Bedrijfsgegevens, contactinfo, bankgegevens + E-maillog</td>
+<td>Tenant Admin</td>
+</tr>
+<tr>
+<td>Factuur E-mail</td>
+<td>E-mailadres verificatie voor factuurverzending</td>
 <td>Tenant Admin</td>
 </tr>
 <tr>
@@ -3317,6 +3405,72 @@ Zonder deze twee velden correct ingesteld, worden geïmporteerde bankafschriften
 <li>Sommige parameters (zoals <strong>huisstijl</strong> instellingen) beïnvloeden hoe facturen en documenten eruitzien</li>
 <li>Sommige parameters (zoals <strong>veldconfiguraties</strong>) bepalen welke velden zichtbaar of verplicht zijn in formulieren</li>
 <li>Wijzigingen worden direct doorgevoerd — geen herstart nodig</li>
+</ul>
+<h2 id="factuur-e-mail-tabblad">Factuur E-mail tabblad<a class="headerlink" href="#factuur-e-mail-tabblad" title="Permanent link">&para;</a></h2>
+<p>Configureer het e-mailadres waarmee facturen worden verstuurd. Wanneer je e-mailadres is geverifieerd, worden facturen verstuurd vanuit jouw eigen adres in plaats van het standaard systeemadres.</p>
+<h3 id="hoe-het-werkt">Hoe het werkt<a class="headerlink" href="#hoe-het-werkt" title="Permanent link">&para;</a></h3>
+<p>Bij het aanmaken van je tenant wordt automatisch een verificatie-e-mail gestuurd naar je contact-e-mailadres via AWS SES. Zodra je de verificatie bevestigt, worden alle factuur-e-mails verstuurd vanuit jouw eigen adres met je bedrijfsnaam als afzender.</p>
+<h3 id="status-overzicht">Status overzicht<a class="headerlink" href="#status-overzicht" title="Permanent link">&para;</a></h3>
+<p>Het tabblad toont je huidige afzender-e-mailadres met een statusbadge:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Kleur</th>
+<th>Betekenis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Geverifieerd</td>
+<td>Groen</td>
+<td>Je e-mail is bevestigd — facturen worden vanuit jouw adres verstuurd</td>
+</tr>
+<tr>
+<td>In afwachting</td>
+<td>Geel</td>
+<td>Verificatie-e-mail is verstuurd — controleer je inbox</td>
+</tr>
+<tr>
+<td>Mislukt</td>
+<td>Rood</td>
+<td>Verificatie is mislukt — probeer opnieuw te versturen</td>
+</tr>
+<tr>
+<td>Verlopen</td>
+<td>Oranje</td>
+<td>Verificatie is verlopen — verstuur opnieuw</td>
+</tr>
+</tbody>
+</table>
+<h3 id="verificatie-opnieuw-versturen">Verificatie opnieuw versturen<a class="headerlink" href="#verificatie-opnieuw-versturen" title="Permanent link">&para;</a></h3>
+<p>Als je de verificatie-e-mail niet hebt ontvangen of als deze is verlopen:</p>
+<ol>
+<li>Klik op <strong>Verificatie opnieuw versturen</strong></li>
+<li>Controleer je inbox (en spammap) voor de AWS SES verificatie-e-mail</li>
+<li>Klik op de bevestigingslink in de e-mail</li>
+</ol>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+</div>
+<p>Je kunt maximaal één keer per 60 seconden opnieuw versturen. De knop toont een afteltimer.</p>
+<h3 id="e-mailadres-wijzigen">E-mailadres wijzigen<a class="headerlink" href="#e-mailadres-wijzigen" title="Permanent link">&para;</a></h3>
+<p>Je kunt een ander e-mailadres instellen als factuurafzender:</p>
+<ol>
+<li>Vul het nieuwe e-mailadres in bij <strong>E-mailadres bijwerken</strong></li>
+<li>Klik op <strong>E-mail bijwerken</strong></li>
+<li>Er wordt een nieuwe verificatie-e-mail gestuurd naar het nieuwe adres</li>
+<li>Totdat het nieuwe adres is geverifieerd, worden facturen verstuurd vanuit het systeemadres</li>
+</ol>
+<h3 id="terugval-naar-systeemadres">Terugval naar systeemadres<a class="headerlink" href="#terugval-naar-systeemadres" title="Permanent link">&para;</a></h3>
+<p>Wanneer je e-mail niet is geverifieerd, worden facturen verstuurd vanuit het standaard systeemadres (<code>myAdmin &lt;support@jabaki.nl&gt;</code>). Het Reply-To adres wordt ingesteld op jouw e-mailadres, zodat antwoorden van klanten bij jou terechtkomen.</p>
+<h3 id="e-mail-handtekening">E-mail handtekening<a class="headerlink" href="#e-mail-handtekening" title="Permanent link">&para;</a></h3>
+<p>Factuur-e-mails bevatten automatisch een professionele handtekening met:</p>
+<ul>
+<li>Je bedrijfsnaam</li>
+<li>Je contact-e-mailadres</li>
+<li>Je bedrijfslogo (indien geconfigureerd)</li>
+<li>Een taalafhankelijke afsluiting ("Met vriendelijke groet," voor Nederlands)</li>
 </ul>
 <h2 id="geavanceerd-tabblad">Geavanceerd tabblad<a class="headerlink" href="#geavanceerd-tabblad" title="Permanent link">&para;</a></h2>
 <div class="admonition info">

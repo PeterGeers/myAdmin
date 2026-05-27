@@ -36,13 +36,13 @@ graph LR
     D --> E[Status: Sent]
 ```
 
-| Step             | Description                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------- |
-| Generate PDF     | Invoice is converted to a professional PDF with your company logo and client details        |
-| Store in archive | The PDF is stored via Google Drive or S3                                                    |
-| Book in FIN      | Double-entry booking: debtor account (debit) and revenue account (credit), plus VAT entries |
-| Send email       | PDF is sent as attachment to the contact's invoice email address                            |
-| Update status    | Invoice status changes from "draft" to "sent"                                               |
+| Step             | Description                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Generate PDF     | Invoice is converted to a professional PDF with your company logo and client details                                       |
+| Store in archive | The PDF is stored via Google Drive or S3                                                                                   |
+| Book in FIN      | Double-entry booking: debtor account (debit) and revenue account (credit), plus VAT entries                                |
+| Send email       | PDF is sent as attachment to the contact's invoice email address, from your verified email (or system address as fallback) |
+| Update status    | Invoice status changes from "draft" to "sent"                                                                              |
 
 !!! info
 The contact's Client ID is included in the payment reference. This allows the system to automatically match bank payments with this invoice later.
@@ -67,6 +67,26 @@ You can send additional documents with the invoice email:
 
 !!! tip
 Use attachments for timesheets, contracts, or delivery confirmations that your client needs with the invoice.
+
+## The invoice email
+
+### Sender
+
+Invoice emails are sent from your own verified email address with your company name as the sender name. If your email is not verified, the system address (`myAdmin <support@jabaki.nl>`) is used with your email as the Reply-To address.
+
+You can configure your sender email via **Tenant Admin** → **Invoice Email**.
+
+### Signature
+
+Every invoice email automatically includes a professional signature at the bottom:
+
+- **Closing** — "Met vriendelijke groet," (Dutch) or "Kind regards," (English)
+- **Company name** — Your company name from branding settings
+- **Email address** — Your contact email address
+- **Logo** — Your company logo (if configured), displayed as an inline image
+
+!!! tip
+Set up your company logo and company name via tenant settings (branding parameters) for a professional signature.
 
 ## The invoice PDF
 

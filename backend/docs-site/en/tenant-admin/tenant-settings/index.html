@@ -2805,6 +2805,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#invoice-email-tab" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Invoice Email tab
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Invoice Email tab">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resend-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resend verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-email-address" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change email address
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fallback-to-system-address" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fallback to system address
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#email-signature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Email signature
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#advanced-tab" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3126,10 +3209,10 @@
 
 <h1 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h1>
 <blockquote>
-<p>Manage your organization through 6 clear tabs.</p>
+<p>Manage your organization through 7 clear tabs.</p>
 </blockquote>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>The Tenant Admin dashboard has 6 tabs. Which tabs you see depends on your modules and role.</p>
+<p>The Tenant Admin dashboard has 7 tabs. Which tabs you see depends on your modules and role.</p>
 <table>
 <thead>
 <tr>
@@ -3162,6 +3245,11 @@
 <tr>
 <td>Tenant Info</td>
 <td>Company details, contact info, bank details + Email log</td>
+<td>Tenant Admin</td>
+</tr>
+<tr>
+<td>Invoice Email</td>
+<td>Email address verification for invoice sending</td>
 <td>Tenant Admin</td>
 </tr>
 <tr>
@@ -3316,6 +3404,72 @@ Without these two fields correctly set, imported bank statements will not match 
 <li>Some parameters (like <strong>branding</strong> settings) affect how invoices and documents look</li>
 <li>Some parameters (like <strong>field configurations</strong>) control which fields are visible or required in forms</li>
 <li>Changes take effect immediately — no restart needed</li>
+</ul>
+<h2 id="invoice-email-tab">Invoice Email tab<a class="headerlink" href="#invoice-email-tab" title="Permanent link">&para;</a></h2>
+<p>Configure the email address used to send invoices. When your email is verified, invoices are sent from your own address instead of the default system address.</p>
+<h3 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
+<p>When your tenant is created, a verification email is automatically sent to your contact email address via AWS SES. Once you confirm the verification, all invoice emails are sent from your own address with your company name as the sender.</p>
+<h3 id="status-overview">Status overview<a class="headerlink" href="#status-overview" title="Permanent link">&para;</a></h3>
+<p>The tab shows your current sender email address with a status badge:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Color</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Verified</td>
+<td>Green</td>
+<td>Your email is confirmed — invoices are sent from your address</td>
+</tr>
+<tr>
+<td>Pending</td>
+<td>Yellow</td>
+<td>Verification email sent — check your inbox</td>
+</tr>
+<tr>
+<td>Failed</td>
+<td>Red</td>
+<td>Verification failed — try resending</td>
+</tr>
+<tr>
+<td>Expired</td>
+<td>Orange</td>
+<td>Verification has expired — resend to re-verify</td>
+</tr>
+</tbody>
+</table>
+<h3 id="resend-verification">Resend verification<a class="headerlink" href="#resend-verification" title="Permanent link">&para;</a></h3>
+<p>If you didn't receive the verification email or it has expired:</p>
+<ol>
+<li>Click <strong>Resend Verification</strong></li>
+<li>Check your inbox (and spam folder) for the AWS SES verification email</li>
+<li>Click the confirmation link in the email</li>
+</ol>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+</div>
+<p>You can resend at most once every 60 seconds. The button shows a countdown timer.</p>
+<h3 id="change-email-address">Change email address<a class="headerlink" href="#change-email-address" title="Permanent link">&para;</a></h3>
+<p>You can set a different email address as your invoice sender:</p>
+<ol>
+<li>Enter the new email address in <strong>Update Sender Email</strong></li>
+<li>Click <strong>Update Email</strong></li>
+<li>A new verification email is sent to the new address</li>
+<li>Until the new address is verified, invoices are sent from the system address</li>
+</ol>
+<h3 id="fallback-to-system-address">Fallback to system address<a class="headerlink" href="#fallback-to-system-address" title="Permanent link">&para;</a></h3>
+<p>When your email is not verified, invoices are sent from the default system address (<code>myAdmin &lt;support@jabaki.nl&gt;</code>). The Reply-To header is set to your email address, so client replies still reach you.</p>
+<h3 id="email-signature">Email signature<a class="headerlink" href="#email-signature" title="Permanent link">&para;</a></h3>
+<p>Invoice emails automatically include a professional signature with:</p>
+<ul>
+<li>Your company name</li>
+<li>Your contact email address</li>
+<li>Your company logo (if configured)</li>
+<li>A locale-aware closing ("Met vriendelijke groet," for Dutch, "Kind regards," for English)</li>
 </ul>
 <h2 id="advanced-tab">Advanced tab<a class="headerlink" href="#advanced-tab" title="Permanent link">&para;</a></h2>
 <div class="admonition info">

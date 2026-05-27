@@ -1,19 +1,20 @@
 # Instellingen
 
-> Beheer je organisatie via 6 overzichtelijke tabbladen.
+> Beheer je organisatie via 7 overzichtelijke tabbladen.
 
 ## Overzicht
 
-Het Tenant Beheer dashboard is opgebouwd uit 6 tabbladen. Welke tabbladen je ziet hangt af van je modules en rol.
+Het Tenant Beheer dashboard is opgebouwd uit 7 tabbladen. Welke tabbladen je ziet hangt af van je modules en rol.
 
-| Tabblad     | Inhoud                                                   | Zichtbaar voor     |
-| ----------- | -------------------------------------------------------- | ------------------ |
-| Gebruikers  | Gebruikers toevoegen, rollen toewijzen                   | Tenant Admin       |
-| Financieel  | Rekeningschema + Belastingtarieven                       | Tenant Admin (FIN) |
-| Opslag      | Opslagprovider kiezen, Google Drive credentials & mappen | Tenant Admin       |
-| Sjablonen   | Rapportagesjablonen uploaden, bewerken en goedkeuren     | Tenant Admin       |
-| Tenantinfo  | Bedrijfsgegevens, contactinfo, bankgegevens + E-maillog  | Tenant Admin       |
-| Geavanceerd | Ruwe parameters tabel                                    | Alleen SysAdmin    |
+| Tabblad        | Inhoud                                                   | Zichtbaar voor     |
+| -------------- | -------------------------------------------------------- | ------------------ |
+| Gebruikers     | Gebruikers toevoegen, rollen toewijzen                   | Tenant Admin       |
+| Financieel     | Rekeningschema + Belastingtarieven                       | Tenant Admin (FIN) |
+| Opslag         | Opslagprovider kiezen, Google Drive credentials & mappen | Tenant Admin       |
+| Sjablonen      | Rapportagesjablonen uploaden, bewerken en goedkeuren     | Tenant Admin       |
+| Tenantinfo     | Bedrijfsgegevens, contactinfo, bankgegevens + E-maillog  | Tenant Admin       |
+| Factuur E-mail | E-mailadres verificatie voor factuurverzending           | Tenant Admin       |
+| Geavanceerd    | Ruwe parameters tabel                                    | Alleen SysAdmin    |
 
 ## Financieel tabblad
 
@@ -150,6 +151,58 @@ De instellingen die je op dit tabblad (en op het Financieel tabblad) configureer
 - Sommige parameters (zoals **huisstijl** instellingen) beïnvloeden hoe facturen en documenten eruitzien
 - Sommige parameters (zoals **veldconfiguraties**) bepalen welke velden zichtbaar of verplicht zijn in formulieren
 - Wijzigingen worden direct doorgevoerd — geen herstart nodig
+
+## Factuur E-mail tabblad
+
+Configureer het e-mailadres waarmee facturen worden verstuurd. Wanneer je e-mailadres is geverifieerd, worden facturen verstuurd vanuit jouw eigen adres in plaats van het standaard systeemadres.
+
+### Hoe het werkt
+
+Bij het aanmaken van je tenant wordt automatisch een verificatie-e-mail gestuurd naar je contact-e-mailadres via AWS SES. Zodra je de verificatie bevestigt, worden alle factuur-e-mails verstuurd vanuit jouw eigen adres met je bedrijfsnaam als afzender.
+
+### Status overzicht
+
+Het tabblad toont je huidige afzender-e-mailadres met een statusbadge:
+
+| Status        | Kleur  | Betekenis                                                            |
+| ------------- | ------ | -------------------------------------------------------------------- |
+| Geverifieerd  | Groen  | Je e-mail is bevestigd — facturen worden vanuit jouw adres verstuurd |
+| In afwachting | Geel   | Verificatie-e-mail is verstuurd — controleer je inbox                |
+| Mislukt       | Rood   | Verificatie is mislukt — probeer opnieuw te versturen                |
+| Verlopen      | Oranje | Verificatie is verlopen — verstuur opnieuw                           |
+
+### Verificatie opnieuw versturen
+
+Als je de verificatie-e-mail niet hebt ontvangen of als deze is verlopen:
+
+1. Klik op **Verificatie opnieuw versturen**
+2. Controleer je inbox (en spammap) voor de AWS SES verificatie-e-mail
+3. Klik op de bevestigingslink in de e-mail
+
+!!! info
+Je kunt maximaal één keer per 60 seconden opnieuw versturen. De knop toont een afteltimer.
+
+### E-mailadres wijzigen
+
+Je kunt een ander e-mailadres instellen als factuurafzender:
+
+1. Vul het nieuwe e-mailadres in bij **E-mailadres bijwerken**
+2. Klik op **E-mail bijwerken**
+3. Er wordt een nieuwe verificatie-e-mail gestuurd naar het nieuwe adres
+4. Totdat het nieuwe adres is geverifieerd, worden facturen verstuurd vanuit het systeemadres
+
+### Terugval naar systeemadres
+
+Wanneer je e-mail niet is geverifieerd, worden facturen verstuurd vanuit het standaard systeemadres (`myAdmin <support@jabaki.nl>`). Het Reply-To adres wordt ingesteld op jouw e-mailadres, zodat antwoorden van klanten bij jou terechtkomen.
+
+### E-mail handtekening
+
+Factuur-e-mails bevatten automatisch een professionele handtekening met:
+
+- Je bedrijfsnaam
+- Je contact-e-mailadres
+- Je bedrijfslogo (indien geconfigureerd)
+- Een taalafhankelijke afsluiting ("Met vriendelijke groet," voor Nederlands)
 
 ## Geavanceerd tabblad
 
