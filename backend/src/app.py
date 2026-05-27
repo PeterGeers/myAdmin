@@ -64,6 +64,7 @@ from routes.contact_routes import contact_bp
 from routes.product_routes import product_bp
 from routes.zzp_routes import zzp_bp
 from routes.storage import storage_bp
+from routes.verification_routes import verification_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -171,6 +172,7 @@ app.register_blueprint(tenant_admin_settings_bp)
 app.register_blueprint(tenant_admin_config_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
+app.register_blueprint(verification_bp)  # SES email verification management
 app.register_blueprint(parameter_admin_bp)  # Parameter-driven config admin
 app.register_blueprint(tax_rate_admin_bp)  # Tax rate admin
 app.register_blueprint(contact_bp)  # Shared contact registry (ZZP)

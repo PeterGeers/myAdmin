@@ -170,9 +170,14 @@ def _get_invoice_service() -> ZZPInvoiceService:
         from services.invoice_email_service import InvoiceEmailService
         from services.ses_email_service import SESEmailService
         from services.contact_service import ContactService
+        from services.email_verification_service import EmailVerificationService
         ses_svc = SESEmailService()
         contact_svc = ContactService(db, param_svc)
-        email_service = InvoiceEmailService(ses_svc, contact_svc, param_svc)
+        verification_svc = EmailVerificationService(db_manager=db)
+        email_service = InvoiceEmailService(
+            ses_svc, contact_svc, param_svc,
+            email_verification_service=verification_svc
+        )
     except Exception as e:
         logger.warning("Could not initialize InvoiceEmailService: %s", e)
         email_service = None
@@ -711,12 +716,17 @@ def send_reminder(user_email, user_roles, tenant, user_tenants, invoice_id):
         from services.invoice_email_service import InvoiceEmailService
         from services.contact_service import ContactService
         from services.ses_email_service import SESEmailService
+        from services.email_verification_service import EmailVerificationService
 
         db = DatabaseManager(test_mode=_test_mode)
         param_svc = ParameterService(db)
         contact_svc = ContactService(db=db, parameter_service=param_svc)
         ses = SESEmailService()
-        email_svc = InvoiceEmailService(ses, contact_svc, param_svc)
+        verification_svc = EmailVerificationService(db_manager=db)
+        email_svc = InvoiceEmailService(
+            ses, contact_svc, param_svc,
+            email_verification_service=verification_svc
+        )
 
         result = email_svc.send_reminder_email(tenant, invoice, sent_by=user_email)
         if result.get('success'):

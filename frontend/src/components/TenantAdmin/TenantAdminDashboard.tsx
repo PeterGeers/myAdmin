@@ -12,6 +12,7 @@ import TemplateManagement from './TemplateManagement/TemplateManagement';
 import StorageTab from './StorageTab';
 import FinancialTab from './FinancialTab';
 import TenantInfoTab from './TenantInfoTab';
+import SenderSettingsTab from './SenderSettingsTab';
 import AdvancedTab from './AdvancedTab';
 import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
 
@@ -195,6 +196,9 @@ export function TenantAdminDashboard() {
               🏢 {t('tenantAdmin.tabs.tenantInfo')}
             </Tab>
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              ✉️ {t('tenantAdmin.tabs.senderSettings')}
+            </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               📊 {t('tenantAdmin.tabs.pivotViews')}
             </Tab>
             {isSysAdmin && (
@@ -221,6 +225,9 @@ export function TenantAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <TenantInfoTab tenant={currentTenant} />
+            </TabPanel>
+            <TabPanel>
+              <SenderSettingsTab tenant={currentTenant} />
             </TabPanel>
             <TabPanel>
               <PivotBuilderWithPreview />
