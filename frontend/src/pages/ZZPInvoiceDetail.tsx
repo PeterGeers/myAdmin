@@ -4,26 +4,27 @@
  * Reference: .kiro/specs/zzp-module/design.md §6.2, §4.3
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Flex, VStack, HStack, Text, Button, Input, Select, Textarea,
   Spinner, useToast, Divider, Table, Thead, Tbody, Tr, Th, Td,
-  FormControl, FormLabel, AlertDialog, AlertDialogOverlay,
-  AlertDialogContent, AlertDialogHeader, AlertDialogBody,
-  AlertDialogFooter, useDisclosure,
+  FormControl, FormLabel,
 } from '@chakra-ui/react';
+import { ViewIcon } from '@chakra-ui/icons';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { useFieldConfig } from '../hooks/useFieldConfig';
 import { Invoice, InvoiceLine, InvoiceInput, VatSummaryLine, Product, Contact } from '../types/zzp';
 import {
   getInvoice, createInvoice, updateInvoice, sendInvoice, createCreditNote,
-  getInvoiceLedgerAccounts,
+  getInvoiceLedgerAccounts, getEmailPreview, getInvoicePreview,
 } from '../services/zzpInvoiceService';
 import { sendReminder } from '../services/debtorService';
 import { getProducts } from '../services/productService';
 import { getContacts } from '../services/contactService';
 import { InvoiceLineEditor } from '../components/zzp/InvoiceLineEditor';
 import { InvoiceStatusBadge } from '../components/zzp/InvoiceStatusBadge';
+import { EmailPreviewPanel } from '../components/zzp/EmailPreviewPanel';
+import { InvoicePreviewModal } from '../components/zzp/InvoicePreviewModal';
 
 interface ZZPInvoiceDetailProps {
   invoiceId?: number | null;
@@ -58,9 +59,23 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   const [revenueAccount, setRevenueAccount] = useState('');
   const [lines, setLines] = useState<Partial<InvoiceLine>[]>([]);
 
-  // Send confirmation dialog
-  const { isOpen: isSendOpen, onOpen: onSendOpen, onClose: onSendClose } = useDisclosure();
-  const cancelRef = React.useRef<HTMLButtonElement>(null);
+  // Email preview state
+  const [emailPreview, setEmailPreview] = useState<{
+    subject: string;
+    html_body: string;
+    recipient: string;
+    bcc: string;
+    attachment_filename: string;
+  } | null>(null);
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false);
+  const [loadingEmailPreview, setLoadingEmailPreview] = useState(false);
+
+  // PDF preview state
+  const [previewing, setPreviewing] = useState(false);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const previewAbortRef = useRef<AbortController | null>(null);
+  const previewBlobUrlRef = useRef<string | null>(null);
 
   const isNew = !invoiceId;
   const isDraft = !invoice || invoice.status === 'draft';
@@ -103,7 +118,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         setContactId(inv.contact?.id || '');
         setInvoiceDate(inv.invoice_date);
         setPaymentTermsDays(inv.payment_terms_days);
-        setCurrency(inv.currency);
+        setCurrency(inv.currency || 'EUR');
         setExchangeRate(inv.exchange_rate);
         setNotes(inv.notes || '');
         setRevenueAccount(inv.revenue_account || '');
@@ -211,11 +226,11 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   };
 
   const handleSend = async () => {
-    onSendClose();
+    setEmailPreviewOpen(false);
     if (!invoice?.id) return;
     try {
       setSending(true);
-      const resp = await sendInvoice(invoice.id, { output_destination: 'gdrive', send_email: true });
+      const resp = await sendInvoice(invoice.id, { send_email: true });
       if (resp.success) {
         toast({ title: t('invoices.sent', 'Invoice sent'), status: 'success' });
         if (resp.warning) {
@@ -230,6 +245,35 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       toast({ title: err.message || 'Error sending invoice', status: 'error' });
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSendInvoice = async () => {
+    if (!invoice?.id) return;
+    try {
+      setLoadingEmailPreview(true);
+      const resp = await getEmailPreview(invoice.id);
+      if (resp.success && resp.data) {
+        setEmailPreview(resp.data);
+        setEmailPreviewOpen(true);
+      } else {
+        const errorMsg = resp.error || t('invoices.email.sendError', 'Failed to send invoice');
+        // Check for missing email error
+        if (errorMsg.toLowerCase().includes('email') && errorMsg.toLowerCase().includes('missing')) {
+          toast({ title: t('invoices.email.missingEmail', 'Contact has no email address'), status: 'warning' });
+        } else {
+          toast({ title: errorMsg, status: 'error' });
+        }
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || t('invoices.email.sendError', 'Failed to send invoice');
+      if (errorMsg.toLowerCase().includes('email') && errorMsg.toLowerCase().includes('missing')) {
+        toast({ title: t('invoices.email.missingEmail', 'Contact has no email address'), status: 'warning' });
+      } else {
+        toast({ title: errorMsg, status: 'error' });
+      }
+    } finally {
+      setLoadingEmailPreview(false);
     }
   };
 
@@ -271,6 +315,156 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
     }
   };
 
+  // ── PDF Preview logic ──────────────────────────────
+  // Determine if form has unsaved changes by comparing current state to loaded invoice
+  const isDirty = (() => {
+    if (isNew) return true; // New invoices are always "dirty"
+    if (!invoice) return false;
+    if (String(contactId) !== String(invoice.contact?.id || '')) return true;
+    if (invoiceDate !== invoice.invoice_date) return true;
+    if (paymentTermsDays !== invoice.payment_terms_days) return true;
+    if (currency !== invoice.currency) return true;
+    if (notes !== (invoice.notes || '')) return true;
+    if (revenueAccount !== (invoice.revenue_account || '')) return true;
+    // Simple line count check — detailed line comparison is expensive
+    if (lines.length !== (invoice.lines || []).length) return true;
+    return false;
+  })();
+
+  /** Save the invoice without closing the form. Returns true on success. */
+  const saveForPreview = async (): Promise<boolean> => {
+    if (!contactId) {
+      toast({ title: t('invoices.contactRequired', 'Contact is required'), status: 'warning' });
+      return false;
+    }
+    if (lines.length === 0 || lines.every(l => !l.description)) {
+      toast({ title: t('invoices.linesRequired', 'At least one line item is required'), status: 'warning' });
+      return false;
+    }
+
+    try {
+      setSaving(true);
+      const payload: InvoiceInput = {
+        contact_id: Number(contactId),
+        invoice_date: invoiceDate,
+        payment_terms_days: paymentTermsDays,
+        currency,
+        exchange_rate: exchangeRate,
+        revenue_account: revenueAccount || undefined,
+        notes: notes || undefined,
+        lines: lines.map((l, idx) => ({
+          product_id: l.product_id || undefined,
+          description: l.description || '',
+          quantity: Number(l.quantity) || 0,
+          unit_price: Number(l.unit_price) || 0,
+          vat_code: l.vat_code || 'high',
+          sort_order: idx,
+        })),
+      };
+
+      const resp = isNew
+        ? await createInvoice(payload)
+        : await updateInvoice(invoiceId!, payload);
+
+      if (resp.success) {
+        // Reload invoice to sync state without closing
+        if (resp.data) {
+          const inv: Invoice = resp.data;
+          setInvoice(inv);
+          setContactId(inv.contact?.id || '');
+          setInvoiceDate(inv.invoice_date);
+          setPaymentTermsDays(inv.payment_terms_days);
+          setCurrency(inv.currency || 'EUR');
+          setExchangeRate(inv.exchange_rate);
+          setNotes(inv.notes || '');
+          setRevenueAccount(inv.revenue_account || '');
+          setLines(inv.lines || []);
+        }
+        onSaved?.();
+        return true;
+      } else {
+        toast({ title: resp.error || 'Error saving invoice', status: 'error' });
+        return false;
+      }
+    } catch (err: any) {
+      toast({ title: err.message || 'Error saving invoice', status: 'error' });
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!invoice?.id && !isNew) return;
+
+    // If form has unsaved changes, save first
+    if (isDirty) {
+      const saved = await saveForPreview();
+      if (!saved) return;
+    }
+
+    const currentInvoiceId = invoice?.id || invoiceId;
+    if (!currentInvoiceId) return;
+
+    // Set up AbortController with 30s timeout
+    const controller = new AbortController();
+    previewAbortRef.current = controller;
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 30_000);
+
+    try {
+      setPreviewing(true);
+      const blob = await getInvoicePreview(currentInvoiceId, { signal: controller.signal });
+
+      // Create blob URL and open modal
+      const url = URL.createObjectURL(blob);
+      previewBlobUrlRef.current = url;
+      setPreviewBlobUrl(url);
+      setPreviewModalOpen(true);
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        toast({
+          title: t('invoices.preview.timeout', 'Preview request timed out'),
+          status: 'error',
+        });
+      } else {
+        toast({
+          title: err.message || t('invoices.preview.error', 'Preview could not be generated'),
+          status: 'error',
+        });
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setPreviewing(false);
+      previewAbortRef.current = null;
+    }
+  };
+
+  const handlePreviewClose = () => {
+    setPreviewModalOpen(false);
+    // Revoke blob URL on modal close
+    if (previewBlobUrlRef.current) {
+      URL.revokeObjectURL(previewBlobUrlRef.current);
+      previewBlobUrlRef.current = null;
+      setPreviewBlobUrl(null);
+    }
+  };
+
+  // Cleanup on unmount: abort pending request and revoke blob URL
+  useEffect(() => {
+    return () => {
+      if (previewAbortRef.current) {
+        previewAbortRef.current.abort();
+        previewAbortRef.current = null;
+      }
+      if (previewBlobUrlRef.current) {
+        URL.revokeObjectURL(previewBlobUrlRef.current);
+        previewBlobUrlRef.current = null;
+      }
+    };
+  }, []);
+
   if (loading || configLoading) {
     return (
       <Box p={6} textAlign="center">
@@ -300,9 +494,23 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
             </Button>
           )}
           {invoice && isDraft && (
-            <Button colorScheme="blue" size="sm" onClick={onSendOpen}
-              isLoading={sending} isDisabled={saving}>
+            <Button colorScheme="blue" size="sm" onClick={handleSendInvoice}
+              isLoading={sending || loadingEmailPreview} isDisabled={saving}>
               {t('invoices.send', 'Send')}
+            </Button>
+          )}
+          {invoice && invoice.status === 'draft' && (
+            <Button
+              leftIcon={<ViewIcon />}
+              size="sm"
+              variant="outline"
+              colorScheme="teal"
+              onClick={handlePreview}
+              isLoading={previewing}
+              loadingText={t('invoices.preview.loading', 'Generating preview...')}
+              isDisabled={previewing || saving}
+            >
+              {t('invoices.preview.button', 'Preview PDF')}
             </Button>
           )}
           {invoice && invoice.status === 'sent' && invoice.invoice_type !== 'credit_note' && (
@@ -523,25 +731,22 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         </Text>
       )}
 
-      {/* Send confirmation dialog */}
-      <AlertDialog isOpen={isSendOpen} leastDestructiveRef={cancelRef} onClose={onSendClose} isCentered>
-        <AlertDialogOverlay>
-          <AlertDialogContent bg="gray.800" color="white">
-            <AlertDialogHeader fontSize="lg">{t('invoices.confirmSend', 'Send Invoice?')}</AlertDialogHeader>
-            <AlertDialogBody>
-              {t('invoices.confirmSendMessage', 'This will generate a PDF, book the invoice in FIN, and email it to the contact. This action cannot be undone.')}
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={cancelRef} variant="ghost" onClick={onSendClose}>
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              <Button colorScheme="blue" onClick={handleSend} ml={3}>
-                {t('invoices.send', 'Send')}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+      {/* Email preview panel (replaces old send confirmation dialog) */}
+      <EmailPreviewPanel
+        isOpen={emailPreviewOpen}
+        onClose={() => setEmailPreviewOpen(false)}
+        onConfirmSend={handleSend}
+        emailPreview={emailPreview}
+        isSending={sending}
+      />
+
+      {/* PDF Preview modal */}
+      <InvoicePreviewModal
+        isOpen={previewModalOpen}
+        onClose={handlePreviewClose}
+        pdfBlobUrl={previewBlobUrl}
+        invoiceNumber={invoice?.invoice_number || ''}
+      />
     </Box>
   );
 };

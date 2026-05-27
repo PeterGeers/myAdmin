@@ -4,7 +4,7 @@
 
 Fix six backend code paths that unconditionally use `GoogleDriveService` for file storage operations, making them non-functional for tenants configured with `invoice_provider=s3_shared`. The fix introduces a storage provider resolver pattern that checks `storage.invoice_provider` via `ParameterService` and routes each operation to either `GoogleDriveService` (unchanged) or `S3SharedStorage` (new path). Nine files are affected in total.
 
-## Task Dependency Graph
+## Task Depenency Graph
 
 ```json
 {

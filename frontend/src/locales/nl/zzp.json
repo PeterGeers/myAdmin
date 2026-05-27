@@ -34,6 +34,26 @@
       "overdue": "Verlopen",
       "cancelled": "Geannuleerd",
       "credited": "Gecrediteerd"
+    },
+    "preview": {
+      "button": "PDF Voorbeeld",
+      "loading": "Voorbeeld genereren...",
+      "error": "Voorbeeld kon niet worden gegenereerd",
+      "timeout": "Voorbeeld verzoek verlopen",
+      "modalTitle": "Factuur Voorbeeld",
+      "close": "Sluiten",
+      "download": "Downloaden",
+      "renderError": "Voorbeeld kon niet worden weergegeven"
+    },
+    "email": {
+      "panelTitle": "E-mail Voorbeeld",
+      "sendButton": "Bevestig Verzenden",
+      "subjectLabel": "Onderwerp",
+      "recipientLabel": "Ontvanger",
+      "bccLabel": "BCC (kopie naar)",
+      "attachmentLabel": "Bijlage",
+      "missingEmail": "Contact heeft geen e-mailadres",
+      "sendError": "Factuur verzenden mislukt"
     }
   },
   "contacts": {

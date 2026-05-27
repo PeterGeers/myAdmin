@@ -472,6 +472,153 @@ def test_send_invoice_email_failure_keeps_booked_returns_warning():
     booking.book_outgoing_invoice.assert_called_once()
 
 
+# ── preview_invoice ─────────────────────────────────────────
+
+
+def test_preview_invoice_draft_returns_pdf_bytes():
+    """preview_invoice on a draft invoice returns BytesIO from pdf_generator."""
+    db = Mock()
+    db.execute_query = Mock(side_effect=[
+        [{'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
+          'invoice_type': 'invoice', 'contact_id': 1, 'invoice_date': '2026-04-15',
+          'due_date': '2026-05-15', 'payment_terms_days': 30, 'currency': 'EUR',
+          'exchange_rate': 1.0, 'status': 'draft', 'subtotal': 100.0,
+          'vat_total': 21.0, 'grand_total': 121.0, 'notes': None,
+          'original_invoice_id': None, 'sent_at': None, 'created_by': 'test',
+          'created_at': None, 'updated_at': None, 'revenue_account': None}],
+        [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
+        [{'id': 1, 'product_id': 1, 'description': 'Dev', 'quantity': 160.0,
+          'unit_price': 95.0, 'vat_code': 'high', 'vat_rate': 21.0,
+          'vat_amount': 3192.0, 'line_total': 15200.0, 'sort_order': 0}],
+        [{'vat_code': 'high', 'vat_rate': 21.0, 'base_amount': 15200.0, 'vat_amount': 3192.0}],
+    ])
+    pdf_gen = Mock(generate_preview_pdf=Mock(return_value=BytesIO(b'%PDF-preview')))
+    svc = ZZPInvoiceService(
+        db=db, pdf_generator=pdf_gen,
+        parameter_service=Mock(get_param=Mock(return_value=None)),
+    )
+    result = svc.preview_invoice('T1', 1)
+    assert result.getvalue() == b'%PDF-preview'
+    pdf_gen.generate_preview_pdf.assert_called_once()
+    # Verify tenant was passed to generate_preview_pdf
+    call_args = pdf_gen.generate_preview_pdf.call_args
+    assert call_args[0][0] == 'T1'
+
+
+def test_preview_invoice_not_found_raises_valueerror():
+    """preview_invoice raises ValueError when invoice doesn't exist for tenant."""
+    db = Mock()
+    db.execute_query = Mock(return_value=[])
+    svc = ZZPInvoiceService(
+        db=db, pdf_generator=Mock(),
+        parameter_service=Mock(get_param=Mock(return_value=None)),
+    )
+    with pytest.raises(ValueError, match="Invoice not found"):
+        svc.preview_invoice('T1', 999)
+
+
+def test_preview_invoice_wrong_tenant_raises_valueerror():
+    """preview_invoice raises ValueError when invoice belongs to different tenant."""
+    db = Mock()
+    # Invoice exists for tenant 'T1' but we query with 'T2'
+    db.execute_query = Mock(return_value=[])
+    svc = ZZPInvoiceService(
+        db=db, pdf_generator=Mock(),
+        parameter_service=Mock(get_param=Mock(return_value=None)),
+    )
+    with pytest.raises(ValueError, match="Invoice not found"):
+        svc.preview_invoice('T2', 1)
+
+
+def test_preview_invoice_sent_status_raises_valueerror():
+    """preview_invoice raises ValueError for non-draft (sent) invoices."""
+    db = Mock()
+    db.execute_query = Mock(side_effect=[
+        [{'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
+          'invoice_type': 'invoice', 'contact_id': 1, 'invoice_date': '2026-04-15',
+          'due_date': '2026-05-15', 'payment_terms_days': 30, 'currency': 'EUR',
+          'exchange_rate': 1.0, 'status': 'sent', 'subtotal': 100.0,
+          'vat_total': 21.0, 'grand_total': 121.0, 'notes': None,
+          'original_invoice_id': None, 'sent_at': '2026-04-15', 'created_by': 'test',
+          'created_at': None, 'updated_at': None, 'revenue_account': None}],
+        [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
+        [], [],
+    ])
+    svc = ZZPInvoiceService(
+        db=db, pdf_generator=Mock(),
+        parameter_service=Mock(get_param=Mock(return_value=None)),
+    )
+    with pytest.raises(ValueError, match="Only draft invoices can be previewed"):
+        svc.preview_invoice('T1', 1)
+
+
+def test_preview_invoice_paid_status_raises_valueerror():
+    """preview_invoice raises ValueError for paid invoices."""
+    db = Mock()
+    db.execute_query = Mock(side_effect=[
+        [{'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
+          'invoice_type': 'invoice', 'contact_id': 1, 'invoice_date': '2026-04-15',
+          'due_date': '2026-05-15', 'payment_terms_days': 30, 'currency': 'EUR',
+          'exchange_rate': 1.0, 'status': 'paid', 'subtotal': 100.0,
+          'vat_total': 21.0, 'grand_total': 121.0, 'notes': None,
+          'original_invoice_id': None, 'sent_at': '2026-04-15', 'created_by': 'test',
+          'created_at': None, 'updated_at': None, 'revenue_account': None}],
+        [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
+        [], [],
+    ])
+    svc = ZZPInvoiceService(
+        db=db, pdf_generator=Mock(),
+        parameter_service=Mock(get_param=Mock(return_value=None)),
+    )
+    with pytest.raises(ValueError, match="Only draft invoices can be previewed"):
+        svc.preview_invoice('T1', 1)
+
+
+def test_preview_invoice_no_pdf_generator_raises_runtimeerror():
+    """preview_invoice raises RuntimeError when PDFGeneratorService not configured."""
+    db = Mock()
+    db.execute_query = Mock(side_effect=[
+        [{'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
+          'invoice_type': 'invoice', 'contact_id': 1, 'invoice_date': '2026-04-15',
+          'due_date': '2026-05-15', 'payment_terms_days': 30, 'currency': 'EUR',
+          'exchange_rate': 1.0, 'status': 'draft', 'subtotal': 100.0,
+          'vat_total': 21.0, 'grand_total': 121.0, 'notes': None,
+          'original_invoice_id': None, 'sent_at': None, 'created_by': 'test',
+          'created_at': None, 'updated_at': None, 'revenue_account': None}],
+        [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
+        [], [],
+    ])
+    svc = ZZPInvoiceService(
+        db=db, pdf_generator=None,
+        parameter_service=Mock(get_param=Mock(return_value=None)),
+    )
+    with pytest.raises(RuntimeError, match="PDFGeneratorService not configured"):
+        svc.preview_invoice('T1', 1)
+
+
+def test_preview_invoice_pdf_generation_failure_raises_runtimeerror():
+    """preview_invoice raises RuntimeError when PDF generation fails."""
+    db = Mock()
+    db.execute_query = Mock(side_effect=[
+        [{'id': 1, 'administration': 'T1', 'invoice_number': 'INV-2026-0001',
+          'invoice_type': 'invoice', 'contact_id': 1, 'invoice_date': '2026-04-15',
+          'due_date': '2026-05-15', 'payment_terms_days': 30, 'currency': 'EUR',
+          'exchange_rate': 1.0, 'status': 'draft', 'subtotal': 100.0,
+          'vat_total': 21.0, 'grand_total': 121.0, 'notes': None,
+          'original_invoice_id': None, 'sent_at': None, 'created_by': 'test',
+          'created_at': None, 'updated_at': None, 'revenue_account': None}],
+        [{'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}],
+        [], [],
+    ])
+    pdf_gen = Mock(generate_preview_pdf=Mock(side_effect=Exception("WeasyPrint crashed")))
+    svc = ZZPInvoiceService(
+        db=db, pdf_generator=pdf_gen,
+        parameter_service=Mock(get_param=Mock(return_value=None)),
+    )
+    with pytest.raises(RuntimeError, match="PDF generation failed"):
+        svc.preview_invoice('T1', 1)
+
+
 # ── create_credit_note ──────────────────────────────────────
 
 
