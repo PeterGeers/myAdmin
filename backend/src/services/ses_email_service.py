@@ -16,6 +16,9 @@ from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 
+# Sentinel to distinguish "not provided" from explicit None
+_NOT_PROVIDED = object()
+
 # Lazy-loaded email log service to avoid circular imports
 _email_log_service = None
 
@@ -169,7 +172,7 @@ class SESEmailService:
         html_body: str,
         attachments: List[Dict],
         bcc: Optional[List[str]] = None,
-        reply_to: Optional[str] = None,
+        reply_to=_NOT_PROVIDED,
         from_name: Optional[str] = None,
         source_email: Optional[str] = None,
         email_type: Optional[str] = None,
@@ -206,9 +209,17 @@ class SESEmailService:
             sender_address = source_email or self.sender
             msg['From'] = f'{display_name} <{sender_address}>'
             msg['To'] = to_email
-            effective_reply_to = reply_to or self.reply_to
-            if effective_reply_to:
-                msg['Reply-To'] = effective_reply_to
+            # Determine Reply-To:
+            # - If reply_to was explicitly passed as a string, use it
+            # - If reply_to was explicitly passed as None, omit Reply-To
+            #   (replies go to the From address, i.e. verified sender)
+            # - If reply_to was not provided at all, use global default
+            if reply_to is _NOT_PROVIDED:
+                if self.reply_to:
+                    msg['Reply-To'] = self.reply_to
+            elif reply_to is not None:
+                msg['Reply-To'] = reply_to
+            # else: reply_to is explicitly None — no Reply-To header
             if bcc:
                 msg['Bcc'] = ', '.join(bcc)
 
