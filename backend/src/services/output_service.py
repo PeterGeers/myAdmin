@@ -259,13 +259,8 @@ class OutputService:
                 }
             )
 
-            # Build a URL from the reference
-            # For S3 shared: reference is the S3 key
-            bucket = getattr(provider, 'bucket', '')
-            if bucket:
-                url = f"s3://{bucket}/{reference}"
-            else:
-                url = reference
+            # Use the reference directly as the URL (plain S3 key)
+            url = reference
 
             logger.info(
                 f"Successfully uploaded to S3: {filename} (ref: {reference})"
