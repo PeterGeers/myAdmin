@@ -3,7 +3,7 @@ import pdfplumber
 import re
 from datetime import datetime
 from typing import Dict, List, Optional
-from vendor_parsers import VendorParsers
+from csv_rules import CsvRuleEngine
 from config import Config
 import os
 import subprocess
@@ -16,9 +16,10 @@ except ImportError:
     pytesseract = None
 
 class PDFProcessor:
-    def __init__(self, test_mode: bool = False):
-        self.vendor_parsers = VendorParsers()
+    def __init__(self, test_mode: bool = False, tenant: str = None):
+        self.csv_rule_engine = CsvRuleEngine()
         self.config = Config(test_mode=test_mode)
+        self._current_tenant = tenant
         
     def process_file(self, file_path, drive_result, folder_name='Unknown'):
         """Process PDF, image, or CSV file"""
@@ -317,96 +318,93 @@ class PDFProcessor:
     def extract_transactions(self, file_data):
         lines = file_data['txt'].split('\n')
         folder_name = file_data['folder'].lower()
-        
-        # If image was processed with AI, use that data directly
+
+        # Image with pre-extracted AI data
         if 'ai_data' in file_data:
-            print("Using AI-extracted data from image")
             return self._format_vendor_transactions(file_data['ai_data'], file_data)
-        
-        # Try vendor-specific parser first
-        vendor_data = self._parse_vendor_specific(lines, folder_name)
-        if vendor_data:
-            return self._format_vendor_transactions(vendor_data, file_data)
-        
-        # Fallback to generic parsing
-        return self._generic_parse(lines, file_data)
+
+        # CSV rule match
+        csv_result = self._apply_csv_rule(lines, folder_name)
+        if csv_result:
+            return self._format_vendor_transactions(csv_result, file_data)
+
+        # AI extraction (sole path for PDF/EML/MHTML/unmatched CSV)
+        ai_result = self._extract_with_ai(lines, folder_name)
+        if ai_result and ai_result.get('total_amount', 0) > 0:
+            return self._format_vendor_transactions(ai_result, file_data)
+
+        # AI failed — return empty transactions with failure marker
+        failure_data = ai_result if ai_result else {
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'description': f'{folder_name} invoice',
+            'vendor': folder_name
+        }
+        return self._format_vendor_transactions(failure_data, file_data)
     
-    def _parse_vendor_specific(self, lines, folder_name):
-        """Parse using AI or fallback to vendor-specific logic"""
-        # Try AI extraction first
+    def _extract_with_ai(self, lines, folder_name):
+        """Extract invoice data using AI only. No vendor-specific fallback."""
         try:
             from ai_extractor import AIExtractor
             ai_extractor = AIExtractor()
-            
-            # Get previous transactions for this vendor
+
             previous_transactions = []
             try:
                 from database import DatabaseManager
                 db = DatabaseManager()
                 previous_transactions = db.get_previous_transactions(folder_name, limit=3)
-                print(f"Found {len(previous_transactions)} previous transactions for reference")
             except Exception as e:
                 print(f"Could not get previous transactions: {e}")
-            
-            # Convert lines to text
+
             text_content = '\n'.join(lines)
-            
             print(f"Starting AI extraction for {folder_name}...", flush=True)
-            # Use AI to extract data with previous transaction context
-            ai_result = ai_extractor.extract_invoice_data(text_content, folder_name, previous_transactions)
-            
-            if ai_result and ai_result['total_amount'] > 0:
+            ai_result = ai_extractor.extract_invoice_data(
+                text_content, folder_name, previous_transactions
+            )
+
+            # Log AI usage with actual token counts from the API response
+            self._log_ai_usage(folder_name, ai_result)
+
+            if ai_result and ai_result.get('total_amount', 0) > 0:
                 print(f"AI extraction successful for {folder_name}: €{ai_result['total_amount']}", flush=True)
                 return ai_result
             else:
-                print(f"AI extraction returned no valid amount, using traditional parser for {folder_name}", flush=True)
+                print(f"AI extraction returned no valid amount for {folder_name}", flush=True)
+                return ai_result  # Return the zero-amount result
+
         except Exception as e:
-            print(f"AI extraction error: {e}, falling back to traditional parser", flush=True)
-        
-        # Fallback to traditional parsers
-        if 'action' in folder_name:
-            return self.vendor_parsers.parse_action(lines)
-        elif 'mastercard' in folder_name:
-            return self.vendor_parsers.parse_mastercard(lines)
-        elif 'visa' in folder_name:
-            return self.vendor_parsers.parse_visa(lines)
-        elif 'bol' in folder_name:
-            return self.vendor_parsers.parse_bolcom(lines)
-        elif 'picnic' in folder_name:
-            return self.vendor_parsers.parse_picnic(lines)
-        elif 'netflix' in folder_name:
-            return self.vendor_parsers.parse_netflix(lines)
-        elif 'temu' in folder_name:
-            return self.vendor_parsers.parse_temu(lines)
-        elif 'avance' in folder_name:
-            return self.vendor_parsers.parse_avance(lines)
-        elif 'booking' in folder_name:
-            return self.vendor_parsers.parse_booking(lines)
-        elif 'ziggo' in folder_name:
-            return self.vendor_parsers.parse_ziggo(lines)
-        elif 'coursera' in folder_name:
-            return self.vendor_parsers.parse_coursera(lines)
-        elif 'btw' in folder_name:
-            print(f"BTW: Calling BTW parser for folder: {folder_name}", flush=True)
-            return self.vendor_parsers.parse_btw(lines)
-        elif 'vodafone' in folder_name:
-            return self.vendor_parsers.parse_vodafone(lines)
-        elif 'kuwait' in folder_name.lower():
-            return self.vendor_parsers.parse_kuwait(lines)
-        elif 'amazon' in folder_name.lower():
-            return self.vendor_parsers.parse_amazon(lines)
-        elif 'google' in folder_name.lower():
-            return self.vendor_parsers.parse_google(lines)
-        elif 'vandenheuvelhoveniers' in folder_name.lower():
-            return self.vendor_parsers.parse_vandenheuvelhoveniers(lines)
-        elif 'guesty' in folder_name.lower():
-            return self.vendor_parsers.parse_guesty(lines)
-        elif 'gamma' in folder_name.lower():
-            return self.vendor_parsers.parse_gamma(lines)
-        elif 'airbnb' in folder_name.lower():
-            return self.vendor_parsers.parse_airbnb_csv(lines)
-        return None
-    
+            print(f"AI extraction error for {folder_name}: {e}", flush=True)
+            return None
+
+    def _log_ai_usage(self, folder_name, ai_result):
+        """Log AI extraction usage to ai_usage_log with actual token counts."""
+        try:
+            from database import DatabaseManager
+            from services.ai_usage_tracker import AIUsageTracker
+
+            db = DatabaseManager()
+            tracker = AIUsageTracker(db)
+
+            # Use actual token counts from the API response metadata
+            usage_meta = ai_result.get('_usage', {}) if ai_result else {}
+            tokens_used = usage_meta.get('total_tokens', 0)
+            model_used = usage_meta.get('model', 'deepseek/deepseek-chat')
+
+            # Skip logging if no token data available (e.g., fallback result)
+            if tokens_used == 0:
+                return
+
+            tracker.log_ai_request(
+                administration=self._current_tenant or 'unknown',
+                template_type=f"invoice_extraction_{folder_name}",
+                tokens_used=tokens_used,
+                model_used=model_used
+            )
+        except Exception as e:
+            # Never fail the extraction because of logging
+            print(f"Could not log AI usage: {e}")
+
     def _format_vendor_transactions(self, vendor_data, file_data):
         """Format vendor-specific data into standard transaction format"""
         transactions = []
@@ -476,6 +474,11 @@ class PDFProcessor:
                     'ref4': file_data['name']
                 })
         
+        # Pass through parser_used_hint from vendor_data to transactions
+        if isinstance(vendor_data, dict) and vendor_data.get('parser_used_hint'):
+            for transaction in transactions:
+                transaction['parser_used_hint'] = vendor_data['parser_used_hint']
+        
         # Perform duplicate detection after data extraction but before database insertion
         # This integrates with existing workflow while maintaining compatibility
         try:
@@ -543,6 +546,13 @@ class PDFProcessor:
                 })
         
         return transactions
+    
+    def _apply_csv_rule(self, lines, folder_name):
+        """Apply CSV aggregation rule if folder matches a configured rule."""
+        rule = self.csv_rule_engine.get_rule(folder_name)
+        if not rule:
+            return None
+        return self.csv_rule_engine.apply(rule, lines, folder_name)
     
     def _check_for_duplicates(self, transactions, reference_number, file_data):
         """

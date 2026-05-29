@@ -39,13 +39,11 @@ class TestPDFProcessor:
     def test_init_test_mode(self):
         """Test initialization in test mode"""
         processor = PDFProcessor(test_mode=True)
-        assert hasattr(processor, 'vendor_parsers')
         assert hasattr(processor, 'config')
     
     def test_init_production_mode(self):
         """Test initialization in production mode"""
         processor = PDFProcessor(test_mode=False)
-        assert hasattr(processor, 'vendor_parsers')
         assert hasattr(processor, 'config')
     
     @patch('pdf_processor.pdfplumber.open')
@@ -86,28 +84,6 @@ class TestPDFProcessor:
         assert 'txt' in result
         assert sample_pdf_content.strip() in result['txt']
     
-    def test_vendor_parsing_kuwait(self, pdf_processor):
-        """Test Kuwait vendor parsing"""
-        lines = ["Kuwait Petroleum", "Datum : 15-01-2025", "Totaal incl. BTW EUR 150,50"]
-        result = pdf_processor._parse_vendor_specific(lines, 'kuwait')
-        assert result is not None
-    
-    def test_vendor_parsing_booking(self, pdf_processor):
-        """Test Booking vendor parsing"""
-        lines = ["Booking.com", "Invoice number: 1234567890", "2025-01-15"]
-        result = pdf_processor._parse_vendor_specific(lines, 'booking')
-        assert result is not None
-    
-    def test_vendor_parsing_unknown(self, pdf_processor):
-        """Test unknown vendor parsing - should return data or None"""
-        lines = ["Unknown vendor", "Some text"]
-        result = pdf_processor._parse_vendor_specific(lines, 'unknown')
-        # AI might extract data even from minimal text, so we accept both outcomes
-        if result is not None:
-            assert isinstance(result, dict)
-            assert 'total_amount' in result
-        # If None, that's also acceptable for unknown vendors
-    
     @patch('pdf_processor.Config')
     def test_config_integration(self, mock_config, pdf_processor):
         """Test config integration"""
@@ -116,18 +92,6 @@ class TestPDFProcessor:
         
         processor = PDFProcessor(test_mode=True)
         assert hasattr(processor, 'config')
-    
-    def test_vendor_parsers_integration(self, pdf_processor):
-        """Test vendor parsers integration"""
-        with patch('ai_extractor.AIExtractor') as mock_ai_class:
-            mock_ai = MagicMock()
-            mock_ai.extract_invoice_data.return_value = None
-            mock_ai_class.return_value = mock_ai
-            with patch.object(pdf_processor, 'vendor_parsers') as mock_parsers:
-                mock_parsers.parse_kuwait.return_value = {'date': '2025-01-15', 'total_amount': 150.50}
-                
-                result = pdf_processor._parse_vendor_specific(['test'], 'kuwait')
-                mock_parsers.parse_kuwait.assert_called_once_with(['test'])
     
     @patch('pdf_processor.Config')
     @patch('builtins.open', new_callable=mock_open, read_data=b'%PDF-1.4 mock pdf content')
@@ -194,25 +158,6 @@ class TestPDFProcessor:
         # This would be called internally during processing
         assert os.path.exists('test.pdf') == True
         mock_exists.assert_called_with('test.pdf')
-    
-    def test_vendor_folder_detection(self, pdf_processor):
-        """Test vendor detection in folder names"""
-        with patch('ai_extractor.AIExtractor') as mock_ai_class:
-            mock_ai = MagicMock()
-            mock_ai.extract_invoice_data.return_value = None
-            mock_ai_class.return_value = mock_ai
-            with patch.object(pdf_processor, 'vendor_parsers') as mock_parsers:
-                mock_parsers.parse_kuwait.return_value = {'date': '2022-01-15', 'description': 'Factuurnummer: 987654', 'total_amount': 100.0}
-                mock_parsers.parse_booking.return_value = {'date': '2022-01-15', 'description': 'Booking invoice', 'total_amount': 200.0}
-                mock_parsers.parse_avance.return_value = {'date': '2022-01-15', 'description': 'Avance invoice', 'total_amount': 300.0}
-                
-                # Test kuwait parsing
-                result = pdf_processor._parse_vendor_specific(['test'], 'kuwait')
-                assert result == {'date': '2022-01-15', 'description': 'Factuurnummer: 987654', 'total_amount': 100.0}
-                
-                # Test unknown vendor
-                result = pdf_processor._parse_vendor_specific(['test'], 'unknown')
-                assert result is None
     
     def test_error_handling_invalid_file_type(self, pdf_processor, mock_drive_result):
         """Test error handling for invalid file types"""
@@ -394,6 +339,158 @@ class TestPDFProcessor:
                     assert isinstance(e, (ValueError, TypeError, KeyError)), f"Unexpected error type: {type(e)}"
                     # Re-raise to fail the test if it's an unexpected error
                     raise
+
+class TestAIOnlyExtraction:
+    """
+    Tests verifying AI-only extraction behavior after vendor parser removal.
+    
+    **Validates: Requirements 7.3, 7.4**
+    """
+
+    @pytest.fixture
+    def processor(self):
+        """Create PDFProcessor instance for testing"""
+        return PDFProcessor(test_mode=True)
+
+    @pytest.fixture
+    def file_data(self):
+        """Create file_data dict with a folder that doesn't match CSV rules"""
+        return {
+            'txt': 'Invoice 12345\nDate: 2025-01-15\nTotal: €150.50\nKuwait Petroleum',
+            'folder': '/test/kuwait',
+            'url': 'https://drive.google.com/file/d/mock_id/view',
+            'name': 'invoice_kuwait.pdf'
+        }
+
+    @patch('database.DatabaseManager')
+    @patch('ai_extractor.AIExtractor')
+    def test_ai_extraction_success_returns_valid_amount(self, mock_ai_class, mock_db_class, processor, file_data):
+        """Test that successful AI extraction returns transaction with the extracted amount."""
+        # Setup AIExtractor mock to return valid result
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.extract_invoice_data.return_value = {
+            'date': '2025-01-15',
+            'total_amount': 150.50,
+            'vat_amount': 31.61,
+            'description': 'Kuwait Petroleum invoice',
+            'vendor': 'kuwait',
+            '_usage': {'total_tokens': 100, 'model': 'deepseek/deepseek-chat'}
+        }
+        mock_ai_class.return_value = mock_ai_instance
+
+        # Setup DatabaseManager mock
+        mock_db_instance = MagicMock()
+        mock_db_instance.get_previous_transactions.return_value = []
+        mock_db_class.return_value = mock_db_instance
+
+        # Mock TransactionLogic to avoid DB calls in _format_vendor_transactions
+        with patch('transaction_logic.TransactionLogic') as mock_tl_class:
+            mock_tl = MagicMock()
+            mock_tl.get_last_transactions.return_value = [
+                {'Debet': '4000', 'Credit': '1300'},
+                {'Debet': '2010', 'Credit': '4000'}
+            ]
+            mock_tl_class.return_value = mock_tl
+
+            result = processor.extract_transactions(file_data)
+
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        # Main transaction should have the AI-extracted amount
+        assert result[0]['amount'] == 150.50
+        assert result[0]['date'] == '2025-01-15'
+        assert result[0]['description'] == 'Kuwait Petroleum invoice'
+
+    @patch('database.DatabaseManager')
+    @patch('ai_extractor.AIExtractor')
+    def test_ai_extraction_zero_amount_returns_zero(self, mock_ai_class, mock_db_class, processor, file_data):
+        """Test that AI extraction returning total_amount=0 results in transaction with amount=0."""
+        # Setup AIExtractor mock to return zero amount
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.extract_invoice_data.return_value = {
+            'date': '2025-01-15',
+            'total_amount': 0.0,
+            'vat_amount': 0.0,
+            'description': '/test/kuwait invoice',
+            'vendor': 'kuwait',
+            '_usage': {'total_tokens': 0, 'model': 'deepseek/deepseek-chat'}
+        }
+        mock_ai_class.return_value = mock_ai_instance
+
+        # Setup DatabaseManager mock
+        mock_db_instance = MagicMock()
+        mock_db_instance.get_previous_transactions.return_value = []
+        mock_db_class.return_value = mock_db_instance
+
+        # Mock TransactionLogic
+        with patch('transaction_logic.TransactionLogic') as mock_tl_class:
+            mock_tl = MagicMock()
+            mock_tl.get_last_transactions.return_value = [
+                {'Debet': '4000', 'Credit': '1300'},
+                {'Debet': '2010', 'Credit': '4000'}
+            ]
+            mock_tl_class.return_value = mock_tl
+
+            result = processor.extract_transactions(file_data)
+
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        # Transaction should have amount=0 since AI returned no valid amount
+        assert result[0]['amount'] == 0.0
+
+    @patch('database.DatabaseManager')
+    @patch('ai_extractor.AIExtractor')
+    def test_ai_extraction_exception_returns_zero_and_logs(self, mock_ai_class, mock_db_class, processor, file_data, capsys):
+        """Test that AIExtractor raising exception results in logged error and total_amount=0."""
+        # Setup AIExtractor mock to raise exception
+        mock_ai_instance = MagicMock()
+        mock_ai_instance.extract_invoice_data.side_effect = RuntimeError("API connection timeout")
+        mock_ai_class.return_value = mock_ai_instance
+
+        # Setup DatabaseManager mock
+        mock_db_instance = MagicMock()
+        mock_db_instance.get_previous_transactions.return_value = []
+        mock_db_class.return_value = mock_db_instance
+
+        # Mock TransactionLogic
+        with patch('transaction_logic.TransactionLogic') as mock_tl_class:
+            mock_tl = MagicMock()
+            mock_tl.get_last_transactions.return_value = [
+                {'Debet': '4000', 'Credit': '1300'},
+                {'Debet': '2010', 'Credit': '4000'}
+            ]
+            mock_tl_class.return_value = mock_tl
+
+            result = processor.extract_transactions(file_data)
+
+        # Verify transaction has amount=0
+        assert isinstance(result, list)
+        assert len(result) >= 1
+        assert result[0]['amount'] == 0.0
+
+        # Verify error was logged to stdout
+        captured = capsys.readouterr()
+        assert 'AI extraction error' in captured.out
+        assert '/test/kuwait' in captured.out
+
+    def test_no_vendor_parsers_import_in_pdf_processor(self):
+        """Test that pdf_processor.py does not import vendor_parsers module."""
+        import inspect
+        from pdf_processor import PDFProcessor as _PDFProcessor
+        
+        # Get the source file path
+        source_file = inspect.getfile(_PDFProcessor)
+        
+        # Read the source code
+        with open(source_file, 'r') as f:
+            source_code = f.read()
+        
+        # Verify no vendor_parsers imports exist
+        assert 'from vendor_parsers' not in source_code, \
+            "pdf_processor.py should not contain 'from vendor_parsers' import"
+        assert 'import vendor_parsers' not in source_code, \
+            "pdf_processor.py should not contain 'import vendor_parsers'"
+
 
 if __name__ == '__main__':
     pytest.main([__file__])

@@ -107,8 +107,15 @@ class TestFallbackData:
 
     def test_fallback_data_returns_all_required_keys(self, extractor):
         result = extractor._fallback_data('Test')
-        required_keys = {'date', 'total_amount', 'vat_amount', 'description', 'vendor'}
+        required_keys = {'date', 'total_amount', 'vat_amount', 'description', 'vendor', '_usage'}
         assert set(result.keys()) == required_keys
+
+    def test_fallback_data_usage_has_zero_tokens(self, extractor):
+        result = extractor._fallback_data('Test')
+        assert result['_usage']['prompt_tokens'] == 0
+        assert result['_usage']['completion_tokens'] == 0
+        assert result['_usage']['total_tokens'] == 0
+        assert result['_usage']['model'] == ''
 
 
 class TestExtractInvoiceData:
@@ -142,7 +149,12 @@ class TestExtractInvoiceData:
                 'message': {
                     'content': '{"date": "2024-03-15", "total_amount": 125.50, "vat_amount": 21.84, "description": "INV-2024-001", "vendor": "Ziggo"}'
                 }
-            }]
+            }],
+            'usage': {
+                'prompt_tokens': 500,
+                'completion_tokens': 50,
+                'total_tokens': 550
+            }
         }
         mock_post.return_value = mock_response
 
@@ -153,6 +165,32 @@ class TestExtractInvoiceData:
         assert result['vat_amount'] == 21.84
         assert result['description'] == 'INV-2024-001'
         assert result['vendor'] == 'Ziggo'
+        assert '_usage' in result
+        assert result['_usage']['prompt_tokens'] == 500
+        assert result['_usage']['completion_tokens'] == 50
+        assert result['_usage']['total_tokens'] == 550
+        assert result['_usage']['model'] == 'deepseek/deepseek-chat'
+
+    @patch('ai_extractor.requests.post')
+    def test_extract_invoice_data_usage_defaults_when_missing(self, mock_post, extractor):
+        """Test that _usage defaults to zeros when API response has no usage field."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'choices': [{
+                'message': {
+                    'content': '{"date": "2024-03-15", "total_amount": 100.0, "vat_amount": 21.0, "description": "Test", "vendor": "TestVendor"}'
+                }
+            }]
+        }
+        mock_post.return_value = mock_response
+
+        result = extractor.extract_invoice_data("Invoice text")
+
+        assert result['_usage']['prompt_tokens'] == 0
+        assert result['_usage']['completion_tokens'] == 0
+        assert result['_usage']['total_tokens'] == 0
+        assert result['_usage']['model'] == 'deepseek/deepseek-chat'
 
     @patch('ai_extractor.requests.post')
     def test_extract_invoice_data_json_in_code_block(self, mock_post, extractor):
