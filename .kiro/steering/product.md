@@ -7,7 +7,7 @@ myAdmin is a comprehensive financial transaction processing and administrative t
 ### Invoice Management
 
 - AI-powered universal invoice extraction via OpenRouter API
-- 250+ vendor-specific parsers as fallback
+- Declarative CSV aggregation rules for structured files (e.g., Airbnb)
 - PDF/EML/MHTML file processing
 - Google Drive integration for storage
 - Manual edit and approval workflow

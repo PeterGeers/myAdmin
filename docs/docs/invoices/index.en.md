@@ -53,4 +53,4 @@ For each invoice, the system tries to recognize the following data:
 | Vendor       | Name of the supplier                                 |
 
 !!! tip
-The system has 250+ vendor-specific parsers as backup. For common vendors like Amazon, Booking.com, and energy companies, data is extracted with extra accuracy.
+The system uses AI extraction for all vendors. For structured CSV files (like Airbnb), declarative business rules ensure deterministic processing.
