@@ -4,7 +4,7 @@
 
 ## Overview
 
-When you upload an invoice, AI automatically extracts the key data. The system combines AI models with 250+ vendor-specific parsers to deliver the best results.
+When you upload an invoice, AI automatically extracts the key data. The system uses AI models as the sole extraction method for all invoice types.
 
 ## How does it work?
 
