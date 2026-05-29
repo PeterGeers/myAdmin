@@ -540,7 +540,6 @@ class TestInvoiceServiceErrorHandling:
         }
         service.processor.process_file.return_value = mock_result
         service.processor.extract_transactions.return_value = []
-        service.processor._parse_vendor_specific.return_value = {'description': 'test'}
         
         # Mock get_last_transactions to return error dict
         error_dict = {

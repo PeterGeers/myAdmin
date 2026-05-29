@@ -256,6 +256,9 @@ class InvoiceService:
         transactions = self.processor.extract_transactions(result)
         print(f"Extracted {len(transactions)} transactions", flush=True)
         
+        # Determine parser_used from extraction result
+        parser_used = self._determine_parser_used(transactions, result)
+        
         # Get last transactions for smart defaults
         last_transactions = self.transaction_logic.get_last_transactions(folder_name, tenant)
         prepared_transactions = []
@@ -264,14 +267,10 @@ class InvoiceService:
         if isinstance(last_transactions, dict) and last_transactions.get('error'):
             print(f"Transaction template error: {last_transactions['message']}", flush=True)
             # Still return file processing results but with no prepared transactions
-            lines = result['txt'].split('\n')
-            vendor_data = self.processor._parse_vendor_specific(lines, folder_name.lower())
-            parser_used = "pdfplumber" if "pdfplumber" in result['txt'] else "PyPDF2"
             return {
                 'success': True,
                 'folder': result['folder'],
                 'extracted_text': result['txt'],
-                'vendor_data': vendor_data,
                 'transactions': transactions,
                 'prepared_transactions': [],
                 'template_transactions': [],
@@ -282,10 +281,6 @@ class InvoiceService:
         if last_transactions:
             print(f"Found {len(last_transactions)} previous transactions for reference", flush=True)
             
-            # Get vendor-specific parsed data
-            lines = result['txt'].split('\n')
-            vendor_data = self.processor._parse_vendor_specific(lines, folder_name.lower())
-            
             # Create new transaction records
             new_data = {
                 'folder_name': folder_name,
@@ -293,7 +288,6 @@ class InvoiceService:
                 'amount': 0,  # Will be updated from PDF parsing
                 'drive_url': drive_result['url'],
                 'filename': os.path.basename(temp_path),
-                'vendor_data': vendor_data,
                 'administration': tenant
             }
             
@@ -303,23 +297,51 @@ class InvoiceService:
             )
             print(f"Prepared {len(prepared_transactions)} new transaction records for approval", flush=True)
         
-        # Determine which parser was used
-        parser_used = "pdfplumber" if "pdfplumber" in result['txt'] else "PyPDF2"
-        
-        # Get vendor data
-        lines = result['txt'].split('\n')
-        vendor_data = self.processor._parse_vendor_specific(lines, folder_name.lower())
-        
         return {
             'success': True,
             'folder': result['folder'],
             'extracted_text': result['txt'],
-            'vendor_data': vendor_data,
             'transactions': transactions,
             'prepared_transactions': prepared_transactions,
             'template_transactions': last_transactions if last_transactions else [],
             'parser_used': parser_used
         }
+    
+    def _determine_parser_used(self, transactions, result):
+        """
+        Determine which parser was used based on extraction outcome.
+        
+        Returns one of: "ai", "ai_failed", "csv_rule"
+        Never returns "vendor_specific" or any vendor name.
+        
+        Args:
+            transactions (list): Extracted transactions
+            result (dict): Processing result from PDFProcessor
+            
+        Returns:
+            str: Parser identifier ("ai", "ai_failed", or "csv_rule")
+        """
+        if not transactions:
+            return 'ai_failed'
+
+        # Check if CSV rule was used (marker set by CsvRuleEngine via _format_vendor_transactions)
+        first_tx = transactions[0] if transactions else {}
+        if isinstance(first_tx, dict) and first_tx.get('parser_used_hint') == 'csv_rule':
+            return 'csv_rule'
+
+        # Check if image AI was used (ai_data present means pre-extracted AI data)
+        if 'ai_data' in result:
+            return 'ai'
+
+        # Check if extraction produced a valid amount
+        amount = first_tx.get('amount', 0) if isinstance(first_tx, dict) else 0
+        try:
+            if float(amount) > 0:
+                return 'ai'
+        except (ValueError, TypeError):
+            pass
+
+        return 'ai_failed'
     
     def move_file_to_folder(self, temp_path, filename, result_folder):
         """

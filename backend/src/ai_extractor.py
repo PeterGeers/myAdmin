@@ -90,6 +90,9 @@ Rules:
                     result = response.json()
                     content = result['choices'][0]['message']['content'].strip()
                     
+                    # Capture actual token usage from API response
+                    usage = result.get('usage', {})
+                    
                     # Extract JSON from response
                     if content.startswith('```json'):
                         content = content.replace('```json', '').replace('```', '').strip()
@@ -104,7 +107,13 @@ Rules:
                             'total_amount': round(float(data.get('total_amount', 0)), 2),
                             'vat_amount': round(float(data.get('vat_amount', 0)), 2),
                             'description': str(data.get('description', '')),
-                            'vendor': str(data.get('vendor', vendor_hint or 'Unknown'))
+                            'vendor': str(data.get('vendor', vendor_hint or 'Unknown')),
+                            '_usage': {
+                                'prompt_tokens': usage.get('prompt_tokens', 0),
+                                'completion_tokens': usage.get('completion_tokens', 0),
+                                'total_tokens': usage.get('total_tokens', 0),
+                                'model': model
+                            }
                         }
                     except json.JSONDecodeError:
                         print(f"{model} returned invalid JSON: {content}")
@@ -150,5 +159,11 @@ Rules:
             'total_amount': 0.0,
             'vat_amount': 0.0,
             'description': f'{vendor_hint or "Unknown"} invoice',
-            'vendor': vendor_hint or 'Unknown'
+            'vendor': vendor_hint or 'Unknown',
+            '_usage': {
+                'prompt_tokens': 0,
+                'completion_tokens': 0,
+                'total_tokens': 0,
+                'model': ''
+            }
         }

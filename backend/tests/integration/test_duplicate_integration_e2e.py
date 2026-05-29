@@ -2,8 +2,8 @@
 End-to-end integration tests for duplicate invoice detection system.
 
 These tests verify the complete duplicate detection workflow integrates correctly
-with AI extraction, vendor parsers, file upload system, and database operations.
-Tests cover various file types, vendor parsers, and duplicate scenarios.
+with AI extraction, file upload system, and database operations.
+Tests cover various file types and duplicate scenarios.
 
 **Feature: duplicate-invoice-detection**
 **Validates: Requirements 5.1, 5.2, 5.3, 5.4**
@@ -314,46 +314,7 @@ class TestDuplicateDetectionE2EIntegration:
         assert formatted['requires_user_decision'] == True
         assert len(formatted['existing_transactions']) == 1
     
-    def test_e2e_vendor_parser_compatibility(self):
-        """
-        Test that duplicate detection works with vendor-specific parsers
-        
-        Validates: Requirements 5.1, 5.2, 5.4
-        """
-        from vendor_parsers import VendorParsers
-        
-        parsers = VendorParsers()
-        
-        # Test Kuwait parser
-        kuwait_lines = [
-            'Kuwait Petroleum',
-            'Datum : 15-01-2024',
-            'Totaal incl. BTW EUR 150,50'
-        ]
-        
-        kuwait_result = parsers.parse_kuwait(kuwait_lines)
-        
-        # Verify parser returns expected structure
-        if kuwait_result:
-            assert 'date' in kuwait_result
-            assert 'total_amount' in kuwait_result
-            assert 'description' in kuwait_result
-        
-        # Test Booking parser
-        booking_lines = [
-            'Booking.com',
-            'Invoice number: 123456',
-            'Date: 01/02/2024',
-            'Total amount due EUR 500.00'
-        ]
-        
-        booking_result = parsers.parse_booking(booking_lines)
-        
-        # Verify parser returns expected structure
-        if booking_result:
-            assert 'date' in booking_result
-            assert 'total_amount' in booking_result
-            assert 'description' in booking_result
+
     
     def test_e2e_error_handling_graceful_degradation(self):
         """
