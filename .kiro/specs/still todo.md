@@ -58,7 +58,3 @@ failing urls
 - STR Price predicition
 
 # STR Import Guesty
-
-
-# MCP
-You have 60 MCP tools enabled. We recommend disabling servers or tools to keep this below 50, as too many tools lead to degraded agent tool selection and high token usage consuming significant context. You can disable servers and tools from the MCP Servers view.
