@@ -128,7 +128,7 @@ myAdmin Integrated Platform
 
 - **Universal Extraction**: AI reads any invoice format (PDF, email, scanned documents)
 - **Smart Categorization**: Automatically assigns correct account codes
-- **250+ Vendor Parsers**: Fallback parsers for common suppliers
+- **Smart CSV Rules**: Declarative business rules for structured file formats
 - **Google Drive Integration**: Automatic document storage and linking
 - **Manual Override**: Review and adjust before finalizing
 

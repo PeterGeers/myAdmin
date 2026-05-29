@@ -68,7 +68,7 @@ XML arrives → parse structured fields → auto-import → database
 | Machine-readable      | No — requires OCR/AI            | Yes — structured data    |
 | Extraction accuracy   | ~85-95%                         | 100%                     |
 | Processing cost       | OpenRouter API call per invoice | Zero — XML parsing only  |
-| Vendor onboarding     | 250+ vendor-specific parsers    | One universal UBL parser |
+| Vendor onboarding     | AI handles any vendor           | One universal UBL parser |
 | Legal compliance (NL) | Accepted for B2B today          | Required for B2G         |
 | Storage size          | ~100KB-2MB per invoice          | ~2-10KB per invoice      |
 

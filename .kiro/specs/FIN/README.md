@@ -81,7 +81,7 @@ The `mutaties` table stores all financial transactions:
 **Routes**: `backend/src/routes/invoice_routes.py`
 
 - Upload PDF/EML/MHTML invoices
-- AI-powered extraction (OpenRouter API) with 250+ vendor-specific parsers as fallback
+- AI-powered extraction (OpenRouter API) with declarative CSV rules for structured files
 - Manual review and approval workflow
 - Google Drive storage integration
 - Duplicate detection
