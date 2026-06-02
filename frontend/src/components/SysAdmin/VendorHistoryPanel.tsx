@@ -201,7 +201,7 @@ export function VendorHistoryPanel({ vendorName: initialVendorName, administrati
                           {tx.date || '—'}
                         </Td>
                         <Td color="gray.200" borderColor="gray.600" isNumeric whiteSpace="nowrap">
-                          {tx.amount != null ? `€ ${tx.amount.toFixed(2)}` : '—'}
+                          {tx.amount != null ? `€ ${Number(tx.amount).toFixed(2)}` : '—'}
                         </Td>
                         <Td color="gray.200" borderColor="gray.600" maxW="300px" isTruncated>
                           {tx.description || '—'}
