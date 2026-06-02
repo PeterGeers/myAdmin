@@ -341,7 +341,7 @@ class InvoiceTestService:
         """
         from transaction_logic import TransactionLogic
 
-        tl = TransactionLogic(test_mode=True)
+        tl = TransactionLogic(test_mode=False)  # Read-only access to production DB for vendor history
         previous_transactions = tl.get_last_transactions(folder_name, administration)
 
         # Handle error result from get_last_transactions
@@ -689,7 +689,7 @@ Return ONLY valid JSON in this exact format:
             folder_name = "TestVendor"
 
         try:
-            tl = TransactionLogic(test_mode=True)
+            tl = TransactionLogic(test_mode=False)  # Read-only access to production DB
             transactions = tl.get_last_transactions(folder_name, administration)
 
             # Handle error result from get_last_transactions
