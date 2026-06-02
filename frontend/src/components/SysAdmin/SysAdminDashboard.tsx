@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import {
   Box, VStack, Tabs, TabList, TabPanels, Tab, TabPanel,
   useToast, Spinner, Text, Alert, AlertIcon
@@ -12,6 +12,8 @@ import ProvisioningPanel from './ProvisioningPanel';
 import EmailLogPanel from '../shared/EmailLogPanel';
 import SystemTaxRates from './SystemTaxRates';
 import SysAdminPivotDataSources from './SysAdminPivotDataSources';
+
+const InvoiceTestTool = React.lazy(() => import('./InvoiceTestTool'));
 
 export function SysAdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -112,6 +114,9 @@ export function SysAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               📊 {t('sysAdmin.tabs.pivotDataSources')}
             </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              🧪 Invoice Test Tool
+            </Tab>
           </TabList>
 
           <TabPanels>
@@ -135,6 +140,11 @@ export function SysAdminDashboard() {
             </TabPanel>
             <TabPanel>
               <SysAdminPivotDataSources />
+            </TabPanel>
+            <TabPanel>
+              <Suspense fallback={<Spinner size="lg" color="orange.400" />}>
+                <InvoiceTestTool />
+              </Suspense>
             </TabPanel>
           </TabPanels>
         </Tabs>
