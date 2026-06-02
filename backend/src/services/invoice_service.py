@@ -281,13 +281,27 @@ class InvoiceService:
         if last_transactions:
             print(f"Found {len(last_transactions)} previous transactions for reference", flush=True)
             
+            # Build vendor_data from extracted transactions for prepare_new_transactions
+            vendor_data = {}
+            if transactions:
+                first_tx = transactions[0]
+                vendor_data = {
+                    'date': first_tx.get('date'),
+                    'total_amount': first_tx.get('amount', 0),
+                    'description': first_tx.get('description', ''),
+                }
+                # Get VAT amount from second transaction if it's a VAT line
+                if len(transactions) > 1 and 'VAT' in (transactions[1].get('description') or ''):
+                    vendor_data['vat_amount'] = transactions[1].get('amount', 0)
+            
             # Create new transaction records
             new_data = {
                 'folder_name': folder_name,
-                'description': f"PDF processed from {drive_result.get('url', 'unknown')}",
-                'amount': 0,  # Will be updated from PDF parsing
+                'description': vendor_data.get('description', f"PDF processed from {drive_result.get('url', 'unknown')}"),
+                'amount': vendor_data.get('total_amount', 0),
                 'drive_url': drive_result['url'],
                 'filename': os.path.basename(temp_path),
+                'vendor_data': vendor_data,
                 'administration': tenant
             }
             
