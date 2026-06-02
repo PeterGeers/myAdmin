@@ -25,7 +25,7 @@ sysadmin_test_tool_bp = Blueprint('sysadmin_test_tool', __name__)
 # Constants
 ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'csv', 'eml', 'mhtml'}
 MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
-VENDOR_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,100}$')
+VENDOR_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_ -]{1,100}$')
 MAX_PROMPT_LENGTH = 10_000
 MIN_PROMPT_LENGTH = 1
 

@@ -32,7 +32,7 @@ const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.csv,.eml,.mhtml';
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 /** Regex for vendor name validation. */
-const VENDOR_NAME_REGEX = /^[a-zA-Z0-9_-]{1,100}$/;
+const VENDOR_NAME_REGEX = /^[a-zA-Z0-9_ -]{1,100}$/;
 
 /**
  * Validates the file extension against allowed types.
@@ -65,7 +65,7 @@ export function validateFileSize(fileSize: number): string | null {
 export function validateVendorName(name: string): string | null {
   if (!name) return null; // Empty is allowed — defaults to "TestVendor"
   if (!VENDOR_NAME_REGEX.test(name)) {
-    return 'Vendor name must be 1–100 characters: letters, numbers, hyphens, underscores only';
+    return 'Reference number must be 1–100 characters: letters, numbers, spaces, hyphens, underscores only';
   }
   return null;
 }
@@ -222,7 +222,7 @@ export function InvoiceTestTool() {
             {/* Vendor Name Input */}
             <FormControl isInvalid={!!vendorError}>
               <FormLabel color="gray.300" fontSize="sm">
-                Vendor Name
+                Reference Number
               </FormLabel>
               <Input
                 value={vendorName}
@@ -240,7 +240,7 @@ export function InvoiceTestTool() {
                 <FormErrorMessage>{vendorError}</FormErrorMessage>
               )}
               <Text fontSize="xs" color="gray.500" mt={1}>
-                Optional. Letters, numbers, hyphens, underscores. Defaults to "TestVendor".
+                Optional. Letters, numbers, spaces, hyphens, underscores. Defaults to "TestVendor".
               </Text>
             </FormControl>
 

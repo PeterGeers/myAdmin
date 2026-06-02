@@ -26,7 +26,7 @@ import { getVendorHistory } from '../../services/invoiceTestToolService';
 import type { VendorTransaction } from '../../types/invoiceTestTool';
 
 /** Regex for vendor name validation (same as InvoiceTestTool). */
-const VENDOR_NAME_REGEX = /^[a-zA-Z0-9_-]{1,100}$/;
+const VENDOR_NAME_REGEX = /^[a-zA-Z0-9_ -]{1,100}$/;
 
 interface VendorHistoryPanelProps {
   /** Pre-filled vendor name from the parent form (optional). */
@@ -52,10 +52,10 @@ export function VendorHistoryPanel({ vendorName: initialVendorName, administrati
 
   const validateVendor = (name: string): string | null => {
     if (!name.trim()) {
-      return 'Vendor name is required to look up history';
+      return 'Reference number is required to look up history';
     }
     if (!VENDOR_NAME_REGEX.test(name)) {
-      return 'Vendor name must be 1–100 characters: letters, numbers, hyphens, underscores only';
+      return 'Reference number must be 1–100 characters: letters, numbers, spaces, hyphens, underscores only';
     }
     return null;
   };
@@ -117,13 +117,13 @@ export function VendorHistoryPanel({ vendorName: initialVendorName, administrati
         <HStack spacing={3} align="flex-end">
           <FormControl isInvalid={!!vendorError} flex={1}>
             <FormLabel color="gray.300" fontSize="sm">
-              Vendor Name
+              Reference Number
             </FormLabel>
             <Input
               value={vendorInput}
               onChange={handleVendorChange}
               onKeyDown={handleKeyDown}
-              placeholder="Enter vendor name to look up history"
+              placeholder="Enter reference number to look up history"
               size="sm"
               bg="gray.800"
               color="white"
