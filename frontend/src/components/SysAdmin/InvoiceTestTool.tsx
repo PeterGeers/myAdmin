@@ -18,6 +18,8 @@ import {
 import { AttachmentIcon } from '@chakra-ui/icons';
 import { processFile } from '../../services/invoiceTestToolService';
 import { PipelineResultsPanel } from './PipelineResultsPanel';
+import { CustomPromptEditor } from './CustomPromptEditor';
+import { VendorHistoryPanel } from './VendorHistoryPanel';
 import type { ProcessResponse } from '../../types/invoiceTestTool';
 
 /** Allowed file extensions for invoice upload. */
@@ -292,6 +294,24 @@ export function InvoiceTestTool() {
         {/* Pipeline Results */}
         {result && !submitError && (
           <PipelineResultsPanel response={result} />
+        )}
+
+        {/* Custom Prompt Editor — shown when AI was used and raw text is available */}
+        {result && !submitError && result.pipeline_result.parser_used !== 'csv_rule' && (
+          <CustomPromptEditor
+            originalPrompt={result.prompt_used || ''}
+            originalResult={result.pipeline_result.extraction_result}
+            textContent={result.pipeline_result.raw_text}
+            vendorHint={vendorName || undefined}
+          />
+        )}
+
+        {/* Vendor History Panel — shown after results for context lookup */}
+        {result && !submitError && (
+          <VendorHistoryPanel
+            vendorName={vendorName || result.pipeline_result.folder_name}
+            administration={administration || undefined}
+          />
         )}
       </VStack>
     </Box>
