@@ -21,6 +21,7 @@ from .sysadmin_tenants import sysadmin_tenants_bp
 from .sysadmin_roles import sysadmin_roles_bp
 from .sysadmin_provisioning import sysadmin_provisioning_bp
 from .sysadmin_pivot_routes import sysadmin_pivot_bp
+from .sysadmin_test_tool import sysadmin_test_tool_bp
 
 # Create main blueprint for sysadmin routes
 sysadmin_bp = Blueprint('sysadmin', __name__, url_prefix='/api/sysadmin')
@@ -37,3 +38,6 @@ sysadmin_bp.register_blueprint(sysadmin_provisioning_bp, url_prefix='/provisioni
 
 # Pivot data source management: /api/sysadmin/pivot
 sysadmin_bp.register_blueprint(sysadmin_pivot_bp, url_prefix='/pivot')
+
+# Invoice processing test tool: /api/sysadmin/test-tool
+sysadmin_bp.register_blueprint(sysadmin_test_tool_bp, url_prefix='/test-tool')
