@@ -110,12 +110,24 @@ def upload_file_authenticated(user_email, user_roles, tenant, user_tenants):
                 print(f"Error moving file: {move_error}", flush=True)
                 # Continue even if move fails - file is already processed
             
+            # Build vendorData from first transaction for frontend display
+            vendor_data = None
+            if result['transactions']:
+                first_tx = result['transactions'][0]
+                vendor_data = {
+                    'date': first_tx.get('date'),
+                    'total_amount': first_tx.get('amount', 0),
+                    'vat_amount': result['transactions'][1].get('amount', 0) if len(result['transactions']) > 1 and 'VAT' in (result['transactions'][1].get('description') or '') else 0,
+                    'description': first_tx.get('description', ''),
+                    'vendor': result['folder']
+                }
+
             return jsonify({
                 'success': True,
                 'filename': filename,
                 'folder': result['folder'],
                 'extractedText': result['extracted_text'],
-                'vendorData': result['vendor_data'],
+                'vendorData': vendor_data,
                 'transactions': result['transactions'],
                 'preparedTransactions': result['prepared_transactions'],
                 'templateTransactions': result['template_transactions'],
