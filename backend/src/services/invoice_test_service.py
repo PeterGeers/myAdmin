@@ -210,12 +210,16 @@ class InvoiceTestService:
                     administration, folder_name, performance
                 )
 
+            # Include the prompt template used (without text content to save space)
+            prompt_used = self._get_prompt_template()
+
             return {
                 'pipeline_result': pipeline_result,
                 'performance': performance,
                 'ai_usage_preview': ai_usage_preview,
                 'execution_log': execution_log,
                 'errors': errors,
+                'prompt_used': prompt_used,
             }
 
         finally:
@@ -422,6 +426,33 @@ class InvoiceTestService:
             return log_text
         # Keep the most recent characters
         return log_text[-self.MAX_EXECUTION_LOG_LENGTH:]
+
+    def _get_prompt_template(self) -> str:
+        """Return the AI extraction prompt template (without text content).
+
+        This is the template used by AIExtractor.extract_invoice_data().
+        Returned so the frontend can display it and allow custom prompt testing.
+        """
+        return """Extract these 5 fields from this invoice/receipt text:
+
+1. Date (convert to YYYY-MM-DD format)
+2. Total amount (final amount to pay, as number only)
+3. VAT amount (total VAT/BTW, as number only)
+4. Description (order number, invoice number, or main identifier)
+5. Vendor name
+
+Return ONLY valid JSON in this exact format:
+{"date": "YYYY-MM-DD", "total_amount": 0.00, "vat_amount": 0.00, "description": "text", "vendor": "name"}
+
+Rules:
+- Date must be YYYY-MM-DD format
+- Amounts must be numbers (no currency symbols)
+- If VAT not found, use 0.00
+- Description should include ALL identifiers: invoice numbers (Factuurnummer), customer numbers (Klantnummer), order numbers, etc.
+- Extract vendor name from header/footer
+- Look for patterns similar to previous transactions from this vendor
+- Invoice/customer numbers may appear before or after their labels
+- Combine multiple identifiers in description (e.g., "Factuurnummer: 123456, Klantnummer: 789012")"""
 
     def rerun_with_custom_prompt(self, text_content: str, custom_prompt: str, vendor_hint: str = None) -> dict:
         """Re-run AI extraction with a custom prompt against already-extracted text.

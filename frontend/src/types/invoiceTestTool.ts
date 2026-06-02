@@ -154,6 +154,7 @@ export interface ProcessResponse {
   ai_usage_preview: AIUsagePreview | null;
   execution_log: string;
   errors: PipelineError[];
+  prompt_used: string;
 }
 
 /**

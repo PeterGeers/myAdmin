@@ -169,6 +169,7 @@ def process_file(user_email, user_roles):
             'ai_usage_preview': result.get('ai_usage_preview'),
             'execution_log': result.get('execution_log', ''),
             'errors': result.get('errors', []),
+            'prompt_used': result.get('prompt_used', ''),
         }), 200
 
     except Exception as e:

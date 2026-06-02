@@ -84,6 +84,7 @@ function createMockProcessResponse(overrides?: Partial<ProcessResponse>): Proces
     },
     execution_log: 'Starting file processing...\nAI extraction complete.',
     errors: [],
+    prompt_used: 'Extract these 5 fields from this invoice/receipt text...',
     ...overrides,
   };
 }
