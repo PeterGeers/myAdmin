@@ -246,7 +246,7 @@ function FormattedTransactionsSection({ transactions }: { transactions: Transact
               <Tr key={idx}>
                 <Td color="white" borderColor="gray.700" fontSize="sm">{tx.date}</Td>
                 <Td color="white" borderColor="gray.700" fontSize="sm" isNumeric>
-                  {tx.amount.toFixed(2)}
+                  {Number(tx.amount).toFixed(2)}
                 </Td>
                 <Td color="white" borderColor="gray.700" fontSize="sm">{tx.description}</Td>
                 <Td color="gray.300" borderColor="gray.700" fontSize="sm">{tx.debet || '-'}</Td>
@@ -294,7 +294,7 @@ function PreparedTransactionsSection({ transactions }: { transactions: PreparedT
               <Tr key={idx}>
                 <Td color="white" borderColor="gray.700" fontSize="sm">{tx.TransactionDate}</Td>
                 <Td color="white" borderColor="gray.700" fontSize="sm" isNumeric>
-                  {tx.TransactionAmount.toFixed(2)}
+                  {Number(tx.TransactionAmount).toFixed(2)}
                 </Td>
                 <Td color="white" borderColor="gray.700" fontSize="sm" noOfLines={1} maxW="200px">
                   {tx.TransactionDescription}
