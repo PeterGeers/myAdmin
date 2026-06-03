@@ -251,6 +251,7 @@ class InvoiceService:
             dict: Processing result with extracted data
         """
         print("Starting file processing...", flush=True)
+        self.processor._current_tenant = tenant
         result = self.processor.process_file(temp_path, drive_result, folder_name)
         print("File processed, extracting transactions...", flush=True)
         transactions = self.processor.extract_transactions(result)
