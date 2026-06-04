@@ -90,6 +90,8 @@ def create_asset(user_email, user_roles):
         service = _get_service()
         result = service.create_asset(administration=tenant, data=data)
         return jsonify(result), 201
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error creating asset: {e}")
         return jsonify({'error': str(e)}), 500

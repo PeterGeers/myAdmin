@@ -36,6 +36,14 @@ class AssetService:
         Returns:
             {'success': True, 'asset_id': int, 'transaction_created': bool}
         """
+        # Validate reference_number length (used in TransactionNumber CHAR(50))
+        ref_num = data.get('reference_number')
+        if ref_num and len(ref_num) > 44:
+            raise ValueError(
+                f"reference_number '{ref_num[:20]}...' is too long "
+                f"({len(ref_num)} chars). Maximum is 44 characters."
+            )
+
         # Insert asset record — returns lastrowid when commit=True
         asset_id = self.db.execute_query(
             """
@@ -576,7 +584,9 @@ class AssetService:
     ):
         """Insert a transaction into mutaties."""
         # TransactionNumber: "Asset" + asset's invoice reference or description
-        tx_number = f'Asset {asset_reference}' if asset_reference else f'Asset {reference_number}'
+        # Column is CHAR(50), so truncate to prevent overflow
+        ref_part = asset_reference if asset_reference else reference_number
+        tx_number = f'Asset {ref_part}'[:50]
         self.db.execute_query(
             """
             INSERT INTO mutaties (
