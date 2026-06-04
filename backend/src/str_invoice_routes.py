@@ -214,6 +214,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
             logger.warning(f"Could not get template metadata from database: {e}")
         
         # Load template
+        template_content = None
         if metadata and metadata.get('template_file_id'):
             # Load from Google Drive
             try:
@@ -225,9 +226,9 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
             except Exception as e:
                 logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
-                metadata = None
+                template_content = None
         
-        if not metadata:
+        if not template_content:
             # Fallback: Load from filesystem
             template_file = f'str_invoice_{language}_template.html'
             template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'html', template_file)
