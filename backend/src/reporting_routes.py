@@ -866,6 +866,7 @@ def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
                 logger.warning(f"Could not get template metadata from database: {e}")
         
         # Load template
+        template_content = None
         if metadata and metadata.get('template_file_id'):
             # Load from Google Drive
             try:
@@ -878,9 +879,9 @@ def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
                 if logger:
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
-                metadata = None
+                template_content = None
         
-        if not metadata:
+        if not template_content:
             # Fallback: Load from filesystem
             import os
             template_path = os.path.join(

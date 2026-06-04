@@ -90,6 +90,7 @@ def btw_generate_report(user_email, user_roles):
                 logger.warning(f"Could not get template metadata from database: {e}")
         
         # Load template
+        template_content = None
         if metadata and metadata.get('template_file_id'):
             # Load from Google Drive
             try:
@@ -102,11 +103,13 @@ def btw_generate_report(user_email, user_roles):
                 if logger:
                     logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
-                metadata = None
+                template_content = None
         
-        if not metadata:
+        if not template_content:
             # Fallback: Load from filesystem
-            template_path = os.path.join('backend', 'templates', 'html', 'btw_aangifte_template.html')
+            template_path = os.path.join(
+                os.path.dirname(__file__), '..', '..', 'templates', 'html', 'btw_aangifte_template.html'
+            )
             
             if not os.path.exists(template_path):
                 if logger:
