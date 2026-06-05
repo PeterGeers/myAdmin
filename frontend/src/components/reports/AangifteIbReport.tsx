@@ -144,85 +144,48 @@ const AangifteIbReport: React.FC = () => {
       // Validate tenant selection
       const tenant = requireTenant();
       
-      console.log('Starting XLSX export with streaming...');
+      console.log('Starting XLSX export...');
       setXlsxExportLoading(true);
-      setXlsxExportProgress(null);
+      setXlsxExportProgress({
+        current: 0,
+        total: 1,
+        status: 'Generating XLSX files...'
+      });
       
       const response = await tenantAwarePost(
-        '/api/reports/aangifte-ib-xlsx-export-stream',
+        '/api/reports/aangifte-ib-xlsx-export',
         {
           administrations: [tenant],
           years: [selectedYear]
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const successful = result.results?.filter((r: any) => r.success) || [];
+      const failed = result.results?.filter((r: any) => !r.success) || [];
       
-      if (!reader) {
-        throw new Error('No response body reader available');
+      let message = result.message || `Generated ${successful.length} XLSX files.`;
+      if (failed.length > 0) {
+        message += `\n${failed.length} failed: ${failed.map((r: any) => r.error).join(', ')}`;
       }
-
-      let buffer = '';
       
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'start') {
-                setXlsxExportProgress({
-                  current: 0,
-                  total: 1,
-                  status: 'Starting export...'
-                });
-              } else if (data.type === 'progress') {
-                setXlsxExportProgress({
-                  current: data.current_combination || 0,
-                  total: data.total_combinations || 1,
-                  status: data.status || 'Processing...',
-                  fileProgress: data.file_progress
-                });
-              } else if (data.type === 'complete') {
-                console.log('Export completed:', data.message);
-                alert(`Export completed! ${data.message}`);
-                setXlsxExportProgress(null);
-                break;
-              } else if (data.type === 'error') {
-                console.error('Export error:', data.message);
-                alert(`Export error: ${data.message}`);
-                setXlsxExportProgress(null);
-                break;
-              }
-            } catch (e) {
-              console.error('Error parsing SSE data:', e);
-            }
-          }
-        }
-      }
+      alert(message);
     } catch (err) {
       console.error('XLSX export error:', err);
       if (err instanceof Error && err.message.includes('No tenant selected')) {
         alert('Error: No tenant selected. Please select a tenant first.');
       } else {
-        alert('Failed to export XLSX files. Check console for details.');
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        alert(`Failed to export XLSX files: ${errorMsg}`);
       }
     } finally {
       setXlsxExportLoading(false);
+      setXlsxExportProgress(null);
     }
   };
 
