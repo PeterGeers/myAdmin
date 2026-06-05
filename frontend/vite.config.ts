@@ -30,6 +30,7 @@ export default defineConfig(async ({ command }) => {
         '/api': {
           target: 'http://localhost:5000',
           changeOrigin: true,
+          timeout: 300000, // 5 minutes for streaming/SSE endpoints
         },
       },
     },
