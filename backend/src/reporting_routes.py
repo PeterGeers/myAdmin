@@ -1099,8 +1099,7 @@ def aangifte_ib_xlsx_export_stream(user_email, user_roles, tenant, user_tenants)
         return Response(generate_progress(), mimetype='text/event-stream', headers={
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type'
+            'X-Accel-Buffering': 'no'
         })
         
     except Exception as e:
