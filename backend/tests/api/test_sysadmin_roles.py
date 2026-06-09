@@ -76,17 +76,19 @@ class TestListRoles:
     def test_list_roles_returns_categorized_groups(
         self, mock_cognito, client, mock_auth_sysadmin
     ):
-        """List roles returns groups categorized by type."""
+        """List roles returns groups categorized by type with precedence."""
         mock_cognito.list_groups.return_value = {
             'Groups': [
                 {
                     'GroupName': 'SysAdmin',
                     'Description': 'System administrators',
+                    'Precedence': 1,
                     'CreationDate': datetime(2024, 1, 1)
                 },
                 {
                     'GroupName': 'Finance_CRUD',
                     'Description': 'Finance full access',
+                    'Precedence': 10,
                     'CreationDate': datetime(2024, 1, 2)
                 },
             ]
@@ -107,8 +109,10 @@ class TestListRoles:
         roles = data['roles']
         sysadmin_role = next(r for r in roles if r['name'] == 'SysAdmin')
         assert sysadmin_role['category'] == 'platform'
+        assert sysadmin_role['precedence'] == 1
         finance_role = next(r for r in roles if r['name'] == 'Finance_CRUD')
         assert finance_role['category'] == 'module'
+        assert finance_role['precedence'] == 10
 
 
 # ============================================================================
