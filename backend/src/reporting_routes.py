@@ -1106,3 +1106,72 @@ def aangifte_ib_xlsx_export_stream(user_email, user_roles, tenant, user_tenants)
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reporting_bp.route('/aangifte-ib-xlsx-download', methods=['POST'])
+@cognito_required(required_permissions=['reports_export'])
+@tenant_required()
+def aangifte_ib_xlsx_download(user_email, user_roles, tenant, user_tenants):
+    """Generate XLSX workbook for Aangifte IB and return as downloadable file.
+    
+    This endpoint generates just the Excel workbook (no file downloads from
+    Google Drive/S3) and returns it directly as a file download.
+    """
+    from flask import Response, send_file
+    import tempfile
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+            
+        administration = data.get('administration', tenant)
+        year = data.get('year')
+        
+        if not administration or not year:
+            return jsonify({'success': False, 'error': 'Administration and year are required'}), 400
+        
+        # Validate access
+        if administration not in user_tenants:
+            return jsonify({
+                'success': False, 
+                'error': f'Access denied to administration: {administration}'
+            }), 403
+        
+        from xlsx_export import XLSXExportProcessor
+        xlsx_processor = XLSXExportProcessor(test_mode=flag)
+        
+        # Get ledger data
+        ledger_data = xlsx_processor.make_ledgers(year, administration)
+        
+        if not ledger_data:
+            return jsonify({
+                'success': False, 
+                'error': f'No data found for {administration} {year}'
+            }), 404
+        
+        # Create temp file for the XLSX
+        with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
+            tmp_path = tmp.name
+        
+        try:
+            # Write workbook to temp file
+            xlsx_processor.write_workbook(ledger_data, tmp_path, 'data', administration)
+            
+            # Send file as download
+            filename = f"{administration}{year}.xlsx"
+            return send_file(
+                tmp_path,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=filename
+            )
+        finally:
+            # Clean up temp file after response is sent
+            import atexit
+            atexit.register(lambda: os.path.exists(tmp_path) and os.remove(tmp_path))
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500

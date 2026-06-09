@@ -144,15 +144,19 @@ const AangifteIbReport: React.FC = () => {
       // Validate tenant selection
       const tenant = requireTenant();
       
-      console.log('Starting XLSX export with streaming...');
+      console.log('Starting XLSX export...');
       setXlsxExportLoading(true);
-      setXlsxExportProgress(null);
+      setXlsxExportProgress({
+        current: 0,
+        total: 1,
+        status: 'Generating XLSX file...'
+      });
       
       const response = await tenantAwarePost(
-        '/api/reports/aangifte-ib-xlsx-export-stream',
+        '/api/reports/aangifte-ib-xlsx-download',
         {
-          administrations: [tenant],
-          years: [selectedYear]
+          administration: tenant,
+          year: selectedYear
         }
       );
 
@@ -161,60 +165,18 @@ const AangifteIbReport: React.FC = () => {
         throw new Error(errorData?.error || `HTTP error! status: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      // Download the file
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${tenant}${selectedYear}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       
-      if (!reader) {
-        throw new Error('No response body reader available');
-      }
-
-      let buffer = '';
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) break;
-        
-        buffer += decoder.decode(value, { stream: true });
-        
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'start') {
-                setXlsxExportProgress({
-                  current: 0,
-                  total: 1,
-                  status: 'Starting export...'
-                });
-              } else if (data.type === 'progress') {
-                setXlsxExportProgress({
-                  current: data.current_combination || 0,
-                  total: data.total_combinations || 1,
-                  status: data.status || 'Processing...',
-                  fileProgress: data.file_progress
-                });
-              } else if (data.type === 'complete') {
-                console.log('Export completed:', data.message);
-                alert(`Export completed! ${data.message}`);
-                setXlsxExportProgress(null);
-                break;
-              } else if (data.type === 'error') {
-                console.error('Export error:', data.message);
-                alert(`Export error: ${data.message}`);
-                setXlsxExportProgress(null);
-                break;
-              }
-            } catch (e) {
-              console.error('Error parsing SSE data:', e);
-            }
-          }
-        }
-      }
+      setXlsxExportProgress(null);
     } catch (err) {
       console.error('XLSX export error:', err);
       if (err instanceof Error && err.message.includes('No tenant selected')) {
@@ -225,6 +187,7 @@ const AangifteIbReport: React.FC = () => {
       }
     } finally {
       setXlsxExportLoading(false);
+      setXlsxExportProgress(null);
     }
   };
 

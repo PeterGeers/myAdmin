@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "GGShield Secret Scan",
+  "description": "Runs ggshield secret scan on staged files before any git commit to prevent secrets from being committed.",
+  "version": "1",
+  "when": {
+    "type": "preToolUse",
+    "toolTypes": [
+      ".*git_commit.*"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "ggshield secret scan pre-commit"
+  }
+}
