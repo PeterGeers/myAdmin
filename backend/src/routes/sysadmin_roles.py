@@ -73,6 +73,7 @@ def list_roles(user_email, user_roles):
             groups.append({
                 'name': group_name,
                 'description': group.get('Description', ''),
+                'precedence': group.get('Precedence'),
                 'user_count': user_count,
                 'category': category,
                 'created_date': group.get('CreationDate').isoformat() if group.get('CreationDate') else None
@@ -104,6 +105,7 @@ def list_roles(user_email, user_roles):
                 groups.append({
                     'name': group_name,
                     'description': group.get('Description', ''),
+                    'precedence': group.get('Precedence'),
                     'user_count': user_count,
                     'category': category,
                     'created_date': group.get('CreationDate').isoformat() if group.get('CreationDate') else None
@@ -145,6 +147,7 @@ def create_role(user_email, user_roles):
         
         group_name = data['name']
         description = data.get('description', '')
+        precedence = data.get('precedence')
         
         # Check if group already exists
         try:
@@ -157,11 +160,15 @@ def create_role(user_email, user_roles):
             pass  # Group doesn't exist, we can create it
         
         # Create group
-        cognito_client.create_group(
-            UserPoolId=USER_POOL_ID,
-            GroupName=group_name,
-            Description=description
-        )
+        create_params = {
+            'UserPoolId': USER_POOL_ID,
+            'GroupName': group_name,
+            'Description': description
+        }
+        if precedence is not None:
+            create_params['Precedence'] = int(precedence)
+        
+        cognito_client.create_group(**create_params)
         
         logger.info(f"Role {group_name} created by {user_email}")
         
