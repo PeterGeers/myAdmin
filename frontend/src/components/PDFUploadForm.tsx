@@ -48,6 +48,48 @@ const validationSchema = Yup.object({
   folderId: Yup.string().required('Folder selection is required')
 });
 
+/** Parsed invoice data from the upload response. */
+interface ParsedInvoiceData {
+  vendor?: string;
+  invoice_number?: string;
+  date?: string;
+  amount?: number;
+  [key: string]: unknown;
+}
+
+/** Vendor metadata from the upload response. */
+interface VendorData {
+  name?: string;
+  account?: string;
+  [key: string]: unknown;
+}
+
+/** Duplicate detection info attached to a transaction. */
+interface DuplicateInfo {
+  has_duplicates?: boolean;
+  matches?: Array<Record<string, unknown>>;
+  decision_id?: string;
+  [key: string]: unknown;
+}
+
+/** A prepared transaction from the upload response. */
+interface PreparedTransaction {
+  date?: string;
+  description?: string;
+  amount?: number;
+  debet?: number;
+  credit?: number;
+  duplicate_info?: DuplicateInfo;
+  [key: string]: unknown;
+}
+
+/** Form values from Formik. */
+interface UploadFormValues {
+  file: File | null;
+  folderId: string;
+  [key: string]: unknown;
+}
+
 const PDFUploadForm: React.FC = () => {
   const { currentTenant } = useTenant();
   const { accounts: chartAccounts } = useAccountLookup();
@@ -55,10 +97,10 @@ const PDFUploadForm: React.FC = () => {
   const [tenantSwitching, setTenantSwitching] = useState(false);
   const [message, setMessage] = useState<string>('');
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [parsedData, setParsedData] = useState<any>(null);
-  const [vendorData, setVendorData] = useState<any>(null);
+  const [parsedData, setParsedData] = useState<ParsedInvoiceData | null>(null);
+  const [vendorData, setVendorData] = useState<VendorData | null>(null);
   // const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [preparedTransactions, setPreparedTransactions] = useState<any[]>([]);
+  const [preparedTransactions, setPreparedTransactions] = useState<PreparedTransaction[]>([]);
   // const [templateTransactions, setTemplateTransactions] = useState<any[]>([]);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -68,9 +110,9 @@ const PDFUploadForm: React.FC = () => {
   
   // Duplicate detection state
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
-  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
-  const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
+  const [pendingTransactions, setPendingTransactions] = useState<PreparedTransaction[]>([]);
 
   // Initial load - fetch folders on mount and when tenant changes
   useEffect(() => {
@@ -110,7 +152,7 @@ const PDFUploadForm: React.FC = () => {
     }
   }, [currentTenant]);
 
-  const handleSearch = (value: string, setFieldValue: any) => {
+  const handleSearch = (value: string, setFieldValue: (field: string, value: string) => void) => {
     setSearchTerm(value);
     
     // Check if the value exactly matches a folder name (selected from datalist)
@@ -136,7 +178,7 @@ const PDFUploadForm: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (values: any, formikHelpers?: any) => {
+  const handleSubmit = async (values: UploadFormValues, formikHelpers?: { resetForm: () => void }) => {
     if (loading) return; // Prevent multiple submissions
     
     // SECURITY: Validate tenant selection before any file processing
@@ -247,11 +289,11 @@ const PDFUploadForm: React.FC = () => {
       const preparedTxns = response.preparedTransactions || [];
       
       // Check if any transaction has duplicate_info
-      const hasDuplicates = preparedTxns.some((txn: any) => txn.duplicate_info?.has_duplicates);
+      const hasDuplicates = preparedTxns.some((txn: PreparedTransaction) => txn.duplicate_info?.has_duplicates);
       
       if (hasDuplicates) {
         // Find the first transaction with duplicate info
-        const txnWithDuplicate = preparedTxns.find((txn: any) => txn.duplicate_info?.has_duplicates);
+        const txnWithDuplicate = preparedTxns.find((txn: PreparedTransaction) => txn.duplicate_info?.has_duplicates);
         
         if (txnWithDuplicate && txnWithDuplicate.duplicate_info) {
           // Store pending transactions for later processing
@@ -304,18 +346,20 @@ const PDFUploadForm: React.FC = () => {
       console.log('Parsed data set:', fileData);
       console.log('Vendor data set:', response.vendorData);
       console.log('Transactions set:', response.transactions);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as { message?: string; response?: { status?: number; data?: Record<string, any> } };
       console.error('Upload error:', error);
       console.error('Error details:', {
-        message: error.message,
-        response: error.response,
-        status: error.response?.status,
-        data: error.response?.data
+        message: err.message,
+        response: err.response,
+        status: err.response?.status,
+        data: err.response?.data
       });
       
       // Check if it's a duplicate detection error (409 status)
-      if (error.response?.status === 409 && error.response?.data?.error === 'duplicate_detected') {
-        const dupData = error.response.data.duplicate_info;
+      if (err.response?.status === 409 && err.response?.data?.error === 'duplicate_detected') {
+        const dupData = err.response.data.duplicate_info as Record<string, unknown> | undefined;
         
         if (dupData && dupData.existing_transactions && dupData.existing_transactions.length > 0) {
           const existingTxn = dupData.existing_transactions[0];
@@ -358,13 +402,13 @@ const PDFUploadForm: React.FC = () => {
         }
         
         // Fallback if duplicate info is not properly formatted
-        setMessage(error.response.data.message || 'This file has already been uploaded.');
+        setMessage(err.response?.data?.message || 'This file has already been uploaded.');
         setLoading(false);
         return;
       }
       
       // Check if it's a duplicate file error in Google Drive
-      if (error.response?.data?.error?.includes('already exists')) {
+      if (err.response?.data?.error?.includes('already exists')) {
         const confirmUseExisting = window.confirm(
           `File "${values.file.name}" already exists in Google Drive.\n\n` +
           'Click OK to use the existing file, or Cancel to upload with a new timestamp.'
@@ -412,8 +456,8 @@ const PDFUploadForm: React.FC = () => {
       }
       
       // Generic error handling for non-duplicate errors
-      if (error.response?.status !== 409) {
-        setMessage(`Upload failed: ${error.response?.data?.message || error.message || 'Unknown error'}`);
+      if (err.response?.status !== 409) {
+        setMessage(`Upload failed: ${err.response?.data?.message || err.message || 'Unknown error'}`);
       }
     } finally {
       setLoading(false);
@@ -453,9 +497,10 @@ const PDFUploadForm: React.FC = () => {
       setNewFolderName('');
       setShowCreateFolder(false);
       alert('Folder created successfully!');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string; response?: { data?: { error?: string } } };
       console.error('Create folder error:', error);
-      alert(`Error creating folder: ${error.response?.data?.error || error.message}`);
+      alert(`Error creating folder: ${err.response?.data?.error || err.message}`);
     }
   };
 

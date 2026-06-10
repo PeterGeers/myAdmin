@@ -6,6 +6,9 @@
 **Date**: December 17, 2024  
 **Requirements**: 5.5 (Performance), 6.4 (Monitoring)
 
+> **⚠️ Partial Deprecation Notice (June 2026)**  
+> During a dead-code cleanup, unused functions in `duplicate_performance_monitor.py` and `duplicate_query_optimizer.py` were removed (Tasks 10–12 of code-quality-fixes-2026-06 spec). The performance REST endpoints (`duplicate_performance_routes.py`) no longer exist. Core duplicate detection and index-based performance remain intact in `duplicate_checker.py`.
+
 ## What Was Implemented
 
 ### 1. Performance Monitoring System
@@ -13,7 +16,6 @@
 **File**: `backend/src/duplicate_performance_monitor.py`
 
 - **DuplicateDetectionMetrics**: Comprehensive metrics collection
-
   - Tracks execution times, cache hits, error rates
   - Calculates health scores (0-100) with weighted factors
   - Provides summary statistics and trend analysis
@@ -29,7 +31,6 @@
 **File**: `backend/src/duplicate_query_optimizer.py`
 
 - **QueryCache**: Intelligent caching layer
-
   - TTL-based caching (5-minute default)
   - MD5-based cache key generation
   - Automatic expiration and cleanup

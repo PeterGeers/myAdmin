@@ -63,7 +63,7 @@ export interface TenantSettings {
     timezone?: string;
   };
   storage?: StorageConfig;
-  [key: string]: any;
+  [key: string]: Record<string, unknown> | StorageConfig | undefined;
 }
 
 export interface ActivityStats {
@@ -78,7 +78,7 @@ export interface ActivityStats {
     action_type: string;
     user_email: string;
     timestamp: string;
-    details: any;
+    details: Record<string, unknown>;
   }>;
   error?: string;
 }
@@ -113,10 +113,28 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 // ============================================================================
+// API Response Types
+// ============================================================================
+
+export interface ApiResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+}
+
+export interface UserListResponse extends ApiResponse {
+  users?: Array<Record<string, unknown>>;
+}
+
+export interface RolesResponse extends ApiResponse {
+  roles?: Array<{ name: string; description?: string }>;
+}
+
+// ============================================================================
 // User Management API
 // ============================================================================
 
-export async function createUser(userData: UserData): Promise<any> {
+export async function createUser(userData: UserData): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/users`, {
     method: 'POST',
@@ -126,7 +144,7 @@ export async function createUser(userData: UserData): Promise<any> {
   return handleResponse(response);
 }
 
-export async function listUsers(filters?: UserListFilters): Promise<any> {
+export async function listUsers(filters?: UserListFilters): Promise<UserListResponse> {
   const headers = await getAuthHeaders();
   const params = new URLSearchParams();
   
@@ -138,7 +156,7 @@ export async function listUsers(filters?: UserListFilters): Promise<any> {
   return handleResponse(response);
 }
 
-export async function assignRole(username: string, role: string): Promise<any> {
+export async function assignRole(username: string, role: string): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/users/${username}/groups`, {
     method: 'POST',
@@ -148,7 +166,7 @@ export async function assignRole(username: string, role: string): Promise<any> {
   return handleResponse(response);
 }
 
-export async function removeRole(username: string, role: string): Promise<any> {
+export async function removeRole(username: string, role: string): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/users/${username}/groups/${role}`, {
     method: 'DELETE',
@@ -157,7 +175,7 @@ export async function removeRole(username: string, role: string): Promise<any> {
   return handleResponse(response);
 }
 
-export async function removeUser(username: string): Promise<any> {
+export async function removeUser(username: string): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/users/${username}`, {
     method: 'DELETE',
@@ -166,7 +184,7 @@ export async function removeUser(username: string): Promise<any> {
   return handleResponse(response);
 }
 
-export async function getAvailableRoles(): Promise<any> {
+export async function getAvailableRoles(): Promise<RolesResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/roles`, { headers });
   return handleResponse(response);
@@ -176,7 +194,7 @@ export async function getAvailableRoles(): Promise<any> {
 // Credentials Management API
 // ============================================================================
 
-export async function uploadCredentials(file: File, credentialType: string): Promise<any> {
+export async function uploadCredentials(file: File, credentialType: string): Promise<ApiResponse> {
   const session = await fetchAuthSession();
   const token = session.tokens?.idToken?.toString();
   const tenant = localStorage.getItem('selectedTenant') || '';
@@ -202,7 +220,7 @@ export async function listCredentials(): Promise<{ credentials: CredentialInfo[]
   return handleResponse(response);
 }
 
-export async function testCredentials(credentialType?: string): Promise<any> {
+export async function testCredentials(credentialType?: string): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/credentials/test`, {
     method: 'POST',
@@ -212,7 +230,7 @@ export async function testCredentials(credentialType?: string): Promise<any> {
   return handleResponse(response);
 }
 
-export async function startOAuth(service: string = 'google_drive'): Promise<any> {
+export async function startOAuth(service: string = 'google_drive'): Promise<ApiResponse & { auth_url?: string }> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/credentials/oauth/start`, {
     method: 'POST',
@@ -222,7 +240,7 @@ export async function startOAuth(service: string = 'google_drive'): Promise<any>
   return handleResponse(response);
 }
 
-export async function completeOAuth(code: string, state: string, service: string = 'google_drive'): Promise<any> {
+export async function completeOAuth(code: string, state: string, service: string = 'google_drive'): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/credentials/oauth/complete`, {
     method: 'POST',
@@ -248,7 +266,7 @@ export async function getStorageConfig(): Promise<{ config: StorageConfig }> {
   return handleResponse(response);
 }
 
-export async function updateStorageConfig(config: StorageConfig, validate: boolean = false): Promise<any> {
+export async function updateStorageConfig(config: StorageConfig, validate: boolean = false): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/storage/config`, {
     method: 'PUT',
@@ -258,7 +276,7 @@ export async function updateStorageConfig(config: StorageConfig, validate: boole
   return handleResponse(response);
 }
 
-export async function testFolder(folderId: string): Promise<any> {
+export async function testFolder(folderId: string): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/storage/test`, {
     method: 'POST',
@@ -300,7 +318,7 @@ export async function getTenantDetails(): Promise<{ tenant: TenantDetails }> {
   return handleResponse(response);
 }
 
-export async function updateTenantDetails(details: Partial<TenantDetails>): Promise<any> {
+export async function updateTenantDetails(details: Partial<TenantDetails>): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/details`, {
     method: 'PUT',
@@ -320,7 +338,7 @@ export async function getSettings(): Promise<{ settings: TenantSettings }> {
   return handleResponse(response);
 }
 
-export async function updateSettings(settings: Partial<TenantSettings>): Promise<any> {
+export async function updateSettings(settings: Partial<TenantSettings>): Promise<ApiResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/settings`, {
     method: 'PUT',

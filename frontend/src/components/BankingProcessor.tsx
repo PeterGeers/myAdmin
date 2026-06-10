@@ -383,7 +383,7 @@ const CheckReferenceTab: React.FC<TabProps> = ({ bp }) => (
           <HStack justify="space-between">
             <Heading size="xs" color="white">Reference Summary ({bp.processedRefSummary.length})</Heading>
             <Text color="orange.300" fontWeight="bold" fontSize="sm">
-              Total: {formatAmount((bp.refSummaryData as any[]).reduce((sum, row) => sum + (parseFloat(row.total_amount) || 0), 0))}
+              Total: {formatAmount((bp.refSummaryData).reduce((sum, row) => sum + (parseFloat(String(row.total_amount)) || 0), 0))}
             </Text>
           </HStack>
           <TableContainer maxH="300px" overflowY="auto">
@@ -396,7 +396,7 @@ const CheckReferenceTab: React.FC<TabProps> = ({ bp }) => (
                 </Tr>
               </Thead>
               <Tbody>
-                {(bp.processedRefSummary as any[]).map((row, index) => (
+                {(bp.processedRefSummary).map((row, index) => (
                   <Tr key={index} onClick={() => bp.fetchReferenceDetails(row.ReferenceNumber)} _hover={{ bg: 'gray.700', cursor: 'pointer' }} bg={bp.selectedReference === row.ReferenceNumber ? 'gray.600' : 'transparent'}>
                     <Td color="white" fontSize="xs" maxW="200px" isTruncated title={row.ReferenceNumber}>{row.ReferenceNumber}</Td>
                     <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
@@ -423,7 +423,7 @@ const CheckReferenceTab: React.FC<TabProps> = ({ bp }) => (
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {(bp.processedRefDetails as any[]).map((transaction, index) => (
+                    {(bp.processedRefDetails).map((transaction, index) => (
                       <Tr key={index}>
                         <Td color="white" fontSize="xs">{transaction.TransactionNumber || '-'}</Td>
                         <Td color="white" fontSize="xs">{new Date(transaction.TransactionDate).toISOString().split('T')[0]}</Td>
@@ -492,7 +492,7 @@ const StrChannelRevenueTab: React.FC<TabProps> = ({ bp }) => (
                 </Tr>
               </Thead>
               <Tbody>
-                {(bp.strChannelPreview as any[]).map((row, index) => (
+                {(bp.strChannelPreview).map((row, index) => (
                   <Tr key={index}>
                     <Td color="white" fontSize="xs">{row.ReferenceNumber}</Td>
                     <Td color="white" fontSize="xs">{row.Reknum}</Td>
@@ -539,7 +539,7 @@ const StrChannelRevenueTab: React.FC<TabProps> = ({ bp }) => (
                 </Tr>
               </Thead>
               <Tbody>
-                {(bp.strChannelTransactions as any[]).map((transaction, index) => (
+                {(bp.strChannelTransactions).map((transaction, index) => (
                   <Tr key={index}>
                     <Td color="white" fontSize="xs">{transaction.TransactionDate}</Td>
                     <Td color="white" fontSize="xs" maxW="200px" isTruncated title={transaction.TransactionDescription}>{transaction.TransactionDescription}</Td>

@@ -11,6 +11,8 @@ Handles banking transaction processing business logic including:
 Extracted from app.py during refactoring (Phase 3.1)
 """
 
+from typing import Any, Dict, List, Optional
+
 from database import DatabaseManager
 from banking_processor import BankingProcessor
 from db_exceptions import ClosedPeriodError
@@ -19,7 +21,7 @@ from db_exceptions import ClosedPeriodError
 class BankingService:
     """Service class for banking operations"""
     
-    def __init__(self, test_mode=False):
+    def __init__(self, test_mode: bool = False) -> None:
         """
         Initialize BankingService
         
@@ -30,7 +32,7 @@ class BankingService:
         self.db = DatabaseManager(test_mode=test_mode)
         self.processor = BankingProcessor(test_mode=test_mode)
     
-    def scan_banking_files(self, folder_path=None):
+    def scan_banking_files(self, folder_path: Optional[str] = None) -> Dict[str, Any]:
         """
         Scan download folder for CSV files
         
@@ -59,7 +61,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def validate_iban_tenant(self, iban, tenant):
+    def validate_iban_tenant(self, iban: str, tenant: str) -> Dict[str, Any]:
         """
         Validate that an IBAN belongs to the specified tenant
         
@@ -112,7 +114,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def process_banking_files(self, file_paths, tenant, test_mode=None):
+    def process_banking_files(self, file_paths: List[str], tenant: str, test_mode: Optional[bool] = None) -> Dict[str, Any]:
         """
         Process selected CSV banking files
         
@@ -171,7 +173,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def check_sequences(self, iban, sequences, test_mode=None):
+    def check_sequences(self, iban: str, sequences: List[Dict[str, Any]], test_mode: Optional[bool] = None) -> Dict[str, Any]:
         """
         Check sequence numbers against database for duplicates
         
@@ -207,7 +209,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def apply_patterns(self, transactions, tenant, use_enhanced=True, test_mode=None):
+    def apply_patterns(self, transactions: List[Dict[str, Any]], tenant: str, use_enhanced: bool = True, test_mode: Optional[bool] = None) -> Dict[str, Any]:
         """
         Apply pattern matching to predict debet/credit accounts
         
@@ -337,7 +339,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def save_transactions(self, transactions, tenant, test_mode=None):
+    def save_transactions(self, transactions: List[Dict[str, Any]], tenant: str, test_mode: Optional[bool] = None) -> Dict[str, Any]:
         """
         Save approved transactions to database with duplicate filtering
         
@@ -409,7 +411,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def get_lookups(self, tenant):
+    def get_lookups(self, tenant: str) -> Dict[str, Any]:
         """
         Get mapping data for account codes and descriptions
         
@@ -462,7 +464,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def get_mutaties(self, filters, tenant, user_tenants):
+    def get_mutaties(self, filters: Dict[str, Any], tenant: str, user_tenants: List[str]) -> Dict[str, Any]:
         """
         Get mutaties with filters
         
@@ -579,7 +581,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def update_mutatie(self, mutatie_id, data, tenant):
+    def update_mutatie(self, mutatie_id: int, data: Dict[str, Any], tenant: str) -> Dict[str, Any]:
         """
         Update a mutatie record
         
@@ -679,7 +681,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def check_accounts(self, tenant, end_date=None):
+    def check_accounts(self, tenant: str, end_date: Optional[str] = None) -> Dict[str, Any]:
         """
         Check banking account balances
         
@@ -710,7 +712,7 @@ class BankingService:
                 'error': str(e)
             }
     
-    def check_revolut_balance(self, iban, account_code, start_date, expected_balance):
+    def check_revolut_balance(self, iban: str, account_code: str, start_date: str, expected_balance: float) -> Dict[str, Any]:
         """
         Check Revolut balance gaps by comparing calculated vs Ref3 balance
         

@@ -45,6 +45,39 @@ interface BnbFilterOptions {
   channels: string[];
 }
 
+/** Amount totals for a BNB period/listing/channel combination. */
+interface BnbAmounts {
+  amountGross: number;
+  amountNett: number;
+  amountChannelFee: number;
+  amountTouristTax: number;
+  amountVat: number;
+}
+
+/** A row of BNB data from the API. */
+interface BnbDataRow {
+  year?: string | number;
+  quarter?: string | number;
+  month?: string | number;
+  listing?: string;
+  channel?: string;
+  amountGross?: number;
+  amountNett?: number;
+  amountChannelFee?: number;
+  amountTouristTax?: number;
+  amountVat?: number;
+  [key: string]: unknown;
+}
+
+/** Nested period data structure: header → amounts */
+type MonthData = Record<string, BnbAmounts>;
+/** Quarter data: month → MonthData */
+type QuarterData = Record<string, MonthData>;
+/** Year data: quarter → QuarterData */
+type YearData = Record<string, QuarterData>;
+/** Full period structure: year → YearData */
+type PeriodData = Record<string, YearData>;
+
 const BnbActualsReport: React.FC = () => {
   const { t } = useTypedTranslation('reports');
   const [loading, setLoading] = useState(false);
@@ -64,8 +97,8 @@ const BnbActualsReport: React.FC = () => {
     listings: [],
     channels: []
   });
-  const [bnbListingData, setBnbListingData] = useState<any[]>([]);
-  const [bnbChannelData, setBnbChannelData] = useState<any[]>([]);
+  const [bnbListingData, setBnbListingData] = useState<BnbDataRow[]>([]);
+  const [bnbChannelData, setBnbChannelData] = useState<BnbDataRow[]>([]);
   const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
   const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set());
 
@@ -89,7 +122,7 @@ const BnbActualsReport: React.FC = () => {
 
   // Render expandable BNB data with Listing/Channel as columns (X-axis) and Period as rows (Y-axis)
   const renderExpandableBnbData = (
-    data: any[], 
+    data: BnbDataRow[], 
     viewType: 'listing' | 'channel', 
     displayFormat: string, 
     selectedAmounts: string[] = ['amountGross']
@@ -128,23 +161,23 @@ const BnbActualsReport: React.FC = () => {
       acc[year][quarter][month][row[groupField]].amountVat += Number(row.amountVat) || 0;
       
       return acc;
-    }, {} as any);
+    }, {} as PeriodData);
 
     const rows: React.ReactElement[] = [];
     
-    Object.entries(periodData).sort(([a], [b]) => parseInt(a) - parseInt(b)).forEach(([year, quarterData]: [string, any]) => {
+    Object.entries(periodData).sort(([a], [b]) => parseInt(a) - parseInt(b)).forEach(([year, quarterData]: [string, YearData]) => {
       const yearKey = year;
       const isYearExpanded = expandedYears.has(yearKey);
       
       // Calculate year totals for each listing/channel
-      const yearTotals: any = {};
+      const yearTotals: Record<string, BnbAmounts> = {};
       headers.forEach(header => {
         yearTotals[header] = { amountGross: 0, amountNett: 0, amountChannelFee: 0, amountTouristTax: 0, amountVat: 0 };
       });
       
-      Object.values(quarterData).forEach((qData: any) => {
-        Object.values(qData).forEach((mData: any) => {
-          Object.entries(mData).forEach(([header, amounts]: [string, any]) => {
+      Object.values(quarterData).forEach((qData: QuarterData) => {
+        Object.values(qData).forEach((mData: MonthData) => {
+          Object.entries(mData).forEach(([header, amounts]: [string, BnbAmounts]) => {
             if (yearTotals[header]) {
               yearTotals[header].amountGross += amounts.amountGross;
               yearTotals[header].amountNett += amounts.amountNett;
@@ -207,13 +240,13 @@ const BnbActualsReport: React.FC = () => {
           const isQuarterExpanded = expandedQuarters.has(quarterKey);
           
           // Calculate quarter totals - ensure all headers are included
-          const quarterTotals: any = {};
+          const quarterTotals: Record<string, BnbAmounts> = {};
           headers.forEach(header => {
-            quarterTotals[header] = { amountGross: 0, amountNett: 0, amountChannelFee: 0, amountTouristTax: 0, amountVat: 0 };
+            quarterTotals[header as string] = { amountGross: 0, amountNett: 0, amountChannelFee: 0, amountTouristTax: 0, amountVat: 0 };
           });
           
           // Sum all months in this quarter for each header
-          Object.values(monthData).forEach((mData: any) => {
+          Object.values(monthData).forEach((mData: MonthData) => {
             headers.forEach(header => {
               if (mData[header]) {
                 quarterTotals[header].amountGross += mData[header].amountGross || 0;
@@ -495,10 +528,12 @@ const BnbActualsReport: React.FC = () => {
                     acc[period][amount] += Number(row[amount]) || 0;
                   });
                   return acc;
-                }, {} as any);
-                return Object.values(trendData).sort((a: any, b: any) => {
-                  if (a.year !== b.year) return a.year - b.year;
-                  return a.quarter - b.quarter;
+                }, {} as Record<string, Record<string, unknown>>);
+                return Object.values(trendData).sort((a, b) => {
+                  const aObj = a as { year: number; quarter: number };
+                  const bObj = b as { year: number; quarter: number };
+                  if (aObj.year !== bObj.year) return aObj.year - bObj.year;
+                  return aObj.quarter - bObj.quarter;
                 });
               })()}
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
@@ -553,7 +588,7 @@ const BnbActualsReport: React.FC = () => {
                         if (!acc[key]) acc[key] = 0;
                         acc[key] += Number(row[primaryAmount]) || 0;
                         return acc;
-                      }, {} as any);
+                      }, {} as Record<string, number>);
                       return Object.entries(grouped)
                         .map(([name, value]) => ({ name, value: Math.abs(Number(value)) }))
                         .filter(item => item.value > 0)
@@ -564,7 +599,7 @@ const BnbActualsReport: React.FC = () => {
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
-                    label={(entry: any) => `${entry.name}: ${(entry.percent * 100).toFixed(1)}%`}
+                    label={(entry: { name: string; percent: number }) => `${entry.name}: ${(entry.percent * 100).toFixed(1)}%`}
                   >
                     {(() => {
                       const data = viewType === 'listing' ? bnbListingData : bnbChannelData;
@@ -574,7 +609,7 @@ const BnbActualsReport: React.FC = () => {
                         if (!acc[key]) acc[key] = 0;
                         acc[key] += Number(row[primaryAmount]) || 0;
                         return acc;
-                      }, {} as any);
+                      }, {} as Record<string, number>);
                       return Object.entries(grouped)
                         .map(([name, value]) => ({ name, value: Math.abs(Number(value)) }))
                         .filter(item => item.value > 0)

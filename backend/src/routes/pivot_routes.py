@@ -24,6 +24,7 @@ import logging
 from datetime import date, datetime
 from decimal import Decimal
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -40,7 +41,7 @@ pivot_bp = Blueprint('pivot', __name__, url_prefix='/api/pivot')
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _clean_rows(rows):
+def _clean_rows(rows) -> list:
     """Normalise DB rows for JSON serialisation.
 
     * ``datetime`` / ``date`` → ISO-8601 string (``YYYY-MM-DD`` or full ISO)
@@ -71,7 +72,7 @@ def _clean_rows(rows):
     return cleaned
 
 
-def _get_service():
+def _get_service() -> PivotService:
     """Create a PivotService instance with current test mode setting."""
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     db = DatabaseManager(test_mode=test_mode)
@@ -79,7 +80,7 @@ def _get_service():
     return PivotService(db, ps)
 
 
-def _get_store():
+def _get_store() -> PivotModelStore:
     """Create a PivotModelStore instance with current test mode setting."""
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     db = DatabaseManager(test_mode=test_mode)
@@ -93,7 +94,7 @@ def _get_store():
 @pivot_bp.route('/execute', methods=['POST'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def execute_pivot(user_email, user_roles, tenant, user_tenants):
+def execute_pivot(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Execute a dynamic pivot query.
 
     Request body:
@@ -143,7 +144,7 @@ def execute_pivot(user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/columns/<source>', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def get_available_columns(source, user_email, user_roles, tenant, user_tenants):
+def get_available_columns(source, user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Return groupable and aggregatable columns for a data source.
 
     Args:
@@ -166,7 +167,7 @@ def get_available_columns(source, user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/sources', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def get_registered_sources(user_email, user_roles, tenant, user_tenants):
+def get_registered_sources(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Return the list of registered pivot data sources.
 
     Returns:
@@ -188,7 +189,7 @@ def get_registered_sources(user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/models', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def list_models(user_email, user_roles, tenant, user_tenants):
+def list_models(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List all saved pivot models for the current tenant.
 
     Returns:
@@ -206,7 +207,7 @@ def list_models(user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/models', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
-def save_model(user_email, user_roles, tenant, user_tenants):
+def save_model(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Save a new pivot model.
 
     Request body:
@@ -256,7 +257,7 @@ def save_model(user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/models/<int:model_id>', methods=['PUT'])
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
-def update_model(model_id, user_email, user_roles, tenant, user_tenants):
+def update_model(model_id, user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Update an existing pivot model's definition.
 
     Args:
@@ -297,7 +298,7 @@ def update_model(model_id, user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/models/<int:model_id>', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def load_model(model_id, user_email, user_roles, tenant, user_tenants):
+def load_model(model_id, user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Load a specific pivot model by ID.
 
     Args:
@@ -323,7 +324,7 @@ def load_model(model_id, user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/models/<int:model_id>', methods=['DELETE'])
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
-def delete_model(model_id, user_email, user_roles, tenant, user_tenants):
+def delete_model(model_id, user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Delete a pivot model.
 
     Args:
@@ -350,7 +351,7 @@ def delete_model(model_id, user_email, user_roles, tenant, user_tenants):
 @pivot_bp.route('/export', methods=['POST'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def export_underlying(user_email, user_roles, tenant, user_tenants):
+def export_underlying(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Export the underlying (non-aggregated) dataset for a pivot config.
 
     Uses the same filters and tenant isolation as ``execute_pivot`` but

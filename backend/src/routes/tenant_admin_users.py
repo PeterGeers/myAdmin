@@ -15,10 +15,13 @@ Endpoints:
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 import os
 import json
 import boto3
 from botocore.exceptions import ClientError
+
+from typing import Dict, List, Optional
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
@@ -42,7 +45,7 @@ cognito_service = CognitoService()
 # ============================================================================
 
 
-def get_user_attribute(user_attributes, attribute_name):
+def get_user_attribute(user_attributes, attribute_name) -> Optional[str]:
     """Extract attribute value from Cognito user attributes"""
     for attr in user_attributes:
         if attr['Name'] == attribute_name:
@@ -57,12 +60,12 @@ def get_user_attribute(user_attributes, attribute_name):
     return None
 
 
-def is_tenant_admin(user_roles):
+def is_tenant_admin(user_roles) -> bool:
     """Check if user has Tenant_Admin role"""
     return 'Tenant_Admin' in user_roles
 
 
-def get_tenant_enabled_modules(tenant):
+def get_tenant_enabled_modules(tenant) -> List[str]:
     """Get enabled modules for tenant from database"""
     try:
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
@@ -80,7 +83,7 @@ def get_tenant_enabled_modules(tenant):
         return []
 
 
-def get_available_roles_for_tenant(tenant):
+def get_available_roles_for_tenant(tenant) -> List[Dict[str, str]]:
     """Get list of roles available for tenant based on enabled modules.
 
     Reads required_roles from MODULE_REGISTRY so new modules are picked up
@@ -116,7 +119,7 @@ def get_available_roles_for_tenant(tenant):
 
 @tenant_admin_users_bp.route('/users', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def list_tenant_users(user_email, user_roles):
+def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
     """
     List all users who have access to the current tenant
     
@@ -209,7 +212,7 @@ def list_tenant_users(user_email, user_roles):
 
 @tenant_admin_users_bp.route('/users', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def create_tenant_user(user_email, user_roles):
+def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
     """
     Create a new user and assign to current tenant
     
@@ -563,7 +566,7 @@ def create_tenant_user(user_email, user_roles):
 
 @tenant_admin_users_bp.route('/users/<username>', methods=['PUT'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def update_tenant_user(username, user_email, user_roles):
+def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
     """
     Update user attributes (name, status)
     
@@ -651,7 +654,7 @@ def update_tenant_user(username, user_email, user_roles):
 
 @tenant_admin_users_bp.route('/users/<username>', methods=['DELETE'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def delete_tenant_user(username, user_email, user_roles):
+def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
     """
     Delete user from current tenant. Uses CognitoService.remove_tenant_from_user()
     as the single code path for tenant removal / user deletion.
@@ -730,7 +733,7 @@ def delete_tenant_user(username, user_email, user_roles):
 
 @tenant_admin_users_bp.route('/users/<username>/groups', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def assign_user_group(username, user_email, user_roles):
+def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
     """
     Assign role (group) to user
     
@@ -831,7 +834,7 @@ def assign_user_group(username, user_email, user_roles):
 
 @tenant_admin_users_bp.route('/users/<username>/groups/<group_name>', methods=['DELETE'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def remove_user_group(username, group_name, user_email, user_roles):
+def remove_user_group(username, group_name, user_email, user_roles) -> ResponseReturnValue:
     """
     Remove role (group) from user
     """
@@ -908,7 +911,7 @@ def remove_user_group(username, group_name, user_email, user_roles):
 
 @tenant_admin_users_bp.route('/roles', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_available_roles(user_email, user_roles):
+def get_available_roles(user_email, user_roles) -> ResponseReturnValue:
     """
     Get list of roles available for current tenant
     
@@ -961,7 +964,7 @@ def get_available_roles(user_email, user_roles):
 
 @tenant_admin_users_bp.route('/api/tenant/users', methods=['GET'], endpoint='legacy_get_tenant_users')
 @cognito_required(required_permissions=[])
-def get_tenant_users_legacy(user_email, user_roles):
+def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
     """
     Get users in tenant (Tenant_Admin only) — legacy endpoint.
 
@@ -1027,7 +1030,7 @@ def get_tenant_users_legacy(user_email, user_roles):
 
 @tenant_admin_users_bp.route('/api/tenant/users/<username>/roles', methods=['POST'], endpoint='legacy_assign_role')
 @cognito_required(required_permissions=[])
-def assign_tenant_role_legacy(username, user_email, user_roles):
+def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseReturnValue:
     """
     Assign role to user within tenant (Tenant_Admin only) — legacy endpoint.
 
@@ -1099,7 +1102,7 @@ def assign_tenant_role_legacy(username, user_email, user_roles):
 
 @tenant_admin_users_bp.route('/api/tenant/users/<username>/roles/<role>', methods=['DELETE'], endpoint='legacy_remove_role')
 @cognito_required(required_permissions=[])
-def remove_tenant_role_legacy(username, role, user_email, user_roles):
+def remove_tenant_role_legacy(username, role, user_email, user_roles) -> ResponseReturnValue:
     """
     Remove role from user within tenant (Tenant_Admin only) — legacy endpoint.
 
