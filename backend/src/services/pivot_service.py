@@ -307,9 +307,9 @@ class AllowedColumnsRegistry:
             for name in SYSTEM_ALLOWED_COLUMNS
         ]
 
-    def validate_columns(self, data_source, tenant, group_columns,
-                         aggregate_columns, column_pivot=None,
-                         column_nest_levels=None):
+    def validate_columns(self, data_source: str, tenant: str, group_columns: List[str],
+                         aggregate_columns: List[str], column_pivot: Optional[str] = None,
+                         column_nest_levels: Optional[List[str]] = None) -> None:
         allowed = self.get_available_columns(data_source, tenant)
         allowed_g = set(c['name'] if isinstance(c, dict) else c for c in allowed['groupable'])
         allowed_a = set(c['name'] if isinstance(c, dict) else c for c in allowed['aggregatable'])
@@ -331,7 +331,7 @@ class AllowedColumnsRegistry:
         sanitised = name.replace(quote_char, '')
         return f'{quote_char}{sanitised}{quote_char}'
 
-    def _get_tenant_restriction(self, data_source, tenant):
+    def _get_tenant_restriction(self, data_source: str, tenant: str) -> Optional[Dict[str, Any]]:
         try:
             value = self.parameter_service.get_param(
                 namespace='ui.pivot', key=f'allowed_columns.{data_source}', tenant=tenant)
@@ -351,18 +351,18 @@ class PivotService:
 
     COLUMN_QUOTE = '`'
 
-    def __init__(self, db, parameter_service):
+    def __init__(self, db, parameter_service) -> None:
         self.db = db
         self.parameter_service = parameter_service
         self.registry = AllowedColumnsRegistry(parameter_service)
 
-    def get_available_columns(self, data_source, tenant):
+    def get_available_columns(self, data_source: str, tenant: str) -> Dict[str, list]:
         return self.registry.get_available_columns(data_source, tenant)
 
-    def get_registered_sources(self):
+    def get_registered_sources(self) -> List[Dict[str, Any]]:
         return self.registry.get_registered_sources()
 
-    def execute_pivot(self, tenant, user_tenants, config):
+    def execute_pivot(self, tenant: str, user_tenants: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         ds = config.get('data_source', '')
         gc = config.get('group_columns', [])
         am = config.get('aggregate_measures', [])
@@ -397,7 +397,7 @@ class PivotService:
             'row_count': len(rows) if rows else 0,
         }
 
-    def build_pivot_query(self, config, tenant):
+    def build_pivot_query(self, config: Dict[str, Any], tenant: str) -> Tuple[str, list]:
         ds = config.get('data_source', '')
         gc = config.get('group_columns', [])
         am = config.get('aggregate_measures', [])
@@ -435,7 +435,7 @@ class PivotService:
         query = f"SELECT {', '.join(select_parts)} FROM {q(ds)} WHERE {where_clause} GROUP BY {group_by}"
         return query, params
 
-    def build_underlying_query(self, config, tenant):
+    def build_underlying_query(self, config: Dict[str, Any], tenant: str) -> Tuple[str, list]:
         ds = config.get('data_source', '')
         filters = config.get('filters', {})
         q = self._quote_col
@@ -457,7 +457,7 @@ class PivotService:
 
     # -- Validation --------------------------------------------------------
 
-    def _validate_config(self, ds, tenant, gc, am, cp, cnl):
+    def _validate_config(self, ds: str, tenant: str, gc: List[str], am: List[Dict[str, str]], cp: Optional[str], cnl: List[str]) -> None:
         if not gc or not am:
             raise ValueError("At least one group column and one aggregate measure are required")
         if len(gc) > MAX_GROUP_COLUMNS:
@@ -474,7 +474,7 @@ class PivotService:
         self.registry.validate_columns(ds, tenant, gc, [m['column'] for m in am], cp, cnl)
 
     @staticmethod
-    def _validate_column_roles(gc, cp, cnl):
+    def _validate_column_roles(gc: List[str], cp: Optional[str], cnl: List[str]) -> None:
         gs, ns = set(gc), set(cnl)
         if cp:
             if cp in gs:
@@ -487,7 +487,7 @@ class PivotService:
 
     # -- WHERE clause (generic) --------------------------------------------
 
-    def _build_where_clause(self, data_source, filters, tenant):
+    def _build_where_clause(self, data_source: str, filters: Dict[str, Any], tenant: str) -> Tuple[str, list]:
         """Build WHERE clause filtering by the CURRENT tenant only."""
         parts, params = [], []
         # Filter by current tenant only — never expose data from other tenants

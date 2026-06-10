@@ -11,6 +11,7 @@ Extracted from app.py during refactoring (Phase 4.1)
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from werkzeug.utils import secure_filename
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -28,7 +29,7 @@ UPLOAD_FOLDER = 'uploads'
 test_mode = False
 
 
-def set_config(upload_folder, flag):
+def set_config(upload_folder: str, flag: bool) -> None:
     """Set configuration for STR routes"""
     global UPLOAD_FOLDER, test_mode
     UPLOAD_FOLDER = upload_folder
@@ -36,7 +37,7 @@ def set_config(upload_folder, flag):
 
 
 @str_bp.route('/api/str/upload', methods=['POST', 'OPTIONS'])
-def str_upload_wrapper():
+def str_upload_wrapper() -> ResponseReturnValue:
     """Upload and process single STR file - wrapper to handle OPTIONS without auth"""
     if request.method == 'OPTIONS':
         # Handle CORS preflight without authentication
@@ -47,7 +48,7 @@ def str_upload_wrapper():
 
 @cognito_required(required_permissions=['str_create'])
 @tenant_required()
-def str_upload_authenticated(user_email, user_roles, tenant, user_tenants):
+def str_upload_authenticated(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Upload and process single STR file"""
         
     try:
@@ -119,7 +120,7 @@ def str_upload_authenticated(user_email, user_roles, tenant, user_tenants):
 @str_bp.route('/api/str/save', methods=['POST'])
 @cognito_required(required_permissions=['bookings_create'])
 @tenant_required()
-def str_save(user_email, user_roles, tenant, user_tenants):
+def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Save STR bookings to database like R script"""
     try:
         data = request.get_json()
@@ -165,7 +166,7 @@ def str_save(user_email, user_roles, tenant, user_tenants):
 # Pricing routes
 @str_bp.route('/api/pricing/generate', methods=['POST'])
 @cognito_required(required_permissions=['str_update'])
-def pricing_generate(user_email, user_roles):
+def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
     """Generate pricing recommendations using hybrid optimizer"""
     try:
         from hybrid_pricing_optimizer import HybridPricingOptimizer
@@ -191,7 +192,7 @@ def pricing_generate(user_email, user_roles):
 
 @str_bp.route('/api/pricing/recommendations', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def pricing_recommendations(user_email, user_roles):
+def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
     """Get pricing recommendations with historical comparison"""
     try:
         db = DatabaseManager(test_mode=test_mode)
@@ -243,7 +244,7 @@ def pricing_recommendations(user_email, user_roles):
 
 @str_bp.route('/api/pricing/historical', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def pricing_historical(user_email, user_roles):
+def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
     """Get historical ADR data for trend analysis"""
     try:
         db = DatabaseManager(test_mode=test_mode)
@@ -316,7 +317,7 @@ def pricing_historical(user_email, user_roles):
 
 @str_bp.route('/api/pricing/listings', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def pricing_listings(user_email, user_roles):
+def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
     """Get available listings for pricing"""
     try:
         db = DatabaseManager(test_mode=test_mode)
@@ -343,7 +344,7 @@ def pricing_listings(user_email, user_roles):
 
 @str_bp.route('/api/pricing/multipliers', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def pricing_multipliers(user_email, user_roles):
+def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
     """Get pricing multipliers breakdown"""
     try:
         db = DatabaseManager(test_mode=test_mode)
@@ -396,7 +397,7 @@ def pricing_multipliers(user_email, user_roles):
 
 @str_bp.route('/api/str/write-future', methods=['POST'])
 @cognito_required(required_permissions=['bookings_create'])
-def str_write_future(user_email, user_roles):
+def str_write_future(user_email, user_roles) -> ResponseReturnValue:
     """Write current BNB planned data to bnbfuture table"""
     try:
         str_db = STRDatabase(test_mode=test_mode)
@@ -419,7 +420,7 @@ def str_write_future(user_email, user_roles):
 
 
 @str_bp.route('/api/str/import-payout', methods=['POST', 'OPTIONS'])
-def str_import_payout_wrapper():
+def str_import_payout_wrapper() -> ResponseReturnValue:
     """Import Booking.com Payout CSV - wrapper to handle OPTIONS without auth"""
     if request.method == 'OPTIONS':
         # Handle CORS preflight without authentication
@@ -429,7 +430,7 @@ def str_import_payout_wrapper():
     return str_import_payout_authenticated()
 
 @cognito_required(required_permissions=['str_create'])
-def str_import_payout_authenticated(user_email, user_roles):
+def str_import_payout_authenticated(user_email, user_roles) -> ResponseReturnValue:
     """
     Import Booking.com Payout CSV to update financial figures
     
@@ -510,7 +511,7 @@ def str_import_payout_authenticated(user_email, user_roles):
 
 @str_bp.route('/api/str/summary', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def str_summary(user_email, user_roles):
+def str_summary(user_email, user_roles) -> ResponseReturnValue:
     """Get STR performance summary"""
     try:
         start_date = request.args.get('start_date')
@@ -530,7 +531,7 @@ def str_summary(user_email, user_roles):
 
 @str_bp.route('/api/str/future-trend', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def str_future_trend(user_email, user_roles):
+def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
     """Get BNB future revenue trend data"""
     try:
         db = DatabaseManager(test_mode=test_mode)
@@ -567,7 +568,7 @@ def str_future_trend(user_email, user_roles):
 
 @str_bp.route('/api/str/calculate-taxes', methods=['POST'])
 @cognito_required(required_permissions=['str_read'])
-def str_calculate_taxes(user_email, user_roles):
+def str_calculate_taxes(user_email, user_roles) -> ResponseReturnValue:
     """
     Recalculate taxes for a booking after amount edit.
 

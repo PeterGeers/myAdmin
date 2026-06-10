@@ -49,6 +49,26 @@ interface StrChannelSummary {
   end_date: string;
 }
 
+/** A row in the reference summary table. */
+interface RefSummaryRow {
+  ReferenceNumber: string;
+  transaction_count: number;
+  total_amount: string | number;
+  [key: string]: unknown;
+}
+
+/** A transaction row from reference details or STR channel. */
+interface TransactionRow {
+  TransactionNumber?: string;
+  TransactionDate?: string;
+  TransactionDescription?: string;
+  TransactionAmount?: string | number;
+  Debet?: string;
+  Credit?: string;
+  ReferenceNumber?: string;
+  [key: string]: unknown;
+}
+
 interface PatternData {
   patterns_found: number;
   predictions_made: {
@@ -137,8 +157,8 @@ export function useBankingProcessor() {
   const [availableLedgers, setAvailableLedgers] = useState<string[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [availableReferences, setAvailableReferences] = useState<string[]>([]);
-  const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
-  const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
+  const [refSummaryData, setRefSummaryData] = useState<RefSummaryRow[]>([]);
+  const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<TransactionRow[]>([]);
   const [selectedReference, setSelectedReference] = useState<string>('');
 
   // Check Reference - filterable table hooks
@@ -175,8 +195,8 @@ export function useBankingProcessor() {
     month: new Date().getMonth() + 1,
     administration: currentTenant || 'GoodwinSolutions',
   });
-  const [strChannelPreview, setStrChannelPreview] = useState<any[]>([]);
-  const [strChannelTransactions, setStrChannelTransactions] = useState<any[]>([]);
+  const [strChannelPreview, setStrChannelPreview] = useState<TransactionRow[]>([]);
+  const [strChannelTransactions, setStrChannelTransactions] = useState<TransactionRow[]>([]);
   const [strChannelSummary, setStrChannelSummary] = useState<StrChannelSummary | null>(null);
 
   // --- Pattern suggestion state ---

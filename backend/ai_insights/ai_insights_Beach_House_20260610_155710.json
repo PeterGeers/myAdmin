@@ -1,0 +1,149 @@
+{
+  "generated_at": "2026-06-10T15:57:10.148856",
+  "listing": "Beach House",
+  "insights": {
+    "daily_adr_recommendations": [
+      {
+        "date": "2025-11-12",
+        "recommended_adr": 145.0,
+        "historical_adr": 95.0,
+        "variance": "52.6%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-13",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-14",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-15",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-16",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-17",
+        "recommended_adr": 115.0,
+        "historical_adr": 95.0,
+        "variance": "21.1%",
+        "reasoning": "November weekend"
+      },
+      {
+        "date": "2025-11-18",
+        "recommended_adr": 115.0,
+        "historical_adr": 95.0,
+        "variance": "21.1%",
+        "reasoning": "November weekend"
+      },
+      {
+        "date": "2025-11-19",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-20",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-21",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-22",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-23",
+        "recommended_adr": 115.0,
+        "historical_adr": 95.0,
+        "variance": "21.1%",
+        "reasoning": "November weekend"
+      },
+      {
+        "date": "2025-11-24",
+        "recommended_adr": 115.0,
+        "historical_adr": 95.0,
+        "variance": "21.1%",
+        "reasoning": "November weekend"
+      },
+      {
+        "date": "2025-11-25",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-26",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-27",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-28",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "November weekday"
+      },
+      {
+        "date": "2025-11-29",
+        "recommended_adr": 115.0,
+        "historical_adr": 95.0,
+        "variance": "21.1%",
+        "reasoning": "November weekend"
+      },
+      {
+        "date": "2025-11-30",
+        "recommended_adr": 115.0,
+        "historical_adr": 95.0,
+        "variance": "21.1%",
+        "reasoning": "November weekend"
+      },
+      {
+        "date": "2025-12-01",
+        "recommended_adr": 95.0,
+        "historical_adr": 95.0,
+        "variance": "0%",
+        "reasoning": "December weekday"
+      }
+    ],
+    "strategy_summary": "Netherlands pricing strategy"
+  }
+}

@@ -218,8 +218,9 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       } else {
         toast({ title: resp.error || 'Error saving invoice', status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error saving invoice', status: 'error' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error saving invoice';
+      toast({ title: message || 'Error saving invoice', status: 'error' });
     } finally {
       setSaving(false);
     }
@@ -241,8 +242,9 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       } else {
         toast({ title: resp.error || 'Error sending invoice', status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error sending invoice', status: 'error' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error sending invoice';
+      toast({ title: message || 'Error sending invoice', status: 'error' });
     } finally {
       setSending(false);
     }
@@ -265,8 +267,8 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
           toast({ title: errorMsg, status: 'error' });
         }
       }
-    } catch (err: any) {
-      const errorMsg = err.message || t('invoices.email.sendError', 'Failed to send invoice');
+    } catch (err: unknown) {
+      const errorMsg = (err instanceof Error ? err.message : null) || t('invoices.email.sendError', 'Failed to send invoice');
       if (errorMsg.toLowerCase().includes('email') && errorMsg.toLowerCase().includes('missing')) {
         toast({ title: t('invoices.email.missingEmail', 'Contact has no email address'), status: 'warning' });
       } else {
@@ -289,8 +291,9 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       } else {
         toast({ title: resp.error || 'Error creating credit note', status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error creating credit note', status: 'error' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error creating credit note';
+      toast({ title: message || 'Error creating credit note', status: 'error' });
     } finally {
       setCrediting(false);
     }
@@ -308,8 +311,9 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       } else {
         toast({ title: resp.error || 'Error sending reminder', status: 'error' });
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error sending reminder', status: 'error' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error sending reminder';
+      toast({ title: message || 'Error sending reminder', status: 'error' });
     } finally {
       setReminding(false);
     }
@@ -386,8 +390,9 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         toast({ title: resp.error || 'Error saving invoice', status: 'error' });
         return false;
       }
-    } catch (err: any) {
-      toast({ title: err.message || 'Error saving invoice', status: 'error' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error saving invoice';
+      toast({ title: message || 'Error saving invoice', status: 'error' });
       return false;
     } finally {
       setSaving(false);
@@ -422,15 +427,16 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       previewBlobUrlRef.current = url;
       setPreviewBlobUrl(url);
       setPreviewModalOpen(true);
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
         toast({
           title: t('invoices.preview.timeout', 'Preview request timed out'),
           status: 'error',
         });
       } else {
+        const message = err instanceof Error ? err.message : t('invoices.preview.error', 'Preview could not be generated');
         toast({
-          title: err.message || t('invoices.preview.error', 'Preview could not be generated'),
+          title: message || t('invoices.preview.error', 'Preview could not be generated'),
           status: 'error',
         });
       }

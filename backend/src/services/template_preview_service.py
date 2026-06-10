@@ -535,7 +535,7 @@ class TemplatePreviewService:
         user_email: str,
         notes: str,
         validation: Dict[str, Any]
-    ):
+    ) -> None:
         """
         Log template approval in validation log.
 

@@ -1,5 +1,8 @@
 # Duplicate Detection Performance Monitoring and Optimization
 
+> **⚠️ Partial Deprecation Notice (June 2026)**  
+> The dedicated performance REST endpoints (`duplicate_performance_routes.py`) and several unused helper functions in `duplicate_performance_monitor.py` and `duplicate_query_optimizer.py` have been removed during a dead-code cleanup. Core duplicate detection logic and database indexes remain intact. The architectural information below is still relevant for understanding the design intent, but API endpoint references are stale.
+
 ## Overview
 
 This document describes the performance monitoring and optimization system for the duplicate invoice detection feature. The system ensures that duplicate detection operations meet the 2-second response time requirement (Requirement 5.5) and provides comprehensive monitoring capabilities (Requirement 6.4).
@@ -23,19 +26,16 @@ This document describes the performance monitoring and optimization system for t
 ### Components
 
 1. **DuplicateDetectionMetrics** (`duplicate_performance_monitor.py`)
-
    - Collects performance metrics for all operations
    - Calculates summary statistics and health scores
    - Provides export capabilities for analysis
 
 2. **DuplicateQueryOptimizer** (`duplicate_query_optimizer.py`)
-
    - Implements query caching with TTL
    - Optimizes database queries for performance
    - Provides query analysis and recommendations
 
 3. **PerformanceMonitor** (`duplicate_performance_monitor.py`)
-
    - Decorators for automatic performance tracking
    - Context managers for operation monitoring
    - Integration with metrics collection
@@ -138,17 +138,14 @@ The system uses MySQL connection pooling:
 The system calculates a health score (0-100) based on:
 
 1. **Query Performance (40% weight)**
-
    - Percentage of queries exceeding 2-second threshold
    - Target: < 10% threshold exceeded
 
 2. **Error Rate (30% weight)**
-
    - Percentage of failed operations
    - Target: < 5% error rate
 
 3. **Cache Efficiency (20% weight)**
-
    - Cache hit rate vs. target (70%)
    - Target: > 70% cache hits
 
@@ -246,25 +243,21 @@ Runs performance test and returns results.
 ### Test Scenarios
 
 1. **Single User Performance**
-
    - 20 sequential requests
    - Target: < 2 seconds average
    - Validates basic performance
 
 2. **Light Load (5 concurrent users)**
-
    - 5 users × 10 requests each
    - Target: < 2 seconds average
    - Validates concurrent handling
 
 3. **Medium Load (10 concurrent users)**
-
    - 10 users × 10 requests each
    - Target: < 2.5 seconds average
    - Validates scalability
 
 4. **Optimized Query Performance**
-
    - Tests cache effectiveness
    - Target: > 30% cache hit rate
    - Validates optimization

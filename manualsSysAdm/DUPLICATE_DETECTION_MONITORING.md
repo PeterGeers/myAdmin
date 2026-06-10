@@ -1,5 +1,8 @@
 # Duplicate Invoice Detection - System Administration Guide
 
+> **⚠️ Update Notice (June 2026)**  
+> Some monitoring helper functions referenced in this guide (`get_metrics_collector`, `get_performance_summary`, `export_performance_metrics`, `reset_performance_metrics`) were removed as unused dead code. The core duplicate detection flow (`duplicate_checker.py`, `DuplicateWarningDialog.tsx`, `pdf_processor.py`) remains fully operational.
+
 ## Overview
 
 This guide provides system administrators with comprehensive information for monitoring, maintaining, and troubleshooting the duplicate invoice detection system in myAdmin.
@@ -226,20 +229,17 @@ DEBUG   - Detailed information for troubleshooting
 Create a monitoring dashboard with:
 
 1. **Real-time Metrics**
-
    - Current duplicate check response time
    - Active duplicate warnings
    - Recent decisions (last hour)
 
 2. **Daily Statistics**
-
    - Total duplicate checks
    - Continue vs Cancel ratio
    - Top duplicate vendors
    - File cleanup success rate
 
 3. **Trends**
-
    - Duplicate detection rate over time
    - Performance trends
    - User decision patterns
@@ -700,7 +700,6 @@ grep -i "database" backend/logs/error.log | tail -50
 ### Daily Maintenance
 
 1. **Monitor Performance**
-
    - Check duplicate detection response times
    - Review error logs
    - Verify audit log coverage
@@ -787,14 +786,12 @@ grep -i "database" backend/logs/error.log | tail -50
 ### Quarterly Maintenance
 
 1. **System Review**
-
    - Review duplicate detection accuracy
    - Analyze user decision patterns
    - Identify improvement opportunities
    - Update documentation
 
 2. **Performance Tuning**
-
    - Review and optimize database indexes
    - Analyze slow queries
    - Adjust connection pool settings
@@ -811,13 +808,11 @@ grep -i "database" backend/logs/error.log | tail -50
 ### Access Control
 
 1. **API Endpoints**
-
    - Implement authentication for all duplicate detection endpoints
    - Use role-based access control (RBAC)
    - Log all API access attempts
 
 2. **Database Access**
-
    - Use least privilege principle
    - Separate read and write permissions
    - Audit database access logs
@@ -830,14 +825,12 @@ grep -i "database" backend/logs/error.log | tail -50
 ### Data Protection
 
 1. **Sensitive Data**
-
    - Transaction amounts
    - Vendor information
    - User decisions
    - File URLs
 
 2. **Encryption**
-
    - Use HTTPS for all API communications
    - Encrypt sensitive data at rest
    - Secure database connections (SSL/TLS)
@@ -850,14 +843,12 @@ grep -i "database" backend/logs/error.log | tail -50
 ### Compliance
 
 1. **GDPR Compliance**
-
    - Data retention policies
    - Right to deletion
    - Data export capabilities
    - Privacy by design
 
 2. **SOX Compliance**
-
    - Complete audit trail
    - Access controls
    - Change management
@@ -944,13 +935,11 @@ python src/app.py
 ### Support Levels
 
 1. **Level 1 - User Support**
-
    - User questions about duplicate warnings
    - How to make decisions
    - Basic troubleshooting
 
 2. **Level 2 - System Administration**
-
    - Performance issues
    - Configuration problems
    - Database maintenance

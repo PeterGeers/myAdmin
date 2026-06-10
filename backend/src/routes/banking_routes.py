@@ -12,6 +12,7 @@ Extracted from app.py during refactoring (Phase 3.2)
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from db_exceptions import ClosedPeriodError
 from auth.tenant_context import tenant_required
@@ -24,7 +25,7 @@ banking_bp = Blueprint('banking', __name__)
 banking_service = None
 
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode: bool) -> None:
     """Set test mode for banking service"""
     global banking_service
     banking_service = BankingService(test_mode=test_mode)
@@ -33,7 +34,7 @@ def set_test_mode(test_mode):
 @banking_bp.route('/api/banking/scan-files', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
 @tenant_required()
-def banking_scan_files(user_email, user_roles, tenant, user_tenants):
+def banking_scan_files(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Scan download folder for CSV files"""
     try:
         folder_path = request.args.get('folder', None)
@@ -51,7 +52,7 @@ def banking_scan_files(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/process-files', methods=['POST'])
 @cognito_required(required_permissions=['banking_process'])
 @tenant_required()
-def banking_process_files(user_email, user_roles, tenant, user_tenants):
+def banking_process_files(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Process selected CSV files"""
     try:
         data = request.get_json()
@@ -73,7 +74,7 @@ def banking_process_files(user_email, user_roles, tenant, user_tenants):
 
 @banking_bp.route('/api/banking/check-sequences', methods=['POST'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_check_sequences(user_email, user_roles):
+def banking_check_sequences(user_email, user_roles) -> ResponseReturnValue:
     """Check sequence numbers against database"""
     try:
         data = request.get_json()
@@ -91,7 +92,7 @@ def banking_check_sequences(user_email, user_roles):
 @banking_bp.route('/api/banking/apply-patterns', methods=['POST'])
 @cognito_required(required_permissions=['banking_process'])
 @tenant_required()
-def banking_apply_patterns(user_email, user_roles, tenant, user_tenants):
+def banking_apply_patterns(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Apply enhanced pattern matching to predict debet/credit accounts"""
     try:
         data = request.get_json()
@@ -112,7 +113,7 @@ def banking_apply_patterns(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/save-transactions', methods=['POST'])
 @cognito_required(required_permissions=['transactions_create'])
 @tenant_required()
-def banking_save_transactions(user_email, user_roles, tenant, user_tenants):
+def banking_save_transactions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Save approved transactions to database with duplicate filtering"""
     try:
         data = request.get_json()
@@ -136,7 +137,7 @@ def banking_save_transactions(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/lookups', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
 @tenant_required()
-def banking_lookups(user_email, user_roles, tenant, user_tenants):
+def banking_lookups(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get mapping data for account codes and descriptions"""
     try:
         result = banking_service.get_lookups(tenant)
@@ -154,7 +155,7 @@ def banking_lookups(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/mutaties', methods=['GET'])
 @cognito_required(required_permissions=['transactions_read'])
 @tenant_required()
-def banking_mutaties(user_email, user_roles, tenant, user_tenants):
+def banking_mutaties(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get mutaties with filters and pagination"""
     try:
         # Get filter parameters
@@ -185,7 +186,7 @@ def banking_mutaties(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/filter-options', methods=['GET'])
 @cognito_required(required_permissions=['transactions_read'])
 @tenant_required()
-def banking_filter_options(user_email, user_roles, tenant, user_tenants):
+def banking_filter_options(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get filter options for mutaties"""
     try:
         from database import DatabaseManager
@@ -232,7 +233,7 @@ def banking_filter_options(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/update-mutatie', methods=['POST'])
 @cognito_required(required_permissions=['transactions_update'])
 @tenant_required()
-def banking_update_mutatie(user_email, user_roles, tenant, user_tenants):
+def banking_update_mutatie(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Update a mutatie record"""
     try:
         data = request.get_json()
@@ -289,7 +290,7 @@ def banking_update_mutatie(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/insert-mutatie', methods=['POST'])
 @cognito_required(required_permissions=['transactions_create'])
 @tenant_required()
-def banking_insert_mutatie(user_email, user_roles, tenant, user_tenants):
+def banking_insert_mutatie(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Insert a new mutatie record"""
     try:
         data = request.get_json()
@@ -351,7 +352,7 @@ def banking_insert_mutatie(user_email, user_roles, tenant, user_tenants):
 @banking_bp.route('/api/banking/check-accounts', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
 @tenant_required()
-def banking_check_accounts(user_email, user_roles, tenant, user_tenants):
+def banking_check_accounts(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Check banking account balances"""
     try:
         end_date = request.args.get('end_date')
@@ -371,7 +372,7 @@ def banking_check_accounts(user_email, user_roles, tenant, user_tenants):
 
 @banking_bp.route('/api/banking/check-sequence', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_check_sequence(user_email, user_roles):
+def banking_check_sequence(user_email, user_roles) -> ResponseReturnValue:
     """Check sequence numbers for account"""
     try:
         from banking_processor import BankingProcessor
@@ -394,7 +395,7 @@ def banking_check_sequence(user_email, user_roles):
 @banking_bp.route('/api/banking/check-revolut-balance', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
 @tenant_required()
-def banking_check_revolut_balance(user_email, user_roles, tenant, user_tenants):
+def banking_check_revolut_balance(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Check Revolut balance gaps by comparing calculated vs Ref3 balance"""
     try:
         iban = request.args.get('iban', 'NL08REVO7549383472')
@@ -414,7 +415,7 @@ def banking_check_revolut_balance(user_email, user_roles, tenant, user_tenants):
 
 @banking_bp.route('/api/banking/check-revolut-balance-debug', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_check_revolut_balance_debug(user_email, user_roles):
+def banking_check_revolut_balance_debug(user_email, user_roles) -> ResponseReturnValue:
     """Debug endpoint - returns only first 10 transactions with full details"""
     try:
         from banking_processor import BankingProcessor
@@ -456,7 +457,7 @@ def banking_check_revolut_balance_debug(user_email, user_roles):
 @banking_bp.route('/api/banking/opening-balance-date', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
 @tenant_required()
-def banking_opening_balance_date(user_email, user_roles, tenant, user_tenants):
+def banking_opening_balance_date(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get the opening balance date based on the last annual closure"""
     try:
         from database import DatabaseManager
@@ -487,7 +488,7 @@ def banking_opening_balance_date(user_email, user_roles, tenant, user_tenants):
 
 @banking_bp.route('/api/banking/migrate-revolut-ref2', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def banking_migrate_revolut_ref2(user_email, user_roles):
+def banking_migrate_revolut_ref2(user_email, user_roles) -> ResponseReturnValue:
     """Migrate Revolut Ref2 to new format"""
     try:
         from migrate_revolut_ref2 import migrate_revolut_ref2

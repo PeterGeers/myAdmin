@@ -8,7 +8,9 @@ Reference: .kiro/specs/zzp-module/design.md §2 (Field Config API)
 """
 
 import logging
+
 from flask import Blueprint, request, jsonify, make_response, send_file
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.module_registry import module_required, MODULE_REGISTRY
@@ -43,7 +45,7 @@ ENTITY_ALWAYS_REQUIRED = {
 }
 
 
-def set_test_mode(flag: bool):
+def set_test_mode(flag: bool) -> None:
     global _test_mode
     _test_mode = flag
 
@@ -60,7 +62,7 @@ def _get_param_service() -> ParameterService:
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_field_config(user_email, user_roles, tenant, user_tenants, entity):
+def get_field_config(user_email, user_roles, tenant, user_tenants, entity) -> ResponseReturnValue:
     """Get field config for an entity, merged defaults + tenant overrides."""
     try:
         if entity not in VALID_ENTITIES:
@@ -97,7 +99,7 @@ def get_field_config(user_email, user_roles, tenant, user_tenants, entity):
 @cognito_required(required_permissions=['zzp_tenant'])
 @tenant_required()
 @module_required('ZZP')
-def update_field_config(user_email, user_roles, tenant, user_tenants, entity):
+def update_field_config(user_email, user_roles, tenant, user_tenants, entity) -> ResponseReturnValue:
     """Update field config for an entity (tenant admin only)."""
     try:
         if entity not in VALID_ENTITIES:
@@ -196,7 +198,7 @@ def _get_invoice_service() -> ZZPInvoiceService:
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def list_invoices(user_email, user_roles, tenant, user_tenants):
+def list_invoices(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List invoices with optional filters."""
     try:
         svc = _get_invoice_service()
@@ -222,7 +224,7 @@ def list_invoices(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
+def get_invoice(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Get invoice with lines and VAT summary."""
     try:
         svc = _get_invoice_service()
@@ -239,7 +241,7 @@ def get_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def create_invoice(user_email, user_roles, tenant, user_tenants):
+def create_invoice(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a draft invoice."""
     try:
         data = request.get_json()
@@ -259,7 +261,7 @@ def create_invoice(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def update_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
+def update_invoice(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Update a draft invoice."""
     try:
         data = request.get_json()
@@ -282,7 +284,7 @@ def update_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def create_invoice_from_time_entries(user_email, user_roles, tenant, user_tenants):
+def create_invoice_from_time_entries(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a draft invoice from selected time entries.
 
     Request body:
@@ -325,7 +327,7 @@ def create_invoice_from_time_entries(user_email, user_roles, tenant, user_tenant
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def send_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
+def send_invoice(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Generate PDF, book in FIN, optionally email, update status to sent."""
     try:
         data = request.get_json() or {}
@@ -345,7 +347,7 @@ def send_invoice(user_email, user_roles, tenant, user_tenants, invoice_id):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id):
+def get_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Download or regenerate invoice PDF."""
     try:
         svc = _get_invoice_service()
@@ -378,7 +380,7 @@ def get_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id):
 @zzp_bp.route('/api/zzp/invoices/<int:invoice_id>/preview', methods=['GET'])
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
-def preview_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id):
+def preview_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Generate and return a preview PDF for a draft invoice."""
     try:
         svc = _get_invoice_service()
@@ -418,7 +420,7 @@ def preview_invoice_pdf(user_email, user_roles, tenant, user_tenants, invoice_id
 @zzp_bp.route('/api/zzp/invoices/<int:invoice_id>/email-preview', methods=['GET'])
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
-def preview_invoice_email(user_email, user_roles, tenant, user_tenants, invoice_id):
+def preview_invoice_email(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Return a preview of the email that will be sent with the invoice."""
     try:
         svc = _get_invoice_service()
@@ -442,7 +444,7 @@ def preview_invoice_email(user_email, user_roles, tenant, user_tenants, invoice_
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def create_credit_note(user_email, user_roles, tenant, user_tenants, invoice_id):
+def create_credit_note(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Create a credit note for an existing invoice."""
     try:
         svc = _get_invoice_service()
@@ -462,7 +464,7 @@ def create_credit_note(user_email, user_roles, tenant, user_tenants, invoice_id)
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def run_payment_check(user_email, user_roles, tenant, user_tenants):
+def run_payment_check(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Run payment matching against open invoices."""
     try:
         from services.payment_check_helper import PaymentCheckHelper
@@ -479,7 +481,7 @@ def run_payment_check(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_payment_check_status(user_email, user_roles, tenant, user_tenants):
+def get_payment_check_status(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get summary of open/matched invoices."""
     try:
         db = DatabaseManager(test_mode=_test_mode)
@@ -512,7 +514,7 @@ def get_payment_check_status(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def mark_overdue_invoices(user_email, user_roles, tenant, user_tenants):
+def mark_overdue_invoices(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Batch-update all sent invoices past due date to overdue."""
     try:
         svc = _get_invoice_service()
@@ -534,7 +536,7 @@ def mark_overdue_invoices(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_receivables(user_email, user_roles, tenant, user_tenants):
+def get_receivables(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Accounts receivable: outgoing invoices with status sent/overdue, grouped by contact."""
     try:
         db = DatabaseManager(test_mode=_test_mode)
@@ -580,7 +582,7 @@ def get_receivables(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_payables(user_email, user_roles, tenant, user_tenants):
+def get_payables(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Accounts payable: incoming invoices with unpaid status, grouped by contact."""
     try:
         db = DatabaseManager(test_mode=_test_mode)
@@ -626,7 +628,7 @@ def get_payables(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_aging(user_email, user_roles, tenant, user_tenants):
+def get_aging(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Aging analysis with buckets: current, 1-30, 31-60, 61-90, 90+."""
     try:
         db = DatabaseManager(test_mode=_test_mode)
@@ -703,7 +705,7 @@ def get_aging(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def send_reminder(user_email, user_roles, tenant, user_tenants, invoice_id):
+def send_reminder(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Send payment reminder for an overdue invoice."""
     try:
         svc = _get_invoice_service()
@@ -751,7 +753,7 @@ def _get_time_service():
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def list_time_entries(user_email, user_roles, tenant, user_tenants):
+def list_time_entries(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List time entries with optional filters."""
     try:
         svc = _get_time_service()
@@ -782,7 +784,7 @@ def list_time_entries(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def create_time_entry(user_email, user_roles, tenant, user_tenants):
+def create_time_entry(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a time entry."""
     try:
         svc = _get_time_service()
@@ -804,7 +806,7 @@ def create_time_entry(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def update_time_entry(user_email, user_roles, tenant, user_tenants, entry_id):
+def update_time_entry(user_email, user_roles, tenant, user_tenants, entry_id) -> ResponseReturnValue:
     """Update a time entry."""
     try:
         svc = _get_time_service()
@@ -824,7 +826,7 @@ def update_time_entry(user_email, user_roles, tenant, user_tenants, entry_id):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def delete_time_entry(user_email, user_roles, tenant, user_tenants, entry_id):
+def delete_time_entry(user_email, user_roles, tenant, user_tenants, entry_id) -> ResponseReturnValue:
     """Delete a time entry."""
     try:
         svc = _get_time_service()
@@ -841,7 +843,7 @@ def delete_time_entry(user_email, user_roles, tenant, user_tenants, entry_id):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_time_summary(user_email, user_roles, tenant, user_tenants):
+def get_time_summary(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get time entry summary grouped by contact, project, or period."""
     try:
         svc = _get_time_service()
@@ -863,7 +865,7 @@ def get_time_summary(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def upload_supporting_document(user_email, user_roles, tenant, user_tenants, invoice_id):
+def upload_supporting_document(user_email, user_roles, tenant, user_tenants, invoice_id) -> ResponseReturnValue:
     """Upload a supporting document and link it to an invoice.
 
     Stores via OutputService (Google Drive) and records the reference
@@ -921,7 +923,7 @@ def upload_supporting_document(user_email, user_roles, tenant, user_tenants, inv
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def copy_last_invoice(user_email, user_roles, tenant, user_tenants, contact_id):
+def copy_last_invoice(user_email, user_roles, tenant, user_tenants, contact_id) -> ResponseReturnValue:
     """Create a draft by copying the last invoice for a contact."""
     try:
         svc = _get_invoice_service()
@@ -981,7 +983,7 @@ def _validate_booking_account(tenant: str, key: str, account_code: str) -> None:
 @cognito_required(required_permissions=['zzp_tenant'])
 @tenant_required()
 @module_required('ZZP')
-def validate_booking_param(user_email, user_roles, tenant, user_tenants):
+def validate_booking_param(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Validate and save a ZZP booking account parameter.
 
     Ensures the account code exists in rekeningschema with the required
@@ -1034,7 +1036,7 @@ def validate_booking_param(user_email, user_roles, tenant, user_tenants):
 @zzp_bp.route('/api/zzp/accounts/invoice-ledgers', methods=['GET'])
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
-def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants):
+def get_invoice_ledger_accounts(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List accounts flagged as ZZP revenue ledger for the tenant.
 
     Returns accounts from rekeningschema where zzp_revenue_ledger = true.

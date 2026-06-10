@@ -104,8 +104,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
         const logoKey = brandingSection.params.company_logo_s3_key.current_value;
         if (logoKey) setLogoS3Key(String(logoKey));
       }
-    } catch (e: any) {
-      toast({ title: 'Failed to load storage settings', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Failed to load storage settings', description: message, status: 'error', duration: 5000 });
     } finally {
       setProviderLoading(false);
     }
@@ -166,8 +167,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
       }
-    } catch (e: any) {
-      toast({ title: 'Save failed', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Save failed', description: message, status: 'error', duration: 5000 });
     } finally { setProviderSaving(false); }
   };
 
@@ -184,8 +186,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
       }
-    } catch (e: any) {
-      toast({ title: 'Save failed', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Save failed', description: message, status: 'error', duration: 5000 });
     } finally { setProviderSaving(false); }
   };
 
@@ -222,8 +225,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
       } else {
         toast({ title: 'Upload failed', description: data.error || 'Unknown error', status: 'error', duration: 5000 });
       }
-    } catch (e: any) {
-      toast({ title: 'Upload failed', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Upload failed', description: message, status: 'error', duration: 5000 });
     } finally {
       setLogoUploading(false);
       event.target.value = '';
@@ -256,8 +260,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
               toast({ title: 'Google Drive connected', status: 'success', duration: 5000 });
               loadCredentials();
             }
-          } catch (e: any) {
-            toast({ title: 'OAuth failed', description: e.message, status: 'error', duration: 5000 });
+          } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            toast({ title: 'OAuth failed', description: message, status: 'error', duration: 5000 });
           }
         } else if (event.data.type === 'oauth_error') {
           window.removeEventListener('message', messageHandler);
@@ -271,8 +276,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
         window.removeEventListener('message', messageHandler);
         toast({ title: 'Popup blocked', description: 'Please allow popups', status: 'warning', duration: 5000 });
       }
-    } catch (e: any) {
-      toast({ title: 'OAuth failed', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'OAuth failed', description: message, status: 'error', duration: 5000 });
     }
   };
 
@@ -300,8 +306,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
         const err = await resp.json();
         throw new Error(err.error || 'Upload failed');
       }
-    } catch (e: any) {
-      toast({ title: 'Upload failed', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Upload failed', description: message, status: 'error', duration: 5000 });
     }
     event.target.value = '';
   };
@@ -322,8 +329,9 @@ export default function StorageTab({ tenant }: StorageTabProps) {
         status: result?.success ? 'success' : 'error',
         duration: 5000,
       });
-    } catch (e: any) {
-      toast({ title: 'Test failed', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Test failed', description: message, status: 'error', duration: 5000 });
     }
   };
 

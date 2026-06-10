@@ -47,6 +47,7 @@ import type {
   PLRecord,
   DrillDownLevel,
   ViewMode,
+  DisplayFormat,
 } from '../../types/financialReports';
 
 // --- Helpers ---
@@ -192,19 +193,19 @@ const ProfitLossReport: React.FC<ProfitLossReportProps> = ({
   const { profit: profitChartData, loss: lossChartData } = useMemo(() => {
     const { profit, loss } = splitChartData(plData, '8', '4');
     const build = (records: PLRecord[]) => {
-      const map: Record<string, Record<string, number>> = {};
+      const map: Record<string, Record<string, string | number>> = {};
       for (const r of records) {
         const label = expandedParents.has(r.Parent)
           ? `${r.Reknum} ${r.AccountName}`.trim()
           : r.Parent;
         if (!map[label]) {
-          map[label] = { name: label } as any;
-          sortedYears.forEach((y) => ((map[label] as any)[y] = 0));
+          map[label] = { name: label };
+          sortedYears.forEach((y) => (map[label][y] = 0));
         }
-        (map[label] as any)[r.jaar] = ((map[label] as any)[r.jaar] ?? 0) + (Number(r.Amount) || 0);
+        map[label][r.jaar] = ((map[label][r.jaar] as number) ?? 0) + (Number(r.Amount) || 0);
       }
-      return Object.values(map).filter((item: any) =>
-        sortedYears.some((y) => Math.abs(item[y] ?? 0) > 0)
+      return Object.values(map).filter((item) =>
+        sortedYears.some((y) => Math.abs((item[y] as number) ?? 0) > 0)
       );
     };
     return { profit: build(profit), loss: build(loss) };
@@ -289,7 +290,7 @@ const ProfitLossReport: React.FC<ProfitLossReportProps> = ({
 
   // --- Render ---
 
-  const renderBarChart = (data: Record<string, number>[], title: string) => (
+  const renderBarChart = (data: Record<string, string | number>[], title: string) => (
     <Card bg="gray.700" mb={4}>
       <CardHeader pb={2}>
         <Heading size="sm" color="white">{title}</Heading>
@@ -341,7 +342,7 @@ const ProfitLossReport: React.FC<ProfitLossReportProps> = ({
               <Text color="white" fontSize="sm">{t('actuals.displayFormat')}</Text>
               <Select
                 value={displayFormat}
-                onChange={(e) => onDisplayFormatChange(e.target.value as any)}
+                onChange={(e) => onDisplayFormatChange(e.target.value as DisplayFormat)}
                 bg="gray.600"
                 color="white"
                 size="sm"
@@ -561,8 +562,8 @@ const ProfitLossReport: React.FC<ProfitLossReportProps> = ({
 
         {/* Split charts */}
         <GridItem>
-          {renderBarChart(profitChartData as any, t('actuals.revenueChart') ?? 'Revenue (8000)')}
-          {renderBarChart(lossChartData as any, t('actuals.costChart') ?? 'Costs (4000)')}
+          {renderBarChart(profitChartData, t('actuals.revenueChart') ?? 'Revenue (8000)')}
+          {renderBarChart(lossChartData, t('actuals.costChart') ?? 'Costs (4000)')}
         </GridItem>
       </Grid>
     </VStack>

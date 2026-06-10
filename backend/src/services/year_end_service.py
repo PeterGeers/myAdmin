@@ -14,6 +14,8 @@ Key Concepts:
 - Opening balances use equity_result account for balancing
 """
 
+from typing import Any, Dict, List, Optional, Tuple
+
 from database import DatabaseManager
 from datetime import datetime
 from services.year_end_config import YearEndConfigService
@@ -22,7 +24,7 @@ from services.year_end_config import YearEndConfigService
 class YearEndClosureService:
     """Service for closing fiscal years"""
     
-    def __init__(self, test_mode=False):
+    def __init__(self, test_mode: bool = False) -> None:
         """
         Initialize year-end closure service
         
@@ -32,7 +34,7 @@ class YearEndClosureService:
         self.db = DatabaseManager(test_mode=test_mode)
         self.config_service = YearEndConfigService(test_mode=test_mode)
     
-    def get_available_years(self, administration):
+    def get_available_years(self, administration: str) -> Dict[str, Any]:
         """
         Get years that have transactions and are not yet closed.
         
@@ -62,7 +64,7 @@ class YearEndClosureService:
         results = self.db.execute_query(query, [administration, administration])
         return [row['year'] for row in results] if results else []
     
-    def get_closed_years(self, administration):
+    def get_closed_years(self, administration: str) -> Dict[str, Any]:
         """
         Get list of closed years with closure information.
         
@@ -87,7 +89,7 @@ class YearEndClosureService:
         
         return self.db.execute_query(query, [administration])
     
-    def get_year_status(self, administration, year):
+    def get_year_status(self, administration: str, year: int) -> Dict[str, Any]:
         """
         Get closure status for a specific year.
         
@@ -114,7 +116,7 @@ class YearEndClosureService:
         result = self.db.execute_query(query, [administration, year])
         return result[0] if result else None
     
-    def validate_year_closure(self, administration, year):
+    def validate_year_closure(self, administration: str, year: int) -> Dict[str, Any]:
         """
         Validate if year is ready to be closed.
         
@@ -178,7 +180,7 @@ class YearEndClosureService:
         
         return validation
     
-    def _is_year_closed(self, administration, year):
+    def _is_year_closed(self, administration: str, year: int) -> bool:
         """Check if year is already closed"""
         query = """
             SELECT COUNT(*) as count
@@ -190,7 +192,7 @@ class YearEndClosureService:
         result = self.db.execute_query(query, [administration, year])
         return result[0]['count'] > 0 if result else False
     
-    def _get_first_year(self, administration):
+    def _get_first_year(self, administration: str) -> Optional[int]:
         """Get first year with transactions"""
         query = """
             SELECT MIN(TransactionDate) as first_date
@@ -209,7 +211,7 @@ class YearEndClosureService:
             return int(str(first_date)[:4])
         return None
     
-    def _calculate_net_pl_result(self, administration, year):
+    def _calculate_net_pl_result(self, administration: str, year: int) -> float:
         """
         Calculate net P&L result for the year.
         
@@ -241,7 +243,7 @@ class YearEndClosureService:
         result = self.db.execute_query(query, [administration, start_date, end_date])
         return float(result[0]['net_result']) if result else 0.0
     
-    def _count_balance_sheet_accounts(self, administration, year):
+    def _count_balance_sheet_accounts(self, administration: str, year: int) -> int:
         """
         Count balance sheet accounts with non-zero balances.
         
@@ -278,7 +280,7 @@ class YearEndClosureService:
         result = self.db.execute_query(query, [administration, start_date, end_date])
         return int(result[0]['count']) if result else 0
 
-    def _create_closure_transaction(self, administration, year, cursor):
+    def _create_closure_transaction(self, administration: str, year: int, cursor) -> None:
         """
         Create year-end closure transaction (P&L to equity).
         
@@ -373,7 +375,7 @@ class YearEndClosureService:
         
         return transaction_number
 
-    def _create_opening_balances(self, administration, year, cursor):
+    def _create_opening_balances(self, administration: str, year: int, cursor) -> None:
         """
         Create opening balance transactions for the new year.
         
@@ -539,7 +541,7 @@ class YearEndClosureService:
         
         return transaction_number if records_created > 0 else None
     
-    def _get_ending_balances(self, administration, year, cursor):
+    def _get_ending_balances(self, administration: str, year: int, cursor) -> List[Dict[str, Any]]:
         """
         Get ending balances for all balance sheet accounts.
         
@@ -626,7 +628,7 @@ class YearEndClosureService:
         
         return balances
 
-    def close_year(self, administration, year, user_email, notes=''):
+    def close_year(self, administration: str, year: int, user_email: str, notes: str = '') -> Dict[str, Any]:
         """
         Close a fiscal year.
         
@@ -711,9 +713,9 @@ class YearEndClosureService:
             cursor.close()
             conn.close()
     
-    def _record_closure_status(self, administration, year, user_email,
-                               closure_transaction_number, opening_transaction_number,
-                               notes, cursor):
+    def _record_closure_status(self, administration: str, year: int, user_email: str,
+                               closure_transaction_number: str, opening_transaction_number: str,
+                               notes: str, cursor) -> None:
         """
         Record year closure in status table.
         
@@ -754,7 +756,7 @@ class YearEndClosureService:
             notes
         ])
     
-    def reopen_year(self, administration, year, user_email):
+    def reopen_year(self, administration: str, year: int, user_email: str) -> Dict[str, Any]:
         """
         Reopen a closed fiscal year.
         
@@ -849,7 +851,7 @@ class YearEndClosureService:
             conn.close()
 
 
-    def _is_vat_netting_account(self, administration, account, cursor):
+    def _is_vat_netting_account(self, administration: str, account: str, cursor) -> bool:
         """
         Check if account has VAT netting flag in parameters.
         
@@ -887,7 +889,7 @@ class YearEndClosureService:
         
         return False
     
-    def _get_vat_primary_account(self, administration, cursor):
+    def _get_vat_primary_account(self, administration: str, cursor) -> Optional[str]:
         """
         Get the primary VAT account that receives the net balance.
         

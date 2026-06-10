@@ -1,5 +1,8 @@
 # Duplicate Invoice Detection - Troubleshooting Guide
 
+> **⚠️ Update Notice (June 2026)**  
+> References to `/api/duplicate-detection/performance/*` endpoints in this guide are outdated — those API routes have been removed. Core troubleshooting steps (database checks, index verification, audit logs) remain valid.
+
 ## Overview
 
 This guide provides detailed troubleshooting procedures for common issues with the duplicate invoice detection system. It's designed for system administrators and support personnel.
@@ -257,7 +260,6 @@ ORDER BY m1.TransactionDate DESC, m1.ID;
    ```
 
 2. **Document Common Patterns**
-
    - Create a knowledge base of legitimate duplicate scenarios
    - Train users on when to continue vs cancel
    - Add tooltips in UI explaining common cases
@@ -758,6 +760,7 @@ LIMIT 50;
    ```
 
 4. **Monitor Audit Log Health**
+
    ```python
    def check_audit_log_health():
        # Check recent log entries
@@ -866,7 +869,7 @@ console.error = (function (originalError) {
 // Check event listeners
 console.log(
   "Continue button listeners:",
-  getEventListeners(document.getElementById("continue-button"))
+  getEventListeners(document.getElementById("continue-button")),
 );
 
 // Monitor performance
@@ -884,7 +887,7 @@ console.timeEnd("Dialog render");
    const DuplicateWarningDialog = React.memo(
      ({ isOpen, duplicateInfo, onContinue, onCancel }) => {
        // Component code
-     }
+     },
    );
    ```
 
@@ -1143,14 +1146,12 @@ wireshark mysql_traffic.pcap
 If you've tried the troubleshooting steps and still have issues:
 
 1. **Collect Diagnostic Information**
-
    - Error logs (last 100 lines)
    - Database query explain plans
    - System resource usage
    - Recent audit log entries
 
 2. **Document the Issue**
-
    - What were you trying to do?
    - What happened instead?
    - What troubleshooting steps did you try?

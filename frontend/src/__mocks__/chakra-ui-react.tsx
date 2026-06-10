@@ -328,6 +328,9 @@ export const PopoverContent = ({ children, ...props }: any) => (
 export const PopoverHeader = ({ children, ...props }: any) => (
   <div {...filterChakraProps(props)}>{children}</div>
 );
+export const PopoverArrow = (props: any) => (
+  <span data-testid="popover-arrow" {...filterChakraProps(props)} />
+);
 
 export const Accordion = ({ children, ...props }: any) => (
   <div {...filterChakraProps(props)}>{children}</div>

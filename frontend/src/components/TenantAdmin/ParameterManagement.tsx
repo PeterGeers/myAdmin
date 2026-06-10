@@ -92,8 +92,9 @@ export default function ParameterManagement({ tenant }: Props) {
     try {
       const data = await getParameters();
       setParams(data.parameters || {});
-    } catch (e: any) {
-      toast({ title: t('tenantAdmin.parameters.loading'), description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: t('tenantAdmin.parameters.loading'), description: message, status: 'error', duration: 5000 });
     } finally { setLoading(false); }
   }, [toast, t]);
 
@@ -162,8 +163,9 @@ export default function ParameterManagement({ tenant }: Props) {
       try {
         JSON.parse(initialValue);
         setJsonError(null);
-      } catch (e: any) {
-        setJsonError(`Invalid JSON: ${e.message}`);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        setJsonError(`Invalid JSON: ${message}`);
       }
     } else {
       setJsonError(null);
@@ -178,8 +180,9 @@ export default function ParameterManagement({ tenant }: Props) {
       try {
         JSON.parse(newValue);
         setJsonError(null);
-      } catch (e: any) {
-        setJsonError(`Invalid JSON: ${e.message}`);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        setJsonError(`Invalid JSON: ${message}`);
       }
     }
   };
@@ -198,22 +201,25 @@ export default function ParameterManagement({ tenant }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      let parsedValue: any = formValue;
+      let parsedValue: string | number | boolean | object = formValue;
       if (formType === 'number') parsedValue = Number(formValue);
       else if (formType === 'boolean') parsedValue = formValue === 'true';
       else if (formType === 'json') parsedValue = JSON.parse(formValue);
       if (editing?.id) {
-        const res = await updateParameter(editing.id, { value: parsedValue, value_type: formType as any });
+        const res = await updateParameter(editing.id, { value: parsedValue, value_type: formType as Parameter['value_type'] });
         if (res.success) { toast({ title: t('tenantAdmin.parameters.updated'), status: 'success', duration: 3000 }); onClose(); load(); }
         else toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
       } else if (editing && !editing.id) {
         // Code default (no DB row yet) — create a tenant-scope row with the edited value
-        const req: ParameterCreateRequest = { scope: 'tenant', namespace: formNs, key: formKey, value: parsedValue, value_type: formType as any, is_secret: formSecret };
+        const req: ParameterCreateRequest = { scope: 'tenant', namespace: formNs, key: formKey, value: parsedValue, value_type: formType as Parameter['value_type'], is_secret: formSecret };
         const res = await createParameter(req);
         if (res.success) { toast({ title: t('tenantAdmin.parameters.updated'), status: 'success', duration: 3000 }); onClose(); load(); }
         else toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
       }
-    } catch (e: any) { toast({ title: t('tenantAdmin.parameters.title'), description: e.message, status: 'error', duration: 5000 }); }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: t('tenantAdmin.parameters.title'), description: message, status: 'error', duration: 5000 });
+    }
     finally { setSaving(false); }
   };
 
@@ -221,13 +227,13 @@ export default function ParameterManagement({ tenant }: Props) {
     if (!editing) return;
     setSaving(true);
     try {
-      let parsedValue: any = formValue;
+      let parsedValue: string | number | boolean | object = formValue;
       if (formType === 'number') parsedValue = Number(formValue);
       else if (formType === 'boolean') parsedValue = formValue === 'true';
       else if (formType === 'json') parsedValue = JSON.parse(formValue);
       const req: ParameterCreateRequest = {
         scope: 'tenant', namespace: formNs, key: formKey,
-        value: parsedValue, value_type: formType as any, is_secret: formSecret,
+        value: parsedValue, value_type: formType as Parameter['value_type'], is_secret: formSecret,
       };
       const res = await createParameter(req);
       if (res.success) {
@@ -237,8 +243,9 @@ export default function ParameterManagement({ tenant }: Props) {
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
       }
-    } catch (e: any) {
-      toast({ title: t('tenantAdmin.parameters.title'), description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: t('tenantAdmin.parameters.title'), description: message, status: 'error', duration: 5000 });
     } finally { setSaving(false); }
   };
 
@@ -248,7 +255,10 @@ export default function ParameterManagement({ tenant }: Props) {
       const res = await deleteParameter(editing.id);
       if (res.success) { toast({ title: t('tenantAdmin.parameters.deleted'), status: 'success', duration: 3000 }); onClose(); onDeleteClose(); load(); }
       else toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
-    } catch (e: any) { toast({ title: t('tenantAdmin.parameters.deleteParameter'), description: e.message, status: 'error', duration: 5000 }); }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: t('tenantAdmin.parameters.deleteParameter'), description: message, status: 'error', duration: 5000 });
+    }
     finally { onDeleteClose(); }
   };
 
@@ -264,7 +274,7 @@ export default function ParameterManagement({ tenant }: Props) {
       } else {
         toast({ title: 'Error', description: 'Failed to fetch default value', status: 'error', duration: 5000 });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({ title: 'Error', description: 'Failed to fetch default value', status: 'error', duration: 5000 });
     } finally {
       setLoadingDefault(false);
@@ -283,8 +293,9 @@ export default function ParameterManagement({ tenant }: Props) {
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 5000 });
       }
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, status: 'error', duration: 5000 });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast({ title: 'Error', description: message, status: 'error', duration: 5000 });
     }
   };
 

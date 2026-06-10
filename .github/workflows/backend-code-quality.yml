@@ -1,0 +1,50 @@
+name: Backend Code Quality
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - "backend/**"
+            - ".github/workflows/backend-code-quality.yml"
+    pull_request:
+        branches: [main]
+        paths:
+            - "backend/**"
+    workflow_dispatch:
+
+jobs:
+    dead-code-check:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v5
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Install vulture
+              run: pip install vulture
+
+            - name: Run vulture dead code check
+              working-directory: backend
+              run: |
+                  vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
+
+    syntax-check:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v5
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Syntax check all Python files
+              working-directory: backend/src
+              run: |
+                  find . -name "*.py" -not -path "./__pycache__/*" | xargs python -m py_compile
+                  echo "All Python files pass syntax check"
