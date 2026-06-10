@@ -951,3 +951,213 @@ def get_available_roles(user_email, user_roles):
             'success': False,
             'error': str(e)
         }), 500
+
+
+# ============================================================================
+# Legacy User Endpoints (from original tenant_admin_routes.py)
+# These use the older /api/tenant/users URL pattern.
+# ============================================================================
+
+
+@tenant_admin_users_bp.route('/api/tenant/users', methods=['GET'], endpoint='legacy_get_tenant_users')
+@cognito_required(required_permissions=[])
+def get_tenant_users_legacy(user_email, user_roles):
+    """
+    Get users in tenant (Tenant_Admin only) — legacy endpoint.
+
+    Returns list of users with their roles who have access to this tenant.
+    Uses the older /api/tenant/users URL pattern.
+    """
+    from auth.tenant_context import is_tenant_admin as check_tenant_admin
+    try:
+        tenant = get_current_tenant(request)
+
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        if not check_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        users_response = cognito_client.list_users(
+            UserPoolId=USER_POOL_ID,
+            Limit=60
+        )
+
+        tenant_users = []
+
+        for user in users_response.get('Users', []):
+            user_tenant_list = get_user_attribute(user.get('Attributes', []), 'custom:tenants')
+
+            if user_tenant_list and tenant in user_tenant_list:
+                username = user.get('Username')
+                # Get user's groups from Cognito
+                try:
+                    groups_response = cognito_client.admin_list_groups_for_user(
+                        UserPoolId=USER_POOL_ID,
+                        Username=username
+                    )
+                    user_groups = [group['GroupName'] for group in groups_response.get('Groups', [])]
+                except Exception:
+                    user_groups = []
+
+                tenant_users.append({
+                    'username': username,
+                    'email': get_user_attribute(user.get('Attributes', []), 'email'),
+                    'roles': user_groups,
+                    'tenants': user_tenant_list,
+                    'enabled': user.get('Enabled', True),
+                    'status': user.get('UserStatus', 'UNKNOWN')
+                })
+
+        return jsonify({
+            'success': True,
+            'tenant': tenant,
+            'users': tenant_users,
+            'count': len(tenant_users)
+        })
+
+    except Exception as e:
+        print(f"Error getting tenant users: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@tenant_admin_users_bp.route('/api/tenant/users/<username>/roles', methods=['POST'], endpoint='legacy_assign_role')
+@cognito_required(required_permissions=[])
+def assign_tenant_role_legacy(username, user_email, user_roles):
+    """
+    Assign role to user within tenant (Tenant_Admin only) — legacy endpoint.
+
+    Uses the older /api/tenant/users/<username>/roles URL pattern.
+    """
+    from auth.tenant_context import is_tenant_admin as check_tenant_admin
+    try:
+        tenant = get_current_tenant(request)
+
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        if not check_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        data = request.get_json()
+        role = data.get('role')
+
+        if not role:
+            return jsonify({'error': 'role required'}), 400
+
+        allowed_roles = [
+            'Finance_CRUD', 'Finance_Read', 'Finance_Export',
+            'STR_CRUD', 'STR_Read', 'STR_Export'
+        ]
+
+        if role not in allowed_roles:
+            return jsonify({
+                'error': 'Cannot assign this role',
+                'details': f'Allowed roles: {", ".join(allowed_roles)}'
+            }), 403
+
+        try:
+            user_response = cognito_client.admin_get_user(
+                UserPoolId=USER_POOL_ID,
+                Username=username
+            )
+            target_user_tenants = get_user_attribute(user_response.get('UserAttributes', []), 'custom:tenants')
+        except Exception:
+            return jsonify({'error': f'User not found: {username}'}), 404
+
+        if not target_user_tenants or tenant not in target_user_tenants:
+            return jsonify({
+                'error': 'User not in this tenant',
+                'details': f'User {username} does not have access to tenant {tenant}'
+            }), 403
+
+        cognito_client.admin_add_user_to_group(
+            UserPoolId=USER_POOL_ID,
+            Username=username,
+            GroupName=role
+        )
+
+        print(f"AUDIT: Tenant admin {user_email} assigned {role} to {username} in {tenant}", flush=True)
+
+        return jsonify({
+            'success': True,
+            'message': f'Role {role} assigned to {username} successfully'
+        })
+
+    except Exception as e:
+        print(f"Error assigning tenant role: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@tenant_admin_users_bp.route('/api/tenant/users/<username>/roles/<role>', methods=['DELETE'], endpoint='legacy_remove_role')
+@cognito_required(required_permissions=[])
+def remove_tenant_role_legacy(username, role, user_email, user_roles):
+    """
+    Remove role from user within tenant (Tenant_Admin only) — legacy endpoint.
+
+    Uses the older /api/tenant/users/<username>/roles/<role> URL pattern.
+    """
+    from auth.tenant_context import is_tenant_admin as check_tenant_admin
+    try:
+        tenant = get_current_tenant(request)
+
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        if not check_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        allowed_roles = [
+            'Finance_CRUD', 'Finance_Read', 'Finance_Export',
+            'STR_CRUD', 'STR_Read', 'STR_Export'
+        ]
+
+        if role not in allowed_roles:
+            return jsonify({
+                'error': 'Cannot remove this role',
+                'details': f'Allowed roles: {", ".join(allowed_roles)}'
+            }), 403
+
+        try:
+            user_response = cognito_client.admin_get_user(
+                UserPoolId=USER_POOL_ID,
+                Username=username
+            )
+            target_user_tenants = get_user_attribute(user_response.get('UserAttributes', []), 'custom:tenants')
+        except Exception:
+            return jsonify({'error': f'User not found: {username}'}), 404
+
+        if not target_user_tenants or tenant not in target_user_tenants:
+            return jsonify({
+                'error': 'User not in this tenant',
+                'details': f'User {username} does not have access to tenant {tenant}'
+            }), 403
+
+        cognito_client.admin_remove_user_from_group(
+            UserPoolId=USER_POOL_ID,
+            Username=username,
+            GroupName=role
+        )
+
+        print(f"AUDIT: Tenant admin {user_email} removed {role} from {username} in {tenant}", flush=True)
+
+        return jsonify({
+            'success': True,
+            'message': f'Role {role} removed from {username} successfully'
+        })
+
+    except Exception as e:
+        print(f"Error removing tenant role: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500

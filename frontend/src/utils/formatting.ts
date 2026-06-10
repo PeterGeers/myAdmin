@@ -30,27 +30,6 @@ export function formatDate(date: Date, language: string, formatStr: string = 'P'
 }
 
 /**
- * Format a number according to the specified language locale.
- * 
- * @param value - Number to format
- * @param language - Language code ('nl' or 'en')
- * @param decimals - Number of decimal places (default: 2)
- * @returns Formatted number string
- * 
- * @example
- * formatNumber(1234.56, 'nl') // "1.234,56"
- * formatNumber(1234.56, 'en') // "1,234.56"
- */
-export function formatNumber(value: number, language: string, decimals: number = 2): string {
-  const locale = language === 'nl' ? 'nl-NL' : 'en-US';
-  
-  return new Intl.NumberFormat(locale, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  }).format(value);
-}
-
-/**
  * Format a currency amount in EUR according to the specified language locale.
  * 
  * @param value - Amount to format

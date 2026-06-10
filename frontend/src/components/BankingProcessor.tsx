@@ -1,2273 +1,565 @@
+/**
+ * BankingProcessor Component
+ *
+ * Thin orchestration layer that composes the Banking Processor page using
+ * extracted sub-components and the useBankingProcessor hook for state/logic.
+ */
+
 import {
-    Alert, AlertIcon,
-    Box, Button,
-    Card, CardBody,
-    FormControl,
-    FormErrorMessage,
-    FormLabel,
-    Grid,
-    HStack,
-    Heading,
-    Input,
-    Modal,
-    ModalBody, ModalCloseButton,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
-    ModalOverlay,
-    Select,
-    Tab,
-    TabList,
-    TabPanel,
-    TabPanels,
-    Table,
-    TableContainer,
-    Tabs,
-    Tbody,
-    Td,
-    Text,
-    Textarea,
-    Th,
-    Thead,
-    Tooltip,
-    Tr,
-    VStack,
-    useDisclosure
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Grid,
+  HStack,
+  Heading,
+  Input,
+  Select,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Table,
+  TableContainer,
+  Tabs,
+  Tbody,
+  Td,
+  Text,
+  Th,
+  Thead,
+  Tooltip,
+  Tr,
+  VStack,
 } from '@chakra-ui/react';
-import { Form, Formik } from 'formik';
-import React, { useCallback, useEffect, useState } from 'react';
-import { authenticatedGet, authenticatedPost } from '../services/apiService';
-import { useTenant } from '../context/TenantContext';
-import { useTypedTranslation } from '../hooks/useTypedTranslation';
-import { FieldHelp } from './help';
-import AccountSelect from './common/AccountSelect';
-import { useAccountLookup } from '../hooks/useAccountLookup';
+import React from 'react';
+import BankingProcessorTable from './BankingProcessorTable';
 import BankingMutatiesTab from './banking/BankingMutatiesTab';
-import { processCreditCardTransactions } from './banking/CreditCardProcessor';
-import { useFilterableTable } from '../hooks/useFilterableTable';
+import BankingFileUpload from './BankingFileUpload';
+import BankingPatternPanel from './BankingPatternPanel';
+import BankingTransactionModal from './BankingTransactionModal';
 import { FilterableHeader } from './filters/FilterableHeader';
+import { useBankingProcessor, formatAmount } from '../hooks/useBankingProcessor';
 
-export interface Transaction {
-  ID?: number;
-  row_id: number;
-  TransactionNumber: string;
-  TransactionDate: string;
-  TransactionDescription: string;
-  TransactionAmount: number;
-  Debet: string;
-  Credit: string;
-  ReferenceNumber: string;
-  Ref1: string;
-  Ref2: string;
-  Ref3: string;
-  Ref4: string;
-  Administration: string;
-}
-
-export interface CreditCardAccount {
-  iban: string;
-  Account: string;
-  card_number: string;
-  administration: string;
-}
-
-export interface LookupData {
-  accounts: string[];
-  descriptions: string[];
-  bank_accounts: Array<{ rekeningNummer: string; Account: string; administration: string }>;
-  credit_card_accounts: CreditCardAccount[];
-  exchange_rate_account: string | null;
-}
-
-interface BankingBalance {
-  Reknum: string;
-  Administration: string;
-  calculated_balance: number;
-  account_name: string;
-  last_transaction_date: string;
-  last_transaction_description: string;
-  last_transaction_amount: number;
-  last_transactions: Array<{
-    TransactionDate: string;
-    TransactionDescription: string;
-    TransactionAmount: number;
-    Debet: string;
-    Credit: string;
-    Ref2: string;
-    Ref3: string;
-  }>;
-}
-
-// File processing utilities
-const parseCSVRow = (row: string): string[] => {
-  const columns: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < row.length; i++) {
-    const char = row[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      columns.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  columns.push(current.trim());
-  return columns;
-};
-
-export const processRevolutTransaction = (columns: string[], index: number, bankLookup: any, fileName: string, header?: string[]): Transaction[] => {
-  if (!bankLookup) {
-    throw new Error('Bank account not configured for Revolut. Please add it in Chart of Accounts with the bank_account flag.');
-  }
-
-  const transactions: Transaction[] = [];
-  
-  // Helper to find column index by name (supports Dutch and English)
-  const getColIdx = (names: string[], fallback: number): number => {
-    if (!header) return fallback;
-    const idx = header.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
-    return idx >= 0 ? idx : fallback;
-  };
-  
-  // Map columns by name with fallback to position
-  // Dutch:   Type, Product, Startdatum, Datum voltooid, Beschrijving, Bedrag, Kosten, Valuta, Status, Saldo
-  // English: Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance
-  const startdatumIdx = getColIdx(['startdatum', 'started date', 'started'], 2);
-  const datumVoltooidIdx = getColIdx(['datum voltooid', 'completed date', 'completed'], 3);
-  const beschrijvingIdx = getColIdx(['beschrijving', 'description'], 4);
-  const bedragIdx = getColIdx(['bedrag', 'amount'], 5);
-  const kostenIdx = getColIdx(['kosten', 'fee'], 6);
-  const statusIdx = getColIdx(['status', 'state'], 8);
-  const saldoIdx = getColIdx(['saldo', 'balance'], 9);
-  
-  const startdatum = columns[startdatumIdx] || '';
-  const datumVoltooidRaw = columns[datumVoltooidIdx] || '';
-  const beschrijving = columns[beschrijvingIdx] || '';
-  const bedrag = columns[bedragIdx] || '0';
-  const kosten = columns[kostenIdx] || '0';
-  const status = columns[statusIdx] || '';
-  const saldoRawValue = columns[saldoIdx] || '';
-  // Always format saldo to 2 decimals for consistency (514.3 -> 514.30)
-  const saldoRaw = columns[saldoIdx] || '0';
-  const saldo = parseFloat(saldoRaw.replace(',', '.')).toFixed(2);
-
-  // Language-independent filter: skip non-completed transactions (empty completion date or balance)
-  if (!datumVoltooidRaw.trim() || !saldoRawValue.trim()) return transactions;
-
-  if (status.includes('REVERTED') || status.includes('PENDING')) return transactions;
-
-  const amount = parseFloat(bedrag.replace(',', '.'));
-  const fee = parseFloat(kosten.replace(',', '.'));
-  const balance = parseFloat(saldo.replace(',', '.'));
-
-  if (amount === 0 && fee === 0) return transactions;
-
-  const currentDate = new Date().toISOString().split('T')[0];
-
-  // Main transaction
-  if (amount !== 0) {
-    const isNegative = amount < 0;
-    const absAmount = Math.abs(amount);
-    // Use datum voltooid (settlement date) instead of startdatum for more accurate duplicate detection
-    const ref2 = [beschrijving, saldo, datumVoltooidRaw].join('_');
-
-    transactions.push({
-      row_id: index,
-      TransactionNumber: `Revolut ${currentDate}`,
-      TransactionDate: startdatum.split(' ')[0] || '',
-      TransactionDescription: beschrijving,
-      TransactionAmount: absAmount,
-      Debet: isNegative ? '' : bankLookup.Account,
-      Credit: isNegative ? bankLookup.Account : '',
-      ReferenceNumber: '',
-      Ref1: bankLookup.rekeningNummer,
-      Ref2: ref2,
-      Ref3: balance.toString(),
-      Ref4: fileName,
-      Administration: bankLookup.administration
-    });
-  }
-
-  // Fee transaction
-  if (fee > 0) {
-    // Use datum voltooid (settlement date) instead of startdatum for more accurate duplicate detection
-    const feeRef2 = ['Revo Charges', saldo, datumVoltooidRaw].join('_');
-
-    transactions.push({
-      row_id: index + 1000,
-      TransactionNumber: `Revolut ${currentDate}`,
-      TransactionDate: startdatum.split(' ')[0] || '',
-      TransactionDescription: 'Revo Charges',
-      TransactionAmount: fee,
-      Debet: '',
-      Credit: bankLookup.Account,
-      ReferenceNumber: '',
-      Ref1: bankLookup.rekeningNummer,
-      Ref2: feeRef2,
-      Ref3: balance.toString(),
-      Ref4: fileName,
-      Administration: bankLookup.administration
-    });
-  }
-
-  return transactions;
-};
-
-export const processRabobankTransaction = (columns: string[], index: number, lookupData: LookupData, fileName: string): Transaction | null => {
-  if (columns.length < 20) return null;
-
-  const amountStr = columns[6] || '0';
-  const isNegative = amountStr.startsWith('-');
-  const amount = parseFloat(amountStr.replace(/[+-]/g, '').replace(',', '.'));
-
-  if (amount === 0) return null;
-
-  const iban = columns[0] || '';
-  const bankLookup = lookupData.bank_accounts.find(ba => ba.rekeningNummer === iban);
-  if (!bankLookup) {
-    throw new Error(`Bank account ${iban} is not configured for this tenant. Please add it in Chart of Accounts with the bank_account flag.`);
-  }
-  const bankCode = iban.includes('RABO') ? 'RABO' : 'BANK';
-  const currentDate = new Date().toISOString().split('T')[0];
-
-  const description = [columns[9], columns[19], columns[20], columns[21]]
-    .filter(field => field?.trim() && field.trim() !== 'NA' && field.trim() !== '' && field.trim() !== 'nan')
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .replace(/Google Pay/g, 'GPay')
-    .trim();
-
-  return {
-    row_id: index,
-    TransactionNumber: `${bankCode} ${currentDate}`,
-    TransactionDate: columns[4] || '',
-    TransactionDescription: description,
-    TransactionAmount: amount,
-    Debet: isNegative ? '' : bankLookup.Account,
-    Credit: isNegative ? bankLookup.Account : '',
-    ReferenceNumber: '', // Leave empty for pattern prediction to fill
-    Ref1: columns[0] || '',
-    Ref2: parseInt(columns[3] || '0').toString(),
-    Ref3: columns[7] || '', // Saldo na trn (balance after transaction)
-    Ref4: fileName,
-    Administration: bankLookup.administration
-  };
-};
+// Re-export types and utilities for backward compatibility
+export type { Transaction, CreditCardAccount, LookupData } from './BankingProcessor.types';
+export { parseCSVRow, processRevolutTransaction, processRabobankTransaction } from './BankingProcessor.utils';
 
 const BankingProcessor: React.FC = () => {
-  const { t } = useTypedTranslation('banking');
-  const { currentTenant } = useTenant();
-  const { accounts: chartAccounts } = useAccountLookup();
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [mutaties, setMutaties] = useState<Transaction[]>([]);
-  const [testMode] = useState(false); // Always use production mode
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [modalError, setModalError] = useState('');
-  const [patternResults, setPatternResults] = useState<any>(null);
-  const [showSaveConfirmation, setShowSaveConfirmation] = useState<boolean>(false);
-  const [lookupData, setLookupData] = useState<LookupData>({ accounts: [], descriptions: [], bank_accounts: [], credit_card_accounts: [], exchange_rate_account: null });
-  const [filterOptions, setFilterOptions] = useState<{ years: string[], administrations: string[] }>({ years: [], administrations: [] });
-  const [mutatiesFilters, setMutatiesFilters] = useState({
-    years: [new Date().getFullYear().toString()]
-  });
-  // Column filters and display limit moved to BankingMutatiesTab component
-  const [bankingBalances, setBankingBalances] = useState<BankingBalance[]>([]);
-  const [checkingAccounts, setCheckingAccounts] = useState(false);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [endDate, setEndDate] = useState('');
-  const [sequenceResult, setSequenceResult] = useState<any>(null);
-  const [checkingSequence, setCheckingSequence] = useState(false);
-  const [sequenceStartDate, setSequenceStartDate] = useState('2025-01-01');
-  const [openingBalanceDate, setOpeningBalanceDate] = useState<string | null>(null);
-  const [selectedAccount, setSelectedAccount] = useState('');
-  
-  // Check Reference state
-  const [checkRefFilters, setCheckRefFilters] = useState({
-    administration: currentTenant || 'GoodwinSolutions',
-    ledger: 'all',
-    referenceNumber: 'all'
-  });
-  const [availableLedgers, setAvailableLedgers] = useState<string[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [availableReferences, setAvailableReferences] = useState<string[]>([]);
-  const [refSummaryData, setRefSummaryData] = useState<any[]>([]);
-  const [selectedReferenceDetails, setSelectedReferenceDetails] = useState<any[]>([]);
-  const [selectedReference, setSelectedReference] = useState<string>('');
-
-  // Check Reference - filterable table hooks
-  const REF_SUMMARY_FILTERS: Record<string, string> = { ReferenceNumber: "", transaction_count: "", total_amount: "" };
-  const REF_DETAILS_FILTERS: Record<string, string> = { TransactionNumber: "", TransactionDate: "", Amount: "", TransactionDescription: "" };
-
-  const {
-    filters: refSummaryFilters,
-    setFilter: setRefSummaryFilter,
-    handleSort: handleRefSummarySort,
-    sortField: refSummarySortField,
-    sortDirection: refSummarySortDirection,
-    processedData: processedRefSummary,
-  } = useFilterableTable(refSummaryData, {
-    initialFilters: REF_SUMMARY_FILTERS,
-    defaultSort: { field: "ReferenceNumber", direction: "asc" },
-  });
-
-  const {
-    filters: refDetailsFilters,
-    setFilter: setRefDetailsFilter,
-    handleSort: handleRefDetailsSort,
-    sortField: refDetailsSortField,
-    sortDirection: refDetailsSortDirection,
-    processedData: processedRefDetails,
-  } = useFilterableTable(selectedReferenceDetails, {
-    initialFilters: REF_DETAILS_FILTERS,
-    defaultSort: { field: "TransactionDate", direction: "desc" },
-  });
-  
-  // STR Channel Revenue state
-  const [strChannelFilters, setStrChannelFilters] = useState({
-    year: new Date().getFullYear(),
-    month: new Date().getMonth() + 1,
-    administration: currentTenant || 'GoodwinSolutions'
-  });
-  const [strChannelPreview, setStrChannelPreview] = useState<any[]>([]);
-  const [strChannelTransactions, setStrChannelTransactions] = useState<any[]>([]);
-  const [strChannelSummary, setStrChannelSummary] = useState<any>(null);
-  
-  // Pattern suggestion state
-  const [patternSuggestions, setPatternSuggestions] = useState<any>(null);
-  const [showPatternApproval, setShowPatternApproval] = useState(false);
-  const [originalTransactions, setOriginalTransactions] = useState<Transaction[]>([]);
-
-  const toggleRowExpansion = (key: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(key)) {
-      newExpanded.delete(key);
-    } else {
-      newExpanded.add(key);
-    }
-    setExpandedRows(newExpanded);
-  };
-
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [editingRecord, setEditingRecord] = useState<Transaction | null>(null);
-  const [isInsertMode, setIsInsertMode] = useState(false);
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setMessage(t('messages.copiedToClipboard'));
-      setTimeout(() => setMessage(''), 2000);
-    });
-  };
-
-  const handleRef3Click = async (ref3: string) => {
-    if (ref3.startsWith('https://drive.goo')) {
-      window.open(ref3, '_blank');
-    } else if (ref3 && !ref3.startsWith('http')) {
-      // S3 key — fetch pre-signed URL from backend
-      try {
-        const resp = await authenticatedGet(
-          `/api/storage/presigned-url?key=${encodeURIComponent(ref3)}`,
-          { tenant: currentTenant || undefined }
-        );
-        const data = await resp.json();
-        if (data.success && data.url) {
-          window.open(data.url, '_blank');
-        } else {
-          copyToClipboard(ref3);
-        }
-      } catch {
-        copyToClipboard(ref3);
-      }
-    } else {
-      copyToClipboard(ref3);
-    }
-  };
-
-  const openEditModal = (record: Transaction) => {
-    setEditingRecord({ ...record });
-    setIsInsertMode(false);
-    setModalError('');
-    onOpen();
-  };
-
-  const openInsertModal = () => {
-    setModalError('');
-    const currentTenant = localStorage.getItem('selectedTenant') || 'PeterPrive';
-    const newRecord: Transaction = {
-      ID: 0,
-      row_id: Date.now(), // Use timestamp as temporary row_id
-      TransactionNumber: '',
-      TransactionDate: new Date().toISOString().split('T')[0],
-      TransactionDescription: '',
-      TransactionAmount: 0,
-      Administration: currentTenant,
-      Debet: '',
-      Credit: '',
-      ReferenceNumber: '',
-      Ref1: '',
-      Ref2: '',
-      Ref3: '',
-      Ref4: ''
-    };
-    setEditingRecord(newRecord);
-    setIsInsertMode(true);
-    onOpen();
-  };
-
-  const updateRecord = async () => {
-    if (!editingRecord) return;
-    try {
-      setLoading(true);
-      setModalError('');
-      const response = await authenticatedPost('/api/banking/update-mutatie', editingRecord);
-      const data = await response.json();
-      if (data.success) {
-        setMessage(t('messages.recordUpdated'));
-        fetchMutaties();
-        onClose();
-      } else {
-        setModalError(data.error || t('messages.errorUpdating'));
-      }
-    } catch (error) {
-      setModalError(t('messages.errorUpdating') + `: ${error}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const insertRecord = async () => {
-    if (!editingRecord) return;
-    try {
-      setLoading(true);
-      setModalError('');
-      const response = await authenticatedPost('/api/banking/insert-mutatie', editingRecord);
-      const data = await response.json();
-      if (data.success) {
-        setMessage(t('messages.recordInserted'));
-        fetchMutaties();
-        onClose();
-      } else {
-        setModalError(data.error || t('messages.errorInserting'));
-      }
-    } catch (error) {
-      setModalError(t('messages.errorInserting') + `: ${error}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveRecord = () => {
-    if (isInsertMode) {
-      insertRecord();
-    } else {
-      updateRecord();
-    }
-  };
-
-  /** Map backend credit_card_accounts fields to frontend interface */
-  const mapLookupData = (data: any): any => {
-    if (data.credit_card_accounts) {
-      data.credit_card_accounts = data.credit_card_accounts.map((cc: any) => ({
-        iban: cc.cc_bank_iban || cc.iban || '',
-        Account: cc.Account,
-        card_number: cc.card_number || '',
-        administration: cc.administration,
-      }));
-    }
-    return data;
-  };
-
-  const fetchLookupData = useCallback(async () => {
-    try {
-      const response = await authenticatedGet('/api/banking/lookups');
-      const data = await response.json();
-      if (data.success) setLookupData(mapLookupData(data));
-    } catch (error) {
-      console.error('Error fetching lookup data:', error);
-    }
-  }, []);
-
-  const fetchMutaties = useCallback(async () => {
-    try {
-      const currentTenant = localStorage.getItem('selectedTenant');
-      const params = new URLSearchParams({
-        years: mutatiesFilters.years.join(','),
-        administration: currentTenant || 'all',
-        limit: '99999'
-      });
-      const response = await authenticatedGet(`/api/banking/mutaties?${params}`);
-      const data = await response.json();
-      if (data.success) setMutaties(data.mutaties);
-    } catch (error) {
-      console.error('Error fetching mutaties:', error);
-    }
-  }, [mutatiesFilters]);
-
-  const fetchFilterOptions = useCallback(async () => {
-    try {
-      const response = await authenticatedGet('/api/banking/filter-options');
-      const data = await response.json();
-      if (data.success) setFilterOptions(data);
-    } catch (error) {
-      console.error('Error fetching filter options:', error);
-    }
-  }, []);
-
-  const checkBankingAccounts = useCallback(async () => {
-    try {
-      setCheckingAccounts(true);
-      const params = new URLSearchParams({ test_mode: testMode.toString() });
-      if (endDate) params.append('end_date', endDate);
-      
-      console.log('Calling API with params:', params.toString());
-      const response = await authenticatedGet(`/api/banking/check-accounts?${params}`);
-      const data = await response.json();
-      console.log('API response:', data);
-      
-      if (data.success) {
-        setBankingBalances(data.balances);
-        console.log('Setting balances:', data.balances);
-        setMessage(endDate 
-          ? t('messages.foundAccountsAsOf', { count: data.count, date: endDate })
-          : t('messages.foundAccounts', { count: data.count })
-        );
-      } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
-      }
-    } catch (error) {
-      console.error('API call failed:', error);
-      setMessage(t('messages.errorCheckingAccounts', { error: String(error) }));
-    } finally {
-      setCheckingAccounts(false);
-    }
-  }, [testMode, endDate, t]);
-
-  const checkSequenceNumbers = useCallback(async () => {
-    try {
-      setCheckingSequence(true);
-      const [account_code, administration] = selectedAccount.split('-');
-      const params = new URLSearchParams({ 
-        test_mode: testMode.toString(),
-        account_code,
-        administration,
-        start_date: sequenceStartDate
-      });
-      
-      const response = await authenticatedGet(`/api/banking/check-sequence?${params}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setSequenceResult(data);
-        const gapMsg = data.has_gaps 
-          ? t('messages.gapsFound', { count: data.sequence_issues.length })
-          : t('messages.noGapsFound');
-        setMessage(t('messages.sequenceCheckComplete', { 
-          account: account_code, 
-          administration 
-        }) + ` - ${gapMsg}`);
-      } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
-      }
-    } catch (error) {
-      setMessage(t('messages.errorCheckingSequence', { error: String(error) }));
-    } finally {
-      setCheckingSequence(false);
-    }
-  }, [testMode, selectedAccount, sequenceStartDate, t]);
-
-  const fetchCheckRefOptions = async () => {
-    try {
-      const params = new URLSearchParams({
-        administration: checkRefFilters.administration,
-        ledger: checkRefFilters.ledger
-      });
-      const response = await authenticatedGet(`/api/reports/filter-options?${params}`);
-      const data = await response.json();
-      if (data.success) {
-        setAvailableLedgers(data.ledgers || []);
-        setAvailableReferences(data.references || []);
-      }
-    } catch (err) {
-      console.error('Error fetching filter options:', err);
-    }
-  };
-
-  const fetchCheckRefData = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        referenceNumber: 'all',
-        ledger: checkRefFilters.ledger,
-        administration: checkRefFilters.administration
-      });
-      
-      const response = await authenticatedGet(`/api/reports/check-reference?${params}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        const filteredSummary = data.summary.filter((row: any) => {
-          const amount = parseFloat(row.total_amount || 0);
-          return Math.abs(amount) > 0.01;
-        });
-        setRefSummaryData(filteredSummary);
-        setMessage(t('messages.foundReferences', { count: filteredSummary.length }));
-      } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
-      }
-    } catch (err) {
-      console.error('Error fetching check reference data:', err);
-      setMessage(t('messages.errorFetchingData', { error: err }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchReferenceDetails = async (referenceNumber: string) => {
-    try {
-      const params = new URLSearchParams({
-        referenceNumber: referenceNumber,
-        ledger: checkRefFilters.ledger,
-        administration: checkRefFilters.administration
-      });
-      
-      const response = await authenticatedGet(`/api/reports/check-reference?${params}`);
-      const data = await response.json();
-      
-      console.log('Reference details response:', data);
-      
-      if (data.success) {
-        setSelectedReferenceDetails(data.transactions);
-        setSelectedReference(referenceNumber);
-      }
-    } catch (err) {
-      console.error('Error fetching reference details:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchCheckRefOptions();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkRefFilters.administration, checkRefFilters.ledger]);
-
-  const formatAmount = (amount: number): string => {
-    const num = Number(amount) || 0;
-    return `€${num.toLocaleString('nl-NL', {minimumFractionDigits: 2})}`;
-  };
-
-  // STR Channel Revenue functions
-  const fetchStrChannelPreview = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        year: strChannelFilters.year.toString(),
-        month: strChannelFilters.month.toString(),
-        administration: strChannelFilters.administration,
-        test_mode: testMode.toString()
-      });
-      
-      const response = await authenticatedGet(`/api/str-channel/preview?${params}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setStrChannelPreview(data.preview_data);
-        setMessage(t('messages.foundStrChannels', { count: data.preview_data.length, month: strChannelFilters.month, year: strChannelFilters.year }));
-      } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
-      }
-    } catch (error) {
-      setMessage(t('messages.errorFetchingPreview', { error: String(error) }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateStrChannelRevenue = async () => {
-    try {
-      setLoading(true);
-      
-      const response = await authenticatedPost('/api/str-channel/calculate', {
-        year: strChannelFilters.year,
-        month: strChannelFilters.month,
-        administration: strChannelFilters.administration,
-        test_mode: testMode
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setStrChannelTransactions(data.transactions);
-        setStrChannelSummary(data.summary);
-        setMessage(t('messages.generatedTransactions', { count: data.transactions.length }));
-      } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
-      }
-    } catch (error) {
-      setMessage(t('messages.errorCalculating', { error }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveStrChannelTransactions = async () => {
-    try {
-      setLoading(true);
-      
-      const response = await authenticatedPost('/api/str-channel/save', {
-        transactions: strChannelTransactions,
-        test_mode: testMode
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setMessage(t('messages.transactionsSaved', { count: data.saved_count }));
-        setStrChannelTransactions([]);
-        setStrChannelSummary(null);
-      } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
-      }
-    } catch (error) {
-      setMessage(t('messages.errorSavingStrChannel', { error }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    const csvTsvFiles = files.filter(file =>
-      file.name.toLowerCase().endsWith('.csv') ||
-      file.name.toLowerCase().endsWith('.tsv')
-    );
-    setSelectedFiles(csvTsvFiles);
-    setMessage(t('messages.filesSelected', { count: csvTsvFiles.length }));
-  }, [t]);
-
-  const processFiles = useCallback(async () => {
-    if (selectedFiles.length === 0) {
-      setMessage(t('messages.selectFiles'));
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      if (lookupData.bank_accounts.length === 0) {
-        const response = await authenticatedGet('/api/banking/lookups');
-        const data = await response.json();
-        if (data.success) setLookupData(mapLookupData(data));
-      }
-
-      // Get current tenant for validation
-      const currentTenant = localStorage.getItem('selectedTenant');
-      if (!currentTenant) {
-        setMessage(t('messages.noTenantSelected'));
-        setLoading(false);
-        return;
-      }
-
-      // Validate IBANs in files belong to current tenant BEFORE processing
-      console.log('[TENANT VALIDATION] Starting validation...');
-      console.log('[TENANT VALIDATION] Current tenant:', currentTenant);
-      console.log('[TENANT VALIDATION] Bank accounts in lookup:', lookupData.bank_accounts);
-      
-      for (const file of selectedFiles) {
-        const text = await file.text();
-        const allRows = text.split('\n').filter(row => row.trim());
-        
-        if (allRows.length > 1) {
-          let iban = '';
-          
-          // Determine IBAN based on file type
-          const isRevolutFile = file.name.toLowerCase().endsWith('.tsv') || 
-                               file.name.toLowerCase().startsWith('account-statement');
-          
-          if (isRevolutFile) {
-            // Revolut files (TSV or CSV) - find Revolut account from tenant's bank accounts
-            const revolutAccount = lookupData.bank_accounts.find(ba => ba.rekeningNummer.includes('REVO'));
-            if (!revolutAccount) {
-              setMessage('No Revolut bank account configured for this tenant. Please add it in Chart of Accounts with the bank_account flag.');
-              setLoading(false);
-              return;
-            }
-            iban = revolutAccount.rekeningNummer;
-            console.log('[TENANT VALIDATION] File:', file.name);
-            console.log('[TENANT VALIDATION] Revolut file detected - using tenant IBAN:', iban);
-          } else {
-            // Other CSV files - extract IBAN from first column
-            const firstDataRow = allRows[1]; // Skip header
-            const columns = parseCSVRow(firstDataRow);
-            iban = columns[0] || '';
-            console.log('[TENANT VALIDATION] File:', file.name);
-            console.log('[TENANT VALIDATION] CSV file - extracted IBAN from first column:', iban);
-          }
-          
-          if (iban) {
-            // Look up which tenant this IBAN belongs to
-            const isCreditCardFile = file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_');
-            
-            if (isCreditCardFile) {
-              // Credit card files: look up IBAN in credit_card_accounts
-              const ccLookup = lookupData.credit_card_accounts?.find(cc => cc.iban === iban);
-              console.log('[TENANT VALIDATION] Credit card lookup result:', ccLookup);
-              
-              if (ccLookup) {
-                console.log('[TENANT VALIDATION] IBAN found in credit card accounts - validation passed');
-              } else {
-                console.log('[TENANT VALIDATION] IBAN not found in credit card accounts - BLOCKED');
-                setMessage(t('messages.accessDenied', { iban, file: file.name }));
-                setLoading(false);
-                return;
-              }
-            } else {
-              // Regular bank files: look up IBAN in bank_accounts
-              const bankLookup = lookupData.bank_accounts.find(ba => ba.rekeningNummer === iban);
-              console.log('[TENANT VALIDATION] Bank lookup result:', bankLookup);
-              
-              if (bankLookup) {
-                console.log('[TENANT VALIDATION] IBAN belongs to current tenant - validation passed');
-              } else {
-                console.log('[TENANT VALIDATION] IBAN not found in current tenant accounts - BLOCKED');
-                setMessage(t('messages.accessDenied', { iban, file: file.name }));
-                setLoading(false);
-                return;
-              }
-            }
-          }
-        }
-      }
-
-      console.log('[TENANT VALIDATION] Validation passed! Processing files...');
-      const allTransactions: Transaction[] = [];
-      let transactionIndex = 0;
-
-      for (const file of selectedFiles) {
-        const text = await file.text();
-        const allRows = text.split('\n').filter(row => row.trim());
-        const headerRow = allRows[0];
-        const rows = allRows.slice(1); // Skip header
-
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          const currentIndex = transactionIndex + i;
-          const isRevolutFile = file.name.toLowerCase().endsWith('.tsv') || 
-                               file.name.toLowerCase().startsWith('account-statement');
-          
-          const columns = isRevolutFile && file.name.toLowerCase().endsWith('.tsv')
-            ? row.split('\t').map(col => col.trim())
-            : parseCSVRow(row);
-
-          if (isRevolutFile) {
-            const header = file.name.toLowerCase().endsWith('.tsv')
-              ? headerRow.split('\t').map(col => col.trim())
-              : parseCSVRow(headerRow);
-            const revolutTransactions = processRevolutTransaction(
-              columns, currentIndex,
-              lookupData.bank_accounts.find(ba => ba.rekeningNummer.includes('REVO')),
-              file.name,
-              header
-            );
-            allTransactions.push(...revolutTransactions);
-          } else if (file.name.startsWith('CSV_CC_') || file.name.startsWith('RA_CC_')) {
-            const ccResult = processCreditCardTransactions(columns, currentIndex, lookupData, file.name);
-            allTransactions.push(...ccResult.transactions);
-            if (ccResult.warnings.length > 0) {
-              ccResult.warnings.forEach(w => console.warn('[CreditCard]', w));
-              setMessage(ccResult.warnings.join('\n'));
-            }
-          } else {
-            const rabobankTransaction = processRabobankTransaction(columns, currentIndex, lookupData, file.name);
-            if (rabobankTransaction) allTransactions.push(rabobankTransaction);
-          }
-        }
-
-        transactionIndex += rows.length;
-      }
-
-      // Check for duplicates
-      const iban = allTransactions[0]?.Ref1;
-      const sequences = allTransactions.map(t => t.Ref2).filter(Boolean);
-
-      if (iban && sequences.length > 0) {
-        const response = await authenticatedPost('/api/banking/check-sequences', {
-          iban,
-          sequences,
-          test_mode: testMode
-        });
-
-        const checkResult = await response.json();
-
-        if (checkResult.success && checkResult.duplicates.length > 0) {
-          const filteredTransactions = allTransactions.filter(t => !checkResult.duplicates.includes(t.Ref2));
-          setTransactions(filteredTransactions);
-          setMessage(t('messages.duplicatesFiltered', { 
-            new: filteredTransactions.length, 
-            duplicates: checkResult.duplicates.length 
-          }));
-        } else {
-          setTransactions(allTransactions);
-          setMessage(t('messages.transactionsLoaded', { count: allTransactions.length }));
-        }
-      } else {
-        setTransactions(allTransactions);
-        setMessage(t('messages.transactionsLoaded', { count: allTransactions.length }));
-      }
-    } catch (error) {
-      setMessage(t('messages.errorProcessing', { error: String(error) }));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedFiles, lookupData, testMode, t]);
-
-  const handleSaveTransactions = async (values: any) => {
-    // REQ-UI-004: Add confirmation dialog before saving transactions to database
-    setShowSaveConfirmation(true);
-  };
-
-  const confirmSaveTransactions = async () => {
-    try {
-      setLoading(true);
-      setShowSaveConfirmation(false);
-      
-      const response = await authenticatedPost('/api/banking/save-transactions', {
-        transactions: transactions,
-        test_mode: testMode
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setMessage(t('messages.transactionsSavedSuccess', { count: data.saved_count, table: data.table }));
-        setTransactions([]);
-        setPatternResults(null); // Clear pattern results after saving
-      } else {
-        setMessage(t('messages.errorGeneric', { error: data.error }));
-      }
-    } catch (error) {
-      setMessage(t('messages.errorSaving', { error: String(error) }));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateTransaction = useCallback((rowId: number, field: keyof Transaction, value: string | number) => {
-    setTransactions(prev =>
-      prev.map(t =>
-        t.row_id === rowId ? { ...t, [field]: value } : t
-      )
-    );
-  }, []);
-
-  const clearSelection = useCallback(() => {
-    setSelectedFiles([]);
-  }, []);
-
-  // REQ-UI-001 & REQ-UI-002: Handle ENTER key to move to next field instead of submitting form
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault(); // Prevent form submission
-      
-      // Move focus to next input field
-      const form = e.currentTarget.closest('form');
-      if (form) {
-        const inputs = Array.from(form.querySelectorAll('input, select, textarea')) as HTMLElement[];
-        const currentIndex = inputs.indexOf(e.currentTarget as HTMLElement);
-        const nextInput = inputs[currentIndex + 1];
-        
-        if (nextInput) {
-          nextInput.focus();
-        }
-      }
-    }
-  }, []);
-
-  // REQ-UI-008: Helper function to check if field was auto-filled by patterns
-  const isPatternFilled = useCallback((transaction: Transaction, field: string) => {
-    // Check if this field was filled by comparing with original transactions
-    const originalTx = originalTransactions.find(tx => tx.row_id === transaction.row_id);
-    if (!originalTx) return false;
-    
-    const fieldKey = field === 'debet' ? 'Debet' : 
-                     field === 'credit' ? 'Credit' : 
-                     field === 'reference' ? 'ReferenceNumber' : field;
-    
-    // Field is pattern-filled if it was empty in original but has value now
-    const originalValue = originalTx[fieldKey as keyof Transaction] || '';
-    const currentValue = transaction[fieldKey as keyof Transaction] || '';
-    
-    return !originalValue && !!currentValue && patternSuggestions;
-  }, [originalTransactions, patternSuggestions]);
-
-  // REQ-UI-008: Get styling for pattern-filled fields
-  const getPatternFieldStyle = useCallback((transaction: Transaction, field: string) => {
-    if (isPatternFilled(transaction, field)) {
-      return {
-        bg: 'blue.50',
-        borderColor: 'blue.300',
-        borderWidth: '2px',
-        _hover: { bg: 'blue.100' }
-      };
-    }
-    return {};
-  }, [isPatternFilled]);
-
-  const applyPatterns = async () => {
-    try {
-      setLoading(true);
-      setPatternResults(null); // Clear previous results
-      
-      // Store original transactions before applying suggestions
-      setOriginalTransactions([...transactions]);
-      
-      const response = await authenticatedPost('/api/banking/apply-patterns', {
-        transactions: transactions,
-        test_mode: testMode
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Update transactions with pattern predictions (suggestions filled in fields)
-        setTransactions(data.transactions);
-        
-        // Extract results from enhanced_results or fallback to legacy format
-        const results = data.enhanced_results || data;
-        
-        // Store pattern results and suggestions for approval dialog
-        const patternData = {
-          patterns_found: data.patterns_found || results.total_transactions || 0,
-          predictions_made: results.predictions_made || {
-            debet: 0,
-            credit: 0,
-            reference: 0
-          },
-          confidence_scores: results.confidence_scores || [],
-          average_confidence: results.average_confidence || 0,
-          enhanced_results: data.enhanced_results
-        };
-        
-        setPatternResults(patternData);
-        setPatternSuggestions(patternData);
-        
-        const totalPredictions = Object.values(patternData.predictions_made).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0);
-        
-        if (totalPredictions > 0) {
-          // Show approval dialog for pattern suggestions
-          setShowPatternApproval(true);
-          setMessage(t('messages.patternSuggestionsFound', { count: totalPredictions }));
-        } else {
-          setMessage(t('messages.noPatternSuggestions'));
-        }
-      } else {
-        setMessage(t('messages.errorApplyingPatterns', { error: data.error }));
-        setPatternResults(null);
-      }
-    } catch (error) {
-      setMessage(t('messages.errorApplyingPatterns', { error: String(error) }));
-      setPatternResults(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const approvePatternSuggestions = () => {
-    // Keep the current transactions with applied suggestions
-    setShowPatternApproval(false);
-    const count = Object.values(patternSuggestions?.predictions_made || {}).reduce((a: number, b: unknown) => a + (typeof b === 'number' ? b : 0), 0);
-    setMessage(t('messages.patternSuggestionsApproved', { count }));
-  };
-
-  const rejectPatternSuggestions = () => {
-    // Restore original transactions without suggestions
-    setTransactions([...originalTransactions]);
-    setPatternResults(null);
-    setPatternSuggestions(null);
-    setShowPatternApproval(false);
-    setMessage(t('messages.patternSuggestionsRejected'));
-  };
-
-  useEffect(() => {
-    fetchLookupData();
-    fetchFilterOptions();
-    fetchMutaties();
-  }, [testMode, fetchLookupData, fetchFilterOptions, fetchMutaties]);
-
-  useEffect(() => {
-    fetchMutaties();
-  }, [fetchMutaties]);
-
-  // Auto-refresh mutaties when tenant changes
-  useEffect(() => {
-    if (currentTenant) {
-      console.log('[TENANT CHANGE] Tenant changed to:', currentTenant);
-      console.log('[TENANT CHANGE] Auto-refreshing mutaties...');
-      fetchMutaties();
-      fetchLookupData(); // Also refresh lookup data for new tenant
-      setBankingBalances([]); // Clear stale Check Accounts data from previous tenant
-      setSelectedAccount(''); // Reset account selection for new tenant
-      setSequenceResult(null); // Clear stale sequence check from previous tenant
-    }
-  }, [currentTenant, fetchMutaties, fetchLookupData]);
-
-  // Fetch opening balance date based on annual closure
-  useEffect(() => {
-    const fetchOpeningBalanceDate = async () => {
-      try {
-        const params = new URLSearchParams({ test_mode: testMode.toString() });
-        const response = await authenticatedGet(`/api/banking/opening-balance-date?${params}`);
-        const data = await response.json();
-        if (data.success && data.opening_balance_date) {
-          setOpeningBalanceDate(data.opening_balance_date);
-          setSequenceStartDate(data.opening_balance_date);
-        } else {
-          setOpeningBalanceDate(null);
-        }
-      } catch (error) {
-        console.error('Error fetching opening balance date:', error);
-        setOpeningBalanceDate(null);
-      }
-    };
-    fetchOpeningBalanceDate();
-  }, [currentTenant, testMode]);
-
-  // Set initial selectedAccount when lookupData changes
-  useEffect(() => {
-    if (lookupData.bank_accounts.length > 0 && !selectedAccount) {
-      const firstAccount = lookupData.bank_accounts[0];
-      setSelectedAccount(`${firstAccount.Account}-${firstAccount.administration}`);
-    }
-  }, [lookupData.bank_accounts, selectedAccount]);
-
-  // Update checkRefFilters when tenant changes
-  useEffect(() => {
-    if (currentTenant) {
-      setCheckRefFilters(prev => ({
-        ...prev,
-        administration: currentTenant
-      }));
-      // Clear data when tenant changes
-      setRefSummaryData([]);
-      setSelectedReferenceDetails([]);
-    }
-  }, [currentTenant]);
-
-  // Update strChannelFilters when tenant changes
-  useEffect(() => {
-    if (currentTenant) {
-      setStrChannelFilters(prev => ({
-        ...prev,
-        administration: currentTenant
-      }));
-      // Clear data when tenant changes
-      setStrChannelPreview([]);
-      setStrChannelTransactions([]);
-      setStrChannelSummary(null);
-    }
-  }, [currentTenant]);
+  const bp = useBankingProcessor();
 
   return (
     <Box w="100%" p={4}>
       <Tabs variant="enclosed" colorScheme="blue">
         <TabList>
-          <Tab>{t('tabs.fileProcessing')}</Tab>
-          <Tab>{t('tabs.mutaties')}</Tab>
-          <Tab>{t('tabs.checkAccounts')}</Tab>
-          <Tab>{t('tabs.checkReference')}</Tab>
-          <Tab>{t('tabs.strChannelRevenue')}</Tab>
+          <Tab>{bp.t('tabs.fileProcessing')}</Tab>
+          <Tab>{bp.t('tabs.mutaties')}</Tab>
+          <Tab>{bp.t('tabs.checkAccounts')}</Tab>
+          <Tab>{bp.t('tabs.checkReference')}</Tab>
+          <Tab>{bp.t('tabs.strChannelRevenue')}</Tab>
         </TabList>
 
         <TabPanels>
+          {/* File Processing Tab */}
           <TabPanel>
+            <BankingFileUpload
+              lookupData={bp.lookupData}
+              setLookupData={bp.setLookupData}
+              testMode={bp.testMode}
+              onTransactionsLoaded={bp.setTransactions}
+              setLoading={bp.setLoading}
+              loading={bp.loading}
+              message={bp.message}
+              setMessage={bp.setMessage}
+              mapLookupData={bp.mapLookupData}
+            />
 
-            {/* File Selection */}
-            <VStack align="stretch" mb={6}>
-              <HStack mb={2}>
-                <FormLabel color="white" mb={0}>{t('fileProcessing.selectFiles')}</FormLabel>
-              </HStack>
-              <FormControl>
-                <Input
-                  type="file"
-                  accept=".csv,.tsv"
-                  multiple
-                  onChange={handleFileSelect}
-                  bg="white"
-                  color="black"
-                />
-              </FormControl>
-
-              {selectedFiles.length > 0 && (
-                <VStack align="stretch" spacing={2}>
-                  <Text color="white">{t('fileProcessing.selectedFiles', { count: selectedFiles.length })}</Text>
-                  {selectedFiles.map((file, index) => (
-                    <Text key={index} fontSize="sm" color="gray.300">
-                      {file.name} ({(file.size / 1024).toFixed(1)} KB)
-                    </Text>
-                  ))}
-                  <HStack>
-                    <Button
-                      onClick={processFiles}
-                      isLoading={loading}
-                      colorScheme="blue"
-                      loadingText={t('fileProcessing.processing')}
-                    >
-                      {t('fileProcessing.processFiles')}
-                    </Button>
-                    <Button onClick={clearSelection} size="sm">
-                      {t('common:actions.clear')}
-                    </Button>
-                  </HStack>
-                </VStack>
-              )}
-            </VStack>
-
-            {/* Message Display */}
-            {message && (
-              <Alert
-                status={message.includes('Error') ? 'error' : 'success'}
-                mb={6}
-                bg={message.includes('Error') ? 'red.100' : 'green.100'}
-                color="black"
-                borderColor={message.includes('Error') ? 'red.300' : 'green.300'}
-              >
-                <AlertIcon color={message.includes('Error') ? 'red.600' : 'green.600'} />
-                {message}
-              </Alert>
-            )}
-
-            {/* REQ-UI-005: Pattern Application Results Display */}
-            {patternResults && (
-              <Card mb={6} bg="blue.50" borderColor="blue.200" borderWidth="1px">
-                <CardBody>
-                  <Heading size="sm" mb={3} color="blue.800">{t('labels.patternResultsTitle')}</Heading>
-                  <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                    <Box>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.patternsFound')}:</strong> {patternResults.patterns_found}
-                      </Text>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.debetPredictions')}:</strong> {patternResults.predictions_made?.debet || 0}
-                      </Text>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.creditPredictions')}:</strong> {patternResults.predictions_made?.credit || 0}
-                      </Text>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.referencePredictions')}:</strong> {patternResults.predictions_made?.reference || 0}
-                      </Text>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.averageConfidence')}:</strong> {(patternResults.average_confidence * 100).toFixed(1)}%
-                      </Text>
-                      <Text fontSize="xs" color="blue.600" mt={2}>
-                        {t('labels.fieldsAutoFilled')}
-                      </Text>
-                    </Box>
-                  </Grid>
-                </CardBody>
-              </Card>
-            )}
-
-            {/* Transactions Form */}
-            {transactions.length > 0 && (
-              <Formik
-                initialValues={{}}
-                onSubmit={handleSaveTransactions}
-              >
-                {({ handleSubmit }) => (
-                  <Form>
-                    <Box mb={6}>
-                      <HStack justify="space-between" mb={4}>
-                        <Heading size="md">{t('fileProcessing.reviewTransactions', { count: transactions.length })}</Heading>
-                        <HStack>
-                          <Button
-                            colorScheme="blue"
-                            isLoading={loading}
-                            onClick={applyPatterns}
-                            loadingText={t('fileProcessing.applyingPatterns')}
-                          >
-                            {t('fileProcessing.applyPatterns')}
-                          </Button>
-                          <FieldHelp
-                            tooltip="Automatically assigns debit/credit accounts based on your historical transaction patterns"
-                            docsSection="banking/pattern-matching"
-                          />
-                          <Button
-                            type="submit"
-                            colorScheme="green"
-                            isLoading={loading}
-                            onClick={() => handleSubmit()}
-                            loadingText={t('fileProcessing.saving')}
-                          >
-                            {t('fileProcessing.saveTransactions')}
-                          </Button>
-                        </HStack>
-                      </HStack>
-
-                      <Box overflowX="auto" maxH="600px">
-                        <Table variant="simple" size="sm">
-                          <Thead>
-                            <Tr>
-                              <Th>{t('labels.trxNumber')}</Th>
-                              <Th>{t('labels.date')}</Th>
-                              <Th>{t('table.description')}</Th>
-                              <Th>{t('table.amount')}</Th>
-                              <Th>{t('table.debit')}</Th>
-                              <Th>{t('table.credit')}</Th>
-                            </Tr>
-                            <Tr>
-                              <Th>{t('labels.refNumber')}</Th>
-                              <Th>{t('table.ref1')}</Th>
-                              <Th>{t('table.ref2')}</Th>
-                              <Th>{t('labels.administration')}</Th>
-                              <Th colSpan={2}></Th>
-                            </Tr>
-                          </Thead>
-                          <Tbody>
-                            {transactions.map((transaction, index) => (
-                              <React.Fragment key={transaction.row_id}>
-                                <Tr bg={index % 2 === 0 ? 'gray.100' : 'white'}>
-                                  <Td>
-                                    <Input
-                                      size="sm"
-                                      value={transaction.TransactionNumber}
-                                      onChange={(e) => updateTransaction(transaction.row_id, 'TransactionNumber', e.target.value)}
-                                      onKeyDown={handleKeyDown}
-                                      minW="120px"
-                                    />
-                                  </Td>
-                                  <Td>
-                                    <FormControl isInvalid={!transaction.TransactionDate}>
-                                      <Input
-                                        size="sm"
-                                        type="date"
-                                        value={transaction.TransactionDate}
-                                        onChange={(e) => updateTransaction(transaction.row_id, 'TransactionDate', e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        isInvalid={!transaction.TransactionDate}
-                                      />
-                                      {!transaction.TransactionDate && (
-                                        <FormErrorMessage fontSize="xs">{t('labels.required')}</FormErrorMessage>
-                                      )}
-                                    </FormControl>
-                                  </Td>
-                                  <Td>
-                                    <FormControl isInvalid={!transaction.TransactionDescription}>
-                                      <Input
-                                        size="sm"
-                                        value={transaction.TransactionDescription}
-                                        onChange={(e) => updateTransaction(transaction.row_id, 'TransactionDescription', e.target.value)}
-                                        onKeyDown={handleKeyDown}
-                                        minW="200px"
-                                        isInvalid={!transaction.TransactionDescription}
-                                      />
-                                      {!transaction.TransactionDescription && (
-                                        <FormErrorMessage fontSize="xs">Required</FormErrorMessage>
-                                      )}
-                                    </FormControl>
-                                  </Td>
-                                  <Td>
-                                    <FormControl isInvalid={!transaction.TransactionAmount || transaction.TransactionAmount <= 0}>
-                                      <Input
-                                        size="sm"
-                                        type="number"
-                                        step="0.01"
-                                        value={transaction.TransactionAmount}
-                                        onChange={(e) => updateTransaction(transaction.row_id, 'TransactionAmount', parseFloat(e.target.value) || 0)}
-                                        onKeyDown={handleKeyDown}
-                                        isInvalid={!transaction.TransactionAmount || transaction.TransactionAmount <= 0}
-                                      />
-                                      {(!transaction.TransactionAmount || transaction.TransactionAmount <= 0) && (
-                                        <FormErrorMessage fontSize="xs">Must be greater than 0</FormErrorMessage>
-                                      )}
-                                    </FormControl>
-                                  </Td>
-                                  <Td>
-                                    <FormControl isInvalid={!transaction.Debet}>
-                                      <AccountSelect
-                                        size="sm"
-                                        value={transaction.Debet}
-                                        onChange={(val) => updateTransaction(transaction.row_id, 'Debet', val)}
-                                        accounts={chartAccounts}
-                                        onKeyDown={handleKeyDown}
-                                        isInvalid={!transaction.Debet}
-                                        {...getPatternFieldStyle(transaction, 'debet')}
-                                      />
-                                      {!transaction.Debet && (
-                                        <FormErrorMessage fontSize="xs">Required</FormErrorMessage>
-                                      )}
-                                    </FormControl>
-                                  </Td>
-                                  <Td>
-                                    <FormControl isInvalid={!transaction.Credit}>
-                                      <AccountSelect
-                                        size="sm"
-                                        value={transaction.Credit}
-                                        onChange={(val) => updateTransaction(transaction.row_id, 'Credit', val)}
-                                        accounts={chartAccounts}
-                                        onKeyDown={handleKeyDown}
-                                        isInvalid={!transaction.Credit}
-                                        {...getPatternFieldStyle(transaction, 'credit')}
-                                      />
-                                      {!transaction.Credit && (
-                                        <FormErrorMessage fontSize="xs">Required</FormErrorMessage>
-                                      )}
-                                    </FormControl>
-                                  </Td>
-                                </Tr>
-                                <Tr bg={index % 2 === 0 ? 'gray.100' : 'white'}>
-                                  <Td>
-                                    <Input
-                                      size="sm"
-                                      value={transaction.ReferenceNumber}
-                                      onChange={(e) => updateTransaction(transaction.row_id, 'ReferenceNumber', e.target.value)}
-                                      onKeyDown={handleKeyDown}
-                                      minW="120px"
-                                      {...getPatternFieldStyle(transaction, 'reference')}
-                                    />
-                                  </Td>
-                                  <Td>
-                                    <Input
-                                      size="sm"
-                                      value={transaction.Ref1}
-                                      onChange={(e) => updateTransaction(transaction.row_id, 'Ref1', e.target.value)}
-                                      onKeyDown={handleKeyDown}
-                                    />
-                                  </Td>
-                                  <Td>
-                                    <Input
-                                      size="sm"
-                                      value={transaction.Ref2}
-                                      onChange={(e) => updateTransaction(transaction.row_id, 'Ref2', e.target.value)}
-                                      onKeyDown={handleKeyDown}
-                                      placeholder={t('labels.reference2')}
-                                    />
-                                  </Td>
-                                  <Td>
-                                    <Input
-                                      size="sm"
-                                      value={transaction.Administration}
-                                      isReadOnly
-                                      bg="gray.100"
-                                      cursor="not-allowed"
-                                      title={t('labels.administrationAutoSet')}
-                                    />
-                                  </Td>
-                                  <Td></Td>
-                                  <Td></Td>
-                                </Tr>
-                              </React.Fragment>
-                            ))}
-                          </Tbody>
-                        </Table>
-                      </Box>
-                    </Box>
-                  </Form>
-                )}
-              </Formik>
-            )}
-
-          </TabPanel>
-
-          <TabPanel>
-            <BankingMutatiesTab
-              mutaties={mutaties}
-              filterOptions={filterOptions}
-              mutatiesFilters={mutatiesFilters}
-              setMutatiesFilters={setMutatiesFilters}
-              openEditModal={openEditModal}
-              openInsertModal={openInsertModal}
-              copyToClipboard={copyToClipboard}
-              handleRef3Click={handleRef3Click}
+            <BankingProcessorTable
+              transactions={bp.transactions}
+              chartAccounts={bp.chartAccounts}
+              loading={bp.loading}
+              patternResults={bp.patternResults}
+              updateTransaction={bp.updateTransaction}
+              onApplyPatterns={bp.applyPatterns}
+              onSaveTransactions={bp.handleSaveTransactions}
+              getPatternFieldStyle={bp.getPatternFieldStyle}
+              t={bp.t}
             />
           </TabPanel>
 
+          {/* Mutaties Tab */}
           <TabPanel>
-            <VStack align="stretch" spacing={4}>
-              <HStack justify="space-between">
-                <Heading size="md">{t('checkAccounts.title')}</Heading>
-                <HStack wrap="wrap" spacing={3}>
-                  <Button
-                    onClick={checkBankingAccounts}
-                    isLoading={checkingAccounts}
-                    colorScheme="blue"
-                    alignSelf="flex-end"
-                    size="sm"
-                  >
-                    {t('checkAccounts.checkBalances')}
-                  </Button>
-                  <FormControl maxW="130px">
-                    <FormLabel color="white" fontSize="sm">{t('checkAccounts.endDate')}</FormLabel>
-                    <Input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      bg="gray.600"
-                      color="white"
-                      size="sm"
-                    />
-                  </FormControl>
-                  <Button
-                    onClick={checkSequenceNumbers}
-                    isLoading={checkingSequence}
-                    colorScheme="orange"
-                    alignSelf="flex-end"
-                    size="sm"
-                  >
-                    {t('checkSequence.checkSequence')}
-                  </Button>
-                  <FormControl maxW="160px">
-                    <FormLabel color="white" fontSize="sm">{t('checkSequence.selectAccount')}</FormLabel>
-                    <Select
-                      value={selectedAccount}
-                      onChange={(e) => setSelectedAccount(e.target.value)}
-                      bg="gray.600"
-                      color="white"
-                      size="sm"
-                    >
-                      {lookupData.bank_accounts.map((account) => (
-                        <option 
-                          key={`${account.Account}-${account.administration}`} 
-                          value={`${account.Account}-${account.administration}`}
-                        >
-                          {account.Account} - {account.rekeningNummer}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl maxW="130px">
-                    <FormLabel color="white" fontSize="sm">Start Date</FormLabel>
-                    <Tooltip
-                      label="Set by annual closure"
-                      isDisabled={openingBalanceDate === null}
-                      placement="top"
-                      hasArrow
-                    >
-                      <Input
-                        type="date"
-                        value={sequenceStartDate}
-                        onChange={(e) => setSequenceStartDate(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        isReadOnly={openingBalanceDate !== null}
-                        bg={openingBalanceDate !== null ? "gray.700" : "gray.600"}
-                        color="white"
-                        size="sm"
-                        cursor={openingBalanceDate !== null ? "not-allowed" : undefined}
-                      />
-                    </Tooltip>
-                    {openingBalanceDate !== null && (
-                      <Text fontSize="xs" color="orange.300" mt={1}>
-                        Set by annual closure
-                      </Text>
-                    )}
-                  </FormControl>
-                </HStack>
-              </HStack>
-
-              {bankingBalances.length > 0 && (
-                <TableContainer>
-                  <Table size="sm" variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th color="white" w="20px"></Th>
-                        <Th color="white">Administration</Th>
-                        <Th color="white">Account</Th>
-                        <Th color="white">Account Name</Th>
-                        <Th color="white" isNumeric>Calculated Balance</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {bankingBalances
-                        .sort((a, b) => {
-                          if (a.Administration !== b.Administration) {
-                            return a.Administration.localeCompare(b.Administration);
-                          }
-                          return a.Reknum.localeCompare(b.Reknum);
-                        })
-                        .map((balance, index) => {
-                          const rowKey = `${balance.Reknum}-${balance.Administration}`;
-                          const isExpanded = expandedRows.has(rowKey);
-                          return (
-                            <React.Fragment key={rowKey}>
-                              <Tr>
-                                <Td color="white" fontSize="sm" w="20px">
-                                  <Button
-                                    size="xs"
-                                    variant="ghost"
-                                    onClick={() => toggleRowExpansion(rowKey)}
-                                    color="white"
-                                  >
-                                    {isExpanded ? '▼' : '▶'}
-                                  </Button>
-                                </Td>
-                                <Td color="white" fontSize="sm">{balance.Administration}</Td>
-                                <Td color="white" fontSize="sm">{balance.Reknum}</Td>
-                                <Td color="white" fontSize="sm">{balance.account_name}</Td>
-                                <Td color="white" fontSize="sm" isNumeric>
-                                  €{Number(balance.calculated_balance).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
-                                </Td>
-                              </Tr>
-                              {isExpanded && balance.last_transactions && balance.last_transactions.length > 0 && (
-                                <Tr>
-                                  <Td colSpan={5} p={0}>
-                                    <Box bg="gray.800" p={2}>
-                                      <Text color="white" fontSize="xs" mb={2} fontWeight="bold">
-                                        Last Transaction Date: {balance.last_transaction_date ? new Date(balance.last_transaction_date).toLocaleDateString('nl-NL') : 'N/A'}
-                                      </Text>
-                                      <Table size="xs" variant="simple">
-                                        <Thead>
-                                          <Tr>
-                                            <Th color="gray.300" fontSize="xs">Description</Th>
-                                            <Th color="gray.300" fontSize="xs" isNumeric pr={4}>Amount</Th>
-                                            <Th color="gray.300" fontSize="xs" pl={4}>Debet</Th>
-                                            <Th color="gray.300" fontSize="xs">Credit</Th>
-                                            <Th color="gray.300" fontSize="xs">Ref2</Th>
-                                            <Th color="gray.300" fontSize="xs">Ref3</Th>
-                                          </Tr>
-                                        </Thead>
-                                        <Tbody>
-                                          {balance.last_transactions.map((transaction, txIndex) => (
-                                            <Tr key={txIndex}>
-                                              <Td color="gray.300" fontSize="xs" maxW="200px" isTruncated title={transaction.TransactionDescription}>
-                                                {transaction.TransactionDescription}
-                                              </Td>
-                                              <Td color="gray.300" fontSize="xs" isNumeric pr={4}>
-                                                €{Number(transaction.TransactionAmount).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
-                                              </Td>
-                                              <Td color="gray.300" fontSize="xs" pl={4}>{transaction.Debet}</Td>
-                                              <Td color="gray.300" fontSize="xs">{transaction.Credit}</Td>
-                                              <Td color="gray.300" fontSize="xs">{transaction.Ref2}</Td>
-                                              <Td color="gray.300" fontSize="xs" maxW="100px" isTruncated title={transaction.Ref3}>{transaction.Ref3}</Td>
-                                            </Tr>
-                                          ))}
-                                        </Tbody>
-                                      </Table>
-                                    </Box>
-                                  </Td>
-                                </Tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-                    </Tbody>
-                  </Table>
-                </TableContainer>
-              )}
-
-              {sequenceResult && (
-                <Box bg="gray.800" p={4} borderRadius="md">
-                  <Heading size="sm" color="white" mb={3}>
-                    {sequenceResult.check_type === 'balance_comparison' ? 'Balance Check Results' : 'Sequence Check Results'}
-                  </Heading>
-                  <Grid templateColumns="repeat(2, 1fr)" gap={4} mb={4}>
-                    <Text color="white" fontSize="sm">Account: {sequenceResult.account_code} ({sequenceResult.administration})</Text>
-                    <Text color="white" fontSize="sm">IBAN: {sequenceResult.iban}</Text>
-                    <Text color="white" fontSize="sm">Since: {sequenceResult.start_date}</Text>
-                    <Text color="white" fontSize="sm">Total Transactions: {sequenceResult.total_transactions}</Text>
-                    {sequenceResult.check_type === 'balance_comparison' ? (
-                      <Text color="white" fontSize="sm" gridColumn="span 2">
-                        {sequenceResult.message}
-                      </Text>
-                    ) : (
-                      <Text color="white" fontSize="sm" gridColumn="span 2">Sequence Range: {sequenceResult.first_sequence} - {sequenceResult.last_sequence}</Text>
-                    )}
-                  </Grid>
-                  
-                  {sequenceResult.has_gaps ? (
-                    <Box>
-                      <Text color="red.300" fontWeight="bold" mb={2}>⚠️ {sequenceResult.sequence_issues.length} {sequenceResult.check_type === 'balance_comparison' ? 'Balance Issues' : 'Sequence Issues'} Found:</Text>
-                      <Table size="sm" variant="simple">
-                        <Thead>
-                          <Tr>
-                            <Th color="gray.300" fontSize="xs">Expected</Th>
-                            <Th color="gray.300" fontSize="xs">Found</Th>
-                            <Th color="gray.300" fontSize="xs">Gap</Th>
-                            <Th color="gray.300" fontSize="xs">Date</Th>
-                            <Th color="gray.300" fontSize="xs">Description</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {sequenceResult.sequence_issues.map((issue: any, index: number) => (
-                            <Tr key={index}>
-                              <Td color="gray.300" fontSize="xs">{issue.expected}</Td>
-                              <Td color="gray.300" fontSize="xs">{issue.found}</Td>
-                              <Td color="gray.300" fontSize="xs">{issue.gap > 0 ? `+${issue.gap}` : issue.gap}</Td>
-                              <Td color="gray.300" fontSize="xs">{issue.date ? new Date(issue.date).toLocaleDateString('nl-NL') : ''}</Td>
-                              <Td color="gray.300" fontSize="xs" maxW="200px" isTruncated title={issue.description}>{issue.description}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </Box>
-                  ) : (
-                    <Text color="green.300" fontWeight="bold">
-                      {sequenceResult.check_type === 'balance_comparison' 
-                        ? '✅ Balance matches — no discrepancies found!'
-                        : '✅ All sequence numbers are consecutive - no gaps found!'}
-                    </Text>
-                  )}
-                </Box>
-              )}
-
-              {bankingBalances.length === 0 && !checkingAccounts && !sequenceResult && (
-                <Text color="white" textAlign="center" py={8}>
-                  {t('checkAccounts.noAccounts')}
-                </Text>
-              )}
-            </VStack>
+            <BankingMutatiesTab
+              mutaties={bp.mutaties}
+              filterOptions={bp.filterOptions}
+              mutatiesFilters={bp.mutatiesFilters}
+              setMutatiesFilters={bp.setMutatiesFilters}
+              openEditModal={bp.openEditModal}
+              openInsertModal={bp.openInsertModal}
+              copyToClipboard={bp.copyToClipboard}
+              handleRef3Click={bp.handleRef3Click}
+            />
           </TabPanel>
 
+          {/* Check Accounts Tab */}
           <TabPanel>
-            <VStack align="stretch" spacing={4}>
-              <Box bg="gray.800" p={4} borderRadius="md">
-                <Heading size="sm" color="white" mb={4}>Check Reference Numbers</Heading>
-                <HStack spacing={4} mb={4} wrap="wrap">
-                  <FormControl maxW="180px">
-                    <FormLabel color="white" fontSize="sm">Administration</FormLabel>
-                    <Input
-                      value={currentTenant || checkRefFilters.administration}
-                      isReadOnly
-                      bg="gray.700"
-                      color="white"
-                      size="sm"
-                      cursor="not-allowed"
-                    />
-                  </FormControl>
-                  <FormControl maxW="150px">
-                    <FormLabel color="white" fontSize="sm">Ledger</FormLabel>
-                    <Select
-                      value={checkRefFilters.ledger}
-                      onChange={(e) => {
-                        setCheckRefFilters(prev => ({...prev, ledger: e.target.value}));
-                        setRefSummaryData([]);
-                        setSelectedReferenceDetails([]);
-                      }}
-                      bg="gray.600"
-                      color="white"
-                      size="sm"
-                    >
-                      <option value="all">All</option>
-                      {availableLedgers.map(ledger => (
-                        <option key={ledger} value={ledger}>{ledger}</option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Button
-                    onClick={fetchCheckRefData}
-                    isLoading={loading}
-                    colorScheme="green"
-                    size="sm"
-                    alignSelf="flex-end"
-                  >
-                    Check References
-                  </Button>
-                </HStack>
-
-                {refSummaryData.length > 0 && (
-                  <VStack align="stretch" spacing={4}>
-                    <HStack justify="space-between">
-                      <Heading size="xs" color="white">Reference Summary ({processedRefSummary.length})</Heading>
-                      <Text color="orange.300" fontWeight="bold" fontSize="sm">
-                        Total: {formatAmount(refSummaryData.reduce((sum, row) => sum + (parseFloat(row.total_amount) || 0), 0))}
-                      </Text>
-                    </HStack>
-                    <TableContainer maxH="300px" overflowY="auto">
-                      <Table size="sm" variant="simple">
-                        <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
-                          <Tr>
-                            <FilterableHeader
-                              label="Reference"
-                              filterValue={refSummaryFilters.ReferenceNumber}
-                              onFilterChange={(v) => setRefSummaryFilter('ReferenceNumber', v)}
-                              sortable
-                              sortDirection={refSummarySortField === 'ReferenceNumber' ? refSummarySortDirection : null}
-                              onSort={() => handleRefSummarySort('ReferenceNumber')}
-                            />
-                            <FilterableHeader
-                              label="Count"
-                              filterValue={refSummaryFilters.transaction_count}
-                              onFilterChange={(v) => setRefSummaryFilter('transaction_count', v)}
-                              sortable
-                              sortDirection={refSummarySortField === 'transaction_count' ? refSummarySortDirection : null}
-                              onSort={() => handleRefSummarySort('transaction_count')}
-                              isNumeric
-                            />
-                            <FilterableHeader
-                              label="Total Amount"
-                              filterValue={refSummaryFilters.total_amount}
-                              onFilterChange={(v) => setRefSummaryFilter('total_amount', v)}
-                              sortable
-                              sortDirection={refSummarySortField === 'total_amount' ? refSummarySortDirection : null}
-                              onSort={() => handleRefSummarySort('total_amount')}
-                              isNumeric
-                            />
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {processedRefSummary.map((row, index) => (
-                            <Tr
-                              key={index}
-                              onClick={() => fetchReferenceDetails(row.ReferenceNumber)}
-                              _hover={{ bg: 'gray.700', cursor: 'pointer' }}
-                              bg={selectedReference === row.ReferenceNumber ? 'gray.600' : 'transparent'}
-                            >
-                              <Td color="white" fontSize="xs" maxW="200px" isTruncated title={row.ReferenceNumber}>
-                                {row.ReferenceNumber}
-                              </Td>
-                              <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
-                              <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </TableContainer>
-
-                    {selectedReferenceDetails.length > 0 && (
-                      <Box>
-                        <Heading size="xs" color="white" mb={2}>
-                          Transactions for Reference: {selectedReference} ({processedRefDetails.length})
-                        </Heading>
-                        <TableContainer maxH="300px" overflowY="auto">
-                          <Table size="sm" variant="simple">
-                            <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
-                              <Tr>
-                                <FilterableHeader
-                                  label="Transaction Number"
-                                  filterValue={refDetailsFilters.TransactionNumber}
-                                  onFilterChange={(v) => setRefDetailsFilter('TransactionNumber', v)}
-                                  sortable
-                                  sortDirection={refDetailsSortField === 'TransactionNumber' ? refDetailsSortDirection : null}
-                                  onSort={() => handleRefDetailsSort('TransactionNumber')}
-                                />
-                                <FilterableHeader
-                                  label="Date"
-                                  filterValue={refDetailsFilters.TransactionDate}
-                                  onFilterChange={(v) => setRefDetailsFilter('TransactionDate', v)}
-                                  sortable
-                                  sortDirection={refDetailsSortField === 'TransactionDate' ? refDetailsSortDirection : null}
-                                  onSort={() => handleRefDetailsSort('TransactionDate')}
-                                />
-                                <FilterableHeader
-                                  label="Amount"
-                                  filterValue={refDetailsFilters.Amount}
-                                  onFilterChange={(v) => setRefDetailsFilter('Amount', v)}
-                                  sortable
-                                  sortDirection={refDetailsSortField === 'Amount' ? refDetailsSortDirection : null}
-                                  onSort={() => handleRefDetailsSort('Amount')}
-                                  isNumeric
-                                />
-                                <FilterableHeader
-                                  label="Description"
-                                  filterValue={refDetailsFilters.TransactionDescription}
-                                  onFilterChange={(v) => setRefDetailsFilter('TransactionDescription', v)}
-                                  sortable
-                                  sortDirection={refDetailsSortField === 'TransactionDescription' ? refDetailsSortDirection : null}
-                                  onSort={() => handleRefDetailsSort('TransactionDescription')}
-                                />
-                              </Tr>
-                            </Thead>
-                            <Tbody>
-                              {processedRefDetails.map((transaction, index) => (
-                                <Tr key={index}>
-                                  <Td color="white" fontSize="xs">{transaction.TransactionNumber || '-'}</Td>
-                                  <Td color="white" fontSize="xs">
-                                    {new Date(transaction.TransactionDate).toISOString().split('T')[0]}
-                                  </Td>
-                                  <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.Amount)}</Td>
-                                  <Td color="white" fontSize="xs" maxW="300px" isTruncated title={transaction.TransactionDescription}>
-                                    {transaction.TransactionDescription}
-                                  </Td>
-                                </Tr>
-                              ))}
-                            </Tbody>
-                          </Table>
-                        </TableContainer>
-                      </Box>
-                    )}
-                  </VStack>
-                )}
-              </Box>
-
-              {refSummaryData.length === 0 && (
-                <Text color="white" textAlign="center" py={8}>
-                  Use the button above to check reference numbers
-                </Text>
-              )}
-            </VStack>
+            <CheckAccountsTab bp={bp} />
           </TabPanel>
 
+          {/* Check Reference Tab */}
           <TabPanel>
-            <VStack align="stretch" spacing={4}>
-              <Box bg="gray.800" p={4} borderRadius="md">
-                <Heading size="sm" color="white" mb={4}>STR Channel Revenue Calculator</Heading>
-                <Text color="gray.300" fontSize="sm" mb={4}>
-                  Calculate monthly STR revenue based on account 1600 transactions
-                </Text>
-                
-                <HStack spacing={4} mb={4} wrap="wrap">
-                  <FormControl maxW="120px">
-                    <FormLabel color="white" fontSize="sm">Year</FormLabel>
-                    <Input
-                      type="number"
-                      value={strChannelFilters.year}
-                      onChange={(e) => setStrChannelFilters(prev => ({...prev, year: parseInt(e.target.value) || new Date().getFullYear()}))}
-                      onKeyDown={handleKeyDown}
-                      bg="gray.600"
-                      color="white"
-                      size="sm"
-                    />
-                  </FormControl>
-                  <FormControl maxW="120px">
-                    <FormLabel color="white" fontSize="sm">Month</FormLabel>
-                    <Select
-                      value={strChannelFilters.month}
-                      onChange={(e) => setStrChannelFilters(prev => ({...prev, month: parseInt(e.target.value)}))}
-                      bg="gray.600"
-                      color="white"
-                      size="sm"
-                    >
-                      {Array.from({length: 12}, (_, i) => i + 1).map(month => (
-                        <option key={month} value={month}>
-                          {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControl maxW="180px">
-                    <FormLabel color="white" fontSize="sm">Administration</FormLabel>
-                    <Input
-                      value={currentTenant || strChannelFilters.administration}
-                      isReadOnly
-                      bg="gray.700"
-                      color="white"
-                      size="sm"
-                      cursor="not-allowed"
-                    />
-                  </FormControl>
-                  <Button
-                    onClick={fetchStrChannelPreview}
-                    isLoading={loading}
-                    colorScheme="blue"
-                    size="sm"
-                    alignSelf="flex-end"
-                  >
-                    {t('strChannel.previewData')}
-                  </Button>
-                  <Button
-                    onClick={calculateStrChannelRevenue}
-                    isLoading={loading}
-                    colorScheme="green"
-                    size="sm"
-                    alignSelf="flex-end"
-                    isDisabled={strChannelPreview.length === 0}
-                  >
-                    {t('strChannel.calculateRevenue')}
-                  </Button>
-                </HStack>
+            <CheckReferenceTab bp={bp} />
+          </TabPanel>
 
-                {strChannelPreview.length > 0 && (
-                  <VStack align="stretch" spacing={4}>
-                    <Heading size="xs" color="white">Channel Data Preview ({strChannelPreview.length})</Heading>
-                    <TableContainer maxH="200px" overflowY="auto">
-                      <Table size="sm" variant="simple">
-                        <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
-                          <Tr>
-                            <Th color="white" fontSize="xs">Channel</Th>
-                            <Th color="white" fontSize="xs">Account</Th>
-                            <Th color="white" fontSize="xs" isNumeric>Transactions</Th>
-                            <Th color="white" fontSize="xs" isNumeric>Total Amount</Th>
-                            <Th color="white" fontSize="xs">Date Range</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {strChannelPreview.map((row, index) => (
-                            <Tr key={index}>
-                              <Td color="white" fontSize="xs">{row.ReferenceNumber}</Td>
-                              <Td color="white" fontSize="xs">{row.Reknum}</Td>
-                              <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
-                              <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
-                              <Td color="white" fontSize="xs">
-                                {new Date(row.first_date).toLocaleDateString('nl-NL')} - {new Date(row.last_date).toLocaleDateString('nl-NL')}
-                              </Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </TableContainer>
-                  </VStack>
-                )}
-
-                {strChannelTransactions.length > 0 && (
-                  <VStack align="stretch" spacing={4}>
-                    <HStack justify="space-between">
-                      <Heading size="xs" color="white">Proposed Transactions ({strChannelTransactions.length})</Heading>
-                      <Button
-                        onClick={saveStrChannelTransactions}
-                        isLoading={loading}
-                        colorScheme="orange"
-                        size="sm"
-                      >
-                        Save to Database
-                      </Button>
-                    </HStack>
-                    
-                    {strChannelSummary && (
-                      <Box bg="gray.700" p={3} borderRadius="md">
-                        <Text color="white" fontSize="sm">
-                          <strong>Reference:</strong> {strChannelSummary.ref1} | 
-                          <strong>Period:</strong> {strChannelSummary.month}/{strChannelSummary.year} | 
-                          <strong>End Date:</strong> {strChannelSummary.end_date}
-                        </Text>
-                      </Box>
-                    )}
-                    
-                    <TableContainer maxH="400px" overflowY="auto">
-                      <Table size="sm" variant="simple">
-                        <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
-                          <Tr>
-                            <Th color="white" fontSize="xs">Date</Th>
-                            <Th color="white" fontSize="xs">Description</Th>
-                            <Th color="white" fontSize="xs" isNumeric>Amount</Th>
-                            <Th color="white" fontSize="xs">Debet</Th>
-                            <Th color="white" fontSize="xs">Credit</Th>
-                            <Th color="white" fontSize="xs">Reference</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {strChannelTransactions.map((transaction, index) => (
-                            <Tr key={index}>
-                              <Td color="white" fontSize="xs">{transaction.TransactionDate}</Td>
-                              <Td color="white" fontSize="xs" maxW="200px" isTruncated title={transaction.TransactionDescription}>
-                                {transaction.TransactionDescription}
-                              </Td>
-                              <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.TransactionAmount)}</Td>
-                              <Td color="white" fontSize="xs">{transaction.Debet}</Td>
-                              <Td color="white" fontSize="xs">{transaction.Credit}</Td>
-                              <Td color="white" fontSize="xs">{transaction.ReferenceNumber}</Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </TableContainer>
-                  </VStack>
-                )}
-              </Box>
-
-              {strChannelPreview.length === 0 && strChannelTransactions.length === 0 && (
-                <Text color="white" textAlign="center" py={8}>
-                  {t('strChannel.noChannels')}
-                </Text>
-              )}
-            </VStack>
+          {/* STR Channel Revenue Tab */}
+          <TabPanel>
+            <StrChannelRevenueTab bp={bp} />
           </TabPanel>
         </TabPanels>
       </Tabs>
 
       {/* Edit/Insert Record Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
-        <ModalOverlay />
-        <ModalContent bg="gray.700">
-          <ModalHeader color="white">
-            {isInsertMode ? t('mutaties.addNewRecord') : `${t('mutaties.editRecord')} - ID: ${editingRecord?.ID}`}
-          </ModalHeader>
-          <ModalCloseButton color="white" />
-          <ModalBody>
-            {editingRecord && (
-              <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                <FormControl>
-                  <FormLabel color="white">{t('table.transactionNumber')}</FormLabel>
-                  <Input value={editingRecord.TransactionNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionNumber: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.transactionDate')}</FormLabel>
-                  <Input type="date" value={editingRecord.TransactionDate ? new Date(editingRecord.TransactionDate).toISOString().split('T')[0] : ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionDate: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl gridColumn="span 2">
-                  <FormLabel color="white">{t('table.description')}</FormLabel>
-                  <Textarea value={editingRecord.TransactionDescription || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionDescription: e.target.value } : prev)} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.amount')}</FormLabel>
-                  <Input type="number" step="0.01" value={editingRecord.TransactionAmount || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, TransactionAmount: parseFloat(e.target.value) || 0 } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.administration')}</FormLabel>
-                  <Input 
-                    value={editingRecord.Administration || ''} 
-                    isReadOnly 
-                    bg="gray.500" 
-                    color="gray.300" 
-                    cursor="not-allowed"
-                    title={t('labels.administrationCannotChange')}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.debit')}</FormLabel>
-                  <AccountSelect value={editingRecord.Debet || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Debet: val } : prev)} accounts={chartAccounts} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.credit')}</FormLabel>
-                  <AccountSelect value={editingRecord.Credit || ''} onChange={(val) => setEditingRecord(prev => prev ? { ...prev, Credit: val } : prev)} accounts={chartAccounts} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.referenceNumber')}</FormLabel>
-                  <Input value={editingRecord.ReferenceNumber || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, ReferenceNumber: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.ref1')}</FormLabel>
-                  <Input value={editingRecord.Ref1 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref1: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.ref2')}</FormLabel>
-                  <Input value={editingRecord.Ref2 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref2: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl gridColumn="span 2">
-                  <FormLabel color="white">{t('table.ref3')}</FormLabel>
-                  <Textarea value={editingRecord.Ref3 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref3: e.target.value } : prev)} bg="gray.600" color="white" />
-                </FormControl>
-                <FormControl>
-                  <FormLabel color="white">{t('table.ref4')}</FormLabel>
-                  <Input value={editingRecord.Ref4 || ''} onChange={(e) => setEditingRecord(prev => prev ? { ...prev, Ref4: e.target.value } : prev)} onKeyDown={handleKeyDown} bg="gray.600" color="white" />
-                </FormControl>
-              </Grid>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            {modalError && (
-              <Alert status="error" mb={3} mr="auto" borderRadius="md" flex="1" bg="red.100" color="red.900" borderWidth="1px" borderColor="red.300">
-                <AlertIcon color="red.600" />
-                {modalError}
-              </Alert>
-            )}
-            <Button colorScheme="gray" mr={3} onClick={onClose}>{t('labels.cancel')}</Button>
-            <Button colorScheme="orange" onClick={handleSaveRecord} isLoading={loading}>
-              {isInsertMode ? t('mutaties.insertRecord') : t('mutaties.updateRecord')}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <BankingTransactionModal
+        isOpen={bp.isOpen}
+        onClose={bp.onClose}
+        editingRecord={bp.editingRecord}
+        setEditingRecord={bp.setEditingRecord}
+        isInsertMode={bp.isInsertMode}
+        loading={bp.loading}
+        modalError={bp.modalError}
+        chartAccounts={bp.chartAccounts}
+        onSave={bp.handleSaveRecord}
+        onKeyDown={bp.handleKeyDown}
+        t={bp.t}
+      />
 
-      {/* REQ-UI-004: Confirmation Dialog for Save to Database */}
-      <Modal isOpen={showSaveConfirmation} onClose={() => setShowSaveConfirmation(false)} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>{t('labels.confirmSaveToDatabase')}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack align="stretch" spacing={4}>
-              <Text>
-                {t('labels.aboutToSave')} <strong>{transactions.length} {t('labels.transactionsToDatabase')}</strong>.
-              </Text>
-              
-              {patternResults && (
-                <Box bg="blue.50" p={4} borderRadius="md" borderColor="blue.200" borderWidth="1px">
-                  <Text fontSize="sm" fontWeight="bold" mb={2}>{t('labels.patternApplicationSummary')}:</Text>
-                  <Grid templateColumns="repeat(2, 1fr)" gap={2}>
-                    <Text fontSize="sm">{t('labels.debetPredictions')}: {patternResults.predictions_made?.debet || 0}</Text>
-                    <Text fontSize="sm">{t('labels.creditPredictions')}: {patternResults.predictions_made?.credit || 0}</Text>
-                    <Text fontSize="sm">{t('labels.referencePredictions')}: {patternResults.predictions_made?.reference || 0}</Text>
-                    <Text fontSize="sm">{t('labels.avgConfidence')}: {(patternResults.average_confidence * 100).toFixed(1)}%</Text>
-                  </Grid>
-                </Box>
-              )}
-              
-              <Text fontSize="sm" color="gray.600">
-                {t('labels.cannotBeUndone')}
-              </Text>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button colorScheme="gray" mr={3} onClick={() => setShowSaveConfirmation(false)}>
-              {t('labels.cancel')}
-            </Button>
-            <Button colorScheme="green" onClick={confirmSaveTransactions} isLoading={loading}>
-              {t('labels.confirmSave')}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Pattern Approval Dialog - REQ-UI-006: Show pattern suggestions with confidence scores */}
-      <Modal isOpen={showPatternApproval} onClose={() => setShowPatternApproval(false)} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>{t('labels.reviewPatternSuggestions')}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack align="stretch" spacing={4}>
-              <Alert status="info" borderRadius="md">
-                <AlertIcon />
-                <Box>
-                  <Text fontWeight="bold">{t('labels.patternSuggestionsFilled')}</Text>
-                  <Text fontSize="sm">
-                    {t('labels.reviewBlueHighlighted')}
-                  </Text>
-                </Box>
-              </Alert>
-              
-              {patternSuggestions && (
-                <Box bg="blue.50" p={4} borderRadius="md" borderColor="blue.200" borderWidth="1px">
-                  <Text fontSize="sm" fontWeight="bold" mb={3}>{t('labels.patternAnalysisResults')}:</Text>
-                  <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                    <Box>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.patternsFound')}:</strong> {patternSuggestions.patterns_found}
-                      </Text>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.debetSuggestions')}:</strong> {patternSuggestions.predictions_made?.debet || 0}
-                      </Text>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.creditSuggestions')}:</strong> {patternSuggestions.predictions_made?.credit || 0}
-                      </Text>
-                    </Box>
-                    <Box>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.referenceSuggestions')}:</strong> {patternSuggestions.predictions_made?.reference || 0}
-                      </Text>
-                      <Text fontSize="sm" color="blue.700">
-                        <strong>{t('labels.averageConfidence')}:</strong> {(patternSuggestions.average_confidence * 100).toFixed(1)}%
-                      </Text>
-                      <Text fontSize="xs" color="blue.600" mt={2}>
-                        {t('labels.suggestedValuesHighlighted')}
-                      </Text>
-                    </Box>
-                  </Grid>
-                </Box>
-              )}
-              
-              <Box bg="yellow.50" p={3} borderRadius="md" borderColor="yellow.200" borderWidth="1px">
-                <Text fontSize="sm" color="yellow.800">
-                  <strong>{t('labels.whatHappensNext')}:</strong>
-                </Text>
-                <Text fontSize="xs" color="yellow.700" mt={1}>
-                  • <strong>{t('patternApproval.approve')}:</strong> {t('labels.approveKeepValues')}
-                </Text>
-                <Text fontSize="xs" color="yellow.700">
-                  • <strong>{t('patternApproval.reject')}:</strong> {t('labels.rejectRemoveValues')}
-                </Text>
-                <Text fontSize="xs" color="yellow.700">
-                  • {t('labels.canManuallyEdit')}
-                </Text>
-              </Box>
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button colorScheme="red" mr={3} onClick={rejectPatternSuggestions}>
-              {t('labels.rejectSuggestions')}
-            </Button>
-            <Button colorScheme="green" onClick={approvePatternSuggestions}>
-              {t('labels.approveSuggestions')}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {/* Pattern Matching Panel */}
+      <BankingPatternPanel
+        transactions={bp.transactions}
+        loading={bp.loading}
+        patternResults={bp.patternResults}
+        patternSuggestions={bp.patternSuggestions}
+        showPatternApproval={bp.showPatternApproval}
+        showSaveConfirmation={bp.showSaveConfirmation}
+        onApprovePatterns={bp.approvePatternSuggestions}
+        onRejectPatterns={bp.rejectPatternSuggestions}
+        onClosePatternApproval={() => bp.setShowPatternApproval(false)}
+        onConfirmSave={bp.confirmSaveTransactions}
+        onCloseSaveConfirmation={() => bp.setShowSaveConfirmation(false)}
+        t={bp.t}
+      />
     </Box>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Sub-sections (kept inline to preserve original rendering, each < 200 lines)
+// ---------------------------------------------------------------------------
+
+interface TabProps {
+  bp: ReturnType<typeof useBankingProcessor>;
+}
+
+const CheckAccountsTab: React.FC<TabProps> = ({ bp }) => (
+  <VStack align="stretch" spacing={4}>
+    <HStack justify="space-between">
+      <Heading size="md">{bp.t('checkAccounts.title')}</Heading>
+      <HStack wrap="wrap" spacing={3}>
+        <Button onClick={bp.checkBankingAccounts} isLoading={bp.checkingAccounts} colorScheme="blue" size="sm">
+          {bp.t('checkAccounts.checkBalances')}
+        </Button>
+        <FormControl maxW="130px">
+          <FormLabel color="white" fontSize="sm">{bp.t('checkAccounts.endDate')}</FormLabel>
+          <Input type="date" value={bp.endDate} onChange={(e) => bp.setEndDate(e.target.value)} onKeyDown={bp.handleKeyDown} bg="gray.600" color="white" size="sm" />
+        </FormControl>
+        <Button onClick={bp.checkSequenceNumbers} isLoading={bp.checkingSequence} colorScheme="orange" size="sm">
+          {bp.t('checkSequence.checkSequence')}
+        </Button>
+        <FormControl maxW="160px">
+          <FormLabel color="white" fontSize="sm">{bp.t('checkSequence.selectAccount')}</FormLabel>
+          <Select value={bp.selectedAccount} onChange={(e) => bp.setSelectedAccount(e.target.value)} bg="gray.600" color="white" size="sm">
+            {bp.lookupData.bank_accounts.map((account) => (
+              <option key={`${account.Account}-${account.administration}`} value={`${account.Account}-${account.administration}`}>
+                {account.Account} - {account.rekeningNummer}
+              </option>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl maxW="130px">
+          <FormLabel color="white" fontSize="sm">Start Date</FormLabel>
+          <Tooltip label="Set by annual closure" isDisabled={bp.openingBalanceDate === null} placement="top" hasArrow>
+            <Input
+              type="date"
+              value={bp.sequenceStartDate}
+              onChange={(e) => bp.setSequenceStartDate(e.target.value)}
+              onKeyDown={bp.handleKeyDown}
+              isReadOnly={bp.openingBalanceDate !== null}
+              bg={bp.openingBalanceDate !== null ? 'gray.700' : 'gray.600'}
+              color="white"
+              size="sm"
+              cursor={bp.openingBalanceDate !== null ? 'not-allowed' : undefined}
+            />
+          </Tooltip>
+          {bp.openingBalanceDate !== null && (
+            <Text fontSize="xs" color="orange.300" mt={1}>Set by annual closure</Text>
+          )}
+        </FormControl>
+      </HStack>
+    </HStack>
+
+    {bp.bankingBalances.length > 0 && (
+      <TableContainer>
+        <Table size="sm" variant="simple">
+          <Thead>
+            <Tr>
+              <Th color="white" w="20px"></Th>
+              <Th color="white">Administration</Th>
+              <Th color="white">Account</Th>
+              <Th color="white">Account Name</Th>
+              <Th color="white" isNumeric>Calculated Balance</Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {bp.bankingBalances
+              .sort((a, b) => a.Administration !== b.Administration ? a.Administration.localeCompare(b.Administration) : a.Reknum.localeCompare(b.Reknum))
+              .map((balance) => {
+                const rowKey = `${balance.Reknum}-${balance.Administration}`;
+                const isExpanded = bp.expandedRows.has(rowKey);
+                return (
+                  <React.Fragment key={rowKey}>
+                    <Tr>
+                      <Td color="white" fontSize="sm" w="20px">
+                        <Button size="xs" variant="ghost" onClick={() => bp.toggleRowExpansion(rowKey)} color="white">
+                          {isExpanded ? '▼' : '▶'}
+                        </Button>
+                      </Td>
+                      <Td color="white" fontSize="sm">{balance.Administration}</Td>
+                      <Td color="white" fontSize="sm">{balance.Reknum}</Td>
+                      <Td color="white" fontSize="sm">{balance.account_name}</Td>
+                      <Td color="white" fontSize="sm" isNumeric>
+                        €{Number(balance.calculated_balance).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
+                      </Td>
+                    </Tr>
+                    {isExpanded && balance.last_transactions && balance.last_transactions.length > 0 && (
+                      <Tr>
+                        <Td colSpan={5} p={0}>
+                          <Box bg="gray.800" p={2}>
+                            <Text color="white" fontSize="xs" mb={2} fontWeight="bold">
+                              Last Transaction Date: {balance.last_transaction_date ? new Date(balance.last_transaction_date).toLocaleDateString('nl-NL') : 'N/A'}
+                            </Text>
+                            <Table size="xs" variant="simple">
+                              <Thead>
+                                <Tr>
+                                  <Th color="gray.300" fontSize="xs">Description</Th>
+                                  <Th color="gray.300" fontSize="xs" isNumeric pr={4}>Amount</Th>
+                                  <Th color="gray.300" fontSize="xs" pl={4}>Debet</Th>
+                                  <Th color="gray.300" fontSize="xs">Credit</Th>
+                                  <Th color="gray.300" fontSize="xs">Ref2</Th>
+                                  <Th color="gray.300" fontSize="xs">Ref3</Th>
+                                </Tr>
+                              </Thead>
+                              <Tbody>
+                                {balance.last_transactions.map((transaction, txIndex) => (
+                                  <Tr key={txIndex}>
+                                    <Td color="gray.300" fontSize="xs" maxW="200px" isTruncated title={transaction.TransactionDescription}>
+                                      {transaction.TransactionDescription}
+                                    </Td>
+                                    <Td color="gray.300" fontSize="xs" isNumeric pr={4}>
+                                      €{Number(transaction.TransactionAmount).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
+                                    </Td>
+                                    <Td color="gray.300" fontSize="xs" pl={4}>{transaction.Debet}</Td>
+                                    <Td color="gray.300" fontSize="xs">{transaction.Credit}</Td>
+                                    <Td color="gray.300" fontSize="xs">{transaction.Ref2}</Td>
+                                    <Td color="gray.300" fontSize="xs" maxW="100px" isTruncated title={transaction.Ref3}>{transaction.Ref3}</Td>
+                                  </Tr>
+                                ))}
+                              </Tbody>
+                            </Table>
+                          </Box>
+                        </Td>
+                      </Tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+          </Tbody>
+        </Table>
+      </TableContainer>
+    )}
+
+    {bp.sequenceResult && (
+      <Box bg="gray.800" p={4} borderRadius="md">
+        <Heading size="sm" color="white" mb={3}>
+          {bp.sequenceResult.check_type === 'balance_comparison' ? 'Balance Check Results' : 'Sequence Check Results'}
+        </Heading>
+        <Grid templateColumns="repeat(2, 1fr)" gap={4} mb={4}>
+          <Text color="white" fontSize="sm">Account: {bp.sequenceResult.account_code} ({bp.sequenceResult.administration})</Text>
+          <Text color="white" fontSize="sm">IBAN: {bp.sequenceResult.iban}</Text>
+          <Text color="white" fontSize="sm">Since: {bp.sequenceResult.start_date}</Text>
+          <Text color="white" fontSize="sm">Total Transactions: {bp.sequenceResult.total_transactions}</Text>
+          {bp.sequenceResult.check_type === 'balance_comparison' ? (
+            <Text color="white" fontSize="sm" gridColumn="span 2">{bp.sequenceResult.message}</Text>
+          ) : (
+            <Text color="white" fontSize="sm" gridColumn="span 2">Sequence Range: {bp.sequenceResult.first_sequence} - {bp.sequenceResult.last_sequence}</Text>
+          )}
+        </Grid>
+
+        {bp.sequenceResult.has_gaps ? (
+          <Box>
+            <Text color="red.300" fontWeight="bold" mb={2}>
+              ⚠️ {bp.sequenceResult.sequence_issues.length} {bp.sequenceResult.check_type === 'balance_comparison' ? 'Balance Issues' : 'Sequence Issues'} Found:
+            </Text>
+            <Table size="sm" variant="simple">
+              <Thead>
+                <Tr>
+                  <Th color="gray.300" fontSize="xs">Expected</Th>
+                  <Th color="gray.300" fontSize="xs">Found</Th>
+                  <Th color="gray.300" fontSize="xs">Gap</Th>
+                  <Th color="gray.300" fontSize="xs">Date</Th>
+                  <Th color="gray.300" fontSize="xs">Description</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {bp.sequenceResult.sequence_issues.map((issue, index) => (
+                  <Tr key={index}>
+                    <Td color="gray.300" fontSize="xs">{issue.expected}</Td>
+                    <Td color="gray.300" fontSize="xs">{issue.found}</Td>
+                    <Td color="gray.300" fontSize="xs">{issue.gap > 0 ? `+${issue.gap}` : issue.gap}</Td>
+                    <Td color="gray.300" fontSize="xs">{issue.date ? new Date(issue.date).toLocaleDateString('nl-NL') : ''}</Td>
+                    <Td color="gray.300" fontSize="xs" maxW="200px" isTruncated title={issue.description}>{issue.description}</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+        ) : (
+          <Text color="green.300" fontWeight="bold">
+            {bp.sequenceResult.check_type === 'balance_comparison'
+              ? '✅ Balance matches — no discrepancies found!'
+              : '✅ All sequence numbers are consecutive - no gaps found!'}
+          </Text>
+        )}
+      </Box>
+    )}
+
+    {bp.bankingBalances.length === 0 && !bp.checkingAccounts && !bp.sequenceResult && (
+      <Text color="white" textAlign="center" py={8}>{bp.t('checkAccounts.noAccounts')}</Text>
+    )}
+  </VStack>
+);
+
+const CheckReferenceTab: React.FC<TabProps> = ({ bp }) => (
+  <VStack align="stretch" spacing={4}>
+    <Box bg="gray.800" p={4} borderRadius="md">
+      <Heading size="sm" color="white" mb={4}>Check Reference Numbers</Heading>
+      <HStack spacing={4} mb={4} wrap="wrap">
+        <FormControl maxW="180px">
+          <FormLabel color="white" fontSize="sm">Administration</FormLabel>
+          <Input value={bp.currentTenant || bp.checkRefFilters.administration} isReadOnly bg="gray.700" color="white" size="sm" cursor="not-allowed" />
+        </FormControl>
+        <FormControl maxW="150px">
+          <FormLabel color="white" fontSize="sm">Ledger</FormLabel>
+          <Select
+            value={bp.checkRefFilters.ledger}
+            onChange={(e) => {
+              bp.setCheckRefFilters((prev) => ({ ...prev, ledger: e.target.value }));
+            }}
+            bg="gray.600"
+            color="white"
+            size="sm"
+          >
+            <option value="all">All</option>
+            {bp.availableLedgers.map((ledger) => (
+              <option key={ledger} value={ledger}>{ledger}</option>
+            ))}
+          </Select>
+        </FormControl>
+        <Button onClick={bp.fetchCheckRefData} isLoading={bp.loading} colorScheme="green" size="sm" alignSelf="flex-end">
+          Check References
+        </Button>
+      </HStack>
+
+      {bp.refSummaryData.length > 0 && (
+        <VStack align="stretch" spacing={4}>
+          <HStack justify="space-between">
+            <Heading size="xs" color="white">Reference Summary ({bp.processedRefSummary.length})</Heading>
+            <Text color="orange.300" fontWeight="bold" fontSize="sm">
+              Total: {formatAmount((bp.refSummaryData as any[]).reduce((sum, row) => sum + (parseFloat(row.total_amount) || 0), 0))}
+            </Text>
+          </HStack>
+          <TableContainer maxH="300px" overflowY="auto">
+            <Table size="sm" variant="simple">
+              <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                <Tr>
+                  <FilterableHeader label="Reference" filterValue={bp.refSummaryFilters.ReferenceNumber} onFilterChange={(v) => bp.setRefSummaryFilter('ReferenceNumber', v)} sortable sortDirection={bp.refSummarySortField === 'ReferenceNumber' ? bp.refSummarySortDirection : null} onSort={() => bp.handleRefSummarySort('ReferenceNumber')} />
+                  <FilterableHeader label="Count" filterValue={bp.refSummaryFilters.transaction_count} onFilterChange={(v) => bp.setRefSummaryFilter('transaction_count', v)} sortable sortDirection={bp.refSummarySortField === 'transaction_count' ? bp.refSummarySortDirection : null} onSort={() => bp.handleRefSummarySort('transaction_count')} isNumeric />
+                  <FilterableHeader label="Total Amount" filterValue={bp.refSummaryFilters.total_amount} onFilterChange={(v) => bp.setRefSummaryFilter('total_amount', v)} sortable sortDirection={bp.refSummarySortField === 'total_amount' ? bp.refSummarySortDirection : null} onSort={() => bp.handleRefSummarySort('total_amount')} isNumeric />
+                </Tr>
+              </Thead>
+              <Tbody>
+                {(bp.processedRefSummary as any[]).map((row, index) => (
+                  <Tr key={index} onClick={() => bp.fetchReferenceDetails(row.ReferenceNumber)} _hover={{ bg: 'gray.700', cursor: 'pointer' }} bg={bp.selectedReference === row.ReferenceNumber ? 'gray.600' : 'transparent'}>
+                    <Td color="white" fontSize="xs" maxW="200px" isTruncated title={row.ReferenceNumber}>{row.ReferenceNumber}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </TableContainer>
+
+          {bp.selectedReferenceDetails.length > 0 && (
+            <Box>
+              <Heading size="xs" color="white" mb={2}>
+                Transactions for Reference: {bp.selectedReference} ({bp.processedRefDetails.length})
+              </Heading>
+              <TableContainer maxH="300px" overflowY="auto">
+                <Table size="sm" variant="simple">
+                  <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                    <Tr>
+                      <FilterableHeader label="Transaction Number" filterValue={bp.refDetailsFilters.TransactionNumber} onFilterChange={(v) => bp.setRefDetailsFilter('TransactionNumber', v)} sortable sortDirection={bp.refDetailsSortField === 'TransactionNumber' ? bp.refDetailsSortDirection : null} onSort={() => bp.handleRefDetailsSort('TransactionNumber')} />
+                      <FilterableHeader label="Date" filterValue={bp.refDetailsFilters.TransactionDate} onFilterChange={(v) => bp.setRefDetailsFilter('TransactionDate', v)} sortable sortDirection={bp.refDetailsSortField === 'TransactionDate' ? bp.refDetailsSortDirection : null} onSort={() => bp.handleRefDetailsSort('TransactionDate')} />
+                      <FilterableHeader label="Amount" filterValue={bp.refDetailsFilters.Amount} onFilterChange={(v) => bp.setRefDetailsFilter('Amount', v)} sortable sortDirection={bp.refDetailsSortField === 'Amount' ? bp.refDetailsSortDirection : null} onSort={() => bp.handleRefDetailsSort('Amount')} isNumeric />
+                      <FilterableHeader label="Description" filterValue={bp.refDetailsFilters.TransactionDescription} onFilterChange={(v) => bp.setRefDetailsFilter('TransactionDescription', v)} sortable sortDirection={bp.refDetailsSortField === 'TransactionDescription' ? bp.refDetailsSortDirection : null} onSort={() => bp.handleRefDetailsSort('TransactionDescription')} />
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {(bp.processedRefDetails as any[]).map((transaction, index) => (
+                      <Tr key={index}>
+                        <Td color="white" fontSize="xs">{transaction.TransactionNumber || '-'}</Td>
+                        <Td color="white" fontSize="xs">{new Date(transaction.TransactionDate).toISOString().split('T')[0]}</Td>
+                        <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.Amount)}</Td>
+                        <Td color="white" fontSize="xs" maxW="300px" isTruncated title={transaction.TransactionDescription}>{transaction.TransactionDescription}</Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
+        </VStack>
+      )}
+    </Box>
+
+    {bp.refSummaryData.length === 0 && (
+      <Text color="white" textAlign="center" py={8}>Use the button above to check reference numbers</Text>
+    )}
+  </VStack>
+);
+
+const StrChannelRevenueTab: React.FC<TabProps> = ({ bp }) => (
+  <VStack align="stretch" spacing={4}>
+    <Box bg="gray.800" p={4} borderRadius="md">
+      <Heading size="sm" color="white" mb={4}>STR Channel Revenue Calculator</Heading>
+      <Text color="gray.300" fontSize="sm" mb={4}>Calculate monthly STR revenue based on account 1600 transactions</Text>
+
+      <HStack spacing={4} mb={4} wrap="wrap">
+        <FormControl maxW="120px">
+          <FormLabel color="white" fontSize="sm">Year</FormLabel>
+          <Input type="number" value={bp.strChannelFilters.year} onChange={(e) => bp.setStrChannelFilters((prev) => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))} onKeyDown={bp.handleKeyDown} bg="gray.600" color="white" size="sm" />
+        </FormControl>
+        <FormControl maxW="120px">
+          <FormLabel color="white" fontSize="sm">Month</FormLabel>
+          <Select value={bp.strChannelFilters.month} onChange={(e) => bp.setStrChannelFilters((prev) => ({ ...prev, month: parseInt(e.target.value) }))} bg="gray.600" color="white" size="sm">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+              <option key={month} value={month}>{new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}</option>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl maxW="180px">
+          <FormLabel color="white" fontSize="sm">Administration</FormLabel>
+          <Input value={bp.currentTenant || bp.strChannelFilters.administration} isReadOnly bg="gray.700" color="white" size="sm" cursor="not-allowed" />
+        </FormControl>
+        <Button onClick={bp.fetchStrChannelPreview} isLoading={bp.loading} colorScheme="blue" size="sm" alignSelf="flex-end">
+          {bp.t('strChannel.previewData')}
+        </Button>
+        <Button onClick={bp.calculateStrChannelRevenue} isLoading={bp.loading} colorScheme="green" size="sm" alignSelf="flex-end" isDisabled={bp.strChannelPreview.length === 0}>
+          {bp.t('strChannel.calculateRevenue')}
+        </Button>
+      </HStack>
+
+      {bp.strChannelPreview.length > 0 && (
+        <VStack align="stretch" spacing={4}>
+          <Heading size="xs" color="white">Channel Data Preview ({bp.strChannelPreview.length})</Heading>
+          <TableContainer maxH="200px" overflowY="auto">
+            <Table size="sm" variant="simple">
+              <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                <Tr>
+                  <Th color="white" fontSize="xs">Channel</Th>
+                  <Th color="white" fontSize="xs">Account</Th>
+                  <Th color="white" fontSize="xs" isNumeric>Transactions</Th>
+                  <Th color="white" fontSize="xs" isNumeric>Total Amount</Th>
+                  <Th color="white" fontSize="xs">Date Range</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {(bp.strChannelPreview as any[]).map((row, index) => (
+                  <Tr key={index}>
+                    <Td color="white" fontSize="xs">{row.ReferenceNumber}</Td>
+                    <Td color="white" fontSize="xs">{row.Reknum}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
+                    <Td color="white" fontSize="xs">
+                      {new Date(row.first_date).toLocaleDateString('nl-NL')} - {new Date(row.last_date).toLocaleDateString('nl-NL')}
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </TableContainer>
+        </VStack>
+      )}
+
+      {bp.strChannelTransactions.length > 0 && (
+        <VStack align="stretch" spacing={4}>
+          <HStack justify="space-between">
+            <Heading size="xs" color="white">Proposed Transactions ({bp.strChannelTransactions.length})</Heading>
+            <Button onClick={bp.saveStrChannelTransactions} isLoading={bp.loading} colorScheme="orange" size="sm">Save to Database</Button>
+          </HStack>
+
+          {bp.strChannelSummary && (
+            <Box bg="gray.700" p={3} borderRadius="md">
+              <Text color="white" fontSize="sm">
+                <strong>Reference:</strong> {bp.strChannelSummary.ref1} |{' '}
+                <strong>Period:</strong> {bp.strChannelSummary.month}/{bp.strChannelSummary.year} |{' '}
+                <strong>End Date:</strong> {bp.strChannelSummary.end_date}
+              </Text>
+            </Box>
+          )}
+
+          <TableContainer maxH="400px" overflowY="auto">
+            <Table size="sm" variant="simple">
+              <Thead position="sticky" top={0} bg="gray.800" zIndex={1}>
+                <Tr>
+                  <Th color="white" fontSize="xs">Date</Th>
+                  <Th color="white" fontSize="xs">Description</Th>
+                  <Th color="white" fontSize="xs" isNumeric>Amount</Th>
+                  <Th color="white" fontSize="xs">Debet</Th>
+                  <Th color="white" fontSize="xs">Credit</Th>
+                  <Th color="white" fontSize="xs">Reference</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {(bp.strChannelTransactions as any[]).map((transaction, index) => (
+                  <Tr key={index}>
+                    <Td color="white" fontSize="xs">{transaction.TransactionDate}</Td>
+                    <Td color="white" fontSize="xs" maxW="200px" isTruncated title={transaction.TransactionDescription}>{transaction.TransactionDescription}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.TransactionAmount)}</Td>
+                    <Td color="white" fontSize="xs">{transaction.Debet}</Td>
+                    <Td color="white" fontSize="xs">{transaction.Credit}</Td>
+                    <Td color="white" fontSize="xs">{transaction.ReferenceNumber}</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </TableContainer>
+        </VStack>
+      )}
+    </Box>
+
+    {bp.strChannelPreview.length === 0 && bp.strChannelTransactions.length === 0 && (
+      <Text color="white" textAlign="center" py={8}>{bp.t('strChannel.noChannels')}</Text>
+    )}
+  </VStack>
+);
 
 export default BankingProcessor;

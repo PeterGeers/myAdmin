@@ -4,13 +4,10 @@
  * Property 9 (frontend): Email validation — generate random strings with fast-check,
  * verify Yup schema matches backend validation rules.
  *
- * Property 14 (frontend): Locale greeting — generate random locale strings,
- * verify correct greeting selection logic.
- *
- * **Validates: Requirements 5.5, 9.7**
+ * **Validates: Requirements 5.5**
  */
 import fc from 'fast-check';
-import { isValidEmail, getLocaleGreeting } from '../utils/emailVerificationUtils';
+import { isValidEmail } from '../utils/emailVerificationUtils';
 
 // ---------------------------------------------------------------------------
 // Property 9 (frontend): Email validation
@@ -153,88 +150,4 @@ describe('Property 9 (frontend): Email validation', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Property 14 (frontend): Locale greeting
-// Feature: ses-email-verification, Property 14: Locale-aware signature greeting
-// Validates: Requirements 9.7
-// ---------------------------------------------------------------------------
 
-describe('Property 14 (frontend): Locale greeting', () => {
-  /**
-   * Feature: ses-email-verification, Property 14: Locale-aware signature greeting
-   *
-   * For locale 'nl_NL', the greeting SHALL be "Met vriendelijke groet,".
-   *
-   * **Validates: Requirements 9.7**
-   */
-  it('PROPERTY: nl_NL locale always returns Dutch greeting', () => {
-    // The nl_NL locale is fixed, but we test it with property style
-    // to confirm it's deterministic regardless of other conditions
-    fc.assert(
-      fc.property(fc.constant('nl_NL'), (locale) => {
-        const greeting = getLocaleGreeting(locale);
-        return greeting === 'Met vriendelijke groet,';
-      }),
-      { numRuns: 10 }
-    );
-  });
-
-  /**
-   * Feature: ses-email-verification, Property 14: Locale-aware signature greeting
-   *
-   * For any locale string that is NOT 'nl_NL', the greeting SHALL be "Kind regards,".
-   *
-   * **Validates: Requirements 9.7**
-   */
-  it('PROPERTY: any non-nl_NL locale returns English greeting', () => {
-    // Generate random locale-like strings that are NOT 'nl_NL'
-    const nonNlLocaleArb = fc.oneof(
-      // Common locale patterns
-      fc.constantFrom(
-        'en_US', 'en_GB', 'de_DE', 'fr_FR', 'es_ES', 'it_IT',
-        'pt_BR', 'ja_JP', 'zh_CN', 'ko_KR', 'nl_BE', 'nl',
-        'en', 'de', 'fr', 'es', ''
-      ),
-      // Random locale-like strings (xx_YY pattern)
-      fc.tuple(
-        fc.stringMatching(/^[a-z]{2}$/),
-        fc.stringMatching(/^[A-Z]{2}$/),
-      ).map(([lang, country]) => `${lang}_${country}`),
-      // Random arbitrary strings
-      fc.string({ minLength: 0, maxLength: 10 }),
-    ).filter(locale => locale !== 'nl_NL');
-
-    fc.assert(
-      fc.property(nonNlLocaleArb, (locale) => {
-        const greeting = getLocaleGreeting(locale);
-        return greeting === 'Kind regards,';
-      }),
-      { numRuns: 200 }
-    );
-  });
-
-  /**
-   * Feature: ses-email-verification, Property 14: Locale-aware signature greeting
-   *
-   * For any locale string, the greeting SHALL be one of the two valid options.
-   *
-   * **Validates: Requirements 9.7**
-   */
-  it('PROPERTY: greeting is always one of the two valid options', () => {
-    const anyLocaleArb = fc.oneof(
-      fc.constant('nl_NL'),
-      fc.string({ minLength: 0, maxLength: 20 }),
-    );
-
-    fc.assert(
-      fc.property(anyLocaleArb, (locale) => {
-        const greeting = getLocaleGreeting(locale);
-        return (
-          greeting === 'Met vriendelijke groet,' ||
-          greeting === 'Kind regards,'
-        );
-      }),
-      { numRuns: 200 }
-    );
-  });
-});

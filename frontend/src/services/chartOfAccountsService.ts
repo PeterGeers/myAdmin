@@ -47,23 +47,6 @@ export const listAccounts = async (
 };
 
 /**
- * Get a single account by account number
- */
-export const getAccount = async (accountNumber: string): Promise<Account> => {
-  const response = await authenticatedGet(
-    `/api/tenant-admin/chart-of-accounts/${encodeURIComponent(accountNumber)}`
-  );
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to get account');
-  }
-  
-  const data: AccountResponse = await response.json();
-  return data.account;
-};
-
-/**
  * Create a new account
  */
 export const createAccount = async (account: AccountFormData): Promise<Account> => {

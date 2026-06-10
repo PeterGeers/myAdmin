@@ -289,6 +289,19 @@ python scripts/check_translations.py
 
 **Testing**: See `PRODUCTION_TESTING_CHECKLIST.md` for comprehensive testing guide
 
+## Code Quality
+
+### Dead Code Detection (Vulture)
+
+[Vulture](https://github.com/jendrikseipp/vulture) finds unused Python code. Flask route handlers are false positives (they're called by the WSGI server, not directly) so a whitelist file suppresses them.
+
+```bash
+# Run vulture with the whitelist
+vulture backend/src/ backend/vulture_whitelist.py --min-confidence 60
+```
+
+The whitelist (`backend/vulture_whitelist.py`) contains all Flask blueprint route handler function names and gunicorn configuration variables. Update it when adding new routes.
+
 ## Tech Stack
 
 - **Frontend**: React, TypeScript, Chakra UI, Recharts, react-i18next

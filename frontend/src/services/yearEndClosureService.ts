@@ -79,20 +79,6 @@ export interface YearStatus {
 }
 
 /**
- * Get list of years available to close
- */
-export const getAvailableYears = async (): Promise<Year[]> => {
-  const response = await authenticatedGet('/api/year-end/available-years');
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to get available years');
-  }
-  
-  return response.json();
-};
-
-/**
  * Validate if a year can be closed
  */
 export const validateYear = async (year: number): Promise<YearValidation> => {

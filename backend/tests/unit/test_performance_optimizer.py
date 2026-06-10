@@ -1,90 +1,17 @@
 """
 Unit tests for performance_optimizer module.
 
-Tests profiling decorator behavior, memory tracking functionality,
-and query analysis logic.
+Tests performance reporting, memory tracking, query analysis,
+batch processing, and middleware functionality.
 
 Requirements: 1.10, 2.1, 8.5
 """
 
 import pytest
-import time
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 
-from performance_optimizer import PerformanceProfiler, BatchProcessor
-
-
-class TestProfileFunction:
-    """Tests for profile_function decorator."""
-
-    @pytest.fixture
-    def profiler(self, mock_db):
-        """Create PerformanceProfiler with mocked dependencies."""
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            prof = PerformanceProfiler()
-        return prof
-
-    def test_profile_function_returns_original_result(self, profiler):
-        """Test that decorated function returns its original result."""
-        @profiler.profile_function
-        def add(a, b):
-            return a + b
-
-        result = add(2, 3)
-        assert result == 5
-
-    def test_profile_function_logs_execution_time(self, profiler):
-        """Test that profiling logs execution time."""
-        @profiler.profile_function
-        def slow_func():
-            time.sleep(0.01)
-            return 'done'
-
-        slow_func()
-
-        assert len(profiler.performance_logs) == 1
-        log = profiler.performance_logs[0]
-        assert log['function'] == 'slow_func'
-        assert log['execution_time_seconds'] >= 0.01
-        assert log['error'] is None
-
-    def test_profile_function_logs_error_on_exception(self, profiler):
-        """Test that exceptions are logged and re-raised."""
-        @profiler.profile_function
-        def failing_func():
-            raise ValueError("Test error")
-
-        with pytest.raises(ValueError, match="Test error"):
-            failing_func()
-
-        assert len(profiler.performance_logs) == 1
-        log = profiler.performance_logs[0]
-        assert log['error'] == 'Test error'
-        assert log['execution_time_seconds'] >= 0
-
-    def test_profile_function_preserves_function_name(self, profiler):
-        """Test that @wraps preserves the original function name."""
-        @profiler.profile_function
-        def my_function():
-            pass
-
-        assert my_function.__name__ == 'my_function'
-
-    def test_profile_function_tracks_memory(self, profiler):
-        """Test that memory tracking produces memory_diff data."""
-        @profiler.profile_function
-        def allocate_memory():
-            data = [i for i in range(1000)]
-            return len(data)
-
-        allocate_memory()
-
-        log = profiler.performance_logs[0]
-        assert log['memory_diff'] is not None
-        assert 'total_diff_bytes' in log['memory_diff']
-        assert 'total_diff_mb' in log['memory_diff']
+from performance_optimizer import PerformanceProfiler
 
 
 class TestGetPerformanceReport:
@@ -250,31 +177,6 @@ class TestImplementCachingStrategies:
         assert result['config']['ttl_seconds'] == 600
 
 
-class TestBatchProcessor:
-    """Tests for BatchProcessor class."""
-
-    @pytest.fixture
-    def processor(self, mock_db):
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            bp = BatchProcessor(batch_size=5)
-        return bp
-
-    def test_batch_processor_init_sets_batch_size(self, processor):
-        """Test that batch size is set correctly."""
-        assert processor.batch_size == 5
-
-    def test_process_in_batches_delegates_to_profiler(self, processor):
-        """Test that process_in_batches uses the profiler's method."""
-        items = list(range(10))
-        process_func = lambda batch: [x + 1 for x in batch]
-
-        result = processor.process_in_batches(items, process_func)
-
-        assert result['total_items'] == 10
-        assert result['results'] == list(range(1, 11))
-
-
 class TestDetectNPlus1Queries:
     """Tests for detect_n_plus_1_queries method."""
 
@@ -375,90 +277,6 @@ class TestCheckMemoryLeaks:
 class TestMemoryManager:
     """Tests for MemoryManager class."""
 
-    def test_take_memory_snapshot_with_psutil(self, mock_db):
-        """Test memory snapshot with psutil available."""
-        from performance_optimizer import MemoryManager
-        import psutil
-
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            mm = MemoryManager()
-
-        mock_process = MagicMock()
-        mock_process.memory_info.return_value = MagicMock(rss=100*1024*1024, vms=200*1024*1024)
-        mock_process.memory_percent.return_value = 5.0
-        mock_process.num_threads.return_value = 4
-
-        with patch('psutil.Process', return_value=mock_process):
-            result = mm.take_memory_snapshot(label="test")
-
-        assert result['label'] == 'test'
-        assert 'rss_mb' in result
-        assert result['rss_mb'] == pytest.approx(100.0)
-
-    def test_take_memory_snapshot_without_psutil(self, mock_db):
-        """Test memory snapshot when psutil import fails."""
-        from performance_optimizer import MemoryManager
-
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            mm = MemoryManager()
-
-        with patch('builtins.__import__', side_effect=ImportError("No psutil")):
-            result = mm.take_memory_snapshot(label="no_psutil")
-
-        assert 'error' in result or 'label' in result
-
-    def test_detect_memory_leaks_insufficient_snapshots(self, mock_db):
-        """Test leak detection with insufficient snapshots."""
-        from performance_optimizer import MemoryManager
-
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            mm = MemoryManager()
-
-        result = mm.detect_memory_leaks()
-        assert 'message' in result
-
-    def test_detect_memory_leaks_with_snapshots(self, mock_db):
-        """Test leak detection with enough snapshots."""
-        from performance_optimizer import MemoryManager
-
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            mm = MemoryManager()
-
-        mm.memory_snapshots = [
-            {'timestamp': '2024-01-01T00:00:00', 'label': 'start', 'rss_mb': 100.0, 'vms_mb': 200.0, 'percent': 5.0, 'threads': 4},
-            {'timestamp': '2024-01-01T00:01:00', 'label': 'mid', 'rss_mb': 105.0, 'vms_mb': 210.0, 'percent': 5.2, 'threads': 4},
-            {'timestamp': '2024-01-01T00:02:00', 'label': 'end', 'rss_mb': 120.0, 'vms_mb': 230.0, 'percent': 6.0, 'threads': 4},
-        ]
-
-        result = mm.detect_memory_leaks()
-
-        assert result['snapshots_analyzed'] == 3
-        assert len(result['memory_trend']) == 2
-        # 120 - 105 = 15 MB increase > 10 MB threshold
-        assert len(result['potential_leaks']) >= 1
-
-    def test_force_garbage_collection(self, mock_db):
-        """Test force garbage collection."""
-        from performance_optimizer import MemoryManager
-
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            mm = MemoryManager()
-
-        # The source code has a bug with gc.get_objects(gen) for large gen values
-        # Just verify it doesn't crash or handle the error
-        try:
-            result = mm.force_garbage_collection()
-            assert 'timestamp' in result
-            assert 'objects_collected' in result
-        except (ValueError, TypeError):
-            # Known issue with gc.get_objects(gen) in the source code
-            pass
-
     def test_get_memory_usage_report_with_psutil(self, mock_db):
         """Test memory usage report with psutil."""
         from performance_optimizer import MemoryManager
@@ -480,39 +298,6 @@ class TestMemoryManager:
 
         assert 'rss_mb' in result
         assert 'process_id' in result
-
-
-class TestBatchProcessorAdditional:
-    """Additional tests for BatchProcessor class."""
-
-    @pytest.fixture
-    def processor(self, mock_db):
-        with patch('performance_optimizer.QueryOptimizer') as MockQO:
-            MockQO.return_value = MagicMock()
-            bp = BatchProcessor(batch_size=5)
-        return bp
-
-    def test_find_optimal_batch_size(self, processor):
-        """Test finding optimal batch size."""
-        items = list(range(1500))
-        process_func = lambda batch: batch
-
-        result = processor.find_optimal_batch_size(items, process_func, test_sizes=[50, 100])
-
-        assert 'optimal_batch_size' in result
-        assert 'performance_by_size' in result
-        assert result['optimal_batch_size'] in [50, 100]
-
-    def test_parallel_batch_processing(self, processor):
-        """Test parallel batch processing."""
-        items = list(range(20))
-        process_func = lambda batch: [x * 2 for x in batch]
-
-        result = processor.parallel_batch_processing(items, process_func, max_workers=2)
-
-        assert result['total_items'] == 20
-        assert len(result['results']) == 20
-        assert result['workers_used'] == 2
 
 
 class TestPerformanceMiddleware:

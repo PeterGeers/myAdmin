@@ -72,8 +72,37 @@ const ReferenceAnalysisReport: React.FC = () => {
       setRefAnalysisData([]);
       setRefTrendData([]);
       setAvailableRefAccounts([]);
+      // Fetch available accounts for the dropdown
+      fetchAvailableAccounts();
     }
   }, [currentTenant]);
+
+  const fetchAvailableAccounts = async () => {
+    if (!currentTenant) return;
+    try {
+      const params = new URLSearchParams({
+        years: selectedYears.join(','),
+        administration: currentTenant,
+        reference_number: '',
+        accounts: ''
+      });
+      const response = await authenticatedGet(buildEndpoint('/api/reports/reference-analysis', params));
+      const data = await response.json();
+      if (data.success && data.available_accounts) {
+        setAvailableRefAccounts(data.available_accounts);
+      }
+    } catch (err) {
+      console.error('Error fetching available accounts:', err);
+    }
+  };
+
+  // Refetch accounts when year selection changes
+  useEffect(() => {
+    if (currentTenant && selectedYears.length > 0) {
+      fetchAvailableAccounts();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYears]);
 
   const fetchReferenceAnalysis = async () => {
     // Validate tenant selection before processing
@@ -165,12 +194,15 @@ const ReferenceAnalysisReport: React.FC = () => {
                   {
                     type: 'multi',
                     label: t('filters.account'),
-                    options: availableRefAccounts,
-                    value: availableRefAccounts.filter(acc => selectedAccounts.includes(acc.Reknum)),
-                    onChange: (accounts: AccountOption[]) => setSelectedAccounts(accounts.map(acc => acc.Reknum)),
+                    options: availableRefAccounts.map(acc => `${acc.Reknum} - ${acc.AccountName}`),
+                    value: selectedAccounts.map(rek => {
+                      const acc = availableRefAccounts.find(a => a.Reknum === rek);
+                      return acc ? `${acc.Reknum} - ${acc.AccountName}` : rek;
+                    }),
+                    onChange: (accounts: string[]) => setSelectedAccounts(
+                      accounts.map(label => label.split(' - ')[0])
+                    ),
                     placeholder: t('filters.selectAccount'),
-                    getOptionLabel: (account) => `${account.Reknum} - ${account.AccountName}`,
-                    getOptionValue: (account) => account.Reknum,
                     treatEmptyAsSelected: false
                   }
                 ]}
@@ -185,7 +217,7 @@ const ReferenceAnalysisReport: React.FC = () => {
                   mt={6}
                   data-testid="analyze-button"
                 >
-                  {t('common:buttons.analyze')}
+                  {t('actions.analyze')}
                 </Button>
               </Box>
             </HStack>

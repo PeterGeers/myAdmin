@@ -17,6 +17,8 @@ from btw_processor import BTWProcessor
 from toeristenbelasting_processor import ToeristenbelastingProcessor
 from pdf_validation import PDFValidator
 from reporting_routes import reporting_bp
+from routes.aangifte_ib_routes import aangifte_ib_bp
+from routes.financial_reporting_routes import financial_reporting_bp
 from actuals_routes import actuals_bp
 from bnb_routes import bnb_bp
 from str_channel_routes import str_channel_bp
@@ -35,6 +37,7 @@ from routes.tenant_admin_credentials import tenant_admin_credentials_bp
 from routes.tenant_admin_storage import tenant_admin_storage_bp
 from routes.tenant_admin_settings import tenant_admin_settings_bp
 from routes.tenant_admin_config import tenant_admin_config_bp
+from routes.tenant_admin_templates import tenant_admin_templates_bp
 from routes.tenant_admin_details import tenant_admin_details_bp
 from routes.tenant_admin_email import tenant_admin_email_bp
 from routes.email_log_routes import email_log_bp
@@ -120,30 +123,9 @@ flag = False
 
 # Initialize scalability manager early
 try:
-    # Temporarily disable scalability manager to avoid database pool issues
+    # Scalability manager disabled — advanced pooling handled directly by DatabaseManager
     scalability_manager = None
     print("⚠️ Scalability Manager disabled to avoid database pool issues", flush=True)
-    
-    # from scalability_manager import initialize_scalability, ScalabilityConfig
-    # from database import DatabaseManager
-    
-    # # Get database configuration
-    # db_manager = DatabaseManager(test_mode=flag)
-    # db_config = db_manager.config
-    
-    # # Initialize with optimized configuration for 10x concurrency
-    # scalability_config = ScalabilityConfig(
-    #     db_pool_size=20,  # Reduced to avoid pool size errors
-    #     db_max_overflow=40,
-    #     max_worker_threads=50,  # Reduced to avoid resource issues
-    #     io_thread_pool_size=25,
-    #     cpu_thread_pool_size=10,
-    #     async_queue_size=500,
-    #     batch_processing_size=50
-    # )
-    
-    # scalability_manager = initialize_scalability(db_config, scalability_config)
-    # print("🚀 Scalability Manager initialized for 10x concurrent user support", flush=True)
     
 except Exception as e:
     print(f"⚠️ Scalability Manager initialization failed: {e}", flush=True)
@@ -153,6 +135,8 @@ build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.
 
 # Register API blueprints IMMEDIATELY after app creation
 app.register_blueprint(reporting_bp, url_prefix='/api/reports')
+app.register_blueprint(aangifte_ib_bp, url_prefix='/api/reports')
+app.register_blueprint(financial_reporting_bp, url_prefix='/api/reports')
 app.register_blueprint(actuals_bp, url_prefix='/api/reports')
 app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
 app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
@@ -170,6 +154,7 @@ app.register_blueprint(tenant_admin_credentials_bp)
 app.register_blueprint(tenant_admin_storage_bp)
 app.register_blueprint(tenant_admin_settings_bp)
 app.register_blueprint(tenant_admin_config_bp)
+app.register_blueprint(tenant_admin_templates_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
 app.register_blueprint(verification_bp)  # SES email verification management
@@ -360,6 +345,16 @@ set_duplicate_test_mode(flag)
 from reporting_routes import set_test_mode as set_reporting_test_mode, set_logger as set_reporting_logger
 set_reporting_test_mode(flag)
 set_reporting_logger(logger)
+
+# Set test mode and logger for aangifte_ib_bp
+from routes.aangifte_ib_routes import set_test_mode as set_aangifte_ib_test_mode, set_logger as set_aangifte_ib_logger
+set_aangifte_ib_test_mode(flag)
+set_aangifte_ib_logger(logger)
+
+# Set test mode and logger for financial_reporting_bp
+from routes.financial_reporting_routes import set_test_mode as set_fin_reporting_test_mode, set_logger as set_fin_reporting_logger
+set_fin_reporting_test_mode(flag)
+set_fin_reporting_logger(logger)
 
 # Initialize pivot registry from database schema (must run at startup)
 # Retry a few times to handle Docker race condition where MySQL isn't ready yet.

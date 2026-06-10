@@ -5,7 +5,7 @@
  * in API calls, providing a standardized way to make tenant-scoped requests.
  */
 
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete } from './apiService';
+import { authenticatedGet, authenticatedPost } from './apiService';
 
 /**
  * Makes a GET request with automatic tenant context
@@ -52,50 +52,6 @@ export const tenantAwarePost = async (
 };
 
 /**
- * Makes a PUT request with automatic tenant context in body
- * @param endpoint - API endpoint
- * @param data - Request body data
- * @param options - Additional options for the request
- * @returns Promise resolving to the response
- */
-export const tenantAwarePut = async (
-  endpoint: string,
-  data: any,
-  options?: RequestInit
-): Promise<Response> => {
-  const currentTenant = localStorage.getItem('selectedTenant');
-  
-  const tenantAwareData = {
-    ...data,
-    administration: data.administration || currentTenant
-  };
-  
-  return authenticatedPut(endpoint, tenantAwareData, options);
-};
-
-/**
- * Makes a DELETE request with automatic tenant context
- * @param endpoint - API endpoint
- * @param additionalParams - Additional query parameters
- * @param options - Additional options for the request
- * @returns Promise resolving to the response
- */
-export const tenantAwareDelete = async (
-  endpoint: string,
-  additionalParams?: Record<string, string>,
-  options?: RequestInit
-): Promise<Response> => {
-  const currentTenant = localStorage.getItem('selectedTenant');
-  const params = new URLSearchParams({
-    administration: currentTenant || 'all',
-    ...additionalParams
-  });
-  
-  const url = `${endpoint}?${params}`;
-  return authenticatedDelete(url, options);
-};
-
-/**
  * Utility function to get current tenant
  * @returns Current tenant or null
  */
@@ -116,15 +72,3 @@ export const requireTenant = (): string => {
   return tenant;
 };
 
-/**
- * Creates tenant-scoped URL parameters
- * @param additionalParams - Additional parameters to include
- * @returns URLSearchParams with tenant context
- */
-export const createTenantParams = (additionalParams?: Record<string, string>): URLSearchParams => {
-  const currentTenant = getCurrentTenant();
-  return new URLSearchParams({
-    administration: currentTenant || 'all',
-    ...additionalParams
-  });
-};

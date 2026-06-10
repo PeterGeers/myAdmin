@@ -54,11 +54,6 @@ class ScalabilityConfig:
     async_queue_size: int = 1000  # Queue size for async operations
     batch_processing_size: int = 100  # Batch size for bulk operations
     
-    # Caching Settings
-    cache_levels: int = 3  # L1: Memory, L2: Redis, L3: Database
-    cache_ttl_seconds: int = 3600  # 1 hour default TTL
-    cache_max_memory_mb: int = 512  # Maximum memory cache size
-    
     # Performance Monitoring
     monitoring_interval_seconds: int = 30  # Monitor every 30 seconds
     performance_alert_threshold: float = 2.0  # Alert if response time > 2s
@@ -240,7 +235,7 @@ class AdvancedConnectionPool:
             try:
                 time.sleep(self.config.monitoring_interval_seconds)
                 
-                for pool_name, pool in self.pools.items():
+                for pool_name, _pool in self.pools.items():
                     try:
                         # Get pool statistics (if available)
                         stats = self.pool_stats.get(pool_name, {})
@@ -832,18 +827,5 @@ def get_scalability_manager(db_config: Dict[str, Any]) -> ScalabilityManager:
         with _manager_lock:
             if _scalability_manager is None:
                 _scalability_manager = ScalabilityManager(db_config)
-    
-    return _scalability_manager
-
-
-def initialize_scalability(db_config: Dict[str, Any], config: Optional[ScalabilityConfig] = None):
-    """Initialize scalability manager with custom configuration"""
-    global _scalability_manager
-    
-    with _manager_lock:
-        if _scalability_manager is not None:
-            _scalability_manager.shutdown()
-        
-        _scalability_manager = ScalabilityManager(db_config, config)
     
     return _scalability_manager

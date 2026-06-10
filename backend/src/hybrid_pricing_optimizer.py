@@ -54,11 +54,8 @@ class HybridPricingOptimizer:
         """Generate AI strategic insights"""
         
         historical_data = self._get_historical_data(listing)
-        events_data = self._get_events_data()
         listing_data = self._get_listing_performance(listing) if listing else {}
         
-        # Calculate actual historical nightly rates by season/period
-        historical_rates = self._calculate_historical_rates(listing, historical_data)
         print(f"Historical data for {listing}: avg_adr_24m={historical_data.get('avg_adr_24m', 0):.2f}")
         print(f"Listing data: {listing_data}")
         
@@ -163,74 +160,6 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         except Exception as e:
             print(f"Rate calculation error: {e}")
             return {"error": "Could not calculate historical rates"}
-    
-    def _calculate_monthly_multipliers(self, historical_data):
-        """Calculate monthly multipliers based on historical ADR performance"""
-        try:
-            monthly_performance = historical_data.get('monthly_performance', [])
-            if not monthly_performance:
-                return {i: 1.0 for i in range(1, 13)}
-            
-            # Calculate average ADR across all months
-            total_adr = sum(month['avg_adr'] for month in monthly_performance)
-            avg_adr = total_adr / len(monthly_performance)
-            
-            # Calculate multipliers for each month based on historical ADR
-            multipliers = {}
-            for month_data in monthly_performance:
-                month = month_data['month']
-                month_adr = month_data['avg_adr']
-                multiplier = month_adr / avg_adr if avg_adr > 0 else 1.0
-                multipliers[month] = round(multiplier, 3)
-            
-            # Fill missing months with average (1.0)
-            for month in range(1, 13):
-                if month not in multipliers:
-                    multipliers[month] = 1.0
-            
-            print(f"Monthly ADR multipliers: {dict(sorted(multipliers.items()))}")
-            return multipliers
-            
-        except Exception as e:
-            print(f"Monthly multiplier error: {e}")
-            return {i: 1.0 for i in range(1, 13)}
-    
-    def _calculate_seasonal_multipliers(self, historical_data):
-        """Calculate seasonal multipliers based on historical performance"""
-        try:
-            seasonal_performance = historical_data.get('seasonal_performance', [])
-            if not seasonal_performance:
-                return {'Spring': 1.0, 'Summer': 1.0, 'Autumn': 1.0, 'Winter': 1.0}
-            
-            # Calculate average ADR across all seasons
-            total_adr = sum(season['avg_adr'] for season in seasonal_performance)
-            avg_adr = total_adr / len(seasonal_performance)
-            
-            # Calculate multipliers relative to average
-            multipliers = {}
-            for season_data in seasonal_performance:
-                season = season_data['season']
-                season_adr = season_data['avg_adr']
-                multiplier = season_adr / avg_adr if avg_adr > 0 else 1.0
-                multipliers[season] = round(multiplier, 3)
-            
-            print(f"Seasonal multipliers: {multipliers}")
-            return multipliers
-            
-        except Exception as e:
-            print(f"Seasonal multiplier error: {e}")
-            return {'Spring': 1.0, 'Summer': 1.0, 'Autumn': 1.0, 'Winter': 1.0}
-    
-    def _get_season(self, month):
-        """Get season for a given month"""
-        if month in [3, 4, 5]:
-            return 'Spring'
-        elif month in [6, 7, 8]:
-            return 'Summer'
-        elif month in [9, 10, 11]:
-            return 'Autumn'
-        else:
-            return 'Winter'
     
     def _generate_daily_pricing(self, days, listing, ai_insights=None):
         """Generate business logic pricing with AI insights as additional data"""

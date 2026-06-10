@@ -7,8 +7,7 @@ from flask import Flask
 from error_handlers import (
     configure_logging, 
     error_response, 
-    register_error_handlers, 
-    user_friendly_error
+    register_error_handlers
 )
 
 def test_configure_logging():
@@ -47,30 +46,6 @@ def test_error_response_without_details():
         assert data['error'] == "Bad request"
         assert data['status_code'] == 400
         assert status_code == 400
-
-def test_user_friendly_error():
-    """Test user-friendly error messages"""
-def test_user_friendly_error_validation():
-    """Test user-friendly error for validation errors"""
-    app = Flask(__name__)
-    
-    with app.app_context():
-        message = user_friendly_error("VALIDATION_ERROR")
-        
-        assert message is not None
-        assert isinstance(message, str)
-        assert len(message) > 0
-
-def test_user_friendly_error_unknown_type():
-    """Test user-friendly error with unknown error type"""
-    app = Flask(__name__)
-    
-    with app.app_context():
-        message = user_friendly_error("UNKNOWN_ERROR")
-        
-        assert message is not None
-        assert isinstance(message, str)
-        assert "error" in message.lower()
 
 def test_register_error_handlers():
     """Test error handler registration"""

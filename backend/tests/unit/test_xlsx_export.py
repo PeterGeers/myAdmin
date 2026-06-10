@@ -66,7 +66,7 @@ class TestXLSXExportProcessor:
         
         assert result == []
     
-    @patch('xlsx_export.os.makedirs')
+    @patch('xlsx_report_generators.os.makedirs')
     def test_export_files_no_drive_urls(self, mock_makedirs):
         processor = XLSXExportProcessor()
         data = [{'TransactionNumber': 'T001', 'Amount': 100}]
@@ -76,7 +76,7 @@ class TestXLSXExportProcessor:
         assert result == 0
         mock_makedirs.assert_called()
     
-    @patch('xlsx_export.os.makedirs')
+    @patch('xlsx_report_generators.os.makedirs')
     @patch.object(XLSXExportProcessor, '_get_drive_service')
     @patch.object(XLSXExportProcessor, '_download_drive_file')
     def test_export_files_with_drive_urls(self, mock_download, mock_get_service, mock_makedirs):
@@ -182,8 +182,8 @@ class TestXLSXExportProcessor:
         
         assert result is False
     
-    @patch('xlsx_export.io.FileIO')
-    @patch('xlsx_export.MediaIoBaseDownload')
+    @patch('xlsx_report_generators.io.FileIO')
+    @patch('xlsx_report_generators.MediaIoBaseDownload')
     def test_download_single_file_success(self, mock_download, mock_fileio):
         mock_service = Mock()
         mock_service.files.return_value.get_media.return_value = Mock()
@@ -197,7 +197,7 @@ class TestXLSXExportProcessor:
         assert result is True
         mock_fileio.assert_called_once_with('C:\\dest\\test.pdf', 'wb')
     
-    @patch('xlsx_export.io.FileIO')
+    @patch('xlsx_report_generators.io.FileIO')
     def test_download_single_file_error(self, mock_fileio):
         mock_service = Mock()
         mock_service.files.return_value.get_media.side_effect = Exception("Download error")
@@ -207,8 +207,9 @@ class TestXLSXExportProcessor:
         
         assert result is False
     
-    @patch('xlsx_export.GoogleDriveService')
-    def test_get_drive_service_success(self, mock_drive_service):
+    @patch('xlsx_report_generators.resolve_storage_provider', return_value='google_drive')
+    @patch('xlsx_report_generators.GoogleDriveService')
+    def test_get_drive_service_success(self, mock_drive_service, mock_resolve):
         mock_service = Mock()
         mock_drive_service.return_value.service = mock_service
         
@@ -217,8 +218,9 @@ class TestXLSXExportProcessor:
         
         assert result == mock_service
     
-    @patch('xlsx_export.GoogleDriveService')
-    def test_get_drive_service_error(self, mock_drive_service):
+    @patch('xlsx_report_generators.resolve_storage_provider', return_value='google_drive')
+    @patch('xlsx_report_generators.GoogleDriveService')
+    def test_get_drive_service_error(self, mock_drive_service, mock_resolve):
         mock_drive_service.side_effect = Exception("Auth error")
         
         processor = XLSXExportProcessor()

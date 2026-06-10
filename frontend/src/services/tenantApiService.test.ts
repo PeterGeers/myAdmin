@@ -6,27 +6,20 @@ import { vi } from 'vitest';
 import {
   tenantAwareGet,
   tenantAwarePost,
-  tenantAwarePut,
-  tenantAwareDelete,
   getCurrentTenant,
   requireTenant,
-  createTenantParams
 } from './tenantApiService';
 
-import { authenticatedGet, authenticatedPost, authenticatedPut, authenticatedDelete } from './apiService';
+import { authenticatedGet, authenticatedPost } from './apiService';
 
 // Mock the base API service
 vi.mock('./apiService', () => ({
   authenticatedGet: vi.fn(),
   authenticatedPost: vi.fn(),
-  authenticatedPut: vi.fn(),
-  authenticatedDelete: vi.fn()
 }));
 
 const mockAuthenticatedGet = vi.mocked(authenticatedGet);
 const mockAuthenticatedPost = vi.mocked(authenticatedPost);
-const mockAuthenticatedPut = vi.mocked(authenticatedPut);
-const mockAuthenticatedDelete = vi.mocked(authenticatedDelete);
 
 describe('tenantApiService', () => {
   beforeEach(() => {
@@ -101,36 +94,6 @@ describe('tenantApiService', () => {
     });
   });
 
-  describe('tenantAwarePut', () => {
-    it('should include current tenant in request body', async () => {
-      localStorage.setItem('selectedTenant', 'GoodwinSolutions');
-      mockAuthenticatedPut.mockResolvedValue(new Response());
-
-      const data = { id: 1, name: 'test' };
-      await tenantAwarePut('/api/test/1', data);
-
-      expect(mockAuthenticatedPut).toHaveBeenCalledWith(
-        '/api/test/1',
-        { id: 1, name: 'test', administration: 'GoodwinSolutions' },
-        undefined
-      );
-    });
-  });
-
-  describe('tenantAwareDelete', () => {
-    it('should include current tenant in query parameters', async () => {
-      localStorage.setItem('selectedTenant', 'GoodwinSolutions');
-      mockAuthenticatedDelete.mockResolvedValue(new Response());
-
-      await tenantAwareDelete('/api/test/1');
-
-      expect(mockAuthenticatedDelete).toHaveBeenCalledWith(
-        '/api/test/1?administration=GoodwinSolutions',
-        undefined
-      );
-    });
-  });
-
   describe('getCurrentTenant', () => {
     it('should return current tenant from localStorage', () => {
       localStorage.setItem('selectedTenant', 'GoodwinSolutions');
@@ -160,32 +123,6 @@ describe('tenantApiService', () => {
       expect(() => requireTenant()).toThrow(
         'No tenant selected. Please select a tenant first.'
       );
-    });
-  });
-
-  describe('createTenantParams', () => {
-    it('should create URLSearchParams with current tenant', () => {
-      localStorage.setItem('selectedTenant', 'GoodwinSolutions');
-      
-      const params = createTenantParams();
-      
-      expect(params.get('administration')).toBe('GoodwinSolutions');
-    });
-
-    it('should include additional parameters', () => {
-      localStorage.setItem('selectedTenant', 'GoodwinSolutions');
-      
-      const params = createTenantParams({ year: '2024', month: '01' });
-      
-      expect(params.get('administration')).toBe('GoodwinSolutions');
-      expect(params.get('year')).toBe('2024');
-      expect(params.get('month')).toBe('01');
-    });
-
-    it('should use "all" when no tenant is selected', () => {
-      const params = createTenantParams();
-      
-      expect(params.get('administration')).toBe('all');
     });
   });
 });
