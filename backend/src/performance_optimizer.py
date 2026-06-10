@@ -1,11 +1,9 @@
 import time
 import tracemalloc
-from functools import wraps
 from datetime import datetime
 import gc
 import os
 from flask import request
-from database import DatabaseManager
 from database_migrations import QueryOptimizer
 
 class PerformanceProfiler:
@@ -15,62 +13,6 @@ class PerformanceProfiler:
         self.query_optimizer = QueryOptimizer()
         self.performance_logs = []
         self.memory_snapshots = []
-
-    def profile_function(self, func):
-        """Decorator to profile function performance"""
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Start memory tracking
-            tracemalloc.start()
-            memory_before = tracemalloc.take_snapshot()
-
-            # Start timing
-            start_time = time.time()
-
-            try:
-                # Execute function
-                result = func(*args, **kwargs)
-
-                # End timing
-                end_time = time.time()
-                execution_time = end_time - start_time
-
-                # End memory tracking
-                memory_after = tracemalloc.take_snapshot()
-                tracemalloc.stop()
-
-                # Calculate memory usage
-                memory_diff = self._calculate_memory_diff(memory_before, memory_after)
-
-                # Log performance
-                self._log_performance(
-                    func.__name__,
-                    execution_time,
-                    memory_diff,
-                    args,
-                    kwargs
-                )
-
-                return result
-
-            except Exception as e:
-                # End timing on error
-                end_time = time.time()
-                execution_time = end_time - start_time
-                tracemalloc.stop()
-
-                # Log error
-                self._log_performance(
-                    func.__name__,
-                    execution_time,
-                    None,
-                    args,
-                    kwargs,
-                    error=str(e)
-                )
-                raise
-
-        return wrapper
 
     def _calculate_memory_diff(self, snapshot_before, snapshot_after):
         """Calculate memory difference between snapshots"""
@@ -387,157 +329,9 @@ def performance_middleware(app):
 
     return profiler
 
-# Batch processing utilities
-class BatchProcessor:
-    """Utilities for optimized batch processing"""
-
-    def __init__(self, batch_size=100):
-        self.batch_size = batch_size
-        self.profiler = PerformanceProfiler()
-
-    def process_in_batches(self, items, process_func, progress_callback=None):
-        """Process items in optimized batches"""
-        return self.profiler.optimize_batch_processing(
-            items,
-            self.batch_size,
-            process_func
-        )
-
-    def find_optimal_batch_size(self, items, process_func, test_sizes=[50, 100, 200, 500]):
-        """Find optimal batch size through testing"""
-        batch_performance = []
-
-        for size in test_sizes:
-            start_time = time.time()
-            result = self.process_in_batches(items[:size*3], process_func, size)  # Test with 3 batches
-            end_time = time.time()
-
-            batch_performance.append({
-                'batch_size': size,
-                'processing_time': end_time - start_time,
-                'items_per_second': (size * 3) / (end_time - start_time) if (end_time - start_time) > 0 else 0
-            })
-
-        # Find optimal size (best items per second)
-        optimal = max(batch_performance, key=lambda x: x['items_per_second'])
-
-        return {
-            'optimal_batch_size': optimal['batch_size'],
-            'performance_by_size': batch_performance,
-            'analysis_date': datetime.now().isoformat()
-        }
-
-    def parallel_batch_processing(self, items, process_func, max_workers=4):
-        """Process batches in parallel using threading"""
-        from concurrent.futures import ThreadPoolExecutor
-        import math
-
-        batch_size = self.batch_size
-        total_items = len(items)
-        num_batches = math.ceil(total_items / batch_size)
-
-        results = []
-        start_time = time.time()
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = []
-            for i in range(num_batches):
-                batch = items[i*batch_size:(i+1)*batch_size]
-                futures.append(executor.submit(process_func, batch))
-
-            for future in futures:
-                results.extend(future.result())
-
-        end_time = time.time()
-
-        return {
-            'results': results,
-            'total_items': total_items,
-            'processing_time_seconds': end_time - start_time,
-            'items_per_second': total_items / (end_time - start_time) if (end_time - start_time) > 0 else 0,
-            'workers_used': max_workers
-        }
-
 # Memory management utilities
 class MemoryManager:
-    """Memory management and leak detection"""
-
-    def __init__(self):
-        self.memory_snapshots = []
-        self.leak_threshold_mb = 10  # 10MB threshold for leak detection
-
-    def take_memory_snapshot(self, label="manual"):
-        """Take a memory snapshot with label"""
-        try:
-            import psutil
-            process = psutil.Process(os.getpid())
-            mem_info = process.memory_info()
-
-            snapshot = {
-                'timestamp': datetime.now().isoformat(),
-                'label': label,
-                'rss_mb': mem_info.rss / (1024 * 1024),
-                'vms_mb': mem_info.vms / (1024 * 1024),
-                'percent': process.memory_percent(),
-                'threads': process.num_threads()
-            }
-
-            self.memory_snapshots.append(snapshot)
-            return snapshot
-
-        except ImportError:
-            return {
-                'error': 'psutil not available for detailed memory monitoring',
-                'timestamp': datetime.now().isoformat(),
-                'label': label
-            }
-
-    def detect_memory_leaks(self, min_snapshots=3):
-        """Detect memory leaks by comparing snapshots"""
-        if len(self.memory_snapshots) < min_snapshots:
-            return {"message": f"Need at least {min_snapshots} snapshots for leak detection"}
-
-        leak_report = {
-            'snapshots_analyzed': len(self.memory_snapshots),
-            'potential_leaks': [],
-            'memory_trend': []
-        }
-
-        # Calculate memory trend
-        for i, snapshot in enumerate(self.memory_snapshots):
-            if i > 0:
-                prev_snapshot = self.memory_snapshots[i-1]
-                rss_diff = snapshot['rss_mb'] - prev_snapshot['rss_mb']
-                leak_report['memory_trend'].append({
-                    'from': prev_snapshot['timestamp'],
-                    'to': snapshot['timestamp'],
-                    'rss_diff_mb': rss_diff,
-                    'rss_diff_percent': (rss_diff / prev_snapshot['rss_mb']) * 100 if prev_snapshot['rss_mb'] > 0 else 0
-                })
-
-                # Check for potential leaks
-                if rss_diff > self.leak_threshold_mb:
-                    leak_report['potential_leaks'].append({
-                        'timestamp': snapshot['timestamp'],
-                        'label': snapshot['label'],
-                        'rss_increase_mb': rss_diff,
-                        'from_rss_mb': prev_snapshot['rss_mb'],
-                        'to_rss_mb': snapshot['rss_mb'],
-                        'severity': 'high' if rss_diff > self.leak_threshold_mb * 2 else 'medium'
-                    })
-
-        return leak_report
-
-    def force_garbage_collection(self):
-        """Force garbage collection and report results"""
-        collected = gc.collect()
-
-        return {
-            'timestamp': datetime.now().isoformat(),
-            'objects_collected': collected,
-            'garbage_count': len(gc.garbage),
-            'generation_counts': [len(gc.get_objects(gen)) for gen in range(gc.get_threshold()[0])]
-        }
+    """Memory management and reporting"""
 
     def get_memory_usage_report(self):
         """Get current memory usage report"""

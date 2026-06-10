@@ -72,17 +72,4 @@ export function isValidEmail(email: string): boolean {
   }
 }
 
-/**
- * Get the locale-aware greeting for email signatures.
- *
- * Returns "Met vriendelijke groet," for Dutch (nl_NL) locale,
- * and "Kind regards," for all other locales.
- *
- * Requirement 9.7
- */
-export function getLocaleGreeting(locale: string): string {
-  if (locale === 'nl_NL') {
-    return 'Met vriendelijke groet,';
-  }
-  return 'Kind regards,';
-}
+

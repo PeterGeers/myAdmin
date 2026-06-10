@@ -23,8 +23,8 @@ from file_cleanup_manager import (
     FileCleanupManager, FileCleanupError, FileSystemError,
     SecurityError, GoogleDriveError
 )
-from session_manager import SessionManager, SessionTimeoutError as SessionTimeout
-from error_handlers import handle_duplicate_detection_error, user_friendly_error
+from session_manager import SessionManager, SessionTimeoutError, SessionInfo
+from error_handlers import handle_duplicate_detection_error
 from database import DatabaseManager
 from db_exceptions import DatabaseError
 
@@ -235,13 +235,21 @@ class TestErrorHandlingRobustness:
         the session manager should correctly identify timed out sessions
         and handle timeout scenarios gracefully with appropriate exceptions.
         """
-        from session_manager import SessionManager, SessionTimeoutError, SessionValidationError
+        from session_manager import SessionManager, SessionTimeoutError, SessionValidationError, SessionInfo
         
         session_manager = SessionManager(default_timeout_seconds=session_timeout_seconds)
         session_id = f"test_session_{datetime.now().timestamp()}_{session_timeout_seconds}"
         
-        # Create a session
-        session_info = session_manager.create_session(session_id, operation_type="test")
+        # Directly add a session (create_session was removed as dead code)
+        now = datetime.now()
+        session_info = SessionInfo(
+            session_id=session_id,
+            created_at=now,
+            last_accessed=now,
+            operation_type="test",
+            timeout_seconds=session_timeout_seconds
+        )
+        session_manager.sessions[session_id] = session_info
         assert session_info is not None
         
         if wait_time <= session_timeout_seconds:
@@ -260,8 +268,8 @@ class TestErrorHandlingRobustness:
             with pytest.raises(SessionTimeoutError):
                 session_manager.validate_session(session_id)
         
-        # Clean up the session
-        session_manager.invalidate_session(session_id)
+        # Clean up the session (directly remove since invalidate_session was removed)
+        session_manager.sessions.pop(session_id, None)
     
     def test_validation_error_handling(self):
         """

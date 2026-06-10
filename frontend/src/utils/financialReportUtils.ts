@@ -68,14 +68,6 @@ export function generateColumnKeys(
 }
 
 /**
- * Filter records by VW flag value.
- * VW='N' for balance accounts, VW='Y' for P&L accounts.
- */
-export function filterByVW<T extends { VW?: string }>(data: T[], vwFlag: 'N' | 'Y'): T[] {
-  return data.filter(record => record.VW === vwFlag);
-}
-
-/**
  * Split P&L records into profit (revenue) and loss (cost) sets based on Parent prefix.
  * Revenue accounts start with profitPrefix (e.g. "8"), cost accounts start with lossPrefix (e.g. "4").
  * Records with other Parent prefixes are excluded from both sets.

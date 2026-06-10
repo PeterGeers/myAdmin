@@ -6,7 +6,6 @@ including user-friendly error messages, error categorization, and recovery sugge
 """
 
 import logging
-import traceback
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
@@ -29,9 +28,7 @@ class ErrorCategory(Enum):
     NETWORK = "network"
     AUTHENTICATION = "authentication"
     AUTHORIZATION = "authorization"
-    BUSINESS_LOGIC = "business_logic"
     SYSTEM = "system"
-    EXTERNAL_SERVICE = "external_service"
 
 class DuplicateDetectionErrorHandler:
     """
@@ -42,8 +39,7 @@ class DuplicateDetectionErrorHandler:
     """
     
     def __init__(self):
-        """Initialize the error handler with error mappings."""
-        self.error_mappings = self._initialize_error_mappings()
+        """Initialize the error handler with recovery suggestions."""
         self.recovery_suggestions = self._initialize_recovery_suggestions()
     
     def handle_duplicate_detection_error(
@@ -318,58 +314,6 @@ class DuplicateDetectionErrorHandler:
         else:
             logger.info(f"Low severity error in duplicate detection: {log_data}")
     
-    def _initialize_error_mappings(self) -> Dict[str, Dict[str, Any]]:
-        """Initialize error code mappings."""
-        return {
-            # Database errors
-            'db_exceptions.DatabaseError': {
-                'category': ErrorCategory.DATABASE,
-                'severity': ErrorSeverity.HIGH,
-                'retry_recommended': True
-            },
-            'db_exceptions.ConnectionError': {
-                'category': ErrorCategory.DATABASE,
-                'severity': ErrorSeverity.HIGH,
-                'retry_recommended': True
-            },
-            
-            # File system errors
-            'FileNotFoundError': {
-                'category': ErrorCategory.FILESYSTEM,
-                'severity': ErrorSeverity.MEDIUM,
-                'retry_recommended': False
-            },
-            'PermissionError': {
-                'category': ErrorCategory.FILESYSTEM,
-                'severity': ErrorSeverity.HIGH,
-                'retry_recommended': False
-            },
-            
-            # Network errors
-            'requests.exceptions.ConnectionError': {
-                'category': ErrorCategory.NETWORK,
-                'severity': ErrorSeverity.MEDIUM,
-                'retry_recommended': True
-            },
-            'requests.exceptions.Timeout': {
-                'category': ErrorCategory.NETWORK,
-                'severity': ErrorSeverity.MEDIUM,
-                'retry_recommended': True
-            },
-            
-            # Validation errors
-            'ValueError': {
-                'category': ErrorCategory.VALIDATION,
-                'severity': ErrorSeverity.LOW,
-                'retry_recommended': False
-            },
-            'TypeError': {
-                'category': ErrorCategory.VALIDATION,
-                'severity': ErrorSeverity.LOW,
-                'retry_recommended': False
-            }
-        }
-    
     def _initialize_recovery_suggestions(self) -> Dict[ErrorCategory, List[str]]:
         """Initialize recovery suggestions by category."""
         return {
@@ -426,21 +370,6 @@ def handle_duplicate_detection_error(
         Dictionary containing processed error information
     """
     return error_handler.handle_duplicate_detection_error(error, operation_context, user_id)
-
-def user_friendly_error(error_code: str, **kwargs) -> str:
-    """
-    Generate user-friendly error message for a given error code.
-    
-    Args:
-        error_code: Error code to generate message for
-        **kwargs: Additional context for message generation
-    
-    Returns:
-        User-friendly error message
-    """
-    error_info = {'error_code': error_code, 'severity': ErrorSeverity.MEDIUM}
-    return error_handler._generate_user_friendly_message(error_info, kwargs.get('user_id'))
-
 
 def configure_logging(app):
     """

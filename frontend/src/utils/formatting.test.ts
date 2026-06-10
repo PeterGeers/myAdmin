@@ -2,7 +2,7 @@
  * Unit tests for internationalization formatting utilities.
  */
 
-import { formatDate, formatNumber, formatCurrency } from './formatting';
+import { formatDate, formatCurrency } from './formatting';
 
 describe('formatDate', () => {
   const testDate = new Date('2026-02-17T12:00:00Z');
@@ -25,45 +25,6 @@ describe('formatDate', () => {
   test('defaults to English for unknown locale', () => {
     const result = formatDate(testDate, 'unknown');
     expect(result).toMatch(/02[-/]17[-/]2026/);
-  });
-});
-
-describe('formatNumber', () => {
-  test('formats number in Dutch locale with comma decimal', () => {
-    const result = formatNumber(1234.56, 'nl');
-    expect(result).toBe('1.234,56');
-  });
-
-  test('formats number in English locale with dot decimal', () => {
-    const result = formatNumber(1234.56, 'en');
-    expect(result).toBe('1,234.56');
-  });
-
-  test('formats number with custom decimal places', () => {
-    const result = formatNumber(1234.567, 'nl', 3);
-    expect(result).toBe('1.234,567');
-  });
-
-  test('formats number with zero decimals', () => {
-    const result = formatNumber(1234.56, 'nl', 0);
-    expect(result).toBe('1.235'); // Rounded
-  });
-
-  test('formats negative numbers', () => {
-    const resultNl = formatNumber(-1234.56, 'nl');
-    const resultEn = formatNumber(-1234.56, 'en');
-    expect(resultNl).toBe('-1.234,56');
-    expect(resultEn).toBe('-1,234.56');
-  });
-
-  test('formats zero', () => {
-    const result = formatNumber(0, 'nl');
-    expect(result).toBe('0,00');
-  });
-
-  test('formats large numbers', () => {
-    const result = formatNumber(1234567.89, 'nl');
-    expect(result).toBe('1.234.567,89');
   });
 });
 

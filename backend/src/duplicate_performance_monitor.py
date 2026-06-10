@@ -9,7 +9,7 @@ Requirements: 5.5, 6.4
 
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from functools import wraps
@@ -481,135 +481,6 @@ class PerformanceMonitor:
         
         return wrapper
     
-    def monitor_file_cleanup(self, func):
-        """
-        Decorator to monitor file cleanup operations.
-        
-        Usage:
-            @monitor.monitor_file_cleanup
-            def cleanup_uploaded_file(...):
-                ...
-        """
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            start_time = time.time()
-            error = None
-            success = False
-            file_size = None
-            
-            try:
-                result = func(*args, **kwargs)
-                success = bool(result)
-                
-                # Try to get file size if available
-                if len(args) > 0 and hasattr(args[0], 'file_size'):
-                    file_size = args[0].file_size
-                
-                return result
-                
-            except Exception as e:
-                error = str(e)
-                raise
-                
-            finally:
-                execution_time = time.time() - start_time
-                self.metrics.record_file_cleanup(
-                    execution_time=execution_time,
-                    success=success,
-                    file_size_bytes=file_size,
-                    error=error
-                )
-        
-        return wrapper
-    
-    def monitor_decision_log(self, func):
-        """
-        Decorator to monitor decision logging operations.
-        
-        Usage:
-            @monitor.monitor_decision_log
-            def log_duplicate_decision(...):
-                ...
-        """
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            start_time = time.time()
-            error = None
-            success = False
-            decision = kwargs.get('decision', 'unknown')
-            retry_count = 0
-            
-            try:
-                result = func(*args, **kwargs)
-                success = bool(result)
-                
-                # Extract retry count if available
-                if isinstance(result, dict):
-                    retry_count = result.get('retry_count', 0)
-                
-                return result
-                
-            except Exception as e:
-                error = str(e)
-                raise
-                
-            finally:
-                execution_time = time.time() - start_time
-                self.metrics.record_decision_log(
-                    execution_time=execution_time,
-                    decision=decision,
-                    success=success,
-                    retry_count=retry_count,
-                    error=error
-                )
-        
-        return wrapper
-    
-    def monitor_database_query(self, query_type: str):
-        """
-        Decorator factory to monitor database query operations.
-        
-        Usage:
-            @monitor.monitor_database_query('duplicate_check')
-            def execute_duplicate_query(...):
-                ...
-        """
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                start_time = time.time()
-                error = None
-                rows_returned = 0
-                cache_hit = False
-                
-                try:
-                    result = func(*args, **kwargs)
-                    
-                    # Extract metrics from result
-                    if isinstance(result, list):
-                        rows_returned = len(result)
-                    elif isinstance(result, dict):
-                        rows_returned = result.get('row_count', 0)
-                        cache_hit = result.get('cache_hit', False)
-                    
-                    return result
-                    
-                except Exception as e:
-                    error = str(e)
-                    raise
-                    
-                finally:
-                    execution_time = time.time() - start_time
-                    self.metrics.record_database_query(
-                        query_type=query_type,
-                        execution_time=execution_time,
-                        rows_returned=rows_returned,
-                        cache_hit=cache_hit,
-                        error=error
-                    )
-            
-            return wrapper
-        return decorator
 
 
 # Global metrics collector instance
@@ -624,16 +495,6 @@ def get_metrics_collector() -> DuplicateDetectionMetrics:
 def get_performance_monitor() -> PerformanceMonitor:
     """Get a performance monitor instance with the global metrics collector."""
     return PerformanceMonitor(_global_metrics)
-
-
-def get_performance_summary() -> Dict:
-    """Get current performance summary statistics."""
-    return _global_metrics.get_summary_statistics()
-
-
-def export_performance_metrics(filepath: str) -> bool:
-    """Export performance metrics to file."""
-    return _global_metrics.export_metrics(filepath)
 
 
 def reset_performance_metrics() -> None:

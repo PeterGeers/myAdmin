@@ -274,3 +274,155 @@ def delete_config(user_email, user_roles, config_id):
     except Exception as e:
         logger.error(f"Error deleting config: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# Legacy Config Endpoints (from original tenant_admin_routes.py)
+# These use the older /api/tenant/config URL pattern.
+# ============================================================================
+
+
+@tenant_admin_config_bp.route('/api/tenant/config', methods=['GET'], endpoint='legacy_get_config')
+@cognito_required(required_permissions=[])
+def get_tenant_config_legacy(user_email, user_roles):
+    """
+    Get tenant configuration (Tenant_Admin only) — legacy endpoint.
+
+    Returns non-secret configs with values and secret configs with keys only.
+    Uses the older /api/tenant/config URL pattern.
+    """
+    from auth.tenant_context import get_user_tenants, is_tenant_admin as check_tenant_admin
+    try:
+        tenant = get_current_tenant(request)
+
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        if not check_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+
+        query = """
+            SELECT config_key, config_value, created_at, updated_at, created_by
+            FROM tenant_config
+            WHERE administration = %s AND is_secret = FALSE
+            ORDER BY config_key
+        """
+        configs = db.execute_query(query, [tenant], fetch=True)
+
+        secret_query = """
+            SELECT config_key, created_at, updated_at, created_by
+            FROM tenant_config
+            WHERE administration = %s AND is_secret = TRUE
+            ORDER BY config_key
+        """
+        secrets = db.execute_query(secret_query, [tenant], fetch=True)
+
+        return jsonify({
+            'success': True,
+            'tenant': tenant,
+            'configs': configs or [],
+            'secrets': secrets or []
+        })
+
+    except Exception as e:
+        print(f"Error getting tenant config: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@tenant_admin_config_bp.route('/api/tenant/config', methods=['POST'], endpoint='legacy_set_config')
+@cognito_required(required_permissions=[])
+def set_tenant_config_legacy(user_email, user_roles):
+    """
+    Set tenant configuration (Tenant_Admin only) — legacy endpoint.
+
+    Uses the older /api/tenant/config URL pattern.
+    """
+    from auth.tenant_context import get_user_tenants, is_tenant_admin as check_tenant_admin, set_tenant_config
+    try:
+        tenant = get_current_tenant(request)
+
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        if not check_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        data = request.get_json()
+        config_key = data.get('config_key')
+        config_value = data.get('config_value')
+        is_secret = data.get('is_secret', False)
+
+        if not config_key or config_value is None:
+            return jsonify({'error': 'config_key and config_value required'}), 400
+
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+
+        success = set_tenant_config(db, tenant, config_key, config_value, is_secret, user_email)
+
+        if success:
+            print(f"AUDIT: Tenant config updated: {tenant}.{config_key} by {user_email}", flush=True)
+            return jsonify({
+                'success': True,
+                'message': f'Configuration {config_key} updated successfully'
+            })
+        else:
+            return jsonify({'error': 'Failed to update configuration'}), 500
+
+    except Exception as e:
+        print(f"Error setting tenant config: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@tenant_admin_config_bp.route('/api/tenant/config/<config_key>', methods=['DELETE'], endpoint='legacy_delete_config')
+@cognito_required(required_permissions=[])
+def delete_tenant_config_legacy(config_key, user_email, user_roles):
+    """
+    Delete tenant configuration (Tenant_Admin only) — legacy endpoint.
+
+    Uses the older /api/tenant/config/<config_key> URL pattern.
+    """
+    from auth.tenant_context import get_user_tenants, is_tenant_admin as check_tenant_admin
+    try:
+        tenant = get_current_tenant(request)
+
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            jwt_token = auth_header.replace('Bearer ', '').strip()
+            user_tenants = get_user_tenants(jwt_token)
+        else:
+            return jsonify({'error': 'Invalid authorization'}), 401
+
+        if not check_tenant_admin(user_roles, tenant, user_tenants):
+            return jsonify({'error': 'Tenant admin access required'}), 403
+
+        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        db = DatabaseManager(test_mode=test_mode)
+
+        query = """
+            DELETE FROM tenant_config
+            WHERE administration = %s AND config_key = %s
+        """
+        db.execute_query(query, [tenant, config_key])
+
+        print(f"AUDIT: Tenant config deleted: {tenant}.{config_key} by {user_email}", flush=True)
+
+        return jsonify({
+            'success': True,
+            'message': f'Configuration {config_key} deleted successfully'
+        })
+
+    except Exception as e:
+        print(f"Error deleting tenant config: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500

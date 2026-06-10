@@ -261,7 +261,6 @@ class InvoiceEmailService:
         currency = invoice.get('currency', 'EUR')
         grand_total = invoice.get('grand_total', 0)
         due_date = invoice.get('due_date', '')
-        tenant_company = self._get_tenant_company_name(tenant)
 
         # Greeting: prefer company_name, fall back to contact_person
         addressee = (contact.get('company_name') or '').strip()
@@ -277,12 +276,12 @@ class InvoiceEmailService:
         if locale == 'nl_NL':
             body = self._build_nl_body(
                 addressee, invoice_number, formatted_total,
-                formatted_due_date, tenant_company
+                formatted_due_date
             )
         else:
             body = self._build_en_body(
                 addressee, invoice_number, formatted_total,
-                formatted_due_date, tenant_company
+                formatted_due_date
             )
 
         # Append branded signature block (graceful degradation: empty string
@@ -294,8 +293,7 @@ class InvoiceEmailService:
         return body
 
     def _build_nl_body(self, addressee: str, invoice_number: str,
-                       formatted_total: str, due_date: str,
-                       sender_company: str) -> str:
+                       formatted_total: str, due_date: str) -> str:
         """Build Dutch HTML email body (without closing greeting — handled by signature block)."""
         return (
             f'<p>Geachte {addressee},</p>'
@@ -306,8 +304,7 @@ class InvoiceEmailService:
         )
 
     def _build_en_body(self, addressee: str, invoice_number: str,
-                       formatted_total: str, due_date: str,
-                       sender_company: str) -> str:
+                       formatted_total: str, due_date: str) -> str:
         """Build English HTML email body (without closing greeting — handled by signature block)."""
         return (
             f'<p>Dear {addressee},</p>'

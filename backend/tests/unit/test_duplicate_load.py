@@ -17,7 +17,6 @@ from typing import List, Dict, Tuple
 from unittest.mock import MagicMock
 
 from duplicate_checker import DuplicateChecker
-from duplicate_query_optimizer import get_query_optimizer, reset_query_optimizer
 from duplicate_performance_monitor import (
     get_metrics_collector,
     reset_performance_metrics
@@ -47,13 +46,6 @@ def db_manager():
 def duplicate_checker(db_manager):
     """Fixture for duplicate checker."""
     return DuplicateChecker(db_manager)
-
-
-@pytest.fixture
-def query_optimizer(db_manager):
-    """Fixture for query optimizer."""
-    reset_query_optimizer()
-    return get_query_optimizer(db_manager, cache_ttl=300)
 
 
 @pytest.fixture(autouse=True)
@@ -122,44 +114,6 @@ def execute_duplicate_check(
             'success': False,
             'execution_time': execution_time,
             'duplicates_found': 0,
-            'error': str(e)
-        }
-
-
-def execute_optimized_check(
-    optimizer,
-    reference_number: str,
-    transaction_date: str,
-    transaction_amount: float
-) -> Dict:
-    """
-    Execute an optimized duplicate check with caching.
-    
-    Returns:
-        Dictionary with execution results and timing
-    """
-    try:
-        results, perf_info = optimizer.check_duplicates_optimized(
-            reference_number=reference_number,
-            transaction_date=transaction_date,
-            transaction_amount=transaction_amount,
-            use_cache=True
-        )
-        
-        return {
-            'success': True,
-            'execution_time': perf_info['execution_time'],
-            'duplicates_found': len(results),
-            'cache_hit': perf_info['cache_hit'],
-            'error': None
-        }
-        
-    except Exception as e:
-        return {
-            'success': False,
-            'execution_time': 0,
-            'duplicates_found': 0,
-            'cache_hit': False,
             'error': str(e)
         }
 
@@ -298,123 +252,6 @@ class TestDuplicateDetectionLoad:
         # Assert performance requirements (slightly relaxed for concurrent load)
         assert avg_time < 2.5, f"Average time {avg_time:.3f}s exceeds acceptable limit"
         assert len(successful) / len(results) > 0.90, "Success rate below 90%"
-    
-    def test_optimized_query_performance(self, query_optimizer):
-        """
-        Test performance of optimized queries with caching.
-        
-        Requirement: 5.5 - Optimized queries should be faster
-        """
-        test_data = generate_test_data(30)
-        results = []
-        
-        # First pass - populate cache
-        for ref, date, amount in test_data[:10]:
-            result = execute_optimized_check(query_optimizer, ref, date, amount)
-            results.append(result)
-        
-        # Second pass - should hit cache
-        for ref, date, amount in test_data[:10]:
-            result = execute_optimized_check(query_optimizer, ref, date, amount)
-            results.append(result)
-        
-        # Third pass - new data
-        for ref, date, amount in test_data[10:20]:
-            result = execute_optimized_check(query_optimizer, ref, date, amount)
-            results.append(result)
-        
-        # Analyze results
-        successful = [r for r in results if r['success']]
-        cache_hits = [r for r in successful if r.get('cache_hit', False)]
-        cache_misses = [r for r in successful if not r.get('cache_hit', False)]
-        
-        cache_hit_times = [r['execution_time'] for r in cache_hits]
-        cache_miss_times = [r['execution_time'] for r in cache_misses]
-        
-        assert len(cache_hits) > 0, "No cache hits detected"
-        assert len(cache_misses) > 0, "No cache misses detected"
-        
-        avg_hit_time = statistics.mean(cache_hit_times)
-        avg_miss_time = statistics.mean(cache_miss_times)
-        cache_hit_rate = len(cache_hits) / len(successful) * 100
-        
-        print(f"\nOptimized Query Performance:")
-        print(f"  Total requests: {len(results)}")
-        print(f"  Cache hits: {len(cache_hits)} ({cache_hit_rate:.1f}%)")
-        print(f"  Cache misses: {len(cache_misses)}")
-        print(f"  Avg cache hit time: {avg_hit_time:.4f}s")
-        print(f"  Avg cache miss time: {avg_miss_time:.4f}s")
-        if avg_hit_time > 0:
-            print(f"  Speedup: {avg_miss_time / avg_hit_time:.2f}x")
-        else:
-            print(f"  Speedup: Cache hits are instantaneous")
-        
-        # Assert cache effectiveness
-        assert avg_hit_time <= avg_miss_time, "Cache hits should be faster than or equal to misses"
-        assert avg_hit_time < 0.1, f"Cache hit time {avg_hit_time:.4f}s is too slow"
-        assert cache_hit_rate > 30, f"Cache hit rate {cache_hit_rate:.1f}% is too low"
-    
-    @pytest.mark.slow
-    def test_sustained_load(self, query_optimizer):
-        """
-        Test performance under sustained load over time.
-        
-        Requirement: 5.5 - System should maintain performance over time
-        
-        Note: This test takes ~30 seconds. Run with: pytest -m slow
-        """
-        duration_seconds = 30
-        requests_per_second = 5
-        total_requests = duration_seconds * requests_per_second
-        
-        test_data = generate_test_data(total_requests)
-        results = []
-        
-        start_time = time.time()
-        request_count = 0
-        
-        while time.time() - start_time < duration_seconds:
-            batch_start = time.time()
-            
-            # Execute batch of requests
-            for _ in range(requests_per_second):
-                if request_count >= len(test_data):
-                    break
-                
-                ref, date, amount = test_data[request_count]
-                result = execute_optimized_check(query_optimizer, ref, date, amount)
-                results.append(result)
-                request_count += 1
-            
-            # Wait to maintain rate
-            batch_time = time.time() - batch_start
-            if batch_time < 1.0:
-                time.sleep(1.0 - batch_time)
-        
-        total_time = time.time() - start_time
-        
-        # Analyze results
-        successful = [r for r in results if r['success']]
-        execution_times = [r['execution_time'] for r in successful]
-        
-        assert len(successful) > 0, "No successful requests"
-        
-        avg_time = statistics.mean(execution_times)
-        max_time = max(execution_times)
-        actual_throughput = len(successful) / total_time
-        
-        print(f"\nSustained Load Performance:")
-        print(f"  Duration: {total_time:.1f}s")
-        print(f"  Total requests: {len(results)}")
-        print(f"  Successful: {len(successful)}")
-        print(f"  Average time: {avg_time:.3f}s")
-        print(f"  Max time: {max_time:.3f}s")
-        print(f"  Target throughput: {requests_per_second} req/s")
-        print(f"  Actual throughput: {actual_throughput:.2f} req/s")
-        
-        # Assert sustained performance
-        assert avg_time < 2.0, f"Average time {avg_time:.3f}s exceeds requirement"
-        assert actual_throughput >= requests_per_second * 0.9, "Throughput below 90% of target"
     
     def test_performance_metrics_collection(self, duplicate_checker):
         """

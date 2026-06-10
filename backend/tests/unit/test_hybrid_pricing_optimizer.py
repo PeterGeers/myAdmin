@@ -15,144 +15,6 @@ from datetime import datetime, date, timedelta
 from hybrid_pricing_optimizer import HybridPricingOptimizer
 
 
-class TestCalculateSeasonalMultipliers:
-    """Tests for _calculate_seasonal_multipliers method."""
-
-    @pytest.fixture
-    def optimizer(self, mock_db, mock_env):
-        """Create HybridPricingOptimizer with mocked dependencies."""
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
-        return opt
-
-    def test_seasonal_multipliers_no_data_returns_defaults(self, optimizer):
-        """Without seasonal data, all multipliers should be 1.0."""
-        historical_data = {'seasonal_performance': []}
-        result = optimizer._calculate_seasonal_multipliers(historical_data)
-
-        assert result == {'Spring': 1.0, 'Summer': 1.0, 'Autumn': 1.0, 'Winter': 1.0}
-
-    def test_seasonal_multipliers_with_data_returns_ratios(self, optimizer):
-        """With seasonal data, multipliers should be relative to average."""
-        historical_data = {
-            'seasonal_performance': [
-                {'season': 'Spring', 'avg_adr': 100.0, 'bookings': 10},
-                {'season': 'Summer', 'avg_adr': 150.0, 'bookings': 20},
-                {'season': 'Autumn', 'avg_adr': 80.0, 'bookings': 8},
-                {'season': 'Winter', 'avg_adr': 70.0, 'bookings': 5},
-            ]
-        }
-        result = optimizer._calculate_seasonal_multipliers(historical_data)
-
-        # Average ADR = (100+150+80+70)/4 = 100
-        assert result['Spring'] == 1.0
-        assert result['Summer'] == 1.5
-        assert result['Autumn'] == 0.8
-        assert result['Winter'] == 0.7
-
-    def test_seasonal_multipliers_handles_zero_avg(self, optimizer):
-        """Zero average ADR should not cause division by zero."""
-        historical_data = {
-            'seasonal_performance': [
-                {'season': 'Spring', 'avg_adr': 0.0, 'bookings': 0},
-                {'season': 'Summer', 'avg_adr': 0.0, 'bookings': 0},
-            ]
-        }
-        result = optimizer._calculate_seasonal_multipliers(historical_data)
-
-        # With zero avg, multipliers should be 1.0
-        assert result['Spring'] == 1.0
-        assert result['Summer'] == 1.0
-
-    def test_seasonal_multipliers_exception_returns_defaults(self, optimizer):
-        """Exception during calculation should return default multipliers."""
-        # Pass invalid data that will cause an exception
-        historical_data = {'seasonal_performance': [{'season': 'Spring'}]}  # missing avg_adr
-        result = optimizer._calculate_seasonal_multipliers(historical_data)
-
-        assert result == {'Spring': 1.0, 'Summer': 1.0, 'Autumn': 1.0, 'Winter': 1.0}
-
-
-class TestCalculateMonthlyMultipliers:
-    """Tests for _calculate_monthly_multipliers method."""
-
-    @pytest.fixture
-    def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
-        return opt
-
-    def test_monthly_multipliers_no_data_returns_all_ones(self, optimizer):
-        """Without monthly data, all months should have multiplier 1.0."""
-        historical_data = {'monthly_performance': []}
-        result = optimizer._calculate_monthly_multipliers(historical_data)
-
-        for month in range(1, 13):
-            assert result[month] == 1.0
-
-    def test_monthly_multipliers_with_data_returns_ratios(self, optimizer):
-        """With monthly data, multipliers should be relative to average."""
-        historical_data = {
-            'monthly_performance': [
-                {'month': 1, 'avg_adr': 80.0},
-                {'month': 6, 'avg_adr': 120.0},
-                {'month': 12, 'avg_adr': 100.0},
-            ]
-        }
-        result = optimizer._calculate_monthly_multipliers(historical_data)
-
-        # Average = (80+120+100)/3 = 100
-        assert result[1] == 0.8
-        assert result[6] == 1.2
-        assert result[12] == 1.0
-        # Missing months should be 1.0
-        assert result[3] == 1.0
-
-    def test_monthly_multipliers_exception_returns_defaults(self, optimizer):
-        """Exception should return all 1.0 multipliers."""
-        historical_data = {'monthly_performance': [{'month': 1}]}  # missing avg_adr
-        result = optimizer._calculate_monthly_multipliers(historical_data)
-
-        for month in range(1, 13):
-            assert result[month] == 1.0
-
-
-class TestGetSeason:
-    """Tests for _get_season method."""
-
-    @pytest.fixture
-    def optimizer(self, mock_db, mock_env):
-        with patch('hybrid_pricing_optimizer.load_dotenv'):
-            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
-                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
-                    opt = HybridPricingOptimizer(test_mode=True)
-        return opt
-
-    def test_get_season_spring_months(self, optimizer):
-        assert optimizer._get_season(3) == 'Spring'
-        assert optimizer._get_season(4) == 'Spring'
-        assert optimizer._get_season(5) == 'Spring'
-
-    def test_get_season_summer_months(self, optimizer):
-        assert optimizer._get_season(6) == 'Summer'
-        assert optimizer._get_season(7) == 'Summer'
-        assert optimizer._get_season(8) == 'Summer'
-
-    def test_get_season_autumn_months(self, optimizer):
-        assert optimizer._get_season(9) == 'Autumn'
-        assert optimizer._get_season(10) == 'Autumn'
-        assert optimizer._get_season(11) == 'Autumn'
-
-    def test_get_season_winter_months(self, optimizer):
-        assert optimizer._get_season(12) == 'Winter'
-        assert optimizer._get_season(1) == 'Winter'
-        assert optimizer._get_season(2) == 'Winter'
-
-
 class TestGenerateAiInsights:
     """Tests for _generate_ai_insights method."""
 
@@ -182,9 +44,8 @@ class TestGenerateAiInsights:
         mock_post.return_value = mock_response
 
         with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 100.0, 'monthly_performance': [], 'seasonal_performance': []}):
-            with patch.object(optimizer, '_get_events_data', return_value={'events': []}):
-                with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
-                    result = optimizer._generate_ai_insights(14, 'TestListing')
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
 
         assert result is not None
         assert 'daily_adr_recommendations' in result
@@ -201,9 +62,8 @@ class TestGenerateAiInsights:
         mock_post.return_value = mock_response
 
         with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 95.0, 'monthly_performance': [], 'seasonal_performance': []}):
-            with patch.object(optimizer, '_get_events_data', return_value={'events': []}):
-                with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
-                    result = optimizer._generate_ai_insights(14, 'TestListing')
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
 
         assert result is not None
         assert 'strategy_summary' in result
@@ -219,9 +79,8 @@ class TestGenerateAiInsights:
         mock_post.return_value = mock_response
 
         with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 95.0, 'monthly_performance': [], 'seasonal_performance': []}):
-            with patch.object(optimizer, '_get_events_data', return_value={'events': []}):
-                with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
-                    result = optimizer._generate_ai_insights(14, 'TestListing')
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
 
         assert result is None
 
@@ -234,9 +93,8 @@ class TestGenerateAiInsights:
         mock_post.return_value = mock_response
 
         with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 95.0, 'monthly_performance': [], 'seasonal_performance': []}):
-            with patch.object(optimizer, '_get_events_data', return_value={'events': []}):
-                with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
-                    result = optimizer._generate_ai_insights(14, 'TestListing')
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
 
         assert result is None
 
@@ -246,9 +104,8 @@ class TestGenerateAiInsights:
         mock_post.side_effect = Exception("Network error")
 
         with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 95.0, 'monthly_performance': [], 'seasonal_performance': []}):
-            with patch.object(optimizer, '_get_events_data', return_value={'events': []}):
-                with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
-                    result = optimizer._generate_ai_insights(14, 'TestListing')
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
 
         assert result is None
 

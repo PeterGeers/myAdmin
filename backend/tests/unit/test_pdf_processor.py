@@ -46,9 +46,9 @@ class TestPDFProcessor:
         processor = PDFProcessor(test_mode=False)
         assert hasattr(processor, 'config')
     
-    @patch('pdf_processor.pdfplumber.open')
+    @patch('pdf_parsing_strategies.pdfplumber.open')
     @patch('builtins.open', new_callable=mock_open, read_data=b'%PDF-1.4 mock pdf content')
-    @patch('pdf_processor.PdfReader')
+    @patch('pdf_parsing_strategies.PdfReader')
     def test_pdf_processing_success(self, mock_pypdf2, mock_file, mock_pdfplumber, pdf_processor, sample_pdf_content, mock_drive_result):
         """Test successful PDF processing"""
         # Setup PyPDF2 to succeed
@@ -58,15 +58,15 @@ class TestPDFProcessor:
         mock_reader.pages = [mock_page]
         mock_pypdf2.return_value = mock_reader
         
-        result = pdf_processor._process_pdf('test.pdf', mock_drive_result, 'Kuwait')
+        result = pdf_processor.process_file('test.pdf', mock_drive_result, 'Kuwait')
         
         assert 'txt' in result
         assert 'folder' in result
         assert result['url'] == mock_drive_result['url']
     
-    @patch('pdf_processor.pdfplumber.open')
+    @patch('pdf_parsing_strategies.pdfplumber.open')
     @patch('builtins.open', new_callable=mock_open, read_data=b'%PDF-1.4 mock pdf content')
-    @patch('pdf_processor.PdfReader')
+    @patch('pdf_parsing_strategies.PdfReader')
     def test_pdf_fallback_to_pdfplumber(self, mock_pypdf2, mock_file, mock_pdfplumber, pdf_processor, sample_pdf_content, mock_drive_result):
         """Test fallback to pdfplumber when PyPDF2 fails"""
         # Make PyPDF2 fail
@@ -79,7 +79,7 @@ class TestPDFProcessor:
         mock_pdf.pages = [mock_page]
         mock_pdfplumber.return_value.__enter__.return_value = mock_pdf
         
-        result = pdf_processor._process_pdf('test.pdf', mock_drive_result, 'Kuwait')
+        result = pdf_processor.process_file('test.pdf', mock_drive_result, 'Kuwait')
         
         assert 'txt' in result
         assert sample_pdf_content.strip() in result['txt']
@@ -95,7 +95,7 @@ class TestPDFProcessor:
     
     @patch('pdf_processor.Config')
     @patch('builtins.open', new_callable=mock_open, read_data=b'%PDF-1.4 mock pdf content')
-    @patch('pdf_processor.PdfReader')
+    @patch('pdf_parsing_strategies.PdfReader')
     def test_process_file_success(self, mock_pypdf2, mock_file, mock_config, pdf_processor, mock_drive_result, sample_pdf_content):
         """Test successful file processing"""
         # Setup PyPDF2 mock
@@ -150,7 +150,7 @@ class TestPDFProcessor:
         
         assert isinstance(transactions, list)
     
-    @patch('pdf_processor.os.path.exists')
+    @patch('os.path.exists')
     def test_file_exists_check(self, mock_exists, pdf_processor):
         """Test file existence check"""
         mock_exists.return_value = True
@@ -188,7 +188,7 @@ class TestPDFProcessor:
             }
             mock_ai_processor.return_value = mock_processor_instance
 
-            result = pdf_processor._process_image('test.jpg', mock_drive_result, 'Test')
+            result = pdf_processor.process_file('test.jpg', mock_drive_result, 'Test')
 
             assert 'txt' in result
             assert 'AI/OCR Extracted Data' in result['txt']

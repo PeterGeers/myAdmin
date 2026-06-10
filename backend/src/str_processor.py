@@ -1,11 +1,29 @@
+"""
+STR (Short-Term Rental) Processor - Dispatcher Module
+
+Orchestrates STR file processing across platforms by delegating to:
+- str_airbnb_parser (Airbnb), str_booking_parser (Booking.com), str_utils (shared)
+- Direct/VRBO: handled inline (smaller codepaths)
+"""
+
+import os
 import pandas as pd
-import re
 from datetime import datetime, date
 from typing import Dict, List, Optional
-import os
+
 from country_detector import detect_country
+from str_utils import (
+    get_tax_rates, calculate_str_taxes, normalize_listing_name,
+    parse_amount, parse_multilang_date, parse_date,
+)
+from str_airbnb_parser import process_airbnb_multi, calculate_airbnb_row
+from str_booking_parser import (
+    process_booking, process_booking_multi, calculate_booking_row, process_booking_payout,
+)
 
 class STRProcessor:
+    """Dispatcher that delegates platform-specific parsing to dedicated modules."""
+
     def __init__(self, test_mode: bool = False,
                  tax_rate_service=None, tenant: str = None):
         self.test_mode = test_mode
@@ -17,1094 +35,255 @@ class STRProcessor:
             self.download_folder = '/app/downloads'
         else:
             self.download_folder = os.path.join(os.getcwd(), 'downloads')
-        
+
         # Property mappings from config
         self.property_mappings = {
             'green': 'Green Apartment',
-            'child': 'Garden House', 
+            'child': 'Garden House',
             'red': 'Red Apartment'
         }
-    
+
+    # Tax / utility delegations (preserve existing interface)
+
     def get_tax_rates(self, checkin_date: str) -> dict:
-        """Get VAT and tourist tax rates based on check-in date from TaxRateService."""
-        try:
-            # Parse check-in date
-            if isinstance(checkin_date, str):
-                checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
-            else:
-                checkin_dt = checkin_date
+        """Get VAT and tourist tax rates based on check-in date."""
+        return get_tax_rates(checkin_date, self.tax_rate_service, self.tenant)
 
-            if self.tax_rate_service and self.tenant:
-                # Look up btw_accommodation rate for this date
-                btw_rate_info = self.tax_rate_service.get_tax_rate(
-                    self.tenant, 'btw_accommodation', 'low', checkin_dt
-                )
-                if not btw_rate_info:
-                    btw_rate_info = self.tax_rate_service.get_tax_rate(
-                        self.tenant, 'btw_accommodation', 'high', checkin_dt
-                    )
+    def calculate_str_taxes(self, gross_amount: float, checkin_date: str,
+                            channel_fee: float = 0.0) -> dict:
+        """Generic tax calculation for all STR channels."""
+        return calculate_str_taxes(gross_amount, checkin_date, channel_fee,
+                                   self.tax_rate_service, self.tenant)
 
-                # Look up tourist_tax rate for this date
-                tourist_info = self.tax_rate_service.get_tax_rate(
-                    self.tenant, 'tourist_tax', 'standard', checkin_dt
-                )
-
-                vat_rate = btw_rate_info['rate'] if btw_rate_info else 9.0
-                tourist_rate = tourist_info['rate'] if tourist_info else 6.02
-            else:
-                # Fallback: hardcoded rates when no service available
-                rate_change_date = date(2026, 1, 1)
-                if checkin_dt >= rate_change_date:
-                    vat_rate = 21.0
-                    tourist_rate = 6.9
-                else:
-                    vat_rate = 9.0
-                    tourist_rate = 6.02
-
-            return {
-                'vat_rate': vat_rate,
-                'vat_base': 100 + vat_rate,
-                'tourist_tax_rate': tourist_rate,
-                'tourist_tax_base': 100 + tourist_rate,
-                'price_uplift': 0.054409
-            }
-        except Exception as e:
-            print(f"Error getting tax rates for {checkin_date}: {e}")
-            return {
-                'vat_rate': 9.0,
-                'vat_base': 109.0,
-                'tourist_tax_rate': 6.02,
-                'tourist_tax_base': 106.02,
-                'price_uplift': 0.054409
-            }
-
-    def calculate_str_taxes(self, gross_amount: float, checkin_date: str, channel_fee: float = 0.0) -> dict:
-        """
-        Generic tax calculation function for all STR channels
-        
-        Args:
-            gross_amount: Total gross booking amount
-            checkin_date: Check-in date in YYYY-MM-DD or DD-MM-YYYY format
-            channel_fee: Channel commission fee (optional)
-            
-        Returns:
-            dict with calculated amounts: vat, tourist_tax, net_amount, tax_rates_used
-        """
-        try:
-            # Normalize date format to YYYY-MM-DD for tax rate lookup
-            if isinstance(checkin_date, str):
-                # Try different date formats
-                checkin_date_iso = None
-                date_formats = ['%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%Y']
-                
-                for fmt in date_formats:
-                    try:
-                        checkin_dt = datetime.strptime(checkin_date, fmt)
-                        checkin_date_iso = checkin_dt.strftime('%Y-%m-%d')
-                        break
-                    except ValueError:
-                        continue
-                
-                if not checkin_date_iso:
-                    # Fallback to current date if parsing fails
-                    checkin_date_iso = datetime.now().strftime('%Y-%m-%d')
-            else:
-                checkin_date_iso = checkin_date.strftime('%Y-%m-%d')
-            
-            # Get tax rates based on check-in date
-            tax_rates = self.get_tax_rates(checkin_date_iso)
-            
-            # Step 1: Calculate VAT on gross amount
-            vat_base = 100 + tax_rates['vat_rate']  # e.g., 121 for 21% VAT
-            amount_vat = (float(gross_amount) / vat_base) * tax_rates['vat_rate']
-            
-            # Step 2: Calculate Tourist Tax on VAT-exclusive amount
-            vat_exclusive_amount = float(gross_amount) - amount_vat
-            tourist_base = 100 + tax_rates['tourist_tax_rate']  # e.g., 106.9 for 6.9% tourist tax
-            amount_tourist_tax = (vat_exclusive_amount / tourist_base) * tax_rates['tourist_tax_rate']
-            
-            # Step 3: Net amount = gross - taxes - channel fee
-            amount_nett = float(gross_amount) - amount_tourist_tax - amount_vat - float(channel_fee)
-            
-            return {
-                'amount_vat': round(amount_vat, 2),
-                'amount_tourist_tax': round(amount_tourist_tax, 2),
-                'amount_nett': round(amount_nett, 2),
-                'tax_rates_used': tax_rates,
-                'vat_base': vat_base,
-                'tourist_base': tourist_base,
-                'vat_exclusive_amount': round(vat_exclusive_amount, 2)
-            }
-            
-        except Exception as e:
-            print(f"Error in tax calculation: {e}")
-            # Return zero amounts if calculation fails
-            return {
-                'amount_vat': 0.0,
-                'amount_tourist_tax': 0.0,
-                'amount_nett': float(gross_amount) - float(channel_fee),
-                'tax_rates_used': self.get_tax_rates(datetime.now().strftime('%Y-%m-%d')),
-                'total_tax_base': 115.0  # Fallback
-            }
-        """Get VAT and tourist tax rates based on check-in date"""
-        try:
-            # Parse check-in date
-            if isinstance(checkin_date, str):
-                checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
-            else:
-                checkin_dt = checkin_date
-            
-            # 2026 rate changes effective from January 1, 2026
-            rate_change_date = date(2026, 1, 1)
-            
-            if checkin_dt >= rate_change_date:
-                # 2026 rates and later
-                return {
-                    'vat_rate': 21.0,  # Changed from 9% to 21%
-                    'vat_base': 121.0,  # Base for VAT calculation (100 + VAT rate)
-                    'tourist_tax_rate': 6.9,  # Changed from 6.02% to 6.9%
-                    'tourist_tax_base': 106.9,  # Base for tourist tax calculation
-                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
-                }
-            else:
-                # Pre-2026 rates
-                return {
-                    'vat_rate': 9.0,  # Original 9% VAT
-                    'vat_base': 109.0,  # Base for VAT calculation (100 + VAT rate)
-                    'tourist_tax_rate': 6.02,  # Original 6.02% tourist tax
-                    'tourist_tax_base': 106.02,  # Base for tourist tax calculation
-                    'price_uplift': 0.054409  # Uplift from commissionable amount to total price
-                }
-        except Exception as e:
-            print(f"Error parsing check-in date {checkin_date}: {e}")
-            # Default to current rates if date parsing fails
-            return {
-                'vat_rate': 9.0,
-                'vat_base': 109.0,
-                'tourist_tax_rate': 6.02,
-                'tourist_tax_base': 106.02,
-                'price_uplift': 0.054409
-            }
-    
     def _normalize_listing_name(self, listing: str) -> str:
-        """Normalize listing names to standard format"""
-        import re
-        if not listing:
-            return listing
-        
-        # Green Studio: One|groen|Groen|green|Green
-        if re.search(r'One|groen|Groen|green|Green', listing):
-            return 'Green Studio'
-        
-        # Child Friendly: ^Apartment$|Tuinhuis|[G|g]arden|[C|c]hild
-        if re.search(r'^Apartment$|Tuinhuis|[Gg]arden|[Cc]hild', listing):
-            return 'Child Friendly'
-        
-        # Red Studio: Rode|rode|Red|Rood|rood|red
-        if re.search(r'Rode|rode|Red|Rood|rood|red', listing):
-            return 'Red Studio'
-        
-        return listing
-    
+        return normalize_listing_name(listing)
+
+    def _parse_amount(self, amount_str: str) -> float:
+        return parse_amount(amount_str)
+
+    def _parse_multilang_date(self, date_str: str) -> str:
+        return parse_multilang_date(date_str)
+
+    def _parse_date(self, date_str: str) -> str:
+        return parse_date(date_str)
+
+    # File scanning
+
     def scan_str_files(self, folder_path: str = None) -> Dict[str, List[str]]:
-        """Scan folder for STR files by platform"""
+        """Scan folder for STR files by platform."""
         if not folder_path:
             folder_path = self.download_folder
-            
+
         files = {
             'airbnb': [],
             'booking': [],
-            'booking_payout': [],  # New: Payout CSV files
+            'booking_payout': [],
             'direct': []
         }
-        
+
         try:
             for file in os.listdir(folder_path):
                 file_path = os.path.join(folder_path, file)
                 if os.path.isfile(file_path):
-                    # Check for Payout CSV files first (more specific pattern)
                     if 'payout_from' in file.lower() and file.endswith('.csv'):
                         files['booking_payout'].append(file_path)
-                    # Regular Airbnb files
                     elif 'reservation' in file.lower() and file.endswith('.csv'):
                         files['airbnb'].append(file_path)
-                    # Regular Booking.com files
                     elif ('check-in' in file.lower() or 'booking' in file.lower()) and file.endswith(('.xls', '.xlsx')):
                         files['booking'].append(file_path)
-                    # Direct booking files
                     elif 'jabakirechtstreeks' in file.lower() and file.endswith(('.xlsx')):
                         files['direct'].append(file_path)
         except Exception as e:
             print(f"Error scanning folder: {e}")
-            
+
         return files
-    
+
+    # Multi-file dispatching
+
     def process_str_files(self, file_paths: List[str], platform: str) -> List[Dict]:
-        """Process multiple STR files for a platform"""
-        # VRBO needs special handling: merge reservations + payouts
+        """Process multiple STR files for a platform."""
         if platform.lower() == 'vrbo':
             return self._process_vrbo(file_paths)
 
-        # Booking.com: concatenate, deduplicate, then process
         if platform.lower() in ['booking', 'booking.com']:
             return self._process_booking_multi(file_paths)
 
-        # Airbnb: concatenate, deduplicate by Bevestigingscode, then process
         if platform.lower() == 'airbnb':
             return self._process_airbnb_multi(file_paths)
 
         all_bookings = []
-        
         for file_path in file_paths:
             try:
                 bookings = self._process_single_file(file_path, platform)
                 all_bookings.extend(bookings)
             except Exception as e:
                 print(f"Error processing {file_path}: {e}")
-                
+
         return all_bookings
-    
+
     def _process_single_file(self, file_path: str, platform: str) -> List[Dict]:
-        """Process single STR file based on platform"""
+        """Process single STR file based on platform."""
         platform = platform.lower()
         print(f"Processing file: {file_path} as platform: {platform}")
-        
+
         if platform in ['booking', 'booking.com']:
             return self._process_booking(file_path)
         elif platform in ['booking_payout', 'payout']:
-            # Payout files return update records, not transactions
-            # This should be handled separately
             return []
         elif platform == 'direct':
             return self._process_direct(file_path)
         elif platform == 'vrbo':
-            # VRBO needs multiple files (reservations + payouts), handled in process_str_files
             return self._process_vrbo_single(file_path)
         else:
             raise ValueError(f"Unsupported platform: {platform}")
-    
-    def _calculate_airbnb_row(self, row, df_columns, source_file: str) -> Optional[Dict]:
-        """
-        Process a single Airbnb row into a booking dict.
 
-        Shared helper used by _process_airbnb_multi
-        to process each row through the Airbnb algorithm.
-
-        Args:
-            row: A pandas Series representing one booking row
-            df_columns: The columns of the source DataFrame (for addInfo)
-            source_file: The sourceFile label to attach
-
-        Returns:
-            Booking dict or None if the row should be skipped
-        """
-        # Map Dutch AirBnB columns
-        checkin_date = row.get('Begindatum', '')
-        checkout_date = row.get('Einddatum', '')
-        guest_name = row.get('Naam van de gast', '')
-        listing = row.get('Advertentie', '')
-        nights = row.get('# nachten', 0)
-        earnings_str = row.get('Inkomsten', '€ 0,00')
-        booking_id = row.get('Bevestigingscode', '')
-        status = row.get('Status', 'Bevestigd')
-        phone = row.get('Contact', '')
-        adults = row.get('# volwassenen', 0) or 0
-        children = row.get('# kinderen', 0) or 0
-        babies = row.get("# baby's", 0) or 0
-        reservation_date = row.get('Gereserveerd', '')
-
-        # Parse earnings "€ 190,10" or "€ 1.841,18" format like R getAmount() function
-        try:
-            if pd.isna(earnings_str) or earnings_str == '':
-                earnings = 0
-            else:
-                # Remove € symbol and spaces
-                clean_amount = str(earnings_str).replace('€', '').replace(' ', '')
-                # Handle European format: thousands separator (.) and decimal separator (,)
-                if ',' in clean_amount:
-                    # Split on comma to separate decimal part
-                    parts = clean_amount.split(',')
-                    if len(parts) == 2:
-                        # Remove dots from integer part (thousands separator)
-                        integer_part = parts[0].replace('.', '')
-                        decimal_part = parts[1]
-                        clean_amount = f"{integer_part}.{decimal_part}"
-                    else:
-                        clean_amount = clean_amount.replace(',', '.')
-                earnings = float(clean_amount) if clean_amount else 0
-        except (ValueError, TypeError):
-            earnings = 0
-
-        # Skip cancelled bookings with no earnings (like R code filter)
-        if 'Geannuleerd' in status and earnings == 0:
-            return None
-
-        # Determine booking status
-        today = date.today()
-        try:
-            checkin_dt = datetime.strptime(checkin_date, '%d-%m-%Y').date()
-            if 'Geannuleerd' in status:
-                booking_status = 'cancelled'
-            elif checkin_dt > today:
-                booking_status = 'planned'
-            else:
-                booking_status = 'realised'
-        except:
-            booking_status = 'realised'
-
-        # Calculate financial amounts like R code
-        # AirBnB "Inkomsten" is the paid out amount
-        paid_out = earnings
-        channel_fee_factor = 0.15  # 15% like R code
-        amount_channel_fee = paid_out * channel_fee_factor
-        gross_amount = paid_out + amount_channel_fee  # R: amountGross = paidOut + amountChannelFee
-
-        # Use generic tax calculation function
-        tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, amount_channel_fee)
-        amount_vat = tax_calc['amount_vat']
-        amount_tourist_tax = tax_calc['amount_tourist_tax']
-        amount_nett = tax_calc['amount_nett']
-
-        # Calculate dates and periods
-        try:
-            checkin_dt = datetime.strptime(checkin_date, '%d-%m-%Y')
-            checkout_dt = datetime.strptime(checkout_date, '%d-%m-%Y')
-            reservation_dt = datetime.strptime(reservation_date, '%Y-%m-%d')
-
-            year = checkin_dt.year
-            quarter = (checkin_dt.month - 1) // 3 + 1
-            month = checkin_dt.month
-            days_before_reservation = (checkin_dt - reservation_dt).days
-        except:
-            year = datetime.now().year
-            quarter = 1
-            month = 1
-            days_before_reservation = 0
-            reservation_dt = datetime.now()
-
-        # Price per night based on net amount
-        price_per_night = amount_nett / nights if nights > 0 else 0
-
-        # Total guests
-        guests = adults + children + babies
-
-        # Additional info - concatenate all CSV fields with |
-        add_info = '|'.join(str(row.get(col, '')) for col in df_columns)
-
-        # Detect country from phone number (AirBNB)
-        country = detect_country('airbnb', phone=phone, addinfo=add_info)
-
-        return {
-            'sourceFile': source_file,
-            'channel': 'airbnb',
-            'listing': self._normalize_listing_name(str(listing)),
-            'checkinDate': checkin_dt.strftime('%Y-%m-%d'),
-            'checkoutDate': checkout_dt.strftime('%Y-%m-%d'),
-            'nights': int(nights) if nights else 0,
-            'guests': int(guests),
-            'amountGross': round(float(gross_amount), 2),
-            'amountChannelFee': round(float(amount_channel_fee), 2),
-            'guestName': str(guest_name),
-            'phone': str(phone),
-            'reservationCode': str(booking_id),
-            'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
-            'status': str(booking_status),
-            'addInfo': add_info,
-            'amountVat': amount_vat,  # Already rounded in calculate_str_taxes()
-            'amountTouristTax': amount_tourist_tax,  # Already rounded in calculate_str_taxes()
-            'amountNett': amount_nett,  # Already rounded in calculate_str_taxes()
-            'pricePerNight': round(float(price_per_night), 2),
-            'year': year,
-            'q': quarter,
-            'm': month,
-            'daysBeforeReservation': days_before_reservation,
-            'country': country,
-        }
+    # Airbnb delegation
 
     def _process_airbnb_multi(self, file_paths: List[str]) -> List[Dict]:
-        """
-        Process multiple Airbnb CSV files: read, concatenate, deduplicate, calculate.
+        """Process multiple Airbnb CSV files (delegated)."""
+        return process_airbnb_multi(file_paths, self.tax_rate_service, self.tenant)
 
-        Args:
-            file_paths: List of paths to Airbnb CSV files
+    def _calculate_airbnb_row(self, row, df_columns, source_file: str) -> Optional[Dict]:
+        """Process a single Airbnb row (delegated)."""
+        return calculate_airbnb_row(row, df_columns, source_file,
+                                    self.tax_rate_service, self.tenant)
 
-        Returns:
-            List of booking dicts with financial calculations applied
-
-        Raises:
-            ValueError: If all files fail to parse
-        """
-        dfs = []
-        failed_files = []
-
-        for fp in file_paths:
-            try:
-                df = pd.read_csv(fp)
-                dfs.append(df)
-                print(f"Airbnb multi-import: loaded {len(df)} rows from {os.path.basename(fp)}")
-            except Exception as e:
-                failed_files.append(os.path.basename(fp))
-                print(f"Airbnb multi-import: failed to parse {os.path.basename(fp)}: {e}")
-
-        if not dfs:
-            raise ValueError(f"All files failed to parse: {', '.join(failed_files)}")
-
-        # Concatenate all DataFrames
-        combined = pd.concat(dfs, ignore_index=True)
-        print(f"Airbnb multi-import: {len(combined)} total rows from {len(dfs)} file(s)")
-
-        # Deduplicate by Bevestigingscode, keeping the last occurrence
-        if 'Bevestigingscode' in combined.columns:
-            before_dedup = len(combined)
-            combined = combined.drop_duplicates(subset='Bevestigingscode', keep='last')
-            print(f"Airbnb multi-import: deduplicated {before_dedup} -> {len(combined)} rows (by Bevestigingscode)")
-
-        # Determine sourceFile label
-        today_str = datetime.now().strftime('%Y-%m-%d')
-        if len(file_paths) > 1:
-            source_file = f"{today_str} multi-import ({len(file_paths)} files)"
-        else:
-            source_file = f"{today_str} {os.path.basename(file_paths[0])}"
-
-        # Process each row through the Airbnb algorithm
-        transactions = []
-        for _, row in combined.iterrows():
-            booking = self._calculate_airbnb_row(row, combined.columns, source_file)
-            if booking is not None:
-                transactions.append(booking)
-
-        if failed_files:
-            print(f"Airbnb multi-import: WARNING - failed files: {', '.join(failed_files)}")
-
-        print(f"Airbnb multi-import: {len(transactions)} transactions from {len(file_paths)} file(s)")
-        return transactions
+    # Booking.com delegation
 
     def _process_booking(self, file_path: str) -> List[Dict]:
-        """Process Booking.com Excel/CSV export"""
-        print(f"Starting booking.com processing for: {file_path}")
-        try:
-            # Handle both .xls/.xlsx and .csv/.tsv files
-            if file_path.endswith(('.xls', '.xlsx')):
-                print(f"Reading Excel file: {file_path}")
-                df = pd.read_excel(file_path)
-            elif file_path.endswith('.tsv'):
-                print(f"Reading TSV file: {file_path}")
-                df = pd.read_csv(file_path, sep='\t')
-            else:
-                print(f"Reading CSV file: {file_path}")
-                df = pd.read_csv(file_path)
-            
-            print(f"Booking.com file loaded: {len(df)} rows")
-            print(f"Columns: {list(df.columns)}")
-            if len(df) > 0:
-                print(f"First row sample: {dict(df.iloc[0])}")
-            else:
-                print("No data rows found in file")
-                return []
-            
-            # Source file info for single-file import: "{date} {filename}"
-            source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
-            
-            transactions = []
-            
-            for _, row in df.iterrows():
-                booking = self._calculate_booking_row(row, df.columns, source_file)
-                if booking is not None:
-                    transactions.append(booking)
-            
-            print(f"Booking.com processing completed: {len(transactions)} transactions")
-            return transactions
-        except Exception as e:
-            print(f"Error processing booking.com file: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return []
+        """Process Booking.com export (delegated)."""
+        return process_booking(file_path, self.tax_rate_service, self.tenant)
 
     def _process_booking_multi(self, file_paths: List[str]) -> List[Dict]:
-        """
-        Process multiple Booking.com files: read, concatenate, deduplicate, calculate.
-
-        Args:
-            file_paths: List of paths to Booking.com CSV/Excel files
-
-        Returns:
-            List of booking dicts with financial calculations applied
-
-        Raises:
-            ValueError: If all files fail to parse
-        """
-        dfs = []
-        failed_files = []
-
-        for fp in file_paths:
-            try:
-                if fp.endswith(('.xls', '.xlsx')):
-                    df = pd.read_excel(fp)
-                elif fp.endswith('.tsv'):
-                    df = pd.read_csv(fp, sep='\t')
-                else:
-                    df = pd.read_csv(fp)
-                dfs.append(df)
-                print(f"Booking multi-import: loaded {len(df)} rows from {os.path.basename(fp)}")
-            except Exception as e:
-                failed_files.append(os.path.basename(fp))
-                print(f"Booking multi-import: failed to parse {os.path.basename(fp)}: {e}")
-
-        if not dfs:
-            raise ValueError(f"All files failed to parse: {', '.join(failed_files)}")
-
-        # Concatenate all DataFrames
-        combined = pd.concat(dfs, ignore_index=True)
-        print(f"Booking multi-import: {len(combined)} total rows from {len(dfs)} file(s)")
-
-        # Deduplicate by Book number, keeping the last occurrence
-        book_col = None
-        for col_name in ['Book number', 'Booking number', 'Reservation']:
-            if col_name in combined.columns:
-                book_col = col_name
-                break
-
-        if book_col:
-            before_dedup = len(combined)
-            combined = combined.drop_duplicates(subset=book_col, keep='last')
-            print(f"Booking multi-import: deduplicated {before_dedup} -> {len(combined)} rows (by {book_col})")
-
-        # Determine sourceFile label
-        today_str = datetime.now().strftime('%Y-%m-%d')
-        if len(file_paths) > 1:
-            source_file = f"{today_str} multi-import ({len(file_paths)} files)"
-        else:
-            source_file = f"{today_str} {os.path.basename(file_paths[0])}"
-
-        # Process each row through the existing Booking.com algorithm
-        transactions = []
-        for _, row in combined.iterrows():
-            booking = self._calculate_booking_row(row, combined.columns, source_file)
-            if booking is not None:
-                transactions.append(booking)
-
-        if failed_files:
-            print(f"Booking multi-import: WARNING - failed files: {', '.join(failed_files)}")
-
-        print(f"Booking multi-import: {len(transactions)} transactions from {len(file_paths)} file(s)")
-        return transactions
+        """Process multiple Booking.com files (delegated)."""
+        return process_booking_multi(file_paths, self.tax_rate_service, self.tenant)
 
     def _calculate_booking_row(self, row, df_columns, source_file: str) -> Optional[Dict]:
-        """
-        Process a single Booking.com row into a booking dict.
+        """Process a single Booking.com row (delegated)."""
+        return calculate_booking_row(row, df_columns, source_file,
+                                     self.tax_rate_service, self.tenant)
 
-        Shared helper used by both _process_booking and _process_booking_multi
-        to ensure algorithm equivalence.
+    def _process_booking_payout(self, file_path: str) -> Dict:
+        """Process Booking.com Payout CSV (delegated)."""
+        return process_booking_payout(file_path, self.tax_rate_service, self.tenant)
 
-        Args:
-            row: A pandas Series representing one booking row
-            df_columns: The columns of the source DataFrame (for addInfo)
-            source_file: The sourceFile label to attach
-
-        Returns:
-            Booking dict or None if the row should be skipped
-        """
-        # Map Booking.com columns with flexible matching
-        checkin_date = row.get('Check-in', row.get('Checkin', row.get('Check in', '')))
-        checkout_date = row.get('Check-out', row.get('Checkout', row.get('Check out', '')))
-        guest_name = row.get('Guest name(s)', row.get('Guest name', row.get('Guest', '')))
-        unit_type = row.get('Unit type', row.get('Property', row.get('Accommodation', '')))
-        nights = row.get('Duration (nights)', row.get('Nights', row.get('Duration', 0)))
-        price_str = row.get('Price', row.get('Total price', row.get('Amount', '0')))
-        booking_id = row.get('Book number', row.get('Booking number', row.get('Reservation', '')))
-        status = row.get('Status', 'ok')
-        commission_amount_str = row.get('Commission amount', row.get('Commission', ''))
-
-        # Skip cancelled bookings with no commission (no revenue)
-        if status == 'cancelled_by_guest' and (
-            pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None
-        ):
-            return None
-
-        # Extract numeric base price from "126.6314 EUR" format
-        try:
-            if isinstance(price_str, str) and 'EUR' in price_str:
-                base_price = float(price_str.replace(' EUR', '').replace(',', '.'))
-            else:
-                base_price = float(price_str) if price_str else 0
-        except (ValueError, TypeError):
-            base_price = 0
-
-        # Skip records with zero or missing base price
-        if base_price == 0:
-            return None
-
-        # Extract numeric commission amount from "15.195768 EUR" format
-        try:
-            if pd.isna(commission_amount_str) or commission_amount_str == '' or commission_amount_str is None:
-                commission_amount = 0
-            elif isinstance(commission_amount_str, str) and 'EUR' in commission_amount_str:
-                commission_amount = float(commission_amount_str.replace(' EUR', '').replace(',', '.'))
-            else:
-                commission_amount = float(commission_amount_str) if commission_amount_str else 0
-        except (ValueError, TypeError):
-            commission_amount = 0
-
-        # Get tax rates based on check-in date
-        tax_rates = self.get_tax_rates(checkin_date)
-
-        # Calculate gross amount using Booking.com algorithm
-        uplift_factor = 1.047826
-        amount_gross = round((base_price + commission_amount) * uplift_factor, 2)
-
-        # Calculate channel fee
-        amount_channel_fee = round(amount_gross - base_price, 2)
-
-        price = amount_gross
-
-        # Determine status based on check-in date and booking status
-        today = date.today()
-        try:
-            checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d').date()
-            if status == 'cancelled_by_guest':
-                booking_status = 'cancelled'
-            elif checkin_dt > today:
-                booking_status = 'planned'
-            else:
-                booking_status = 'realised'
-        except Exception:
-            booking_status = 'realised'
-
-        # Use generic tax calculation function
-        tax_calc = self.calculate_str_taxes(price, checkin_date, amount_channel_fee)
-        amount_vat = tax_calc['amount_vat']
-        amount_tourist_tax = tax_calc['amount_tourist_tax']
-        amount_nett = tax_calc['amount_nett']
-
-        # Extract persons from data
-        persons = row.get('Persons', 0) or 0
-        adults = row.get('Adults', 0) or 0
-        children = row.get('Children', 0) or 0
-        guests = persons if persons > 0 else (adults + children)
-
-        # Calculate dates and periods
-        try:
-            checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
-            checkout_dt = datetime.strptime(str(checkout_date), '%Y-%m-%d')
-            reservation_dt = datetime.strptime(str(row.get('Booked on', '')).split(' ')[0], '%Y-%m-%d')
-
-            year = checkin_dt.year
-            quarter = (checkin_dt.month - 1) // 3 + 1
-            month = checkin_dt.month
-            days_before_reservation = (checkin_dt - reservation_dt).days
-        except Exception:
-            year = datetime.now().year
-            quarter = 1
-            month = 1
-            days_before_reservation = 0
-            reservation_dt = datetime.now()
-
-        # Price per night based on net amount
-        price_per_night = amount_nett / nights if nights > 0 else 0
-
-        # Additional info - concatenate all columns with |
-        add_info = '|'.join(str(row.get(col, '')) for col in df_columns)
-
-        # Detect country from addInfo (Booking.com)
-        country = detect_country('booking.com', phone='', addinfo=add_info)
-
-        return {
-            'sourceFile': source_file,
-            'channel': 'booking.com',
-            'listing': self._normalize_listing_name(str(unit_type)),
-            'checkinDate': str(checkin_date),
-            'checkoutDate': str(checkout_date),
-            'nights': int(nights) if nights else 0,
-            'guests': int(guests),
-            'amountGross': round(float(price), 2),
-            'amountChannelFee': round(float(amount_channel_fee), 2),
-            'guestName': str(guest_name),
-            'phone': '',
-            'reservationCode': str(booking_id),
-            'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
-            'status': str(booking_status),
-            'addInfo': add_info,
-            'amountVat': amount_vat,
-            'amountTouristTax': amount_tourist_tax,
-            'amountNett': amount_nett,
-            'pricePerNight': round(float(price_per_night), 2),
-            'year': year,
-            'q': quarter,
-            'm': month,
-            'daysBeforeReservation': days_before_reservation,
-            'country': country,
-        }
+    # Direct bookings (inline — small codepath)
 
     def _process_direct(self, file_path: str) -> List[Dict]:
-        """Process direct bookings Excel/CSV"""
+        """Process direct bookings Excel/CSV."""
         try:
-            # Handle both .xlsx and .csv files
-            if file_path.endswith(('.xls', '.xlsx')):
-                df = pd.read_excel(file_path)
-            else:
-                df = pd.read_csv(file_path)
-            
-            print(f"DEBUG Direct: File has {len(df)} rows", flush=True)
-            print(f"DEBUG Direct: Columns: {list(df.columns)}", flush=True)
-            
+            df = pd.read_excel(file_path) if file_path.endswith(('.xls', '.xlsx')) else pd.read_csv(file_path)
             transactions = []
-            
-            for idx, row in df.iterrows():
-                # Filter only reservation type records like R code
-                record_type = row.get('type', '')
-                if str(record_type).lower() != 'reservation':
-                    print(f"DEBUG Direct: Row {idx} skipped - type='{record_type}' (not 'reservation')", flush=True)
+            source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
+
+            for _, row in df.iterrows():
+                if str(row.get('type', '')).lower() != 'reservation':
                     continue
-                
-                # Map direct booking columns
-                checkin_date = row.get('startDate', '')
-                guest_name = row.get('guestName', '')
-                listing = row.get('listing', '')
-                nights = row.get('nights', 0)
-                guests = row.get('guests', 0)
-                gross_amount = row.get('amountGross', 0)
-                paid_out = row.get('paidOut', 0)
-                # Calculate channel fee as amountGross - paidOut
-                channel_fee = float(gross_amount) - float(paid_out)
-                booking_id = row.get('reservationCode', '')
-                trade_type = row.get('typeTrade', '')
-                details = row.get('details', '')
-                currency = row.get('currency', '')
-                cleaning_fee = row.get('cleaningFee', 0)
-                
-                # Determine channel based on typeTrade like R code
-                if 'goodwin' in str(trade_type).lower():
-                    channel = 'dfDirect'
-                elif 'vrbo' in str(trade_type).lower():
-                    channel = 'VRBO'
-                else:
-                    channel = 'dfZwart'
-                
-                # Determine booking status based on check-in date
-                today = date.today()
-                try:
-                    # Convert checkin_date to string and handle various formats
-                    checkin_str = str(checkin_date).strip()
-                    
-                    # Try different date formats
-                    checkin_dt = None
-                    for date_format in ['%Y-%m-%d', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S']:
-                        try:
-                            checkin_dt = datetime.strptime(checkin_str.split()[0], date_format).date()
-                            break
-                        except:
-                            continue
-                    
-                    if checkin_dt is None:
-                        # If all formats fail, try pandas to_datetime
-                        checkin_dt = pd.to_datetime(checkin_str).date()
-                    
-                    if checkin_dt > today:
-                        booking_status = 'planned'
-                    else:
-                        booking_status = 'realised'
-                    
-                    print(f"DEBUG: Booking {booking_id} - Check-in: {checkin_dt}, Today: {today}, Status: {booking_status}", flush=True)
-                except Exception as e:
-                    print(f"WARNING: Failed to parse check-in date '{checkin_date}' for booking {booking_id}: {e}. Defaulting to 'realised'", flush=True)
-                    booking_status = 'realised'
-                
-                # Calculate checkout date
-                try:
-                    checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
-                    checkout_dt = checkin_dt + pd.Timedelta(days=int(nights))
-                    checkout_date = checkout_dt.strftime('%Y-%m-%d')
-                    print(f"DEBUG: Booking {booking_id} - Checkout calculated: {checkout_date} (checkin + {nights} nights)", flush=True)
-                except Exception as e:
-                    print(f"WARNING: Failed to calculate checkout date for booking {booking_id}: {e}. Trying fallback calculation.", flush=True)
-                    # Fallback: try to parse checkin_date and add nights
-                    try:
-                        from datetime import timedelta
-                        # Try to parse the date in various formats
-                        if isinstance(checkin_date, str):
-                            checkin_dt = pd.to_datetime(checkin_date)
-                        else:
-                            checkin_dt = pd.to_datetime(str(checkin_date))
-                        checkout_dt = checkin_dt + timedelta(days=int(nights))
-                        checkout_date = checkout_dt.strftime('%Y-%m-%d')
-                        print(f"DEBUG: Booking {booking_id} - Checkout calculated via fallback: {checkout_date}", flush=True)
-                    except Exception as e2:
-                        print(f"ERROR: All checkout calculations failed for booking {booking_id}: {e2}. Using checkin date.", flush=True)
-                        checkout_date = str(checkin_date)
-                
-                # Use generic tax calculation function
-                tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, channel_fee)
-                amount_vat = tax_calc['amount_vat']
-                amount_tourist_tax = tax_calc['amount_tourist_tax']
-                amount_nett = tax_calc['amount_nett']
-                
-                # Reservation date = checkin date (like R code)
-                reservation_date = checkin_date
-                
-                # Calculate dates and periods
-                try:
-                    checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
-                    reservation_dt = checkin_dt  # Same as checkin date
-                    
-                    year = checkin_dt.year
-                    quarter = (checkin_dt.month - 1) // 3 + 1
-                    month = checkin_dt.month
-                    days_before_reservation = 0  # Same date
-                except Exception as e:
-                    # If date parsing fails, try to extract from string
-                    try:
-                        # Fallback: use current date for calculations
-                        now = datetime.now()
-                        year = now.year
-                        quarter = (now.month - 1) // 3 + 1
-                        month = now.month
-                        days_before_reservation = 0
-                        reservation_dt = now
-                    except:
-                        year = 2025
-                        quarter = 4
-                        month = 10
-                        days_before_reservation = 0
-                        reservation_dt = datetime.now()
-                
-                # Price per night based on net amount
-                price_per_night = amount_nett / int(nights) if int(nights) > 0 else 0
-                
-                # Additional info like R code
-                filename = os.path.basename(file_path)
-                add_info = f"{filename} | {guest_name} | {record_type} | {trade_type} | {details} | {booking_id} | {currency} | {gross_amount} | {channel_fee} | {cleaning_fee}"
-                
-                # Detect country (direct bookings don't have phone or country data)
-                country = detect_country(channel, phone='', addinfo=add_info)
-                
-                # Source file info
-                source_file = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
-                
-                # Clean checkin_date to remove time portion
-                try:
-                    if isinstance(checkin_date, str):
-                        # If it's a string with timestamp, parse and format as date only
-                        checkin_date_clean = pd.to_datetime(checkin_date).strftime('%Y-%m-%d')
-                    else:
-                        # If it's already a date object, format it
-                        checkin_date_clean = pd.to_datetime(checkin_date).strftime('%Y-%m-%d')
-                except:
-                    # Fallback: just use string representation
-                    checkin_date_clean = str(checkin_date).split()[0] if ' ' in str(checkin_date) else str(checkin_date)
-                
-                transaction = {
-                    'sourceFile': source_file,
-                    'channel': channel,
-                    'listing': self._normalize_listing_name(str(listing)),
-                    'checkinDate': checkin_date_clean,
-                    'checkoutDate': checkout_date,
-                    'nights': int(nights) if nights else 0,
-                    'guests': int(guests) if guests else 0,
-                    'amountGross': round(float(gross_amount), 2),
-                    'amountChannelFee': round(float(channel_fee), 2),
-                    'guestName': str(guest_name).replace("'", " "),  # Remove quotes like R code
-                    'phone': '',  # Not available in direct bookings
-                    'reservationCode': str(booking_id),
-                    'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
-                    'status': str(booking_status),
-                    'addInfo': add_info,
-                    'amountVat': amount_vat,  # Already rounded in calculate_str_taxes()
-                    'amountTouristTax': amount_tourist_tax,  # Already rounded in calculate_str_taxes()
-                    'amountNett': amount_nett,  # Already rounded in calculate_str_taxes()
-                    'pricePerNight': round(float(price_per_night), 2),
-                    'year': year,
-                    'q': quarter,
-                    'm': month,
-                    'daysBeforeReservation': days_before_reservation,
-                    'country': country  # NEW: Country detection
-                }
-                transactions.append(transaction)
-            
+                booking = self._calculate_direct_row(row, file_path, source_file)
+                if booking:
+                    transactions.append(booking)
+
             return transactions
         except Exception as e:
             print(f"ERROR in _process_direct: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
             return []
-    
-    def _process_booking_payout(self, file_path: str) -> Dict:
-        """
-        Process Booking.com Payout CSV file to update financial figures
-        
-        This file is available monthly after month closure and contains the final,
-        accurate financial figures from Booking.com's settlement.
-        
-        Args:
-            file_path: Path to the Payout CSV file (format: Payout_from_*.csv)
-            
-        Returns:
-            dict with update results: {
-                'updated': List of updated reservation codes,
-                'not_found': List of reservation codes not found in database,
-                'errors': List of error messages,
-                'summary': Summary statistics
-            }
-        """
-        print(f"Processing Booking.com Payout CSV: {file_path}")
-        
-        results = {
-            'updated': [],
-            'not_found': [],
-            'errors': [],
-            'summary': {
-                'total_rows': 0,
-                'reservation_rows': 0,
-                'updated_count': 0,
-                'not_found_count': 0,
-                'error_count': 0
-            }
-        }
-        
+
+    def _calculate_direct_row(self, row, file_path: str, source_file: str) -> Optional[Dict]:
+        """Process a single direct booking row."""
+        checkin_date = row.get('startDate', '')
+        guest_name = row.get('guestName', '')
+        listing = row.get('listing', '')
+        nights = row.get('nights', 0)
+        guests = row.get('guests', 0)
+        gross_amount = row.get('amountGross', 0)
+        paid_out = row.get('paidOut', 0)
+        channel_fee = float(gross_amount) - float(paid_out)
+        booking_id = row.get('reservationCode', '')
+        trade_type = row.get('typeTrade', '')
+        details = row.get('details', '')
+        currency = row.get('currency', '')
+        cleaning_fee = row.get('cleaningFee', 0)
+
+        # Determine channel
+        trade_lower = str(trade_type).lower()
+        channel = 'dfDirect' if 'goodwin' in trade_lower else ('VRBO' if 'vrbo' in trade_lower else 'dfZwart')
+
+        # Booking status
+        today = date.today()
         try:
-            # Read CSV file and strip whitespace from column names
-            df = pd.read_csv(file_path)
-            df.columns = df.columns.str.strip()  # Remove leading/trailing spaces from column names
-            
-            results['summary']['total_rows'] = len(df)
-            
-            print(f"Payout CSV loaded: {len(df)} rows")
-            print(f"Columns: {list(df.columns)}")
-            
-            # Filter only Reservation rows (not Payout summary rows)
-            reservation_rows = df[df['Type/Transaction type'].str.strip() == 'Reservation']
-            results['summary']['reservation_rows'] = len(reservation_rows)
-            
-            print(f"Found {len(reservation_rows)} reservation rows to process")
-            
-            updates = []
-            
-            for _, row in reservation_rows.iterrows():
+            checkin_str = str(checkin_date).strip()
+            checkin_dt = None
+            for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S']:
                 try:
-                    # Extract reservation code (Reference number)
-                    # Handle both string and numeric reservation codes
-                    reservation_code_raw = row.get('Reference number', '')
-                    if pd.isna(reservation_code_raw) or reservation_code_raw == '-':
-                        continue
-                    
-                    # Convert to string and remove decimal point if it's a float
-                    reservation_code = str(reservation_code_raw).strip()
-                    if '.' in reservation_code and reservation_code.replace('.', '').replace('0', '', 1).isdigit():
-                        # Remove trailing .0 from floats like 1234567890.0
-                        reservation_code = reservation_code.split('.')[0]
-                    
-                    if not reservation_code or reservation_code == '-':
-                        continue
-                    
-                    # Extract financial data from CSV
-                    checkin_date = str(row.get('Check-in date', '')).strip()
-                    checkout_date = str(row.get('Check-out date', '')).strip()
-                    nights = int(row.get('Room nights', 0)) if pd.notna(row.get('Room nights')) else 0
-                    
-                    # Gross amount (actual from BDC)
-                    gross_amount_str = str(row.get('Gross amount', '0')).strip()
-                    gross_amount = float(gross_amount_str) if gross_amount_str and gross_amount_str != '-' else 0.0
-                    
-                    # Commission (negative value in CSV)
-                    commission_str = str(row.get('Commission', '0')).strip()
-                    commission = float(commission_str) if commission_str and commission_str != '-' else 0.0
-                    
-                    # Payments Service Fee (negative value in CSV)
-                    service_fee_str = str(row.get('Payments Service Fee', '0')).strip()
-                    service_fee = float(service_fee_str) if service_fee_str and service_fee_str != '-' else 0.0
-                    
-                    # Skip if no gross amount
-                    if gross_amount == 0:
-                        continue
-                    
-                    # Calculate channel fee: abs(Commission) + abs(Payments Service Fee)
-                    amount_channel_fee = abs(commission) + abs(service_fee)
-                    
-                    # Get tax rates based on check-in date
-                    tax_rates = self.get_tax_rates(checkin_date)
-                    
-                    # Calculate VAT on gross amount (accommodation VAT, not BDC service VAT)
-                    # 9% until 2026-01-01, then 21%
-                    vat_base = tax_rates['vat_base']  # 109 or 121
-                    vat_rate = tax_rates['vat_rate']  # 9 or 21
-                    amount_vat = round((gross_amount / vat_base) * vat_rate, 2)
-                    
-                    # Calculate tourist tax using existing algorithm (not in CSV)
-                    vat_exclusive_amount = gross_amount - amount_vat
-                    
-                    # Calculate tourist tax
-                    tourist_base = tax_rates['tourist_tax_base']
-                    tourist_rate = tax_rates['tourist_tax_rate']
-                    amount_tourist_tax = round((vat_exclusive_amount / tourist_base) * tourist_rate, 2)
-                    
-                    # Calculate net amount
-                    amount_nett = gross_amount - amount_vat - amount_tourist_tax - amount_channel_fee
-                    
-                    # Calculate price per night
-                    price_per_night = round(amount_nett / nights, 2) if nights > 0 else 0.0
-                    
-                    # Create update record
-                    update_record = {
-                        'reservationCode': reservation_code,
-                        'amountGross': round(gross_amount, 2),
-                        'amountChannelFee': round(amount_channel_fee, 2),
-                        'amountVat': round(amount_vat, 2),
-                        'amountTouristTax': round(amount_tourist_tax, 2),
-                        'amountNett': round(amount_nett, 2),
-                        'pricePerNight': round(price_per_night, 2),
-                        'checkinDate': checkin_date,
-                        'checkoutDate': checkout_date,
-                        'nights': nights,
-                        'sourceFile': f"PAYOUT_{datetime.now().strftime('%Y-%m-%d')}_{os.path.basename(file_path)}"
-                    }
-                    
-                    updates.append(update_record)
-                    results['updated'].append(reservation_code)
-                    
-                    print(f"Prepared update for reservation {reservation_code}: "
-                          f"Gross={gross_amount}, ChannelFee={amount_channel_fee}, "
-                          f"VAT={amount_vat}, TouristTax={amount_tourist_tax}, Net={amount_nett}")
-                    
-                except Exception as e:
-                    error_msg = f"Error processing row for reservation {reservation_code}: {str(e)}"
-                    print(error_msg)
-                    results['errors'].append(error_msg)
-                    results['summary']['error_count'] += 1
-            
-            # Update summary
-            results['summary']['updated_count'] = len(updates)
-            results['updates'] = updates
-            
-            print(f"\nPayout processing completed:")
-            print(f"  Total rows: {results['summary']['total_rows']}")
-            print(f"  Reservation rows: {results['summary']['reservation_rows']}")
-            print(f"  Updates prepared: {results['summary']['updated_count']}")
-            print(f"  Errors: {results['summary']['error_count']}")
-            
-            return results
-            
-        except Exception as e:
-            error_msg = f"Error processing Payout CSV file: {str(e)}"
-            print(error_msg)
-            import traceback
-            traceback.print_exc()
-            results['errors'].append(error_msg)
-            results['summary']['error_count'] += 1
-            return results
-    
-    # =========================================================================
+                    checkin_dt = datetime.strptime(checkin_str.split()[0], fmt).date()
+                    break
+                except ValueError:
+                    continue
+            if checkin_dt is None:
+                checkin_dt = pd.to_datetime(checkin_str).date()
+            booking_status = 'planned' if checkin_dt > today else 'realised'
+        except Exception:
+            booking_status = 'realised'
+
+        # Checkout date
+        try:
+            checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
+            checkout_date = (checkin_dt + pd.Timedelta(days=int(nights))).strftime('%Y-%m-%d')
+        except Exception:
+            try:
+                from datetime import timedelta
+                checkout_date = (pd.to_datetime(checkin_date) + timedelta(days=int(nights))).strftime('%Y-%m-%d')
+            except Exception:
+                checkout_date = str(checkin_date)
+
+        tax_calc = self.calculate_str_taxes(gross_amount, checkin_date, channel_fee)
+
+        # Dates and periods
+        try:
+            checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
+            reservation_dt = checkin_dt
+            year, quarter, month = checkin_dt.year, (checkin_dt.month - 1) // 3 + 1, checkin_dt.month
+        except Exception:
+            reservation_dt = datetime.now()
+            year, quarter, month = reservation_dt.year, (reservation_dt.month - 1) // 3 + 1, reservation_dt.month
+
+        price_per_night = tax_calc['amount_nett'] / int(nights) if int(nights) > 0 else 0
+        add_info = (f"{os.path.basename(file_path)} | {guest_name} | reservation | {trade_type} "
+                    f"| {details} | {booking_id} | {currency} | {gross_amount} "
+                    f"| {channel_fee} | {cleaning_fee}")
+        country = detect_country(channel, phone='', addinfo=add_info)
+
+        try:
+            checkin_date_clean = pd.to_datetime(checkin_date).strftime('%Y-%m-%d')
+        except Exception:
+            checkin_date_clean = str(checkin_date).split()[0] if ' ' in str(checkin_date) else str(checkin_date)
+
+        return {
+            'sourceFile': source_file, 'channel': channel,
+            'listing': normalize_listing_name(str(listing)),
+            'checkinDate': checkin_date_clean, 'checkoutDate': checkout_date,
+            'nights': int(nights) if nights else 0,
+            'guests': int(guests) if guests else 0,
+            'amountGross': round(float(gross_amount), 2),
+            'amountChannelFee': round(float(channel_fee), 2),
+            'guestName': str(guest_name).replace("'", " "),
+            'phone': '',
+            'reservationCode': str(booking_id),
+            'reservationDate': reservation_dt.strftime('%Y-%m-%d'),
+            'status': str(booking_status), 'addInfo': add_info,
+            'amountVat': tax_calc['amount_vat'],
+            'amountTouristTax': tax_calc['amount_tourist_tax'],
+            'amountNett': tax_calc['amount_nett'],
+            'pricePerNight': round(float(price_per_night), 2),
+            'year': year, 'q': quarter, 'm': month,
+            'daysBeforeReservation': 0, 'country': country,
+        }
+
     # VRBO Processing
-    # =========================================================================
 
     def _process_vrbo(self, file_paths: List[str]) -> List[Dict]:
-        """
-        Process VRBO CSV exports — merges Reservations + Payouts files.
-
-        Auto-detects file type by header row:
-        - 'Reservation ID' → Reservations CSV (English)
-        - 'Naam gast' / 'Guest name' → Payouts CSV (multi-language)
-        """
-        reservation_files = []
-        payout_files = []
+        """Process VRBO CSV exports — merges Reservations + Payouts files."""
+        reservation_files, payout_files = [], []
 
         for fp in file_paths:
             try:
@@ -1119,100 +298,78 @@ class STRProcessor:
             except Exception as e:
                 print(f"VRBO: Error reading header of {fp}: {e}")
 
-        # Parse all reservations
         reservations = {}
         for fp in reservation_files:
             for res in self._parse_vrbo_reservations(fp):
                 reservations[res['reservationCode']] = res
 
-        # Parse all payouts
         payouts = {}
         for fp in payout_files:
             for code, amount in self._parse_vrbo_payouts(fp):
                 payouts[code] = amount
 
-        # Merge: enrich reservations with payout amounts
-        bookings = []
-        for code, res in reservations.items():
-            payout_amount = payouts.get(code)
-            booking = self._build_vrbo_booking(res, payout_amount)
-            bookings.append(booking)
+        bookings = [self._build_vrbo_booking(res, payouts.get(code))
+                    for code, res in reservations.items()]
 
-        # Log orphan payouts
-        for code in payouts:
-            if code not in reservations:
-                print(f"VRBO: Orphan payout for {code} (no matching reservation)")
-
+        orphans = sum(1 for c in payouts if c not in reservations)
         print(f"VRBO: {len(bookings)} bookings from {len(reservation_files)} reservation file(s) "
-              f"and {len(payout_files)} payout file(s). "
-              f"{len(payouts)} payouts matched, "
-              f"{sum(1 for c in payouts if c not in reservations)} orphans.")
-
+              f"and {len(payout_files)} payout file(s). {orphans} orphan payouts.")
         return bookings
 
     def _process_vrbo_single(self, file_path: str) -> List[Dict]:
-        """Process a single VRBO file — delegates to _process_vrbo with one file."""
+        """Process a single VRBO file."""
         return self._process_vrbo([file_path])
 
     def _parse_vrbo_reservations(self, file_path: str) -> List[Dict]:
-        """Parse a VRBO Reservations CSV (English headers)."""
+        """Parse a VRBO Reservations CSV."""
         try:
             df = pd.read_csv(file_path)
+            src = f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}"
+            col_map = {
+                'reservationCode': 'Reservation ID', 'listingNumber': 'Listing Number',
+                'propertyName': 'Property Name', 'reservationDate': 'Created On',
+                'email': 'Email', 'guestName': 'Inquirer', 'phone': 'Phone',
+                'checkinDate': 'Check-in', 'checkoutDate': 'Check-out',
+            }
             results = []
             for _, row in df.iterrows():
-                results.append({
-                    'reservationCode': str(row.get('Reservation ID', '')).strip(),
-                    'listingNumber': str(row.get('Listing Number', '')).strip(),
-                    'propertyName': str(row.get('Property Name', '')).strip(),
-                    'reservationDate': str(row.get('Created On', '')).strip(),
-                    'email': str(row.get('Email', '')).strip(),
-                    'guestName': str(row.get('Inquirer', '')).strip(),
-                    'phone': str(row.get('Phone', '')).strip(),
-                    'checkinDate': str(row.get('Check-in', '')).strip(),
-                    'checkoutDate': str(row.get('Check-out', '')).strip(),
+                rec = {k: str(row.get(v, '')).strip() for k, v in col_map.items()}
+                rec.update({
                     'nights': int(row.get('Nights Stay', 0) or 0),
                     'adults': int(row.get('Adults', 0) or 0),
                     'children': int(row.get('Children', 0) or 0),
                     'csvStatus': str(row.get('Status', '')).strip(),
                     'source': str(row.get('Source', 'VRBO')).strip(),
-                    'sourceFile': f"{datetime.now().strftime('%Y-%m-%d')} {os.path.basename(file_path)}",
+                    'sourceFile': src,
                 })
+                results.append(rec)
             return results
         except Exception as e:
             print(f"VRBO: Error parsing reservations {file_path}: {e}")
             return []
 
     def _parse_vrbo_payouts(self, file_path: str) -> List[tuple]:
-        """
-        Parse a VRBO Payouts CSV (multi-language headers).
-        Returns list of (reservation_code, payout_amount) tuples.
-        """
+        """Parse a VRBO Payouts CSV (multi-language headers)."""
         try:
             df = pd.read_csv(file_path)
-            results = []
-            # Column mapping for different languages
-            code_col = None
-            amount_col = None
+            code_col, amount_col = None, None
             for col in df.columns:
-                col_lower = col.strip().lower()
-                if col_lower in ('boekingsnummer', 'booking number', 'buchungsnummer', 'numéro de réservation'):
+                cl = col.strip().lower()
+                if cl in ('boekingsnummer', 'booking number', 'buchungsnummer', 'numéro de réservation'):
                     code_col = col
-                elif col_lower in ('bedrag', 'amount', 'betrag', 'montant'):
+                elif cl in ('bedrag', 'amount', 'betrag', 'montant'):
                     amount_col = col
 
             if not code_col or not amount_col:
-                print(f"VRBO: Could not identify columns in payouts file. Headers: {list(df.columns)}")
+                print(f"VRBO: Could not identify columns. Headers: {list(df.columns)}")
                 return []
 
+            results = []
             for _, row in df.iterrows():
                 code = str(row.get(code_col, '')).strip()
                 if not code or code == 'nan':
-                    continue  # skip total row and empty rows
-
-                amount_str = str(row.get(amount_col, '0'))
-                amount = self._parse_amount(amount_str)
-                results.append((code, amount))
-
+                    continue
+                results.append((code, parse_amount(str(row.get(amount_col, '0')))))
             return results
         except Exception as e:
             print(f"VRBO: Error parsing payouts {file_path}: {e}")
@@ -1221,13 +378,10 @@ class STRProcessor:
     def _build_vrbo_booking(self, res: Dict, payout_amount: Optional[float]) -> Dict:
         """Build a standard booking dict from VRBO reservation + payout data."""
         today = date.today()
+        checkin_date = parse_date(res['checkinDate'])
+        checkout_date = parse_date(res['checkoutDate'])
+        reservation_date = parse_date(res['reservationDate'])
 
-        # Parse dates
-        checkin_date = self._parse_date(res['checkinDate'])
-        checkout_date = self._parse_date(res['checkoutDate'])
-        reservation_date = self._parse_date(res['reservationDate'])
-
-        # Determine status
         try:
             checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d').date()
             if 'cancel' in res['csvStatus'].lower():
@@ -1239,166 +393,54 @@ class STRProcessor:
         except Exception:
             booking_status = 'realised'
 
-        # Skip cancelled with no payout
-        if booking_status == 'cancelled' and (not payout_amount or payout_amount == 0):
-            booking_status = 'cancelled'
-
-        # Financial calculation from payout amount
         if payout_amount and payout_amount > 0:
-            paid_out = payout_amount
-            channel_fee_factor = 0.25
-            amount_gross = paid_out / (1 - channel_fee_factor)
-            amount_channel_fee = amount_gross - paid_out
+            amount_gross = payout_amount / (1 - 0.25)
+            amount_channel_fee = amount_gross - payout_amount
         else:
-            amount_gross = 0
-            amount_channel_fee = 0
+            amount_gross, amount_channel_fee = 0, 0
 
-        # Tax calculation
         tax_calc = self.calculate_str_taxes(amount_gross, checkin_date, amount_channel_fee)
 
-        # Dates and periods
         try:
             checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d')
             reservation_dt = datetime.strptime(reservation_date, '%Y-%m-%d')
-            year = checkin_dt.year
-            quarter = (checkin_dt.month - 1) // 3 + 1
-            month = checkin_dt.month
+            year, quarter, month = checkin_dt.year, (checkin_dt.month - 1) // 3 + 1, checkin_dt.month
             days_before = (checkin_dt - reservation_dt).days
         except Exception:
-            year = datetime.now().year
-            quarter = 1
-            month = 1
-            days_before = 0
+            year, quarter, month, days_before = datetime.now().year, 1, 1, 0
 
         nights = res['nights'] or 0
         guests = res['adults'] + res['children']
         price_per_night = tax_calc['amount_nett'] / nights if nights > 0 else 0
-
-        # Country detection
         country = detect_country('vrbo', phone=res['phone'], addinfo=res.get('email', ''))
 
-        # Listing name normalization
-        listing = self._normalize_listing_name(res['propertyName'])
-
         return {
-            'sourceFile': res['sourceFile'],
-            'channel': 'vrbo',
-            'listing': listing,
-            'checkinDate': checkin_date,
-            'checkoutDate': checkout_date,
-            'nights': nights,
-            'guests': guests,
+            'sourceFile': res['sourceFile'], 'channel': 'vrbo',
+            'listing': normalize_listing_name(res['propertyName']),
+            'checkinDate': checkin_date, 'checkoutDate': checkout_date,
+            'nights': nights, 'guests': guests,
             'amountGross': round(amount_gross, 2),
             'amountChannelFee': round(amount_channel_fee, 2),
             'amountNett': tax_calc['amount_nett'],
             'amountVat': tax_calc['amount_vat'],
             'amountTouristTax': tax_calc['amount_tourist_tax'],
-            'guestName': res['guestName'],
-            'phone': res['phone'],
+            'guestName': res['guestName'], 'phone': res['phone'],
             'reservationCode': res['reservationCode'],
             'reservationDate': reservation_date,
             'status': booking_status,
             'pricePerNight': round(price_per_night, 2),
             'daysBeforeReservation': days_before,
             'addInfo': '|'.join(str(v) for v in res.values()),
-            'year': year,
-            'q': quarter,
-            'm': month,
-            'country': country,
+            'year': year, 'q': quarter, 'm': month, 'country': country,
         }
 
-    def _parse_amount(self, amount_str: str) -> float:
-        """
-        Parse amount string, stripping currency symbols.
-        Handles European (€ 559,36) and US ($559.36) formats.
-        """
-        if not amount_str or pd.isna(amount_str):
-            return 0
-        clean = str(amount_str).replace('€', '').replace('$', '').replace('£', '').strip()
-        # European format: 1.234,56 → remove dots, replace comma with dot
-        if ',' in clean:
-            parts = clean.split(',')
-            if len(parts) == 2:
-                integer_part = parts[0].replace('.', '').replace(' ', '')
-                decimal_part = parts[1]
-                clean = f"{integer_part}.{decimal_part}"
-            else:
-                clean = clean.replace(',', '.')
-        try:
-            return float(clean)
-        except (ValueError, TypeError):
-            return 0
+    # Summary / status helpers
 
-    def _parse_multilang_date(self, date_str: str) -> str:
-        """
-        Parse multi-language date strings like '8 mei 2026', 'May 8, 2026', '8. Mai 2026'.
-        Falls back to _parse_date for standard formats.
-        """
-        if not date_str:
-            return datetime.now().strftime('%Y-%m-%d')
-
-        month_map = {
-            # Dutch
-            'jan': 1, 'feb': 2, 'mrt': 3, 'apr': 4, 'mei': 5, 'jun': 6,
-            'jul': 7, 'aug': 8, 'sep': 9, 'okt': 10, 'nov': 11, 'dec': 12,
-            # English
-            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
-            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12,
-            # German
-            'januar': 1, 'februar': 2, 'märz': 3, 'mai': 5, 'juni': 6,
-            'juli': 7, 'oktober': 10, 'dezember': 12,
-            # French
-            'janvier': 1, 'février': 2, 'mars': 3, 'avril': 4, 'juin': 6,
-            'juillet': 7, 'août': 8, 'septembre': 9, 'octobre': 10, 'novembre': 11, 'décembre': 12,
-        }
-
-        # Clean up: remove dots, commas, extra spaces
-        clean = str(date_str).strip().replace('.', '').replace(',', '').lower()
-        parts = clean.split()
-
-        if len(parts) >= 3:
-            # Try "8 mei 2026" or "mei 8 2026" patterns
-            for i, part in enumerate(parts):
-                if part in month_map:
-                    month = month_map[part]
-                    remaining = [p for j, p in enumerate(parts) if j != i]
-                    try:
-                        nums = [int(p) for p in remaining if p.isdigit()]
-                        if len(nums) >= 2:
-                            day = min(nums)
-                            year = max(nums)
-                            if year < 100:
-                                year += 2000
-                            return f"{year}-{month:02d}-{day:02d}"
-                    except ValueError:
-                        pass
-
-        # Fallback to standard date parsing
-        return self._parse_date(date_str)
-
-    def _parse_date(self, date_str: str) -> str:
-        """Parse various date formats"""
-        if not date_str:
-            return datetime.now().strftime('%Y-%m-%d')
-        
-        # Try common date formats
-        formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y']
-        
-        for fmt in formats:
-            try:
-                return datetime.strptime(str(date_str), fmt).strftime('%Y-%m-%d')
-            except ValueError:
-                continue
-        
-        return datetime.now().strftime('%Y-%m-%d')
-    
     def generate_summary(self, bookings: List[Dict]) -> Dict:
-        """Generate STR performance summary"""
+        """Generate STR performance summary."""
         if not bookings:
             return {}
-        
         df = pd.DataFrame(bookings)
-        
         return {
             'total_bookings': len(bookings),
             'total_nights': df['nights'].sum() if 'nights' in df.columns else 0,
@@ -1412,81 +454,44 @@ class STRProcessor:
                 'end': df['checkinDate'].max() if 'checkinDate' in df.columns else ''
             }
         }
-    
+
     def separate_by_status(self, bookings: List[Dict]) -> Dict[str, List[Dict]]:
-        """Separate bookings by status and check for duplicates"""
+        """Separate bookings by status and check for duplicates."""
         try:
             from str_database import STRDatabase
-            
-            # Group bookings by channel and get existing codes for each channel
             str_db = STRDatabase(test_mode=self.test_mode)
-            
-            # Get unique channels from bookings
-            channels = set(booking.get('channel', '') for booking in bookings)
-            existing_codes_by_channel = {}
-            
-
-            
-            for channel in channels:
-                if channel:
-                    existing_codes = str_db.get_existing_reservation_codes_for_channel(channel)
-                    existing_codes_by_channel[channel] = existing_codes
-            
-            realised = []
-            planned = []
-            already_loaded = []
-            
+            channels = set(b.get('channel', '') for b in bookings)
+            existing_codes_by_channel = {
+                ch: str_db.get_existing_reservation_codes_for_channel(ch)
+                for ch in channels if ch
+            }
+            realised, planned, already_loaded = [], [], []
             for booking in bookings:
                 channel = booking.get('channel', '')
                 code = str(booking.get('reservationCode', ''))
                 status = booking.get('status', '')
-                
-
-                
-                # Check if this reservation code already exists for this channel
                 if channel in existing_codes_by_channel and code in existing_codes_by_channel[channel]:
                     already_loaded.append(booking)
-                elif status in ['realised', 'cancelled']:
-                    realised.append(booking)
                 elif status == 'planned':
                     planned.append(booking)
                 else:
-                    realised.append(booking)  # Default to realised
-            
-
-            
+                    realised.append(booking)
+            return {'realised': realised, 'planned': planned, 'already_loaded': already_loaded}
+        except Exception:
             return {
-                'realised': realised,
-                'planned': planned,
-                'already_loaded': already_loaded
-            }
-        except Exception as e:
-            pass
-            
-            # Fallback to original logic if database check fails
-            realised = [b for b in bookings if b.get('status') in ['realised', 'cancelled']]
-            planned = [b for b in bookings if b.get('status') == 'planned']
-            
-            return {
-                'realised': realised,
-                'planned': planned,
+                'realised': [b for b in bookings if b.get('status') in ['realised', 'cancelled']],
+                'planned': [b for b in bookings if b.get('status') == 'planned'],
                 'already_loaded': []
             }
-    
+
     def generate_future_summary(self, planned_bookings: List[Dict]) -> List[Dict]:
-        """Generate future bookings summary by channel and listing"""
+        """Generate future bookings summary by channel and listing."""
         if not planned_bookings:
             return []
-        
         df = pd.DataFrame(planned_bookings)
-        
-        # Group by channel and listing
-        summary = df.groupby(['channel', 'listing']).agg({
-            'amountGross': 'sum',
-            'reservationCode': 'count'
-        }).reset_index()
-        
+        summary = df.groupby(['channel', 'listing']).agg(
+            {'amountGross': 'sum', 'reservationCode': 'count'}
+        ).reset_index()
         summary.columns = ['channel', 'listing', 'amount', 'items']
         summary['date'] = date.today().strftime('%Y-%m-%d')
-        
-        return summary.to_dict('records')# VRBO import support added
+        return summary.to_dict('records')

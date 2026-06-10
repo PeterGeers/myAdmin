@@ -416,16 +416,21 @@ class TestComprehensiveDuplicateDetectionSystem:
         """
         Requirement 6.3: System SHALL handle session timeouts gracefully
         """
-        from session_manager import SessionManager, SessionTimeoutError
+        from session_manager import SessionManager, SessionTimeoutError, SessionInfo
+        from datetime import datetime, timedelta
         
         session_manager = SessionManager(default_timeout_seconds=1)
         session_id = 'test_session_timeout'
         
-        # Create session
-        session_manager.create_session(session_id, operation_type='duplicate_check')
-        
-        # Wait for timeout
-        time.sleep(2)
+        # Directly add a session (create_session was removed as dead code)
+        now = datetime.now()
+        session_manager.sessions[session_id] = SessionInfo(
+            session_id=session_id,
+            created_at=now,
+            last_accessed=now - timedelta(seconds=2),  # Already expired
+            operation_type='duplicate_check',
+            timeout_seconds=1
+        )
         
         # Execute: Validate expired session
         with pytest.raises(SessionTimeoutError):
@@ -763,8 +768,8 @@ class TestComprehensiveDuplicateDetectionSystem:
         # Requirement 7: Session Management
         from session_manager import SessionManager
         session_manager = SessionManager()
-        assert hasattr(session_manager, 'create_session')
         assert hasattr(session_manager, 'validate_session')
+        assert hasattr(session_manager, 'cleanup_expired_sessions')
 
 
 if __name__ == '__main__':
