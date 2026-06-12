@@ -14,6 +14,7 @@ import FinancialTab from './FinancialTab';
 import TenantInfoTab from './TenantInfoTab';
 import SenderSettingsTab from './SenderSettingsTab';
 import AdvancedTab from './AdvancedTab';
+import FunctionsTab from './FunctionsTab';
 import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
 
 interface TenantInfo {
@@ -181,6 +182,9 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               {t('tenantAdmin.tabs.users')}
             </Tab>
+            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
+              ⚡ {t('tenantAdmin.tabs.functions')}
+            </Tab>
             {hasFIN && (
               <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
                 💰 {t('tenantAdmin.tabs.financial')}
@@ -211,6 +215,9 @@ export function TenantAdminDashboard() {
           <TabPanels>
             <TabPanel>
               <UserManagement tenant={currentTenant} />
+            </TabPanel>
+            <TabPanel>
+              <FunctionsTab tenant={currentTenant} />
             </TabPanel>
             {hasFIN && (
               <TabPanel>

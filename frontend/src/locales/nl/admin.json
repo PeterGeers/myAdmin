@@ -39,7 +39,8 @@
       "senderSettings": "Factuur E-mail",
       "advanced": "Geavanceerd",
       "emailLog": "E-maillog",
-      "pivotViews": "Draaitabelweergaven"
+      "pivotViews": "Draaitabelweergaven",
+      "functions": "Functies"
     },
     "parameters": {
       "title": "Parameters",

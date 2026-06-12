@@ -68,6 +68,7 @@ from routes.product_routes import product_bp
 from routes.zzp_routes import zzp_bp
 from routes.storage import storage_bp
 from routes.verification_routes import verification_bp
+from routes.tenant_function_routes import tenant_function_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
@@ -80,6 +81,7 @@ from mutaties_cache import get_cache, invalidate_cache
 from bnb_cache import get_bnb_cache
 from report_generators import generate_table_rows
 from services.template_service import TemplateService
+from services.function_registry import validate_function_registry
 
 # Load environment variables from .env file
 # Look in parent directory if .env not found in current directory (for when running from src/)
@@ -148,6 +150,7 @@ app.register_blueprint(pattern_storage_bp)
 app.register_blueprint(scalability_bp)
 app.register_blueprint(tenant_admin_bp)
 app.register_blueprint(tenant_module_bp)
+app.register_blueprint(tenant_function_bp)  # Tenant optional function toggles
 app.register_blueprint(sysadmin_bp)
 app.register_blueprint(tenant_admin_users_bp)
 app.register_blueprint(tenant_admin_credentials_bp)
@@ -186,6 +189,9 @@ app.register_blueprint(user_bp)  # User-specific endpoints (language preferences
 app.register_blueprint(signup_bp)  # Public trial signup endpoints
 app.register_blueprint(config_bp)  # Public configuration endpoints
 app.register_blueprint(static_bp)  # Static file serving (must be registered last)
+
+# Validate function registry at startup (fails fast if misconfigured)
+validate_function_registry()
 
 # Serve documentation site (built by MkDocs)
 # Railway/Docker: /app/docs-site (copied into backend/ folder)

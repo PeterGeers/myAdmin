@@ -11,6 +11,7 @@ import theme from './theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TenantProvider } from './context/TenantContext';
 import { useTenantModules } from './hooks/useTenantModules';
+import { useTenantFunctions } from './hooks/useTenantFunctions';
 import { listPasskeys, isPasskeySupported } from './services/authService';
 import { HelpButton } from './components/help';
 import { buildApiUrl } from './config';
@@ -58,6 +59,7 @@ function AppContent() {
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout, refreshUserRoles } = useAuth();
   const { hasFIN, hasSTR, hasZZP, loading: modulesLoading } = useTenantModules();
+  const { hasFunction } = useTenantFunctions();
   const [showPasskeyPrompt, setShowPasskeyPrompt] = useState(false);
 
   // Check if user should be prompted to register a passkey
@@ -427,7 +429,7 @@ function AppContent() {
                       <Button size="lg" w="full" colorScheme="purple" onClick={() => setCurrentPage('fin-reports')}>
                         📊 {t('common:navigation.modules.finReports')}
                       </Button>
-                      {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && (
+                      {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && hasFunction('assets') && (
                         <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('assets')}>
                           🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}
                         </Button>

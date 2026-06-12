@@ -19,6 +19,7 @@ import React, { useEffect, useState } from 'react';
 import * as Yup from 'yup';
 import { authenticatedGet, authenticatedPost, authenticatedFormData } from '../services/apiService';
 import { useTenant } from '../context/TenantContext';
+import { useTenantFunctions } from '../hooks/useTenantFunctions';
 import { FieldHelp } from './help';
 import AccountSelect from './common/AccountSelect';
 import { useAccountLookup } from '../hooks/useAccountLookup';
@@ -92,6 +93,7 @@ interface UploadFormValues {
 
 const PDFUploadForm: React.FC = () => {
   const { currentTenant } = useTenant();
+  const { hasFunction } = useTenantFunctions();
   const { accounts: chartAccounts } = useAccountLookup();
   const [loading, setLoading] = useState(false);
   const [tenantSwitching, setTenantSwitching] = useState(false);
@@ -626,8 +628,8 @@ const PDFUploadForm: React.FC = () => {
         <TabList>
           <Tab color="white">📄 Upload Invoices</Tab>
           <Tab color="white">🔍 Check Invoice Exists</Tab>
-          <Tab color="white">🧾 Generate Receipt</Tab>
-          <Tab color="white">📋 Generate Missing Invoices</Tab>
+          {hasFunction('generate_invoice') && <Tab color="white">🧾 Generate Receipt</Tab>}
+          {hasFunction('generate_invoice') && <Tab color="white">📋 Generate Missing Invoices</Tab>}
         </TabList>
 
         <TabPanels>
@@ -1043,12 +1045,16 @@ const PDFUploadForm: React.FC = () => {
           <TabPanel>
             <PDFValidation />
           </TabPanel>
-          <TabPanel>
-            <InvoiceGenerator />
-          </TabPanel>
-          <TabPanel>
-            <MissingInvoices />
-          </TabPanel>
+          {hasFunction('generate_invoice') && (
+            <TabPanel>
+              <InvoiceGenerator />
+            </TabPanel>
+          )}
+          {hasFunction('generate_invoice') && (
+            <TabPanel>
+              <MissingInvoices />
+            </TabPanel>
+          )}
         </TabPanels>
       </Tabs>
       

@@ -39,7 +39,8 @@
       "senderSettings": "Invoice Email",
       "advanced": "Advanced",
       "emailLog": "Email Log",
-      "pivotViews": "Pivot Views"
+      "pivotViews": "Pivot Views",
+      "functions": "Functions"
     },
     "parameters": {
       "title": "Parameters",

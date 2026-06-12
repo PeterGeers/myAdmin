@@ -39,6 +39,7 @@ import BankingPatternPanel from './BankingPatternPanel';
 import BankingTransactionModal from './BankingTransactionModal';
 import { FilterableHeader } from './filters/FilterableHeader';
 import { useBankingProcessor, formatAmount } from '../hooks/useBankingProcessor';
+import { useTenantFunctions } from '../hooks/useTenantFunctions';
 
 // Re-export types and utilities for backward compatibility
 export type { Transaction, CreditCardAccount, LookupData } from './BankingProcessor.types';
@@ -46,6 +47,7 @@ export { parseCSVRow, processRevolutTransaction, processRabobankTransaction } fr
 
 const BankingProcessor: React.FC = () => {
   const bp = useBankingProcessor();
+  const { hasFunction } = useTenantFunctions();
 
   return (
     <Box w="100%" p={4}>
@@ -55,7 +57,7 @@ const BankingProcessor: React.FC = () => {
           <Tab>{bp.t('tabs.mutaties')}</Tab>
           <Tab>{bp.t('tabs.checkAccounts')}</Tab>
           <Tab>{bp.t('tabs.checkReference')}</Tab>
-          <Tab>{bp.t('tabs.strChannelRevenue')}</Tab>
+          {hasFunction('str_channel_revenue') && <Tab>{bp.t('tabs.strChannelRevenue')}</Tab>}
         </TabList>
 
         <TabPanels>
@@ -111,9 +113,11 @@ const BankingProcessor: React.FC = () => {
           </TabPanel>
 
           {/* STR Channel Revenue Tab */}
-          <TabPanel>
-            <StrChannelRevenueTab bp={bp} />
-          </TabPanel>
+          {hasFunction('str_channel_revenue') && (
+            <TabPanel>
+              <StrChannelRevenueTab bp={bp} />
+            </TabPanel>
+          )}
         </TabPanels>
       </Tabs>
 
