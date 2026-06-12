@@ -13,9 +13,10 @@ import os
 import logging
 from flask import Blueprint, request, jsonify
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import get_current_tenant
+from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from services.asset_service import AssetService
+from services.function_guard import function_guard
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +31,11 @@ def _get_service():
 
 @asset_bp.route('', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
-def list_assets(user_email, user_roles):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def list_assets(user_email, user_roles, tenant, user_tenants):
     """List assets with current book values."""
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         service = _get_service()
         assets = service.get_assets(
             administration=tenant,
@@ -52,7 +51,9 @@ def list_assets(user_email, user_roles):
 
 @asset_bp.route('', methods=['POST'])
 @cognito_required(required_permissions=['finance_write'])
-def create_asset(user_email, user_roles):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def create_asset(user_email, user_roles, tenant, user_tenants):
     """
     Create a new asset.
 
@@ -74,10 +75,6 @@ def create_asset(user_email, user_roles):
     }
     """
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Request body required'}), 400
@@ -99,13 +96,11 @@ def create_asset(user_email, user_roles):
 
 @asset_bp.route('/<int:asset_id>', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
-def get_asset(user_email, user_roles, asset_id):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def get_asset(user_email, user_roles, tenant, user_tenants, asset_id):
     """Get single asset with transaction history."""
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         service = _get_service()
         asset = service.get_asset(administration=tenant, asset_id=asset_id)
         if not asset:
@@ -118,7 +113,9 @@ def get_asset(user_email, user_roles, asset_id):
 
 @asset_bp.route('/<int:asset_id>', methods=['PUT'])
 @cognito_required(required_permissions=['finance_write'])
-def update_asset(user_email, user_roles, asset_id):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def update_asset(user_email, user_roles, tenant, user_tenants, asset_id):
     """
     Update asset metadata.
 
@@ -126,10 +123,6 @@ def update_asset(user_email, user_roles, asset_id):
     are locked after the first depreciation entry.
     """
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Request body required'}), 400
@@ -148,7 +141,9 @@ def update_asset(user_email, user_roles, asset_id):
 
 @asset_bp.route('/<int:asset_id>/dispose', methods=['POST'])
 @cognito_required(required_permissions=['finance_write'])
-def dispose_asset(user_email, user_roles, asset_id):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def dispose_asset(user_email, user_roles, tenant, user_tenants, asset_id):
     """
     Dispose an asset.
 
@@ -160,10 +155,6 @@ def dispose_asset(user_email, user_roles, asset_id):
     }
     """
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         data = request.get_json()
         if not data or not data.get('disposal_date'):
             return jsonify({'error': 'disposal_date is required'}), 400
@@ -187,7 +178,9 @@ def dispose_asset(user_email, user_roles, asset_id):
 
 @asset_bp.route('/generate-depreciation', methods=['POST'])
 @cognito_required(required_permissions=['finance_write'])
-def generate_depreciation(user_email, user_roles):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def generate_depreciation(user_email, user_roles, tenant, user_tenants):
     """
     Generate depreciation entries for a period.
 
@@ -198,10 +191,6 @@ def generate_depreciation(user_email, user_roles):
     }
     """
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         data = request.get_json()
         if not data or not data.get('year') or not data.get('period'):
             return jsonify({'error': 'year and period are required'}), 400
@@ -220,13 +209,11 @@ def generate_depreciation(user_email, user_roles):
 
 @asset_bp.route('/reports/register', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
-def asset_register_report(user_email, user_roles):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def asset_register_report(user_email, user_roles, tenant, user_tenants):
     """Asset register report — all assets with current book values."""
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         service = _get_service()
         assets = service.get_assets(administration=tenant)
 
@@ -265,13 +252,11 @@ def asset_register_report(user_email, user_roles):
 
 @asset_bp.route('/reports/depreciation-schedule', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
-def depreciation_schedule_report(user_email, user_roles):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def depreciation_schedule_report(user_email, user_roles, tenant, user_tenants):
     """Depreciation schedule — per asset, per year."""
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         year = request.args.get('year', str(import_datetime().year))
 
         service = _get_service()
@@ -318,16 +303,14 @@ def import_datetime():
 
 @asset_bp.route('/<int:asset_id>', methods=['DELETE'])
 @cognito_required(required_permissions=['finance_write'])
-def delete_asset(user_email, user_roles, asset_id):
+@tenant_required()
+@function_guard('assets', 'FIN')
+def delete_asset(user_email, user_roles, tenant, user_tenants, asset_id):
     """
     Delete an asset (only if no transactions are linked).
     For assets with transactions, use dispose instead.
     """
     try:
-        tenant = get_current_tenant(request)
-        if not tenant:
-            return jsonify({'error': 'No tenant selected'}), 400
-
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
 

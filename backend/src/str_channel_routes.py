@@ -12,6 +12,7 @@ from dialect_helpers import dialect
 from services.tax_rate_service import TaxRateService
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from services.function_guard import function_guard
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ str_channel_bp = Blueprint('str_channel', __name__)
 @str_channel_bp.route('/calculate', methods=['POST'])
 @cognito_required(required_permissions=['str_read'])
 @tenant_required()
+@function_guard('str_channel_revenue', 'STR')
 def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
     """Calculate STR channel revenue for a specific month and year"""
     try:
@@ -197,6 +199,7 @@ def calculate_str_channel_revenue(user_email, user_roles, tenant, user_tenants):
 @str_channel_bp.route('/save', methods=['POST'])
 @cognito_required(required_permissions=['bookings_create'])
 @tenant_required()
+@function_guard('str_channel_revenue', 'STR')
 def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
     """Save STR channel revenue transactions to database"""
     try:
@@ -276,6 +279,7 @@ def save_str_channel_transactions(user_email, user_roles, tenant, user_tenants):
 @str_channel_bp.route('/preview', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
 @tenant_required()
+@function_guard('str_channel_revenue', 'STR')
 def preview_str_channel_data(user_email, user_roles, tenant, user_tenants):
     """Preview STR channel data for a specific month"""
     try:

@@ -3,7 +3,9 @@ import os
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 from services.storage_resolver import resolve_storage_provider, list_s3_folders, create_s3_folder, get_s3_storage
+from services.function_guard import function_guard
 
 missing_invoices_bp = Blueprint('missing_invoices', __name__)
 db = DatabaseManager()
@@ -40,9 +42,9 @@ def get_transactions(user_email, user_roles):
 
 @missing_invoices_bp.route('/api/upload-receipt', methods=['POST'])
 @cognito_required(required_permissions=['invoices_create'])
-def upload_receipt(user_email, user_roles):
-    from auth.tenant_context import get_current_tenant
-    
+@tenant_required()
+@function_guard('generate_invoice', 'FIN')
+def upload_receipt(user_email, user_roles, tenant, user_tenants):
     file = request.files.get('file')
     supplier_name = request.form.get('supplierName')
     
@@ -50,9 +52,7 @@ def upload_receipt(user_email, user_roles):
         return jsonify({'error': 'Missing file or supplier name'}), 400
     
     # Get administration from tenant context
-    administration = get_current_tenant(request)
-    if not administration:
-        return jsonify({'error': 'Administration context not found'}), 400
+    administration = tenant
     
     try:
         # Resolve storage provider for this tenant
@@ -114,7 +114,9 @@ def upload_receipt(user_email, user_roles):
 
 @missing_invoices_bp.route('/api/update-transaction-refs', methods=['POST'])
 @cognito_required(required_permissions=['transactions_update'])
-def update_transaction_refs(user_email, user_roles):
+@tenant_required()
+@function_guard('generate_invoice', 'FIN')
+def update_transaction_refs(user_email, user_roles, tenant, user_tenants):
     data = request.get_json()
     ids = data.get('ids', [])
     drive_url = data.get('driveUrl')
