@@ -4,58 +4,53 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 
+from services.ai_sanitizer import AISanitizer
+
 # Load environment variables
 load_dotenv()
+
 
 class AIExtractor:
     def __init__(self):
         self.api_key = os.getenv('OPENROUTER_API_KEY')
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
-        
+        self.sanitizer = AISanitizer()
+
         if not self.api_key:
             print("Warning: OPENROUTER_API_KEY not found in environment variables")
         else:
-            print(f"AI Extractor initialized with API key: {self.api_key[:20]}...")
-        
+            print("AI Extractor initialized successfully")
+
     def extract_invoice_data(self, text_content, vendor_hint=None, previous_transactions=None):
-        """Extract invoice data using AI with fallback models"""
-        
-        # Build context from previous transactions
-        context_info = ""
-        if previous_transactions and len(previous_transactions) > 0:
-            context_info = "\n\nPrevious transactions from this vendor for reference:\n"
-            for i, tx in enumerate(previous_transactions[:3]):  # Use last 3 transactions
-                context_info += f"- Date: {tx.get('Datum', 'N/A')}, Description: {tx.get('Omschrijving', 'N/A')}, Amount: €{tx.get('Bedrag', 'N/A')}\n"
-            context_info += "\nUse these patterns to help identify similar fields in the current invoice.\n"
-        
-        prompt = f"""Extract these 5 fields from this invoice/receipt text:
+        """Extract invoice data using AI with fallback models.
 
-1. Date (convert to YYYY-MM-DD format)
-2. Total amount (final amount to pay, as number only)
-3. VAT amount (total VAT/BTW, as number only)
-4. Description (order number, invoice number, or main identifier)
-5. Vendor name
+        Sanitizes text content through AISanitizer before prompt construction
+        to prevent prompt injection attacks. Uses system+user role separation
+        for secure AI communication.
 
-Text content:
-{text_content}{context_info}
+        Returns:
+            dict with extraction fields and _usage metadata, or
+            dict with 'error' key if content is rejected or validation fails.
+        """
+        # Sanitize the PDF text content before prompt construction
+        sanitize_result = self.sanitizer.sanitize(text_content)
 
-Return ONLY valid JSON in this exact format:
-{{"date": "YYYY-MM-DD", "total_amount": 0.00, "vat_amount": 0.00, "description": "text", "vendor": "name"}}
+        # Handle rejection (>50% stripped)
+        if sanitize_result.rejected:
+            print("AI extraction rejected: document content could not be safely processed")
+            return {"error": "Document content could not be safely processed"}
 
-Rules:
-- Date must be YYYY-MM-DD format
-- Amounts must be numbers (no currency symbols)
-- If VAT not found, use 0.00
-- Description should include ALL identifiers: invoice numbers (Factuurnummer), customer numbers (Klantnummer), order numbers, etc.
-- Extract vendor name from header/footer
-- Look for patterns similar to previous transactions from this vendor
-- Invoice/customer numbers may appear before or after their labels
-- Combine multiple identifiers in description (e.g., "Factuurnummer: 123456, Klantnummer: 789012")"""
+        # Build prompt with system+user role separation
+        messages = self.sanitizer.build_extraction_prompt(
+            sanitized_text=sanitize_result.text,
+            vendor_hint=vendor_hint,
+            previous_transactions=previous_transactions,
+        )
 
         if not self.api_key:
             print("No API key available, skipping AI extraction")
             return self._fallback_data(vendor_hint)
-        
+
         # Try DeepSeek first (very cheap, excellent for structured extraction), then free models as fallback
         models = [
             "deepseek/deepseek-chat",  # Primary: Very cheap ($0.27/$1.10 per 1M tokens), excellent for invoice extraction
@@ -65,10 +60,10 @@ Rules:
             "microsoft/phi-3-mini-128k-instruct:free",  # Free fallback
             "openai/gpt-3.5-turbo"  # Paid fallback (last resort)
         ]
-        
+
         for model in models:
             try:
-                print(f"Trying {model} with key: {self.api_key[:10]}...")
+                print(f"Trying model: {model}...")
                 response = requests.post(
                     self.base_url,
                     headers={
@@ -77,29 +72,32 @@ Rules:
                     },
                     json={
                         "model": model,
-                        "messages": [
-                            {"role": "user", "content": prompt}
-                        ],
+                        "messages": messages,
                         "temperature": 0.1,
                         "max_tokens": 500
                     },
                     timeout=10
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
                     content = result['choices'][0]['message']['content'].strip()
-                    
+
                     # Capture actual token usage from API response
                     usage = result.get('usage', {})
-                    
+
                     # Extract JSON from response
                     if content.startswith('```json'):
                         content = content.replace('```json', '').replace('```', '').strip()
-                    
+
                     try:
                         data = json.loads(content)
-                        
+
+                        # Validate AI response structure and types
+                        if not self.sanitizer.validate_response(data):
+                            print(f"{model} returned invalid response format, discarding")
+                            continue  # Try next model
+
                         # Validate and clean data
                         print(f"Successfully extracted data using {model}")
                         return {
@@ -121,17 +119,17 @@ Rules:
                 else:
                     print(f"{model} API error: {response.status_code} - {response.text}")
                     continue  # Try next model
-                    
+
             except requests.exceptions.Timeout:
                 print(f"{model} timeout after 10 seconds, trying next model")
                 continue
             except Exception as e:
                 print(f"{model} error: {e}, trying next model")
                 continue
-        
-        # All models failed
-        print("All AI models failed, using fallback data")
-        return self._fallback_data(vendor_hint)
+
+        # All models failed — return validation failure error
+        print("All AI models failed to produce valid response")
+        return {"error": "AI extraction failed: invalid response format"}
     
     def _validate_date(self, date_str):
         """Validate and format date"""

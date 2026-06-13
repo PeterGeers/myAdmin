@@ -149,7 +149,7 @@ class TestExtractUserCredentials:
         assert error is not None
         assert error['statusCode'] == 401
         body = json.loads(error['body'])
-        assert 'Missing Authorization header' in body['error']
+        assert 'Missing or invalid Authorization header' in body['error']
     
     def test_extract_invalid_bearer_format(self):
         """Test error when Authorization header doesn't start with 'Bearer '"""

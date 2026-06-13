@@ -4,6 +4,10 @@ AWS Cognito Authentication Utilities for myAdmin
 This module provides JWT token validation, role extraction, and permission checking
 for AWS Cognito-based authentication in Flask applications.
 
+Uses cryptographic JWT verification via JWTVerifier when Cognito environment variables
+are configured. Falls back to base64 payload decoding only when env vars are missing
+(e.g., local development without Cognito access).
+
 Based on the implementation guide at .kiro/specs/Common/Cognito/implementation-guide.md
 """
 
@@ -11,8 +15,62 @@ import os
 import json
 import base64
 import functools
+import logging
 from typing import Tuple, List, Optional, Dict, Any
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+# --- JWT Verifier Singleton ---
+
+_jwt_verifier_instance = None
+_jwt_verifier_init_attempted = False
+
+
+def _get_jwt_verifier():
+    """
+    Get or create the singleton JWTVerifier instance.
+
+    Lazily initializes the verifier on first use using environment variables:
+    - COGNITO_USER_POOL_ID
+    - COGNITO_REGION
+    - COGNITO_APP_CLIENT_ID
+
+    Returns:
+        JWTVerifier instance, or None if env vars are not configured.
+    """
+    global _jwt_verifier_instance, _jwt_verifier_init_attempted
+
+    if _jwt_verifier_instance is not None:
+        return _jwt_verifier_instance
+
+    if _jwt_verifier_init_attempted:
+        # Already tried and failed — don't retry every request
+        return None
+
+    _jwt_verifier_init_attempted = True
+
+    user_pool_id = os.environ.get('COGNITO_USER_POOL_ID')
+    region = os.environ.get('COGNITO_REGION')
+    app_client_id = os.environ.get('COGNITO_APP_CLIENT_ID')
+
+    if not all([user_pool_id, region, app_client_id]):
+        logger.warning(
+            "JWT cryptographic verification disabled: missing one or more env vars "
+            "(COGNITO_USER_POOL_ID, COGNITO_REGION, COGNITO_APP_CLIENT_ID). "
+            "Falling back to base64 payload decoding."
+        )
+        return None
+
+    from auth.jwt_verifier import JWTVerifier
+    _jwt_verifier_instance = JWTVerifier(
+        user_pool_id=user_pool_id,
+        region=region,
+        app_client_id=app_client_id,
+    )
+    logger.info("JWT cryptographic verification enabled.")
+    return _jwt_verifier_instance
 
 
 # Role-based permission mapping
@@ -177,8 +235,9 @@ def extract_user_credentials(event: Dict[str, Any]) -> Tuple[Optional[str], Opti
     Extract user credentials from Lambda event or Flask request
     
     This function handles both AWS Lambda events and Flask requests.
-    It extracts the JWT token from the Authorization header, decodes it,
-    and extracts the user email and roles (from cognito:groups claim).
+    It extracts the JWT token from the Authorization header and either:
+    - Verifies it cryptographically via JWTVerifier (when Cognito env vars are configured)
+    - Falls back to base64 payload decoding (when env vars are missing)
     
     Args:
         event: Lambda event dict or Flask request object
@@ -206,64 +265,125 @@ def extract_user_credentials(event: Dict[str, Any]) -> Tuple[Optional[str], Opti
         auth_header = headers_lower.get('authorization')
         
         if not auth_header:
-            return None, None, create_error_response(401, 'Missing Authorization header')
+            return None, None, create_error_response(401, 'Missing or invalid Authorization header')
         
         # Validate Bearer token format
         if not auth_header.startswith('Bearer '):
-            return None, None, create_error_response(401, 'Invalid Authorization header format. Expected: Bearer <token>')
+            return None, None, create_error_response(401, 'Missing or invalid Authorization header')
         
         # Extract JWT token
         jwt_token = auth_header.replace('Bearer ', '').strip()
         
         if not jwt_token:
-            return None, None, create_error_response(401, 'Empty JWT token')
+            return None, None, create_error_response(401, 'Missing or invalid Authorization header')
+
+        # Try cryptographic verification first
+        verifier = _get_jwt_verifier()
+        if verifier is not None:
+            return _extract_with_verifier(verifier, jwt_token)
         
-        # Split JWT token into parts
-        parts = jwt_token.split('.')
-        if len(parts) != 3:
-            return None, None, create_error_response(401, 'Invalid JWT token format')
-        
-        # Decode payload (second part of JWT)
-        payload_encoded = parts[1]
-        
-        # Add padding if necessary (base64 requires length to be multiple of 4)
-        padding = 4 - (len(payload_encoded) % 4)
-        if padding != 4:
-            payload_encoded += '=' * padding
-        
-        # Decode base64
-        try:
-            payload_decoded = base64.urlsafe_b64decode(payload_encoded)
-            payload = json.loads(payload_decoded)
-        except Exception as e:
-            print(f"JWT decode error: {str(e)}")
-            return None, None, create_error_response(401, 'Failed to decode JWT token')
-        
-        # Extract user email (try multiple fields)
-        user_email = payload.get('email') or payload.get('username') or payload.get('sub')
-        
-        if not user_email:
-            return None, None, create_error_response(401, 'No user identifier found in JWT token')
-        
-        # Extract user roles from cognito:groups claim
-        user_roles = payload.get('cognito:groups', [])
-        
-        # Ensure user_roles is a list
-        if not isinstance(user_roles, list):
-            user_roles = [user_roles] if user_roles else []
-        
-        # Check token expiration (optional but recommended)
-        exp = payload.get('exp')
-        if exp:
-            current_time = datetime.utcnow().timestamp()
-            if current_time > exp:
-                return None, None, create_error_response(401, 'JWT token has expired')
-        
-        return user_email, user_roles, None
+        # Fallback: base64 payload decoding (no cryptographic verification)
+        return _extract_with_base64(jwt_token)
         
     except Exception as e:
-        print(f"Error extracting user credentials: {str(e)}")
+        logger.error(f"Error extracting user credentials: {type(e).__name__}", exc_info=False)
         return None, None, create_error_response(500, 'Internal server error during authentication')
+
+
+def _extract_with_verifier(verifier, jwt_token: str) -> Tuple[Optional[str], Optional[List[str]], Optional[Dict[str, Any]]]:
+    """
+    Extract credentials using cryptographic JWT verification.
+    
+    Maps JWTVerifier exceptions to proper HTTP error responses.
+    
+    Args:
+        verifier: JWTVerifier instance
+        jwt_token: Raw JWT token string (without 'Bearer ' prefix)
+        
+    Returns:
+        tuple: (user_email, user_roles, error_response)
+    """
+    from auth.jwt_verifier import InvalidTokenError, TokenExpiredError, ServiceUnavailableError
+
+    try:
+        payload = verifier.verify_token(jwt_token)
+    except TokenExpiredError:
+        return None, None, create_error_response(401, 'Token has expired')
+    except InvalidTokenError as e:
+        return None, None, create_error_response(401, e.message)
+    except ServiceUnavailableError as e:
+        return None, None, create_error_response(503, e.message)
+
+    # Extract user email (try multiple fields for compatibility)
+    user_email = payload.get('email') or payload.get('username') or payload.get('sub')
+
+    if not user_email:
+        return None, None, create_error_response(401, 'No user identifier found in JWT token')
+
+    # Extract user roles from cognito:groups claim
+    user_roles = payload.get('cognito:groups', [])
+
+    # Ensure user_roles is a list
+    if not isinstance(user_roles, list):
+        user_roles = [user_roles] if user_roles else []
+
+    return user_email, user_roles, None
+
+
+def _extract_with_base64(jwt_token: str) -> Tuple[Optional[str], Optional[List[str]], Optional[Dict[str, Any]]]:
+    """
+    Extract credentials using base64 payload decoding (fallback, no cryptographic verification).
+    
+    Used when Cognito environment variables are not configured (e.g., local development).
+    
+    Args:
+        jwt_token: Raw JWT token string (without 'Bearer ' prefix)
+        
+    Returns:
+        tuple: (user_email, user_roles, error_response)
+    """
+    # Split JWT token into parts
+    parts = jwt_token.split('.')
+    if len(parts) != 3:
+        return None, None, create_error_response(401, 'Missing or invalid Authorization header')
+
+    # Decode payload (second part of JWT)
+    payload_encoded = parts[1]
+
+    # Add padding if necessary (base64 requires length to be multiple of 4)
+    padding = 4 - (len(payload_encoded) % 4)
+    if padding != 4:
+        payload_encoded += '=' * padding
+
+    # Decode base64
+    try:
+        payload_decoded = base64.urlsafe_b64decode(payload_encoded)
+        payload = json.loads(payload_decoded)
+    except Exception as e:
+        logger.debug(f"JWT base64 decode error: {type(e).__name__}")
+        return None, None, create_error_response(401, 'Missing or invalid Authorization header')
+
+    # Extract user email (try multiple fields)
+    user_email = payload.get('email') or payload.get('username') or payload.get('sub')
+
+    if not user_email:
+        return None, None, create_error_response(401, 'No user identifier found in JWT token')
+
+    # Extract user roles from cognito:groups claim
+    user_roles = payload.get('cognito:groups', [])
+
+    # Ensure user_roles is a list
+    if not isinstance(user_roles, list):
+        user_roles = [user_roles] if user_roles else []
+
+    # Check token expiration (optional but recommended for fallback)
+    exp = payload.get('exp')
+    if exp:
+        current_time = datetime.utcnow().timestamp()
+        if current_time > exp:
+            return None, None, create_error_response(401, 'Token has expired')
+
+    return user_email, user_roles, None
 
 
 def get_permissions_for_roles(user_roles: List[str]) -> List[str]:
@@ -388,16 +508,15 @@ def cognito_required(required_roles: Optional[List[str]] = None, required_permis
         def decorated_function(*args, **kwargs):
             from flask import request, jsonify
             
-            # Debug: Print request headers
-            print(f"🔍 Request to {f.__name__}: {request.method} {request.path}", flush=True)
-            print(f"🔍 Headers: {dict(request.headers)}", flush=True)
+            # Debug: Log request info
+            logger.debug(f"Request to {f.__name__}: {request.method} {request.path}")
             
             # Extract user credentials from request
             user_email, user_roles, auth_error = extract_user_credentials(request)
             
             if auth_error:
                 # Return Flask JSON response
-                print(f"❌ Auth error for {f.__name__}: {auth_error}", flush=True)
+                logger.debug(f"Auth error for {f.__name__}: {auth_error.get('statusCode')}")
                 return jsonify(json.loads(auth_error['body'])), auth_error['statusCode']
             
             # Split: global roles from JWT, per-tenant roles from DB
@@ -415,12 +534,12 @@ def cognito_required(required_roles: Optional[List[str]] = None, required_permis
                 tenant_roles = []
             user_roles = list(set(global_roles + tenant_roles))
             
-            print(f"✅ Auth success for {f.__name__}: {user_email} with roles {user_roles}", flush=True)
+            logger.debug(f"Auth success for {f.__name__}: {user_email} with roles {user_roles}")
             
             # Check required roles (if specified)
             if required_roles:
                 if not any(role in user_roles for role in required_roles):
-                    print(f"❌ Role check failed. Required: {required_roles}, User has: {user_roles}", flush=True)
+                    logger.debug(f"Role check failed for {f.__name__}. Required: {required_roles}, User has: {user_roles}")
                     return jsonify({
                         'error': 'Insufficient permissions',
                         'details': f'Required roles: {", ".join(required_roles)}'

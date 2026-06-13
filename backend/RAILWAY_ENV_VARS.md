@@ -9,7 +9,6 @@ Keep this in sync with `backend/.env.example` when adding new variables.
 
 | Variable                       | Category      | Notes                                    |
 | ------------------------------ | ------------- | ---------------------------------------- |
-| `ALLOW_MIGRATION`              | Migration     | One-time flag, remove when done          |
 | `AWS_ACCESS_KEY_ID`            | AWS           | IAM credentials for boto3                |
 | `AWS_REGION`                   | AWS           | `eu-west-1`                              |
 | `AWS_SECRET_ACCESS_KEY`        | AWS           | IAM credentials for boto3                |

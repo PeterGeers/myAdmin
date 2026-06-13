@@ -173,7 +173,7 @@ class BankingService:
                 'error': str(e)
             }
 
-    def check_sequences(self, iban: str, sequences: List[Dict[str, Any]], test_mode: Optional[bool] = None) -> Dict[str, Any]:
+    def check_sequences(self, iban: str, sequences: List[Dict[str, Any]], test_mode: Optional[bool] = None, administration: Optional[str] = None) -> Dict[str, Any]:
         """
         Check sequence numbers against database for duplicates
         
@@ -181,6 +181,7 @@ class BankingService:
             iban (str): IBAN to check sequences for
             sequences (list): List of sequence numbers to check
             test_mode (bool, optional): Override test mode for this operation
+            administration (str, optional): Tenant to scope the sequence check to
             
         Returns:
             dict: Result with existing sequences and duplicates
@@ -191,7 +192,7 @@ class BankingService:
             
             db = DatabaseManager(test_mode=test_mode)
             table_name = 'mutaties'  # Always use 'mutaties' table
-            existing_sequences = db.get_existing_sequences(iban, table_name)
+            existing_sequences = db.get_existing_sequences(iban, table_name, administration=administration)
             
             # Check for duplicates
             duplicates = [seq for seq in sequences if seq in existing_sequences]

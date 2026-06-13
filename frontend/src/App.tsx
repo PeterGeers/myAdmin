@@ -48,10 +48,9 @@ const SysAdminDashboard = lazy(() =>
 );
 
 // Admin pages (default exports)
-const MigrationTool = lazy(() => import('./pages/MigrationTool'));
 const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'migration' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -290,13 +289,7 @@ function AppContent() {
           </ProtectedRoute>
         );
 
-      case 'migration':
-        return (
-          <Box minH="100vh" bg="gray.900">
-            {renderPageHeader('🔄 Migration Tool')}
-            <MigrationTool />
-          </Box>
-        );
+
 
       case 'zzp-invoices':
         return (
@@ -501,12 +494,7 @@ function AppContent() {
                     </Button>
                   )}
 
-                  {/* Migration Tool - SysAdmin only (protected by secret + environment variable) */}
-                  {(user?.roles?.some(role => ['SysAdmin'].includes(role))) && (
-                    <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('migration')}>
-                      🔄 Migration Tool
-                    </Button>
-                  )}
+
                   
                   {/* Loading state */}
                   {modulesLoading && (

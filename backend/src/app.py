@@ -58,7 +58,7 @@ from routes.asset_routes import asset_bp
 from routes.pivot_routes import pivot_bp
 from routes.year_end_config_routes import year_end_config_bp
 from routes.year_end_routes import year_end_bp
-from routes.migration_routes import migration_bp
+
 from routes.user_routes import user_bp
 from routes.signup_routes import signup_bp
 from routes.parameter_admin_routes import parameter_admin_bp
@@ -184,7 +184,7 @@ app.register_blueprint(asset_bp)  # Asset administration endpoints
 app.register_blueprint(pivot_bp)  # Pivot Views endpoints
 app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
 app.register_blueprint(year_end_bp)  # Year-end closure endpoints
-app.register_blueprint(migration_bp)  # ONE-TIME migration endpoints (remove after use!)
+
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(signup_bp)  # Public trial signup endpoints
 app.register_blueprint(config_bp)  # Public configuration endpoints
@@ -283,20 +283,26 @@ except Exception as e:
     print(f"Warning: Could not load OpenAPI spec: {e}")
     swagger = Swagger(app, config=swagger_config)
 
+# CORS Policy Hardening (Security Requirement 5)
+# Explicit allowlist from environment variable — no wildcard, no "null"
+ALLOWED_ORIGINS = [
+    origin.strip() for origin in
+    os.getenv('ALLOWED_ORIGINS', 'https://myadmin.jabaki.nl,https://petergeers.github.io').split(',')
+    if origin.strip()
+]
+
+# Add development origins only in non-production environments
+if os.getenv('RAILWAY_ENVIRONMENT') != 'production':
+    ALLOWED_ORIGINS.extend(['http://localhost:3000', 'http://localhost:3001'])
+
 CORS(app, resources={
     r"/api/*": {
-        "origins": [
-            "http://localhost:3000", 
-            "http://localhost:3001", 
-            "http://127.0.0.1:5000", 
-            "https://petergeers.github.io",  # GitHub Pages
-            "https://myadmin.jabaki.nl",  # Promo website (signup)
-            "null"
-        ],
+        "origins": ALLOWED_ORIGINS,
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Tenant", "X-Language", "X-CSRF-Token", "X-Frontend-URL"],
         "supports_credentials": True,
-        "expose_headers": ["Content-Type", "Authorization"]
+        "expose_headers": ["Content-Type", "Authorization"],
+        "vary_header": True  # Adds Vary: Origin for cache correctness
     }
 })
 
