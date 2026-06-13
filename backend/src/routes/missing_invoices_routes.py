@@ -12,7 +12,8 @@ db = DatabaseManager()
 
 @missing_invoices_bp.route('/api/transactions', methods=['POST'])
 @cognito_required(required_permissions=['transactions_read'])
-def get_transactions(user_email, user_roles):
+@tenant_required()
+def get_transactions(user_email, user_roles, tenant, user_tenants):
     data = request.get_json()
     ids = data.get('ids', [])
     
@@ -23,10 +24,10 @@ def get_transactions(user_email, user_roles):
     query = f"""
     SELECT ID, TransactionAmount, TransactionDate, TransactionDescription, ReferenceNumber
     FROM mutaties 
-    WHERE ID IN ({placeholders})
+    WHERE ID IN ({placeholders}) AND administration = %s
     """
     
-    results = db.execute_query(query, ids)
+    results = db.execute_query(query, ids + [tenant])
     
     transactions = []
     for row in results:
@@ -130,11 +131,11 @@ def update_transaction_refs(user_email, user_roles, tenant, user_tenants):
     
     if filename:
         # Update both Ref3 and Ref4
-        query = f"UPDATE mutaties SET Ref3 = %s, Ref4 = %s WHERE ID IN ({placeholders})"
-        db.execute_query(query, [drive_url, filename] + ids, fetch=False, commit=True)
+        query = f"UPDATE mutaties SET Ref3 = %s, Ref4 = %s WHERE ID IN ({placeholders}) AND administration = %s"
+        db.execute_query(query, [drive_url, filename] + ids + [tenant], fetch=False, commit=True)
     else:
         # Update only Ref3
-        query = f"UPDATE mutaties SET Ref3 = %s WHERE ID IN ({placeholders})"
-        db.execute_query(query, [drive_url] + ids, fetch=False, commit=True)
+        query = f"UPDATE mutaties SET Ref3 = %s WHERE ID IN ({placeholders}) AND administration = %s"
+        db.execute_query(query, [drive_url] + ids + [tenant], fetch=False, commit=True)
     
     return jsonify({'success': True})

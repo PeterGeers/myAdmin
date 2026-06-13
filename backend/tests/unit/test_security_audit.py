@@ -451,7 +451,8 @@ class TestIsSuspiciousRequest:
             result = audit.is_suspicious_request(mock_request)
         assert result is False
 
-    def test_is_suspicious_request_debug_mode_skips_checks(self, audit):
+    def test_is_suspicious_request_debug_mode_does_not_skip_checks(self, audit):
+        """Test that debug mode does NOT skip suspicious request detection (hardened)."""
         mock_request = MagicMock()
         mock_request.path = '/../../etc/passwd'
         mock_request.args = {}
@@ -460,7 +461,7 @@ class TestIsSuspiciousRequest:
 
         with patch.dict('os.environ', {'FLASK_DEBUG': 'true'}):
             result = audit.is_suspicious_request(mock_request)
-        assert result is False
+        assert result is True
 
 
 class TestCheckPasswordStrength:
@@ -808,6 +809,32 @@ class TestCreateSecurityMiddleware:
 
         assert result['status'] == 'Security middleware installed'
 
+    def test_create_security_middleware_logs_warning_debug_in_production(self, mock_db):
+        """Test that a warning is logged when FLASK_DEBUG=true in production."""
+        from flask import Flask
+        app = Flask(__name__)
+
+        with patch.dict('os.environ', {'FLASK_DEBUG': 'true', 'RAILWAY_ENVIRONMENT': 'production'}):
+            with patch('security_audit.DatabaseManager', return_value=mock_db):
+                sa = SecurityAudit()
+            with patch.object(sa.logger, 'warning') as mock_warn:
+                sa.create_security_middleware(app)
+                mock_warn.assert_called_once()
+                assert 'FLASK_DEBUG' in mock_warn.call_args[0][0]
+                assert 'production' in mock_warn.call_args[0][0]
+
+    def test_create_security_middleware_no_warning_outside_production(self, mock_db):
+        """Test that no warning is logged when not in production."""
+        from flask import Flask
+        app = Flask(__name__)
+
+        with patch.dict('os.environ', {'FLASK_DEBUG': 'true', 'RAILWAY_ENVIRONMENT': 'staging'}):
+            with patch('security_audit.DatabaseManager', return_value=mock_db):
+                sa = SecurityAudit()
+            with patch.object(sa.logger, 'warning') as mock_warn:
+                sa.create_security_middleware(app)
+                mock_warn.assert_not_called()
+
 
 class TestValidateRequestHeaders:
     """Tests for validate_request_headers method."""
@@ -851,8 +878,8 @@ class TestValidateRequestHeaders:
             result = audit.validate_request_headers(mock_request)
         assert result is False
 
-    def test_validate_request_headers_debug_mode_always_valid(self, audit):
-        """Test that debug mode skips validation."""
+    def test_validate_request_headers_debug_mode_does_not_skip(self, audit):
+        """Test that debug mode does NOT skip validation (hardened behavior)."""
         mock_request = MagicMock()
         mock_request.headers = {}
         mock_request.path = '/page'
@@ -860,10 +887,10 @@ class TestValidateRequestHeaders:
 
         with patch.dict('os.environ', {'FLASK_DEBUG': 'true'}):
             result = audit.validate_request_headers(mock_request)
-        assert result is True
+        assert result is False
 
-    def test_validate_request_headers_api_path_only_checks_host(self, audit):
-        """Test that API paths only check for Host header."""
+    def test_validate_request_headers_api_path_full_validation(self, audit):
+        """Test that API paths get full header validation (no bypass)."""
         mock_request = MagicMock()
         mock_request.headers = {'Host': 'example.com'}
         mock_request.path = '/api/users'
@@ -871,7 +898,8 @@ class TestValidateRequestHeaders:
 
         with patch.dict('os.environ', {'FLASK_DEBUG': 'false'}):
             result = audit.validate_request_headers(mock_request)
-        assert result is True
+        # POST without Content-Type should fail even for API paths
+        assert result is False
 
 
 class TestRegisterSecurityEndpoints:
@@ -932,9 +960,10 @@ class TestSecurityMiddlewareIntegration:
         response = client.get('/api/health')
         assert response.status_code == 200
 
-    def test_middleware_api_endpoint_bypasses_suspicious_check(self, app_with_middleware):
-        """Test that API endpoints bypass suspicious request checks."""
+    def test_middleware_api_endpoint_runs_suspicious_check(self, app_with_middleware):
+        """Test that API endpoints DO run suspicious request checks (hardened)."""
         client = app_with_middleware.test_client()
+        # Normal API request should pass
         response = client.get('/api/test')
         assert response.status_code == 200
 
@@ -945,12 +974,13 @@ class TestSecurityMiddlewareIntegration:
         assert response.headers.get('X-Content-Type-Options') == 'nosniff'
         assert response.headers.get('X-XSS-Protection') == '1; mode=block'
         assert response.headers.get('Referrer-Policy') == 'strict-origin-when-cross-origin'
+        assert response.headers.get('X-Frame-Options') == 'SAMEORIGIN'
 
-    def test_middleware_docs_no_frame_options(self, app_with_middleware):
-        """Test that docs path doesn't get X-Frame-Options."""
+    def test_middleware_all_paths_get_frame_options(self, app_with_middleware):
+        """Test that ALL paths get X-Frame-Options (including docs)."""
         client = app_with_middleware.test_client()
         response = client.get('/docs/')
-        assert 'X-Frame-Options' not in response.headers
+        assert response.headers.get('X-Frame-Options') == 'SAMEORIGIN'
 
     def test_middleware_non_docs_gets_frame_options(self, app_with_middleware):
         """Test that non-docs paths get X-Frame-Options."""
@@ -958,26 +988,27 @@ class TestSecurityMiddlewareIntegration:
         response = client.get('/api/health')
         assert response.headers.get('X-Frame-Options') == 'SAMEORIGIN'
 
-    def test_middleware_debug_mode_skips_checks(self, app_with_middleware):
-        """Test that debug mode skips security checks."""
+    def test_middleware_debug_mode_does_not_skip_checks(self, app_with_middleware):
+        """Test that debug mode does NOT skip security checks (hardened)."""
         client = app_with_middleware.test_client()
+        # A suspicious request should be blocked even in debug mode
         with patch.dict('os.environ', {'FLASK_DEBUG': 'true'}):
-            response = client.get('/test-page')
-        assert response.status_code == 200
+            response = client.get('/test-page?q=1=1')
+        assert response.status_code == 403
 
-    def test_middleware_test_mode_skips_checks(self, app_with_middleware):
-        """Test that test mode skips security checks."""
+    def test_middleware_test_mode_does_not_skip_checks(self, app_with_middleware):
+        """Test that test mode does NOT skip security checks (hardened)."""
         client = app_with_middleware.test_client()
         with patch.dict('os.environ', {'TEST_MODE': 'true', 'FLASK_DEBUG': 'false'}):
-            response = client.get('/test-page')
-        assert response.status_code == 200
+            response = client.get('/test-page?q=1=1')
+        assert response.status_code == 403
 
-    def test_middleware_localhost_skips_checks(self, app_with_middleware):
-        """Test that localhost requests skip security checks."""
+    def test_middleware_localhost_does_not_skip_checks(self, app_with_middleware):
+        """Test that localhost requests do NOT skip security checks (hardened)."""
         client = app_with_middleware.test_client()
         with patch.dict('os.environ', {'FLASK_DEBUG': 'false', 'TEST_MODE': 'false'}):
+            # Normal request from localhost should pass
             response = client.get('/test-page')
-        # localhost requests should pass through
         assert response.status_code == 200
 
 

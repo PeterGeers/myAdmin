@@ -569,40 +569,28 @@ class SecurityAudit:
         return critical_issues
 
     def create_security_middleware(self, app):
-        """Create security middleware for Flask app"""
+        """Create security middleware for Flask app.
+
+        Security checks run on ALL requests regardless of FLASK_DEBUG,
+        TEST_MODE, host, or IP address. Only health check endpoints are
+        whitelisted.
+        """
+        # Log warning if debug mode is active in production
+        if (os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+                and os.getenv('RAILWAY_ENVIRONMENT', '').lower() == 'production'):
+            self.logger.warning(
+                "FLASK_DEBUG is enabled in production environment. "
+                "Security checks remain enforced but debug mode may expose "
+                "sensitive information in error responses."
+            )
+
         @app.before_request
         def security_checks():
-            # Whitelist health check and status endpoints FIRST (needed for Railway/Docker health checks)
+            # Only whitelist health check endpoints (needed for Railway/Docker health checks)
             if request.path in ['/api/health', '/api/status']:
                 return None
-            
-            # Skip all security checks in development mode
-            if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
-                return None
-            
-            # Skip all security checks in test mode
-            if os.getenv('TEST_MODE', 'false').lower() == 'true':
-                return None
-            
-            # Auto-detect local development (localhost or 127.0.0.1 or Docker internal IPs)
-            host = request.host.split(':')[0]  # Remove port if present
-            remote_addr = request.remote_addr or ''
-            
-            # Skip security checks for local development
-            local_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '172.17.0.1', '192.168.65.1']
-            if host in local_hosts or remote_addr in local_hosts or remote_addr.startswith('172.') or remote_addr.startswith('192.168.'):
-                return None
-            
-            # Skip suspicious request checks for authenticated API endpoints
-            # These are protected by Cognito authentication
-            if request.path.startswith('/api/'):
-                return None
 
-            # Skip security checks for documentation site (served by MkDocs, embedded in help drawer)
-            if request.path.startswith('/docs/') or request.path == '/docs':
-                return None
-
-            # Check for suspicious request patterns (only for non-API routes)
+            # Check for suspicious request patterns on ALL requests
             if self.is_suspicious_request(request):
                 self.logger.warning(f"Suspicious request detected: {request.path}")
                 return jsonify({'error': 'Suspicious request detected'}), 403
@@ -614,11 +602,9 @@ class SecurityAudit:
 
         @app.after_request
         def add_security_headers(response):
-            # Skip frame restrictions for docs (embedded in help drawer iframe)
-            if not request.path.startswith('/docs/'):
-                response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-            # Add security headers to all responses
+            # Apply security response headers to ALL responses
             response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'SAMEORIGIN'
             response.headers['X-XSS-Protection'] = '1; mode=block'
             response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
             return response
@@ -634,21 +620,19 @@ class SecurityAudit:
         }
 
     def is_suspicious_request(self, request):
-        """Check if request shows suspicious patterns"""
-        # Skip suspicious request detection in development mode
-        if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
-            return False
-            
+        """Check if request shows suspicious patterns.
+
+        Runs on ALL requests regardless of environment variables.
+        """
         suspicious_patterns = [
             r'/\.\./',  # Directory traversal
             r'\.\./',   # Directory traversal
             r'%00',     # Null byte
-            r'1=1',     # SQL injection
+            r'\b1=1\b',     # SQL injection
             r'union\s+select',  # SQL injection
             r'<script', # XSS
             r'javascript:',    # XSS
-            r'../',     # Directory traversal
-            r'./',      # Potential traversal
+            r'\.\.\/',     # Directory traversal (literal ../)
             r'%2e%2e%2f',  # URL encoded traversal
             r'%252e%252e%252f'  # Double URL encoded traversal
         ]
@@ -674,16 +658,10 @@ class SecurityAudit:
         return False
 
     def validate_request_headers(self, request):
-        """Validate request headers for security"""
-        # Skip header validation in development mode
-        if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
-            return True
-            
-        # Skip strict header validation for API endpoints
-        if request.path.startswith('/api/'):
-            # Only check for basic required headers for API calls
-            return 'Host' in request.headers
-            
+        """Validate request headers for security.
+
+        Runs on ALL requests regardless of environment variables.
+        """
         # Check for required headers
         required_headers = ['Host']
         for header in required_headers:

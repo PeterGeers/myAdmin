@@ -426,3 +426,131 @@ class TestConfirmResetPassword:
         data = json.loads(response.data)
         assert data['success'] is False
         assert 'password' in data['error'].lower()
+
+
+# ============================================================================
+# Rate Limiting Tests (Task 9.2 — Security Hardening)
+# ============================================================================
+
+
+class TestForgotPasswordRateLimiting:
+    """Tests for rate limiting on POST /api/auth/forgot-password.
+
+    Validates Requirements 7.1, 7.2, 7.3, 7.4.
+    """
+
+    @patch('routes.auth_routes.RateLimiter.get_client_ip', return_value='1.2.3.4')
+    @patch('routes.auth_routes.password_reset_limiter')
+    def test_rate_limit_exceeded_returns_429_with_retry_after(
+        self, mock_limiter, mock_get_ip, client, mock_env
+    ):
+        """When rate limit is exceeded, should return 429 with Retry-After header."""
+        from auth.rate_limiter import RateLimitResult
+
+        mock_limiter.check_rate_limit.return_value = RateLimitResult(
+            allowed=False, retry_after_seconds=540, limit_type='email'
+        )
+
+        response = client.post(
+            '/api/auth/forgot-password',
+            json={'email': 'attacker@example.com'}
+        )
+
+        assert response.status_code == 429
+        data = json.loads(response.data)
+        assert data['error'] == 'Too many requests. Please try again later.'
+        assert response.headers.get('Retry-After') == '540'
+
+    @patch('routes.auth_routes.RateLimiter.get_client_ip', return_value='10.0.0.1')
+    @patch('routes.auth_routes.password_reset_limiter')
+    def test_rate_limit_exceeded_by_ip_returns_429(
+        self, mock_limiter, mock_get_ip, client, mock_env
+    ):
+        """When IP limit is exceeded, should return 429 with Retry-After header."""
+        from auth.rate_limiter import RateLimitResult
+
+        mock_limiter.check_rate_limit.return_value = RateLimitResult(
+            allowed=False, retry_after_seconds=300, limit_type='ip'
+        )
+
+        response = client.post(
+            '/api/auth/forgot-password',
+            json={'email': 'user@example.com'}
+        )
+
+        assert response.status_code == 429
+        data = json.loads(response.data)
+        assert data['error'] == 'Too many requests. Please try again later.'
+        assert response.headers.get('Retry-After') == '300'
+
+    @patch('services.ses_email_service.SESEmailService')
+    @patch('services.email_template_service.EmailTemplateService')
+    @patch('routes.auth_routes._get_db')
+    @patch('routes.auth_routes.boto3.client')
+    @patch('routes.auth_routes.RateLimiter.get_client_ip', return_value='5.5.5.5')
+    @patch('routes.auth_routes.password_reset_limiter')
+    def test_rate_limit_allowed_records_request(
+        self, mock_limiter, mock_get_ip, mock_boto_client, mock_get_db,
+        mock_email_tmpl, mock_ses, client, mock_env
+    ):
+        """When rate limit allows, should record the request and proceed."""
+        from auth.rate_limiter import RateLimitResult
+
+        mock_limiter.check_rate_limit.return_value = RateLimitResult(
+            allowed=True, retry_after_seconds=0, limit_type=None
+        )
+
+        mock_cognito = MagicMock()
+        mock_boto_client.return_value = mock_cognito
+        mock_cognito.admin_get_user.side_effect = ClientError(
+            {'Error': {'Code': 'UserNotFoundException', 'Message': 'Not found'}},
+            'AdminGetUser'
+        )
+
+        response = client.post(
+            '/api/auth/forgot-password',
+            json={'email': 'someone@example.com'}
+        )
+
+        assert response.status_code == 200
+        # Verify record_request was called with correct email and IP
+        mock_limiter.record_request.assert_called_once_with(
+            'someone@example.com', '5.5.5.5'
+        )
+
+    @patch('routes.auth_routes.password_reset_limiter')
+    def test_rate_limit_not_checked_when_email_missing(
+        self, mock_limiter, client, mock_env
+    ):
+        """When email is missing, rate limit should NOT be checked (returns 400 first)."""
+        response = client.post(
+            '/api/auth/forgot-password',
+            json={'email': ''}
+        )
+
+        assert response.status_code == 400
+        mock_limiter.check_rate_limit.assert_not_called()
+
+    @patch('routes.auth_routes.RateLimiter.get_client_ip', return_value='192.168.1.100')
+    @patch('routes.auth_routes.password_reset_limiter')
+    def test_rate_limit_uses_get_client_ip(
+        self, mock_limiter, mock_get_ip, client, mock_env
+    ):
+        """Should use RateLimiter.get_client_ip to extract IP from request."""
+        from auth.rate_limiter import RateLimitResult
+
+        mock_limiter.check_rate_limit.return_value = RateLimitResult(
+            allowed=False, retry_after_seconds=60, limit_type='ip'
+        )
+
+        client.post(
+            '/api/auth/forgot-password',
+            json={'email': 'test@test.com'}
+        )
+
+        # Verify get_client_ip was called
+        mock_get_ip.assert_called_once()
+        # Verify check_rate_limit was called with correct IP
+        mock_limiter.check_rate_limit.assert_called_once_with(
+            'test@test.com', '192.168.1.100'
+        )

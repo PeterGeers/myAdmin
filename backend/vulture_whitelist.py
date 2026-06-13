@@ -129,11 +129,6 @@ approve_transactions  # noqa
 upload_file_wrapper  # noqa
 
 # =============================================================================
-# routes/migration_routes.py
-# =============================================================================
-migrate_opening_balances_unauthenticated  # noqa
-
-# =============================================================================
 # routes/missing_invoices_routes.py
 # =============================================================================
 get_transactions  # noqa

@@ -16,11 +16,12 @@ import os
 import secrets
 import logging
 from datetime import datetime, timedelta
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, make_response
 import boto3
 from botocore.exceptions import ClientError
 from database import DatabaseManager
 from auth.cognito_utils import cognito_required
+from auth.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,9 @@ AWS_REGION = os.getenv('AWS_REGION', 'eu-west-1')
 USER_POOL_ID = os.getenv('COGNITO_USER_POOL_ID')
 CODE_EXPIRY_MINUTES = 10
 MAX_ATTEMPTS = 3
+
+# Singleton rate limiter for password reset endpoints
+password_reset_limiter = RateLimiter()
 
 
 def _generate_code() -> str:
@@ -59,6 +63,21 @@ def forgot_password():
 
         if not email:
             return jsonify({'success': False, 'error': 'Email is required'}), 400
+
+        # Rate limit check — by both email and client IP independently
+        client_ip = RateLimiter.get_client_ip(request)
+        rate_limit_result = password_reset_limiter.check_rate_limit(email, client_ip)
+
+        if not rate_limit_result.allowed:
+            response = make_response(
+                jsonify({'error': 'Too many requests. Please try again later.'}),
+                429
+            )
+            response.headers['Retry-After'] = str(rate_limit_result.retry_after_seconds)
+            return response
+
+        # Record the request against both email and IP windows
+        password_reset_limiter.record_request(email, client_ip)
 
         # Verify user exists in Cognito (silently — don't reveal to caller)
         cognito = boto3.client('cognito-idp', region_name=AWS_REGION)

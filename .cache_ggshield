@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"match": "7c39379de03a584489ed93df3572cacdb74c9fab7fe28056eec07900fbfe79d3", "name": "Generic Password - C:\\Users\\peter\\aws\\myAdmin\\backend\\tests\\unit\\test_email_template_service.py"}]}
+{"last_found_secrets": [{"name": "Generic High Entropy Secret - C:\\Users\\peter\\aws\\myAdmin\\backend\\tests\\unit\\test_log_sanitizer.py", "match": "202df490678c24979e7e662ec0952f037380c25bc87806b59300c9a313acb670"}]}

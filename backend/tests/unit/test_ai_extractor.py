@@ -240,8 +240,8 @@ class TestExtractInvoiceData:
         assert result['vendor'] == 'TestVendor'
 
     @patch('ai_extractor.requests.post')
-    def test_extract_invoice_data_all_models_fail_returns_fallback(self, mock_post, extractor):
-        """Test that when all models fail, fallback data is returned."""
+    def test_extract_invoice_data_all_models_fail_returns_error(self, mock_post, extractor):
+        """Test that when all models fail, an error dict is returned."""
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
@@ -249,8 +249,8 @@ class TestExtractInvoiceData:
 
         result = extractor.extract_invoice_data("Invoice text", vendor_hint="TestVendor")
 
-        assert result['total_amount'] == 0.0
-        assert result['vendor'] == 'TestVendor'
+        assert 'error' in result
+        assert result['error'] == "AI extraction failed: invalid response format"
 
     @patch('ai_extractor.requests.post')
     def test_extract_invoice_data_timeout_tries_next_model(self, mock_post, extractor):

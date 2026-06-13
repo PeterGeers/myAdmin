@@ -74,7 +74,8 @@ def banking_process_files(user_email, user_roles, tenant, user_tenants) -> Respo
 
 @banking_bp.route('/api/banking/check-sequences', methods=['POST'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_check_sequences(user_email, user_roles) -> ResponseReturnValue:
+@tenant_required()
+def banking_check_sequences(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Check sequence numbers against database"""
     try:
         data = request.get_json()
@@ -82,7 +83,7 @@ def banking_check_sequences(user_email, user_roles) -> ResponseReturnValue:
         sequences = data.get('sequences', [])
         test_mode = data.get('test_mode', True)
         
-        result = banking_service.check_sequences(iban, sequences, test_mode)
+        result = banking_service.check_sequences(iban, sequences, test_mode, tenant)
         return jsonify(result)
         
     except Exception as e:
@@ -372,14 +373,24 @@ def banking_check_accounts(user_email, user_roles, tenant, user_tenants) -> Resp
 
 @banking_bp.route('/api/banking/check-sequence', methods=['GET'])
 @cognito_required(required_permissions=['banking_read'])
-def banking_check_sequence(user_email, user_roles) -> ResponseReturnValue:
+@tenant_required()
+def banking_check_sequence(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Check sequence numbers for account"""
     try:
         from banking_processor import BankingProcessor
         
+        administration = request.args.get('administration')
+        
+        # Validate administration parameter is present
+        if not administration or administration.strip() == '':
+            return jsonify({'error': 'Administration parameter is required'}), 400
+        
+        # Validate administration against user's accessible tenants
+        if administration not in user_tenants:
+            return jsonify({'error': 'Access denied to requested administration'}), 403
+        
         processor = BankingProcessor(test_mode=banking_service.test_mode)
         account_code = request.args.get('account_code')
-        administration = request.args.get('administration')
         start_date = request.args.get('start_date', '2025-01-01')
         
         result = processor.check_sequence_numbers(account_code, administration, start_date)

@@ -150,7 +150,8 @@ def upload_file_authenticated(user_email, user_roles, tenant, user_tenants):
 
 @invoice_bp.route('/api/approve-transactions', methods=['POST'])
 @cognito_required(required_permissions=['transactions_create'])
-def approve_transactions(user_email, user_roles):
+@tenant_required()
+def approve_transactions(user_email, user_roles, tenant, user_tenants):
     """Save approved transactions to database"""
     from transaction_logic import TransactionLogic
     
@@ -158,6 +159,10 @@ def approve_transactions(user_email, user_roles):
         transaction_logic = TransactionLogic(test_mode=flag)
         data = request.get_json()
         transactions = data.get('transactions', [])
+        
+        # Enforce tenant on all transactions before saving
+        for txn in transactions:
+            txn['Administration'] = tenant
         
         saved_transactions = transaction_logic.save_approved_transactions(transactions)
         

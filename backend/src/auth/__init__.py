@@ -25,6 +25,8 @@ from .tenant_context import (
     set_tenant_config
 )
 
+from .rate_limiter import RateLimiter, RateLimitResult
+
 __all__ = [
     'extract_user_credentials',
     'validate_permissions',
@@ -41,5 +43,7 @@ __all__ = [
     'tenant_required',
     'add_tenant_filter',
     'get_tenant_config',
-    'set_tenant_config'
+    'set_tenant_config',
+    'RateLimiter',
+    'RateLimitResult'
 ]

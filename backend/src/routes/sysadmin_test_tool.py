@@ -218,6 +218,11 @@ def rerun_prompt(user_email, user_roles):
         # Call InvoiceTestService to re-run AI extraction with custom prompt
         service = InvoiceTestService()
         result = service.rerun_with_custom_prompt(text_content, custom_prompt, vendor_hint)
+
+        # Return HTTP 422 for sanitization rejection or validation failures
+        if 'error' in result and not result.get('success', True):
+            return jsonify(result), 422
+
         return jsonify(result), 200
 
     except Exception as e:

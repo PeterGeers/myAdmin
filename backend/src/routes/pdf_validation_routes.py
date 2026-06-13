@@ -4,6 +4,7 @@ Handles PDF URL validation and Google Drive integration
 """
 from flask import Blueprint, request, jsonify, Response
 from auth.cognito_utils import cognito_required
+from auth.tenant_context import tenant_required
 from pdf_validation import PDFValidator
 import json
 
@@ -21,11 +22,16 @@ def set_test_mode(test_mode):
 
 @pdf_validation_bp.route('/api/pdf/validate-urls-stream', methods=['GET'])
 @cognito_required(required_permissions=['invoices_read'])
-def pdf_validate_urls_stream(user_email, user_roles):
+@tenant_required()
+def pdf_validate_urls_stream(user_email, user_roles, tenant, user_tenants):
     """Stream PDF validation progress with Server-Sent Events"""
     validator = PDFValidator(test_mode=flag)
     year = request.args.get('year', '2025')
-    administration = request.args.get('administration', 'all')
+    administration = request.args.get('administration', '').strip() or tenant
+
+    # Validate user has access to requested administration
+    if administration != 'all' and administration not in user_tenants:
+        return jsonify({'success': False, 'error': 'Access denied to requested administration'}), 403
     
     def generate_progress():
         try:
@@ -56,14 +62,20 @@ def pdf_validate_urls_stream(user_email, user_roles):
 
 @pdf_validation_bp.route('/api/pdf/validate-urls', methods=['GET'])
 @cognito_required(required_permissions=['invoices_read'])
-def pdf_validate_urls(user_email, user_roles):
+@tenant_required()
+def pdf_validate_urls(user_email, user_roles, tenant, user_tenants):
     """Validate all Google Drive URLs in mutaties table"""
     try:
         validator = PDFValidator(test_mode=flag)
         
         # Parse year and administration parameters
         year = request.args.get('year', '2025')
-        administration = request.args.get('administration', 'all')
+        administration = request.args.get('administration', '').strip() or tenant
+
+        # Validate user has access to requested administration
+        if administration != 'all' and administration not in user_tenants:
+            return jsonify({'success': False, 'error': 'Access denied to requested administration'}), 403
+
         print(f"Validating year: {year}, administration: {administration}")
         
         # Get results from the year-specific method
