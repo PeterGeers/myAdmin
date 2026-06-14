@@ -319,3 +319,173 @@ class TestExtractInvoiceData:
 
         assert result['total_amount'] == 100.0
         assert result['vat_amount'] == 17.36
+
+
+class TestAIExtractorRegistryIntegration:
+    """Tests for AIExtractor registry integration.
+
+    Validates that the AIExtractor correctly uses the ai_model_registry
+    resolver for fallback chain iteration, error handling, and usage tracking.
+
+    Requirements: 5.2, 5.4, 5.5, 11.3, 11.4
+    """
+
+    @pytest.fixture
+    def extractor(self, mock_env):
+        """Create AIExtractor with mocked environment."""
+        with patch('ai_extractor.load_dotenv'):
+            with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}):
+                ext = AIExtractor()
+        return ext
+
+    @pytest.mark.unit
+    @patch('ai_extractor.requests.post')
+    @patch('ai_extractor.resolver.resolve_profile')
+    def test_fallback_iteration_order(self, mock_resolve, mock_post, extractor):
+        """Test that AIExtractor iterates models in chain order, using Nth on success.
+
+        Validates: Requirements 5.2 — iterate in order, skip on failure, return first success.
+        """
+        from services.ai_model_registry import ResolvedModel
+
+        # Set up a 3-model chain
+        chain = [
+            ResolvedModel(model_id="model-a/first", timeout=10, max_tokens=500, cost_tier="free", supports_vision=False),
+            ResolvedModel(model_id="model-b/second", timeout=10, max_tokens=500, cost_tier="cheap", supports_vision=False),
+            ResolvedModel(model_id="model-c/third", timeout=15, max_tokens=1000, cost_tier="paid", supports_vision=False),
+        ]
+        mock_resolve.return_value = chain
+
+        # First two models fail (non-200 status), third succeeds
+        fail_response = MagicMock()
+        fail_response.status_code = 500
+        fail_response.text = "Internal Server Error"
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.json.return_value = {
+            'choices': [{
+                'message': {
+                    'content': '{"date": "2024-06-01", "total_amount": 200.0, "vat_amount": 34.71, "description": "Test invoice", "vendor": "TestVendor"}'
+                }
+            }],
+            'usage': {'prompt_tokens': 100, 'completion_tokens': 20, 'total_tokens': 120}
+        }
+
+        mock_post.side_effect = [fail_response, fail_response, success_response]
+
+        result = extractor.extract_invoice_data("Invoice text content")
+
+        # Verify the third model's result is returned
+        assert result['total_amount'] == 200.0
+        assert result['vendor'] == 'TestVendor'
+        assert result['_usage']['model'] == 'model-c/third'
+
+        # Verify all 3 models were attempted
+        assert mock_post.call_count == 3
+
+        # Verify call order matches chain order
+        calls = mock_post.call_args_list
+        assert calls[0][1]['json']['model'] == 'model-a/first'
+        assert calls[1][1]['json']['model'] == 'model-b/second'
+        assert calls[2][1]['json']['model'] == 'model-c/third'
+
+        # Verify resolve_profile was called with correct profile name
+        mock_resolve.assert_called_once_with("structured_extraction")
+
+    @pytest.mark.unit
+    @patch('ai_extractor.requests.post')
+    @patch('ai_extractor.resolver.resolve_profile')
+    def test_registry_error_returns_error_dict(self, mock_resolve, mock_post, extractor):
+        """Test that RegistryError from resolve_profile returns proper error dict.
+
+        Validates: Requirements 5.5 — return error dict when registry is unavailable.
+        """
+        from services.ai_model_registry import RegistryError
+
+        mock_resolve.side_effect = RegistryError(
+            "Unknown profile 'structured_extraction'. Available profiles: []"
+        )
+
+        result = extractor.extract_invoice_data("Invoice text content")
+
+        # Should return error dict with registry unavailability message
+        assert 'error' in result
+        assert 'Registry unavailable:' in result['error']
+        assert 'structured_extraction' in result['error']
+
+        # Should NOT have attempted any API calls
+        mock_post.assert_not_called()
+
+    @pytest.mark.unit
+    @patch('ai_extractor.requests.post')
+    @patch('ai_extractor.resolver.resolve_profile')
+    def test_all_models_fail_returns_terminal_error(self, mock_resolve, mock_post, extractor):
+        """Test that when all models fail, the terminal error structure is returned.
+
+        Validates: Requirements 11.3 — error dict with "error" key for AIExtractor.
+        """
+        from services.ai_model_registry import ResolvedModel
+
+        chain = [
+            ResolvedModel(model_id="model-a/first", timeout=10, max_tokens=500, cost_tier="free", supports_vision=False),
+            ResolvedModel(model_id="model-b/second", timeout=10, max_tokens=500, cost_tier="cheap", supports_vision=False),
+        ]
+        mock_resolve.return_value = chain
+
+        # All models return non-200 responses
+        fail_response = MagicMock()
+        fail_response.status_code = 500
+        fail_response.text = "Server Error"
+        mock_post.return_value = fail_response
+
+        result = extractor.extract_invoice_data("Invoice text content")
+
+        # Terminal failure: error dict with specific message
+        assert result == {"error": "AI extraction failed: invalid response format"}
+
+        # Both models were attempted
+        assert mock_post.call_count == 2
+
+    @pytest.mark.unit
+    @patch('ai_extractor.requests.post')
+    @patch('ai_extractor.resolver.resolve_profile')
+    def test_usage_metadata_contains_model_id(self, mock_resolve, mock_post, extractor):
+        """Test that _usage.model matches the successful model's model_id from chain.
+
+        Validates: Requirements 11.4 — usage data reports correct model_used.
+        """
+        from services.ai_model_registry import ResolvedModel
+
+        chain = [
+            ResolvedModel(model_id="fail-model/v1", timeout=5, max_tokens=500, cost_tier="free", supports_vision=False),
+            ResolvedModel(model_id="success-model/v2", timeout=10, max_tokens=1000, cost_tier="cheap", supports_vision=False),
+        ]
+        mock_resolve.return_value = chain
+
+        import requests as real_requests
+
+        # First model times out, second succeeds
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.json.return_value = {
+            'choices': [{
+                'message': {
+                    'content': '{"date": "2024-01-15", "total_amount": 50.0, "vat_amount": 8.68, "description": "Test", "vendor": "Acme"}'
+                }
+            }],
+            'usage': {'prompt_tokens': 200, 'completion_tokens': 30, 'total_tokens': 230}
+        }
+
+        mock_post.side_effect = [
+            real_requests.exceptions.Timeout("Timed out"),
+            success_response,
+        ]
+
+        result = extractor.extract_invoice_data("Invoice text content")
+
+        # Usage metadata must contain the successful model's identifier
+        assert result['_usage']['model'] == 'success-model/v2'
+        assert result['_usage']['prompt_tokens'] == 200
+        assert result['_usage']['completion_tokens'] == 30
+        assert result['_usage']['total_tokens'] == 230

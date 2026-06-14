@@ -6,12 +6,17 @@ from datetime import datetime
 from dotenv import load_dotenv
 from PIL import Image
 
+from services.ai_model_registry import resolver, RegistryError
+from services.ai_usage_tracker import AIUsageTracker
+
 load_dotenv()
 
 class ImageAIProcessor:
-    def __init__(self):
+    def __init__(self, db=None, tenant=None):
         self.api_key = os.getenv('OPENROUTER_API_KEY')
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.usage_tracker = AIUsageTracker(db) if db else None
+        self.tenant = tenant
         
     def process_image(self, image_path, vendor_hint=None, previous_transactions=None):
         """Process image using AI vision models, fallback to Tesseract"""
@@ -26,10 +31,17 @@ class ImageAIProcessor:
         return self._try_tesseract(image_path, vendor_hint, previous_transactions)
     
     def _try_ai_vision(self, image_path, vendor_hint, previous_transactions):
-        """Try free AI vision models"""
+        """Try AI vision models from registry, in fallback chain order"""
         if not self.api_key:
             print("No API key, skipping AI vision")
             return None
+        
+        # Resolve vision model chain from registry
+        try:
+            chain = resolver.resolve_profile("vision")
+        except RegistryError as e:
+            print(f"Registry error resolving vision profile: {e}")
+            return None  # Proceed to Tesseract OCR fallback
         
         # Encode image to base64
         try:
@@ -62,16 +74,10 @@ class ImageAIProcessor:
 Return ONLY valid JSON:
 {{"date": "YYYY-MM-DD", "total_amount": 0.00, "vat_amount": 0.00, "description": "text", "vendor": "name"}}"""
         
-        # Vision models - prioritize DeepSeek for consistency, then cheap/free alternatives
-        models = [
-            "openai/gpt-4o-mini",  # Very cheap (~$0.00015/image), fast, reliable for vision
-            "google/gemini-2.0-flash-exp:free",  # Free but rate-limited
-            "anthropic/claude-3-haiku"  # Cheap backup
-        ]
-        
-        for model in models:
+        # Iterate models in chain order from registry
+        for model in chain:
             try:
-                print(f"Trying vision model: {model}")
+                print(f"Trying vision model: {model.model_id}")
                 response = requests.post(
                     self.base_url,
                     headers={
@@ -79,7 +85,7 @@ Return ONLY valid JSON:
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": model,
+                        "model": model.model_id,
                         "messages": [{
                             "role": "user",
                             "content": [
@@ -88,20 +94,36 @@ Return ONLY valid JSON:
                             ]
                         }],
                         "temperature": 0.1,
-                        "max_tokens": 500
+                        "max_tokens": model.max_tokens
                     },
-                    timeout=15
+                    timeout=model.timeout
                 )
                 
                 if response.status_code == 200:
                     result = response.json()
                     content = result['choices'][0]['message']['content'].strip()
                     
+                    # Capture token usage
+                    usage = result.get('usage', {})
+                    tokens_used = usage.get('total_tokens', 0)
+                    if tokens_used == 0:
+                        tokens_used = usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)
+                    
                     if content.startswith('```json'):
                         content = content.replace('```json', '').replace('```', '').strip()
                     
                     data = json.loads(content)
-                    print(f"✓ Vision extraction successful with {model}")
+                    print(f"✓ Vision extraction successful with {model.model_id}")
+                    
+                    # Log AI usage
+                    if self.usage_tracker and self.tenant and tokens_used > 0:
+                        self.usage_tracker.log_ai_request(
+                            administration=self.tenant,
+                            template_type='vision_extraction',
+                            tokens_used=tokens_used,
+                            model_used=model.model_id
+                        )
+                    
                     return {
                         'date': self._validate_date(data.get('date')),
                         'total_amount': round(float(data.get('total_amount', 0)), 2),
@@ -110,16 +132,16 @@ Return ONLY valid JSON:
                         'vendor': str(data.get('vendor', vendor_hint or 'Unknown'))
                     }
                 else:
-                    print(f"{model} error: {response.status_code} - {response.text[:200]}")
+                    print(f"{model.model_id} error: {response.status_code} - {response.text[:200]}")
                     
             except json.JSONDecodeError as e:
-                print(f"{model} JSON error: {e}")
+                print(f"{model.model_id} JSON error: {e}")
                 continue
             except Exception as e:
-                print(f"{model} failed: {str(e)[:200]}")
+                print(f"{model.model_id} failed: {str(e)[:200]}")
                 continue
         
-        return None
+        return None  # All models failed, proceed to Tesseract OCR fallback
     
     def _try_tesseract(self, image_path, vendor_hint, previous_transactions):
         """Fallback to Tesseract OCR + AI text extraction"""

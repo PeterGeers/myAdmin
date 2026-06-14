@@ -849,3 +849,237 @@ class TestGetEventNameForDate:
             result = optimizer._get_event_name_for_date(date(2025, 4, 27))
 
         assert result is None
+
+
+class TestRegistryIntegration:
+    """Tests for HybridPricingOptimizer registry integration.
+
+    Validates that the optimizer correctly uses the AI model registry
+    to resolve profiles, iterate models, and handle errors gracefully.
+
+    Requirements: 8.4, 8.5, 11.3
+    """
+
+    @pytest.fixture
+    def optimizer(self, mock_db, mock_env):
+        with patch('hybrid_pricing_optimizer.load_dotenv'):
+            with patch('hybrid_pricing_optimizer.DatabaseManager', return_value=mock_db):
+                with patch('hybrid_pricing_optimizer.BusinessPricingModel'):
+                    opt = HybridPricingOptimizer(test_mode=True)
+                    opt.api_key = 'test-key'
+        return opt
+
+    @patch('hybrid_pricing_optimizer.requests.post')
+    @patch('hybrid_pricing_optimizer.resolver')
+    def test_recommendation_profile_resolution(self, mock_resolver, mock_post, optimizer):
+        """Test that _generate_ai_insights resolves the 'recommendation' profile
+        and iterates models in chain order.
+
+        Validates: Requirements 8.4, 8.5
+        """
+        # Set up mock resolved models in specific order
+        model_1 = MagicMock()
+        model_1.model_id = "openai/gpt-3.5-turbo"
+        model_1.timeout = 15
+        model_1.max_tokens = 1500
+
+        model_2 = MagicMock()
+        model_2.model_id = "moonshotai/kimi-k2:free"
+        model_2.timeout = 15
+        model_2.max_tokens = 1500
+
+        mock_resolver.resolve_profile.return_value = [model_1, model_2]
+
+        # First model fails (timeout), second succeeds
+        ai_response = {
+            'daily_adr_recommendations': [
+                {'date': '2025-01-01', 'recommended_adr': 120.0,
+                 'historical_adr': 100.0, 'variance': '20%', 'reasoning': 'Test'}
+            ],
+            'strategy_summary': 'Test strategy'
+        }
+        mock_response_fail = MagicMock()
+        mock_response_fail.status_code = 500
+
+        mock_response_success = MagicMock()
+        mock_response_success.status_code = 200
+        mock_response_success.json.return_value = {
+            'choices': [{'message': {'content': json.dumps(ai_response)}}]
+        }
+
+        mock_post.side_effect = [mock_response_fail, mock_response_success]
+
+        with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 100.0, 'monthly_performance': [], 'seasonal_performance': []}):
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
+
+        # Verify profile was resolved with correct name
+        mock_resolver.resolve_profile.assert_called_once_with("recommendation")
+
+        # Verify both models were tried in order (first failed, second succeeded)
+        assert mock_post.call_count == 2
+
+        # Verify first call used model_1's config
+        first_call_json = mock_post.call_args_list[0][1]['json']
+        assert first_call_json['model'] == "openai/gpt-3.5-turbo"
+        assert first_call_json['max_tokens'] == 1500
+
+        # Verify second call used model_2's config
+        second_call_json = mock_post.call_args_list[1][1]['json']
+        assert second_call_json['model'] == "moonshotai/kimi-k2:free"
+        assert second_call_json['max_tokens'] == 1500
+
+        # Verify result came from the successful model
+        assert result is not None
+        assert 'daily_adr_recommendations' in result
+
+    @patch('hybrid_pricing_optimizer.requests.post')
+    @patch('hybrid_pricing_optimizer.resolver')
+    def test_all_models_fail_returns_none(self, mock_resolver, mock_post, optimizer):
+        """Test that when all models in the chain fail, _generate_ai_insights
+        returns None so rule-based pricing continues.
+
+        Validates: Requirements 8.4, 11.3
+        """
+        # Set up two models in the chain
+        model_1 = MagicMock()
+        model_1.model_id = "openai/gpt-3.5-turbo"
+        model_1.timeout = 15
+        model_1.max_tokens = 1500
+
+        model_2 = MagicMock()
+        model_2.model_id = "moonshotai/kimi-k2:free"
+        model_2.timeout = 15
+        model_2.max_tokens = 1500
+
+        mock_resolver.resolve_profile.return_value = [model_1, model_2]
+
+        # First model times out, second returns API error
+        import requests as req
+        mock_post.side_effect = [
+            req.exceptions.Timeout("Connection timed out"),
+            Exception("API unavailable"),
+        ]
+
+        with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 100.0, 'monthly_performance': [], 'seasonal_performance': []}):
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
+
+        # All models failed → returns None (rule-based pricing continues)
+        assert result is None
+
+        # Verify both models were attempted
+        assert mock_post.call_count == 2
+
+    @patch('hybrid_pricing_optimizer.requests.post')
+    @patch('hybrid_pricing_optimizer.resolver')
+    def test_registry_error_returns_none(self, mock_resolver, mock_post, optimizer):
+        """Test that when resolver.resolve_profile raises RegistryError,
+        _generate_ai_insights logs the error and returns None.
+
+        Validates: Requirements 8.5, 11.3
+        """
+        from services.ai_model_registry import RegistryError
+
+        mock_resolver.resolve_profile.side_effect = RegistryError(
+            "Unknown profile 'recommendation'. Available profiles: ['structured_extraction', 'vision']"
+        )
+
+        with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 100.0, 'monthly_performance': [], 'seasonal_performance': []}):
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
+
+        # Registry error → returns None
+        assert result is None
+
+        # No API calls should have been made
+        mock_post.assert_not_called()
+
+    @patch('hybrid_pricing_optimizer.requests.post')
+    @patch('hybrid_pricing_optimizer.resolver')
+    def test_registry_error_is_logged(self, mock_resolver, mock_post, optimizer, capsys):
+        """Test that RegistryError is printed/logged before returning None.
+
+        Validates: Requirements 8.5
+        """
+        from services.ai_model_registry import RegistryError
+
+        error_message = "Unknown profile 'recommendation'. Available profiles: ['structured_extraction']"
+        mock_resolver.resolve_profile.side_effect = RegistryError(error_message)
+
+        with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 100.0, 'monthly_performance': [], 'seasonal_performance': []}):
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
+
+        assert result is None
+
+        # Verify the error was logged (printed)
+        captured = capsys.readouterr()
+        assert "Registry error" in captured.out
+
+    @patch('hybrid_pricing_optimizer.requests.post')
+    @patch('hybrid_pricing_optimizer.resolver')
+    def test_models_iterated_use_resolved_timeout(self, mock_resolver, mock_post, optimizer):
+        """Test that each model's configured timeout from the resolved profile
+        is used in the API request.
+
+        Validates: Requirements 8.4
+        """
+        model_1 = MagicMock()
+        model_1.model_id = "openai/gpt-3.5-turbo"
+        model_1.timeout = 15
+        model_1.max_tokens = 1500
+
+        mock_resolver.resolve_profile.return_value = [model_1]
+
+        # Model succeeds on first try
+        ai_response = {'daily_adr_recommendations': [], 'strategy_summary': 'Test'}
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'choices': [{'message': {'content': json.dumps(ai_response)}}]
+        }
+        mock_post.return_value = mock_response
+
+        with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 100.0, 'monthly_performance': [], 'seasonal_performance': []}):
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                optimizer._generate_ai_insights(14, 'TestListing')
+
+        # Verify the timeout from the resolved model was used
+        call_kwargs = mock_post.call_args[1]
+        assert call_kwargs['timeout'] == 15
+
+    @patch('hybrid_pricing_optimizer.requests.post')
+    @patch('hybrid_pricing_optimizer.resolver')
+    def test_all_models_invalid_json_returns_none(self, mock_resolver, mock_post, optimizer):
+        """Test that when all models return invalid JSON, the method returns None
+        and rule-based pricing can continue.
+
+        Validates: Requirements 8.4, 11.3
+        """
+        model_1 = MagicMock()
+        model_1.model_id = "openai/gpt-3.5-turbo"
+        model_1.timeout = 15
+        model_1.max_tokens = 1500
+
+        model_2 = MagicMock()
+        model_2.model_id = "moonshotai/kimi-k2:free"
+        model_2.timeout = 15
+        model_2.max_tokens = 1500
+
+        mock_resolver.resolve_profile.return_value = [model_1, model_2]
+
+        # Both models return invalid JSON
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'choices': [{'message': {'content': 'Not valid JSON at all'}}]
+        }
+        mock_post.return_value = mock_response
+
+        with patch.object(optimizer, '_get_historical_data', return_value={'avg_adr_24m': 100.0, 'monthly_performance': [], 'seasonal_performance': []}):
+            with patch.object(optimizer, '_get_listing_performance', return_value={'base_weekday_price': 85.0, 'base_weekend_price': 110.0}):
+                result = optimizer._generate_ai_insights(14, 'TestListing')
+
+        assert result is None
+        assert mock_post.call_count == 2

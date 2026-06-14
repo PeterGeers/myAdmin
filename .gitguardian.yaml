@@ -22,6 +22,7 @@ secret:
     - "**/logs/**"
     - "**/.pytest_cache/**"
     - "**/.hypothesis/**"
+    - "**/tests/**"
     - "**/coverage/**"
     - "**/*.log"
     - "**/terraform.tfstate*"
@@ -35,6 +36,8 @@ secret:
   ignored_matches:
     - name: "Test API Keys"
       match: "sk-test-"
+    - name: "OpenRouter fake/placeholder keys"
+      match: "sk-or-v1-.*(?:abc123|your-|<your-|new-key-here|a1b2c3d4)"
     - name: "Example placeholders"
       match: "your-.*-here"
     - name: "Placeholder values"

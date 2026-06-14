@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from pdf_processor import PDFProcessor
 from csv_rules import CsvRuleEngine
+from services.ai_model_registry import resolver, RegistryError
 
 
 class InvoiceTestService:
@@ -70,6 +71,24 @@ class InvoiceTestService:
         }
         ai_usage_preview = None
         execution_log = ""
+
+        # Validate registry availability upfront (same chain as AIExtractor)
+        try:
+            resolver.resolve_profile("structured_extraction")
+        except RegistryError as e:
+            errors.append({
+                'stage': 'registry_resolution',
+                'error_type': 'RegistryError',
+                'message': f'Could not load structured_extraction profile: {e}',
+            })
+            # Return immediately — cannot proceed without model configuration
+            return {
+                'pipeline_result': pipeline_result,
+                'performance': performance,
+                'ai_usage_preview': ai_usage_preview,
+                'execution_log': execution_log,
+                'errors': errors,
+            }
 
         # Patch processor to capture AI result metadata for metrics
         self.processor._last_ai_result = None
@@ -480,6 +499,23 @@ Rules:
         extraction_result = None
         ai_usage_preview = None
 
+        # Validate registry availability before proceeding
+        try:
+            resolver.resolve_profile("structured_extraction")
+        except RegistryError as e:
+            errors.append({
+                'stage': 'registry_resolution',
+                'error_type': 'RegistryError',
+                'message': f'Could not load structured_extraction profile: {e}',
+            })
+            return {
+                'success': False,
+                'extraction_result': None,
+                'performance': performance,
+                'ai_usage_preview': None,
+                'errors': errors,
+            }
+
         # Sanitize user-provided text content before AI processing
         sanitizer = AISanitizer()
         sanitize_result = sanitizer.sanitize(text_content)
@@ -566,7 +602,7 @@ Rules:
         }
 
     def _call_ai_with_custom_prompt(self, ai, text_content: str, custom_prompt: str, vendor_hint: str = None) -> dict:
-        """Call OpenRouter API with a custom prompt, using the same model fallback chain.
+        """Call OpenRouter API with a custom prompt, using the registry fallback chain.
 
         Uses system+user role separation for security. The system message anchors
         the AI's role and instructs it to ignore embedded instructions. The user
@@ -621,20 +657,14 @@ Return ONLY valid JSON in this exact format:
             {"role": "user", "content": user_message},
         ]
 
-        models = [
-            "deepseek/deepseek-chat",
-            "meta-llama/llama-3.2-3b-instruct:free",
-            "moonshotai/kimi-k2:free",
-            "google/gemini-flash-1.5",
-            "microsoft/phi-3-mini-128k-instruct:free",
-            "openai/gpt-3.5-turbo",
-        ]
+        # Resolve the fallback chain from the registry
+        chain = resolver.resolve_profile("structured_extraction")
 
         model_failures = []
 
-        for model in models:
+        for model in chain:
             try:
-                print(f"Custom prompt re-run: trying {model}...")
+                print(f"Custom prompt re-run: trying {model.model_id}...")
                 response = req.post(
                     ai.base_url,
                     headers={
@@ -642,12 +672,12 @@ Return ONLY valid JSON in this exact format:
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": model,
+                        "model": model.model_id,
                         "messages": messages,
                         "temperature": 0.1,
-                        "max_tokens": 500,
+                        "max_tokens": model.max_tokens,
                     },
-                    timeout=10,
+                    timeout=model.timeout,
                 )
 
                 if response.status_code == 200:
@@ -665,14 +695,14 @@ Return ONLY valid JSON in this exact format:
                         # Validate AI response structure and types
                         if not sanitizer.validate_response(data):
                             model_failures.append({
-                                'model': model,
+                                'model': model.model_id,
                                 'failure_reason': 'invalid_response_format',
                                 'details': 'Response failed field/type validation',
                             })
-                            print(f"Custom prompt re-run: {model} response failed validation, discarding")
+                            print(f"Custom prompt re-run: {model.model_id} response failed validation, discarding")
                             continue
 
-                        print(f"Custom prompt re-run: success with {model}")
+                        print(f"Custom prompt re-run: success with {model.model_id}")
                         return {
                             'date': ai._validate_date(data.get('date')),
                             'total_amount': round(float(data.get('total_amount', 0)), 2),
@@ -683,41 +713,41 @@ Return ONLY valid JSON in this exact format:
                                 'prompt_tokens': usage.get('prompt_tokens', 0),
                                 'completion_tokens': usage.get('completion_tokens', 0),
                                 'total_tokens': usage.get('total_tokens', 0),
-                                'model': model,
+                                'model': model.model_id,
                             },
                         }
                     except json.JSONDecodeError:
                         model_failures.append({
-                            'model': model,
+                            'model': model.model_id,
                             'failure_reason': 'invalid_response',
                             'details': f'Invalid JSON response: {content[:200]}',
                         })
-                        print(f"Custom prompt re-run: {model} returned invalid JSON")
+                        print(f"Custom prompt re-run: {model.model_id} returned invalid JSON")
                         continue
                 else:
                     model_failures.append({
-                        'model': model,
+                        'model': model.model_id,
                         'failure_reason': 'api_error',
                         'details': f'HTTP {response.status_code}: {response.text[:200]}',
                     })
-                    print(f"Custom prompt re-run: {model} API error {response.status_code}")
+                    print(f"Custom prompt re-run: {model.model_id} API error {response.status_code}")
                     continue
 
             except req.exceptions.Timeout:
                 model_failures.append({
-                    'model': model,
+                    'model': model.model_id,
                     'failure_reason': 'timeout',
-                    'details': 'No response within 10 seconds',
+                    'details': f'No response within {model.timeout} seconds',
                 })
-                print(f"Custom prompt re-run: {model} timeout")
+                print(f"Custom prompt re-run: {model.model_id} timeout")
                 continue
             except Exception as e:
                 model_failures.append({
-                    'model': model,
+                    'model': model.model_id,
                     'failure_reason': 'api_error',
                     'details': str(e),
                 })
-                print(f"Custom prompt re-run: {model} error: {e}")
+                print(f"Custom prompt re-run: {model.model_id} error: {e}")
                 continue
 
         # All models failed — return validation failure error

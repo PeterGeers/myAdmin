@@ -5,6 +5,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from services.ai_sanitizer import AISanitizer
+from services.ai_model_registry import resolver, RegistryError
 
 # Load environment variables
 load_dotenv()
@@ -51,19 +52,16 @@ class AIExtractor:
             print("No API key available, skipping AI extraction")
             return self._fallback_data(vendor_hint)
 
-        # Try DeepSeek first (very cheap, excellent for structured extraction), then free models as fallback
-        models = [
-            "deepseek/deepseek-chat",  # Primary: Very cheap ($0.27/$1.10 per 1M tokens), excellent for invoice extraction
-            "meta-llama/llama-3.2-3b-instruct:free",  # Free fallback
-            "moonshotai/kimi-k2:free",  # Free fallback
-            "google/gemini-flash-1.5",  # Free, very fast
-            "microsoft/phi-3-mini-128k-instruct:free",  # Free fallback
-            "openai/gpt-3.5-turbo"  # Paid fallback (last resort)
-        ]
+        # Resolve the structured_extraction profile from the registry
+        try:
+            chain = resolver.resolve_profile("structured_extraction")
+        except RegistryError as e:
+            print(f"Registry error: {e}")
+            return {"error": f"Registry unavailable: {e}"}
 
-        for model in models:
+        for model in chain:
             try:
-                print(f"Trying model: {model}...")
+                print(f"Trying model: {model.model_id}...")
                 response = requests.post(
                     self.base_url,
                     headers={
@@ -71,12 +69,12 @@ class AIExtractor:
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": model,
+                        "model": model.model_id,
                         "messages": messages,
                         "temperature": 0.1,
-                        "max_tokens": 500
+                        "max_tokens": model.max_tokens
                     },
-                    timeout=10
+                    timeout=model.timeout
                 )
 
                 if response.status_code == 200:
@@ -95,11 +93,11 @@ class AIExtractor:
 
                         # Validate AI response structure and types
                         if not self.sanitizer.validate_response(data):
-                            print(f"{model} returned invalid response format, discarding")
+                            print(f"{model.model_id} returned invalid response format, discarding")
                             continue  # Try next model
 
                         # Validate and clean data
-                        print(f"Successfully extracted data using {model}")
+                        print(f"Successfully extracted data using {model.model_id}")
                         return {
                             'date': self._validate_date(data.get('date')),
                             'total_amount': round(float(data.get('total_amount', 0)), 2),
@@ -110,21 +108,21 @@ class AIExtractor:
                                 'prompt_tokens': usage.get('prompt_tokens', 0),
                                 'completion_tokens': usage.get('completion_tokens', 0),
                                 'total_tokens': usage.get('total_tokens', 0),
-                                'model': model
+                                'model': model.model_id
                             }
                         }
                     except json.JSONDecodeError:
-                        print(f"{model} returned invalid JSON: {content}")
+                        print(f"{model.model_id} returned invalid JSON: {content}")
                         continue  # Try next model
                 else:
-                    print(f"{model} API error: {response.status_code} - {response.text}")
+                    print(f"{model.model_id} API error: {response.status_code} - {response.text}")
                     continue  # Try next model
 
             except requests.exceptions.Timeout:
-                print(f"{model} timeout after 10 seconds, trying next model")
+                print(f"{model.model_id} timeout after {model.timeout} seconds, trying next model")
                 continue
             except Exception as e:
-                print(f"{model} error: {e}, trying next model")
+                print(f"{model.model_id} error: {e}, trying next model")
                 continue
 
         # All models failed — return validation failure error

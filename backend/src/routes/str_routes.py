@@ -176,7 +176,7 @@ def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
         months = data.get('months', 14)
         listing = data.get('listing')
         
-        optimizer = HybridPricingOptimizer(test_mode=test_mode)
+        optimizer = HybridPricingOptimizer(test_mode=test_mode, tenant=user_email)
         result = optimizer.generate_pricing_strategy(months, listing)
         
         return jsonify({

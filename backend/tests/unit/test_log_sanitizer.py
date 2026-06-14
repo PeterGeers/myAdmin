@@ -246,7 +246,7 @@ class TestStartupLogNoApiKeys:
 
     def test_ai_extractor_startup_does_not_log_api_key(self):
         """AI Extractor startup log must not contain any API key value."""
-        fake_api_key = "sk-or-v1-abc123def456ghi789"
+        fake_api_key = "sk-or-v1-" + "a1b2c3d4" * 8  # noqa: fake test value
 
         captured_output = io.StringIO()
         with patch.dict('os.environ', {'OPENROUTER_API_KEY': fake_api_key}):

@@ -75,7 +75,7 @@ def process_pdf(file_path, drive_result, config, folder_name='Unknown'):
     }
 
 
-def process_image(file_path, drive_result, config, folder_name='Unknown'):
+def process_image(file_path, drive_result, config, folder_name='Unknown', tenant=None):
     """Process image file using AI vision, fallback to OCR.
     
     Args:
@@ -83,6 +83,7 @@ def process_image(file_path, drive_result, config, folder_name='Unknown'):
         drive_result: Google Drive upload result with id and url
         config: Config instance for storage folder resolution
         folder_name: Vendor/folder name for storage organization
+        tenant: Optional tenant identifier for AI usage tracking
     
     Returns:
         Dictionary with name, url, txt, folder, and ai_data fields
@@ -99,7 +100,12 @@ def process_image(file_path, drive_result, config, folder_name='Unknown'):
         print(f"Could not get previous transactions: {e}")
 
     # Use AI vision processor
-    processor = ImageAIProcessor()
+    try:
+        from database import DatabaseManager
+        db_for_tracker = DatabaseManager()
+    except Exception:
+        db_for_tracker = None
+    processor = ImageAIProcessor(db=db_for_tracker, tenant=tenant)
     result = processor.process_image(file_path, folder_name, previous_transactions)
 
     # Format as text for compatibility
