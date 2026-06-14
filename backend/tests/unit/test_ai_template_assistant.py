@@ -14,6 +14,7 @@ from unittest.mock import Mock, MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from services.ai_template_assistant import AITemplateAssistant
+from services.ai_model_registry import RegistryError
 
 
 class TestAITemplateAssistantInit:
@@ -26,9 +27,6 @@ class TestAITemplateAssistantInit:
             
             assert assistant.api_key == 'test-key-123'
             assert assistant.api_url == 'https://openrouter.ai/api/v1/chat/completions'
-            assert isinstance(assistant.models, list)
-            assert len(assistant.models) > 0
-            assert 'deepseek/deepseek-chat' in assistant.models  # Primary model
     
     def test_init_without_api_key(self):
         """Test initialization when API key is not set"""
@@ -37,16 +35,14 @@ class TestAITemplateAssistantInit:
             
             assert assistant.api_key is None
     
-    def test_init_with_custom_model(self):
-        """Test initialization with fallback model chain"""
-        with patch.dict(os.environ, {
-            'OPENROUTER_API_KEY': 'test-key'
-        }):
-            assistant = AITemplateAssistant()
+    def test_init_with_database(self):
+        """Test initialization with database creates usage tracker"""
+        with patch.dict(os.environ, {'OPENROUTER_API_KEY': 'test-key'}):
+            mock_db = Mock()
+            assistant = AITemplateAssistant(db=mock_db)
             
-            # Verify fallback chain includes cheap and reliable models
-            assert 'deepseek/deepseek-chat' in assistant.models
-            assert 'anthropic/claude-3.5-sonnet' in assistant.models  # Paid fallback
+            assert assistant.db == mock_db
+            assert assistant.usage_tracker is not None
 
 
 class TestTemplateSanitization:
@@ -635,7 +631,7 @@ class TestGetFixSuggestions:
         )
         
         assert result['success'] is False
-        assert 'error' in result
+        assert result['error'] == 'All models failed'
     
     @patch('requests.post')
     def test_get_fix_suggestions_timeout(self, mock_post):
@@ -651,7 +647,7 @@ class TestGetFixSuggestions:
         )
         
         assert result['success'] is False
-        assert 'timed out' in result['error'].lower()
+        assert 'All models failed' == result['error']
     
     @patch('requests.post')
     def test_get_fix_suggestions_network_error(self, mock_post):
@@ -668,6 +664,164 @@ class TestGetFixSuggestions:
         
         assert result['success'] is False
         assert 'error' in result
+
+
+class TestRegistryIntegration:
+    """
+    Tests for AITemplateAssistant registry integration.
+    Validates: Requirements 7.1, 7.4, 11.3, 11.4
+    """
+
+    def setup_method(self):
+        """Setup test fixtures"""
+        with patch.dict(os.environ, {'OPENROUTER_API_KEY': 'test-key'}):
+            self.mock_db = Mock()
+            self.assistant = AITemplateAssistant(db=self.mock_db)
+
+    @pytest.mark.unit
+    @patch('services.ai_template_assistant.resolver')
+    @patch('requests.post')
+    def test_registry_error_returns_unavailable(self, mock_post, mock_resolver):
+        """
+        When resolver.resolve_profile raises RegistryError, the assistant SHALL return
+        {"success": False, "error": "AI service unavailable"} and NO requests.post calls
+        shall be made.
+        Validates: Requirements 7.4
+        """
+        mock_resolver.resolve_profile.side_effect = RegistryError("Profile not found")
+
+        result = self.assistant.get_fix_suggestions(
+            template_type='str_invoice_nl',
+            template_content='<html></html>',
+            validation_errors=[],
+            required_placeholders=['invoice_number'],
+            administration='TestTenant'
+        )
+
+        assert result['success'] is False
+        assert result['error'] == 'AI service unavailable'
+        mock_post.assert_not_called()
+
+    @pytest.mark.unit
+    @patch('requests.post')
+    def test_all_models_fail_returns_terminal_failure(self, mock_post):
+        """
+        When all models in the fallback chain fail, the assistant SHALL return
+        {"success": False, "error": "All models failed"}.
+        Validates: Requirements 11.3
+        """
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = 'Internal Server Error'
+        mock_post.return_value = mock_response
+
+        result = self.assistant.get_fix_suggestions(
+            template_type='str_invoice_nl',
+            template_content='<html></html>',
+            validation_errors=[],
+            required_placeholders=[]
+        )
+
+        assert result['success'] is False
+        assert result['error'] == 'All models failed'
+
+    @pytest.mark.unit
+    @patch('requests.post')
+    def test_successful_model_iteration(self, mock_post):
+        """
+        When the first model fails (500) and the second succeeds, the assistant SHALL
+        return success=True and model_used matching the second model in the chain.
+        Validates: Requirements 7.1, 11.2
+        """
+        mock_response_fail = Mock()
+        mock_response_fail.status_code = 500
+
+        mock_response_success = Mock()
+        mock_response_success.status_code = 200
+        mock_response_success.json.return_value = {
+            'choices': [
+                {
+                    'message': {
+                        'content': json.dumps({
+                            'analysis': 'Fixed the issue',
+                            'fixes': [],
+                            'auto_fix_available': False,
+                            'confidence': 'high'
+                        })
+                    }
+                }
+            ],
+            'usage': {
+                'total_tokens': 600
+            }
+        }
+
+        mock_post.side_effect = [mock_response_fail, mock_response_success]
+
+        result = self.assistant.get_fix_suggestions(
+            template_type='str_invoice_nl',
+            template_content='<html></html>',
+            validation_errors=[],
+            required_placeholders=['invoice_number']
+        )
+
+        assert result['success'] is True
+        # Second model in "template_assistance" profile chain
+        assert result['model_used'] == 'meta-llama/llama-3.2-3b-instruct:free'
+        assert result['tokens_used'] == 600
+
+    @pytest.mark.unit
+    @patch('requests.post')
+    def test_usage_tracking_correct_model(self, mock_post):
+        """
+        When a model succeeds, the usage tracker SHALL be called with the correct
+        model_used (the model that actually succeeded).
+        Validates: Requirements 11.4
+        """
+        mock_response_fail = Mock()
+        mock_response_fail.status_code = 500
+
+        mock_response_success = Mock()
+        mock_response_success.status_code = 200
+        mock_response_success.json.return_value = {
+            'choices': [
+                {
+                    'message': {
+                        'content': json.dumps({
+                            'analysis': 'Analysis result',
+                            'fixes': [{'issue': 'test', 'suggestion': 'fix'}],
+                            'auto_fix_available': True,
+                            'confidence': 'medium'
+                        })
+                    }
+                }
+            ],
+            'usage': {
+                'prompt_tokens': 400,
+                'completion_tokens': 200,
+                'total_tokens': 600
+            }
+        }
+
+        # First model fails, second succeeds
+        mock_post.side_effect = [mock_response_fail, mock_response_success]
+        self.assistant.usage_tracker.log_ai_request = Mock(return_value=True)
+
+        result = self.assistant.get_fix_suggestions(
+            template_type='btw_aangifte',
+            template_content='<html><body>template</body></html>',
+            validation_errors=[{'type': 'missing', 'message': 'Missing field', 'severity': 'error'}],
+            required_placeholders=['invoice_number'],
+            administration='TestAdmin'
+        )
+
+        assert result['success'] is True
+        self.assistant.usage_tracker.log_ai_request.assert_called_once_with(
+            administration='TestAdmin',
+            template_type='btw_aangifte',
+            tokens_used=600,
+            model_used='meta-llama/llama-3.2-3b-instruct:free'
+        )
 
 
 if __name__ == '__main__':

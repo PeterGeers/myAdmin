@@ -13,6 +13,7 @@ import logging
 import requests
 from typing import Dict, List, Any, Optional
 from services.ai_usage_tracker import AIUsageTracker
+from services.ai_model_registry import resolver, RegistryError
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,8 @@ class AITemplateAssistant:
         """
         Initialize the AI template assistant.
         
-        Loads API key from environment and sets up model fallback chain.
+        Loads API key from environment and sets up the usage tracker.
+        Model fallback chain is resolved from the AI Model Registry at request time.
         
         Args:
             db: Optional database connection for usage tracking
@@ -44,18 +46,10 @@ class AITemplateAssistant:
         # Initialize usage tracker if database is provided
         self.usage_tracker = AIUsageTracker(db) if db else None
         
-        # Smart fallback strategy: try FREE models first, then cheap, then paid as backup
-        self.models = [
-            "google/gemini-flash-1.5",  # FREE - Primary, fast, good for structured output
-            "meta-llama/llama-3.2-3b-instruct:free",  # FREE - Backup if Gemini rate-limited
-            "deepseek/deepseek-chat",  # Very cheap ($0.27/$1.10 per 1M tokens) - Excellent for code analysis
-            "anthropic/claude-3.5-sonnet"  # Paid fallback (last resort, most reliable)
-        ]
-        
         if not self.api_key:
             logger.warning("OPENROUTER_API_KEY not set - AI assistance will be unavailable")
         
-        logger.info(f"AITemplateAssistant initialized with fallback chain: {', '.join(self.models)}")
+        logger.info("AITemplateAssistant initialized (models resolved from registry)")
     
     def get_fix_suggestions(
         self,
@@ -96,6 +90,16 @@ class AITemplateAssistant:
                     'error': 'AI service not configured - OPENROUTER_API_KEY not set'
                 }
             
+            # Resolve model chain from registry
+            try:
+                chain = resolver.resolve_profile("template_assistance")
+            except RegistryError:
+                logger.error("Failed to resolve 'template_assistance' profile from registry")
+                return {
+                    'success': False,
+                    'error': 'AI service unavailable'
+                }
+            
             # Sanitize template to remove PII
             sanitized_template = self._sanitize_template(template_content)
             
@@ -109,9 +113,9 @@ class AITemplateAssistant:
             
             # Try models in fallback chain
             last_error = None
-            for model in self.models:
+            for model in chain:
                 try:
-                    logger.info(f"Trying model: {model}")
+                    logger.info(f"Trying model: {model.model_id}")
                     
                     # Call OpenRouter API
                     response = requests.post(
@@ -123,7 +127,7 @@ class AITemplateAssistant:
                             'X-Title': 'Template Assistant'
                         },
                         json={
-                            'model': model,
+                            'model': model.model_id,
                             'messages': [
                                 {
                                     'role': 'system',
@@ -139,13 +143,13 @@ class AITemplateAssistant:
                                 }
                             ],
                             'temperature': 0.3,  # Lower for more consistent fixes
-                            'max_tokens': 2000
+                            'max_tokens': model.max_tokens
                         },
-                        timeout=30
+                        timeout=model.timeout
                     )
                     
                     if response.status_code != 200:
-                        logger.warning(f"{model} API error: {response.status_code} - trying next model")
+                        logger.warning(f"{model.model_id} API error: {response.status_code} - trying next model")
                         last_error = f'AI service returned error: {response.status_code}'
                         continue
                     
@@ -153,7 +157,7 @@ class AITemplateAssistant:
                     ai_response = response.json()
                     
                     if 'choices' not in ai_response or len(ai_response['choices']) == 0:
-                        logger.warning(f"{model} returned invalid format - trying next model")
+                        logger.warning(f"{model.model_id} returned invalid format - trying next model")
                         last_error = 'Invalid response from AI service'
                         continue
                     
@@ -176,28 +180,28 @@ class AITemplateAssistant:
                             administration=administration,
                             template_type=template_type,
                             tokens_used=tokens_used,
-                            model_used=model
+                            model_used=model.model_id
                         )
                     
-                    logger.info(f"Successfully received AI suggestions using {model} ({tokens_used} tokens)")
+                    logger.info(f"Successfully received AI suggestions using {model.model_id} ({tokens_used} tokens)")
                     
                     return {
                         'success': True,
                         'ai_suggestions': suggestions,
-                        'model_used': model,
+                        'model_used': model.model_id,
                         'tokens_used': tokens_used
                     }
                     
                 except requests.exceptions.Timeout:
-                    logger.warning(f"{model} timed out - trying next model")
+                    logger.warning(f"{model.model_id} timed out - trying next model")
                     last_error = 'AI service request timed out'
                     continue
                 except requests.exceptions.RequestException as e:
-                    logger.warning(f"{model} request failed: {e} - trying next model")
+                    logger.warning(f"{model.model_id} request failed: {e} - trying next model")
                     last_error = f'AI service request failed: {str(e)}'
                     continue
                 except Exception as e:
-                    logger.warning(f"{model} failed: {e} - trying next model")
+                    logger.warning(f"{model.model_id} failed: {e} - trying next model")
                     last_error = f'Failed to process response: {str(e)}'
                     continue
             
@@ -205,7 +209,7 @@ class AITemplateAssistant:
             logger.error(f"All models failed. Last error: {last_error}")
             return {
                 'success': False,
-                'error': last_error or 'All AI models failed'
+                'error': 'All models failed'
             }
             
         except Exception as e:

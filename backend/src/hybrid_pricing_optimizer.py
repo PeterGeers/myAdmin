@@ -6,17 +6,21 @@ from dotenv import load_dotenv
 from database import DatabaseManager
 from business_pricing_model import BusinessPricingModel
 from dialect_helpers import dialect
+from services.ai_model_registry import resolver, RegistryError
+from services.ai_usage_tracker import AIUsageTracker
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
 
 load_dotenv()
 
 class HybridPricingOptimizer:
-    def __init__(self, test_mode=False):
+    def __init__(self, test_mode=False, tenant=None):
         self.api_key = os.getenv('OPENROUTER_API_KEY')
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.db = DatabaseManager(test_mode=test_mode)
         self.business_model = BusinessPricingModel(test_mode=test_mode)
+        self.usage_tracker = AIUsageTracker(self.db)
+        self.tenant = tenant
         
     def generate_pricing_strategy(self, months=14, listing=None):
         """Generate 14-month pricing with AI insights and rule-based execution"""
@@ -80,50 +84,65 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
 """
 
         try:
-            models = ["openai/gpt-3.5-turbo", "moonshotai/kimi-k2:free"]
-            
-            for model in models:
-                try:
-                    response = requests.post(
-                        self.base_url,
-                        headers={
-                            "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": model,
-                            "messages": [{"role": "user", "content": prompt}],
-                            "temperature": 0.3,
-                            "max_tokens": 1500
-                        },
-                        timeout=15
-                    )
+            chain = resolver.resolve_profile("recommendation")
+        except RegistryError as e:
+            print(f"Registry error: {e}", flush=True)
+            return None
+
+        for model in chain:
+            try:
+                response = requests.post(
+                    self.base_url,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model.model_id,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.3,
+                        "max_tokens": model.max_tokens
+                    },
+                    timeout=model.timeout
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    content = result['choices'][0]['message']['content'].strip()
                     
-                    if response.status_code == 200:
-                        result = response.json()
-                        content = result['choices'][0]['message']['content'].strip()
+                    # Capture token usage
+                    usage = result.get('usage', {})
+                    tokens_used = usage.get('total_tokens', 0)
+                    if tokens_used == 0:
+                        tokens_used = usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)
+                    
+                    if content.startswith('```json'):
+                        content = content.replace('```json', '').replace('```', '').strip()
+                    
+                    try:
+                        insights = json.loads(content)
+                        print(f"AI insights generated using {model.model_id}")
                         
-                        if content.startswith('```json'):
-                            content = content.replace('```json', '').replace('```', '').strip()
+                        # Log AI usage
+                        if self.usage_tracker and self.tenant and tokens_used > 0:
+                            self.usage_tracker.log_ai_request(
+                                administration=self.tenant,
+                                template_type='pricing_recommendation',
+                                tokens_used=tokens_used,
+                                model_used=model.model_id
+                            )
                         
-                        try:
-                            insights = json.loads(content)
-                            print(f"AI insights generated using {model}")
-                            return insights
-                        except json.JSONDecodeError as e:
-                            print(f"{model} JSON parse error: {e}")
-                            print(f"Raw content: {content[:500]}...")
-                            continue
-                        
-                except Exception as e:
-                    print(f"{model} request failed: {e}")
-                    continue
-            
-            return None
-            
-        except Exception as e:
-            print(f"AI insights failed: {e}")
-            return None
+                        return insights
+                    except json.JSONDecodeError as e:
+                        print(f"{model.model_id} JSON parse error: {e}")
+                        print(f"Raw content: {content[:500]}...")
+                        continue
+                    
+            except (requests.exceptions.Timeout, Exception) as e:
+                print(f"{model.model_id} request failed: {e}")
+                continue
+        
+        return None
     
     def _calculate_historical_rates(self, listing, historical_data):
         """Calculate actual historical nightly rates by period"""

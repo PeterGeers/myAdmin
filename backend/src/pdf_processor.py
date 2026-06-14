@@ -42,7 +42,7 @@ class PDFProcessor:
         if file_ext == '.pdf':
             return process_pdf(file_path, drive_result, self.config, folder_name)
         elif file_ext in ['.jpg', '.jpeg', '.png']:
-            return process_image(file_path, drive_result, self.config, folder_name)
+            return process_image(file_path, drive_result, self.config, folder_name, tenant=self._current_tenant)
         elif file_ext == '.csv':
             return process_csv(file_path, drive_result, self.config, folder_name)
         elif file_ext == '.mhtml':
