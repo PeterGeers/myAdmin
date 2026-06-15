@@ -181,7 +181,12 @@
       "strReports": "STR Rapporten",
       "systemAdministration": "Systeembeheer",
       "tenantAdministration": "Tenant Beheer",
-      "assets": "Activabeheer"
+      "assets": "Activabeheer",
+      "budgetGroup": "Budget",
+      "budgetVersions": "Budgetversies",
+      "budgetTemplates": "Budgetsjablonen",
+      "budgetLines": "Budgetregels",
+      "budgetDashboard": "Budget Dashboard"
     },
     "moduleGroups": {
       "fin": "Financieel",

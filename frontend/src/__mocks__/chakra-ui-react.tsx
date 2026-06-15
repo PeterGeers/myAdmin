@@ -399,6 +399,17 @@ export const TagLabel = ({ children, ...props }: any) => (
   <span {...filterChakraProps(props)}>{children}</span>
 );
 
+// Breadcrumb components
+export const Breadcrumb = ({ children, separator, ...props }: any) => (
+  <nav aria-label="breadcrumb" {...filterChakraProps(props)}>{children}</nav>
+);
+export const BreadcrumbItem = ({ children, isCurrentPage, ...props }: any) => (
+  <span {...filterChakraProps(props)}>{children}</span>
+);
+export const BreadcrumbLink = ({ children, onClick, ...props }: any) => (
+  <a onClick={onClick} {...filterChakraProps(props)}>{children}</a>
+);
+
 export const ChakraProvider = ({ children }: any) => <>{children}</>;
 
 export const InputGroup = ({ children, ...props }: any) => (
