@@ -12,6 +12,7 @@ import BtwReport from './BtwReport';
 import ReferenceAnalysisReport from './ReferenceAnalysisReport';
 import AangifteIbReport from './AangifteIbReport';
 import { PivotViewsTab } from '../pivot/PivotViewsTab';
+import BudgetDashboardTab from './BudgetDashboardTab';
 
 import type { DisplayFormat } from '../../types/financialReports';
 
@@ -54,6 +55,7 @@ const FinancialReportsGroup: React.FC = () => {
         <Tab color="white">🔍 {t('titles.referenceAnalysis')}</Tab>
         <Tab color="white">📋 {t('titles.aangifteIb')}</Tab>
         <Tab color="white">📊 {t('titles.pivotViews')}</Tab>
+        <Tab color="white">📉 Budget vs Actuals</Tab>
       </TabList>
 
       <TabPanels>
@@ -95,6 +97,10 @@ const FinancialReportsGroup: React.FC = () => {
 
         <TabPanel>
           <PivotViewsTab moduleFilter="FIN" />
+        </TabPanel>
+
+        <TabPanel>
+          <BudgetDashboardTab />
         </TabPanel>
       </TabPanels>
     </Tabs>

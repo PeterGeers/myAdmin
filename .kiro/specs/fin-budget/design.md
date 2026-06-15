@@ -50,12 +50,12 @@ graph TB
 
 ### Backend Components
 
-| Component        | File                                       | Responsibility                                     |
-| ---------------- | ------------------------------------------ | -------------------------------------------------- |
-| Blueprint        | `src/routes/budget_routes.py`              | REST endpoints, auth, request parsing              |
-| Service          | `src/services/budget_service.py`           | All business logic                                 |
-| AI Service       | `src/services/budget_ai_service.py`        | OpenRouter integration for all 4 AI features       |
-| (optional split) | `src/services/budget_dashboard_service.py` | Dashboard aggregation if service exceeds 500 lines |
+| Component        | File                                       | Responsibility                                                     |
+| ---------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| Blueprint        | `src/routes/budget_routes.py`              | REST endpoints, auth, request parsing                              |
+| Service          | `src/services/budget_service.py`           | All business logic                                                 |
+| AI Service       | `src/services/budget_ai_service.py`        | OpenRouter integration via AI Model Registry for all 4 AI features |
+| (optional split) | `src/services/budget_dashboard_service.py` | Dashboard aggregation if service exceeds 500 lines                 |
 
 ### Frontend Components
 
@@ -542,11 +542,20 @@ def divide_annual(annual_amount: Decimal, months: int = 12) -> list[Decimal]:
 
 ### AI Service Architecture
 
-The `BudgetAIService` follows the same pattern as `AITemplateAssistant`:
+The `BudgetAIService` uses the centralized **AI Model Registry** (`backend/src/services/ai_model_registry.py`) for model configuration. It resolves the `"text_generation"` task profile to get its fallback chain — no hardcoded model identifiers.
 
 ```python
+from services.ai_model_registry import resolver, RegistryError
+from services.ai_usage_tracker import AIUsageTracker
+
+
 class BudgetAIService:
-    """OpenRouter integration for budget AI features."""
+    """OpenRouter integration for budget AI features.
+
+    Uses the AI Model Registry for model fallback chain resolution.
+    All model identifiers, timeouts, and token limits come from the
+    registry's "text_generation" task profile.
+    """
 
     def __init__(self, db=None):
         self.api_key = os.getenv('OPENROUTER_API_KEY')
@@ -554,13 +563,52 @@ class BudgetAIService:
         self.db = db
         self.usage_tracker = AIUsageTracker(db) if db else None
 
-        # Same cost-optimized fallback chain
-        self.models = [
-            "google/gemini-flash-1.5",
-            "meta-llama/llama-3.2-3b-instruct:free",
-            "deepseek/deepseek-chat",
-            "anthropic/claude-3.5-sonnet"
-        ]
+    def _get_model_chain(self) -> list:
+        """Resolve model fallback chain from the AI Model Registry.
+
+        Returns:
+            Ordered list of ResolvedModel instances from the "text_generation" profile.
+
+        Raises:
+            RegistryError: If the profile cannot be resolved.
+        """
+        return resolver.resolve_profile("text_generation")
+
+    def _call_openrouter(self, system_prompt: str, user_prompt: str,
+                         administration: str, max_tokens_override: int = None) -> dict:
+        """Call OpenRouter with registry-resolved fallback chain.
+
+        Iterates models in chain order, using each model's configured
+        timeout and max_tokens (or the provided override). Falls back
+        to the next model on timeout, API error, or invalid response.
+        """
+        try:
+            chain = self._get_model_chain()
+        except RegistryError as e:
+            return {"success": False, "error": f"AI service unavailable: {e}"}
+
+        for model in chain:
+            try:
+                response = requests.post(
+                    self.api_url,
+                    json={
+                        "model": model.model_id,
+                        "max_tokens": max_tokens_override or model.max_tokens,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                    },
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    timeout=model.timeout,
+                )
+                # ... parse and validate response ...
+            except requests.exceptions.Timeout:
+                continue
+            except Exception:
+                continue
+
+        return {"success": False, "error": "AI service unavailable"}
 
     def generate_narrative(self, dashboard_data: dict, period: str, year: int, administration: str) -> dict: ...
     def translate_query(self, question: str, year: int, hierarchy_context: list, administration: str) -> dict: ...
@@ -570,11 +618,12 @@ class BudgetAIService:
 
 **Design principles:**
 
+- **Registry-driven model selection** — Uses the `"text_generation"` task profile from `ai_model_registry.py`. Model order, timeouts, and token limits are managed centrally. Adding or removing models requires editing only the registry module, not this service.
 - All AI calls are user-initiated (never automatic) — zero background cost
 - Payloads are pre-aggregated structured data, not raw documents — small token usage
-- Free models handle most requests; paid models are last-resort fallback
+- Free models first, then cheap, then paid — controlled by the registry profile's fallback chain order
 - AI responses are validated/filtered before returning to the user (e.g., query parameters are schema-checked, account codes are verified)
-- Graceful degradation: if AI is unavailable, all core budget functionality works unchanged
+- Graceful degradation: if AI is unavailable or registry raises an error, all core budget functionality works unchanged
 - Usage tracking via existing `AIUsageTracker` for cost monitoring per tenant
 
 ## Testing Strategy

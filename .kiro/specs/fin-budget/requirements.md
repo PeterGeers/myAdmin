@@ -126,8 +126,8 @@ Budget Management for the FIN module of myAdmin. This feature provides a categor
 
 1. WHEN a user requests a budget narrative from the dashboard view, THE Budget_System SHALL send the current dashboard data (budget totals, actual totals, variances, period, and hierarchy level) to the OpenRouter AI service and return a generated summary text
 2. THE Budget_System SHALL limit the AI prompt payload to the aggregated dashboard rows (maximum 50 rows of code, name, budget, actual, variance) and period context, never sending raw transaction data
-3. THE Budget_System SHALL use the project's model fallback chain (free models first, then cheap, then paid) to minimize cost per narrative generation
-4. IF the OpenRouter API is unavailable or all models fail, THEN THE Budget_System SHALL return a structured error response indicating AI service unavailability without disrupting dashboard functionality
+3. THE Budget_System SHALL resolve its AI model fallback chain from the AI Model Registry's `"text_generation"` task profile, using the registry-configured model order, timeouts, and token limits
+4. IF the AI Model Registry raises a resolution error or all models in the fallback chain fail, THEN THE Budget_System SHALL return a structured error response indicating AI service unavailability without disrupting dashboard functionality
 5. THE Budget_System SHALL generate narratives in Dutch by default, matching the tenant's financial reporting language
 6. THE Budget_System SHALL complete narrative generation within 15 seconds; if the AI service exceeds this timeout, the system SHALL return a timeout error
 

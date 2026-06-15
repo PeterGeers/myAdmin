@@ -43,6 +43,11 @@ FUNCTION_REGISTRY: Dict[str, FunctionDefinition] = {
         'label': 'Generate Invoice',
         'default_enabled': True,
     },
+    'budget': {
+        'parent_module': 'FIN',
+        'label': 'Budget Management',
+        'default_enabled': True,
+    },
 }
 
 

@@ -58,6 +58,7 @@ from routes.asset_routes import asset_bp
 from routes.pivot_routes import pivot_bp
 from routes.year_end_config_routes import year_end_config_bp
 from routes.year_end_routes import year_end_bp
+from routes.budget_routes import budget_bp
 
 from routes.user_routes import user_bp
 from routes.signup_routes import signup_bp
@@ -184,6 +185,7 @@ app.register_blueprint(asset_bp)  # Asset administration endpoints
 app.register_blueprint(pivot_bp)  # Pivot Views endpoints
 app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints
 app.register_blueprint(year_end_bp)  # Year-end closure endpoints
+app.register_blueprint(budget_bp)  # Budget management endpoints
 
 app.register_blueprint(user_bp)  # User-specific endpoints (language preferences)
 app.register_blueprint(signup_bp)  # Public trial signup endpoints
@@ -245,6 +247,10 @@ set_invoice_test_mode(flag)
 # Set test mode flag for banking_bp
 from routes.banking_routes import set_test_mode as set_banking_test_mode
 set_banking_test_mode(flag)
+
+# Set test mode flag for budget_bp
+from routes.budget_routes import set_test_mode as set_budget_test_mode
+set_budget_test_mode(flag)
 
 # Set config for str_bp - import here, call later after UPLOAD_FOLDER is defined
 from routes.str_routes import set_config as set_str_config

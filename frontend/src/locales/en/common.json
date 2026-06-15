@@ -181,7 +181,12 @@
       "strReports": "STR Reports",
       "systemAdministration": "System Administration",
       "tenantAdministration": "Tenant Administration",
-      "assets": "Asset Administration"
+      "assets": "Asset Administration",
+      "budgetGroup": "Budget",
+      "budgetVersions": "Budget Versions",
+      "budgetTemplates": "Budget Templates",
+      "budgetLines": "Budget Lines",
+      "budgetDashboard": "Budget Dashboard"
     },
     "moduleGroups": {
       "fin": "Financial",

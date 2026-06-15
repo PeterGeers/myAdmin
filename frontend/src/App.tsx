@@ -21,6 +21,7 @@ const PDFUploadForm = lazy(() => import('./components/PDFUploadForm'));
 const BankingProcessor = lazy(() => import('./components/BankingProcessor'));
 const FINReports = lazy(() => import('./components/FINReports'));
 const AssetList = lazy(() => import('./components/Assets/AssetList'));
+const BudgetPage = lazy(() => import('./pages/BudgetPage'));
 
 // STR module pages
 const STRProcessor = lazy(() => import('./components/STRProcessor'));
@@ -50,7 +51,7 @@ const SysAdminDashboard = lazy(() =>
 // Admin pages (default exports)
 const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors' | 'budget';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -100,7 +101,7 @@ function AppContent() {
         setCurrentPage('menu');
       }
       // If on FIN page but no FIN access, redirect to menu
-      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets') && !hasFIN) {
+      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets' || currentPage === 'budget') && !hasFIN) {
         setCurrentPage('menu');
       }
       // If on ZZP page but no ZZP access, redirect to menu
@@ -276,6 +277,21 @@ function AppContent() {
           </ProtectedRoute>
         );
 
+      case 'budget':
+        return (
+          <ProtectedRoute 
+            requiredRoles={['Finance_CRUD', 'Finance_Read']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`💰 ${t('common:navigation.modules.budgetGroup', 'Budget')}`)}
+              <Box p={6}>
+                <BudgetPage />
+              </Box>
+            </Box>
+          </ProtectedRoute>
+        );
+
       case 'str-reports':
         return (
           <ProtectedRoute 
@@ -425,6 +441,11 @@ function AppContent() {
                       {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && hasFunction('assets') && (
                         <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('assets')}>
                           🏗️ {t('common:navigation.modules.assets', 'Asset Administration')}
+                        </Button>
+                      )}
+                      {user?.roles?.some(role => ['Finance_CRUD', 'Finance_Read'].includes(role)) && hasFunction('budget') && (
+                        <Button size="lg" w="full" colorScheme="orange" variant="outline" onClick={() => setCurrentPage('budget')}>
+                          💰 {t('common:navigation.modules.budgetGroup', 'Budget')}
                         </Button>
                       )}
                     </>

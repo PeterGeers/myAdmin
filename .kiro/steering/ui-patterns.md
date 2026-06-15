@@ -58,3 +58,7 @@ Use the Table Filter Framework v2 — a hybrid approach: text search filters in 
 - Clear all / reset button to return to default view
 
 When implementing or modifying tables or filters, read the full framework guide at `.kiro\specs\Common\Frameworks\table-filter-framework-v2\design.md`
+
+## Reference Implementation
+
+`frontend/src/pages/ZZPInvoices.tsx` correctly demonstrates all patterns above (dark theme, FilterableHeader, row-click modal, orange primary actions, i18n, responsive wrapping). Use it as a concrete example when building new pages.
