@@ -65,6 +65,9 @@ def store_verb_patterns_to_database(
     try:
         # Store verb patterns (unified approach for all predictions)
         for pattern_key, pattern in verb_patterns.items():
+            # Skip ambiguous company-level patterns — they are placeholders only
+            if pattern.get('_ambiguous'):
+                continue
             db.execute_query("""
                 INSERT INTO pattern_verb_patterns 
                 (administration, bank_account, verb, verb_company, verb_reference, is_compound,

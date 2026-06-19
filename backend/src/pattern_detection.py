@@ -85,6 +85,7 @@ def extract_company_name(description: str) -> Optional[str]:
         r'\bIDEAL\b',
         r'\bPINBETALING\b',
         r'\bGEA\b',
+        r'^BCK\*?\s*',          # Bankcard (betaalkaart) prefix at start of description
         r'\bNR:\w+\b',
         r'\bREF:\w+\b',
         r'\bTRN:\w+\b',
@@ -97,7 +98,13 @@ def extract_company_name(description: str) -> Optional[str]:
         r'[,\.]?\s*B\.V\.\b',
         r'[,\.]?\s*N\.V\.\b',
         r'\bXUI-\d+\b',        # Transaction IDs
-        r'\bNL\d{2}[A-Z]{4}\d+\b'  # IBAN patterns
+        r'\bNL\d{2}[A-Z]{4}\d+\b',  # IBAN patterns
+        r'\b(?:BA|BC|BEA)\b',  # Payment type codes (ba=betaalautomaat, bc=betaalchip)
+        r'\bPAS:\s*\S+\b',     # Card number references
+        r'\bPASNR\.?\s*\d*\b', # Card number references
+        r'\bTERMIN\w*\b',      # Terminal references
+        r'\b\d{4}[A-Z]{2}\b', # Postal codes (e.g., 2135JV)
+        r'\bNLD\b',           # Country code
     ]
 
     cleaned_desc = description_upper
@@ -114,7 +121,8 @@ def extract_company_name(description: str) -> Optional[str]:
         'BETALING', 'PAYMENT', 'TRANSACTION', 'TRANSFER', 'ONLINE', 'WEBSHOP',
         'BETREFT', 'INFO', 'KIJK', 'MEER', 'FACTUUR', 'XUI', 'NL04', 'NL27', 'NL15',
         'RABONL2U', 'INGBNL2AXXX', 'CITINL2X', 'BOFAIE3X', 'ADYBNL2AXXX', 'DEUTNL2A',
-        'EUR', 'RABO', 'ING', 'CITI', 'BOFA', 'ADYB', 'DEUT'
+        'EUR', 'RABO', 'ING', 'CITI', 'BOFA', 'ADYB', 'DEUT',
+        'BCK', 'BEA', 'GEA', 'PIN', 'PAS', 'RETOUR', 'NLD',
     }
 
     # Filter out transaction codes and meaningless strings
@@ -522,25 +530,62 @@ def analyze_reference_patterns(
         else:
             verb_company = verb
 
-        # Create unique pattern key: Administration + BankAccount + Verb (company only)
-        pattern_key = f"{administration}_{bank_account}_{verb_company}"
+        # Create pattern keys at two levels:
+        # 1. Compound key (company + reference) for multi-product vendors (e.g., ASR with 5 insurances)
+        # 2. Company-only key as fallback for single-product vendors
+        if is_compound and verb_reference:
+            compound_key = f"{administration}_{bank_account}_{verb_company}|{verb_reference}"
+            verb_patterns[compound_key] = {
+                'administration': administration,
+                'bank_account': bank_account,
+                'verb': f"{verb_company}|{verb_reference}",
+                'verb_company': verb_company,
+                'verb_reference': verb_reference,
+                'is_compound': True,
+                'reference_number': ref_num,
+                'debet_account': debet,
+                'credit_account': credit,
+                'other_account': other_account,
+                'occurrences': verb_patterns.get(compound_key, {}).get('occurrences', 0) + 1,
+                'confidence': 1.0,
+                'last_seen': date,
+                'sample_description': description
+            }
 
-        # Store the most recent pattern (overwrite if exists)
-        verb_patterns[pattern_key] = {
-            'administration': administration,
-            'bank_account': bank_account,
-            'verb': verb_company,
-            'verb_company': verb_company,
-            'verb_reference': verb_reference,
-            'is_compound': is_compound,
-            'reference_number': ref_num,
-            'debet_account': debet,
-            'credit_account': credit,
-            'other_account': other_account,
-            'occurrences': verb_patterns.get(pattern_key, {}).get('occurrences', 0) + 1,
-            'confidence': 1.0,  # High confidence for exact verb matches
-            'last_seen': date,
-            'sample_description': description
-        }
+        # Company-only key (fallback for simple verbs, or aggregated for single-product vendors)
+        company_key = f"{administration}_{bank_account}_{verb_company}"
+
+        # For compound verbs: only store company-level pattern if ALL occurrences
+        # of this company map to the same accounts (single-product vendor)
+        existing = verb_patterns.get(company_key)
+        if existing:
+            # Check if this transaction uses the same accounts as existing pattern
+            if (existing.get('debet_account') == debet and
+                    existing.get('credit_account') == credit):
+                # Same accounts — safe to keep company-level pattern
+                existing['occurrences'] = existing.get('occurrences', 0) + 1
+                existing['last_seen'] = date
+            else:
+                # Different accounts for same company — mark as ambiguous
+                # Don't use company-level pattern for multi-product vendors
+                existing['_ambiguous'] = True
+                existing['confidence'] = 0.0
+        else:
+            verb_patterns[company_key] = {
+                'administration': administration,
+                'bank_account': bank_account,
+                'verb': verb_company,
+                'verb_company': verb_company,
+                'verb_reference': verb_reference,
+                'is_compound': is_compound,
+                'reference_number': ref_num,
+                'debet_account': debet,
+                'credit_account': credit,
+                'other_account': other_account,
+                'occurrences': 1,
+                'confidence': 1.0,
+                'last_seen': date,
+                'sample_description': description
+            }
 
     return verb_patterns
