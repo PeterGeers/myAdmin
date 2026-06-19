@@ -204,43 +204,63 @@ def predict_debet(
         # No valid verb - leave empty for manual fixing
         return None
 
-    # Parse compound verb to get company name only
+    # Parse compound verb
     is_compound = '|' in verb
     if is_compound:
         verb_company = verb.split('|', 1)[0]
     else:
         verb_company = verb
 
-    # Look for exact pattern match: Administration + Credit (bank account) + Verb Company
-    pattern_key = f"{administration}_{credit}_{verb_company}"
-
     # Get reference patterns (which contain verb patterns)
     patterns = get_filtered_patterns_fn(administration)
     reference_patterns = patterns.get('reference_patterns', {})
 
-    # Check for exact pattern match
-    if pattern_key in reference_patterns:
-        pattern = reference_patterns[pattern_key]
-        if pattern.get('credit_account') == credit:  # Verify bank account matches
+    # Strategy 1: Try COMPOUND key first (most specific — handles multi-product vendors like ASR)
+    if is_compound:
+        compound_key = f"{administration}_{credit}_{verb}"
+        if compound_key in reference_patterns:
+            pattern = reference_patterns[compound_key]
+            if pattern.get('confidence', 0) > 0 and pattern.get('credit_account') == credit:
+                return {
+                    'value': pattern.get('debet_account'),
+                    'confidence': pattern.get('confidence', 1.0),
+                    'pattern_key': compound_key,
+                    'reason': f'Compound match: Verb "{verb}" with bank credit {credit}',
+                    'verb': verb
+                }
+
+    # Strategy 2: Try COMPANY-ONLY key (fallback for single-product vendors)
+    company_key = f"{administration}_{credit}_{verb_company}"
+    if company_key in reference_patterns:
+        pattern = reference_patterns[company_key]
+        # Skip ambiguous patterns (multi-product vendors where company-level is unreliable)
+        if (pattern.get('confidence', 0) > 0 and
+                not pattern.get('_ambiguous') and
+                pattern.get('credit_account') == credit):
             return {
                 'value': pattern.get('debet_account'),
                 'confidence': pattern.get('confidence', 1.0),
-                'pattern_key': pattern_key,
-                'reason': f'Exact match: Verb "{verb}" with bank credit {credit}',
+                'pattern_key': company_key,
+                'reason': f'Company match: Verb "{verb_company}" with bank credit {credit}',
                 'verb': verb
             }
 
-    # Handle multiple matches: find all patterns with same verb and credit account
+    # Strategy 3: Handle multiple matches with conflict resolution
     matching_patterns = []
     for key, pattern in reference_patterns.items():
-        if (pattern.get('verb') == verb and
-            pattern.get('credit_account') == credit and
+        if pattern.get('_ambiguous'):
+            continue
+        if (pattern.get('credit_account') == credit and
             pattern.get('administration') == administration and
-            pattern.get('occurrences', 0) >= 1):  # Accept single occurrence patterns
-            matching_patterns.append((key, pattern))
+            pattern.get('confidence', 0) > 0 and
+            pattern.get('occurrences', 0) >= 1):
+            # Match on full verb or company
+            if pattern.get('verb') == verb:
+                matching_patterns.append((key, pattern))
+            elif pattern.get('verb_company') == verb_company and not is_compound:
+                matching_patterns.append((key, pattern))
 
     if matching_patterns:
-        # Only use if we have high confidence matches
         best_pattern = resolve_pattern_conflicts(matching_patterns, transaction, administration, is_bank_account_fn)
         if best_pattern and best_pattern[1].get('confidence', 0) >= 0.8:
             key, pattern = best_pattern
@@ -289,43 +309,63 @@ def predict_credit(
         # No valid verb - leave empty for manual fixing
         return None
 
-    # Parse compound verb to get company name only
+    # Parse compound verb
     is_compound = '|' in verb
     if is_compound:
         verb_company = verb.split('|', 1)[0]
     else:
         verb_company = verb
 
-    # Look for exact pattern match: Administration + Debet (bank account) + Verb Company
-    pattern_key = f"{administration}_{debet}_{verb_company}"
-
     # Get reference patterns (which contain verb patterns)
     patterns = get_filtered_patterns_fn(administration)
     reference_patterns = patterns.get('reference_patterns', {})
 
-    # Check for exact pattern match
-    if pattern_key in reference_patterns:
-        pattern = reference_patterns[pattern_key]
-        if pattern.get('debet_account') == debet:  # Verify bank account matches
+    # Strategy 1: Try COMPOUND key first (most specific — handles multi-product vendors like ASR)
+    if is_compound:
+        compound_key = f"{administration}_{debet}_{verb}"
+        if compound_key in reference_patterns:
+            pattern = reference_patterns[compound_key]
+            if pattern.get('confidence', 0) > 0 and pattern.get('debet_account') == debet:
+                return {
+                    'value': pattern.get('credit_account'),
+                    'confidence': pattern.get('confidence', 1.0),
+                    'pattern_key': compound_key,
+                    'reason': f'Compound match: Verb "{verb}" with bank debet {debet}',
+                    'verb': verb
+                }
+
+    # Strategy 2: Try COMPANY-ONLY key (fallback for single-product vendors)
+    company_key = f"{administration}_{debet}_{verb_company}"
+    if company_key in reference_patterns:
+        pattern = reference_patterns[company_key]
+        # Skip ambiguous patterns (multi-product vendors where company-level is unreliable)
+        if (pattern.get('confidence', 0) > 0 and
+                not pattern.get('_ambiguous') and
+                pattern.get('debet_account') == debet):
             return {
                 'value': pattern.get('credit_account'),
                 'confidence': pattern.get('confidence', 1.0),
-                'pattern_key': pattern_key,
-                'reason': f'Exact match: Verb "{verb}" with bank debet {debet}',
+                'pattern_key': company_key,
+                'reason': f'Company match: Verb "{verb_company}" with bank debet {debet}',
                 'verb': verb
             }
 
-    # Handle multiple matches: find all patterns with same verb and debet account
+    # Strategy 3: Handle multiple matches with conflict resolution
     matching_patterns = []
     for key, pattern in reference_patterns.items():
-        if (pattern.get('verb') == verb and
-            pattern.get('debet_account') == debet and
+        if pattern.get('_ambiguous'):
+            continue
+        if (pattern.get('debet_account') == debet and
             pattern.get('administration') == administration and
-            pattern.get('occurrences', 0) >= 1):  # Accept single occurrence patterns
-            matching_patterns.append((key, pattern))
+            pattern.get('confidence', 0) > 0 and
+            pattern.get('occurrences', 0) >= 1):
+            # Match on full verb or company
+            if pattern.get('verb') == verb:
+                matching_patterns.append((key, pattern))
+            elif pattern.get('verb_company') == verb_company and not is_compound:
+                matching_patterns.append((key, pattern))
 
     if matching_patterns:
-        # Only use if we have high confidence matches
         best_pattern = resolve_pattern_conflicts(matching_patterns, transaction, administration, is_bank_account_fn)
         if best_pattern and best_pattern[1].get('confidence', 0) >= 0.8:
             key, pattern = best_pattern
@@ -390,26 +430,46 @@ def predict_reference(
     else:
         verb_company = verb
 
-    # Strategy 1: Look for exact compound match
-    # FIX #1: Use verb_company for pattern matching, not full compound verb
-    pattern_key = f"{administration}_{bank_account}_{verb_company}"
-    if pattern_key in reference_patterns:
-        pattern = reference_patterns[pattern_key]
-        return {
-            'value': pattern.get('reference_number'),
-            'confidence': pattern.get('confidence', 1.0),
-            'pattern_key': pattern_key,
-            'reason': f'Exact match: "{verb}" with bank account {bank_account}',
-            'verb': verb,
-            'bank_account': bank_account,
-            'match_type': 'exact_compound' if is_compound else 'exact_simple'
-        }
+    # Strategy 1: Try COMPOUND key first (most specific — multi-product vendors)
+    if is_compound:
+        compound_key = f"{administration}_{bank_account}_{verb}"
+        if compound_key in reference_patterns:
+            pattern = reference_patterns[compound_key]
+            if pattern.get('confidence', 0) > 0:
+                return {
+                    'value': pattern.get('reference_number'),
+                    'confidence': pattern.get('confidence', 1.0),
+                    'pattern_key': compound_key,
+                    'reason': f'Compound match: "{verb}" with bank account {bank_account}',
+                    'verb': verb,
+                    'bank_account': bank_account,
+                    'match_type': 'exact_compound'
+                }
 
-    # Strategy 2: Find matching patterns with flexible matching (only if high confidence)
+    # Strategy 2: Try COMPANY-ONLY key (fallback for single-product vendors)
+    company_key = f"{administration}_{bank_account}_{verb_company}"
+    if company_key in reference_patterns:
+        pattern = reference_patterns[company_key]
+        if pattern.get('confidence', 0) > 0 and not pattern.get('_ambiguous'):
+            return {
+                'value': pattern.get('reference_number'),
+                'confidence': pattern.get('confidence', 1.0),
+                'pattern_key': company_key,
+                'reason': f'Company match: "{verb_company}" with bank account {bank_account}',
+                'verb': verb,
+                'bank_account': bank_account,
+                'match_type': 'company_fallback'
+            }
+
+    # Strategy 3: Find matching patterns with flexible matching (only if high confidence)
     matching_patterns = []
 
     for key, pattern in reference_patterns.items():
         if pattern.get('administration') != administration:
+            continue
+        if pattern.get('_ambiguous'):
+            continue
+        if pattern.get('confidence', 0) <= 0:
             continue
 
         # Only exact verb matches or very close company matches
