@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-import os
 import logging
 from dotenv import load_dotenv
 from api_schemas import validate_response_schema

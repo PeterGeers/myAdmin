@@ -86,7 +86,7 @@ def list_users(user_email, user_roles):
                     UserPoolId=USER_POOL_ID
                 )
                 user_data['groups'] = [g['GroupName'] for g in groups_response.get('Groups', [])]
-            except:
+            except Exception:
                 user_data['groups'] = []
             
             users.append(user_data)

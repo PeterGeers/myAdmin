@@ -145,7 +145,7 @@ class AIExtractor:
             
             # If no format matches, return current date
             return datetime.now().strftime('%Y-%m-%d')
-        except:
+        except Exception:
             return datetime.now().strftime('%Y-%m-%d')
     
     def _fallback_data(self, vendor_hint):
