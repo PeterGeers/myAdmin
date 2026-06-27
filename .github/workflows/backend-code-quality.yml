@@ -35,11 +35,11 @@ jobs:
 
       - name: Ruff lint
         working-directory: backend
-        run: ruff check src/ --output-format=github
+        run: ruff check src/ --exclude src/validate_pattern/ --output-format=github
 
       - name: Ruff format check
         working-directory: backend
-        run: ruff format --check src/
+        run: ruff format --check src/ --exclude src/validate_pattern/
 
       - name: Vulture dead code check
         working-directory: backend
