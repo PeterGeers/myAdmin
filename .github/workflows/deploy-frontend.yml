@@ -26,10 +26,10 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v5
+              uses: actions/checkout@v4
 
             - name: Setup Node.js
-              uses: actions/setup-node@v5
+              uses: actions/setup-node@v4
               with:
                   node-version: "22"
                   cache: "npm"
@@ -37,24 +37,28 @@ jobs:
 
             - name: Install dependencies
               working-directory: frontend
-              run: npm install --legacy-peer-deps
+              run: npm ci --legacy-peer-deps
+
+            - name: Run tests
+              working-directory: frontend
+              run: npx vitest run
 
             - name: Build frontend
               working-directory: frontend
               run: npm run build:ci
               env:
                   CI: false
-                  VITE_API_URL: https://invigorating-celebration-production.up.railway.app
-                  VITE_COGNITO_USER_POOL_ID: eu-west-1_Hdp40eWmu
-                  VITE_COGNITO_CLIENT_ID: 66tp0087h9tfbstggonnu5aghp
-                  VITE_COGNITO_DOMAIN: myadmin-6x2848jl.auth.eu-west-1.amazoncognito.com
-                  VITE_AWS_REGION: eu-west-1
+                  VITE_API_URL: ${{ secrets.VITE_API_URL }}
+                  VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
+                  VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
+                  VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
+                  VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
                   VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
                   VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
                   VITE_DOCS_URL: /docs
 
             - name: Setup Pages
-              uses: actions/configure-pages@v5
+              uses: actions/configure-pages@v4
               with:
                   enablement: true
 
@@ -72,4 +76,4 @@ jobs:
         steps:
             - name: Deploy to GitHub Pages
               id: deployment
-              uses: actions/deploy-pages@v5
+              uses: actions/deploy-pages@v4

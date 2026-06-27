@@ -111,22 +111,18 @@ resource "aws_cognito_user_pool" "myadmin" {
   }
 
   # Email configuration — use SES for better deliverability
-  # Sends password reset / verification emails from support@jabaki.nl
-  # instead of no-reply@verificationemail.com (which lands in spam)
+  # Email configuration — using Cognito default sender
+  # To use custom SES sender (support@jabaki.nl), verify the identity in SES first
   email_configuration {
-    email_sending_account = "DEVELOPER"
-    source_arn            = "arn:aws:ses:${var.aws_region}:344561557829:identity/support@jabaki.nl"
-    from_email_address    = "myAdmin <support@jabaki.nl>"
+    email_sending_account = "COGNITO_DEFAULT"
   }
 
   # MFA disabled to enable passkeys (Decision 1.1)
   # Passkeys are inherently multi-factor (device possession + biometric/PIN)
   mfa_configuration = "OFF"
 
-  # User pool add-ons — ENFORCED required for choice-based auth (USER_AUTH / passkeys)
-  user_pool_add_ons {
-    advanced_security_mode = "ENFORCED"
-  }
+  # NOTE: advanced_security_mode = "ENFORCED" was removed because it requires
+  # Cognito Plus tier. If passkeys/WebAuthn are needed later, upgrade the tier first.
 
   # NOTE: SignInPolicy.AllowedFirstAuthFactors (PASSWORD + WEB_AUTHN) is not yet
   # supported by the Terraform AWS provider. It must be set via AWS CLI after apply:

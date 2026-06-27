@@ -1,4 +1,4 @@
-FROM mysql:8.0
+FROM mysql:9.4
 
 # Custom MySQL configuration for Railway
 # Prevents crashes due to Railway's volume system and optimizes for cloud environment
@@ -22,5 +22,7 @@ RUN echo "[mysqld]" > /etc/mysql/conf.d/railway.cnf && \
     echo "# Optimize table cache" >> /etc/mysql/conf.d/railway.cnf && \
     echo "table_open_cache=2000" >> /etc/mysql/conf.d/railway.cnf
 
-# Use mysql_native_password for Python connector compatibility
-CMD ["mysqld", "--default-authentication-plugin=mysql_native_password"]
+# Enable mysql_native_password plugin (deprecated flag removed in 9.x, use system variable instead)
+RUN echo "" >> /etc/mysql/conf.d/railway.cnf && \
+    echo "# Authentication compatibility for Python connector" >> /etc/mysql/conf.d/railway.cnf && \
+    echo "mysql_native_password=ON" >> /etc/mysql/conf.d/railway.cnf
