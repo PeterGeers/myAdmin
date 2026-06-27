@@ -16,7 +16,8 @@ from unittest.mock import patch, MagicMock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from tenant_admin_routes import tenant_admin_bp, _TEMPLATE_TYPE_TO_LOCAL_KEY
+from tenant_admin_routes import tenant_admin_bp
+from routes.tenant_admin_templates import _TEMPLATE_TYPE_TO_LOCAL_KEY
 
 
 # ---------------------------------------------------------------------------
