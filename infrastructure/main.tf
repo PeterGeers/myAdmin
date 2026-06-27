@@ -12,6 +12,12 @@ terraform {
       version = "~> 3.0"
     }
   }
+
+  backend "s3" {
+    bucket = "myadmin-terraform-state-eu-west-1"
+    key    = "infrastructure/terraform.tfstate"
+    region = "eu-west-1"
+  }
 }
 
 provider "aws" {

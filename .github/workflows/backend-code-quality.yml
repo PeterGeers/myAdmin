@@ -1,50 +1,93 @@
-name: Backend Code Quality
+name: Backend CI
 
 on:
-    push:
-        branches: [main]
-        paths:
-            - "backend/**"
-            - ".github/workflows/backend-code-quality.yml"
-    pull_request:
-        branches: [main]
-        paths:
-            - "backend/**"
-    workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-code-quality.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+  workflow_dispatch:
 
 jobs:
-    dead-code-check:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v5
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Setup Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: "3.11"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
-            - name: Install vulture
-              run: pip install vulture
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install ruff vulture
 
-            - name: Run vulture dead code check
-              working-directory: backend
-              run: |
-                  vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
+      - name: Ruff lint
+        working-directory: backend
+        run: ruff check src/ --output-format=github
 
-    syntax-check:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v5
+      - name: Ruff format check
+        working-directory: backend
+        run: ruff format --check src/
 
-            - name: Setup Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: "3.11"
+      - name: Vulture dead code check
+        working-directory: backend
+        run: vulture src/ vulture_whitelist.py --min-confidence 80 --exclude validate_pattern/
 
-            - name: Syntax check all Python files
-              working-directory: backend/src
-              run: |
-                  find . -name "*.py" -not -path "./__pycache__/*" | xargs python -m py_compile
-                  echo "All Python files pass syntax check"
+      - name: Syntax check
+        working-directory: backend/src
+        run: |
+          find . -name "*.py" -not -path "./__pycache__/*" | xargs python -m py_compile
+          echo "All Python files pass syntax check"
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run unit tests
+        working-directory: backend
+        run: |
+          python -m pytest tests/unit/ -m "unit and not skip_ci" \
+            --tb=short -q \
+            --cov=src --cov-report=term-missing --cov-report=xml \
+            --junitxml=test-results.xml
+        env:
+          TESTING: "true"
+          DB_HOST: "localhost"
+          DB_USER: "test"
+          DB_PASSWORD: "test"
+          DB_NAME: "test"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/test-results.xml

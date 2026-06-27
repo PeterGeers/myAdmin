@@ -33,7 +33,7 @@ services:
       - ./backend:/app
       - ./frontend/build:/app/frontend/build
       - ./docs/site:/app/docs-site
-      - C:/Users/peter/OneDrive/Admin/reports:/app/reports
+      - /mnt/c/Users/peter/OneDrive/Admin/reports:/app/reports
     mem_limit: 512m
     cpus: 1.5
     restart: unless-stopped

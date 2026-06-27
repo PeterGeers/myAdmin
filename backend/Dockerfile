@@ -31,6 +31,5 @@ EXPOSE 5000
 
 # Note: Railway handles health checks via railway.json, no need for HEALTHCHECK here
 
-# Start the application  
-# Use wrapper script that properly configures Python path
-CMD ["sh", "-c", "if [ -n \"$RAILWAY_ENVIRONMENT\" ]; then python validate_env.py && python start_railway.py; else python src/app.py; fi"]
+# Start the application (local Docker only — Railway overrides via railway.toml startCommand)
+CMD ["python", "src/app.py"]

@@ -8,7 +8,7 @@
   },
   "then": {
     "type": "runCommand",
-    "command": "echo '=== Backend Lint ===' && .venv/Scripts/python -m ruff check backend/ --output-format=concise 2>&1 | tail -n 15 && echo '=== Backend Tests ===' && .venv/Scripts/python -m pytest backend/tests/unit/ -x -q --tb=short 2>&1 | tail -n 20 && echo '=== Frontend Lint ===' && cd frontend && npx eslint --max-warnings=0 --format=compact 2>&1 | tail -n 15 && echo '=== Frontend Tests ===' && npx react-scripts test --watchAll=false --ci 2>&1 | tail -n 20",
+    "command": "echo '=== Backend Lint ===' && python -m ruff check backend/ --output-format=concise 2>&1 | tail -n 15 && echo '=== Backend Tests ===' && python -m pytest backend/tests/unit/ -x -q --tb=short 2>&1 | tail -n 20 && echo '=== Frontend Lint ===' && cd frontend && npx eslint --max-warnings=0 --format=compact 2>&1 | tail -n 15 && echo '=== Frontend Tests ===' && npx vitest run 2>&1 | tail -n 20",
     "timeout": 180
   }
 }

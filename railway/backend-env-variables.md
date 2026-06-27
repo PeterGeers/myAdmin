@@ -11,10 +11,10 @@
 ## Required Variables
 
 ```
-DB_HOST=devoted-contentment.railway.internal
+DB_HOST=<railway-internal-hostname>
 DB_PORT=3306
-DB_USER=peter
-DB_PASSWORD=Kx9mP2vL8nQ5wR7jT4MyAdmin2026
+DB_USER=<db-user>
+DB_PASSWORD=<set-via-railway-dashboard>
 DB_NAME=finance
 ```
 
