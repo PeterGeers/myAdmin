@@ -6,7 +6,6 @@ Handles which modules (FIN, STR) are available for each tenant.
 """
 
 from flask import Blueprint, request, jsonify
-from functools import wraps
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 import logging
