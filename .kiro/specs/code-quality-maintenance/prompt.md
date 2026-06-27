@@ -25,4 +25,41 @@ Then create a new spec at `.kiro/specs/code-quality-fixes-YYYY-MM/` with:
 - requirements.md summarizing the findings with counts per category
 - tasks.md with a structured, actionable task list to fix each finding, grouped by category (file length → dead code → missing tests → type safety → stale docs), with file paths and specific actions
 
-Use "Quick Plan" workflow. Name the spec with the current month (e.g., code-quality-fixes-2026-06).
+Use "Quick Plan" workflow. Name the spec with the current month / day, code-quality-fixes-2026-06-29
+
+---
+
+## Full Test Suite Workflow
+
+A manual-trigger GitHub Actions workflow (`full-test-suite.yml`) runs the complete test suites for frontend and backend, generates reports, and uploads them as downloadable artifacts.
+
+### How to use
+
+1. Go to GitHub → Actions → "Full Test Suite"
+2. Click "Run workflow" → choose scope (both / backend / frontend)
+3. Wait for completion (~3-5 minutes)
+4. Download the artifact ZIP files (backend-test-reports, frontend-test-reports)
+5. Review the reports: `SUMMARY.md`, `test-report.html` (backend), `junit-results.xml`, `test-output.txt`
+
+### Process: Run → Analyze → Fix
+
+1. **Run**: Trigger the workflow manually when you want a full health check
+2. **Analyze**: Download artifacts, review SUMMARY.md for pass/fail counts, identify patterns in failures
+3. **Define tasks**: Use the code-quality-maintenance scan prompt above to generate a spec with actionable fix tasks based on findings
+
+### Reports included
+
+| Report              | Description                                              |
+| ------------------- | -------------------------------------------------------- |
+| `SUMMARY.md`        | Quick pass/fail overview                                 |
+| `test-output.txt`   | Full console output                                      |
+| `junit-results.xml` | Machine-readable results (can import into CI dashboards) |
+| `test-report.html`  | Interactive HTML report (backend only)                   |
+| `coverage-html/`    | Line-by-line coverage report (backend only)              |
+| `coverage.xml`      | Coverage data for tooling integration                    |
+
+### Known issues to address
+
+- **Backend**: broken test imports, missing module fixtures, tests depending on live DB
+- **Frontend**: 24 component tests with stale selectors (TenantManagement, ChartOfAccounts, StorageTab, InvoiceTestTool, aws-exports)
+- These are pre-existing issues exposed when CI added test execution
