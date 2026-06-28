@@ -57,7 +57,7 @@ jobs:
           VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
           VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
           VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
-          VITE_DOCS_URL: /docs
+          VITE_DOCS_URL: ${{ secrets.VITE_DOCS_URL }}
 
       - name: Build documentation (MkDocs)
         working-directory: docs
