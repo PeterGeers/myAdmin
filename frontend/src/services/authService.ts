@@ -8,7 +8,7 @@
  * - Role validation
  */
 
-import { fetchAuthSession, getCurrentUser, signIn, signOut, confirmSignIn, associateWebAuthnCredential, listWebAuthnCredentials, deleteWebAuthnCredential } from 'aws-amplify/auth';
+import { fetchAuthSession, getCurrentUser, signIn, confirmSignIn, associateWebAuthnCredential, listWebAuthnCredentials, deleteWebAuthnCredential } from 'aws-amplify/auth';
 
 /**
  * JWT Payload structure from Cognito tokens
