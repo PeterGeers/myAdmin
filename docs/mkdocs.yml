@@ -1,6 +1,6 @@
 site_name: myAdmin Documentatie
 site_description: Gebruikersdocumentatie voor myAdmin financieel beheer
-site_url: "https://invigorating-celebration-production.up.railway.app/docs/"
+site_url: "https://petergeers.github.io/myAdmin/docs/"
 
 theme:
   name: material
