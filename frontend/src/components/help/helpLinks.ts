@@ -1,14 +1,13 @@
 /**
  * PageType-to-docs mapping for in-app help.
  * 
- * Documentation is served by MkDocs via the backend at /docs/.
+ * Documentation is served by MkDocs on GitHub Pages at /docs/.
  * The help drawer embeds the MkDocs site in an iframe.
  */
 
 import i18n from 'i18next';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
-const DOCS_PATH = '/docs';
+const DOCS_BASE = import.meta.env.VITE_DOCS_URL || '/docs';
 
 /** Maps PageType values to MkDocs documentation sections */
 export const helpLinks: Record<string, string> = {
@@ -44,5 +43,5 @@ export const getHelpUrl = (page: string): string => {
   const lang = getDocsLanguage();
   const langPrefix = lang === 'nl' ? '' : '/en';
   const section = helpLinks[page] || '';
-  return `${API_URL}${DOCS_PATH}${langPrefix}/${section}`;
+  return `${DOCS_BASE}${langPrefix}/${section}`;
 };
