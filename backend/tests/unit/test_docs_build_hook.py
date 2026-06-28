@@ -20,6 +20,7 @@ import pytest
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 
+@pytest.mark.skipif(os.getenv('CI') == 'true', reason="Pre-commit hook not present in CI environment")
 class TestDocsPreCommitHook:
     """Validate the pre-commit hook that builds and syncs MkDocs to backend/docs-site."""
 

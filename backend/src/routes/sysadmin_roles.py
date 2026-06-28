@@ -5,6 +5,7 @@ API endpoints for managing Cognito groups (roles)
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from services.module_registry import MODULE_REGISTRY
 import os
@@ -33,7 +34,7 @@ sysadmin_roles_bp = Blueprint('sysadmin_roles', __name__)
 
 @sysadmin_roles_bp.route('', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
-def list_roles(user_email, user_roles):
+def list_roles(user_email, user_roles) -> ResponseReturnValue:
     """
     List all Cognito groups (roles)
     
@@ -126,7 +127,7 @@ def list_roles(user_email, user_roles):
 
 @sysadmin_roles_bp.route('', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def create_role(user_email, user_roles):
+def create_role(user_email, user_roles) -> ResponseReturnValue:
     """
     Create new Cognito group (role)
     
@@ -188,7 +189,7 @@ def create_role(user_email, user_roles):
 
 @sysadmin_roles_bp.route('/<role_name>', methods=['PUT'])
 @cognito_required(required_roles=['SysAdmin'])
-def update_role(user_email, user_roles, role_name):
+def update_role(user_email, user_roles, role_name) -> ResponseReturnValue:
     """
     Update Cognito group (role) description and precedence
     
@@ -246,7 +247,7 @@ def update_role(user_email, user_roles, role_name):
 
 @sysadmin_roles_bp.route('/<role_name>', methods=['DELETE'])
 @cognito_required(required_roles=['SysAdmin'])
-def delete_role(user_email, user_roles, role_name):
+def delete_role(user_email, user_roles, role_name) -> ResponseReturnValue:
     """
     Delete Cognito group (role)
     

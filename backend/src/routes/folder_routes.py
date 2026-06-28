@@ -6,6 +6,7 @@ Extracted from app.py during refactoring (Phase 1.4)
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from google_drive_service import GoogleDriveService
@@ -20,7 +21,7 @@ folder_bp = Blueprint('folders', __name__)
 config = None
 flag = False
 
-def set_config_and_flag(app_config, test_mode):
+def set_config_and_flag(app_config, test_mode) -> None:
     """Set the config and test mode flag from app.py"""
     global config, flag
     config = app_config
@@ -29,7 +30,7 @@ def set_config_and_flag(app_config, test_mode):
 
 @folder_bp.route('/api/folders', methods=['GET'])
 @cognito_required(required_permissions=['invoices_read'])
-def get_folders(user_email, user_roles):
+def get_folders(user_email, user_roles) -> ResponseReturnValue:
     """Return available vendor folders with optional regex filtering"""
     try:
         # Get tenant from request header
@@ -103,7 +104,7 @@ def get_folders(user_email, user_roles):
 @folder_bp.route('/api/create-folder', methods=['POST'])
 @cognito_required(required_permissions=['invoices_create'])
 @tenant_required()
-def create_folder(user_email, user_roles, tenant, user_tenants):
+def create_folder(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a new folder in Google Drive"""
     try:
         data = request.get_json()

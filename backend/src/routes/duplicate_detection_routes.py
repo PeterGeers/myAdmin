@@ -3,6 +3,7 @@ Duplicate Detection Routes Blueprint
 Handles duplicate transaction detection and user decision logging
 """
 from flask import Blueprint, request, jsonify, Response
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from duplicate_checker import DuplicateChecker
@@ -15,7 +16,7 @@ duplicate_detection_bp = Blueprint('duplicate_detection', __name__)
 # Global variables set by app.py
 flag = False  # Test mode flag
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode) -> None:
     """Set test mode flag"""
     global flag
     flag = test_mode
@@ -23,7 +24,7 @@ def set_test_mode(test_mode):
 
 @duplicate_detection_bp.route('/api/check-duplicate', methods=['POST'])
 @cognito_required(required_permissions=['invoices_read'])
-def check_duplicate(user_email, user_roles):
+def check_duplicate(user_email, user_roles) -> ResponseReturnValue:
     """Check for duplicate transactions during import process"""
     try:
         data = request.get_json()
@@ -92,7 +93,7 @@ def check_duplicate(user_email, user_roles):
 
 @duplicate_detection_bp.route('/api/log-duplicate-decision', methods=['POST'])
 @cognito_required(required_permissions=['invoices_create'])
-def log_duplicate_decision(user_email, user_roles):
+def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
     """Log user decision regarding duplicate transaction for audit trail"""
     try:
         data = request.get_json()
@@ -183,7 +184,7 @@ def log_duplicate_decision(user_email, user_roles):
 
 @duplicate_detection_bp.route('/api/handle-duplicate-decision', methods=['POST'])
 @cognito_required(required_permissions=['invoices_create'])
-def handle_duplicate_decision(user_email, user_roles):
+def handle_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
     """Handle user decision for duplicate transactions with full workflow processing"""
     try:
         data = request.get_json()

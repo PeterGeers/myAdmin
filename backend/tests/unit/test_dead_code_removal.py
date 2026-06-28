@@ -75,10 +75,12 @@ class TestOtherReportingRoutesStillRegistered:
     def app(self):
         from flask import Flask
         from reporting_routes import reporting_bp
+        from routes.financial_reporting_routes import financial_reporting_bp
 
         app = Flask(__name__)
         app.config['TESTING'] = True
         app.register_blueprint(reporting_bp, url_prefix='/api/reports')
+        app.register_blueprint(financial_reporting_bp, url_prefix='/api/reports')
         return app
 
     def _get_registered_rules(self, app):

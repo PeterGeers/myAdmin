@@ -52,7 +52,7 @@ def check_file(filepath: Path, allowed_files: set[str] | None = None) -> list[st
         List of violation message strings. Empty if file is clean or allowed.
     """
     if allowed_files is not None:
-        rel = str(filepath.as_posix())
+        rel = filepath.as_posix().replace('\\', '/')
         if rel in allowed_files:
             return []
 
@@ -124,7 +124,8 @@ def scan_directory(root: Path, allowed_files: set[str] | None = None,
 
     all_violations = []
     for py_file in _iter_py_files(root, excluded_dirs):
-        rel = str(py_file.relative_to(root).as_posix())
+        # Normalize to forward slashes for consistent cross-platform comparison
+        rel = py_file.relative_to(root).as_posix().replace('\\', '/')
         if rel in allowed_files:
             continue
         all_violations.extend(check_file(py_file))
@@ -141,7 +142,9 @@ def main():
         if not dir_path.is_dir():
             continue
         for py_file in _iter_py_files(dir_path):
-            rel = str(py_file.as_posix())
+            # Normalize to POSIX path and strip leading './' for consistent
+            # comparison against ALLOWED_FILES on all platforms (including Windows CI)
+            rel = py_file.as_posix().replace('\\', '/').lstrip('./')
             if rel in ALLOWED_FILES:
                 continue
             all_violations.extend(check_file(py_file))

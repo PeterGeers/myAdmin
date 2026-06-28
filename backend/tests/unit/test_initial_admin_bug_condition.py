@@ -23,6 +23,8 @@ import hypothesis.strategies as st
 
 from services.tenant_provisioning_service import TenantProvisioningService
 
+pytestmark = pytest.mark.slow
+
 
 # ---------------------------------------------------------------------------
 # Strategies

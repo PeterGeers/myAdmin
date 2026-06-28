@@ -15,6 +15,7 @@ import os
 import logging
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -34,7 +35,7 @@ verification_bp = Blueprint('verification', __name__)
 @verification_bp.route('/api/tenant-admin/sender-verification', methods=['GET'])
 @cognito_required(required_permissions=['tenant_admin'])
 @tenant_required()
-def get_verification_status(user_email, user_roles, tenant, user_tenants):
+def get_verification_status(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get the current sender email verification status for the authenticated tenant.
 
@@ -67,7 +68,7 @@ def get_verification_status(user_email, user_roles, tenant, user_tenants):
 @verification_bp.route('/api/tenant-admin/sender-verification/resend', methods=['POST'])
 @cognito_required(required_permissions=['tenant_admin'])
 @tenant_required()
-def resend_verification(user_email, user_roles, tenant, user_tenants):
+def resend_verification(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Resend the SES verification email for the authenticated tenant.
 
@@ -109,7 +110,7 @@ def resend_verification(user_email, user_roles, tenant, user_tenants):
 @verification_bp.route('/api/tenant-admin/sender-verification/email', methods=['PUT'])
 @cognito_required(required_permissions=['tenant_admin'])
 @tenant_required()
-def update_sender_email(user_email, user_roles, tenant, user_tenants):
+def update_sender_email(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Update the sender email address and initiate SES verification.
 

@@ -5,6 +5,7 @@ API endpoints for monitoring system health and service status
 """
 
 from flask import Blueprint, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 import os
 import boto3
@@ -28,7 +29,7 @@ SNS_TOPIC_ARN = os.getenv('SNS_TOPIC_ARN')
 sysadmin_health_bp = Blueprint('sysadmin_health', __name__)
 
 
-def check_database_health():
+def check_database_health() -> dict:
     """
     Check MySQL database health
     
@@ -82,7 +83,7 @@ def check_database_health():
         }
 
 
-def check_cognito_health():
+def check_cognito_health() -> dict:
     """
     Check AWS Cognito health
     
@@ -124,7 +125,7 @@ def check_cognito_health():
         }
 
 
-def check_sns_health():
+def check_sns_health() -> dict:
     """
     Check AWS SNS health
     
@@ -177,7 +178,7 @@ def check_sns_health():
         }
 
 
-def check_openrouter_health():
+def check_openrouter_health() -> dict:
     """
     Check OpenRouter API health
     
@@ -237,7 +238,7 @@ def check_openrouter_health():
 
 @sysadmin_health_bp.route('', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
-def get_system_health(user_email, user_roles):
+def get_system_health(user_email, user_roles) -> ResponseReturnValue:
     """
     Get overall system health status
     

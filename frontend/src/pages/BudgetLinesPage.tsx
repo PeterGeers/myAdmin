@@ -13,17 +13,17 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Box, Flex, Button, Text, useToast, Spinner, Badge, Textarea,
-  Table, Thead, Tbody, Tr, Td,
-  Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
-  ModalCloseButton, ModalFooter, VStack, HStack,
-  Select, useDisclosure, FormControl, FormLabel,
-} from '@chakra-ui/react';
-import { AddIcon, CopyIcon, StarIcon } from '@chakra-ui/icons';
+import { Box, Flex, Spinner, useToast, useDisclosure } from '@chakra-ui/react';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { useFilterableTable } from '../hooks/useFilterableTable';
-import { FilterableHeader } from '../components/filters/FilterableHeader';
+import {
+  BudgetLineTable,
+  BudgetLineToolbar,
+  AISuggestionsModal,
+  lineTotal,
+  formatDimension,
+} from '../components/budget';
+import type { BudgetLineFormValues, EnrichedBudgetLine } from '../components/budget';
 import BudgetLineModal from './BudgetLineModal';
 import GenerateDraftModal from './GenerateDraftModal';
 import CopyBudgetModal from './CopyBudgetModal';
@@ -47,21 +47,6 @@ import {
   getDraftSuggestions,
 } from '../services/budgetService';
 
-/** Compute total from a BudgetLine's 12 monthly amounts */
-const lineTotal = (line: BudgetLine): number =>
-  (Number(line.month_01) || 0) + (Number(line.month_02) || 0) +
-  (Number(line.month_03) || 0) + (Number(line.month_04) || 0) +
-  (Number(line.month_05) || 0) + (Number(line.month_06) || 0) +
-  (Number(line.month_07) || 0) + (Number(line.month_08) || 0) +
-  (Number(line.month_09) || 0) + (Number(line.month_10) || 0) +
-  (Number(line.month_11) || 0) + (Number(line.month_12) || 0);
-
-/** Format dimension display */
-const formatDimension = (line: BudgetLine): string => {
-  if (!line.detail_dimension_type) return '—';
-  return `${line.detail_dimension_type}: ${line.detail_dimension_value || ''}`;
-};
-
 const INITIAL_FILTERS: Record<string, string> = {
   account_code: '',
   period_mode: '',
@@ -72,7 +57,6 @@ const INITIAL_FILTERS: Record<string, string> = {
 const BudgetLinesPage: React.FC = () => {
   const toast = useToast();
   const { t } = useTypedTranslation('budget');
-  const { t: tc } = useTypedTranslation('common');
 
   // Data state
   const [versions, setVersions] = useState<BudgetVersion[]>([]);
@@ -85,12 +69,12 @@ const BudgetLinesPage: React.FC = () => {
   // Line modal
   const { isOpen: isLineOpen, onOpen: onLineOpen, onClose: onLineClose } = useDisclosure();
   const [editingLine, setEditingLine] = useState<BudgetLine | null>(null);
-  const [lineForm, setLineForm] = useState({
+  const [lineForm, setLineForm] = useState<BudgetLineFormValues>({
     account_code: '',
     period_mode: 'Monthly' as PeriodMode,
     amounts: Array(12).fill(0) as number[],
     annual_amount: 0,
-    dimension_type: '' as string,
+    dimension_type: '',
     dimension_value: '',
   });
 
@@ -117,7 +101,7 @@ const BudgetLinesPage: React.FC = () => {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   // FilterableTable — enrich lines with computed fields for filtering
-  const enrichedLines = lines.map((line) => ({
+  const enrichedLines: EnrichedBudgetLine[] = lines.map((line) => ({
     ...line,
     dimension: formatDimension(line),
     total: lineTotal(line).toFixed(2),
@@ -210,7 +194,7 @@ const BudgetLinesPage: React.FC = () => {
     onLineOpen();
   };
 
-  const handleLineSave = async (values: typeof lineForm) => {
+  const handleLineSave = async (values: BudgetLineFormValues) => {
     if (!selectedVersionId) return;
 
     const dimType = values.dimension_type || null;
@@ -419,109 +403,30 @@ const BudgetLinesPage: React.FC = () => {
 
   return (
     <Box p={6}>
-      {/* Header */}
-      <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={2}>
-        <Text fontSize="xl" fontWeight="bold" color="white">{t('titles.lines')}</Text>
-        <HStack spacing={2} wrap="wrap">
-          <Select
-            size="sm"
-            w="220px"
-            bg="whiteAlpha.100"
-            color="white"
-            value={selectedVersionId || ''}
-            onChange={(e) => setSelectedVersionId(Number(e.target.value))}
-          >
-            {versions.map((v) => (
-              <option key={v.id} value={v.id} style={{ color: 'black' }}>
-                {v.name} ({v.fiscal_year})
-              </option>
-            ))}
-          </Select>
-          <Button leftIcon={<AddIcon />} size="sm" colorScheme="orange" onClick={handleAddLine}>
-            {t('buttons.addLine')}
-          </Button>
-          <Button size="sm" colorScheme="orange" onClick={handleOpenDraft}>
-            {t('buttons.generateDraft')}
-          </Button>
-          <Button leftIcon={<CopyIcon />} size="sm" colorScheme="orange" onClick={handleOpenCopy}>
-            {t('buttons.copyBudget')}
-          </Button>
-          {isDraftVersion && (
-            <Button leftIcon={<StarIcon />} size="sm" colorScheme="blue" onClick={handleOpenSuggestions}>
-              {t('buttons.aiSuggestions')}
-            </Button>
-          )}
-        </HStack>
-      </Flex>
+      {/* Toolbar */}
+      <BudgetLineToolbar
+        versions={versions}
+        selectedVersionId={selectedVersionId}
+        onVersionChange={setSelectedVersionId}
+        isDraftVersion={isDraftVersion ?? false}
+        onAddLine={handleAddLine}
+        onGenerateDraft={handleOpenDraft}
+        onCopyBudget={handleOpenCopy}
+        onAISuggestions={handleOpenSuggestions}
+      />
 
       {/* Lines Table */}
-      {linesLoading ? (
-        <Flex justify="center" py={10}>
-          <Spinner size="lg" color="orange.300" />
-        </Flex>
-      ) : lines.length === 0 ? (
-        <Text color="gray.400">{t('messages.noLines')}</Text>
-      ) : (
-        <Box overflowX="auto">
-          <Table variant="simple" size="sm" bg="gray.800" color="white">
-            <Thead>
-              <Tr>
-                <FilterableHeader
-                  label={t('columns.accountCode')}
-                  filterValue={filters.account_code}
-                  onFilterChange={(v) => setFilter('account_code', v)}
-                  sortable
-                  sortDirection={sortField === 'account_code' ? sortDirection : null}
-                  onSort={() => handleSort('account_code')}
-                />
-                <FilterableHeader
-                  label={t('columns.periodMode')}
-                  filterValue={filters.period_mode}
-                  onFilterChange={(v) => setFilter('period_mode', v)}
-                  sortable
-                  sortDirection={sortField === 'period_mode' ? sortDirection : null}
-                  onSort={() => handleSort('period_mode')}
-                />
-                <FilterableHeader
-                  label={t('columns.dimension')}
-                  filterValue={filters.dimension}
-                  onFilterChange={(v) => setFilter('dimension', v)}
-                  sortable
-                  sortDirection={sortField === 'dimension' ? sortDirection : null}
-                  onSort={() => handleSort('dimension')}
-                />
-                <FilterableHeader
-                  label={t('columns.total')}
-                  filterValue={filters.total}
-                  onFilterChange={(v) => setFilter('total', v)}
-                  sortable
-                  sortDirection={sortField === 'total' ? sortDirection : null}
-                  onSort={() => handleSort('total')}
-                  isNumeric
-                />
-              </Tr>
-            </Thead>
-            <Tbody>
-              {processedData.map((row) => (
-                <Tr
-                  key={row.id}
-                  _hover={{ bg: 'gray.700', cursor: 'pointer' }}
-                  onClick={() => handleRowClick(row)}
-                >
-                  <Td color="white">{row.account_code}</Td>
-                  <Td color="white">{row.period_mode}</Td>
-                  <Td color="white" display={{ base: 'none', md: 'table-cell' }}>
-                    {row.dimension}
-                  </Td>
-                  <Td color="white" isNumeric>
-                    {lineTotal(row).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
-        </Box>
-      )}
+      <BudgetLineTable
+        processedData={processedData as EnrichedBudgetLine[]}
+        loading={linesLoading}
+        isEmpty={lines.length === 0}
+        filters={filters}
+        setFilter={setFilter}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        handleSort={handleSort}
+        onRowClick={handleRowClick}
+      />
 
       {/* Line Edit/Create Modal */}
       <BudgetLineModal
@@ -552,80 +457,17 @@ const BudgetLinesPage: React.FC = () => {
       />
 
       {/* AI Suggestions Modal */}
-      <Modal isOpen={isSuggestionsOpen} onClose={onSuggestionsClose} size="xl" scrollBehavior="inside" closeOnOverlayClick={false}>
-        <ModalOverlay />
-        <ModalContent maxW="750px" bg="gray.800" color="white">
-          <ModalHeader>{t('buttons.aiSuggestions')}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4} align="stretch">
-              <FormControl>
-                <FormLabel>{t('labels.contextNotes')}</FormLabel>
-                <Textarea
-                  value={contextNotes}
-                  onChange={(e) => setContextNotes(e.target.value)}
-                  placeholder="e.g. Huur stijgt 5% vanaf juni. Platform Booking.com is gestopt."
-                  rows={3}
-                />
-              </FormControl>
-              <Button
-                colorScheme="orange"
-                onClick={handleGetSuggestions}
-                isLoading={suggestionsLoading}
-                loadingText={tc('status.processing')}
-                isDisabled={!contextNotes.trim()}
-              >
-                {t('buttons.aiSuggestions')}
-              </Button>
-
-              {/* Suggestions list */}
-              {suggestions.length > 0 && (
-                <VStack spacing={3} align="stretch" mt={2}>
-                  <Text fontWeight="semibold" color="gray.300">
-                    {suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''}
-                  </Text>
-                  {suggestions.map((suggestion, idx) => (
-                    <Box key={idx} p={3} borderWidth="1px" borderRadius="md" bg="gray.700">
-                      <Flex justify="space-between" align="start" mb={2}>
-                        <Box>
-                          <Text fontWeight="bold" color="white">
-                            {suggestion.account_code} — {suggestion.account_name}
-                          </Text>
-                          <Text fontSize="sm" color="gray.300">
-                            Months affected: {suggestion.affected_months.join(', ')}
-                          </Text>
-                        </Box>
-                        <Badge colorScheme="blue" fontSize="xs">AI</Badge>
-                      </Flex>
-                      <Text fontSize="sm" mb={2} color="gray.200">{suggestion.reasoning}</Text>
-                      <HStack spacing={2}>
-                        <Button
-                          size="xs"
-                          colorScheme="orange"
-                          onClick={() => handleAcceptSuggestion(suggestion)}
-                        >
-                          {t('buttons.accept')}
-                        </Button>
-                        <Button
-                          size="xs"
-                          colorScheme="red"
-                          variant="outline"
-                          onClick={() => handleRejectSuggestion(idx)}
-                        >
-                          {t('buttons.reject')}
-                        </Button>
-                      </HStack>
-                    </Box>
-                  ))}
-                </VStack>
-              )}
-            </VStack>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" onClick={onSuggestionsClose}>{tc('buttons.close')}</Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <AISuggestionsModal
+        isOpen={isSuggestionsOpen}
+        onClose={onSuggestionsClose}
+        suggestions={suggestions}
+        loading={suggestionsLoading}
+        contextNotes={contextNotes}
+        onContextNotesChange={setContextNotes}
+        onGetSuggestions={handleGetSuggestions}
+        onAccept={handleAcceptSuggestion}
+        onReject={handleRejectSuggestion}
+      />
     </Box>
   );
 };

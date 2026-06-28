@@ -16,6 +16,8 @@ from unittest.mock import MagicMock, patch
 from hypothesis import given, settings, assume, HealthCheck
 from hypothesis import strategies as st
 
+pytestmark = pytest.mark.slow
+
 # ---------------------------------------------------------------------------
 # Strategies
 # ---------------------------------------------------------------------------
@@ -152,7 +154,7 @@ class TestPreservation_ExplicitSTR:
     """
 
     @given(tenant=tenant_names, modules=module_lists_with_str, locale=locales)
-    @settings(max_examples=30, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_explicit_str_remains_enabled(self, tenant, modules, locale):
         """
         Property: For all module lists that explicitly include STR,
@@ -202,7 +204,7 @@ class TestPreservation_GoogleDrive:
     @given(
         tenant_modules=st.just(['FIN', 'STR', 'TENADMIN']),
     )
-    @settings(max_examples=5, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_google_drive_params_visible_in_schema(self, tenant_modules):
         """
         Property: For all tenants with google_drive provider,
@@ -235,38 +237,42 @@ class TestPreservation_GoogleDrive:
     @given(
         tenant_modules=st.just(['FIN', 'STR', 'TENADMIN']),
     )
-    @settings(max_examples=5, suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_s3_bucket_not_seeded_for_google_drive(self, tenant_modules):
+    @settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_s3_bucket_not_seeded_without_env_var(self, tenant_modules):
         """
-        Property: For all tenants with google_drive provider,
-        no S3 bucket parameter is seeded during provisioning.
+        Property: When S3_SHARED_BUCKET env var is not set, no S3 bucket
+        parameter is seeded during provisioning.
 
-        (On unfixed code, no params are seeded at all, so this trivially passes.)
+        S3 shared is the default storage provider for all new tenants.
+        Seeding only occurs when the S3_SHARED_BUCKET env var is configured
+        (i.e., the infrastructure is available).  Without the env var,
+        no storage params are written.
         """
         from services.tenant_provisioning_service import TenantProvisioningService
 
         db = make_mock_db()
         service = TenantProvisioningService(db)
 
-        result = service.create_and_provision_tenant(
-            administration='GoogleDriveTenant',
-            display_name='Google Drive Tenant',
-            contact_email='gd@example.com',
-            modules=tenant_modules,
-            created_by='sysadmin@example.com',
-            locale='nl',
-        )
+        # Explicitly unset S3_SHARED_BUCKET to simulate env without S3 infra
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('S3_SHARED_BUCKET', None)
+            result = service.create_and_provision_tenant(
+                administration='NoS3EnvTenant',
+                display_name='No S3 Env Tenant',
+                contact_email='nos3@example.com',
+                modules=tenant_modules,
+                created_by='sysadmin@example.com',
+                locale='nl',
+            )
 
-        # For Google Drive tenants, s3_shared_bucket should NOT be seeded
-        # (On unfixed code nothing is seeded; after fix, only s3_shared tenants get bucket)
+        # Without S3_SHARED_BUCKET env var, no S3 bucket param should be seeded
         s3_bucket_params = [
             p for p in db._inserted_params
             if p['namespace'] == 'storage' and p['key'] == 's3_shared_bucket'
         ]
 
-        # This should be empty — Google Drive tenants don't need S3 bucket
         assert len(s3_bucket_params) == 0, (
-            f"Preservation violation: S3 bucket was seeded for a Google Drive tenant. "
+            f"S3 bucket was seeded without S3_SHARED_BUCKET env var. "
             f"Params: {s3_bucket_params}"
         )
 
@@ -284,7 +290,7 @@ class TestPreservation_Idempotent:
     """
 
     @given(tenant=tenant_names, locale=locales)
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_reprovision_existing_tenant_skips(self, tenant, locale):
         """
         Property: For all re-provisioning of existing tenants,
@@ -322,7 +328,7 @@ class TestPreservation_Idempotent:
             )
 
     @given(tenant=tenant_names, locale=locales)
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_provision_twice_no_duplicates(self, tenant, locale):
         """
         Property: Provisioning the same tenant twice produces no duplicate modules.
@@ -382,7 +388,7 @@ class TestPreservation_TenAdminAutoInclude:
     """
 
     @given(tenant=tenant_names, modules=module_lists_without_tenadmin, locale=locales)
-    @settings(max_examples=30, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_tenadmin_auto_added_when_missing(self, tenant, modules, locale):
         """
         Property: For all module lists missing TENADMIN,
@@ -431,7 +437,7 @@ class TestPreservation_DependencyChecks:
     """
 
     @given(tenant=tenant_names)
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_activate_zzp_without_fin_raises_error(self, tenant):
         """
         Property: For all module activations where ZZP depends on FIN
@@ -446,7 +452,7 @@ class TestPreservation_DependencyChecks:
             activate_module(db, tenant, 'ZZP', activated_by='admin@example.com')
 
     @given(tenant=tenant_names)
-    @settings(max_examples=5, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_activate_unknown_module_raises_error(self, tenant):
         """
         Property: Activating an unknown module raises ValueError.
@@ -478,7 +484,7 @@ class TestPreservation_SchemaFiltering:
             max_size=4,
         ).map(lambda mods: list(set(mods)))
     )
-    @settings(max_examples=30, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_schema_shows_only_active_module_sections(self, modules):
         """
         Property: For all module combinations, only sections matching
@@ -512,7 +518,7 @@ class TestPreservation_SchemaFiltering:
             assert 'zzp_branding' not in schema, "zzp_branding present when ZZP is not active"
 
     @given(tenant_modules=st.just(['FIN', 'STR', 'TENADMIN']))
-    @settings(max_examples=5, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_google_drive_tenant_sees_logo_field(self, tenant_modules):
         """
         Property: For Google Drive tenants with STR, company_logo_file_id

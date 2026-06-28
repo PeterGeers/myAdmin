@@ -9,6 +9,7 @@ import json
 import logging
 import os
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from services.email_log_service import EmailLogService
@@ -20,7 +21,7 @@ email_log_bp = Blueprint('email_log', __name__)
 
 @email_log_bp.route('/api/email-log', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin', 'Tenant_Admin'])
-def get_email_logs(user_email, user_roles):
+def get_email_logs(user_email, user_roles) -> ResponseReturnValue:
     """
     Query email logs.
     SysAdmin sees all tenants. Tenant Admin sees only their own tenant.
@@ -55,7 +56,7 @@ def get_email_logs(user_email, user_roles):
 
 
 @email_log_bp.route('/api/webhooks/ses', methods=['POST'])
-def ses_notification_webhook():
+def ses_notification_webhook() -> ResponseReturnValue:
     """
     Receive SES delivery notifications via SNS.
 

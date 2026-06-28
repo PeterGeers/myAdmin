@@ -12,6 +12,7 @@ import re
 import os
 import tempfile
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from services.invoice_test_service import InvoiceTestService
 import logging
@@ -90,7 +91,7 @@ def _validate_prompt_length(prompt: str) -> bool:
 
 @sysadmin_test_tool_bp.route('/process', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def process_file(user_email, user_roles):
+def process_file(user_email, user_roles) -> ResponseReturnValue:
     """
     Upload and process a file through the invoice pipeline in dry-run mode.
 
@@ -180,7 +181,7 @@ def process_file(user_email, user_roles):
 
 @sysadmin_test_tool_bp.route('/rerun-prompt', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def rerun_prompt(user_email, user_roles):
+def rerun_prompt(user_email, user_roles) -> ResponseReturnValue:
     """
     Re-run AI extraction with a custom prompt against previously extracted text.
 
@@ -233,7 +234,7 @@ def rerun_prompt(user_email, user_roles):
 
 @sysadmin_test_tool_bp.route('/vendor-history', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
-def vendor_history(user_email, user_roles):
+def vendor_history(user_email, user_roles) -> ResponseReturnValue:
     """
     Get previous transactions for a vendor.
 

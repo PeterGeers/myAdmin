@@ -11,6 +11,7 @@ import json
 import logging
 import boto3
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from dialect_helpers import dialect
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 sysadmin_provisioning_bp = Blueprint('sysadmin_provisioning', __name__)
 
 
-def _get_promo_db():
+def _get_promo_db() -> DatabaseManager:
     """Get DatabaseManager for myadmin_promo database"""
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     db = DatabaseManager(test_mode=test_mode)
@@ -30,7 +31,7 @@ def _get_promo_db():
     return db
 
 
-def _get_finance_db():
+def _get_finance_db() -> DatabaseManager:
     """Get DatabaseManager for finance database"""
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     return DatabaseManager(test_mode=test_mode)
@@ -38,7 +39,7 @@ def _get_finance_db():
 
 @sysadmin_provisioning_bp.route('/pending', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
-def list_pending_signups(user_email, user_roles):
+def list_pending_signups(user_email, user_roles) -> ResponseReturnValue:
     """
     List verified signups awaiting provisioning.
 
@@ -72,7 +73,7 @@ def list_pending_signups(user_email, user_roles):
 
 @sysadmin_provisioning_bp.route('/provision', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def provision_signup(user_email, user_roles):
+def provision_signup(user_email, user_roles) -> ResponseReturnValue:
     """
     Provision a verified signup into a full tenant.
 
@@ -233,7 +234,7 @@ def _update_cognito_tenants(email: str, admin_name: str) -> str:
         return str(e)
 
 
-def _send_admin_notification(email: str, admin_name: str, first_name: str):
+def _send_admin_notification(email: str, admin_name: str, first_name: str) -> None:
     """Send SNS notification to admin (non-critical)."""
     try:
         from aws_notifications import get_notification_service
@@ -248,7 +249,7 @@ def _send_admin_notification(email: str, admin_name: str, first_name: str):
         logger.warning(f"Admin notification failed (non-critical): {e}")
 
 
-def _send_welcome_email(email: str, admin_name: str, first_name: str, locale: str):
+def _send_welcome_email(email: str, admin_name: str, first_name: str, locale: str) -> None:
     """Send welcome email to the new tenant user via SES (non-critical)."""
     try:
         from services.ses_email_service import SESEmailService

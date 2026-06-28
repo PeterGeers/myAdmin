@@ -1,3 +1,12 @@
+"""
+Banking Processor
+
+Handles CSV file processing, duplicate detection, and transaction import
+for bank statement files (Rabobank, Revolut, generic).
+
+Banking account checks (balance verification, sequence gaps) are in banking_checks.py.
+"""
+
 import pandas as pd
 import glob
 import os
@@ -6,37 +15,10 @@ from datetime import datetime
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 from pattern_analyzer import PatternAnalyzer
+from banking_checks import BankingChecks, _get_opening_balance_date
 import json
 import unicodedata
 import logging
-
-
-def _get_opening_balance_date(db, administration):
-    """Get the opening balance date based on the last closed year.
-
-    Queries year_closure_status for the most recent closed year and returns
-    January 1 of the following year as the opening balance date.
-
-    Args:
-        db: DatabaseManager instance
-        administration: tenant identifier
-
-    Returns:
-        str or None: 'YYYY-01-01' if closure exists, None otherwise
-    """
-    try:
-        query = """
-            SELECT MAX(year) as last_closed_year
-            FROM year_closure_status
-            WHERE administration = %s
-        """
-        rows = db.execute_query(query, [administration])
-        if rows and rows[0]['last_closed_year']:
-            return f"{rows[0]['last_closed_year'] + 1}-01-01"
-        return None
-    except Exception as e:
-        logging.warning(f"Could not fetch opening balance date for {administration}: {e}")
-        return None
 
 
 class BankingProcessor:
@@ -45,91 +27,93 @@ class BankingProcessor:
         self.db = DatabaseManager(test_mode=test_mode)
         self.pattern_analyzer = PatternAnalyzer(test_mode=test_mode)
         self.download_folder = os.path.expanduser("~/Downloads")  # Default download folder
-    
+        self._checks = BankingChecks(self.db)
+
     def normalize_text(self, text):
         """Normalize text to NFD form for consistent duplicate detection"""
         if not text:
             return ''
         return unicodedata.normalize('NFD', str(text))
-    
+
     def get_csv_files(self, folder_path=None):
         """Get all CSV files from specified folder"""
         if not folder_path:
             folder_path = self.download_folder
-        
+
         # Look for Rabobank CSV files (pattern: CSV_[O|A])
         rabo_pattern = os.path.join(folder_path, "CSV_[OA]*.csv")
         rabo_files = glob.glob(rabo_pattern)
-        
+
         # Look for other bank files
         other_pattern = os.path.join(folder_path, "*.csv")
         all_files = glob.glob(other_pattern)
-        
+
         return {
             'rabo_files': rabo_files,
             'other_files': [f for f in all_files if f not in rabo_files]
         }
-    
+
     def read_rabo_csv(self, file_path):
         """Read Rabobank CSV file and extract necessary columns"""
         try:
             df = pd.read_csv(file_path, encoding='latin1', dtype=str)
-            
+
             # Map Rabobank columns to standard format
             standard_columns = {
                 'TransactionNumber': f'Rabo {datetime.now().strftime("%Y-%m-%d")}',
-                'TransactionDate': df.iloc[:, 4] if len(df.columns) > 4 else '',  # Date column
-                'TransactionDescription': '',  # Will be built from multiple columns
-                'TransactionAmount': df.iloc[:, 6] if len(df.columns) > 6 else '',  # Amount column
+                'TransactionDate': df.iloc[:, 4] if len(df.columns) > 4 else '',
+                'TransactionDescription': '',
+                'TransactionAmount': df.iloc[:, 6] if len(df.columns) > 6 else '',
                 'Debet': '',
                 'Credit': '',
                 'ReferenceNumber': f'Rabo {datetime.now().strftime("%Y-%m-%d")}',
-                'Ref1': df.iloc[:, 0] if len(df.columns) > 0 else '',  # Account number
-                'Ref2': df.iloc[:, 3] if len(df.columns) > 3 else '',  # Transaction reference
+                'Ref1': df.iloc[:, 0] if len(df.columns) > 0 else '',
+                'Ref2': df.iloc[:, 3] if len(df.columns) > 3 else '',
                 'Ref3': '',
                 'Ref4': file_path,
                 'Administration': 'GoodwinSolutions'
             }
-            
+
             # Build transaction description from available columns
             desc_fields = []
-            if len(df.columns) > 8:  # Naam tegenpartij
+            if len(df.columns) > 8:
                 desc_fields.append(df.iloc[:, 8].fillna(''))
-            if len(df.columns) > 19:  # Omschrijving
+            if len(df.columns) > 19:
                 desc_fields.append(df.iloc[:, 19].fillna(''))
-            
-            # Combine description fields
+
             if desc_fields:
-                standard_columns['TransactionDescription'] = desc_fields[0].astype(str) + ' ' + desc_fields[1].astype(str) if len(desc_fields) > 1 else desc_fields[0].astype(str)
-            
+                standard_columns['TransactionDescription'] = (
+                    desc_fields[0].astype(str) + ' ' + desc_fields[1].astype(str)
+                    if len(desc_fields) > 1
+                    else desc_fields[0].astype(str)
+                )
+
             # Process amounts and debit/credit
             if 'TransactionAmount' in standard_columns and not standard_columns['TransactionAmount'].empty:
                 amounts = standard_columns['TransactionAmount'].astype(str)
-                signs = amounts.str[0]  # First character is +/-
+                signs = amounts.str[0]
                 amounts_clean = amounts.str[1:].str.replace(',', '.').astype(float)
-                
-                # Determine debit/credit based on sign
+
                 account = standard_columns['Ref1']
                 standard_columns['Debet'] = account.where(signs == '+', '')
                 standard_columns['Credit'] = account.where(signs == '-', '')
                 standard_columns['TransactionAmount'] = amounts_clean
-            
+
             return pd.DataFrame(standard_columns)
-            
+
         except Exception as e:
             print(f"Error reading Rabo CSV {file_path}: {e}")
             return pd.DataFrame()
-    
+
     def read_generic_csv(self, file_path):
         """Read generic CSV file and map to standard format"""
         try:
             df = pd.read_csv(file_path, encoding='utf-8')
-            
-            # Try to auto-detect columns based on common names
+
             date_col = self.find_column(df, ['date', 'datum', 'transaction_date'])
             amount_col = self.find_column(df, ['amount', 'bedrag', 'transaction_amount'])
             desc_col = self.find_column(df, ['description', 'omschrijving', 'memo'])
-            
+
             standard_data = {
                 'TransactionNumber': f'Import {datetime.now().strftime("%Y-%m-%d")}',
                 'TransactionDate': df[date_col] if date_col else '',
@@ -144,60 +128,56 @@ class BankingProcessor:
                 'Ref4': file_path,
                 'Administration': 'GoodwinSolutions'
             }
-            
+
             return pd.DataFrame(standard_data)
-            
+
         except Exception as e:
             print(f"Error reading generic CSV {file_path}: {e}")
             return pd.DataFrame()
-    
+
     def find_column(self, df, possible_names):
         """Find column by possible names (case insensitive)"""
         for col in df.columns:
             if col.lower() in [name.lower() for name in possible_names]:
                 return col
         return None
-    
+
     def process_csv_files(self, file_paths):
         """Process multiple CSV files and combine into single dataset"""
         combined_data = pd.DataFrame()
-        
+
         for file_path in file_paths:
             print(f"Processing: {file_path}")
-            
-            # Determine file type and process accordingly
+
             if 'CSV_' in os.path.basename(file_path):
                 df = self.read_rabo_csv(file_path)
             elif os.path.basename(file_path).startswith('RA_CC_'):
                 df = self.read_generic_csv(file_path)
             else:
                 df = self.read_generic_csv(file_path)
-            
+
             if not df.empty:
                 if combined_data.empty:
                     combined_data = df
                 else:
                     combined_data = pd.concat([combined_data, df], ignore_index=True)
-        
+
         return combined_data
-    
+
     def prepare_for_review(self, df):
         """Prepare data for frontend review"""
-        # Convert to records for JSON serialization
         records = df.to_dict('records')
-        
-        # Add row IDs for frontend tracking
+
         for i, record in enumerate(records):
             record['row_id'] = i
-            # Ensure all values are JSON serializable
             for key, value in record.items():
                 if pd.isna(value):
                     record[key] = ''
                 elif isinstance(value, (pd.Timestamp, datetime)):
                     record[key] = value.strftime('%Y-%m-%d')
-        
+
         return records
-    
+
     def save_approved_transactions(self, transactions):
         """Save approved transactions to database with duplicate detection.
 
@@ -206,8 +186,7 @@ class BankingProcessor:
         inserts occur.
         """
         # --- Closed-period guard (before any DB writes) ---
-        # Collect distinct (year, administration) pairs from non-zero-amount txns
-        year_admin_pairs = {}  # admin -> set of years
+        year_admin_pairs = {}
         for txn in transactions:
             if float(txn.get('TransactionAmount', 0)) == 0:
                 continue
@@ -221,7 +200,6 @@ class BankingProcessor:
                 continue
             year_admin_pairs.setdefault(admin, set()).add(year)
 
-        # Query year_closure_status for each administration
         offending = []
         for admin, years in year_admin_pairs.items():
             if not years:
@@ -252,20 +230,20 @@ class BankingProcessor:
         if offending:
             raise ClosedPeriodError(offending)
 
-        # --- Existing save logic with duplicate detection ---
+        # --- Save logic with duplicate detection ---
         table_name = 'mutaties'
         conn = self.db.get_connection()
         cursor = conn.cursor(dictionary=True)
-        
+
         saved_count = 0
         for transaction in transactions:
             try:
                 if 'row_id' in transaction:
                     del transaction['row_id']
-                
+
                 if float(transaction.get('TransactionAmount', 0)) == 0:
                     continue
-                
+
                 # Ref2-based duplicate detection (exact match, takes priority)
                 ref2 = transaction.get('Ref2', '').strip()
                 if ref2:
@@ -275,11 +253,11 @@ class BankingProcessor:
                         AND administration = %s
                         LIMIT 1
                     """, (ref2, transaction.get('administration')))
-                    
+
                     if cursor.fetchone():
                         print(f"Skipping duplicate (Ref2 match): {ref2}")
                         continue
-                
+
                 # Check for duplicate using normalized text
                 desc_normalized = self.normalize_text(transaction.get('TransactionDescription', ''))
                 cursor.execute(f"""
@@ -293,566 +271,56 @@ class BankingProcessor:
                     transaction.get('TransactionDate'),
                     transaction.get('administration')
                 ))
-                
+
                 existing = cursor.fetchall()
                 if existing:
-                    # Check if any match after normalization
                     for row in existing:
                         cursor.execute(f"SELECT TransactionDescription FROM {table_name} WHERE ID = %s", (row['ID'],))
                         existing_desc = cursor.fetchone()['TransactionDescription']
                         if self.normalize_text(existing_desc) == desc_normalized:
                             print(f"Skipping duplicate: {transaction.get('TransactionDescription')}")
                             continue
-                
+
                 self.db.insert_transaction(transaction, table_name)
                 saved_count += 1
-                
+
             except Exception as e:
                 print(f"Error saving transaction: {e}")
-        
+
         cursor.close()
         conn.close()
         return saved_count
-    
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Banking Checks (delegated to BankingChecks helper)
+    # ──────────────────────────────────────────────────────────────────────────
+
     def check_banking_accounts(self, end_date=None, administration=None):
-        """
-        Check banking account balances based on internal calculation vs last transaction
-        
-        Args:
-            end_date: Optional end date for balance calculation
-            administration: Tenant to filter accounts by (required for multi-tenant)
-        """
-        # Get opening balance date from year closure status
-        opening_balance_date = _get_opening_balance_date(self.db, administration)
-        
-        # Get bank accounts using canonical $.bank_account flag source
-        accounts = self.db.get_bank_account_lookups(administration=administration)
-        
-        if not accounts:
-            return []
-        
-        # Get account codes for this tenant
-        account_codes = list(set([acc['Account'] for acc in accounts]))
-        
-        # Build WHERE clause for account filtering
-        account_placeholders = ','.join(['%s'] * len(account_codes))
-        
-        # Get calculated balances from vw_mutaties with account names
-        if end_date:
-            query = f"""
-                SELECT Reknum, Administration as administration, 
-                       ROUND(SUM(Amount), 2) as calculated_balance,
-                       MAX(AccountName) as account_name
-                FROM vw_mutaties 
-                WHERE Administration = %s 
-                AND Reknum IN ({account_placeholders})
-                AND TransactionDate <= %s
-                {' AND TransactionDate >= %s' if opening_balance_date else ''}
-                GROUP BY Reknum, Administration
-            """
-            params = [administration] + account_codes + [end_date]
-            if opening_balance_date:
-                params.append(opening_balance_date)
-        else:
-            query = f"""
-                SELECT Reknum, Administration as administration, 
-                       ROUND(SUM(Amount), 2) as calculated_balance,
-                       MAX(AccountName) as account_name
-                FROM vw_mutaties 
-                WHERE Administration = %s 
-                AND Reknum IN ({account_placeholders})
-                {' AND TransactionDate >= %s' if opening_balance_date else ''}
-                GROUP BY Reknum, Administration
-            """
-            params = [administration] + account_codes
-            if opening_balance_date:
-                params.append(opening_balance_date)
-        
-        balances = self.db.execute_query(query, params)
-        
-        # For each balance, find the last transaction description from mutaties table
-        for balance in balances:
-            # Get all transactions for the last transaction date (up to end_date if specified)
-            if end_date:
-                last_tx_query = """
-                    SELECT TransactionDate, TransactionDescription, TransactionAmount, 
-                           Debet, Credit, Ref2, Ref3, Ref4
-                    FROM mutaties 
-                    WHERE administration = %s 
-                    AND (Debet = %s OR Credit = %s)
-                    AND TransactionDate <= %s
-                    {opening_date_filter}
-                    AND TransactionDate = (
-                        SELECT MAX(TransactionDate) 
-                        FROM mutaties 
-                        WHERE administration = %s 
-                        AND (Debet = %s OR Credit = %s)
-                        AND TransactionDate <= %s
-                        {opening_date_filter}
-                    )
-                    ORDER BY Ref2 DESC
-                """.format(opening_date_filter='AND TransactionDate >= %s' if opening_balance_date else '')
-                last_tx_params = [
-                    balance['administration'], balance['Reknum'], balance['Reknum'], end_date
-                ]
-                if opening_balance_date:
-                    last_tx_params.append(opening_balance_date)
-                last_tx_params.extend([
-                    balance['administration'], balance['Reknum'], balance['Reknum'], end_date
-                ])
-                if opening_balance_date:
-                    last_tx_params.append(opening_balance_date)
-            else:
-                last_tx_query = """
-                    SELECT TransactionDate, TransactionDescription, TransactionAmount, 
-                           Debet, Credit, Ref2, Ref3, Ref4
-                    FROM mutaties 
-                    WHERE administration = %s 
-                    AND (Debet = %s OR Credit = %s)
-                    {opening_date_filter}
-                    AND TransactionDate = (
-                        SELECT MAX(TransactionDate) 
-                        FROM mutaties 
-                        WHERE administration = %s 
-                        AND (Debet = %s OR Credit = %s)
-                        {opening_date_filter}
-                    )
-                    ORDER BY Ref2 DESC
-                """.format(opening_date_filter='AND TransactionDate >= %s' if opening_balance_date else '')
-                last_tx_params = [
-                    balance['administration'], balance['Reknum'], balance['Reknum']
-                ]
-                if opening_balance_date:
-                    last_tx_params.append(opening_balance_date)
-                last_tx_params.extend([
-                    balance['administration'], balance['Reknum'], balance['Reknum']
-                ])
-                if opening_balance_date:
-                    last_tx_params.append(opening_balance_date)
-            
-            last_transactions = self.db.execute_query(last_tx_query, last_tx_params)
-            
-            if last_transactions:
-                balance['last_transaction_date'] = last_transactions[0]['TransactionDate']
-                balance['last_transaction_description'] = last_transactions[0]['TransactionDescription']
-                balance['last_transaction_amount'] = last_transactions[0]['TransactionAmount']
-                # Ensure Ref3 and Ref4 are included in each transaction
-                for tx in last_transactions:
-                    if 'Ref3' not in tx:
-                        tx['Ref3'] = ''
-                    if 'Ref4' not in tx:
-                        tx['Ref4'] = ''
-                balance['last_transactions'] = last_transactions
-            else:
-                balance['last_transaction_date'] = None
-                balance['last_transaction_description'] = 'No transactions found'
-                balance['last_transaction_amount'] = 0
-                balance['last_transactions'] = []
-        
-        return balances
-    
+        """Check banking account balances (delegated to BankingChecks)."""
+        return self._checks.check_banking_accounts(end_date=end_date, administration=administration)
+
     def check_sequence_numbers(self, account_code=None, administration=None, start_date='2025-01-01'):
-        """Check if Ref2 sequence numbers are consecutive for specific accounts since start_date"""
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Override start_date with closure-derived opening balance date if available
-        opening_balance_date = _get_opening_balance_date(self.db, administration)
-        if opening_balance_date is not None:
-            start_date = opening_balance_date
-        
-        # If account_code and administration provided, get IBAN from lookup
-        if account_code and administration:
-            cursor.execute("""
-                SELECT rekeningNummer FROM vw_lookup_accounts 
-                WHERE Account = %s AND administration = %s
-            """, (account_code, administration))
-            lookup_result = cursor.fetchone()
-            if not lookup_result:
-                cursor.close()
-                conn.close()
-                return {'success': False, 'message': f'No IBAN found for account {account_code} in {administration}'}
-            iban = lookup_result['rekeningNummer']
-        else:
-            iban = 'NL80RABO0107936917'  # Default
-        
-        # Get all transactions for the IBAN since start_date, ordered by Ref2
-        cursor.execute("""
-            SELECT TransactionDate, TransactionDescription, Ref2, TransactionAmount
-            FROM mutaties 
-            WHERE Ref1 = %s 
-            AND TransactionDate >= %s
-            AND Ref2 IS NOT NULL 
-            AND Ref2 != ''
-            ORDER BY CAST(Ref2 AS UNSIGNED)
-        """, (iban, start_date))
-        
-        transactions = cursor.fetchall()
-        
-        if not transactions:
-            cursor.close()
-            conn.close()
-            return {'success': False, 'message': 'No transactions found'}
-        
-        # Check if Ref2 values are numeric (sequence check only applies to accounts with numeric Ref2)
-        numeric_count = 0
-        for tx in transactions[:10]:  # Sample first 10 transactions
-            try:
-                int(tx['Ref2'])
-                numeric_count += 1
-            except (ValueError, TypeError):
-                pass
-        
-        if numeric_count == 0:
-            # Non-numeric Ref2 values (e.g., Revolut descriptive references) — do running balance check
-            # Ref2 format: "description_saldo_completiondate"
-            # The saldo represents the account balance after this transaction settled
-            # Sort by completion date and verify saldo progression is consistent
-            
-            # Sort transactions by completion date extracted from Ref2
-            def get_completion_date(tx):
-                if tx.get('Ref2'):
-                    parts = tx['Ref2'].split('_')
-                    if len(parts) >= 3:
-                        return parts[-1]  # e.g. "2026-03-28 15:12:34"
-                return ''
-            
-            sorted_transactions = sorted(transactions, key=get_completion_date)
-            
-            # Walk through and check: saldo[i] - saldo[i-1] should equal ±amount[i]
-            balance_issues = []
-            prev_saldo = None
-            
-            for tx in sorted_transactions:
-                if not tx.get('Ref2'):
-                    continue
-                    
-                parts = tx['Ref2'].split('_')
-                if len(parts) < 3:
-                    continue
-                
-                try:
-                    current_saldo = float(parts[-2])
-                except (ValueError, IndexError):
-                    continue
-                
-                amount = abs(float(tx['TransactionAmount'])) if tx.get('TransactionAmount') else 0.0
-                
-                if prev_saldo is not None:
-                    saldo_diff = round(current_saldo - prev_saldo, 2)
-                    
-                    # The saldo difference should be ±amount (within rounding tolerance)
-                    if amount > 0 and abs(abs(saldo_diff) - amount) > 0.01:
-                        balance_issues.append({
-                            'expected': round(prev_saldo - amount, 2) if saldo_diff < 0 else round(prev_saldo + amount, 2),
-                            'found': current_saldo,
-                            'gap': round(current_saldo - (prev_saldo - amount if saldo_diff < 0 else prev_saldo + amount), 2),
-                            'date': str(tx['TransactionDate']) if tx.get('TransactionDate') else '',
-                            'description': tx.get('TransactionDescription', '')
-                        })
-                
-                prev_saldo = current_saldo
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                'success': True,
-                'iban': iban,
-                'account_code': account_code,
-                'administration': administration,
-                'start_date': start_date,
-                'total_transactions': len(sorted_transactions),
-                'first_sequence': None,
-                'last_sequence': None,
-                'has_gaps': len(balance_issues) > 0,
-                'sequence_issues': balance_issues,
-                'check_type': 'balance_comparison',
-                'message': f'Running balance check: {len(balance_issues)} discrepancies found' if balance_issues else 'Running balance is consistent — no gaps found'
-            }
-        
-        # Check for sequence gaps
-        sequence_issues = []
-        expected_next = None
-        
-        for i, tx in enumerate(transactions):
-            try:
-                current_seq = int(tx['Ref2'])
-                
-                if i == 0:
-                    expected_next = current_seq + 1
-                else:
-                    if current_seq != expected_next:
-                        sequence_issues.append({
-                            'expected': expected_next,
-                            'found': current_seq,
-                            'gap': current_seq - expected_next,
-                            'date': tx['TransactionDate'],
-                            'description': tx['TransactionDescription'],
-                            'amount': tx['TransactionAmount']
-                        })
-                    expected_next = current_seq + 1
-                    
-            except ValueError:
-                sequence_issues.append({
-                    'error': f"Invalid sequence number: {tx['Ref2']}",
-                    'date': tx['TransactionDate'],
-                    'description': tx['TransactionDescription']
-                })
-        
-        cursor.close()
-        conn.close()
-        
-        # Handle first and last sequence safely
-        first_sequence = None
-        last_sequence = None
-        if transactions:
-            try:
-                first_sequence = int(transactions[0]['Ref2'])
-            except ValueError:
-                pass
-            try:
-                last_sequence = int(transactions[-1]['Ref2'])
-            except ValueError:
-                pass
-        
-        return {
-            'success': True,
-            'iban': iban,
-            'account_code': account_code,
-            'administration': administration,
-            'start_date': start_date,
-            'total_transactions': len(transactions),
-            'first_sequence': first_sequence,
-            'last_sequence': last_sequence,
-            'sequence_issues': sequence_issues,
-            'has_gaps': len(sequence_issues) > 0
-        }
-    
-    def check_revolut_balance_gaps(self, iban, account_code, 
+        """Check Ref2 sequence numbers are consecutive (delegated to BankingChecks)."""
+        return self._checks.check_sequence_numbers(
+            account_code=account_code, administration=administration, start_date=start_date
+        )
+
+    def check_revolut_balance_gaps(self, iban, account_code,
                                    start_date='2025-05-01', expected_final_balance=262.54):
-        """
-        Check for gaps in Revolut balance by comparing calculated running balance 
-        against the balance shown in Ref3 field.
-        
-        For Revolut transactions:
-        - Ref2 format: [description]_[balance]_[datetime]
-        - Ref3 contains: the balance from the bank statement
-        
-        Args:
-            iban: Revolut IBAN
-            account_code: Account code
-            start_date: Start date for analysis (default: 2025-05-01)
-            expected_final_balance: Expected final balance from Revolut (default: 262.54)
-        
-        Returns:
-            Dictionary with balance analysis including gaps and discrepancies
-        """
-        conn = self.db.get_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        try:
-            # Get all transactions for the IBAN from start_date onwards (including start_date)
-            # Only records from 2025-05-01 onwards have the proper Ref2 format
-            cursor.execute("""
-                SELECT 
-                    ID,
-                    TransactionDate,
-                    TransactionDescription,
-                    TransactionAmount,
-                    Debet,
-                    Credit,
-                    Ref1,
-                    Ref2,
-                    Ref3,
-                    Administration
-                FROM mutaties 
-                WHERE Ref1 = %s 
-                AND TransactionDate >= %s
-            """, (iban, start_date))
-            
-            transactions = cursor.fetchall()
-            
-            if not transactions:
-                return {
-                    'success': False,
-                    'message': f'No transactions found for IBAN {iban} since {start_date}'
-                }
-            
-            # Parse Ref2 to extract datetime and sort by it
-            # Ref2 format: [description]_[balance]_[datetime]
-            from datetime import datetime
-            
-            for tx in transactions:
-                ref2_parts = (tx['Ref2'] or '').split('_')
-                if len(ref2_parts) >= 3:
-                    # Extract datetime from Ref2 (third part)
-                    datetime_str = ref2_parts[2]
-                    tx['ref2_datetime_str'] = datetime_str
-                    # Convert to datetime object for proper sorting
-                    try:
-                        tx['ref2_datetime_obj'] = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
-                    except ValueError:
-                        # Fallback to TransactionDate if parsing fails
-                        tx['ref2_datetime_obj'] = datetime.strptime(str(tx['TransactionDate']), '%Y-%m-%d')
-                        tx['ref2_datetime_str'] = str(tx['TransactionDate'])
-                else:
-                    # Fallback to TransactionDate if Ref2 doesn't have datetime
-                    tx['ref2_datetime_str'] = str(tx['TransactionDate'])
-                    tx['ref2_datetime_obj'] = datetime.strptime(str(tx['TransactionDate']), '%Y-%m-%d')
-            
-            # Sort by ID (database insertion order) - this is the correct sequence!
-            # NOT by datetime, as transactions may be imported out of chronological order
-            transactions.sort(key=lambda x: x['ID'])
-            
-            print(f"Total transactions after sorting by ID: {len(transactions)}", flush=True)
-            if transactions:
-                print(f"First transaction ID: {transactions[0]['ID']}", flush=True)
-                print(f"First transaction: {transactions[0]['TransactionDescription']}", flush=True)
-                print(f"First Ref3: {transactions[0]['Ref3']}", flush=True)
-                print(f"Last transaction ID: {transactions[-1]['ID']}", flush=True)
-            
-            # Calculate running balance and compare with Ref3
-            # For the FIRST transaction: use Ref3 directly as the balance
-            # For subsequent transactions: calculate from previous balance
-            balance_gaps = []
-            transaction_details = []
-            
-            calculated_balance = 0.0
-            starting_balance_info = {}
-            
-            for i, tx in enumerate(transactions):
-                # Calculate balance change for THIS transaction
-                amount = float(tx['TransactionAmount'] or 0)
-                
-                # IMPORTANT: Debet/Credit logic for bank accounts
-                # When YOUR account (1022) is in DEBET: money came IN (you received money) -> ADD
-                # When YOUR account (1022) is in CREDIT: money went OUT (you paid) -> SUBTRACT
-                if tx['Debet'] == account_code:
-                    balance_change = amount
-                    direction = 'IN'
-                elif tx['Credit'] == account_code:
-                    balance_change = -amount
-                    direction = 'OUT'
-                else:
-                    balance_change = 0
-                    direction = 'SKIP'
-                
-                # For the FIRST transaction, just use Ref3 as the calculated balance
-                if i == 0 and tx['Ref3']:
-                    try:
-                        ref3_balance = float(tx['Ref3'])
-                        calculated_balance = ref3_balance
-                        starting_balance_info = {
-                            'first_ref3': ref3_balance,
-                            'first_balance_change': balance_change,
-                            'calculated_balance': calculated_balance,
-                            'note': 'First transaction uses Ref3 directly'
-                        }
-                        print(f"First transaction: using Ref3 directly as balance: {calculated_balance}", flush=True)
-                    except (ValueError, TypeError):
-                        calculated_balance = 0.0
-                        starting_balance_info = {'error': 'Could not parse first Ref3'}
-                else:
-                    # For subsequent transactions, apply the balance change
-                    calculated_balance += balance_change
-                
-                # Parse Ref3 balance (if available)
-                ref3_balance = None
-                if tx['Ref3']:
-                    try:
-                        ref3_balance = float(tx['Ref3'])
-                    except (ValueError, TypeError):
-                        ref3_balance = None
-                
-                # Calculate discrepancy
-                discrepancy = None
-                if ref3_balance is not None:
-                    discrepancy = round(ref3_balance - calculated_balance, 2)
-                
-                # Record transaction details
-                tx_detail = {
-                    'id': tx['ID'],
-                    'transaction_date': str(tx['TransactionDate']),
-                    'ref2_datetime': tx['ref2_datetime_str'],
-                    'description': tx['TransactionDescription'],
-                    'amount': amount,
-                    'debet': tx['Debet'],
-                    'credit': tx['Credit'],
-                    'direction': direction,
-                    'balance_change': round(balance_change, 2),
-                    'calculated_balance': round(calculated_balance, 2),
-                    'ref3_balance': ref3_balance,
-                    'discrepancy': discrepancy,
-                    'ref2': tx['Ref2']
-                }
-                transaction_details.append(tx_detail)
-                
-                # Detect gaps (discrepancy > 0.01 euros)
-                if discrepancy is not None and abs(discrepancy) > 0.01:
-                    balance_gaps.append({
-                        'transaction_id': tx['ID'],
-                        'transaction_date': str(tx['TransactionDate']),
-                        'ref2_datetime': tx['ref2_datetime_str'],
-                        'description': tx['TransactionDescription'],
-                        'calculated_balance': round(calculated_balance, 2),
-                        'ref3_balance': ref3_balance,
-                        'discrepancy': discrepancy,
-                        'ref2': tx['Ref2']
-                    })
-            
-            # Final balance comparison
-            final_calculated = round(calculated_balance, 2)
-            final_discrepancy = round(expected_final_balance - final_calculated, 2)
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                'success': True,
-                'iban': iban,
-                'account_code': account_code,
-                'start_date': start_date,
-                'starting_balance_debug': starting_balance_info,
-                'total_transactions': len(transactions),
-                'calculated_final_balance': final_calculated,
-                'expected_final_balance': expected_final_balance,
-                'final_discrepancy': final_discrepancy,
-                'balance_gaps_found': len(balance_gaps),
-                'balance_gaps': balance_gaps,
-                'first_10_transactions': transaction_details[:10],  # Show first 10 for debugging
-                'transactions_with_gaps': [tx for tx in transaction_details if tx.get('discrepancy') is not None and abs(tx['discrepancy']) > 0.01],
-                'summary': {
-                    'has_discrepancy': abs(final_discrepancy) > 0.01,
-                    'missing_amount': final_discrepancy if final_discrepancy > 0 else 0,
-                    'extra_amount': abs(final_discrepancy) if final_discrepancy < 0 else 0
-                }
-            }
-            
-        except Exception as e:
-            cursor.close()
-            conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
+        """Check Revolut balance gaps (delegated to BankingChecks)."""
+        return self._checks.check_revolut_balance_gaps(
+            iban=iban, account_code=account_code,
+            start_date=start_date, expected_final_balance=expected_final_balance
+        )
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Pattern Analysis
+    # ──────────────────────────────────────────────────────────────────────────
+
     def analyze_patterns_for_administration(self, administration,
-                                          reference_number=None, debet_account=None, 
-                                          credit_account=None):
-        """
-        Analyze patterns for an administration using the enhanced pattern analyzer
-        
-        This method implements:
-        - REQ-PAT-001: Analyze transactions from the last 2 years for pattern discovery
-        - REQ-PAT-002: Filter patterns by Administration, ReferenceNumber, Debet/Credit values, and Date
-        
-        Args:
-            administration: Administration to analyze
-            reference_number: Optional filter by specific reference number
-            debet_account: Optional filter by specific debet account
-            credit_account: Optional filter by specific credit account
-        """
+                                            reference_number=None, debet_account=None,
+                                            credit_account=None):
+        """Analyze patterns for an administration using the enhanced pattern analyzer."""
         try:
             filter_desc = f"for {administration}"
             if reference_number:
@@ -861,57 +329,48 @@ class BankingProcessor:
                 filter_desc += f" (Debet: {debet_account})"
             if credit_account:
                 filter_desc += f" (Credit: {credit_account})"
-                
+
             print(f"🔍 Starting enhanced pattern analysis {filter_desc}...")
-            
-            # Use the enhanced pattern analyzer with filtering (REQ-PAT-002)
+
             patterns = self.pattern_analyzer.analyze_historical_patterns(
                 administration, reference_number, debet_account, credit_account
             )
-            
+
             print(f"✅ Pattern analysis complete:")
             print(f"   - Processed {patterns['total_transactions']} transactions")
             print(f"   - Discovered {patterns['patterns_discovered']} patterns")
             print(f"   - Date range: {patterns['date_range']['from']} to {patterns['date_range']['to']}")
-            
+
             return patterns
-            
+
         except Exception as e:
             print(f"❌ Pattern analysis failed: {e}")
             raise e
-    
+
     def apply_enhanced_patterns(self, transactions, administration):
-        """
-        Apply enhanced pattern matching to predict missing values
-        
-        This method implements:
-        - REQ-PAT-003: Create pattern matching based on known variables
-        - REQ-PAT-004: Implement bank account lookup logic
-        """
+        """Apply enhanced pattern matching to predict missing values."""
         try:
             print(f"🔧 Applying enhanced patterns to {len(transactions)} transactions...")
-            
-            # Convert to list of dicts if it's a DataFrame
+
             if hasattr(transactions, 'to_dict'):
                 transactions = transactions.to_dict('records')
-            
-            # Apply patterns using the enhanced analyzer
+
             updated_transactions, results = self.pattern_analyzer.apply_patterns_to_transactions(
                 transactions, administration
             )
-            
+
             print(f"✅ Enhanced pattern application complete:")
             print(f"   - Debet predictions: {results['predictions_made']['debet']}")
             print(f"   - Credit predictions: {results['predictions_made']['credit']}")
             print(f"   - Reference predictions: {results['predictions_made']['reference']}")
             print(f"   - Average confidence: {results['average_confidence']:.2f}")
-            
+
             return updated_transactions, results
-            
+
         except Exception as e:
             print(f"❌ Enhanced pattern application failed: {e}")
             raise e
-    
+
     def get_pattern_summary(self, administration):
         """Get a summary of discovered patterns for an administration"""
         try:

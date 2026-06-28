@@ -8,6 +8,7 @@ Reference: .kiro/specs/zzp-module/design.md §4.2
 
 import logging
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.module_registry import module_required
@@ -44,7 +45,7 @@ def _get_service() -> ProductService:
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def list_products(user_email, user_roles, tenant, user_tenants):
+def list_products(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List products for tenant."""
     try:
         svc = _get_service()
@@ -60,7 +61,7 @@ def list_products(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_product(user_email, user_roles, tenant, user_tenants, product_id):
+def get_product(user_email, user_roles, tenant, user_tenants, product_id) -> ResponseReturnValue:
     """Get a single product by id."""
     try:
         svc = _get_service()
@@ -77,7 +78,7 @@ def get_product(user_email, user_roles, tenant, user_tenants, product_id):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def create_product(user_email, user_roles, tenant, user_tenants):
+def create_product(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a new product."""
     try:
         data = request.get_json()
@@ -97,7 +98,7 @@ def create_product(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def update_product(user_email, user_roles, tenant, user_tenants, product_id):
+def update_product(user_email, user_roles, tenant, user_tenants, product_id) -> ResponseReturnValue:
     """Update an existing product."""
     try:
         data = request.get_json()
@@ -117,7 +118,7 @@ def update_product(user_email, user_roles, tenant, user_tenants, product_id):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def delete_product(user_email, user_roles, tenant, user_tenants, product_id):
+def delete_product(user_email, user_roles, tenant, user_tenants, product_id) -> ResponseReturnValue:
     """Soft-delete a product (deactivate)."""
     try:
         svc = _get_service()
@@ -134,7 +135,7 @@ def delete_product(user_email, user_roles, tenant, user_tenants, product_id):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_product_types(user_email, user_roles, tenant, user_tenants):
+def get_product_types(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get configurable product types for this tenant."""
     try:
         svc = _get_service()

@@ -7,11 +7,7 @@ import json
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-# Skip all API tests - they require authenticated Flask app
-pytestmark = [
-    pytest.mark.api,
-    pytest.mark.skip(reason="Requires authenticated Flask app - TODO: add auth fixtures")
-]
+pytestmark = [pytest.mark.api]
 
 # Mock the decorators before importing the routes
 with patch('auth.cognito_utils.cognito_required') as mock_cognito, \

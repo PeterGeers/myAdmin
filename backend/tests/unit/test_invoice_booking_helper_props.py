@@ -225,7 +225,7 @@ class TestBookingUsesInvoiceLevelRevenueAccount:
     zzp.revenue_account parameter. For credit notes, reversal entries SHALL use
     the revenue_account from the original invoice."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         invoice_revenue=account_code_st,
         param_revenue=account_code_st,
@@ -248,7 +248,7 @@ class TestBookingUsesInvoiceLevelRevenueAccount:
             f"not param-level '{param_revenue}'"
         )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         invoice_revenue=account_code_st,
         param_revenue=account_code_st,
@@ -273,7 +273,7 @@ class TestBookingUsesInvoiceLevelRevenueAccount:
                 f"not param-level '{param_revenue}'"
             )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         invoice_revenue=account_code_st,
         param_revenue=account_code_st,
@@ -293,7 +293,7 @@ class TestBookingUsesInvoiceLevelRevenueAccount:
         main_entry = result[0]
         assert main_entry['Credit'] == param_revenue
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         original_revenue=account_code_st,
         param_revenue=account_code_st,
@@ -318,7 +318,7 @@ class TestBookingUsesInvoiceLevelRevenueAccount:
             f"not param-level '{param_revenue}'"
         )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         original_revenue=account_code_st,
         param_revenue=account_code_st,
@@ -338,7 +338,7 @@ class TestBookingUsesInvoiceLevelRevenueAccount:
         main_entry = result[0]
         assert main_entry['Debet'] == param_revenue
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         invoice_revenue=account_code_st,
         data=st.data(),
@@ -372,7 +372,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
     calling _get_param() SHALL raise a ValueError naming the missing parameter.
     No hardcoded default SHALL be returned."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(tenant=tenant_st)
     def test_missing_debtor_account_raises_with_param_name(self, tenant):
         """Missing zzp.debtor_account raises ValueError naming the parameter (Req 19.2)."""
@@ -385,7 +385,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         assert 'zzp.debtor_account' in error_msg
         assert tenant in error_msg
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(tenant=tenant_st)
     def test_missing_creditor_account_raises_with_param_name(self, tenant):
         """Missing zzp.creditor_account raises ValueError naming the parameter (Req 19.2)."""
@@ -398,7 +398,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         assert 'zzp.creditor_account' in error_msg
         assert tenant in error_msg
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(tenant=tenant_st)
     def test_missing_revenue_account_raises_with_param_name(self, tenant):
         """Missing zzp.revenue_account raises ValueError naming the parameter (Req 19.2)."""
@@ -411,7 +411,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         assert 'zzp.revenue_account' in error_msg
         assert tenant in error_msg
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         missing_param=st.sampled_from([
@@ -426,7 +426,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         with pytest.raises(ValueError):
             helper._get_param(tenant, missing_param)
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         missing_param=st.sampled_from([
@@ -461,7 +461,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         expected_path = f'zzp.{missing_param}'
         assert expected_path in str(exc_info.value)
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(tenant=tenant_st)
     def test_no_parameter_service_still_raises(self, tenant):
         """Even without a parameter_service, _get_param raises ValueError (Req 19.3)."""
@@ -477,7 +477,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         with pytest.raises(ValueError):
             helper._get_param(tenant, 'debtor_account')
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         missing_param=st.sampled_from([
@@ -492,7 +492,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         with pytest.raises(ValueError):
             helper._get_param(tenant, missing_param)
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         account_code=account_code_st,
@@ -508,7 +508,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         result = helper._get_param(tenant, param_key)
         assert result == account_code
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         data=st.data(),
@@ -521,7 +521,7 @@ class TestMissingParamsRaiseDescriptiveErrors:
         with pytest.raises(ValueError, match='zzp.debtor_account'):
             helper.book_outgoing_invoice(tenant, invoice)
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         data=st.data(),

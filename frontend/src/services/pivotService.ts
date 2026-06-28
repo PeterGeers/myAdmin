@@ -65,7 +65,7 @@ export function toBackendConfig(config: PivotConfig): Record<string, any> {
  * Convert a backend definition (snake_case) back to a frontend PivotConfig
  * (camelCase). Used when loading saved models.
  */
-export function fromBackendConfig(def: Record<string, any>): PivotConfig {
+export function fromBackendConfig(def: Record<string, unknown>): PivotConfig {
   return {
     dataSource: def.data_source ?? def.dataSource ?? '',
     groupColumns: def.group_columns ?? def.groupColumns ?? [],
@@ -177,7 +177,7 @@ export async function loadPivotModel(id: number): Promise<PivotModel> {
   // Convert snake_case definition from backend to camelCase PivotConfig
   return {
     ...raw,
-    definition: fromBackendConfig(raw.definition as any),
+    definition: fromBackendConfig(raw.definition as Record<string, unknown>),
   };
 }
 

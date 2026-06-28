@@ -6,6 +6,7 @@ account purposes and VAT netting parameters.
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.year_end_config import YearEndConfigService
@@ -25,7 +26,7 @@ config_service = YearEndConfigService(test_mode=test_mode)
 @year_end_config_bp.route('/api/tenant-admin/year-end-config/validate', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def validate_tenant_config(user_email, user_roles, tenant, user_tenants):
+def validate_tenant_config(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Validate year-end closure configuration for the tenant.
     
@@ -56,7 +57,7 @@ def validate_tenant_config(user_email, user_roles, tenant, user_tenants):
 @year_end_config_bp.route('/api/tenant-admin/year-end-config/purposes', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def get_tenant_purposes(user_email, user_roles, tenant, user_tenants):
+def get_tenant_purposes(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get all configured account purposes for the tenant.
     
@@ -83,7 +84,7 @@ def get_tenant_purposes(user_email, user_roles, tenant, user_tenants):
 @year_end_config_bp.route('/api/tenant-admin/year-end-config/accounts', methods=['POST'])
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
-def set_tenant_account_purpose(user_email, user_roles, tenant, user_tenants):
+def set_tenant_account_purpose(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Set purpose for an account.
     
@@ -131,7 +132,7 @@ def set_tenant_account_purpose(user_email, user_roles, tenant, user_tenants):
 @year_end_config_bp.route('/api/tenant-admin/year-end-config/available-accounts', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def get_tenant_available_accounts(user_email, user_roles, tenant, user_tenants):
+def get_tenant_available_accounts(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get available accounts for purpose assignment.
     
@@ -172,7 +173,7 @@ def get_tenant_available_accounts(user_email, user_roles, tenant, user_tenants):
 @year_end_config_bp.route('/api/year-end-config/vat-netting', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def get_vat_netting_config(user_email, user_roles, tenant, user_tenants):
+def get_vat_netting_config(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get VAT netting configuration for the tenant.
     
@@ -203,7 +204,7 @@ def get_vat_netting_config(user_email, user_roles, tenant, user_tenants):
 @year_end_config_bp.route('/api/year-end-config/vat-netting', methods=['POST'])
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
-def configure_vat_netting(user_email, user_roles, tenant, user_tenants):
+def configure_vat_netting(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Configure VAT netting for specified accounts.
     
@@ -263,7 +264,7 @@ def configure_vat_netting(user_email, user_roles, tenant, user_tenants):
 @year_end_config_bp.route('/api/year-end-config/vat-netting', methods=['DELETE'])
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
-def remove_vat_netting(user_email, user_roles, tenant, user_tenants):
+def remove_vat_netting(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Remove VAT netting configuration.
     
@@ -287,7 +288,7 @@ def remove_vat_netting(user_email, user_roles, tenant, user_tenants):
 @year_end_config_bp.route('/api/year-end-config/balance-sheet-accounts', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def get_balance_sheet_accounts(user_email, user_roles, tenant, user_tenants):
+def get_balance_sheet_accounts(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get all balance sheet accounts (VW='N') for the tenant.
     

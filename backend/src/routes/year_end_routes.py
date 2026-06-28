@@ -16,6 +16,7 @@ Permissions:
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.year_end_service import YearEndClosureService
@@ -26,7 +27,7 @@ year_end_bp = Blueprint('year_end', __name__)
 @year_end_bp.route('/api/year-end/available-years', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def get_available_years(user_email, user_roles, tenant, user_tenants):
+def get_available_years(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get list of years that can be closed.
     
@@ -56,7 +57,7 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
 @year_end_bp.route('/api/year-end/validate', methods=['POST'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def validate_year(user_email, user_roles, tenant, user_tenants):
+def validate_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Validate if a year is ready to be closed.
     
@@ -101,7 +102,7 @@ def validate_year(user_email, user_roles, tenant, user_tenants):
 @year_end_bp.route('/api/year-end/close', methods=['POST'])
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
-def close_year(user_email, user_roles, tenant, user_tenants):
+def close_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Close a fiscal year.
     
@@ -156,7 +157,7 @@ def close_year(user_email, user_roles, tenant, user_tenants):
 @year_end_bp.route('/api/year-end/closed-years', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def get_closed_years(user_email, user_roles, tenant, user_tenants):
+def get_closed_years(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get list of closed years with details.
     
@@ -188,7 +189,7 @@ def get_closed_years(user_email, user_roles, tenant, user_tenants):
 @year_end_bp.route('/api/year-end/status/<int:year>', methods=['GET'])
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
-def get_year_status(year, user_email, user_roles, tenant, user_tenants):
+def get_year_status(year, user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get closure status for a specific year.
     
@@ -227,7 +228,7 @@ def get_year_status(year, user_email, user_roles, tenant, user_tenants):
 @year_end_bp.route('/api/year-end/reopen', methods=['POST'])
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
-def reopen_year(user_email, user_roles, tenant, user_tenants):
+def reopen_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Reopen a closed fiscal year.
     

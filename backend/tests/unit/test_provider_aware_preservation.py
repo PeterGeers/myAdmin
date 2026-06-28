@@ -131,6 +131,8 @@ class TestGetFoldersPreservation:
         mock_gds_class.return_value = mock_gds_instance
 
         with patch.object(folder_routes, 'GoogleDriveService', mock_gds_class), \
+             patch('services.storage_resolver.resolve_storage_provider', return_value='google_drive'), \
+             patch('routes.folder_routes.resolve_storage_provider', return_value='google_drive'), \
              patch('auth.tenant_context.get_current_tenant', return_value=tenant), \
              patch('auth.cognito_utils.extract_user_credentials', return_value=('test@test.com', ['invoices_read'], None)), \
              patch('auth.cognito_utils.validate_permissions', return_value=(True, None)), \
@@ -207,6 +209,8 @@ class TestCreateFolderPreservation:
         mock_gds_class.return_value = mock_gds_instance
 
         with patch.object(folder_routes, 'GoogleDriveService', mock_gds_class), \
+             patch('services.storage_resolver.resolve_storage_provider', return_value='google_drive'), \
+             patch('routes.folder_routes.resolve_storage_provider', return_value='google_drive'), \
              patch('auth.tenant_context.get_current_tenant', return_value=tenant), \
              patch('auth.cognito_utils.extract_user_credentials', return_value=('test@test.com', ['invoices_create'], None)), \
              patch('auth.cognito_utils.validate_permissions', return_value=(True, None)), \
@@ -404,6 +408,8 @@ class TestRegexFilterPreservation:
         mock_gds_class.return_value = mock_gds_instance
 
         with patch.object(folder_routes, 'GoogleDriveService', mock_gds_class), \
+             patch('services.storage_resolver.resolve_storage_provider', return_value='google_drive'), \
+             patch('routes.folder_routes.resolve_storage_provider', return_value='google_drive'), \
              patch('auth.tenant_context.get_current_tenant', return_value=tenant), \
              patch('auth.cognito_utils.extract_user_credentials', return_value=('test@test.com', ['invoices_read'], None)), \
              patch('auth.cognito_utils.validate_permissions', return_value=(True, None)), \

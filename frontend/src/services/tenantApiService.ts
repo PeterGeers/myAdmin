@@ -38,7 +38,7 @@ export const tenantAwareGet = async (
  */
 export const tenantAwarePost = async (
   endpoint: string,
-  data: any,
+  data: Record<string, unknown>,
   options?: RequestInit
 ): Promise<Response> => {
   const currentTenant = localStorage.getItem('selectedTenant');

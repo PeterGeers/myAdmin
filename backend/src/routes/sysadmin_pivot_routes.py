@@ -16,6 +16,7 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md §9
 import logging
 import os
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -30,20 +31,20 @@ sysadmin_pivot_bp = Blueprint('sysadmin_pivot', __name__)
 VALID_MODULES = {'FIN', 'STR', 'ZZP'}
 
 
-def _get_db():
+def _get_db() -> DatabaseManager:
     """Create a DatabaseManager instance with current test mode setting."""
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     return DatabaseManager(test_mode=test_mode)
 
 
-def _get_param_service(db=None):
+def _get_param_service(db=None) -> "ParameterService":
     """Create a ParameterService instance."""
     if db is None:
         db = _get_db()
     return ParameterService(db)
 
 
-def _get_all_tables(db):
+def _get_all_tables(db) -> list:
     """Run SHOW FULL TABLES and return list of {name, type} dicts."""
     rows = db.execute_query("SHOW FULL TABLES", fetch=True)
     if not rows:
@@ -64,7 +65,7 @@ def _get_all_tables(db):
     return results
 
 
-def _read_current_params(ps):
+def _read_current_params(ps) -> tuple:
     """Read current pivot data source parameters from the parameter service.
 
     Returns:
@@ -98,7 +99,7 @@ def _read_current_params(ps):
 @sysadmin_pivot_bp.route('/datasources', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
 @tenant_required(allow_sysadmin=True)
-def list_datasources(user_email, user_roles, tenant, user_tenants):
+def list_datasources(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List all database tables/views with their pivot status.
 
     Merges ``SHOW FULL TABLES`` with current parameter values for
@@ -141,7 +142,7 @@ def list_datasources(user_email, user_roles, tenant, user_tenants):
 @sysadmin_pivot_bp.route('/datasources', methods=['PUT'])
 @cognito_required(required_roles=['SysAdmin'])
 @tenant_required(allow_sysadmin=True)
-def update_datasources(user_email, user_roles, tenant, user_tenants):
+def update_datasources(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Update the pivot-enabled data source list and module/label tags.
 
     Request body::
@@ -288,7 +289,7 @@ def update_datasources(user_email, user_roles, tenant, user_tenants):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _auto_create_defaults(db, ps, source_name, created_by):
+def _auto_create_defaults(db, ps, source_name, created_by) -> None:
     """Auto-create ``exclude_columns`` and ``force_groupable`` defaults
     for a newly enabled data source by introspecting its schema.
 

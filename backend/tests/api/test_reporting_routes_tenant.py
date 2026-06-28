@@ -15,11 +15,7 @@ from reporting_routes import reporting_bp
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
-# Skip all API tests - they require authenticated Flask app
-pytestmark = [
-    pytest.mark.api,
-    pytest.mark.skip(reason="Requires authenticated Flask app - TODO: add auth fixtures")
-]
+pytestmark = [pytest.mark.api]
 
 
 class TestReportingRoutesTenantFiltering:

@@ -4,6 +4,7 @@ Extracted from reporting_routes.py for file size management.
 All endpoints are prefixed with /api/reports via blueprint registration.
 """
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from database import DatabaseManager
 from datetime import datetime
 from contextlib import contextmanager
@@ -17,13 +18,13 @@ flag = False
 logger = None
 
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode) -> None:
     """Set test mode flag"""
     global flag
     flag = test_mode
 
 
-def set_logger(log_instance):
+def set_logger(log_instance) -> None:
     """Set logger instance"""
     global logger
     logger = log_instance
@@ -32,7 +33,7 @@ def set_logger(log_instance):
 class FinancialReportingService:
     """Service class for financial reporting database operations."""
 
-    def __init__(self, test_mode=False):
+    def __init__(self, test_mode=False) -> None:
         self.db = DatabaseManager(test_mode=test_mode)
         self.table_name = 'mutaties_test' if test_mode else 'mutaties'
 
@@ -47,7 +48,7 @@ class FinancialReportingService:
             cursor.close()
             connection.close()
 
-    def build_where_clause(self, conditions):
+    def build_where_clause(self, conditions) -> tuple:
         """Build WHERE clause from conditions dict"""
         where_parts = []
         params = []
@@ -81,7 +82,7 @@ class FinancialReportingService:
 @financial_reporting_bp.route('/balance-data', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def get_balance_data(user_email, user_roles, tenant, user_tenants):
+def get_balance_data(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get balance data grouped by Parent and ledger with tenant filtering"""
     try:
         service = FinancialReportingService(request.args.get('testMode', 'false').lower() == 'true')
@@ -152,7 +153,7 @@ def get_balance_data(user_email, user_roles, tenant, user_tenants):
 @financial_reporting_bp.route('/trends-data', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def get_trends_data(user_email, user_roles, tenant, user_tenants):
+def get_trends_data(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get P&L trends data by year"""
     try:
         service = FinancialReportingService(request.args.get('testMode', 'false').lower() == 'true')
@@ -192,7 +193,7 @@ def get_trends_data(user_email, user_roles, tenant, user_tenants):
 @financial_reporting_bp.route('/reference-analysis', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def get_reference_analysis(user_email, user_roles, tenant, user_tenants):
+def get_reference_analysis(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get reference analysis data with trend and available accounts - filtered by user tenants"""
     try:
         service = FinancialReportingService()

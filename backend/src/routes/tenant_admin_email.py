@@ -5,6 +5,7 @@ Endpoints for Tenant Admins to send emails to users using templates.
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 import os
 import logging
 
@@ -23,7 +24,7 @@ tenant_admin_email_bp = Blueprint('tenant_admin_email', __name__)
 
 @tenant_admin_email_bp.route('/api/tenant-admin/send-email', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def send_email_to_user(user_email, user_roles):
+def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
     """
     Send email to a user using a template
     
@@ -174,7 +175,7 @@ def send_email_to_user(user_email, user_roles):
 
 @tenant_admin_email_bp.route('/api/tenant-admin/email-templates', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def list_email_templates(user_email, user_roles):
+def list_email_templates(user_email, user_roles) -> ResponseReturnValue:
     """
     List available email templates
     
@@ -217,7 +218,7 @@ def list_email_templates(user_email, user_roles):
 
 @tenant_admin_email_bp.route('/api/tenant-admin/resend-invitation', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def resend_invitation(user_email, user_roles):
+def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
     """
     Resend invitation email to a user
     

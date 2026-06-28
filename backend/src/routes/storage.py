@@ -16,6 +16,7 @@ import logging
 
 import boto3
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -32,7 +33,7 @@ storage_bp = Blueprint('storage', __name__, url_prefix='/api/storage')
 @storage_bp.route('/presigned-url', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def get_presigned_url(user_email, user_roles, tenant, user_tenants):
+def get_presigned_url(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Generate a pre-signed URL for downloading an S3 object.
 
@@ -99,7 +100,7 @@ MIME_TO_EXT = {
 @storage_bp.route('/upload-logo', methods=['POST'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def upload_logo(user_email, user_roles, tenant, user_tenants):
+def upload_logo(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Upload a company logo to S3.
 

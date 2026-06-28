@@ -3,6 +3,7 @@ SysAdmin Routes for myAdmin
 
 Main blueprint that combines all SysAdmin endpoints:
 - Tenant management (create, list, get, update, delete)
+- Tenant actions (reprovision, resend invitation)
 - Role management (list, create, delete Cognito groups)
 - Module management (enable/disable modules for tenants)
 
@@ -12,12 +13,14 @@ File Structure:
 - sysadmin_routes.py (this file) - Main blueprint registration
 - sysadmin_helpers.py - Shared helper functions
 - sysadmin_tenants.py - Tenant CRUD + module management endpoints
+- sysadmin_tenant_actions.py - Tenant provisioning actions (reprovision, resend invitation)
 - sysadmin_roles.py - Role management endpoints
 - sysadmin_pivot_routes.py - Pivot data source management endpoints
 """
 
 from flask import Blueprint
 from .sysadmin_tenants import sysadmin_tenants_bp
+from .sysadmin_tenant_actions import sysadmin_tenant_actions_bp
 from .sysadmin_roles import sysadmin_roles_bp
 from .sysadmin_provisioning import sysadmin_provisioning_bp
 from .sysadmin_pivot_routes import sysadmin_pivot_bp
@@ -29,6 +32,9 @@ sysadmin_bp = Blueprint('sysadmin', __name__, url_prefix='/api/sysadmin')
 # Register sub-blueprints
 # Tenant routes: /api/sysadmin/tenants (includes module management)
 sysadmin_bp.register_blueprint(sysadmin_tenants_bp, url_prefix='/tenants')
+
+# Tenant action routes: /api/sysadmin/tenants (reprovision, resend-invitation)
+sysadmin_bp.register_blueprint(sysadmin_tenant_actions_bp, url_prefix='/tenants')
 
 # Role routes: /api/sysadmin/roles
 sysadmin_bp.register_blueprint(sysadmin_roles_bp, url_prefix='/roles')

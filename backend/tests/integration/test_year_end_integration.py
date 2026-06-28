@@ -50,16 +50,20 @@ def setup_test_accounts(db, config_service, test_administration):
     """
     Set up test accounts with proper configuration.
     
-    This fixture should:
-    1. Create test accounts in rekeningschema
-    2. Configure required purposes (equity_result, pl_closing, interim_opening_balance)
-    3. Create sample transactions for testing
+    Creates:
+    1. Chart of accounts in rekeningschema (balance sheet + P&L accounts)
+    2. Account purposes (equity_result, pl_closing)
+    3. Sample transactions covering revenue and expenses
     
-    Note: This is a placeholder - actual implementation depends on test database setup
+    Yields and tears down after test.
     """
-    # TODO: Implement test data setup
-    # For now, assume test database has required accounts configured
-    pass
+    from tests.integration.year_end_fixtures import (
+        setup_year_end_test_data, teardown_year_end_test_data
+    )
+    
+    setup_year_end_test_data(db)
+    yield
+    teardown_year_end_test_data(db)
 
 
 class TestYearEndClosureIntegration:

@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 import os
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
@@ -13,7 +14,7 @@ db = DatabaseManager()
 @missing_invoices_bp.route('/api/transactions', methods=['POST'])
 @cognito_required(required_permissions=['transactions_read'])
 @tenant_required()
-def get_transactions(user_email, user_roles, tenant, user_tenants):
+def get_transactions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     data = request.get_json()
     ids = data.get('ids', [])
     
@@ -45,7 +46,7 @@ def get_transactions(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['invoices_create'])
 @tenant_required()
 @function_guard('generate_invoice', 'FIN')
-def upload_receipt(user_email, user_roles, tenant, user_tenants):
+def upload_receipt(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     file = request.files.get('file')
     supplier_name = request.form.get('supplierName')
     
@@ -117,7 +118,7 @@ def upload_receipt(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['transactions_update'])
 @tenant_required()
 @function_guard('generate_invoice', 'FIN')
-def update_transaction_refs(user_email, user_roles, tenant, user_tenants):
+def update_transaction_refs(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     data = request.get_json()
     ids = data.get('ids', [])
     drive_url = data.get('driveUrl')

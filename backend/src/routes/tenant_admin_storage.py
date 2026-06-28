@@ -12,6 +12,7 @@ Endpoints:
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 import os
 import logging
 
@@ -30,7 +31,7 @@ tenant_admin_storage_bp = Blueprint('tenant_admin_storage', __name__, url_prefix
 
 @tenant_admin_storage_bp.route('/folders', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def list_folders(user_email, user_roles):
+def list_folders(user_email, user_roles) -> ResponseReturnValue:
     """
     List available storage folders (Google Drive or S3 prefixes)
     
@@ -102,7 +103,7 @@ def list_folders(user_email, user_roles):
 
 @tenant_admin_storage_bp.route('/config', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_storage_config(user_email, user_roles):
+def get_storage_config(user_email, user_roles) -> ResponseReturnValue:
     """
     Get current storage configuration
     
@@ -149,7 +150,7 @@ def get_storage_config(user_email, user_roles):
 
 @tenant_admin_storage_bp.route('/config', methods=['PUT'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def update_storage_config(user_email, user_roles):
+def update_storage_config(user_email, user_roles) -> ResponseReturnValue:
     """
     Update storage configuration
     
@@ -278,7 +279,7 @@ def update_storage_config(user_email, user_roles):
 
 @tenant_admin_storage_bp.route('/test', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def test_folder_access(user_email, user_roles):
+def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
     """
     Test folder accessibility and write permissions
     
@@ -439,7 +440,7 @@ def test_folder_access(user_email, user_roles):
 
 @tenant_admin_storage_bp.route('/usage', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_storage_usage(user_email, user_roles):
+def get_storage_usage(user_email, user_roles) -> ResponseReturnValue:
     """
     Get storage usage statistics
     

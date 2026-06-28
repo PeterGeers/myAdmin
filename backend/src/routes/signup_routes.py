@@ -10,6 +10,7 @@ No JWT auth required. Protected by rate limiting, honeypot, and CSRF.
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 import logging
 
 from shared_limiter import limiter
@@ -40,7 +41,7 @@ def _get_service() -> SignupService:
 
 @signup_bp.route('/api/signup', methods=['POST', 'OPTIONS'])
 @limiter.limit("5 per hour", methods=["POST"])
-def create_signup():
+def create_signup() -> ResponseReturnValue:
     """Create a new trial signup"""
     if request.method == 'OPTIONS':
         return jsonify({'status': 'OK'})
@@ -85,7 +86,7 @@ def create_signup():
 
 @signup_bp.route('/api/signup/verify', methods=['POST', 'OPTIONS'])
 @limiter.limit("10 per hour", methods=["POST"])
-def verify_signup():
+def verify_signup() -> ResponseReturnValue:
     """Verify email with Cognito confirmation code"""
     if request.method == 'OPTIONS':
         return jsonify({'status': 'OK'})
@@ -119,7 +120,7 @@ def verify_signup():
 
 @signup_bp.route('/api/signup/resend', methods=['POST', 'OPTIONS'])
 @limiter.limit("1 per minute", methods=["POST"])
-def resend_verification():
+def resend_verification() -> ResponseReturnValue:
     """Resend verification code"""
     if request.method == 'OPTIONS':
         return jsonify({'status': 'OK'})

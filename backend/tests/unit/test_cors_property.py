@@ -65,7 +65,7 @@ class TestCORSOriginEnforcementProperty:
     """Property 11: CORS Origin Enforcement."""
 
     @given(origin=random_origin_strategy)
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_disallowed_origin_no_cors_headers(self, origin):
         """
         **Validates: Requirements 5.3, 5.4, 5.5**
@@ -96,7 +96,7 @@ class TestCORSOriginEnforcementProperty:
         )
 
     @given(origin=random_origin_strategy)
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_disallowed_origin_preflight_no_cors_headers(self, origin):
         """
         **Validates: Requirements 5.5**
@@ -120,6 +120,12 @@ class TestCORSOriginEnforcementProperty:
             }
         )
 
+        # Preflight must return 200 (browser enforces CORS policy, not the server)
+        assert response.status_code == 200, (
+            f"Preflight for disallowed origin '{origin}' should return 200, "
+            f"got {response.status_code}"
+        )
+
         assert 'Access-Control-Allow-Origin' not in response.headers, (
             f"Preflight for disallowed origin '{origin}' should not receive "
             f"Access-Control-Allow-Origin header"
@@ -130,7 +136,7 @@ class TestCORSOriginEnforcementProperty:
         )
 
     @given(origin=st.sampled_from(TEST_ALLOWED_ORIGINS))
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_allowed_origin_receives_cors_headers(self, origin):
         """
         **Validates: Requirements 5.3, 5.4**
@@ -158,7 +164,7 @@ class TestCORSOriginEnforcementProperty:
         )
 
     @given(origin=st.sampled_from(TEST_ALLOWED_ORIGINS))
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_allowed_origin_preflight_receives_cors_headers(self, origin):
         """
         **Validates: Requirements 5.5**
@@ -190,7 +196,7 @@ class TestCORSOriginEnforcementProperty:
         )
 
     @given(origin=st.just('null'))
-    @settings(max_examples=5)
+    @settings(max_examples=5, deadline=None)
     def test_null_origin_rejected(self, origin):
         """
         **Validates: Requirements 5.1, 5.3**

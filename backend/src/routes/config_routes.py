@@ -9,6 +9,7 @@ import os
 import json
 import logging
 from flask import Blueprint, jsonify
+from flask.typing import ResponseReturnValue
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ config_bp = Blueprint('config', __name__, url_prefix='/api/config')
 _ledger_parameters = None
 
 
-def _get_ledger_parameters():
+def _get_ledger_parameters() -> dict:
     global _ledger_parameters
     if _ledger_parameters is None:
         config_path = os.path.join(
@@ -35,7 +36,7 @@ def _get_ledger_parameters():
 
 
 @config_bp.route('/ledger-parameters', methods=['GET'])
-def get_ledger_parameters():
+def get_ledger_parameters() -> ResponseReturnValue:
     """
     Get predefined ledger account parameter definitions.
 

@@ -95,6 +95,7 @@ class TestPresignedUrlSuccess:
                     'Bucket': 'myadmin-shared-dev',
                     'Key': 'TestTenant/invoices/doc.pdf',
                     'ResponseContentDisposition': 'inline',
+                    'ResponseContentType': 'application/pdf',
                 },
                 ExpiresIn=300,
             )

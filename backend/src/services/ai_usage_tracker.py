@@ -10,7 +10,7 @@ This service logs all AI API requests to the ai_usage_log table, enabling:
 """
 
 import logging
-from typing import Optional
+from typing import Dict, Any, Optional
 from decimal import Decimal
 
 from dialect_helpers import dialect
@@ -146,7 +146,7 @@ class AIUsageTracker:
         self,
         administration: str,
         days: int = 30
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """
         Get usage summary for a tenant over specified period.
         

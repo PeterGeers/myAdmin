@@ -447,10 +447,13 @@ class TestTransitionStatus:
         from unittest.mock import MagicMock
         from contextlib import contextmanager
 
-        service.db.execute_query.return_value = [
-            {'id': 1, 'name': 'Budget 2025', 'fiscal_year': 2025,
-             'status': 'Approved', 'is_active': True,
-             'status_changed_at': None, 'created_at': None, 'updated_at': None}
+        service.db.execute_query.side_effect = [
+            # First call: SELECT to get version info
+            [{'id': 1, 'name': 'Budget 2025', 'fiscal_year': 2025,
+              'status': 'Approved', 'is_active': True,
+              'status_changed_at': None, 'created_at': None, 'updated_at': None}],
+            # Second call: COUNT query to check existing revised versions
+            [{'cnt': 0}],
         ]
 
         # Mock the transaction context manager
@@ -1485,7 +1488,7 @@ class TestParsePeriod:
         from unittest.mock import patch as mock_patch
         from datetime import datetime as dt
 
-        with mock_patch('services.budget_service.datetime') as mock_dt:
+        with mock_patch('services.budget_query_service.datetime') as mock_dt:
             mock_dt.now.return_value = dt(2025, 4, 15)
             mock_dt.side_effect = lambda *args, **kw: dt(*args, **kw)
             result = self.service._parse_period('ytd')

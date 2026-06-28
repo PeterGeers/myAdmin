@@ -12,6 +12,7 @@ API endpoints for managing assets:
 import os
 import logging
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 asset_bp = Blueprint('assets', __name__, url_prefix='/api/assets')
 
 
-def _get_service():
+def _get_service() -> AssetService:
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     db = DatabaseManager(test_mode=test_mode)
     return AssetService(db)
@@ -33,7 +34,7 @@ def _get_service():
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def list_assets(user_email, user_roles, tenant, user_tenants):
+def list_assets(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List assets with current book values."""
     try:
         service = _get_service()
@@ -53,7 +54,7 @@ def list_assets(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def create_asset(user_email, user_roles, tenant, user_tenants):
+def create_asset(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Create a new asset.
 
@@ -98,7 +99,7 @@ def create_asset(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def get_asset(user_email, user_roles, tenant, user_tenants, asset_id):
+def get_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
     """Get single asset with transaction history."""
     try:
         service = _get_service()
@@ -115,7 +116,7 @@ def get_asset(user_email, user_roles, tenant, user_tenants, asset_id):
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def update_asset(user_email, user_roles, tenant, user_tenants, asset_id):
+def update_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
     """
     Update asset metadata.
 
@@ -143,7 +144,7 @@ def update_asset(user_email, user_roles, tenant, user_tenants, asset_id):
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def dispose_asset(user_email, user_roles, tenant, user_tenants, asset_id):
+def dispose_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
     """
     Dispose an asset.
 
@@ -180,7 +181,7 @@ def dispose_asset(user_email, user_roles, tenant, user_tenants, asset_id):
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def generate_depreciation(user_email, user_roles, tenant, user_tenants):
+def generate_depreciation(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Generate depreciation entries for a period.
 
@@ -211,7 +212,7 @@ def generate_depreciation(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def asset_register_report(user_email, user_roles, tenant, user_tenants):
+def asset_register_report(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Asset register report — all assets with current book values."""
     try:
         service = _get_service()
@@ -254,7 +255,7 @@ def asset_register_report(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['finance_read'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def depreciation_schedule_report(user_email, user_roles, tenant, user_tenants):
+def depreciation_schedule_report(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Depreciation schedule — per asset, per year."""
     try:
         year = request.args.get('year', str(import_datetime().year))
@@ -296,7 +297,7 @@ def depreciation_schedule_report(user_email, user_roles, tenant, user_tenants):
         return jsonify({'error': str(e)}), 500
 
 
-def import_datetime():
+def import_datetime() -> "datetime":
     from datetime import datetime
     return datetime.now()
 
@@ -305,7 +306,7 @@ def import_datetime():
 @cognito_required(required_permissions=['finance_write'])
 @tenant_required()
 @function_guard('assets', 'FIN')
-def delete_asset(user_email, user_roles, tenant, user_tenants, asset_id):
+def delete_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
     """
     Delete an asset (only if no transactions are linked).
     For assets with transactions, use dispose instead.
