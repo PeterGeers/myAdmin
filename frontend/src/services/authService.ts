@@ -8,7 +8,7 @@
  * - Role validation
  */
 
-import { fetchAuthSession, getCurrentUser, signIn, confirmSignIn, associateWebAuthnCredential, listWebAuthnCredentials, deleteWebAuthnCredential } from 'aws-amplify/auth';
+import { fetchAuthSession, getCurrentUser, signIn, signOut, confirmSignIn, associateWebAuthnCredential, listWebAuthnCredentials, deleteWebAuthnCredential } from 'aws-amplify/auth';
 
 /**
  * JWT Payload structure from Cognito tokens
@@ -53,6 +53,14 @@ export interface RoleValidation {
  */
 export async function signInWithPasskey(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Clear any stale sign-in state
+  try {
+    await signOut();
+  } catch {
+    // Ignore — no session to clear is fine
+  }
+
   // Step 1: Initiate auth with USER_AUTH flow (preferring passkey)
   const result = await signIn({
     username: normalizedEmail,
@@ -77,12 +85,24 @@ export async function signInWithPasskey(email: string) {
 /**
  * Sign in using email and password via Cognito USER_SRP_AUTH flow.
  * 
+ * Clears any stale Amplify sign-in state before attempting login.
+ * This prevents "NotAuthorizedException" errors after password resets
+ * or failed previous attempts that leave internal session state behind.
+ * 
  * @param email - User's email address
  * @param password - User's password
  * @returns Sign-in result from Amplify
  */
 export async function signInWithPassword(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Clear any stale sign-in state (prevents conflicts after password reset or failed attempts)
+  try {
+    await signOut();
+  } catch {
+    // Ignore — no session to clear is fine
+  }
+
   const result = await signIn({
     username: normalizedEmail,
     password: password,
