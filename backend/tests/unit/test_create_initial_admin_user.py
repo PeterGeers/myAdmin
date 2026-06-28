@@ -723,19 +723,19 @@ class TestResendInvitationEndpoint:
 
     @pytest.fixture
     def app_and_client(self):
-        """Create Flask app with the sysadmin_tenants blueprint, auth bypassed."""
+        """Create Flask app with the sysadmin_tenant_actions blueprint, auth bypassed."""
         from flask import Flask
 
         with patch('auth.cognito_utils.cognito_required',
                    side_effect=_passthrough_cognito_sysadmin):
             import importlib
-            import routes.sysadmin_tenants as st_mod
-            importlib.reload(st_mod)
+            import routes.sysadmin_tenant_actions as sta_mod
+            importlib.reload(sta_mod)
 
             app = Flask(__name__)
             app.config['TESTING'] = True
             app.register_blueprint(
-                st_mod.sysadmin_tenants_bp,
+                sta_mod.sysadmin_tenant_actions_bp,
                 url_prefix='/api/sysadmin/tenants',
             )
             yield app, app.test_client()
@@ -767,7 +767,7 @@ class TestResendInvitationEndpoint:
         mock_frontend = MagicMock(return_value='https://app.example.com')
 
         patches = {
-            'db': patch('routes.sysadmin_tenants.DatabaseManager', return_value=mock_db),
+            'db': patch('routes.sysadmin_tenant_actions.DatabaseManager', return_value=mock_db),
             'cognito': patch('services.cognito_service.CognitoService', return_value=mock_cognito),
             'invitation': patch('services.invitation_service.InvitationService', return_value=mock_inv),
             'email_tpl': patch('services.email_template_service.EmailTemplateService', return_value=mock_tpl),

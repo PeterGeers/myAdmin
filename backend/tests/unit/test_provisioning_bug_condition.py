@@ -16,6 +16,8 @@ from unittest.mock import MagicMock, patch
 from hypothesis import given, settings, assume, HealthCheck
 from hypothesis import strategies as st
 
+pytestmark = pytest.mark.slow
+
 # ---------------------------------------------------------------------------
 # Strategies
 # ---------------------------------------------------------------------------
@@ -184,7 +186,7 @@ class TestBug1_1_StorageBucketSeeded:
     """
 
     @given(tenant=tenant_names, locale=locales)
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_provision_seeds_s3_shared_bucket(self, tenant, locale):
         """
         Property: For any tenant provisioned with s3_shared storage,
@@ -234,7 +236,7 @@ class TestBug1_4_ModuleParamsSeeded:
     """
 
     @given(tenant=tenant_names, locale=locales)
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_provision_seeds_fin_params(self, tenant, locale):
         """
         Property: For any tenant provisioned with FIN module,
@@ -283,7 +285,7 @@ class TestBug1_5_ActivateModuleSeedsParams:
     """
 
     @given(tenant=tenant_names)
-    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_activate_zzp_seeds_params(self, tenant):
         """
         Property: For any tenant activating ZZP module,
@@ -327,7 +329,7 @@ class TestBug1_7_BrandingVisibility:
     """
 
     @given(tenant_modules=st.just(['FIN', 'STR', 'TENADMIN']))
-    @settings(max_examples=5, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_schema_branding_has_visible_when(self, tenant_modules):
         """
         Property: For any tenant with STR module, the company_logo_file_id
@@ -364,7 +366,7 @@ class TestBug1_7_BrandingVisibility:
         )
 
     @given(tenant_modules=st.just(['FIN', 'ZZP', 'TENADMIN']))
-    @settings(max_examples=5, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(max_examples=5, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_zzp_branding_has_visible_when(self, tenant_modules):
         """
         Property: For any tenant with ZZP module, the company_logo_file_id

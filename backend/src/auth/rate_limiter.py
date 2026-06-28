@@ -4,6 +4,7 @@ Uses a sliding window algorithm with in-memory storage.
 Thread-safe via threading.Lock. Suitable for single-instance Railway deployment.
 """
 
+import math
 import time
 import threading
 from dataclasses import dataclass
@@ -168,5 +169,7 @@ class RateLimiter:
         # earliest expires at (earliest + window_seconds)
         # retry_after = (earliest + window_seconds) - now
         # Since cutoff = now - window_seconds: retry_after = earliest - cutoff
-        retry_after_seconds = int(earliest - cutoff) + 1  # Round up
+        # Use ceil to handle fractional seconds, then +1 to guarantee
+        # the client waits past the expiry boundary
+        retry_after_seconds = math.ceil(earliest - cutoff) + 1
         return max(retry_after_seconds, 1)

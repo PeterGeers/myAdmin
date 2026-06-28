@@ -200,6 +200,8 @@ class TestStatusTransitionValidity:
 
             # Mock the UPDATE for successful transitions
             def side_effect_execute(query, params, fetch=True, commit=False):
+                if 'COUNT' in query:
+                    return [{'cnt': 0}]
                 if 'SELECT' in query:
                     return [{
                         'id': 1,

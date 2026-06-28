@@ -8,6 +8,7 @@ Reference: .kiro/specs/zzp-module/design.md §4.1
 
 import logging
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.module_registry import module_required
@@ -42,7 +43,7 @@ def _get_service() -> ContactService:
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def list_contacts(user_email, user_roles, tenant, user_tenants):
+def list_contacts(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List contacts for tenant, optionally filtered by contact_type."""
     try:
         svc = _get_service()
@@ -60,7 +61,7 @@ def list_contacts(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_contact(user_email, user_roles, tenant, user_tenants, contact_id):
+def get_contact(user_email, user_roles, tenant, user_tenants, contact_id) -> ResponseReturnValue:
     """Get a single contact by id."""
     try:
         svc = _get_service()
@@ -77,7 +78,7 @@ def get_contact(user_email, user_roles, tenant, user_tenants, contact_id):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def create_contact(user_email, user_roles, tenant, user_tenants):
+def create_contact(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a new contact."""
     try:
         data = request.get_json()
@@ -97,7 +98,7 @@ def create_contact(user_email, user_roles, tenant, user_tenants):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def update_contact(user_email, user_roles, tenant, user_tenants, contact_id):
+def update_contact(user_email, user_roles, tenant, user_tenants, contact_id) -> ResponseReturnValue:
     """Update an existing contact."""
     try:
         data = request.get_json()
@@ -117,7 +118,7 @@ def update_contact(user_email, user_roles, tenant, user_tenants, contact_id):
 @cognito_required(required_permissions=['zzp_crud'])
 @tenant_required()
 @module_required('ZZP')
-def delete_contact(user_email, user_roles, tenant, user_tenants, contact_id):
+def delete_contact(user_email, user_roles, tenant, user_tenants, contact_id) -> ResponseReturnValue:
     """Soft-delete a contact (deactivate)."""
     try:
         svc = _get_service()
@@ -134,7 +135,7 @@ def delete_contact(user_email, user_roles, tenant, user_tenants, contact_id):
 @cognito_required(required_permissions=['zzp_read'])
 @tenant_required()
 @module_required('ZZP')
-def get_contact_types(user_email, user_roles, tenant, user_tenants):
+def get_contact_types(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get configurable contact types for this tenant."""
     try:
         svc = _get_service()

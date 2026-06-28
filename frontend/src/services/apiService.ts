@@ -13,7 +13,7 @@ import { API_BASE_URL } from '../config/api';
  */
 export interface AuthenticatedRequestOptions extends RequestInit {
   skipAuth?: boolean; // Skip authentication for public endpoints
-  onUploadProgress?: (progressEvent: any) => void; // For file upload progress
+  onUploadProgress?: (progressEvent: { loaded: number; total?: number }) => void; // For file upload progress
   tenant?: string; // Optional tenant override (defaults to current tenant from context)
   timeout?: number; // Request timeout in milliseconds (default: 30000ms = 30s)
 }
@@ -175,7 +175,7 @@ export async function authenticatedGet(
  */
 export async function authenticatedPost(
   endpoint: string,
-  body?: any,
+  body?: unknown,
   options: AuthenticatedRequestOptions = {}
 ): Promise<Response> {
   return authenticatedRequest(endpoint, {
@@ -195,7 +195,7 @@ export async function authenticatedPost(
  */
 export async function authenticatedPut(
   endpoint: string,
-  body?: any,
+  body?: unknown,
   options: AuthenticatedRequestOptions = {}
 ): Promise<Response> {
   return authenticatedRequest(endpoint, {
@@ -247,7 +247,7 @@ export async function authenticatedFormData(
 
   // Don't set Content-Type for FormData - browser will set it with boundary
   if (headers && 'Content-Type' in headers) {
-    delete (headers as any)['Content-Type'];
+    delete (headers as Record<string, string>)['Content-Type'];
   }
 
   if (!skipAuth) {
@@ -297,17 +297,18 @@ export async function authenticatedFormData(
         statusText: axiosResponse.statusText,
         headers: new Headers(axiosResponse.headers as Record<string, string>),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const axiosErr = error as { code?: string; message?: string; response?: { data: unknown; status: number; statusText: string; headers: Record<string, string> } };
       console.error('Axios upload error:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
+      console.error('Error code:', axiosErr.code);
+      console.error('Error message:', axiosErr.message);
       
       // Convert axios error to fetch error
-      if (error.response) {
-        return new Response(JSON.stringify(error.response.data), {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          headers: new Headers(error.response.headers as Record<string, string>),
+      if (axiosErr.response) {
+        return new Response(JSON.stringify(axiosErr.response.data), {
+          status: axiosErr.response.status,
+          statusText: axiosErr.response.statusText,
+          headers: new Headers(axiosErr.response.headers as Record<string, string>),
         });
       }
       throw error;

@@ -10,6 +10,7 @@ Endpoints:
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 import os
 import logging
 
@@ -26,7 +27,7 @@ tenant_admin_details_bp = Blueprint('tenant_admin_details', __name__, url_prefix
 
 @tenant_admin_details_bp.route('', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_tenant_details(user_email, user_roles):
+def get_tenant_details(user_email, user_roles) -> ResponseReturnValue:
     """
     Get tenant details
     
@@ -85,7 +86,7 @@ def get_tenant_details(user_email, user_roles):
 
 @tenant_admin_details_bp.route('', methods=['PUT'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def update_tenant_details(user_email, user_roles):
+def update_tenant_details(user_email, user_roles) -> ResponseReturnValue:
     """
     Update tenant details
     

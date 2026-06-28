@@ -4,6 +4,7 @@ Extracted from reporting_routes.py for file size management.
 All endpoints are prefixed with /api/reports via blueprint registration.
 """
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from database import DatabaseManager
 from mutaties_cache import get_cache
 from datetime import datetime
@@ -17,13 +18,13 @@ flag = False
 logger = None
 
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode) -> None:
     """Set test mode flag"""
     global flag
     flag = test_mode
 
 
-def set_logger(log_instance):
+def set_logger(log_instance) -> None:
     """Set logger instance"""
     global logger
     logger = log_instance
@@ -32,7 +33,7 @@ def set_logger(log_instance):
 @aangifte_ib_bp.route('/aangifte-ib', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def aangifte_ib(user_email, user_roles, tenant, user_tenants):
+def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get Aangifte IB data grouped by Parent and Aangifte (using in-memory cache)"""
     try:
         # Get parameters
@@ -77,7 +78,7 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants):
 @aangifte_ib_bp.route('/aangifte-ib-details', methods=['GET'])
 @cognito_required(required_permissions=['reports_read'])
 @tenant_required()
-def aangifte_ib_details(user_email, user_roles, tenant, user_tenants):
+def aangifte_ib_details(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Get underlying accounts for a specific Parent and Aangifte (using in-memory cache)"""
     try:
         # Get parameters
@@ -124,7 +125,7 @@ def aangifte_ib_details(user_email, user_roles, tenant, user_tenants):
 @aangifte_ib_bp.route('/aangifte-ib-export', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
-def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
+def aangifte_ib_export(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Generate HTML export for Aangifte IB report using TemplateService with field mappings
     
     Supports multiple output destinations:
@@ -282,7 +283,7 @@ def aangifte_ib_export(user_email, user_roles, tenant, user_tenants):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-def _render_table_rows(rows_data):
+def _render_table_rows(rows_data) -> str:
     """
     Convert row data dictionaries to HTML table rows.
     
@@ -326,7 +327,7 @@ def _render_table_rows(rows_data):
 @aangifte_ib_bp.route('/aangifte-ib-xlsx-export', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
-def aangifte_ib_xlsx_export(user_email, user_roles, tenant, user_tenants):
+def aangifte_ib_xlsx_export(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Generate XLSX export for Aangifte IB with tenant filtering"""
     try:
         data = request.get_json()
@@ -377,7 +378,7 @@ def aangifte_ib_xlsx_export(user_email, user_roles, tenant, user_tenants):
 @aangifte_ib_bp.route('/aangifte-ib-xlsx-export-stream', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
-def aangifte_ib_xlsx_export_stream(user_email, user_roles, tenant, user_tenants):
+def aangifte_ib_xlsx_export_stream(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Generate XLSX export for Aangifte IB with streaming progress and tenant filtering"""
     from flask import Response
     import json
@@ -435,7 +436,7 @@ def aangifte_ib_xlsx_export_stream(user_email, user_roles, tenant, user_tenants)
 @aangifte_ib_bp.route('/aangifte-ib-xlsx-download', methods=['POST'])
 @cognito_required(required_permissions=['reports_export'])
 @tenant_required()
-def aangifte_ib_xlsx_download(user_email, user_roles, tenant, user_tenants):
+def aangifte_ib_xlsx_download(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Generate XLSX workbook for Aangifte IB and return as downloadable file.
     
     This endpoint generates just the Excel workbook (no file downloads from

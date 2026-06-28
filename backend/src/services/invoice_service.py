@@ -12,6 +12,7 @@ Extracted from app.py during refactoring (Phase 2.1)
 
 import os
 import shutil
+from typing import Dict, Any, List
 from werkzeug.utils import secure_filename
 from database import DatabaseManager
 from dialect_helpers import dialect
@@ -38,7 +39,7 @@ class InvoiceService:
         self.transaction_logic = TransactionLogic(test_mode=test_mode)
         self.upload_cache = {}  # Cache for uploaded files to prevent duplicates
     
-    def allowed_file(self, filename):
+    def allowed_file(self, filename: str) -> bool:
         """
         Check if file extension is allowed
         
@@ -50,7 +51,7 @@ class InvoiceService:
         """
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in self.ALLOWED_EXTENSIONS
     
-    def check_early_duplicates(self, filename, folder_name, drive_result, tenant=None):
+    def check_early_duplicates(self, filename: str, folder_name: str, drive_result: dict, tenant: str = None) -> Dict[str, Any]:
         """
         Check for duplicate files before processing to prevent unnecessary work.
         This is an early check based on filename and folder, scoped to the tenant.
@@ -135,7 +136,7 @@ class InvoiceService:
             }
 
     
-    def upload_to_drive(self, temp_path, filename, folder_name, tenant):
+    def upload_to_drive(self, temp_path: str, filename: str, folder_name: str, tenant: str) -> Dict[str, Any]:
         """
         Upload file to storage (Google Drive or S3 depending on tenant provider)
         
@@ -237,7 +238,7 @@ class InvoiceService:
                     'url': f'http://localhost:5000/uploads/{filename}'
                 }
     
-    def process_invoice_file(self, temp_path, drive_result, folder_name, tenant):
+    def process_invoice_file(self, temp_path: str, drive_result: dict, folder_name: str, tenant: str) -> Dict[str, Any]:
         """
         Process invoice file and extract transaction data
         
@@ -358,7 +359,7 @@ class InvoiceService:
 
         return 'ai_failed'
     
-    def move_file_to_folder(self, temp_path, filename, result_folder):
+    def move_file_to_folder(self, temp_path: str, filename: str, result_folder: str) -> str:
         """
         Move uploaded file to the correct vendor folder
         
@@ -386,7 +387,7 @@ class InvoiceService:
                 os.remove(temp_path)
             raise
     
-    def cleanup_temp_file(self, temp_path):
+    def cleanup_temp_file(self, temp_path: str) -> None:
         """
         Clean up temporary file
         

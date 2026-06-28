@@ -83,7 +83,7 @@ export const DEFAULTS: Record<TableEntity, TableConfigDefaults> = {
 /**
  * Safely parse a JSON parameter value, returning `undefined` on failure.
  */
-function safeParseJson<T>(value: any): T | undefined {
+function safeParseJson<T>(value: unknown): T | undefined {
   if (value === null || value === undefined) return undefined;
   try {
     return typeof value === 'string' ? JSON.parse(value) : value;

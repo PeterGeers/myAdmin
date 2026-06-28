@@ -17,6 +17,7 @@ import secrets
 import logging
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, make_response
+from flask.typing import ResponseReturnValue
 import boto3
 from botocore.exceptions import ClientError
 from database import DatabaseManager
@@ -41,13 +42,13 @@ def _generate_code() -> str:
     return f"{secrets.randbelow(1000000):06d}"
 
 
-def _get_db():
+def _get_db() -> DatabaseManager:
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     return DatabaseManager(test_mode=test_mode)
 
 
 @auth_bp.route('/forgot-password', methods=['POST'])
-def forgot_password():
+def forgot_password() -> ResponseReturnValue:
     """
     Send a password reset code via SES.
 
@@ -183,7 +184,7 @@ def forgot_password():
 
 
 @auth_bp.route('/confirm-reset', methods=['POST'])
-def confirm_reset_password():
+def confirm_reset_password() -> ResponseReturnValue:
     """
     Validate reset code and set new password.
 
@@ -295,7 +296,7 @@ def confirm_reset_password():
 
 @auth_bp.route('/me', methods=['GET'])
 @cognito_required()
-def get_current_user_info(user_email, user_roles):
+def get_current_user_info(user_email, user_roles) -> ResponseReturnValue:
     """
     Return the current user's merged roles (global from JWT + per-tenant from DB).
     The @cognito_required decorator already does the merge, so user_roles is ready.

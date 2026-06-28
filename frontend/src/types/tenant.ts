@@ -27,13 +27,13 @@ export interface DataOwnershipResult {
  */
 export interface TenantAwareFilters {
   administration: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
  * Tenant-aware API response wrapper
  */
-export interface TenantAwareResponse<T = any> {
+export interface TenantAwareResponse<T = unknown> {
   data: T;
   tenant: string;
   timestamp: string;
@@ -46,14 +46,14 @@ export interface TenantLookupData {
   bank_accounts?: Array<{
     rekeningNummer: string;
     administration: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }>;
   accounts?: Array<{
     id: string;
     administration: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }>;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -109,7 +109,7 @@ export class TenantError extends Error {
     public type: TenantErrorType,
     message: string,
     public tenant?: string,
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = 'TenantError';
@@ -126,5 +126,5 @@ export interface TenantAuditEntry {
   resource: string;
   user: string;
   success: boolean;
-  details?: any;
+  details?: unknown;
 }

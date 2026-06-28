@@ -6,6 +6,7 @@ Extracted from app.py during refactoring (Phase 1.2)
 """
 
 from flask import Blueprint, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 import os
@@ -16,7 +17,7 @@ system_health_bp = Blueprint('system_health', __name__)
 # This will be set by app.py after blueprint registration
 scalability_manager = None
 
-def set_scalability_manager(manager):
+def set_scalability_manager(manager) -> None:
     """Set the scalability manager reference from app.py"""
     global scalability_manager
     scalability_manager = manager
@@ -25,14 +26,14 @@ def set_scalability_manager(manager):
 
 @system_health_bp.route('/api/test', methods=['GET'])
 @cognito_required(required_permissions=[])
-def test(user_email, user_roles):
+def test(user_email, user_roles) -> ResponseReturnValue:
     """Test endpoint"""
     print("Test endpoint called", flush=True)
     return jsonify({'status': 'Server is working'})
 
 
 @system_health_bp.route('/api/status', methods=['GET'])
-def get_status():
+def get_status() -> ResponseReturnValue:
     """Get environment status - Public endpoint (no authentication required)"""
     try:
         use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
@@ -53,7 +54,7 @@ def get_status():
 
 
 @system_health_bp.route('/api/db-config', methods=['GET'])
-def get_db_config():
+def get_db_config() -> ResponseReturnValue:
     """Get database configuration (for diagnostics) - Public endpoint"""
     try:
         use_test = os.getenv('TEST_MODE', 'false').lower() == 'true'
@@ -86,7 +87,7 @@ def get_db_config():
 
 
 @system_health_bp.route('/api/db-test', methods=['GET'])
-def test_db_connection():
+def test_db_connection() -> ResponseReturnValue:
     """Test database connection - Public endpoint"""
     try:
         db = DatabaseManager()
@@ -115,14 +116,14 @@ def test_db_connection():
 
 @system_health_bp.route('/api/str/test', methods=['GET'])
 @cognito_required(required_permissions=[])
-def str_test(user_email, user_roles):
+def str_test(user_email, user_roles) -> ResponseReturnValue:
     """STR test endpoint"""
     print("STR test endpoint called", flush=True)
     return jsonify({'status': 'STR endpoints working', 'openpyxl_available': True})
 
 
 @system_health_bp.route('/api/health', methods=['GET'])
-def health():
+def health() -> ResponseReturnValue:
     """Health check endpoint with scalability information - No authentication required"""
     health_info = {
         'status': 'healthy', 
@@ -147,7 +148,7 @@ def health():
 
 @system_health_bp.route('/api/google-drive/token-health', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin', 'Tenant_Admin'])
-def google_drive_token_health(user_email, user_roles):
+def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
     """Check Google Drive token health for all tenants"""
     from datetime import datetime
     from services.credential_service import CredentialService

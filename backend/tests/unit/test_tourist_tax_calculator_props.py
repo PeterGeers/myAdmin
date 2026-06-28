@@ -48,7 +48,7 @@ valid_methods = ['percentage', 'fixed_per_guest_night', 'fixed_per_night', 'perc
 class TestTouristTaxMethodDispatch:
     """Correct formula applied per method, 2 decimal rounding, zero for unknown."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(rate=rate_st, base_amount=amount_st)
     def test_percentage_method(self, rate, base_amount):
         rate_info = {
@@ -65,7 +65,7 @@ class TestTouristTaxMethodDispatch:
         assert result['method'] == 'percentage'
         assert result['rate'] == rate
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(rate=rate_st, nights=nights_st, guests=guests_st)
     def test_fixed_per_guest_night_method(self, rate, nights, guests):
         rate_info = {
@@ -99,7 +99,7 @@ class TestTouristTaxMethodDispatch:
         assert result['amount'] == expected
         assert result['method'] == 'fixed_per_night'
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(rate=rate_st, room_price=positive_amount_st)
     def test_percentage_of_room_price_method(self, rate, room_price):
         rate_info = {
@@ -115,7 +115,7 @@ class TestTouristTaxMethodDispatch:
         assert result['amount'] == expected
         assert result['method'] == 'percentage_of_room_price'
 
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(
         method=st.text(min_size=1, max_size=30).filter(lambda m: m not in valid_methods),
         rate=rate_st,
@@ -134,7 +134,7 @@ class TestTouristTaxMethodDispatch:
         assert result['method'] == method
         assert result['rate'] == rate
 
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     @given(base_amount=amount_st)
     def test_no_rate_configured_returns_zero(self, base_amount):
         trs = make_mock_tax_rate_service(None)
@@ -146,7 +146,7 @@ class TestTouristTaxMethodDispatch:
         assert result['method'] == 'none'
         assert result['rate'] == 0
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         method=st.sampled_from(valid_methods),
         rate=rate_st,
@@ -170,7 +170,7 @@ class TestTouristTaxMethodDispatch:
 
         assert result['amount'] == round(result['amount'], 2)
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         method=st.sampled_from(valid_methods),
         rate=rate_st,

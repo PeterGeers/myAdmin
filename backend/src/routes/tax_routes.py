@@ -3,6 +3,7 @@ Tax Processing Routes Blueprint
 Handles BTW (VAT) and Toeristenbelasting (Tourist Tax) declaration routes
 """
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from btw_processor import BTWProcessor
@@ -18,12 +19,12 @@ tax_bp = Blueprint('tax', __name__)
 flag = False  # Test mode flag
 logger = None  # Logger instance
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode) -> None:
     """Set test mode flag"""
     global flag
     flag = test_mode
 
-def set_logger(log_instance):
+def set_logger(log_instance) -> None:
     """Set logger instance"""
     global logger
     logger = log_instance
@@ -32,7 +33,7 @@ def set_logger(log_instance):
 # BTW (VAT) Declaration routes
 @tax_bp.route('/api/btw/generate-report', methods=['POST'])
 @cognito_required(required_permissions=['btw_read', 'btw_process'])
-def btw_generate_report(user_email, user_roles):
+def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
     """Generate BTW declaration report using TemplateService with field mappings
     
     Supports multiple output destinations:
@@ -206,7 +207,7 @@ def btw_generate_report(user_email, user_roles):
 
 @tax_bp.route('/api/btw/save-transaction', methods=['POST'])
 @cognito_required(required_permissions=['transactions_create'])
-def btw_save_transaction(user_email, user_roles):
+def btw_save_transaction(user_email, user_roles) -> ResponseReturnValue:
     """Save BTW transaction to database"""
     try:
         data = request.get_json()
@@ -226,7 +227,7 @@ def btw_save_transaction(user_email, user_roles):
 
 @tax_bp.route('/api/btw/upload-report', methods=['POST'])
 @cognito_required(required_permissions=['btw_process'])
-def btw_upload_report(user_email, user_roles):
+def btw_upload_report(user_email, user_roles) -> ResponseReturnValue:
     """Upload BTW report to Google Drive"""
     try:
         from auth.tenant_context import get_current_tenant
@@ -263,7 +264,7 @@ def btw_upload_report(user_email, user_roles):
 # Toeristenbelasting (Tourist Tax) Declaration routes
 @tax_bp.route('/api/toeristenbelasting/generate-report', methods=['POST'])
 @cognito_required(required_permissions=['str_read', 'reports_read'])
-def toeristenbelasting_generate_report(user_email, user_roles):
+def toeristenbelasting_generate_report(user_email, user_roles) -> ResponseReturnValue:
     """Generate Toeristenbelasting declaration report
     
     Supports multiple output destinations:
@@ -331,7 +332,7 @@ def toeristenbelasting_generate_report(user_email, user_roles):
 
 @tax_bp.route('/api/toeristenbelasting/available-years', methods=['GET'])
 @cognito_required(required_permissions=['str_read'])
-def toeristenbelasting_available_years(user_email, user_roles):
+def toeristenbelasting_available_years(user_email, user_roles) -> ResponseReturnValue:
     """Get available years for Toeristenbelasting (current year and 3 years back)"""
     try:
         from datetime import datetime

@@ -173,7 +173,7 @@ class TestLoadFromGoogleDrive:
         result = service._load_from_google_drive('user_invitation')
         assert result is None
 
-    @patch('services.email_template_service.DatabaseManager')
+    @patch('database.DatabaseManager')
     def test_returns_template_content_from_db(self, mock_db_cls):
         """Should return template_content directly if stored in DB"""
         mock_db = MagicMock()
@@ -186,7 +186,7 @@ class TestLoadFromGoogleDrive:
         result = service._load_from_google_drive('user_invitation')
         assert result == '<h1>Custom Template</h1>'
 
-    @patch('services.email_template_service.DatabaseManager')
+    @patch('database.DatabaseManager')
     def test_returns_none_when_no_db_results(self, mock_db_cls):
         """Should return None if no custom template found in DB"""
         mock_db = MagicMock()
@@ -197,7 +197,7 @@ class TestLoadFromGoogleDrive:
         result = service._load_from_google_drive('user_invitation')
         assert result is None
 
-    @patch('services.email_template_service.DatabaseManager')
+    @patch('database.DatabaseManager')
     def test_returns_none_on_exception(self, mock_db_cls):
         """Should return None and not raise if DB query fails"""
         mock_db_cls.side_effect = Exception("DB connection failed")
@@ -206,7 +206,7 @@ class TestLoadFromGoogleDrive:
         result = service._load_from_google_drive('user_invitation')
         assert result is None
 
-    @patch('services.email_template_service.DatabaseManager')
+    @patch('database.DatabaseManager')
     def test_queries_correct_template_type(self, mock_db_cls):
         """Should query the DB with the correct administration and template_type"""
         mock_db = MagicMock()

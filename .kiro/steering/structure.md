@@ -9,7 +9,6 @@ myAdmin/
 ├── infrastructure/       # Terraform IaC
 ├── mysql_data/           # MySQL data directory (Docker volume)
 ├── scripts/              # Utility scripts
-├── Manuals/              # User documentation (HTML)
 ├── manualsSysAdm/        # System admin documentation
 ├── .kiro/                # Kiro AI configuration (specs, steering, hooks, prompts)
 ├── docker-compose.yml    # Docker orchestration

@@ -12,6 +12,7 @@ import logging
 import os
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 tenant_function_bp = Blueprint('tenant_functions', __name__)
 
 
-def _get_service():
+def _get_service() -> "TenantFunctionService":
     test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
     db = DatabaseManager(test_mode=test_mode)
     return TenantFunctionService(db)
@@ -33,7 +34,7 @@ def _get_service():
 @tenant_function_bp.route('/api/tenant/functions', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def get_tenant_functions(user_email, user_roles, tenant, user_tenants):
+def get_tenant_functions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Get all optional functions with their activation state for the current tenant.
 
@@ -54,7 +55,7 @@ def get_tenant_functions(user_email, user_roles, tenant, user_tenants):
 @tenant_function_bp.route('/api/tenant/functions', methods=['POST'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def toggle_tenant_function(user_email, user_roles, tenant, user_tenants):
+def toggle_tenant_function(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Toggle an optional function for the current tenant.
 

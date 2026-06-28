@@ -6,6 +6,7 @@ Extracted from app.py during refactoring (Phase 2.2)
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 from werkzeug.utils import secure_filename
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -21,14 +22,14 @@ UPLOAD_FOLDER = 'uploads'
 # Access to flag from app.py (test mode)
 flag = False
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode) -> None:
     """Set the test mode flag from app.py"""
     global flag
     flag = test_mode
 
 
 @invoice_bp.route('/api/upload', methods=['POST', 'OPTIONS'])
-def upload_file_wrapper():
+def upload_file_wrapper() -> ResponseReturnValue:
     """Upload and process PDF file - wrapper to handle OPTIONS without auth"""
     if request.method == 'OPTIONS':
         # Handle CORS preflight without authentication
@@ -40,7 +41,7 @@ def upload_file_wrapper():
 
 @cognito_required(required_permissions=['invoices_create'])
 @tenant_required()
-def upload_file_authenticated(user_email, user_roles, tenant, user_tenants):
+def upload_file_authenticated(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Upload and process PDF file"""
     print("\n*** UPLOAD ENDPOINT CALLED ***", flush=True)
     print(f"Tenant: {tenant}", flush=True)
@@ -151,7 +152,7 @@ def upload_file_authenticated(user_email, user_roles, tenant, user_tenants):
 @invoice_bp.route('/api/approve-transactions', methods=['POST'])
 @cognito_required(required_permissions=['transactions_create'])
 @tenant_required()
-def approve_transactions(user_email, user_roles, tenant, user_tenants):
+def approve_transactions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Save approved transactions to database"""
     from transaction_logic import TransactionLogic
     

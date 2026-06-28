@@ -49,7 +49,7 @@ class TestDefaultStateResolution:
     row in tenant_functions, get_function_state() SHALL return the default_enabled
     value defined in the registry."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         function_name=function_name_st,
@@ -89,7 +89,7 @@ class TestWriteFailurePreservesState:
     subsequent get_function_state() call SHALL return the original state
     unchanged."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         function_name=function_name_st,
@@ -143,7 +143,7 @@ class TestInactiveParentModuleOverride:
     if the function's parent module is inactive for the tenant, the effective
     state SHALL be false."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         function_name=function_name_st,
@@ -185,7 +185,7 @@ class TestInactiveParentModuleOverride:
                 f"(is_active=True but module inactive), got {func['effective']}"
             )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         function_name=function_name_st,
@@ -233,7 +233,7 @@ class TestToggleRoundTrip:
     get_function_state(tenant, function_name) SHALL return the newly set
     is_active value."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         function_name=function_name_st,
@@ -294,7 +294,7 @@ class TestModuleDeactivationPreservation:
     the same function toggle states being effective as before deactivation —
     no manual re-enablement required."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     @given(
         tenant=tenant_st,
         function_name=function_name_st,

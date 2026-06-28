@@ -9,6 +9,7 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -23,19 +24,19 @@ parameter_admin_bp = Blueprint('parameter_admin', __name__)
 flag = os.getenv('TEST_MODE', 'false').lower() == 'true'
 
 
-def _get_service():
+def _get_service() -> "ParameterService":
     db = DatabaseManager(test_mode=flag)
     return ParameterService(db)
 
 
-def _is_sysadmin(user_roles):
+def _is_sysadmin(user_roles) -> bool:
     return 'SysAdmin' in (user_roles or [])
 
 
 @parameter_admin_bp.route('/api/tenant-admin/parameters', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def list_parameters(user_email, user_roles, tenant, user_tenants):
+def list_parameters(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List all parameters for tenant, grouped by namespace, with scope origin."""
     try:
         svc = _get_service()
@@ -115,7 +116,7 @@ def list_parameters(user_email, user_roles, tenant, user_tenants):
 @parameter_admin_bp.route('/api/tenant-admin/parameters', methods=['POST'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def create_parameter(user_email, user_roles, tenant, user_tenants):
+def create_parameter(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a parameter with value_type validation."""
     try:
         data = request.get_json()
@@ -150,7 +151,7 @@ def create_parameter(user_email, user_roles, tenant, user_tenants):
 @parameter_admin_bp.route('/api/tenant-admin/parameters/<int:param_id>', methods=['PUT'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def update_parameter(user_email, user_roles, tenant, user_tenants, param_id):
+def update_parameter(user_email, user_roles, tenant, user_tenants, param_id) -> ResponseReturnValue:
     """Update a parameter value, invalidate cache."""
     try:
         data = request.get_json()
@@ -189,7 +190,7 @@ def update_parameter(user_email, user_roles, tenant, user_tenants, param_id):
 @parameter_admin_bp.route('/api/tenant-admin/parameters/<int:param_id>', methods=['DELETE'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def delete_parameter(user_email, user_roles, tenant, user_tenants, param_id):
+def delete_parameter(user_email, user_roles, tenant, user_tenants, param_id) -> ResponseReturnValue:
     """Delete a parameter override at specified scope."""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -220,7 +221,7 @@ def delete_parameter(user_email, user_roles, tenant, user_tenants, param_id):
 @parameter_admin_bp.route('/api/tenant-admin/parameters/default', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def get_parameter_default(user_email, user_roles, tenant, user_tenants):
+def get_parameter_default(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Return the default value for a parameter (CODE_DEFAULT or system-scope DB row).
 
     Query params: namespace, key
@@ -284,7 +285,7 @@ def get_parameter_default(user_email, user_roles, tenant, user_tenants):
 @parameter_admin_bp.route('/api/tenant-admin/parameters/schema', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def get_parameter_schema(user_email, user_roles, tenant, user_tenants):
+def get_parameter_schema(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Return parameter schema filtered by tenant's active modules, with current values."""
     try:
         from services.parameter_schema import get_schema_for_tenant

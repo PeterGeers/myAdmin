@@ -65,56 +65,13 @@ class TransactionLogic:
             results = ref3_groups[first_ref3]
             print(f"Multiple transactions found, using Ref3: {first_ref3}")
         
-        # If no results, try fallback: most recent transaction from any vendor for this tenant
+        # If no results, return error — manual account selection required
         if not results:
-            if administration:
-                fallback_query = f"""
-                    SELECT ID, TransactionNumber, TransactionDate, TransactionDescription, TransactionAmount, 
-                           Debet, Credit, ReferenceNumber, Ref1, Ref2, Ref3, Ref4, Administration
-                    FROM {self.table_name} 
-                    WHERE administration = %s
-                    AND TransactionDate = (
-                        SELECT MAX(TransactionDate) 
-                        FROM {self.table_name} 
-                        WHERE administration = %s
-                    )
-                    ORDER BY Debet DESC
-                    LIMIT 2
-                """
-                with self.db.get_cursor() as (cursor, conn):
-                    cursor.execute(fallback_query, (administration, administration))
-                    results = cursor.fetchall()
-                
-                if results:
-                    # Clear vendor-specific fields so user fills them in
-                    for row in results:
-                        row['ReferenceNumber'] = transaction_number
-                        row['TransactionDescription'] = ''
-                        row['TransactionAmount'] = 0
-                        row['Ref3'] = ''
-                        row['Ref4'] = ''
-                    print(f"No exact match for '{transaction_number}', using fallback template from tenant '{administration}'")
-            
-            # If still no results (brand new tenant), return a blank template
-            if not results:
-                from datetime import date
-                blank_template = {
-                    'ID': None,
-                    'TransactionNumber': transaction_number,
-                    'TransactionDate': date.today(),
-                    'TransactionDescription': '',
-                    'TransactionAmount': 0,
-                    'Debet': '',
-                    'Credit': '',
-                    'ReferenceNumber': transaction_number,
-                    'Ref1': '',
-                    'Ref2': '',
-                    'Ref3': '',
-                    'Ref4': '',
-                    'Administration': administration or ''
-                }
-                results = [blank_template]
-                print(f"No transaction history for tenant '{administration}', using blank template")
+            return {
+                'error': True,
+                'message': f"'{transaction_number}' - Manual account selection required",
+                'results': []
+            }
         
         # Only duplicate if exactly 1 transaction (some vendors have single transactions)
         if len(results) == 1:

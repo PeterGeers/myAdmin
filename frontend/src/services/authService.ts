@@ -18,6 +18,7 @@ export interface JWTPayload {
   'custom:tenants'?: string;
   username?: string;
   email?: string;
+  name?: string;
   sub?: string;
   exp?: number;
   iat?: number;
@@ -352,7 +353,7 @@ export async function getCurrentUserName(): Promise<string | null> {
     }
 
     // Try to get name from JWT payload
-    return (payload as any).name || null;
+    return payload.name || null;
   } catch (error) {
     console.error('Failed to extract user name:', error);
     return null;

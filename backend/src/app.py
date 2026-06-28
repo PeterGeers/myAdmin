@@ -31,6 +31,7 @@ from tenant_admin_routes import tenant_admin_bp
 from tenant_module_routes import tenant_module_bp
 from routes.sysadmin_routes import sysadmin_bp
 from routes.tenant_admin_users import tenant_admin_users_bp
+from routes.tenant_admin_roles import tenant_admin_roles_bp
 from routes.sysadmin_health import sysadmin_health_bp
 from routes.tenant_admin_credentials import tenant_admin_credentials_bp
 from routes.tenant_admin_storage import tenant_admin_storage_bp
@@ -66,6 +67,7 @@ from routes.tax_rate_admin_routes import tax_rate_admin_bp
 from routes.contact_routes import contact_bp
 from routes.product_routes import product_bp
 from routes.zzp_routes import zzp_bp
+from routes.zzp_time_routes import zzp_time_bp
 from routes.storage import storage_bp
 from routes.verification_routes import verification_bp
 from routes.tenant_function_routes import tenant_function_bp
@@ -153,6 +155,7 @@ app.register_blueprint(tenant_module_bp)
 app.register_blueprint(tenant_function_bp)  # Tenant optional function toggles
 app.register_blueprint(sysadmin_bp)
 app.register_blueprint(tenant_admin_users_bp)
+app.register_blueprint(tenant_admin_roles_bp)
 app.register_blueprint(tenant_admin_credentials_bp)
 app.register_blueprint(tenant_admin_storage_bp)
 app.register_blueprint(tenant_admin_settings_bp)
@@ -166,6 +169,7 @@ app.register_blueprint(tax_rate_admin_bp)  # Tax rate admin
 app.register_blueprint(contact_bp)  # Shared contact registry (ZZP)
 app.register_blueprint(product_bp)  # Shared product registry (ZZP)
 app.register_blueprint(zzp_bp)  # ZZP module routes
+app.register_blueprint(zzp_time_bp)  # ZZP time tracking routes
 app.register_blueprint(storage_bp)  # S3 storage endpoints (pre-signed URLs, logo upload)
 app.register_blueprint(email_log_bp)
 app.register_blueprint(auth_bp)

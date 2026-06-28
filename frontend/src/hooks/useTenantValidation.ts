@@ -13,8 +13,8 @@ export interface DataOwnershipResult {
 }
 
 export interface LookupData {
-  bank_accounts?: Array<{ rekeningNummer: string; [key: string]: any }>;
-  [key: string]: any;
+  bank_accounts?: Array<{ rekeningNummer: string; [key: string]: unknown }>;
+  [key: string]: unknown;
 }
 
 /**

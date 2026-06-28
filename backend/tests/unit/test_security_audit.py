@@ -1011,6 +1011,13 @@ class TestSecurityMiddlewareIntegration:
             response = client.get('/test-page')
         assert response.status_code == 200
 
+    def test_middleware_options_bypasses_security_checks(self, app_with_middleware):
+        """Test that OPTIONS (CORS preflight) bypasses security checks and returns 200."""
+        client = app_with_middleware.test_client()
+        # OPTIONS should return 200 even with suspicious-looking query params
+        response = client.options('/api/test?q=1=1')
+        assert response.status_code == 200
+
 
 class TestSecurityEndpointsIntegration:
     """Tests for security endpoints with Flask test client."""

@@ -18,11 +18,7 @@ from app import app
 from duplicate_checker import DuplicateChecker
 from database import DatabaseManager
 
-# Skip all API tests - they require authenticated Flask app
-pytestmark = [
-    pytest.mark.api,
-    pytest.mark.skip(reason="Requires authenticated Flask app - TODO: add auth fixtures")
-]
+pytestmark = [pytest.mark.api]
 
 
 class TestDuplicateDetectionAPI:

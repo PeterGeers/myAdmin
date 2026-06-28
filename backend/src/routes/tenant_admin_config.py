@@ -11,6 +11,7 @@ Endpoints:
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 import os
 import logging
 
@@ -27,7 +28,7 @@ tenant_admin_config_bp = Blueprint('tenant_admin_config', __name__, url_prefix='
 
 @tenant_admin_config_bp.route('/config', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def list_configs(user_email, user_roles):
+def list_configs(user_email, user_roles) -> ResponseReturnValue:
     """
     List all configuration entries for tenant
     
@@ -78,7 +79,7 @@ def list_configs(user_email, user_roles):
 
 @tenant_admin_config_bp.route('/config', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def create_config(user_email, user_roles):
+def create_config(user_email, user_roles) -> ResponseReturnValue:
     """
     Create new configuration entry
     
@@ -142,7 +143,7 @@ def create_config(user_email, user_roles):
 
 @tenant_admin_config_bp.route('/config/<int:config_id>', methods=['PUT'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def update_config(user_email, user_roles, config_id):
+def update_config(user_email, user_roles, config_id) -> ResponseReturnValue:
     """
     Update configuration entry
     
@@ -216,7 +217,7 @@ def update_config(user_email, user_roles, config_id):
 
 @tenant_admin_config_bp.route('/config/<int:config_id>', methods=['DELETE'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def delete_config(user_email, user_roles, config_id):
+def delete_config(user_email, user_roles, config_id) -> ResponseReturnValue:
     """
     Delete configuration entry
     
@@ -284,7 +285,7 @@ def delete_config(user_email, user_roles, config_id):
 
 @tenant_admin_config_bp.route('/api/tenant/config', methods=['GET'], endpoint='legacy_get_config')
 @cognito_required(required_permissions=[])
-def get_tenant_config_legacy(user_email, user_roles):
+def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
     """
     Get tenant configuration (Tenant_Admin only) — legacy endpoint.
 
@@ -338,7 +339,7 @@ def get_tenant_config_legacy(user_email, user_roles):
 
 @tenant_admin_config_bp.route('/api/tenant/config', methods=['POST'], endpoint='legacy_set_config')
 @cognito_required(required_permissions=[])
-def set_tenant_config_legacy(user_email, user_roles):
+def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
     """
     Set tenant configuration (Tenant_Admin only) — legacy endpoint.
 
@@ -387,7 +388,7 @@ def set_tenant_config_legacy(user_email, user_roles):
 
 @tenant_admin_config_bp.route('/api/tenant/config/<config_key>', methods=['DELETE'], endpoint='legacy_delete_config')
 @cognito_required(required_permissions=[])
-def delete_tenant_config_legacy(config_key, user_email, user_roles):
+def delete_tenant_config_legacy(config_key, user_email, user_roles) -> ResponseReturnValue:
     """
     Delete tenant configuration (Tenant_Admin only) — legacy endpoint.
 

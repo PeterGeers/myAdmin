@@ -17,6 +17,7 @@ Based on spec: .kiro/specs/FIN/Chart of Accounts Management/
 """
 
 from flask import Blueprint, request, jsonify, send_file
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin, tenant_required
 from database import DatabaseManager
@@ -25,8 +26,6 @@ import os
 import json as json_lib
 import logging
 from typing import Dict, Any
-from datetime import datetime
-from io import BytesIO
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -128,7 +127,7 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
 @chart_of_accounts_bp.route('/api/accounts/lookup', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def lookup_accounts(user_email, user_roles, tenant, user_tenants):
+def lookup_accounts(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Lightweight account lookup for dropdowns and autocomplete.
 
     Returns Account + AccountName for the current tenant, sorted by Account.
@@ -153,7 +152,7 @@ def lookup_accounts(user_email, user_roles, tenant, user_tenants):
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts', methods=['GET'])
 @cognito_required(required_permissions=[])
-def list_accounts(user_email, user_roles):
+def list_accounts(user_email, user_roles) -> ResponseReturnValue:
     """
     Get all accounts for current tenant with search, sorting, and pagination.
     
@@ -288,7 +287,7 @@ def list_accounts(user_email, user_roles):
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts/<account>', methods=['GET'])
 @cognito_required(required_permissions=[])
-def get_account(user_email, user_roles, account):
+def get_account(user_email, user_roles, account) -> ResponseReturnValue:
     """
     Get single account details.
     
@@ -360,7 +359,7 @@ def get_account(user_email, user_roles, account):
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts', methods=['POST'])
 @cognito_required(required_permissions=[])
-def create_account(user_email, user_roles):
+def create_account(user_email, user_roles) -> ResponseReturnValue:
     """
     Create new account.
     
@@ -485,7 +484,7 @@ def create_account(user_email, user_roles):
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts/<account>', methods=['PUT'])
 @cognito_required(required_permissions=[])
-def update_account(user_email, user_roles, account):
+def update_account(user_email, user_roles, account) -> ResponseReturnValue:
     """
     Update existing account.
     
@@ -643,7 +642,7 @@ def update_account(user_email, user_roles, account):
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts/<account>', methods=['DELETE'])
 @cognito_required(required_permissions=[])
-def delete_account(user_email, user_roles, account):
+def delete_account(user_email, user_roles, account) -> ResponseReturnValue:
     """
     Delete account (only if not used in transactions).
     
@@ -729,7 +728,7 @@ def delete_account(user_email, user_roles, account):
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts/export', methods=['GET'])
 @cognito_required(required_permissions=[])
-def export_accounts(user_email, user_roles):
+def export_accounts(user_email, user_roles) -> ResponseReturnValue:
     """
     Export all accounts to Excel file.
     
@@ -756,59 +755,16 @@ def export_accounts(user_email, user_roles):
         if not has_fin_module(tenant):
             return jsonify({'error': 'FIN module not enabled'}), 403
         
-        # Initialize database
+        # Delegate to service
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
-        
-        # Get all accounts
-        query = f"""
-            SELECT AccountID, Account, AccountName, AccountLookup, 
-                   SubParent, Parent, VW, Belastingaangifte, 
-                   administration,
-                   {dialect.ifnull(dialect.json_extract('parameters', '$.bank_account'), 'false')} as bank_account,
-                   {dialect.json_unquote_extract('parameters', '$.iban')} as iban
-            FROM rekeningschema
-            WHERE administration = %s
-            ORDER BY Account
-        """
-        
-        accounts = db.execute_query(query, (tenant,))
-        
-        # Create Excel file
-        import openpyxl
-        
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Chart of Accounts"
-        
-        # Headers
-        ws.append(['Account', 'AccountName', 'AccountLookup', 'SubParent', 'Parent', 
-                   'VW', 'Belastingaangifte', 'Pattern'])
-        
-        # Data
-        for account in accounts:
-            ws.append([
-                account['Account'],
-                account['AccountName'],
-                account.get('AccountLookup', ''),
-                account.get('SubParent', ''),
-                account.get('Parent', ''),
-                account.get('VW', ''),
-                account.get('Belastingaangifte', ''),
-                1 if account.get('bank_account') else 0
-            ])
-        
-        # Save to BytesIO
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-        
-        # Audit log (TODO: Implement proper audit logging)
-        logger.info(f"EXPORT_ACCOUNTS: {user_email} exported {len(accounts)} accounts for tenant {tenant}")
-        
-        # Generate filename with tenant and date
-        filename = f'chart_of_accounts_{tenant}_{datetime.now().strftime("%Y%m%d")}.xlsx'
-        
+        from services.chart_of_accounts_io_service import ChartOfAccountsIOService
+        io_service = ChartOfAccountsIOService(db=db)
+
+        output, filename, count = io_service.export_to_excel(tenant)
+
+        logger.info(f"EXPORT_ACCOUNTS: {user_email} exported {count} accounts for tenant {tenant}")
+
         return send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -824,7 +780,7 @@ def export_accounts(user_email, user_roles):
 
 @chart_of_accounts_bp.route('/api/tenant-admin/chart-of-accounts/import', methods=['POST'])
 @cognito_required(required_permissions=[])
-def import_accounts(user_email, user_roles):
+def import_accounts(user_email, user_roles) -> ResponseReturnValue:
     """
     Import accounts from Excel file.
     
@@ -871,133 +827,23 @@ def import_accounts(user_email, user_roles):
         if not file.filename.endswith(('.xlsx', '.xls')):
             return jsonify({'error': 'Invalid file type. Must be Excel file (.xlsx or .xls)'}), 400
         
-        # Parse Excel
-        import openpyxl
-        
-        try:
-            wb = openpyxl.load_workbook(file)
-            ws = wb.active
-        except Exception as e:
-            return jsonify({'error': 'Failed to parse Excel file', 'details': str(e)}), 400
-        
-        # Validate headers
-        headers = [cell.value for cell in ws[1]]
-        expected = ['Account', 'AccountName', 'AccountLookup', 'SubParent', 'Parent', 
-                   'VW', 'Belastingaangifte', 'Pattern']
-        
-        if headers != expected:
-            return jsonify({
-                'error': 'Invalid Excel format',
-                'expected_headers': expected,
-                'found_headers': headers
-            }), 400
-        
-        # Parse rows
-        accounts_to_import = []
-        errors = []
-        
-        for row_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-            if not any(row):  # Skip empty rows
-                continue
-                
-            account, name, lookup, sub_parent, parent, vw, tax, pattern = row
-            
-            # Validate
-            if not account:
-                errors.append(f"Row {row_num}: Account number required")
-                continue
-            if not name:
-                errors.append(f"Row {row_num}: Account name required")
-                continue
-            
-            accounts_to_import.append({
-                'account': str(account).strip(),
-                'name': str(name).strip(),
-                'lookup': str(lookup).strip() if lookup else '',
-                'sub_parent': str(sub_parent).strip() if sub_parent else '',
-                'parent': str(parent).strip() if parent else '',
-                'vw': str(vw).strip() if vw else '',
-                'tax': str(tax).strip() if tax else '',
-                'bank_account': bool(pattern),
-                'iban': str(lookup).strip() if lookup and pattern else None
-            })
-        
-        if errors:
-            return jsonify({
-                'success': False,
-                'errors': errors,
-                'parsed': len(accounts_to_import)
-            }), 400
-        
-        # Initialize database
+        # Delegate to service
         test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
         db = DatabaseManager(test_mode=test_mode)
-        
-        # Import accounts (upsert)
-        imported = 0
-        updated = 0
-        
-        for acc in accounts_to_import:
-            # Build parameters JSON
-            params_dict = {}
-            if acc['bank_account']:
-                params_dict['bank_account'] = True
-            if acc['iban']:
-                params_dict['iban'] = acc['iban']
-            parameters_json = json_lib.dumps(params_dict) if params_dict else None
-            
-            # Check if exists
-            check_query = """
-                SELECT 1 FROM rekeningschema
-                WHERE administration = %s AND Account = %s
-            """
-            exists = db.execute_query(check_query, (tenant, acc['account']))
-            
-            if exists:
-                # Update
-                update_query = """
-                    UPDATE rekeningschema
-                    SET AccountName = %s, AccountLookup = %s, SubParent = %s, 
-                        Parent = %s, VW = %s, Belastingaangifte = %s,
-                        parameters = %s
-                    WHERE administration = %s AND Account = %s
-                """
-                db.execute_query(
-                    update_query,
-                    (acc['name'], acc['lookup'], acc['sub_parent'], acc['parent'], 
-                     acc['vw'], acc['tax'], parameters_json, 
-                     tenant, acc['account']),
-                    fetch=False,
-                    commit=True
-                )
-                updated += 1
-            else:
-                # Insert
-                insert_query = """
-                    INSERT INTO rekeningschema
-                    (Account, AccountName, AccountLookup, SubParent, Parent, VW, 
-                     Belastingaangifte, administration, parameters)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                db.execute_query(
-                    insert_query,
-                    (acc['account'], acc['name'], acc['lookup'], acc['sub_parent'], 
-                     acc['parent'], acc['vw'], acc['tax'], tenant,
-                     parameters_json),
-                    fetch=False,
-                    commit=True
-                )
-                imported += 1
-        
-        # Audit log (TODO: Implement proper audit logging)
-        logger.info(f"IMPORT_ACCOUNTS: {user_email} imported {imported} and updated {updated} accounts for tenant {tenant}")
-        
-        return jsonify({
-            'success': True,
-            'imported': imported,
-            'updated': updated,
-            'total': imported + updated
-        })
+        from services.chart_of_accounts_io_service import ChartOfAccountsIOService
+        io_service = ChartOfAccountsIOService(db=db)
+
+        result = io_service.import_from_excel(tenant, file)
+
+        if not result.get('success'):
+            return jsonify(result), 400
+
+        logger.info(
+            f"IMPORT_ACCOUNTS: {user_email} imported {result['imported']} "
+            f"and updated {result['updated']} accounts for tenant {tenant}"
+        )
+
+        return jsonify(result)
         
     except Exception as e:
         logger.error(f"Error importing accounts for tenant {tenant}: {e}")

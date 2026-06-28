@@ -255,7 +255,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
 
         assert saved_count == 0
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_banking_accounts(self, mock_opening_date, banking_processor):
         """Test banking account balance checking"""
         # Mock get_bank_account_lookups (step 1)
@@ -281,7 +281,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert 'last_transactions' in balances[0]
         banking_processor.db.get_bank_account_lookups.assert_called_once()
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_banking_accounts_no_accounts(self, mock_opening_date, banking_processor):
         """Test banking account checking with no accounts"""
         banking_processor.db.get_bank_account_lookups.return_value = []
@@ -290,7 +290,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
 
         assert balances == []
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_banking_accounts_with_end_date(self, mock_opening_date, banking_processor):
         """Test banking account checking with end date"""
         banking_processor.db.get_bank_account_lookups.return_value = [
@@ -307,7 +307,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert len(balances) == 1
         assert balances[0]['last_transaction_description'] == 'No transactions found'
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_sequence_numbers_success(self, mock_opening_date, banking_processor, mock_connection):
         """Test successful sequence number checking"""
         mock_conn, mock_cursor = mock_connection
@@ -331,7 +331,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert result['sequence_issues'][0]['expected'] == 3
         assert result['sequence_issues'][0]['found'] == 4
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_sequence_numbers_no_account(self, mock_opening_date, banking_processor, mock_connection):
         """Test sequence checking with no account found"""
         mock_conn, mock_cursor = mock_connection
@@ -343,7 +343,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert result['success'] == False
         assert 'No IBAN found' in result['message']
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_sequence_numbers_no_transactions(self, mock_opening_date, banking_processor, mock_connection):
         """Test sequence checking with no transactions"""
         mock_conn, mock_cursor = mock_connection
@@ -356,7 +356,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert result['success'] == False
         assert 'No transactions found' in result['message']
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_sequence_numbers_invalid_sequence(self, mock_opening_date, banking_processor, mock_connection):
         """Test sequence checking with invalid (non-numeric) sequence numbers.
 
@@ -380,7 +380,7 @@ NL80RABO0107936917,RABONL2U,Test Account,2,2025-01-16,2025-01-16,-75.25,EUR,Supe
         assert result['first_sequence'] is None
         assert result['last_sequence'] is None
 
-    @patch('banking_processor._get_opening_balance_date', return_value=None)
+    @patch('banking_checks._get_opening_balance_date', return_value=None)
     def test_check_sequence_numbers_default_iban(self, mock_opening_date, banking_processor, mock_connection):
         """Test sequence checking without account parameters (uses default IBAN)"""
         mock_conn, mock_cursor = mock_connection

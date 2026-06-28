@@ -9,6 +9,7 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -24,19 +25,19 @@ tax_rate_admin_bp = Blueprint('tax_rate_admin', __name__)
 flag = os.getenv('TEST_MODE', 'false').lower() == 'true'
 
 
-def _get_service():
+def _get_service() -> "TaxRateService":
     db = DatabaseManager(test_mode=flag)
     return TaxRateService(db)
 
 
-def _is_sysadmin(user_roles):
+def _is_sysadmin(user_roles) -> bool:
     return 'SysAdmin' in (user_roles or [])
 
 
 @tax_rate_admin_bp.route('/api/tenant-admin/tax-rates', methods=['GET'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def list_tax_rates(user_email, user_roles, tenant, user_tenants):
+def list_tax_rates(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List all rates for tenant + applicable system defaults."""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -73,7 +74,7 @@ def list_tax_rates(user_email, user_roles, tenant, user_tenants):
 @tax_rate_admin_bp.route('/api/tenant-admin/tax-rates', methods=['POST'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def create_tax_rate(user_email, user_roles, tenant, user_tenants):
+def create_tax_rate(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a tax rate with date conflict validation and auto-close."""
     try:
         data = request.get_json()
@@ -123,7 +124,7 @@ def create_tax_rate(user_email, user_roles, tenant, user_tenants):
 @tax_rate_admin_bp.route('/api/tenant-admin/tax-rates/<int:rate_id>', methods=['PUT'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def update_tax_rate(user_email, user_roles, tenant, user_tenants, rate_id):
+def update_tax_rate(user_email, user_roles, tenant, user_tenants, rate_id) -> ResponseReturnValue:
     """Update a tax rate (fix typos on rate, description, ledger_account, dates)."""
     try:
         db = DatabaseManager(test_mode=flag)
@@ -187,7 +188,7 @@ def update_tax_rate(user_email, user_roles, tenant, user_tenants, rate_id):
 @tax_rate_admin_bp.route('/api/tenant-admin/tax-rates/<int:rate_id>', methods=['DELETE'])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def delete_tax_rate(user_email, user_roles, tenant, user_tenants, rate_id):
+def delete_tax_rate(user_email, user_roles, tenant, user_tenants, rate_id) -> ResponseReturnValue:
     """Delete a tenant tax rate override. System defaults require SysAdmin."""
     try:
         db = DatabaseManager(test_mode=flag)

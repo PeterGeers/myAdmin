@@ -305,8 +305,19 @@ class BusinessPricingModel:
             conn.close()
     
     def _get_btw_adjustment(self, date):
-        """Get BTW (VAT) adjustment factor for 9% -> 21% change"""
-        # TODO: Implement BTW change logic when decision is made
-        # For now, no adjustment (1.0)
-        # Future: Check if host or guest pays the extra 12% BTW
+        """Get BTW (VAT) adjustment factor for pricing recommendations.
+
+        This method is an intentional no-op (returns 1.0) because:
+        - The 9% → 21% VAT change for short-stay accommodation (effective 2026-01-01)
+          is already handled by the tax calculation layer in str_utils.calculate_str_taxes()
+        - The pricing model operates on pre-tax ADR (Average Daily Rate), so VAT
+          changes should NOT inflate the recommended nightly rate
+        - Whether the host absorbs or passes through the VAT increase is a
+          per-tenant business decision configured via TaxRateService, not a
+          pricing model concern
+
+        If a future requirement emerges to adjust recommended prices in response
+        to tax policy changes, implement rate-aware logic here. Until then,
+        the neutral factor (1.0) is correct by design.
+        """
         return 1.0

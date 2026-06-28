@@ -34,6 +34,22 @@ def service(mock_db):
     return TenantProvisioningService(mock_db)
 
 
+@pytest.fixture(autouse=True)
+def _mock_seeding():
+    """
+    Mock out ParameterService seeding and EmailVerificationService so tests
+    are not affected by the storage provider seeding logic or SES calls.
+    These methods consume db.execute_query side_effects if not mocked.
+    """
+    with patch('services.parameter_service.ParameterService.seed_module_params', return_value=0), \
+         patch('services.parameter_service.ParameterService.set_param'), \
+         patch('services.email_verification_service.EmailVerificationService.__init__',
+               return_value=None), \
+         patch('services.email_verification_service.EmailVerificationService.initiate_verification',
+               return_value={'success': True, 'status': 'pending', 'error': None}):
+        yield
+
+
 @pytest.fixture
 def sample_chart_template():
     """Sample chart of accounts JSON template"""

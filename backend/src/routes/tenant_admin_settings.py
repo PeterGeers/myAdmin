@@ -11,6 +11,7 @@ Endpoints:
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 from flask_babel import gettext as _
 import os
 import logging
@@ -29,7 +30,7 @@ tenant_admin_settings_bp = Blueprint('tenant_admin_settings', __name__, url_pref
 
 @tenant_admin_settings_bp.route('/settings', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_settings(user_email, user_roles):
+def get_settings(user_email, user_roles) -> ResponseReturnValue:
     """
     Get tenant settings
     
@@ -67,7 +68,7 @@ def get_settings(user_email, user_roles):
 
 @tenant_admin_settings_bp.route('/settings', methods=['PUT'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def update_settings(user_email, user_roles):
+def update_settings(user_email, user_roles) -> ResponseReturnValue:
     """
     Update tenant settings
     
@@ -127,7 +128,7 @@ def update_settings(user_email, user_roles):
 
 @tenant_admin_settings_bp.route('/activity', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_activity(user_email, user_roles):
+def get_activity(user_email, user_roles) -> ResponseReturnValue:
     """
     Get tenant activity statistics
     
@@ -192,7 +193,7 @@ from services.tenant_language_service import (
 
 @tenant_admin_settings_bp.route('/language', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_tenant_language_preference(user_email, user_roles):
+def get_tenant_language_preference(user_email, user_roles) -> ResponseReturnValue:
     """
     Get tenant's default language
     
@@ -230,7 +231,7 @@ def get_tenant_language_preference(user_email, user_roles):
 
 @tenant_admin_settings_bp.route('/language', methods=['PUT'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def update_tenant_language_preference(user_email, user_roles):
+def update_tenant_language_preference(user_email, user_roles) -> ResponseReturnValue:
     """
     Update tenant's default language (Tenant Admin only)
     

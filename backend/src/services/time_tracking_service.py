@@ -103,7 +103,7 @@ class TimeTrackingService(FieldConfigMixin):
             (entry_id, tenant))
         return self._format_entry(rows[0]) if rows else None
 
-    def list_entries(self, tenant: str, filters: dict = None) -> list:
+    def list_entries(self, tenant: str, filters: dict = None) -> List[dict]:
         filters = filters or {}
         query = "SELECT * FROM time_entries WHERE administration = %s"
         params: list = [tenant]
@@ -133,7 +133,7 @@ class TimeTrackingService(FieldConfigMixin):
         rows = self.db.execute_query(query, tuple(params)) or []
         return [self._format_entry(r) for r in rows]
 
-    def get_unbilled_entries(self, tenant: str, contact_id: int) -> list:
+    def get_unbilled_entries(self, tenant: str, contact_id: int) -> List[dict]:
         rows = self.db.execute_query(
             """SELECT * FROM time_entries
                WHERE administration = %s AND contact_id = %s
@@ -142,7 +142,7 @@ class TimeTrackingService(FieldConfigMixin):
             (tenant, contact_id)) or []
         return [self._format_entry(r) for r in rows]
 
-    def mark_as_billed(self, tenant: str, entry_ids: list,
+    def mark_as_billed(self, tenant: str, entry_ids: List[int],
                        invoice_id: int) -> int:
         if not entry_ids:
             return 0
@@ -157,7 +157,7 @@ class TimeTrackingService(FieldConfigMixin):
         return result if isinstance(result, int) else 0
 
     def get_summary(self, tenant: str, group_by: str = 'contact',
-                    period: str = None) -> list:
+                    period: str = None) -> List[dict]:
         if group_by == 'contact':
             query = """SELECT contact_id, SUM(hours) as total_hours,
                               SUM(hours * hourly_rate) as total_amount
@@ -202,7 +202,7 @@ class TimeTrackingService(FieldConfigMixin):
                 row[key] = float(row[key])
         return row
 
-    def enrich_with_contacts(self, tenant: str, entries: list) -> list:
+    def enrich_with_contacts(self, tenant: str, entries: List[dict]) -> List[dict]:
         """Add contact info (id, client_id, company_name) to each entry."""
         if not entries:
             return entries

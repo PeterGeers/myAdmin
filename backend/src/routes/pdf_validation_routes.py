@@ -3,6 +3,7 @@ PDF Validation Routes Blueprint
 Handles PDF URL validation and Google Drive integration
 """
 from flask import Blueprint, request, jsonify, Response
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from pdf_validation import PDFValidator
@@ -14,7 +15,7 @@ pdf_validation_bp = Blueprint('pdf_validation', __name__)
 # Global variables set by app.py
 flag = False  # Test mode flag
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode) -> None:
     """Set test mode flag"""
     global flag
     flag = test_mode
@@ -23,7 +24,7 @@ def set_test_mode(test_mode):
 @pdf_validation_bp.route('/api/pdf/validate-urls-stream', methods=['GET'])
 @cognito_required(required_permissions=['invoices_read'])
 @tenant_required()
-def pdf_validate_urls_stream(user_email, user_roles, tenant, user_tenants):
+def pdf_validate_urls_stream(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Stream PDF validation progress with Server-Sent Events"""
     validator = PDFValidator(test_mode=flag)
     year = request.args.get('year', '2025')
@@ -63,7 +64,7 @@ def pdf_validate_urls_stream(user_email, user_roles, tenant, user_tenants):
 @pdf_validation_bp.route('/api/pdf/validate-urls', methods=['GET'])
 @cognito_required(required_permissions=['invoices_read'])
 @tenant_required()
-def pdf_validate_urls(user_email, user_roles, tenant, user_tenants):
+def pdf_validate_urls(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Validate all Google Drive URLs in mutaties table"""
     try:
         validator = PDFValidator(test_mode=flag)
@@ -111,7 +112,7 @@ def pdf_validate_urls(user_email, user_roles, tenant, user_tenants):
 
 @pdf_validation_bp.route('/api/pdf/update-record', methods=['POST'])
 @cognito_required(required_permissions=['invoices_update'])
-def pdf_update_record(user_email, user_roles):
+def pdf_update_record(user_email, user_roles) -> ResponseReturnValue:
     """Update all records with matching Ref3/Ref4"""
     try:
         data = request.get_json()
@@ -143,7 +144,7 @@ def pdf_update_record(user_email, user_roles):
 
 @pdf_validation_bp.route('/api/pdf/get-administrations', methods=['GET'])
 @cognito_required(required_permissions=['invoices_read'])
-def pdf_get_administrations(user_email, user_roles):
+def pdf_get_administrations(user_email, user_roles) -> ResponseReturnValue:
     """Get available administrations for a specific year"""
     try:
         year = request.args.get('year', '2025')
@@ -161,7 +162,7 @@ def pdf_get_administrations(user_email, user_roles):
 
 @pdf_validation_bp.route('/api/pdf/validate-single-url', methods=['GET'])
 @cognito_required(required_permissions=['invoices_read'])
-def pdf_validate_single_url(user_email, user_roles):
+def pdf_validate_single_url(user_email, user_roles) -> ResponseReturnValue:
     """Validate a single Google Drive URL"""
     try:
         url = request.args.get('url')

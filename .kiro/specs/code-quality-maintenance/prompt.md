@@ -1,65 +1,70 @@
-# Code Quality Maintenance — Monthly Scan Prompt
+# Code Quality Maintenance Prompt
 
-Paste this prompt into Kiro to run a code quality scan and generate a task list for fixing findings.
+Paste this into Kiro to run the full analysis and generate fix tasks automatically.
 
 ---
 
 ## Prompt
 
-Scan the myAdmin codebase for code quality issues and create a new spec with a tasks.md to fix the findings. Specifically:
+Run the "Full Test Suite" GitHub Actions workflow for both backend and frontend. While it runs, perform a local code quality scan. Then combine all findings into an actionable spec.
 
-1. **File length**: Find all `.py` files in `backend/src/` and `backend/src/routes/` and `backend/src/services/`, and all `.ts`/`.tsx` files in `frontend/src/` that exceed 500 lines. Flag errors for files over 1000 lines.
+### Step 1: Trigger the Full Test Suite
 
-2. **Missing tests**: Find backend modules (`backend/src/*.py`, `backend/src/routes/*.py`, `backend/src/services/*.py`) without corresponding test files in `backend/tests/unit/` or `backend/tests/api/`. Find frontend components (`frontend/src/components/**/*.tsx`) and services (`frontend/src/services/*.ts`) without matching `.test.tsx`/`.test.ts` files.
+```bash
+cd /home/peter/projects/myAdmin
+gh workflow run "Full Test Suite" --field scope=both
+```
 
-3. **Dead code**: Run vulture on the backend Python code (`backend/src/`) and identify unused functions, imports, and variables. Check frontend for unused exports in `frontend/src/services/` and `frontend/src/utils/`.
+Wait for completion and download the reports:
 
-4. **Type safety**: Check for Python functions in `backend/src/services/` and `backend/src/routes/` missing type hints on parameters or return values. Check for TypeScript `any` usage in `frontend/src/`.
+```bash
+gh run list --workflow="Full Test Suite" --limit 1 --json databaseId -q ".[0].databaseId" | xargs -I{} gh run download {} --dir /tmp/test-reports
+```
 
-5. **Stale documentation**: Check if `Manuals/` and `manualsSysAdm/` files are outdated relative to recent code changes. Check for outdated comments referencing removed functionality.
+### Step 2: Analyze test failures
 
-Exclude: test files, `.venv/`, `node_modules/`, `__pycache__/`, `build/`, `dist/`, `.hypothesis/`, `*.generated.*`, `mysql_data/`.
+Read the downloaded reports (`/tmp/test-reports/backend-test-reports/test-output.txt` and `/tmp/test-reports/frontend-test-reports/test-output.txt`). Extract:
 
-Then create a new spec at `.kiro/specs/code-quality-fixes-YYYY-MM/` with:
+- Total tests passed / failed / errored per suite
+- List of each failing test file with the error type (import error, assertion failure, missing fixture, env var)
+- Group failures by root cause
 
-- requirements.md summarizing the findings with counts per category
-- tasks.md with a structured, actionable task list to fix each finding, grouped by category (file length → dead code → missing tests → type safety → stale docs), with file paths and specific actions
+### Step 3: Local code quality scan
 
-Use "Quick Plan" workflow. Name the spec with the current month / day, code-quality-fixes-2026-06-29
+Run these locally and capture output:
 
----
+1. **File length**: Find all `.py` files in `backend/src/`, `backend/src/routes/`, `backend/src/services/` and all `.ts`/`.tsx` files in `frontend/src/` exceeding 500 lines. Flag files over 1000 lines as critical.
 
-## Full Test Suite Workflow
+2. **Dead code**: Run `vulture backend/src/ --min-confidence 80 --exclude validate_pattern/` and capture findings.
 
-A manual-trigger GitHub Actions workflow (`full-test-suite.yml`) runs the complete test suites for frontend and backend, generates reports, and uploads them as downloadable artifacts.
+3. **Missing tests**: Find backend modules (`backend/src/*.py`, `backend/src/routes/*.py`, `backend/src/services/*.py`) without corresponding test files. Find frontend components without matching test files.
 
-### How to use
+4. **Type safety**: Check for Python functions in services/routes missing type hints. Check for TypeScript `any` usage in `frontend/src/`.
 
-1. Go to GitHub → Actions → "Full Test Suite"
-2. Click "Run workflow" → choose scope (both / backend / frontend)
-3. Wait for completion (~3-5 minutes)
-4. Download the artifact ZIP files (backend-test-reports, frontend-test-reports)
-5. Review the reports: `SUMMARY.md`, `test-report.html` (backend), `junit-results.xml`, `test-output.txt`
+5. **Stale documentation**: Check if `Manuals/` and `manualsSysAdm/` files reference removed features or outdated workflows. Check for code comments referencing removed functionality or old file paths.
 
-### Process: Run → Analyze → Fix
+Exclude: test files, `.venv/`, `node_modules/`, `__pycache__/`, `build/`, `dist/`, `.hypothesis/`, `mysql_data/`.
 
-1. **Run**: Trigger the workflow manually when you want a full health check
-2. **Analyze**: Download artifacts, review SUMMARY.md for pass/fail counts, identify patterns in failures
-3. **Define tasks**: Use the code-quality-maintenance scan prompt above to generate a spec with actionable fix tasks based on findings
+### Step 4: Generate the spec
 
-### Reports included
+Create a new spec at `.kiro/specs/code-quality-fixes-YYYY-MM-DD/` (use today's date) containing:
 
-| Report              | Description                                              |
-| ------------------- | -------------------------------------------------------- |
-| `SUMMARY.md`        | Quick pass/fail overview                                 |
-| `test-output.txt`   | Full console output                                      |
-| `junit-results.xml` | Machine-readable results (can import into CI dashboards) |
-| `test-report.html`  | Interactive HTML report (backend only)                   |
-| `coverage-html/`    | Line-by-line coverage report (backend only)              |
-| `coverage.xml`      | Coverage data for tooling integration                    |
+**requirements.md**: Summary of all findings with counts:
 
-### Known issues to address
+- Test failures: X backend, Y frontend (grouped by root cause)
+- File length violations: N files over 500 lines, M over 1000
+- Dead code: N items
+- Missing test coverage: N modules without tests
+- Type safety: N issues
+- Stale documentation: N outdated files
 
-- **Backend**: broken test imports, missing module fixtures, tests depending on live DB
-- **Frontend**: 24 component tests with stale selectors (TenantManagement, ChartOfAccounts, StorageTab, InvoiceTestTool, aws-exports)
-- These are pre-existing issues exposed when CI added test execution
+**tasks.md**: Actionable fix tasks grouped by priority:
+
+1. **Critical** — test import errors and broken fixtures (tests that can't even collect)
+2. **High** — test assertion failures (tests that run but fail)
+3. **Medium** — file length violations over 1000 lines, dead code removal
+4. **Low** — missing test coverage, type hints, stale documentation, files 500-1000 lines
+
+Each task should have: file path, specific action, estimated effort (S/M/L).
+
+Do NOT fix the issues — only generate the spec with the analysis and task list.

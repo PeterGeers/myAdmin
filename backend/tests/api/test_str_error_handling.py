@@ -13,11 +13,7 @@ from flask import Flask
 from src.str_invoice_routes import str_invoice_bp
 import json
 
-# Skip all API tests - they require authenticated Flask app
-pytestmark = [
-    pytest.mark.api,
-    pytest.mark.skip(reason="Requires authenticated Flask app - TODO: add auth fixtures")
-]
+pytestmark = [pytest.mark.api]
 
 def test_search_nonexistent_reservation():
     """Test searching for a non-existent reservation code"""

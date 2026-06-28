@@ -10,6 +10,7 @@ Reference: .kiro/specs/tenant-optional-functions/design.md
 """
 
 import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 from database import DatabaseManager
 from db_exceptions import DatabaseError
@@ -68,7 +69,7 @@ class TenantFunctionService:
             )
             return default
 
-    def get_all_functions(self, tenant: str) -> list:
+    def get_all_functions(self, tenant: str) -> List[Dict[str, Any]]:
         """
         Returns all functions with effective state, respecting module activation.
 
@@ -130,7 +131,7 @@ class TenantFunctionService:
         return functions
 
     def set_function_state(self, tenant: str, function_name: str,
-                           is_active: bool, user_email: str) -> dict:
+                           is_active: bool, user_email: str) -> Dict[str, Any]:
         """
         Persists toggle state using INSERT ... ON DUPLICATE KEY UPDATE.
 
@@ -187,7 +188,7 @@ class TenantFunctionService:
             }
 
     def is_function_enabled(self, tenant: str, function_name: str,
-                            module_name: str) -> tuple:
+                            module_name: str) -> Tuple[bool, Optional[str]]:
         """
         Checks module + function state.
 

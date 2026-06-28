@@ -21,21 +21,12 @@ import {
   Textarea,
   Collapse,
   useDisclosure,
-  Alert,
-  AlertIcon,
-  AlertTitle,
-  AlertDescription,
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogOverlay,
-  Spinner,
-  Badge,
   useToast,
 } from '@chakra-ui/react';
 import { TemplateType, getCurrentTemplate, CurrentTemplateResponse, downloadDefaultTemplate, deleteTenantTemplate } from '../../../services/templateApi';
+import { CurrentTemplateInfo } from './CurrentTemplateInfo';
+import { DeleteTemplateDialog } from './DeleteTemplateDialog';
+import { UploadInstructions } from './UploadInstructions';
 
 /**
  * Component props
@@ -97,33 +88,26 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
   useEffect(() => {
     if (!templateType) {
       setCurrentTemplate(null);
-      setFieldMappings('{}'); // Reset field mappings
+      setFieldMappings('{}');
       return;
     }
 
     const loadCurrentTemplate = async () => {
       setLoadingCurrent(true);
-      
       try {
         const response = await getCurrentTemplate(templateType);
-        
-        // Check if response is successful and has template data
         if (response.success && response.template_content) {
           setCurrentTemplate(response);
-          
-          // Auto-load field mappings from current template
           if (response.field_mappings && Object.keys(response.field_mappings).length > 0) {
             setFieldMappings(JSON.stringify(response.field_mappings, null, 2));
           } else {
             setFieldMappings('{}');
           }
         } else {
-          // No template found or unsuccessful response
           setCurrentTemplate(null);
           setFieldMappings('{}');
         }
-      } catch (err) {
-        // 404 is expected if no template exists yet
+      } catch {
         setCurrentTemplate(null);
         setFieldMappings('{}');
       } finally {
@@ -134,84 +118,51 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
     loadCurrentTemplate();
   }, [templateType]);
 
-  /**
-   * Clear all errors
-   */
-  const clearErrors = () => {
-    setErrors({});
-  };
+  const clearErrors = () => setErrors({});
 
-  /**
-   * Validate file
-   */
   const validateFile = (file: File): string | null => {
-    // Check file type
     if (!file.name.endsWith('.html') && !file.name.endsWith('.htm')) {
       return 'Only HTML files (.html, .htm) are allowed';
     }
-
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       return `File size exceeds 5MB limit (${(file.size / 1024 / 1024).toFixed(2)}MB)`;
     }
-
     return null;
   };
 
-  /**
-   * Validate field mappings JSON
-   */
   const validateFieldMappings = (jsonString: string): string | null => {
-    if (!jsonString.trim() || jsonString.trim() === '{}') {
-      return null; // Empty is valid (optional)
-    }
-
+    if (!jsonString.trim() || jsonString.trim() === '{}') return null;
     try {
       JSON.parse(jsonString);
       return null;
-    } catch (err) {
+    } catch {
       return 'Invalid JSON format';
     }
   };
 
-  /**
-   * Handle file selection
-   */
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     clearErrors();
     const file = event.target.files?.[0];
-
     if (!file) {
       setSelectedFile(null);
       return;
     }
-
-    // Validate file
     const error = validateFile(file);
     if (error) {
       setErrors({ file: error });
       setSelectedFile(null);
       return;
     }
-
     setSelectedFile(file);
   };
 
-  /**
-   * Handle template type change
-   */
   const handleTemplateTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     clearErrors();
     setTemplateType(event.target.value as TemplateType);
-    // Current template will be loaded by useEffect
   };
 
-  /**
-   * Download current template
-   */
   const handleDownloadCurrent = () => {
     if (!currentTemplate || !currentTemplate.success || !currentTemplate.template_content) return;
-
     const blob = new Blob([currentTemplate.template_content], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -223,12 +174,8 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  /**
-   * Download the built-in default template for the selected type
-   */
   const handleDownloadDefault = async () => {
     if (!templateType) return;
-
     setDownloadingDefault(true);
     try {
       const response = await downloadDefaultTemplate(templateType as TemplateType);
@@ -241,178 +188,94 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      toast({
-        title: 'Default template downloaded',
-        description: `Downloaded ${response.filename}`,
-        status: 'success',
-        duration: 3000,
-      });
+      toast({ title: 'Default template downloaded', description: `Downloaded ${response.filename}`, status: 'success', duration: 3000 });
     } catch (error) {
-      toast({
-        title: 'Failed to download default template',
-        description: error instanceof Error ? error.message : 'An error occurred',
-        status: 'error',
-        duration: 5000,
-      });
+      toast({ title: 'Failed to download default template', description: error instanceof Error ? error.message : 'An error occurred', status: 'error', duration: 5000 });
     } finally {
       setDownloadingDefault(false);
     }
   };
 
-  /**
-   * Delete the tenant-specific template (soft-delete) and revert to default
-   */
   const handleDeleteTemplate = async () => {
     if (!templateType) return;
-
     setDeleting(true);
     try {
       await deleteTenantTemplate(templateType as TemplateType);
       onDeleteClose();
       setCurrentTemplate(null);
-
-      toast({
-        title: 'Template deleted',
-        description: 'Tenant template removed. The system will use the default template.',
-        status: 'success',
-        duration: 3000,
-      });
+      toast({ title: 'Template deleted', description: 'Tenant template removed. The system will use the default template.', status: 'success', duration: 3000 });
     } catch (error) {
-      toast({
-        title: 'Failed to delete template',
-        description: error instanceof Error ? error.message : 'An error occurred',
-        status: 'error',
-        duration: 5000,
-      });
+      toast({ title: 'Failed to delete template', description: error instanceof Error ? error.message : 'An error occurred', status: 'error', duration: 5000 });
     } finally {
       setDeleting(false);
     }
   };
 
-  /**
-   * Handle field mappings change
-   */
   const handleFieldMappingsChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setFieldMappings(event.target.value);
-    
-    // Clear field mappings error if valid
     const error = validateFieldMappings(event.target.value);
     if (!error) {
       setErrors((prev) => ({ ...prev, fieldMappings: undefined }));
     }
   };
 
-  /**
-   * Handle upload button click
-   */
   const handleUpload = () => {
     clearErrors();
-
-    // Validate all fields
     const newErrors: typeof errors = {};
-
-    if (!selectedFile) {
-      newErrors.file = 'Please select a file';
-    }
-
-    if (!templateType) {
-      newErrors.templateType = 'Please select a template type';
-    }
-
+    if (!selectedFile) newErrors.file = 'Please select a file';
+    if (!templateType) newErrors.templateType = 'Please select a template type';
     const mappingsError = validateFieldMappings(fieldMappings);
-    if (mappingsError) {
-      newErrors.fieldMappings = mappingsError;
-    }
+    if (mappingsError) newErrors.fieldMappings = mappingsError;
 
-    // If there are errors, show them and return
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    // Parse field mappings
     let parsedMappings: Record<string, any> = {};
     if (fieldMappings.trim() && fieldMappings.trim() !== '{}') {
       try {
         parsedMappings = JSON.parse(fieldMappings);
       } catch {
-        // Should not happen due to validation above
         setErrors({ fieldMappings: 'Invalid JSON format' });
         return;
       }
     }
 
-    // Call onUpload callback
     if (selectedFile && templateType) {
       onUpload(selectedFile, templateType, parsedMappings);
     }
   };
 
-  /**
-   * Handle browse button click
-   */
-  const handleBrowseClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleBrowseClick = () => fileInputRef.current?.click();
 
-  /**
-   * Load current template for modification
-   */
   const handleLoadCurrent = async () => {
     if (!templateType) {
-      toast({
-        title: 'Select template type first',
-        description: 'Please select a template type before loading the current template',
-        status: 'warning',
-        duration: 3000,
-      });
+      toast({ title: 'Select template type first', description: 'Please select a template type before loading the current template', status: 'warning', duration: 3000 });
       return;
     }
-
     setLoadingCurrent(true);
     try {
       const response = await getCurrentTemplate(templateType as TemplateType);
-      
       if (!response.success || !response.template_content) {
         throw new Error('No active template found');
       }
-      
-      // Create a File object from the template content
       const blob = new Blob([response.template_content], { type: 'text/html' });
       const file = new File([blob], `${templateType}_current.html`, { type: 'text/html' });
-      
       setSelectedFile(file);
-      
-      // Load field mappings if they exist
       if (response.field_mappings && Object.keys(response.field_mappings).length > 0) {
         setFieldMappings(JSON.stringify(response.field_mappings, null, 2));
       }
-      
-      toast({
-        title: 'Template loaded',
-        description: `Current ${templateType} template loaded. Modify and upload when ready.`,
-        status: 'success',
-        duration: 3000,
-      });
+      toast({ title: 'Template loaded', description: `Current ${templateType} template loaded. Modify and upload when ready.`, status: 'success', duration: 3000 });
     } catch (error) {
-      toast({
-        title: 'Failed to load template',
-        description: error instanceof Error ? error.message : 'No active template found',
-        status: 'error',
-        duration: 5000,
-      });
+      toast({ title: 'Failed to load template', description: error instanceof Error ? error.message : 'No active template found', status: 'error', duration: 5000 });
     } finally {
       setLoadingCurrent(false);
     }
   };
 
-  /**
-   * Get selected template description
-   */
-  const selectedTemplateDescription = TEMPLATE_TYPES.find(
-    (t) => t.value === templateType
-  )?.description;
+  const selectedTemplateDescription = TEMPLATE_TYPES.find((t) => t.value === templateType)?.description;
+  const templateLabel = TEMPLATE_TYPES.find((t) => t.value === templateType)?.label ?? templateType;
 
   return (
     <VStack spacing={6} align="stretch">
@@ -443,72 +306,17 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
       {/* Current Template Info */}
       {templateType && (
         <Box>
-          {loadingCurrent ? (
-            <HStack spacing={2} p={3} bg="gray.800" borderRadius="md">
-              <Spinner size="sm" />
-              <Text fontSize="sm" color="gray.400">Loading current template...</Text>
-            </HStack>
-          ) : currentTemplate && currentTemplate.success && currentTemplate.metadata ? (
-            <Alert status="info" variant="left-accent" bg="blue.900" borderColor="blue.500">
-              <AlertIcon />
-              <Box flex="1">
-                <AlertTitle fontSize="sm">Current Active Template</AlertTitle>
-                <AlertDescription fontSize="xs" color="gray.300">
-                  Version {currentTemplate.metadata.version} • 
-                  Approved {new Date(currentTemplate.metadata.approved_at).toLocaleDateString()} by {currentTemplate.metadata.approved_by}
-                  {currentTemplate.field_mappings && Object.keys(currentTemplate.field_mappings).length > 0 && (
-                    <Badge ml={2} colorScheme="purple" fontSize="xs">Custom Mappings</Badge>
-                  )}
-                </AlertDescription>
-                <HStack spacing={2} mt={2}>
-                  <Button
-                    size="xs"
-                    colorScheme="orange"
-                    onClick={handleDownloadCurrent}
-                    isDisabled={disabled || loading}
-                  >
-                    Download
-                  </Button>
-                  <Button
-                    size="xs"
-                    colorScheme="orange"
-                    onClick={handleLoadCurrent}
-                    isDisabled={disabled || loading}
-                  >
-                    Load & Modify
-                  </Button>
-                  <Button
-                    size="xs"
-                    colorScheme="red"
-                    onClick={onDeleteOpen}
-                    isDisabled={disabled || loading}
-                  >
-                    Delete Template
-                  </Button>
-                </HStack>
-              </Box>
-            </Alert>
-          ) : (
-            <Alert status="warning" variant="left-accent" bg="yellow.900" borderColor="yellow.500">
-              <AlertIcon />
-              <Box flex="1">
-                <AlertDescription fontSize="xs">
-                  No active template found for this type. You'll be creating the first one.
-                </AlertDescription>
-                <Button
-                  size="xs"
-                  colorScheme="orange"
-                  mt={2}
-                  onClick={handleDownloadDefault}
-                  isLoading={downloadingDefault}
-                  isDisabled={disabled || loading}
-                  loadingText="Downloading..."
-                >
-                  Download Default Template
-                </Button>
-              </Box>
-            </Alert>
-          )}
+          <CurrentTemplateInfo
+            currentTemplate={currentTemplate}
+            loadingCurrent={loadingCurrent}
+            downloadingDefault={downloadingDefault}
+            disabled={disabled}
+            loading={loading}
+            onDownloadCurrent={handleDownloadCurrent}
+            onLoadCurrent={handleLoadCurrent}
+            onDeleteOpen={onDeleteOpen}
+            onDownloadDefault={handleDownloadDefault}
+          />
         </Box>
       )}
 
@@ -587,7 +395,7 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
                     const parsed = JSON.parse(fieldMappings);
                     setFieldMappings(JSON.stringify(parsed, null, 2));
                     setErrors((prev) => ({ ...prev, fieldMappings: undefined }));
-                  } catch (err) {
+                  } catch {
                     setErrors((prev) => ({ ...prev, fieldMappings: 'Invalid JSON format' }));
                   }
                 }}
@@ -631,53 +439,17 @@ export const TemplateUpload: React.FC<TemplateUploadProps> = ({
       </Button>
 
       {/* Help Text */}
-      <Box bg="blue.900" p={4} borderRadius="md">
-        <Text fontSize="sm" fontWeight="bold" mb={2}>
-          📝 Upload Instructions
-        </Text>
-        <VStack align="start" spacing={1} fontSize="xs" color="gray.300">
-          <Text>1. Select the template type from the dropdown</Text>
-          <Text>2. Choose your HTML template file (max 5MB)</Text>
-          <Text>3. Optionally configure field mappings</Text>
-          <Text>4. Click "Upload & Preview Template" to validate</Text>
-        </VStack>
-      </Box>
+      <UploadInstructions />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog
+      <DeleteTemplateDialog
         isOpen={isDeleteOpen}
-        leastDestructiveRef={cancelRef as React.RefObject<HTMLButtonElement>}
         onClose={onDeleteClose}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete Template
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
-              Are you sure you want to delete the tenant template for{' '}
-              <strong>{TEMPLATE_TYPES.find((t) => t.value === templateType)?.label ?? templateType}</strong>?
-              The system will revert to using the built-in default template.
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onDeleteClose} isDisabled={deleting}>
-                Cancel
-              </Button>
-              <Button
-                colorScheme="red"
-                onClick={handleDeleteTemplate}
-                isLoading={deleting}
-                loadingText="Deleting..."
-                ml={3}
-              >
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+        onConfirm={handleDeleteTemplate}
+        deleting={deleting}
+        templateLabel={templateLabel}
+        cancelRef={cancelRef as React.RefObject<HTMLButtonElement>}
+      />
     </VStack>
   );
 };

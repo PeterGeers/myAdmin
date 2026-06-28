@@ -32,7 +32,9 @@ def mock_config_service():
     with patch('services.year_end_service.YearEndConfigService') as mock_config_class:
         mock_config_instance = Mock()
         mock_config_class.return_value = mock_config_instance
-        yield mock_config_instance
+        # Also patch in journal_entries module so the helper shares the same mock
+        with patch('services.year_end_journal_entries.YearEndConfigService', mock_config_class):
+            yield mock_config_instance
 
 
 @pytest.fixture
@@ -343,7 +345,7 @@ class TestGetFirstYear:
 
 
 class TestCreateClosureTransaction:
-    """Test creating year-end closure transaction"""
+    """Test creating year-end closure transaction via journal_helper"""
     
     def test_create_closure_transaction_profit(self, service, mock_db, mock_config_service, test_administration):
         """Test creating closure transaction for profit"""
@@ -353,10 +355,9 @@ class TestCreateClosureTransaction:
             {'Account': '3080'},  # equity_result
             {'Account': '8999'}   # pl_closing
         ]
-        mock_db.execute_query.return_value = [{'net_result': -10000}]  # Negative = profit in vw_mutaties
         
-        transaction_number = service._create_closure_transaction(
-            test_administration, 2023, mock_cursor
+        transaction_number = service.journal_helper.create_closure_transaction(
+            test_administration, 2023, -10000, mock_cursor  # Negative = profit in vw_mutaties
         )
         
         # Verify transaction created
@@ -379,10 +380,9 @@ class TestCreateClosureTransaction:
             {'Account': '3080'},  # equity_result
             {'Account': '8999'}   # pl_closing
         ]
-        mock_db.execute_query.return_value = [{'net_result': 5000}]  # Positive = loss in vw_mutaties
         
-        transaction_number = service._create_closure_transaction(
-            test_administration, 2023, mock_cursor
+        transaction_number = service.journal_helper.create_closure_transaction(
+            test_administration, 2023, 5000, mock_cursor  # Positive = loss in vw_mutaties
         )
         
         # Verify transaction created
@@ -404,10 +404,9 @@ class TestCreateClosureTransaction:
             {'Account': '3080'},  # equity_result
             {'Account': '8999'}   # pl_closing
         ]
-        mock_db.execute_query.return_value = [{'net_result': 0}]
         
-        transaction_number = service._create_closure_transaction(
-            test_administration, 2023, mock_cursor
+        transaction_number = service.journal_helper.create_closure_transaction(
+            test_administration, 2023, 0, mock_cursor
         )
         
         # No transaction should be created for zero result
@@ -421,11 +420,13 @@ class TestCreateClosureTransaction:
         mock_config_service.get_account_by_purpose.return_value = None
         
         with pytest.raises(ValueError, match="Required accounts not configured"):
-            service._create_closure_transaction(test_administration, 2023, mock_cursor)
+            service.journal_helper.create_closure_transaction(
+                test_administration, 2023, 10000, mock_cursor
+            )
 
 
 class TestGetEndingBalances:
-    """Test getting ending balances"""
+    """Test getting ending balances via journal_helper"""
     
     def test_get_ending_balances_dict_cursor(self, service, test_administration):
         """Test with dict cursor results"""
@@ -436,7 +437,7 @@ class TestGetEndingBalances:
             {'account': '2000', 'account_name': 'Accounts Payable', 'balance': -3000.00}
         ]
         
-        balances = service._get_ending_balances(test_administration, 2023, mock_cursor)
+        balances = service.journal_helper._get_ending_balances(test_administration, 2023, mock_cursor)
         
         assert len(balances) == 2
         assert balances[0]['account'] == '1000'
@@ -453,7 +454,7 @@ class TestGetEndingBalances:
             ('2000', 'Accounts Payable', -3000.00)
         ]
         
-        balances = service._get_ending_balances(test_administration, 2023, mock_cursor)
+        balances = service.journal_helper._get_ending_balances(test_administration, 2023, mock_cursor)
         
         assert len(balances) == 2
         assert balances[0]['account'] == '1000'
@@ -465,13 +466,13 @@ class TestGetEndingBalances:
         mock_cursor.fetchone.return_value = {'count': 0}  # No existing opening balance
         mock_cursor.fetchall.return_value = []
         
-        balances = service._get_ending_balances(test_administration, 2023, mock_cursor)
+        balances = service.journal_helper._get_ending_balances(test_administration, 2023, mock_cursor)
         
         assert balances == []
 
 
 class TestCreateOpeningBalances:
-    """Test creating opening balance transactions"""
+    """Test creating opening balance transactions via journal_helper"""
     
     def test_create_opening_balances_success(self, service, mock_config_service, test_administration):
         """Test creating opening balances"""
@@ -488,7 +489,7 @@ class TestCreateOpeningBalances:
         ]
         mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
-        transaction_number = service._create_opening_balances(
+        transaction_number = service.journal_helper.create_opening_balances(
             test_administration, 2024, mock_cursor
         )
         
@@ -511,7 +512,7 @@ class TestCreateOpeningBalances:
         ]
         mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
-        service._create_opening_balances(test_administration, 2024, mock_cursor)
+        service.journal_helper.create_opening_balances(test_administration, 2024, mock_cursor)
         
         # Verify correct debit/credit for positive balance
         # Get the last execute call (the INSERT, not the check/balance/vat queries)
@@ -535,7 +536,7 @@ class TestCreateOpeningBalances:
         ]
         mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
-        service._create_opening_balances(test_administration, 2024, mock_cursor)
+        service.journal_helper.create_opening_balances(test_administration, 2024, mock_cursor)
         
         # Verify correct debit/credit for negative balance
         call_args = mock_cursor.execute.call_args[0]
@@ -553,7 +554,7 @@ class TestCreateOpeningBalances:
         mock_cursor.fetchall.return_value = []
         mock_config_service.get_account_by_purpose.return_value = {'Account': '3080'}  # equity account
         
-        transaction_number = service._create_opening_balances(
+        transaction_number = service.journal_helper.create_opening_balances(
             test_administration, 2024, mock_cursor
         )
         
@@ -569,7 +570,7 @@ class TestCreateOpeningBalances:
         mock_config_service.get_account_by_purpose.return_value = None
         
         with pytest.raises(ValueError, match="Equity result account not configured"):
-            service._create_opening_balances(test_administration, 2024, mock_cursor)
+            service.journal_helper.create_opening_balances(test_administration, 2024, mock_cursor)
 
 
 class TestRecordClosureStatus:

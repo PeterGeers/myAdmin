@@ -13,6 +13,7 @@ Endpoints:
 """
 
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 import os
 import json
 import logging
@@ -33,14 +34,14 @@ tenant_admin_credentials_bp = Blueprint('tenant_admin_credentials', __name__, ur
 ALLOWED_EXTENSIONS = {'json'}
 
 
-def allowed_file(filename):
+def allowed_file(filename) -> bool:
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @tenant_admin_credentials_bp.route('/credentials', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def upload_credentials(user_email, user_roles):
+def upload_credentials(user_email, user_roles) -> ResponseReturnValue:
     """
     Upload credentials file (JSON)
     
@@ -114,7 +115,7 @@ def upload_credentials(user_email, user_roles):
 
 @tenant_admin_credentials_bp.route('/credentials', methods=['GET'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def get_credentials_status(user_email, user_roles):
+def get_credentials_status(user_email, user_roles) -> ResponseReturnValue:
     """
     Get credential status (without decrypted values)
     
@@ -149,7 +150,7 @@ def get_credentials_status(user_email, user_roles):
 
 @tenant_admin_credentials_bp.route('/credentials/test', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def test_credentials(user_email, user_roles):
+def test_credentials(user_email, user_roles) -> ResponseReturnValue:
     """
     Test credential connectivity
     
@@ -199,7 +200,10 @@ def test_credentials(user_email, user_roles):
                 credentials = credential_service.get_credential(tenant, cred_type)
                 if credentials:
                     logger.info(f"Testing {cred_type}")
-                    test_result = _test_google_drive_connectivity(credentials, client_id, client_secret)
+                    test_result = _test_google_drive_connectivity(
+                        credentials, client_id, client_secret,
+                        tenant=tenant, credential_service=credential_service
+                    )
                     
                     # If successful or not a client secrets file, return result
                     if test_result['success'] or 'client secrets' not in test_result.get('message', ''):
@@ -228,7 +232,10 @@ def test_credentials(user_email, user_roles):
             # Test connectivity based on type
             # Map credential types to test functions
             if credential_type.startswith('google_drive'):
-                test_result = _test_google_drive_connectivity(credentials, client_id, client_secret)
+                test_result = _test_google_drive_connectivity(
+                    credentials, client_id, client_secret,
+                    tenant=tenant, credential_service=credential_service
+                )
             elif credential_type == 's3':
                 test_result = {
                     'success': False,
@@ -259,7 +266,7 @@ def test_credentials(user_email, user_roles):
 
 @tenant_admin_credentials_bp.route('/credentials/oauth/start', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def start_oauth_flow(user_email, user_roles):
+def start_oauth_flow(user_email, user_roles) -> ResponseReturnValue:
     """
     Start OAuth flow for Google Drive
     
@@ -347,7 +354,7 @@ def start_oauth_flow(user_email, user_roles):
 
 
 @tenant_admin_credentials_bp.route('/credentials/oauth/callback', methods=['GET'])
-def oauth_callback_public():
+def oauth_callback_public() -> ResponseReturnValue:
     """
     Handle OAuth callback from Google (public endpoint)
     
@@ -451,7 +458,7 @@ def oauth_callback_public():
 
 @tenant_admin_credentials_bp.route('/credentials/oauth/complete', methods=['POST'])
 @cognito_required(required_roles=['Tenant_Admin'])
-def oauth_complete(user_email, user_roles):
+def oauth_complete(user_email, user_roles) -> ResponseReturnValue:
     """
     Complete OAuth flow by storing tokens (authenticated endpoint)
     
@@ -549,7 +556,8 @@ def oauth_complete(user_email, user_roles):
 # ============================================================================
 
 
-def _test_google_drive_connectivity(credentials, client_id=None, client_secret=None):
+def _test_google_drive_connectivity(credentials, client_id=None, client_secret=None,
+                                    tenant=None, credential_service=None) -> dict:
     """
     Test Google Drive connectivity with provided credentials
     
@@ -557,6 +565,8 @@ def _test_google_drive_connectivity(credentials, client_id=None, client_secret=N
         credentials: Google Drive credentials (service account JSON or OAuth token)
         client_id: OAuth client ID (from google_drive_credentials or env)
         client_secret: OAuth client secret (from google_drive_credentials or env)
+        tenant: Tenant identifier (needed for persisting refreshed tokens)
+        credential_service: CredentialService instance (needed for persisting refreshed tokens)
     
     Returns:
         Dict with test results
@@ -640,9 +650,22 @@ def _test_google_drive_connectivity(credentials, client_id=None, client_secret=N
                         creds.refresh(Request())
                         logger.info("Token refreshed successfully")
                         
-                        # TODO: Save refreshed token back to database
-                        # This would require passing tenant and credential_service to this function
-                        # For now, just log that refresh was successful
+                        # Persist refreshed token back to database
+                        if tenant and credential_service:
+                            try:
+                                refreshed_token = {
+                                    'token': creds.token,
+                                    'refresh_token': creds.refresh_token,
+                                    'token_uri': creds.token_uri,
+                                    'client_id': creds.client_id,
+                                    'client_secret': creds.client_secret,
+                                    'scopes': list(creds.scopes) if creds.scopes else ['https://www.googleapis.com/auth/drive'],
+                                    'expiry': creds.expiry.isoformat() + 'Z' if creds.expiry else None
+                                }
+                                credential_service.store_credential(tenant, 'google_drive_token', refreshed_token)
+                                logger.info(f"Refreshed token persisted for tenant {tenant}")
+                            except Exception as persist_error:
+                                logger.warning(f"Token refresh succeeded but persistence failed: {persist_error}")
                         
                     except Exception as refresh_error:
                         logger.error(f"Token refresh failed: {refresh_error}")
@@ -697,7 +720,7 @@ def _test_google_drive_connectivity(credentials, client_id=None, client_secret=N
         }
 
 
-def _exchange_google_code_for_tokens(code, client_id, client_secret):
+def _exchange_google_code_for_tokens(code, client_id, client_secret) -> dict | None:
     """
     Exchange Google OAuth authorization code for tokens
     

@@ -7,6 +7,7 @@ Extracted from app.py during refactoring (Phase 1.3)
 """
 
 from flask import Blueprint, jsonify
+from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
@@ -19,7 +20,7 @@ cache_bp = Blueprint('cache', __name__)
 # This will be set by app.py after blueprint registration
 flag = False
 
-def set_test_mode(test_mode):
+def set_test_mode(test_mode) -> None:
     """Set the test mode flag from app.py"""
     global flag
     flag = test_mode
@@ -28,7 +29,7 @@ def set_test_mode(test_mode):
 # Cache Management Endpoints
 @cache_bp.route('/api/cache/warmup', methods=['POST'])
 @cognito_required(required_permissions=['actuals_read'])
-def cache_warmup(user_email, user_roles):
+def cache_warmup(user_email, user_roles) -> ResponseReturnValue:
     """Warmup the cache (load it if not already loaded)"""
     try:
         cache = get_cache()
@@ -64,7 +65,7 @@ def cache_warmup(user_email, user_roles):
 
 @cache_bp.route('/api/cache/status', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
-def cache_status(user_email, user_roles):
+def cache_status(user_email, user_roles) -> ResponseReturnValue:
     """Get cache status and statistics"""
     try:
         cache = get_cache()
@@ -87,7 +88,7 @@ def cache_status(user_email, user_roles):
 @cache_bp.route('/api/cache/refresh', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
 @tenant_required(allow_sysadmin=True)
-def cache_refresh(user_email, user_roles, tenant, user_tenants):
+def cache_refresh(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Force refresh the cache"""
     try:
         cache = get_cache()
@@ -116,7 +117,7 @@ def cache_refresh(user_email, user_roles, tenant, user_tenants):
 @cache_bp.route('/api/cache/invalidate', methods=['POST'])
 @cognito_required(required_permissions=['actuals_read'])
 @tenant_required(allow_sysadmin=True)
-def cache_invalidate_endpoint(user_email, user_roles, tenant, user_tenants):
+def cache_invalidate_endpoint(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Invalidate the cache (will auto-refresh on next query)"""
     try:
         invalidate_cache()
@@ -138,7 +139,7 @@ def cache_invalidate_endpoint(user_email, user_roles, tenant, user_tenants):
 # BNB Cache Management Endpoints
 @cache_bp.route('/api/bnb-cache/status', methods=['GET'])
 @cognito_required(required_roles=['SysAdmin'])
-def bnb_cache_status(user_email, user_roles):
+def bnb_cache_status(user_email, user_roles) -> ResponseReturnValue:
     """Get BNB cache status and statistics"""
     try:
         bnb_cache = get_bnb_cache()
@@ -157,7 +158,7 @@ def bnb_cache_status(user_email, user_roles):
 
 @cache_bp.route('/api/bnb-cache/refresh', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def bnb_cache_refresh(user_email, user_roles):
+def bnb_cache_refresh(user_email, user_roles) -> ResponseReturnValue:
     """Force refresh the BNB cache"""
     try:
         bnb_cache = get_bnb_cache()
@@ -181,7 +182,7 @@ def bnb_cache_refresh(user_email, user_roles):
 
 @cache_bp.route('/api/bnb-cache/invalidate', methods=['POST'])
 @cognito_required(required_roles=['SysAdmin'])
-def bnb_cache_invalidate(user_email, user_roles):
+def bnb_cache_invalidate(user_email, user_roles) -> ResponseReturnValue:
     """Invalidate the BNB cache (will auto-refresh on next query)"""
     try:
         bnb_cache = get_bnb_cache()

@@ -5,6 +5,7 @@ This module provides API endpoints for user-specific operations,
 including language preference management.
 """
 from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 from flask_babel import gettext as _
 from auth.cognito_utils import cognito_required
 from services.user_language_service import (
@@ -19,7 +20,7 @@ user_bp = Blueprint('user', __name__, url_prefix='/api/user')
 
 @user_bp.route('/language', methods=['GET'])
 @cognito_required()
-def get_user_language_preference(user_email, user_roles):
+def get_user_language_preference(user_email, user_roles) -> ResponseReturnValue:
     """
     Get user's preferred language from Cognito
     
@@ -48,7 +49,7 @@ def get_user_language_preference(user_email, user_roles):
 
 @user_bp.route('/language', methods=['PUT'])
 @cognito_required()
-def update_user_language_preference(user_email, user_roles):
+def update_user_language_preference(user_email, user_roles) -> ResponseReturnValue:
     """
     Update user's preferred language in Cognito
     

@@ -38,7 +38,7 @@ class TestHTMLSyntaxValidation:
         </html>
         """
         
-        errors = self.service._validate_html_syntax(valid_html)
+        errors = self.service.html_processor.validate_html_syntax(valid_html)
         
         assert len(errors) == 0, "Valid HTML should not produce errors"
     
@@ -57,7 +57,7 @@ class TestHTMLSyntaxValidation:
         </html>
         """
         
-        errors = self.service._validate_html_syntax(html_with_self_closing)
+        errors = self.service.html_processor.validate_html_syntax(html_with_self_closing)
         
         assert len(errors) == 0, "Self-closing tags should not produce errors"
     
@@ -73,7 +73,7 @@ class TestHTMLSyntaxValidation:
         </html>
         """
         
-        errors = self.service._validate_html_syntax(html_with_unclosed)
+        errors = self.service.html_processor.validate_html_syntax(html_with_unclosed)
         
         assert len(errors) > 0, "Unclosed tags should produce errors"
         assert any('Unclosed tags' in error['message'] for error in errors), \
@@ -93,7 +93,7 @@ class TestHTMLSyntaxValidation:
         </html>
         """
         
-        errors = self.service._validate_html_syntax(html_with_mismatch)
+        errors = self.service.html_processor.validate_html_syntax(html_with_mismatch)
         
         assert len(errors) > 0, "Mismatched closing tags should produce errors"
         assert any('Mismatched closing tag' in error['message'] for error in errors), \
@@ -112,7 +112,7 @@ class TestHTMLSyntaxValidation:
         </html>
         """
         
-        errors = self.service._validate_html_syntax(html_with_unexpected)
+        errors = self.service.html_processor.validate_html_syntax(html_with_unexpected)
         
         assert len(errors) > 0, "Unexpected closing tags should produce errors"
         # The error message may say "Unexpected closing tag" or "Mismatched closing tag"
@@ -132,7 +132,7 @@ class TestHTMLSyntaxValidation:
         </html>
         """
         
-        errors = self.service._validate_html_syntax(html_with_multiple_errors)
+        errors = self.service.html_processor.validate_html_syntax(html_with_multiple_errors)
         
         assert len(errors) > 0, "Multiple errors should be detected"
         # Should detect both unclosed and mismatched tags
@@ -156,7 +156,7 @@ class TestHTMLSyntaxValidation:
         </html>
         """
         
-        errors = self.service._validate_html_syntax(html_with_nesting)
+        errors = self.service.html_processor.validate_html_syntax(html_with_nesting)
         
         assert len(errors) == 0, "Properly nested tags should not produce errors"
     
@@ -164,7 +164,7 @@ class TestHTMLSyntaxValidation:
         """Test validation of empty HTML"""
         empty_html = ""
         
-        errors = self.service._validate_html_syntax(empty_html)
+        errors = self.service.html_processor.validate_html_syntax(empty_html)
         
         # Empty HTML should not crash, may or may not have errors
         assert isinstance(errors, list), "Should return a list"
@@ -173,7 +173,7 @@ class TestHTMLSyntaxValidation:
         """Test handling of severely malformed HTML"""
         malformed_html = "<html><body><div><p>Test</html>"
         
-        errors = self.service._validate_html_syntax(malformed_html)
+        errors = self.service.html_processor.validate_html_syntax(malformed_html)
         
         assert len(errors) > 0, "Malformed HTML should produce errors"
     
@@ -181,7 +181,7 @@ class TestHTMLSyntaxValidation:
         """Test that errors have the correct structure"""
         html_with_error = "<html><body><div><p>Test</div></body></html>"
         
-        errors = self.service._validate_html_syntax(html_with_error)
+        errors = self.service.html_processor.validate_html_syntax(html_with_error)
         
         assert len(errors) > 0, "Should detect error"
         
@@ -201,7 +201,7 @@ class TestHTMLSyntaxValidation:
 </body>
 </html>"""
         
-        errors = self.service._validate_html_syntax(html_with_error)
+        errors = self.service.html_processor.validate_html_syntax(html_with_error)
         
         # Some errors may include line numbers
         if errors:
@@ -235,7 +235,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('str_invoice_nl', template_content)
+        errors = self.service.html_processor.validate_placeholders('str_invoice_nl', template_content)
         
         assert len(errors) == 0, "All required placeholders present should not produce errors"
     
@@ -250,7 +250,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('str_invoice_nl', template_content)
+        errors = self.service.html_processor.validate_placeholders('str_invoice_nl', template_content)
         
         assert len(errors) > 0, "Missing required placeholders should produce errors"
         assert any('missing_placeholder' in error['type'] for error in errors), \
@@ -272,7 +272,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('btw_aangifte', template_content)
+        errors = self.service.html_processor.validate_placeholders('btw_aangifte', template_content)
         
         assert len(errors) == 0, "All required BTW placeholders present"
     
@@ -280,7 +280,7 @@ class TestPlaceholderValidation:
         """Test validation for unknown template type"""
         template_content = "<html><body>{{ some_field }}</body></html>"
         
-        errors = self.service._validate_placeholders('unknown_type', template_content)
+        errors = self.service.html_processor.validate_placeholders('unknown_type', template_content)
         
         # Unknown template types should not produce errors (no required placeholders defined)
         assert len(errors) == 0, "Unknown template type should not produce errors"
@@ -298,7 +298,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('aangifte_ib', template_content)
+        errors = self.service.html_processor.validate_placeholders('aangifte_ib', template_content)
         
         assert len(errors) == 0, "All required Aangifte IB placeholders present"
     
@@ -316,7 +316,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('toeristenbelasting', template_content)
+        errors = self.service.html_processor.validate_placeholders('toeristenbelasting', template_content)
         
         assert len(errors) == 0, "All required Toeristenbelasting placeholders present"
     
@@ -335,7 +335,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('str_invoice_en', template_content)
+        errors = self.service.html_processor.validate_placeholders('str_invoice_en', template_content)
         
         assert len(errors) == 0, "All required STR invoice EN placeholders present"
     
@@ -345,7 +345,7 @@ class TestPlaceholderValidation:
         # required HTML placeholders defined
         template_content = "<html><body>{{ some_field }}</body></html>"
         
-        errors = self.service._validate_placeholders('financial_report', template_content)
+        errors = self.service.html_processor.validate_placeholders('financial_report', template_content)
         
         # Should not produce errors since financial_report is not an HTML template type
         assert len(errors) == 0, "financial_report (XLSX) should not have HTML placeholder requirements"
@@ -360,7 +360,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('str_invoice_nl', template_content)
+        errors = self.service.html_processor.validate_placeholders('str_invoice_nl', template_content)
         
         # Should detect multiple missing placeholders
         assert len(errors) >= 4, "Should detect multiple missing placeholders"
@@ -387,7 +387,7 @@ class TestPlaceholderValidation:
         </html>
         """
         
-        errors = self.service._validate_placeholders('str_invoice_nl', template_content)
+        errors = self.service.html_processor.validate_placeholders('str_invoice_nl', template_content)
         
         assert len(errors) == 0, "Placeholders with varying whitespace should be recognized"
     
@@ -395,7 +395,7 @@ class TestPlaceholderValidation:
         """Test that placeholder errors have the correct structure"""
         template_content = "<html><body><p>Test</p></body></html>"
         
-        errors = self.service._validate_placeholders('str_invoice_nl', template_content)
+        errors = self.service.html_processor.validate_placeholders('str_invoice_nl', template_content)
         
         assert len(errors) > 0, "Should detect missing placeholders"
         
@@ -431,7 +431,7 @@ class TestSecurityValidation:
         </html>
         """
         
-        issues = self.service._validate_security(clean_html)
+        issues = self.service.html_processor.validate_security(clean_html)
         
         # Should have no errors, may have warnings
         errors = [issue for issue in issues if issue.get('severity') == 'error']
@@ -448,7 +448,7 @@ class TestSecurityValidation:
         </html>
         """
         
-        issues = self.service._validate_security(html_with_script)
+        issues = self.service.html_processor.validate_security(html_with_script)
         
         errors = [issue for issue in issues if issue.get('severity') == 'error']
         assert len(errors) > 0, "Script tags should produce security errors"
@@ -467,7 +467,7 @@ class TestSecurityValidation:
         </html>
         """
         
-        issues = self.service._validate_security(html_with_events)
+        issues = self.service.html_processor.validate_security(html_with_events)
         
         errors = [issue for issue in issues if issue.get('severity') == 'error']
         assert len(errors) > 0, "Event handlers should produce security errors"
@@ -488,7 +488,7 @@ class TestSecurityValidation:
         </html>
         """
         
-        issues = self.service._validate_security(html_with_external)
+        issues = self.service.html_processor.validate_security(html_with_external)
         
         warnings = [issue for issue in issues if issue.get('severity') == 'warning']
         # Should have at least one warning about external resources
@@ -595,7 +595,7 @@ class TestSampleDataFetching:
         
         self.mock_db.execute_query = Mock(return_value=[mock_booking])
         
-        result = self.service._fetch_str_invoice_sample()
+        result = self.service.renderer.fetch_str_invoice_sample()
         
         assert result is not None, "Should return data"
         assert 'data' in result, "Should have 'data' key"
@@ -609,7 +609,7 @@ class TestSampleDataFetching:
         # Mock empty database response
         self.mock_db.execute_query = Mock(return_value=[])
         
-        result = self.service._fetch_str_invoice_sample()
+        result = self.service.renderer.fetch_str_invoice_sample()
         
         assert result is not None, "Should return placeholder data"
         assert 'data' in result, "Should have 'data' key"
@@ -622,7 +622,7 @@ class TestSampleDataFetching:
         # Mock database error
         self.mock_db.execute_query = Mock(side_effect=Exception("Database error"))
         
-        result = self.service._fetch_str_invoice_sample()
+        result = self.service.renderer.fetch_str_invoice_sample()
         
         assert result is not None, "Should return placeholder data on error"
         assert result['metadata']['source'] == 'placeholder', "Should fallback to placeholder"
@@ -631,7 +631,7 @@ class TestSampleDataFetching:
         """Test fetching BTW sample returns data structure"""
         # Since the method has complex imports and fallback logic,
         # we just test that it returns the expected structure
-        result = self.service._fetch_btw_sample()
+        result = self.service.renderer.fetch_btw_sample()
         
         assert result is not None, "Should return data"
         assert 'data' in result, "Should have 'data' key"
@@ -641,7 +641,7 @@ class TestSampleDataFetching:
     
     def test_fetch_btw_sample_fallback_to_placeholder(self):
         """Test BTW sample structure includes required fields"""
-        result = self.service._fetch_btw_sample()
+        result = self.service.renderer.fetch_btw_sample()
         
         assert result is not None, "Should return data"
         # Check that data has expected BTW fields
@@ -650,7 +650,7 @@ class TestSampleDataFetching:
     
     def test_fetch_aangifte_ib_sample_with_data(self):
         """Test fetching Aangifte IB sample returns data structure"""
-        result = self.service._fetch_aangifte_ib_sample()
+        result = self.service.renderer.fetch_aangifte_ib_sample()
         
         assert result is not None, "Should return data"
         assert 'data' in result, "Should have 'data' key"
@@ -659,7 +659,7 @@ class TestSampleDataFetching:
     
     def test_fetch_aangifte_ib_sample_no_data(self):
         """Test Aangifte IB sample structure includes required fields"""
-        result = self.service._fetch_aangifte_ib_sample()
+        result = self.service.renderer.fetch_aangifte_ib_sample()
         
         assert result is not None, "Should return data"
         # Check that data has expected IB fields
@@ -669,7 +669,7 @@ class TestSampleDataFetching:
     
     def test_fetch_toeristenbelasting_sample_with_data(self):
         """Test fetching Toeristenbelasting sample returns data structure"""
-        result = self.service._fetch_toeristenbelasting_sample()
+        result = self.service.renderer.fetch_toeristenbelasting_sample()
         
         assert result is not None, "Should return data"
         assert 'data' in result, "Should have 'data' key"
@@ -678,7 +678,7 @@ class TestSampleDataFetching:
     
     def test_fetch_toeristenbelasting_sample_fallback(self):
         """Test Toeristenbelasting sample structure includes required fields"""
-        result = self.service._fetch_toeristenbelasting_sample()
+        result = self.service.renderer.fetch_toeristenbelasting_sample()
         
         assert result is not None, "Should return data"
         # Check that data has expected tourist tax fields
@@ -688,7 +688,7 @@ class TestSampleDataFetching:
     
     def test_fetch_generic_sample(self):
         """Test fetching generic sample data"""
-        result = self.service._fetch_generic_sample()
+        result = self.service.renderer.fetch_generic_sample()
         
         assert result is not None, "Should return data"
         assert 'data' in result, "Should have 'data' key"
@@ -748,14 +748,14 @@ class TestSampleDataFetching:
     def test_fetch_sample_data_exception_handling(self):
         """Test that fetch_sample_data handles exceptions gracefully"""
         # Force an exception in the routing logic
-        with patch.object(self.service, '_fetch_str_invoice_sample', side_effect=Exception("Test error")):
+        with patch.object(self.service.renderer, 'fetch_str_invoice_sample', side_effect=Exception("Test error")):
             result = self.service.fetch_sample_data('str_invoice_nl')
             
             assert result is None, "Should return None on exception"
     
     def test_get_placeholder_str_data_structure(self):
         """Test that placeholder STR data has correct structure"""
-        result = self.service._get_placeholder_str_data()
+        result = self.service.renderer.get_placeholder_str_data()
         
         assert 'data' in result, "Should have 'data' key"
         assert 'metadata' in result, "Should have 'metadata' key"

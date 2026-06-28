@@ -1,0 +1,25 @@
+#!/bin/sh
+# Pre-push hook: runs ggshield secret scan before pushing.
+# Falls back to local regex scanner if ggshield API quota is exhausted.
+# Blocks push if secrets are found.
+
+echo "Running secret scan before push..."
+
+# Check if ggshield is available
+if ! command -v ggshield >/dev/null 2>&1; then
+    echo "ggshield not found - running local scanner only"
+    "$(git rev-parse --show-toplevel)/scripts/scan-secrets-local.sh"
+    exit $?
+fi
+
+output=$(ggshield secret scan pre-commit 2>&1)
+code=$?
+
+if echo "$output" | grep -qiE "no more API calls|quota|rate.limit"; then
+    echo "ggshield quota exhausted - falling back to local scanner"
+    "$(git rev-parse --show-toplevel)/scripts/scan-secrets-local.sh"
+    exit $?
+else
+    echo "$output"
+    exit $code
+fi

@@ -16,6 +16,7 @@ Endpoints:
 """
 
 from flask import Blueprint, request, jsonify
+from flask.typing import ResponseReturnValue
 import os
 import json
 import logging
@@ -62,7 +63,7 @@ _TEMPLATE_TYPE_TO_LOCAL_KEY = {
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/<template_type>', methods=['GET'])
 @cognito_required(required_permissions=[])
-def get_current_template_endpoint(template_type, user_email, user_roles):
+def get_current_template_endpoint(template_type, user_email, user_roles) -> ResponseReturnValue:
     """
     Get current active template (Tenant_Admin only)
 
@@ -174,7 +175,7 @@ def get_current_template_endpoint(template_type, user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/<template_type>/default', methods=['GET'])
 @cognito_required(required_permissions=[])
-def get_default_template_endpoint(template_type, user_email, user_roles):
+def get_default_template_endpoint(template_type, user_email, user_roles) -> ResponseReturnValue:
     """
     Download the built-in default template for a template type (Tenant_Admin only).
     """
@@ -246,7 +247,7 @@ def get_default_template_endpoint(template_type, user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/preview', methods=['POST'])
 @cognito_required(required_permissions=[])
-def preview_template_endpoint(user_email, user_roles):
+def preview_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     """
     Generate template preview with sample data (Tenant_Admin only)
     """
@@ -306,7 +307,7 @@ def preview_template_endpoint(user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/validate', methods=['POST'])
 @cognito_required(required_permissions=[])
-def validate_template_endpoint(user_email, user_roles):
+def validate_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     """
     Validate template without generating preview (Tenant_Admin only)
     """
@@ -364,7 +365,7 @@ def validate_template_endpoint(user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/approve', methods=['POST'])
 @cognito_required(required_permissions=[])
-def approve_template_endpoint(user_email, user_roles):
+def approve_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     """
     Approve and activate template (Tenant_Admin only)
     """
@@ -436,7 +437,7 @@ def approve_template_endpoint(user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/reject', methods=['POST'])
 @cognito_required(required_permissions=[])
-def reject_template_endpoint(user_email, user_roles):
+def reject_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     """
     Reject template with reason (Tenant_Admin only)
     """
@@ -483,7 +484,7 @@ def reject_template_endpoint(user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/ai-help', methods=['POST'])
 @cognito_required(required_permissions=[])
-def ai_help_template_endpoint(user_email, user_roles):
+def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     """
     Get AI-powered fix suggestions for template errors (Tenant_Admin only)
     """
@@ -578,7 +579,7 @@ def ai_help_template_endpoint(user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/apply-ai-fixes', methods=['POST'])
 @cognito_required(required_permissions=[])
-def apply_ai_fixes_endpoint(user_email, user_roles):
+def apply_ai_fixes_endpoint(user_email, user_roles) -> ResponseReturnValue:
     """
     Apply AI-suggested fixes to template (Tenant_Admin only)
     """
@@ -645,7 +646,7 @@ def apply_ai_fixes_endpoint(user_email, user_roles):
 
 @tenant_admin_templates_bp.route('/api/tenant-admin/templates/<template_type>', methods=['DELETE'])
 @cognito_required(required_permissions=[])
-def delete_tenant_template_endpoint(template_type, user_email, user_roles):
+def delete_tenant_template_endpoint(template_type, user_email, user_roles) -> ResponseReturnValue:
     """
     Delete (deactivate) a tenant-specific template (Tenant_Admin only).
 

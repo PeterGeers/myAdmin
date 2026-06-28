@@ -1,8 +1,8 @@
 {
   "enabled": true,
-  "name": "GGShield Secret Scan",
-  "description": "Runs ggshield secret scan on staged files before any git commit to prevent secrets from being committed.",
-  "version": "1",
+  "name": "Local Secret Scan (pre-commit)",
+  "description": "Syncs auth layer, then runs local regex secret scanner on staged files. No external API calls — designed for spec burst workflows. Blocks commit if secrets found.",
+  "version": "4",
   "when": {
     "type": "preToolUse",
     "toolTypes": [
@@ -11,6 +11,7 @@
   },
   "then": {
     "type": "runCommand",
-    "command": "ggshield secret scan pre-commit"
+    "command": "bash -c 'cd $(git rev-parse --show-toplevel) && src=\"backend/shared/auth_utils.py\" && dst=\"backend/layers/auth-layer/python/shared/auth_utils.py\" && if [ -f \"$src\" ] && [ -f \"$dst\" ]; then if [ \"$(md5sum \"$src\" | cut -d\" \" -f1)\" != \"$(md5sum \"$dst\" | cut -d\" \" -f1)\" ]; then cp \"$src\" \"$dst\" && git add \"$dst\" && echo \"Auth layer synced\"; fi; fi && ./scripts/scan-secrets-local.sh'",
+    "timeout": 15
   }
 }
