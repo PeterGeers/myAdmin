@@ -141,14 +141,17 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       }
     } catch (error: any) {
       const code = error?.name || '';
-      console.error('[Login] Auth error:', { code, message: error?.message, error });
-      let description = `${code}: ${error?.message || t('auth:login.loginFailedDescription')}`;
+      let description = t('auth:login.loginFailedDescription');
+
+      if (code === 'NotAuthorizedException' || code === 'UserNotFoundException') {
+        description = t('auth:login.loginFailedDescription');
+      }
 
       toast({
         title: t('auth:login.loginFailed'),
         description,
         status: 'error',
-        duration: 15000,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
