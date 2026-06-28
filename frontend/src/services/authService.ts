@@ -54,13 +54,6 @@ export interface RoleValidation {
 export async function signInWithPasskey(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  // Clear any stale sign-in state
-  try {
-    await signOut();
-  } catch {
-    // Ignore — no session to clear is fine
-  }
-
   // Step 1: Initiate auth with USER_AUTH flow (preferring passkey)
   const result = await signIn({
     username: normalizedEmail,
@@ -95,13 +88,6 @@ export async function signInWithPasskey(email: string) {
  */
 export async function signInWithPassword(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
-
-  // Clear any stale sign-in state (prevents conflicts after password reset or failed attempts)
-  try {
-    await signOut();
-  } catch {
-    // Ignore — no session to clear is fine
-  }
 
   const result = await signIn({
     username: normalizedEmail,
