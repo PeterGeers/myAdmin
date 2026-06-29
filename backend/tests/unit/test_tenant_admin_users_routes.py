@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from flask import Flask
 from routes.tenant_admin_users import tenant_admin_users_bp
+from routes.tenant_admin_roles import tenant_admin_roles_bp
 
 
 class TestTenantAdminUsersRoutes:
@@ -25,6 +26,7 @@ class TestTenantAdminUsersRoutes:
         """Create Flask app for testing"""
         app = Flask(__name__)
         app.register_blueprint(tenant_admin_users_bp)
+        app.register_blueprint(tenant_admin_roles_bp)
         app.config['TESTING'] = True
         return app
     

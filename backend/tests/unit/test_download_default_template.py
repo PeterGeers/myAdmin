@@ -16,7 +16,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from tenant_admin_routes import tenant_admin_bp
+from routes.tenant_admin_templates import tenant_admin_templates_bp
 from routes.tenant_admin_templates import _TEMPLATE_TYPE_TO_LOCAL_KEY
 
 
@@ -29,7 +29,7 @@ def app():
     """Create a minimal Flask app with the tenant_admin blueprint."""
     import flask
     app = flask.Flask(__name__)
-    app.register_blueprint(tenant_admin_bp)
+    app.register_blueprint(tenant_admin_templates_bp)
     app.config['TESTING'] = True
     return app
 
@@ -49,9 +49,9 @@ def _auth_mocks_admin():
         patch('auth.cognito_utils.extract_user_credentials',
               return_value=('admin@test.com', ['Tenant_Admin'], None)),
         patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin']),
-        patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant']),
-        patch('tenant_admin_routes.is_tenant_admin', return_value=True),
-        patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant'),
+        patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant']),
+        patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True),
+        patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant'),
     ]
 
 
@@ -61,9 +61,9 @@ def _auth_mocks_non_admin():
         patch('auth.cognito_utils.extract_user_credentials',
               return_value=('user@test.com', ['Finance_Read'], None)),
         patch('auth.role_cache.get_tenant_roles', return_value=['Finance_Read']),
-        patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant']),
-        patch('tenant_admin_routes.is_tenant_admin', return_value=False),
-        patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant'),
+        patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant']),
+        patch('routes.tenant_admin_templates.is_tenant_admin', return_value=False),
+        patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant'),
     ]
 
 
@@ -77,10 +77,10 @@ class TestDownloadDefaultTemplateSuccess:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant'])
-    @patch('tenant_admin_routes.is_tenant_admin', return_value=True)
-    @patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant')
-    @patch('tenant_admin_routes.DatabaseManager')
+    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_templates.DatabaseManager')
     @patch('services.template_service.TemplateService._get_local_default_metadata')
     def test_valid_type_returns_200_with_content(
         self, mock_get_meta, mock_db_cls, mock_tenant, mock_is_admin,
@@ -120,10 +120,10 @@ class TestDownloadDefaultTemplateSuccess:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant'])
-    @patch('tenant_admin_routes.is_tenant_admin', return_value=True)
-    @patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant')
-    @patch('tenant_admin_routes.DatabaseManager')
+    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_templates.DatabaseManager')
     @patch('services.template_service.TemplateService._get_local_default_metadata')
     def test_filename_follows_type_default_html_pattern(
         self, mock_get_meta, mock_db_cls, mock_tenant, mock_is_admin,
@@ -163,9 +163,9 @@ class TestDownloadDefaultTemplateInvalidType:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant'])
-    @patch('tenant_admin_routes.is_tenant_admin', return_value=True)
-    @patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
     def test_invalid_type_returns_400(
         self, mock_tenant, mock_is_admin, mock_tenants,
         mock_roles, mock_creds, client
@@ -192,10 +192,10 @@ class TestDownloadDefaultTemplateNotFound:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant'])
-    @patch('tenant_admin_routes.is_tenant_admin', return_value=True)
-    @patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant')
-    @patch('tenant_admin_routes.DatabaseManager')
+    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_templates.DatabaseManager')
     @patch('services.template_service.TemplateService._get_local_default_metadata')
     def test_no_local_default_returns_404(
         self, mock_get_meta, mock_db_cls, mock_tenant, mock_is_admin,
@@ -226,9 +226,9 @@ class TestDownloadDefaultTemplateAuth:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('user@test.com', ['Finance_Read'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Finance_Read'])
-    @patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant'])
-    @patch('tenant_admin_routes.is_tenant_admin', return_value=False)
-    @patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=False)
+    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
     def test_non_admin_returns_403(
         self, mock_tenant, mock_is_admin, mock_tenants,
         mock_roles, mock_creds, client

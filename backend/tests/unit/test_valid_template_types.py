@@ -14,7 +14,8 @@ from unittest.mock import patch, MagicMock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from tenant_admin_routes import VALID_TEMPLATE_TYPES, tenant_admin_bp
+from tenant_admin_routes import VALID_TEMPLATE_TYPES
+from routes.tenant_admin_templates import tenant_admin_templates_bp
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +60,7 @@ class TestGetCurrentTemplateEndpointValidation:
         """Create a minimal Flask app with the tenant_admin blueprint."""
         import flask
         app = flask.Flask(__name__)
-        app.register_blueprint(tenant_admin_bp)
+        app.register_blueprint(tenant_admin_templates_bp)
         app.config['TESTING'] = True
         return app
 
@@ -70,10 +71,10 @@ class TestGetCurrentTemplateEndpointValidation:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant'])
-    @patch('tenant_admin_routes.is_tenant_admin', return_value=True)
-    @patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant')
-    @patch('tenant_admin_routes.DatabaseManager')
+    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_templates.DatabaseManager')
     def test_zzp_invoice_not_rejected_as_invalid(
         self, mock_db_cls, mock_tenant, mock_is_admin, mock_tenants,
         mock_roles, mock_creds, client
@@ -101,10 +102,10 @@ class TestGetCurrentTemplateEndpointValidation:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('tenant_admin_routes.get_user_tenants', return_value=['TestTenant'])
-    @patch('tenant_admin_routes.is_tenant_admin', return_value=True)
-    @patch('tenant_admin_routes.get_current_tenant', return_value='TestTenant')
-    @patch('tenant_admin_routes.DatabaseManager')
+    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_templates.DatabaseManager')
     def test_invalid_type_returns_400(
         self, mock_db_cls, mock_tenant, mock_is_admin, mock_tenants,
         mock_roles, mock_creds, client
