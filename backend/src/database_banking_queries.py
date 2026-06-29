@@ -27,9 +27,19 @@ class DatabaseBankingQueriesMixin:
         return self.execute_query(f"SELECT Ref2 FROM {table_name} WHERE Ref1 = %s", (ref1,))
 
     def get_bank_account_lookups(self, administration=None):
-        """Get bank account lookup data from rekeningschema using parameters $.bank_account flag"""
+        """Get bank account lookup data from rekeningschema using parameters $.bank_account flag.
+
+        The IBAN is read from the parameters JSON ($.iban) as the canonical source,
+        falling back to the AccountLookup column for legacy data.
+        """
         base_query = """
-            SELECT AccountLookup AS rekeningNummer, Account, administration
+            SELECT
+                COALESCE(
+                    NULLIF(JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.iban')), 'null'),
+                    NULLIF(AccountLookup, '')
+                ) AS rekeningNummer,
+                Account,
+                administration
             FROM rekeningschema
             WHERE JSON_EXTRACT(parameters, '$.bank_account') = true
         """
