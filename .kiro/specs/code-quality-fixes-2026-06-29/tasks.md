@@ -16,10 +16,10 @@ Code quality maintenance sprint based on CI test results (2026-06-29) and local 
 
 ### Phase 1: Critical — Tests That Cannot Collect (~2 hours)
 
-- [ ] 1. Delete `backend/tests/unit/test_backfill_rekeningschema_flags.py` — module `migrations.backfill_rekeningschema_flags` removed (34 import failures). This was identified on 2026-06-27 but never resolved. Verify: `pytest backend/tests/unit/ --collect-only 2>&1 | grep -c "ERROR"` returns 0.
-- [ ] 2. Fix `backend/tests/unit/test_template_rendering.py` — find current method name in `template_preview_service.py` replacing `_render_template` and update 19 tests. If method is gone entirely, delete the test file. Verify: `pytest backend/tests/unit/test_template_rendering.py -v` (19 pass or file deleted).
-- [ ] 3. Fix `backend/tests/unit/test_bug_condition_bank_lookup.py` — `BankingProcessor._checks` moved to `banking_checks.py` during 2026-06-27 split. Update 2 tests to use new location. Verify: `pytest backend/tests/unit/test_bug_condition_bank_lookup.py -v` (2 pass).
-- [ ] 4. Fix `backend/tests/unit/test_preservation_bank_lookup.py` — same `_checks` issue as task 3. Verify: `pytest backend/tests/unit/test_preservation_bank_lookup.py -v` (2 pass).
+- [x] 1. Delete `backend/tests/unit/test_backfill_rekeningschema_flags.py` — module `migrations.backfill_rekeningschema_flags` removed (34 import failures). This was identified on 2026-06-27 but never resolved. Verify: `pytest backend/tests/unit/ --collect-only 2>&1 | grep -c "ERROR"` returns 0.
+- [x] 2. Fix `backend/tests/unit/test_template_rendering.py` — find current method name in `template_preview_service.py` replacing `_render_template` and update 19 tests. If method is gone entirely, delete the test file. Verify: `pytest backend/tests/unit/test_template_rendering.py -v` (19 pass or file deleted).
+- [x] 3. Fix `backend/tests/unit/test_bug_condition_bank_lookup.py` — `BankingProcessor._checks` moved to `banking_checks.py` during 2026-06-27 split. Update 2 tests to use new location. Verify: `pytest backend/tests/unit/test_bug_condition_bank_lookup.py -v` (2 pass).
+- [x] 4. Fix `backend/tests/unit/test_preservation_bank_lookup.py` — same `_checks` issue as task 3. Verify: `pytest backend/tests/unit/test_preservation_bank_lookup.py -v` (2 pass).
 
 ### Phase 2: Route/URL Fixes (~2 hours)
 

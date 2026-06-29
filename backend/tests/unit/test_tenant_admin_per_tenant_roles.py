@@ -11,6 +11,7 @@ import pytest
 from unittest.mock import patch, Mock
 from flask import Flask
 
+from routes.tenant_admin_roles import tenant_admin_roles_bp
 from routes.tenant_admin_users import tenant_admin_users_bp
 
 
@@ -31,6 +32,7 @@ JWT_ADMIN = _make_jwt({
 @pytest.fixture
 def app():
     app = Flask(__name__)
+    app.register_blueprint(tenant_admin_roles_bp)
     app.register_blueprint(tenant_admin_users_bp)
     app.config['TESTING'] = True
     return app
@@ -38,7 +40,7 @@ def app():
 
 @pytest.fixture
 def mock_cognito():
-    with patch('routes.tenant_admin_users.cognito_client') as mock:
+    with patch('routes.tenant_admin_roles.cognito_client') as mock:
         mock.admin_get_user.return_value = {
             'UserAttributes': [
                 {'Name': 'email', 'Value': 'user@example.com'},
@@ -51,11 +53,13 @@ def mock_cognito():
 
 @pytest.fixture
 def mock_db():
-    """Mock DatabaseManager at the route module level."""
-    with patch('routes.tenant_admin_users.DatabaseManager') as cls:
+    """Mock DatabaseManager at both route module levels."""
+    with patch('routes.tenant_admin_roles.DatabaseManager') as cls_roles, \
+         patch('routes.tenant_admin_users.DatabaseManager') as cls_users:
         db = Mock()
         db.execute_query.return_value = None
-        cls.return_value = db
+        cls_roles.return_value = db
+        cls_users.return_value = db
         yield db
 
 
