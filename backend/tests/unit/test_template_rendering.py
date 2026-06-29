@@ -12,7 +12,7 @@ from datetime import datetime
 # Add backend/src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from services.template_preview_service import TemplatePreviewService
+from services.template_html_processor import TemplateHtmlProcessor
 
 
 class TestTemplateRendering:
@@ -20,9 +20,7 @@ class TestTemplateRendering:
     
     def setup_method(self):
         """Setup test fixtures"""
-        self.mock_db = Mock()
-        self.administration = 'TestAdmin'
-        self.service = TemplatePreviewService(self.mock_db, self.administration)
+        self.processor = TemplateHtmlProcessor()
     
     def test_render_template_basic(self):
         """Test basic template rendering with simple placeholders"""
@@ -42,7 +40,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -70,7 +68,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -98,7 +96,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -126,7 +124,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -155,7 +153,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -190,7 +188,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -221,7 +219,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -249,7 +247,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -277,7 +275,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -303,7 +301,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -330,7 +328,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -357,9 +355,9 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Mock re.sub to raise exception
-        with patch('re.sub', side_effect=Exception("Regex error")):
+        with patch('services.template_html_processor.re.sub', side_effect=Exception("Regex error")):
             # Execute
-            rendered = self.service._render_template(
+            rendered = self.processor.render_template(
                 template_content,
                 sample_data,
                 field_mappings
@@ -384,7 +382,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -409,7 +407,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -434,7 +432,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -487,7 +485,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -520,7 +518,7 @@ class TestTemplateRendering:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings
@@ -537,9 +535,7 @@ class TestFieldMappings:
     
     def setup_method(self):
         """Setup test fixtures"""
-        self.mock_db = Mock()
-        self.administration = 'TestAdmin'
-        self.service = TemplatePreviewService(self.mock_db, self.administration)
+        self.processor = TemplateHtmlProcessor()
     
     def test_render_template_field_mappings_parameter_exists(self):
         """Test that field_mappings parameter is accepted"""
@@ -550,7 +546,7 @@ class TestFieldMappings:
         
         # Execute - should not raise exception
         try:
-            rendered = self.service._render_template(
+            rendered = self.processor.render_template(
                 template_content,
                 sample_data,
                 field_mappings
@@ -567,7 +563,7 @@ class TestFieldMappings:
         field_mappings = {}
         
         # Execute
-        rendered = self.service._render_template(
+        rendered = self.processor.render_template(
             template_content,
             sample_data,
             field_mappings

@@ -105,6 +105,9 @@ class TestCheckBankingAccountsWrongDataSource:
             processor.db = mock_db
             processor.download_folder = '/tmp'
 
+            from banking_checks import BankingChecks
+            processor._checks = BankingChecks(mock_db)
+
             result = processor.check_banking_accounts(administration='TestTenant')
 
             # Expected: result should NOT be empty — it should contain the
@@ -250,6 +253,9 @@ class TestBankAccountResolutionProperty:
             processor.test_mode = False
             processor.db = mock_db
             processor.download_folder = '/tmp'
+
+            from banking_checks import BankingChecks
+            processor._checks = BankingChecks(mock_db)
 
             result = processor.check_banking_accounts(administration=tenant)
 

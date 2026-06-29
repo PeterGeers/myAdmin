@@ -1,25 +1,58 @@
 #!/bin/sh
-# Pre-push hook: runs ggshield secret scan before pushing.
-# Falls back to local regex scanner if ggshield API quota is exhausted.
+# Pre-push hook: scans ALL files being pushed for secrets.
+# Uses ggshield if available, falls back to local regex scanner.
 # Blocks push if secrets are found.
 
 echo "Running secret scan before push..."
 
-# Check if ggshield is available
-if ! command -v ggshield >/dev/null 2>&1; then
-    echo "ggshield not found - running local scanner only"
-    "$(git rev-parse --show-toplevel)/scripts/scan-secrets-local.sh"
-    exit $?
-fi
+REPO_ROOT=$(git rev-parse --show-toplevel)
 
-output=$(ggshield secret scan pre-commit 2>&1)
-code=$?
+# Determine the commit range being pushed
+# Read stdin for the push info (local_ref local_sha remote_ref remote_sha)
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Skip delete pushes
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
 
-if echo "$output" | grep -qiE "no more API calls|quota|rate.limit"; then
-    echo "ggshield quota exhausted - falling back to local scanner"
-    "$(git rev-parse --show-toplevel)/scripts/scan-secrets-local.sh"
-    exit $?
-else
-    echo "$output"
-    exit $code
-fi
+    # If remote_sha is all zeros, this is a new branch — scan all files in the push
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch: scan all files in the pushed commits vs main
+        remote_sha=$(git merge-base "$local_sha" origin/main 2>/dev/null || echo "")
+        if [ -z "$remote_sha" ]; then
+            # No common ancestor — scan all files
+            remote_sha=$(git hash-object -t tree /dev/null)
+        fi
+    fi
+
+    # Get list of files changed in the commits being pushed
+    changed_files=$(git diff --name-only --diff-filter=ACM "$remote_sha" "$local_sha" 2>/dev/null)
+
+    if [ -z "$changed_files" ]; then
+        echo "No changed files to scan."
+        exit 0
+    fi
+
+    echo "Scanning $(echo "$changed_files" | wc -l | tr -d ' ') files being pushed..."
+
+    # Try ggshield first (scans the commit range)
+    if command -v ggshield >/dev/null 2>&1; then
+        output=$(ggshield secret scan commit-range "$remote_sha" 2>&1)
+        code=$?
+
+        if echo "$output" | grep -qiE "no more API calls|quota|rate.limit"; then
+            echo "ggshield quota exhausted - falling back to local scanner"
+            "$REPO_ROOT/scripts/scan-secrets-local.sh" --pre-push "$remote_sha" "$local_sha"
+            exit $?
+        else
+            echo "$output"
+            exit $code
+        fi
+    else
+        echo "ggshield not found - running local scanner"
+        "$REPO_ROOT/scripts/scan-secrets-local.sh" --pre-push "$remote_sha" "$local_sha"
+        exit $?
+    fi
+done
+
+exit 0

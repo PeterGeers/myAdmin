@@ -68,3 +68,58 @@ Create a new spec at `.kiro/specs/code-quality-fixes-YYYY-MM-DD/` (use today's d
 Each task should have: file path, specific action, estimated effort (S/M/L).
 
 Do NOT fix the issues — only generate the spec with the analysis and task list.
+
+### Step 5: Compare with previous run
+
+Check `.kiro/specs/code-quality-maintenance/` for the most recent previous spec (e.g. `code-quality-fixes-YYYY-MM-DD/`). If one exists:
+
+1. Compare failure counts — are they going down?
+2. Identify **recurring failures** that were "fixed" last time but reappear. Flag these prominently.
+3. Identify **new failures introduced by the previous fix sprint** (regression from refactoring).
+4. Add a "Lessons / Recurring Issues" section to requirements.md noting patterns that keep coming back.
+
+---
+
+## Lessons Learned (from 2026-06-27 → 2026-06-29 cycle)
+
+These rules must be followed when executing the generated tasks:
+
+### Rule 1: Delete tests for removed modules — don't plan workarounds
+
+When a source module is deleted/renamed and tests fail on `ModuleNotFoundError` or `ImportError`, the correct action is to **delete or rewrite the test file**. Do not mark the task done with "move to PYTHONPATH" or "will fix later."
+
+### Rule 2: Run affected tests after each refactoring task
+
+Every file split or structural change must be followed by running the tests that reference the changed module. A task is not done until those tests pass. The task description should include: "Verify: `pytest tests/unit/test_<module>.py -v` passes."
+
+### Rule 3: Update test fixtures when adding guards/decorators
+
+When adding auth decorators, module guards, or function guards to a route, search for existing tests on that endpoint (`grep -r "route_path" backend/tests/`) and update their fixtures in the same commit. Otherwise the tests will silently break.
+
+### Rule 4: Grep all tests when changing defaults
+
+When changing a default value (e.g. storage provider, API endpoint, response format), grep the **entire test suite** for the old value — not just the obvious test file. Use: `grep -r "old_value" backend/tests/ frontend/src/` to find all dependents.
+
+### Rule 5: Never mark the spec complete until CI is green
+
+The final implicit task of any quality spec is: "Full Test Suite passes with 0 failures." If CI still shows failures after all tasks are checked off, the spec is not done. Add a verification step:
+
+```bash
+gh workflow run "Full Test Suite" --field scope=both
+# Wait for completion, then verify:
+# Backend: 0 failures
+# Frontend: 0 failures
+```
+
+Only then close the spec.
+
+### Rule 6: Tasks.md must include verification commands
+
+Each task in tasks.md should end with a concrete verification command, e.g.:
+
+```
+Verify: pytest backend/tests/unit/test_storage_resolver.py -v (expect 4 pass)
+Verify: npx vitest run src/components/TenantAdmin/ChartOfAccounts.test.tsx (expect 8 pass)
+```
+
+This prevents marking tasks done without confirming the fix works.
