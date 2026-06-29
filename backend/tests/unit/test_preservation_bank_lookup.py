@@ -112,6 +112,9 @@ class TestCheckBankingAccountsPreservation:
         processor.db = mock_db
         processor.download_folder = '/tmp'
 
+        from banking_checks import BankingChecks
+        processor._checks = BankingChecks(mock_db)
+
         result = processor.check_banking_accounts(administration='TestTenant')
 
         # Should return balance data
@@ -254,6 +257,9 @@ class TestCheckBankingAccountsBalanceProperty:
         processor.test_mode = False
         processor.db = mock_db
         processor.download_folder = '/tmp'
+
+        from banking_checks import BankingChecks
+        processor._checks = BankingChecks(mock_db)
 
         result = processor.check_banking_accounts(administration=tenant)
 
