@@ -60,8 +60,9 @@ class TestOutputService:
         
         assert 'Invalid destination' in str(exc_info.value)
     
+    @patch('services.storage_resolver.resolve_storage_provider', return_value='google_drive')
     @patch('google_drive_service.GoogleDriveService')
-    def test_handle_gdrive_upload_new_file(self, mock_drive_class, output_service):
+    def test_handle_gdrive_upload_new_file(self, mock_drive_class, mock_resolver, output_service):
         """Test handling Google Drive upload for new file"""
         # Setup mocks
         mock_drive = Mock()
@@ -90,8 +91,9 @@ class TestOutputService:
         assert result['filename'] == 'test.html'
         assert 'message' in result
     
+    @patch('services.storage_resolver.resolve_storage_provider', return_value='google_drive')
     @patch('google_drive_service.GoogleDriveService')
-    def test_handle_gdrive_upload_existing_file(self, mock_drive_class, output_service):
+    def test_handle_gdrive_upload_existing_file(self, mock_drive_class, mock_resolver, output_service):
         """Test handling Google Drive upload when file already exists (adds timestamp)"""
         # Setup mocks
         mock_drive = Mock()
@@ -123,8 +125,9 @@ class TestOutputService:
         assert result['filename'].startswith('test_')
         assert result['filename'].endswith('.html')
     
+    @patch('services.storage_resolver.resolve_storage_provider', return_value='google_drive')
     @patch('google_drive_service.GoogleDriveService')
-    def test_handle_gdrive_upload_with_folder_id(self, mock_drive_class, output_service):
+    def test_handle_gdrive_upload_with_folder_id(self, mock_drive_class, mock_resolver, output_service):
         """Test handling Google Drive upload with explicit folder_id"""
         # Setup mocks
         mock_drive = Mock()
@@ -169,7 +172,7 @@ class TestOutputService:
 
         assert result['success'] is True
         assert result['destination'] == 's3'
-        assert 'test-bucket' in result['url']
+        assert 'TestAdmin' in result['url']
         mock_provider.upload.assert_called_once()
     
     @patch('google_drive_service.GoogleDriveService')
