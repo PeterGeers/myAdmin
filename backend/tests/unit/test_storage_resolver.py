@@ -31,18 +31,18 @@ class TestResolveStorageProvider:
     """Tests for resolve_storage_provider()."""
 
     def test_returns_google_drive_for_none(self):
-        """When parameter is None, defaults to 'google_drive'."""
+        """When parameter is None, defaults to 's3_shared' (new default)."""
         from services.storage_resolver import resolve_storage_provider
         ps = make_param_service(provider_value=None)
         result = resolve_storage_provider('tenant1', parameter_service=ps)
-        assert result == 'google_drive'
+        assert result == 's3_shared'
 
     def test_returns_google_drive_for_empty_string(self):
-        """When parameter is empty string, defaults to 'google_drive'."""
+        """When parameter is empty string, defaults to 's3_shared' (new default)."""
         from services.storage_resolver import resolve_storage_provider
         ps = make_param_service(provider_value='')
         result = resolve_storage_provider('tenant1', parameter_service=ps)
-        assert result == 'google_drive'
+        assert result == 's3_shared'
 
     def test_returns_google_drive_for_google_drive_value(self):
         """When parameter is 'google_drive', returns 'google_drive'."""
@@ -66,12 +66,12 @@ class TestResolveStorageProvider:
         assert result == 's3_shared'
 
     def test_defaults_to_google_drive_on_exception(self):
-        """When ParameterService raises, defaults to 'google_drive'."""
+        """When ParameterService raises, defaults to 's3_shared' (new default)."""
         from services.storage_resolver import resolve_storage_provider
         ps = Mock()
         ps.get_param = Mock(side_effect=RuntimeError("DB connection failed"))
         result = resolve_storage_provider('tenant1', parameter_service=ps)
-        assert result == 'google_drive'
+        assert result == 's3_shared'
 
     def test_calls_get_param_with_correct_args(self):
         """Verifies get_param is called with correct namespace, key, and tenant."""
@@ -83,11 +83,11 @@ class TestResolveStorageProvider:
         )
 
     def test_returns_google_drive_for_unknown_provider(self):
-        """When parameter is an unknown value (not s3_shared/s3_tenant), returns 'google_drive'."""
+        """When parameter is an unknown value (not google_drive), returns 's3_shared' (new default)."""
         from services.storage_resolver import resolve_storage_provider
         ps = make_param_service(provider_value='ftp')
         result = resolve_storage_provider('tenant1', parameter_service=ps)
-        assert result == 'google_drive'
+        assert result == 's3_shared'
 
 
 # ---------------------------------------------------------------------------

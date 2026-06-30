@@ -23,11 +23,11 @@ Code quality maintenance sprint based on CI test results (2026-06-29) and local 
 
 ### Phase 2: Route/URL Fixes (~2 hours)
 
-- [ ] 5. Fix `backend/tests/unit/test_delete_tenant_template.py` — 6 tests get 404. Check route registration in `tenant_admin_templates.py` and `app.py`. Also run: `grep -rn "tenant-admin/templates" backend/tests/`. Verify: `pytest backend/tests/unit/test_delete_tenant_template.py -v` (6 pass).
-- [ ] 6. Fix `backend/tests/unit/test_download_default_template.py` — 5 tests get 404. Same root cause as task 5. Verify: `pytest backend/tests/unit/test_download_default_template.py -v` (5 pass).
-- [ ] 7. Fix `backend/tests/unit/test_tenant_admin_per_tenant_roles.py` — 2 tests get 404. Check `tenant_admin_roles.py` registration. Verify: `pytest backend/tests/unit/test_tenant_admin_per_tenant_roles.py -v` (2 pass).
-- [ ] 8. Fix `backend/tests/unit/test_tenant_admin_users_routes.py` — 3 tests fail, role endpoints not registered. Verify blueprint includes role routes. Verify: `pytest backend/tests/unit/test_tenant_admin_users_routes.py -v` (3 pass).
-- [ ] 9. Fix `backend/tests/unit/test_valid_template_types.py` — 1 test gets 404. Verify: `pytest backend/tests/unit/test_valid_template_types.py -v` (1 pass).
+- [x] 5. Fix `backend/tests/unit/test_delete_tenant_template.py` — 6 tests get 404. Check route registration in `tenant_admin_templates.py` and `app.py`. Also run: `grep -rn "tenant-admin/templates" backend/tests/`. Verify: `pytest backend/tests/unit/test_delete_tenant_template.py -v` (6 pass).
+- [x] 6. Fix `backend/tests/unit/test_download_default_template.py` — 5 tests get 404. Same root cause as task 5. Verify: `pytest backend/tests/unit/test_download_default_template.py -v` (5 pass).
+- [x] 7. Fix `backend/tests/unit/test_tenant_admin_per_tenant_roles.py` — 2 tests get 404. Check `tenant_admin_roles.py` registration. Verify: `pytest backend/tests/unit/test_tenant_admin_per_tenant_roles.py -v` (2 pass).
+- [x] 8. Fix `backend/tests/unit/test_tenant_admin_users_routes.py` — 3 tests fail, role endpoints not registered. Verify blueprint includes role routes. Verify: `pytest backend/tests/unit/test_tenant_admin_users_routes.py -v` (3 pass).
+- [x] 9. Fix `backend/tests/unit/test_valid_template_types.py` — 1 test gets 404. Verify: `pytest backend/tests/unit/test_valid_template_types.py -v` (1 pass).
 
 ### Phase 3: Storage Default & Auth Fixes (~3 hours)
 
