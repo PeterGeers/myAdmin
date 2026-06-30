@@ -26,10 +26,10 @@ def reservations_csv(tmp_path):
         'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
         'HA-MSBK7M,10744968,JaBaKi Red Studio (617 - 10744968),2026-02-20,'
         'guest@example.com,Jacqueline Johansen,1 907-841-5191,'
-        '2026-05-07,2026-05-12,5,2,0,Booked,VRBO\n'
+        '2027-05-07,2027-05-12,5,2,0,Booked,VRBO\n'
         'HA-8YM4XP,10744968,JaBaKi Red Studio (617 - 10744968),2026-01-28,'
         'mona@example.com,Mona Reisert,49 1763 847-674-6,'
-        '2026-06-06,2026-06-07,1,2,0,Booked,VRBO\n'
+        '2027-06-06,2027-06-07,1,2,0,Booked,VRBO\n'
     )
     fp = tmp_path / 'reservations.csv'
     fp.write_text(content, encoding='utf-8')
@@ -323,13 +323,13 @@ class TestSampleData:
             'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
             'HA-MSBK7M,10744968,JaBaKi Red Studio (617 - 10744968),2026-02-20,'
             'jacquibarrett58@gmail.com,Jacqueline Johansen,1 907-841-5191,'
-            '2026-05-07,2026-05-12,5,2,0,Booked,VRBO\n'
+            '2027-05-07,2027-05-12,5,2,0,Booked,VRBO\n'
             'HA-8YM4XP,10744968,JaBaKi Red Studio (617 - 10744968),2026-01-28,'
             'mona.reisert@gmx.de,Mona Reisert,49 1763 847-674-6,'
-            '2026-06-06,2026-06-07,1,2,0,Booked,VRBO\n'
+            '2027-06-06,2027-06-07,1,2,0,Booked,VRBO\n'
             'HA-6316NF,10744968,JaBaKi Red Studio (617 - 10744968),2026-01-28,'
             'mona.reisert@gmx.de,Mona Reisert,49 1763 847-674-6,'
-            '2026-06-04,2026-06-05,1,2,0,Booked,VRBO\n',
+            '2027-06-04,2027-06-05,1,2,0,Booked,VRBO\n',
             encoding='utf-8'
         )
         res2 = tmp_path / 'res_garden.csv'
@@ -338,7 +338,7 @@ class TestSampleData:
             'Check-in,Check-out,Nights Stay,Adults,Children,Status,Source\n'
             'HA-KN90H2,10027545,JaBaKi Child-friendly garden house (617 - 10027545),2026-01-26,'
             'kathrin.ostermann@gmx.de,Kathrin Ostermann-Schmitt,49 17376-56645,'
-            '2026-05-19,2026-05-20,1,3,0,Booked,VRBO\n',
+            '2027-05-19,2027-05-20,1,3,0,Booked,VRBO\n',
             encoding='utf-8'
         )
         payouts = tmp_path / 'payouts.csv'
