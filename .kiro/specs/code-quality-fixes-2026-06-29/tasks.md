@@ -39,12 +39,12 @@ Code quality maintenance sprint based on CI test results (2026-06-29) and local 
 
 ### Phase 4: Logic & Mock Drift Fixes (~3 hours)
 
-- [ ] 15. Fix `backend/tests/unit/test_banking_balance_closure.py` — 3 tests assert old SQL patterns. Read current query in `banking_checks.py` and update assertions. Verify: `pytest backend/tests/unit/test_banking_balance_closure.py -v` (3 pass).
-- [ ] 16. Fix `backend/tests/unit/test_vrbo_processor.py` — 2 tests expect `'planned'` but get `'realised'`. First check `str_booking_parser.py` to confirm if intentional. If yes, update assertions. If bug, fix source. Verify: `pytest backend/tests/unit/test_vrbo_processor.py -v` (2 pass).
-- [ ] 17. Fix `backend/tests/unit/test_function_guard_props.py` — flaky Hypothesis test. Add `@settings(derandomize=True)` or fix shared state. Verify: `pytest backend/tests/unit/test_function_guard_props.py -v --count=3` (pass 3x).
-- [ ] 18. Fix `backend/tests/unit/test_invoice_service_properties.py` — flaky. Same approach as task 17. Verify: `pytest backend/tests/unit/test_invoice_service_properties.py -v --count=3` (pass 3x).
-- [ ] 19. Fix `backend/tests/unit/test_parameter_admin_routes.py` — flaky. Verify: `pytest backend/tests/unit/test_parameter_admin_routes.py -v --count=3` (pass 3x).
-- [ ] 20. Fix `backend/tests/unit/test_security_middleware_props.py` — flaky. Verify: `pytest backend/tests/unit/test_security_middleware_props.py -v --count=3` (pass 3x).
+- [x] 15. Fix `backend/tests/unit/test_banking_balance_closure.py` — 3 tests assert old SQL patterns. Read current query in `banking_checks.py` and update assertions. Verify: `pytest backend/tests/unit/test_banking_balance_closure.py -v` (3 pass).
+- [x] 16. Fix `backend/tests/unit/test_vrbo_processor.py` — 2 tests expect `'planned'` but get `'realised'`. First check `str_booking_parser.py` to confirm if intentional. If yes, update assertions. If bug, fix source. Verify: `pytest backend/tests/unit/test_vrbo_processor.py -v` (2 pass).
+- [x] 17. Fix `backend/tests/unit/test_function_guard_props.py` — flaky Hypothesis test. Add `@settings(derandomize=True)` or fix shared state. Verify: `pytest backend/tests/unit/test_function_guard_props.py -v --count=3` (pass 3x).
+- [x] 18. Fix `backend/tests/unit/test_invoice_service_properties.py` — flaky. Same approach as task 17. Verify: `pytest backend/tests/unit/test_invoice_service_properties.py -v --count=3` (pass 3x).
+- [x] 19. Fix `backend/tests/unit/test_parameter_admin_routes.py` — flaky. Verify: `pytest backend/tests/unit/test_parameter_admin_routes.py -v --count=3` (pass 3x).
+- [x] 20. Fix `backend/tests/unit/test_security_middleware_props.py` — flaky. Verify: `pytest backend/tests/unit/test_security_middleware_props.py -v --count=3` (pass 3x).
 
 ### Phase 5: Frontend Test Fixes (~4 hours)
 
