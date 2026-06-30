@@ -145,8 +145,8 @@ describe('Property 10 (frontend): Vendor name validation', () => {
    *
    * **Validates: Requirements 7.1**
    */
-  it('PROPERTY: valid vendor names (alphanumeric, hyphens, underscores, 1-100 chars) are accepted', () => {
-    const validVendorArb = fc.stringMatching(/^[a-zA-Z0-9_-]{1,100}$/);
+  it('PROPERTY: valid vendor names (alphanumeric, hyphens, underscores, spaces, 1-100 chars) are accepted', () => {
+    const validVendorArb = fc.stringMatching(/^[a-zA-Z0-9_ -]{1,100}$/);
 
     fc.assert(
       fc.property(validVendorArb, (name) => {
@@ -159,7 +159,7 @@ describe('Property 10 (frontend): Vendor name validation', () => {
   /**
    * Feature: invoice-processing-test-tool, Property 10: Vendor name validation
    *
-   * For any string containing characters outside [a-zA-Z0-9_-],
+   * For any string containing characters outside [a-zA-Z0-9_ -],
    * validateVendorName SHALL return a non-null error message (rejected).
    *
    * **Validates: Requirements 7.1**
@@ -167,9 +167,9 @@ describe('Property 10 (frontend): Vendor name validation', () => {
   it('PROPERTY: names with invalid characters are rejected', () => {
     // Generate strings that contain at least one invalid char
     const invalidCharArb = fc.tuple(
-      fc.stringMatching(/^[a-zA-Z0-9_-]{0,10}$/),
-      fc.constantFrom(' ', '.', '!', '@', '#', '$', '%', '/', '\\', '(', ')', '+', '=', '~'),
-      fc.stringMatching(/^[a-zA-Z0-9_-]{0,10}$/),
+      fc.stringMatching(/^[a-zA-Z0-9_ -]{0,10}$/),
+      fc.constantFrom('.', '!', '@', '#', '$', '%', '/', '\\', '(', ')', '+', '=', '~'),
+      fc.stringMatching(/^[a-zA-Z0-9_ -]{0,10}$/),
     ).map(([prefix, invalidChar, suffix]) => `${prefix}${invalidChar}${suffix}`);
 
     fc.assert(

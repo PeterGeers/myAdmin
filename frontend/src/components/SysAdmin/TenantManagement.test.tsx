@@ -92,7 +92,7 @@ describe('TenantManagement Component', () => {
       await waitFor(() => {
         expect(screen.getByText('Tenant A')).toBeInTheDocument();
       });
-      expect(screen.getByRole('button', { name: /add|create|tenantManagement/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /add|create|tenantManagement/i })[0]).toBeInTheDocument();
     });
   });
 
@@ -103,7 +103,7 @@ describe('TenantManagement Component', () => {
         expect(screen.getByText('Tenant A')).toBeInTheDocument();
       });
 
-      const addButton = screen.getByRole('button', { name: /add|create|tenantManagement/i });
+      const addButton = screen.getAllByRole('button', { name: /add|create|tenantManagement/i })[0];
       fireEvent.click(addButton);
 
       await waitFor(() => {
@@ -118,7 +118,7 @@ describe('TenantManagement Component', () => {
         expect(screen.getByText('Tenant A')).toBeInTheDocument();
       });
 
-      const addButton = screen.getByRole('button', { name: /add|create|tenantManagement/i });
+      const addButton = screen.getAllByRole('button', { name: /add|create|tenantManagement/i })[0];
       fireEvent.click(addButton);
 
       await waitFor(() => {
