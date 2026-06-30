@@ -44,13 +44,26 @@ def _bypass_tenant_required(**decorator_kwargs):
     return decorator
 
 
+def _bypass_function_guard(*guard_args, **guard_kwargs):
+    """Mock function_guard to pass through without checking."""
+    def decorator(f):
+        import functools
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 # Patch decorators BEFORE importing the module under test
 with patch('auth.cognito_utils.cognito_required', _bypass_cognito_required):
     with patch('auth.tenant_context.tenant_required', _bypass_tenant_required):
-        # Force reimport with patched decorators
-        if 'str_channel_routes' in sys.modules:
-            del sys.modules['str_channel_routes']
-        from str_channel_routes import str_channel_bp
+        with patch('services.function_guard.function_guard', _bypass_function_guard):
+            # Force reimport with patched decorators
+            if 'str_channel_routes' in sys.modules:
+                del sys.modules['str_channel_routes']
+            from str_channel_routes import str_channel_bp
 
 
 @pytest.fixture
@@ -259,7 +272,7 @@ class TestTaxRateServiceIntegration:
         from datetime import date
         expected_date = date(2025, 9, 30)
         mock_tax_svc.get_tax_rate.assert_called_once_with(
-            'TestTenant', 'btw', 'accommodation', expected_date
+            'TestTenant', 'btw_accommodation', 'high', expected_date
         )
 
     @patch('str_channel_routes.TaxRateService')
