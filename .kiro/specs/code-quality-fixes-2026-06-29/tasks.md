@@ -35,7 +35,7 @@ Code quality maintenance sprint based on CI test results (2026-06-29) and local 
 - [x] 11. Fix `backend/tests/unit/test_zzp_invoice_service.py` — `check_health` called with `'s3'` not `'gdrive'`. Verify: `pytest backend/tests/unit/test_zzp_invoice_service.py::test_send_invoice_draft_success_returns_invoice_number -v` (pass).
 - [x] 12. Fix `backend/tests/unit/test_output_service.py` — 4 tests need S3 mocks instead of Google Drive. Also check: `grep -rn "GoogleDriveService" backend/tests/`. Verify: `pytest backend/tests/unit/test_output_service.py -v` (4 pass).
 - [x] 13. Fix `backend/tests/unit/test_xlsx_export.py` — 2 tests with broken Drive mocks. Update to S3 pattern. Verify: `pytest backend/tests/unit/test_xlsx_export.py -v` (2 pass).
-- [ ] 14. Fix `backend/tests/unit/test_str_channel_routes_fix.py` — 8 tests get 403. Inspect route decorators (`@module_required('STR')` or `@function_guard`). Add tenant context with STR module enabled + correct roles to fixtures. Verify: `pytest backend/tests/unit/test_str_channel_routes_fix.py -v` (8 pass).
+- [x] 14. Fix `backend/tests/unit/test_str_channel_routes_fix.py` — 8 tests get 403. Inspect route decorators (`@module_required('STR')` or `@function_guard`). Add tenant context with STR module enabled + correct roles to fixtures. Verify: `pytest backend/tests/unit/test_str_channel_routes_fix.py -v` (8 pass).
 
 ### Phase 4: Logic & Mock Drift Fixes (~3 hours)
 

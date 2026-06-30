@@ -105,7 +105,7 @@ class TestCheckBankingAccountsClosure:
             []
         ]
 
-        with patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'):
+        with patch('banking_checks._get_opening_balance_date', return_value='2025-01-01'):
             processor.check_banking_accounts(administration='TestAdmin')
 
         # Check the balance query (first execute_query call) includes the date filter
@@ -127,7 +127,7 @@ class TestCheckBankingAccountsClosure:
             []
         ]
 
-        with patch('banking_processor._get_opening_balance_date', return_value=None):
+        with patch('banking_checks._get_opening_balance_date', return_value=None):
             processor.check_banking_accounts(administration='TestAdmin')
 
         balance_call = processor.db.execute_query.call_args_list[0]
@@ -146,7 +146,7 @@ class TestCheckBankingAccountsClosure:
             []
         ]
 
-        with patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'):
+        with patch('banking_checks._get_opening_balance_date', return_value='2025-01-01'):
             processor.check_banking_accounts(end_date='2025-06-30', administration='TestAdmin')
 
         balance_call = processor.db.execute_query.call_args_list[0]
@@ -186,7 +186,7 @@ class TestCheckSequenceNumbersClosure:
         ]
 
         with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
-             patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'):
+             patch('banking_checks._get_opening_balance_date', return_value='2025-01-01'):
 
             result = processor.check_sequence_numbers('1600', 'TestAdmin', start_date='2024-01-01')
 
@@ -208,7 +208,7 @@ class TestCheckSequenceNumbersClosure:
         ]
 
         with patch.object(processor.db, 'get_connection', return_value=mock_conn), \
-             patch('banking_processor._get_opening_balance_date', return_value=None):
+             patch('banking_checks._get_opening_balance_date', return_value=None):
 
             result = processor.check_sequence_numbers('1600', 'TestAdmin', start_date='2024-01-01')
 
@@ -270,7 +270,7 @@ class TestOpeningBalanceDateEndpoint:
 
     def test_with_closure_returns_date_and_year(self, client):
         """With closure → returns opening_balance_date and last_closed_year"""
-        with patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'), \
+        with patch('banking_checks._get_opening_balance_date', return_value='2025-01-01'), \
              patch('database.DatabaseManager'):
 
             resp = client.get('/api/banking/opening-balance-date')
@@ -283,7 +283,7 @@ class TestOpeningBalanceDateEndpoint:
 
     def test_without_closure_returns_nulls(self, client):
         """Without closure → returns nulls"""
-        with patch('banking_processor._get_opening_balance_date', return_value=None), \
+        with patch('banking_checks._get_opening_balance_date', return_value=None), \
              patch('database.DatabaseManager'):
 
             resp = client.get('/api/banking/opening-balance-date')
