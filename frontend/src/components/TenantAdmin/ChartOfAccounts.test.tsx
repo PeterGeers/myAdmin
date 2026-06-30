@@ -93,14 +93,14 @@ const mockAccounts = [
 describe('ChartOfAccounts Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockListAccounts.mockResolvedValue({ success: true, data: mockAccounts });
+    mockListAccounts.mockResolvedValue({ accounts: mockAccounts });
   });
 
   describe('Rendering', () => {
     it('renders loading state initially', () => {
       mockListAccounts.mockReturnValue(new Promise(() => {}));
       render(<ChartOfAccounts tenant="test-tenant" />);
-      expect(screen.getByText(/loading/i)).toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
     });
 
     it('renders accounts table after loading', async () => {
