@@ -2,20 +2,18 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@/test-utils';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock parameter service
-const mockGetParameters = vi.fn();
+// Mock parameter schema service (for reading)
+const mockGetParameterSchema = vi.fn();
+
+vi.mock('../../services/parameterSchemaService', () => ({
+  getParameterSchema: (...args: unknown[]) => mockGetParameterSchema(...args),
+}));
+
+// Mock parameter service (for writing)
 const mockCreateParameter = vi.fn();
 
 vi.mock('../../services/parameterService', () => ({
-  getParameters: (...args: unknown[]) => mockGetParameters(...args),
   createParameter: (...args: unknown[]) => mockCreateParameter(...args),
-}));
-
-// Mock tenantAdminApi
-const mockListCredentials = vi.fn();
-
-vi.mock('../../services/tenantAdminApi', () => ({
-  listCredentials: (...args: unknown[]) => mockListCredentials(...args),
 }));
 
 // Mock hooks
@@ -44,25 +42,36 @@ import StorageTab from './StorageTab';
 describe('StorageTab Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: provider parameter returns 'google_drive'
-    mockGetParameters.mockResolvedValue({
-      parameters: {
-        storage: [
-          { namespace: 'storage', key: 'provider', value: 'google_drive', value_type: 'string', scope_origin: 'tenant', is_secret: false, id: 1 },
-          { namespace: 'storage', key: 'google_drive_folder_id', value: 'folder-123', value_type: 'string', scope_origin: 'tenant', is_secret: false, id: 2 },
-        ],
+    // Default: parameter schema returns storage config
+    mockGetParameterSchema.mockResolvedValue({
+      schema: {
+        storage: {
+          params: {
+            invoice_provider: {
+              options: [
+                { value: 'google_drive', label: 'Google Drive' },
+                { value: 's3_shared', label: 'S3 Shared' },
+              ],
+              current_value: 'google_drive',
+              default: 'google_drive',
+            },
+            google_drive_folder_id: {
+              current_value: 'folder-123',
+            },
+          },
+        },
       },
     });
-    mockListCredentials.mockResolvedValue({ credentials: [] });
+    // Mock fetch for credentials and config endpoints
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ success: true }),
+      json: () => Promise.resolve({ credentials: [], success: true }),
     });
   });
 
   describe('Rendering', () => {
     it('renders loading state initially', () => {
-      mockGetParameters.mockReturnValue(new Promise(() => {}));
+      mockGetParameterSchema.mockReturnValue(new Promise(() => {}));
       render(<StorageTab tenant="test-tenant" />);
       expect(screen.getByText(/loading/i)).toBeInTheDocument();
     });
@@ -70,7 +79,7 @@ describe('StorageTab Component', () => {
     it('renders storage provider section after loading', async () => {
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockGetParameters).toHaveBeenCalled();
+        expect(mockGetParameterSchema).toHaveBeenCalled();
       });
       // Should show provider selection or current provider info
     });
@@ -78,7 +87,7 @@ describe('StorageTab Component', () => {
     it('renders Google Drive folder ID input', async () => {
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockGetParameters).toHaveBeenCalled();
+        expect(mockGetParameterSchema).toHaveBeenCalled();
       });
       // After loading, should show folder config section
       const folderInput = screen.queryByDisplayValue('folder-123');
@@ -93,7 +102,7 @@ describe('StorageTab Component', () => {
       mockCreateParameter.mockResolvedValue({ success: true });
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockGetParameters).toHaveBeenCalled();
+        expect(mockGetParameterSchema).toHaveBeenCalled();
       });
 
       // Find and click save button (if visible after provider selection)
@@ -109,22 +118,22 @@ describe('StorageTab Component', () => {
 
   describe('Credentials', () => {
     it('shows no credentials message when list is empty', async () => {
-      mockListCredentials.mockResolvedValue({ credentials: [] });
+      mockFetch.mockResolvedValue({ credentials: [] });
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockListCredentials).toHaveBeenCalled();
+        expect(mockFetch).toHaveBeenCalled();
       });
     });
 
     it('shows credential info when credentials exist', async () => {
-      mockListCredentials.mockResolvedValue({
+      mockFetch.mockResolvedValue({
         credentials: [
           { type: 'google_drive_credentials', created_at: '2025-01-01', updated_at: '2025-06-01' },
         ],
       });
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockListCredentials).toHaveBeenCalled();
+        expect(mockFetch).toHaveBeenCalled();
       });
     });
   });
@@ -138,7 +147,7 @@ describe('StorageTab Component', () => {
       
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockGetParameters).toHaveBeenCalled();
+        expect(mockGetParameterSchema).toHaveBeenCalled();
       });
 
       const connectButton = screen.queryByRole('button', { name: /connect|oauth|google/i });
@@ -155,19 +164,19 @@ describe('StorageTab Component', () => {
 
   describe('Error Handling', () => {
     it('handles getParameters failure gracefully', async () => {
-      mockGetParameters.mockRejectedValue(new Error('Network error'));
+      mockGetParameterSchema.mockRejectedValue(new Error('Network error'));
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockGetParameters).toHaveBeenCalled();
+        expect(mockGetParameterSchema).toHaveBeenCalled();
       });
       // Should not crash
     });
 
     it('handles listCredentials failure gracefully', async () => {
-      mockListCredentials.mockRejectedValue(new Error('Auth error'));
+      mockFetch.mockRejectedValue(new Error('Auth error'));
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
-        expect(mockGetParameters).toHaveBeenCalled();
+        expect(mockGetParameterSchema).toHaveBeenCalled();
       });
       // Should not crash
     });
