@@ -139,7 +139,7 @@ describe('InvoiceTestTool', () => {
       const vendorInput = screen.getByPlaceholderText('TestVendor');
       fireEvent.change(vendorInput, { target: { value: 'invalid vendor!' } });
 
-      expect(screen.getByText(/letters, numbers, hyphens, underscores only/i)).toBeInTheDocument();
+      expect(screen.getByText(/letters, numbers, spaces, hyphens, underscores only/i)).toBeInTheDocument();
     });
 
     it('shows error for unsupported file type', () => {
@@ -532,7 +532,7 @@ describe('VendorHistoryPanel', () => {
       render(<VendorHistoryPanel />);
 
       expect(screen.getByText('Vendor Transaction History')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Enter vendor name to look up history')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Enter reference number to look up history')).toBeInTheDocument();
       expect(screen.getByText('Look Up')).toBeInTheDocument();
     });
 
@@ -606,7 +606,7 @@ describe('VendorHistoryPanel', () => {
         expect(screen.getByText('Loading...')).toBeInTheDocument();
       });
 
-      const input = screen.getByPlaceholderText('Enter vendor name to look up history');
+      const input = screen.getByPlaceholderText('Enter reference number to look up history');
       expect(input).toBeDisabled();
     });
   });

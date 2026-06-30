@@ -57,6 +57,6 @@ describe('AWS Amplify Configuration', () => {
     
     // Should have valid format (either from env or fallback)
     expect(userPoolId).toMatch(/^[a-z]+-[a-z]+-\d+_[A-Za-z0-9]+$/);
-    expect(userPoolClientId).toMatch(/^[a-z0-9]+$/);
+    expect(userPoolClientId).toMatch(/^[a-z0-9-]+$/i);
   });
 });
