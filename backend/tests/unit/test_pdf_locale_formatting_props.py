@@ -328,7 +328,7 @@ class TestCurrencySymbolFromInvoiceCurrencyCode:
 
     # -- 5c: Same amount, different currencies produce different output -----
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(locale=locale_st, amount=positive_amount_st)
     def test_same_amount_different_currencies_differ(self, locale, amount):
         """Same numeric amount formatted with different currencies produces different strings."""

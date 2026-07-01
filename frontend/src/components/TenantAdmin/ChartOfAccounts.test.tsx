@@ -39,9 +39,12 @@ vi.mock('../../hooks/useFilterableTable', () => ({
 
 vi.mock('../../hooks/useTableConfig', () => ({
   useTableConfig: () => ({
-    visibleColumns: ['Account', 'AccountName', 'VW', 'Parent'],
+    columns: ['Account', 'AccountName', 'VW', 'Parent'],
     filterableColumns: ['Account', 'AccountName', 'VW', 'Parent'],
     defaultSort: { field: 'Account', direction: 'asc' },
+    pageSize: 100,
+    loading: false,
+    error: null,
   }),
 }));
 

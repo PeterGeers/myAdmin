@@ -48,46 +48,46 @@ Code quality maintenance sprint based on CI test results (2026-06-29) and local 
 
 ### Phase 5: Frontend Test Fixes (~4 hours)
 
-- [ ] 21. Fix `frontend/src/components/TenantAdmin/ChartOfAccounts.test.tsx` — 8 tests with outdated selectors. Read current `ChartOfAccounts.tsx` for correct text/roles. Verify: `npx vitest run src/components/TenantAdmin/ChartOfAccounts.test.tsx` (8 pass).
-- [ ] 22. Fix `frontend/src/components/TenantAdmin/StorageTab.test.tsx` — 8 tests where mock functions not called. Component initialization flow changed. Verify: `npx vitest run src/components/TenantAdmin/StorageTab.test.tsx` (8 pass).
-- [ ] 23. Fix `frontend/src/components/SysAdmin/TenantManagement.test.tsx` — 3 tests with duplicate button selectors. Use `within()` or more specific queries. Verify: `npx vitest run src/components/SysAdmin/TenantManagement.test.tsx` (3 pass).
-- [ ] 24. Fix `frontend/src/components/SysAdmin/__tests__/InvoiceTestTool.test.tsx` — 3 tests with changed validation messages and placeholder text. Read current component. Verify: `npx vitest run src/components/SysAdmin/__tests__/InvoiceTestTool.test.tsx` (all pass).
-- [ ] 25. Fix `frontend/src/aws-exports.test.ts` — 1 test with overly strict regex. Relax to accept test environment client IDs. Verify: `npx vitest run src/aws-exports.test.ts` (pass).
+- [x] 21. Fix `frontend/src/components/TenantAdmin/ChartOfAccounts.test.tsx` — 8 tests with outdated selectors. Read current `ChartOfAccounts.tsx` for correct text/roles. Verify: `npx vitest run src/components/TenantAdmin/ChartOfAccounts.test.tsx` (8 pass).
+- [x] 22. Fix `frontend/src/components/TenantAdmin/StorageTab.test.tsx` — 8 tests where mock functions not called. Component initialization flow changed. Verify: `npx vitest run src/components/TenantAdmin/StorageTab.test.tsx` (8 pass).
+- [x] 23. Fix `frontend/src/components/SysAdmin/TenantManagement.test.tsx` — 3 tests with duplicate button selectors. Use `within()` or more specific queries. Verify: `npx vitest run src/components/SysAdmin/TenantManagement.test.tsx` (3 pass).
+- [x] 24. Fix `frontend/src/components/SysAdmin/__tests__/InvoiceTestTool.test.tsx` — 3 tests with changed validation messages and placeholder text. Read current component. Verify: `npx vitest run src/components/SysAdmin/__tests__/InvoiceTestTool.test.tsx` (all pass).
+- [x] 25. Fix `frontend/src/aws-exports.test.ts` — 1 test with overly strict regex. Relax to accept test environment client IDs. Verify: `npx vitest run src/aws-exports.test.ts` (pass).
 
 ### Phase 6: File Length Refactoring — Backend (~5 days)
 
-- [ ] 26. Split `backend/src/routes/zzp_routes.py` (961 lines) — extract time-tracking into `zzp_time_routes.py`. Verify: `pytest backend/tests/unit/test_zzp_* -v` (all pass).
-- [ ] 27. Split `backend/src/services/invoice_test_service.py` (859 lines) — extract test data generators/fixtures into separate module. Verify: `pytest backend/tests/unit/test_invoice_test_service.py -v` (pass).
-- [ ] 28. Split `backend/src/routes/chart_of_accounts_routes.py` (850 lines) — extract import/export into `chart_of_accounts_io_routes.py`. Verify: `pytest backend/tests/ -k "chart_of_accounts" -v` (all pass).
-- [ ] 29. Split `backend/src/routes/tenant_admin_credentials.py` (788 lines) — extract OAuth flow into `credential_service.py`. Verify: `pytest backend/tests/unit/test_tenant_admin_credentials* -v` (pass).
-- [ ] 30. Split `backend/src/routes/tenant_admin_templates.py` (777 lines) — move template logic to service layer. Verify: `pytest backend/tests/unit/test_tenant_admin_templates* -v` (pass).
-- [ ] 31. Split `backend/src/services/banking_service.py` (764 lines) — separate query vs mutation operations. Verify: `pytest backend/tests/unit/test_banking_service.py -v` (pass).
+- [x] 26. Split `backend/src/routes/zzp_routes.py` (961 lines) — extract debtor/creditor routes into `zzp_debtor_routes.py`. Verify: `pytest backend/tests/unit/test_zzp_* -v` (all pass).
+- [x] 27. Split `backend/src/services/invoice_test_service.py` (859 lines) — extract AI rerun logic into `invoice_test_ai_rerun.py`. Verify: `pytest backend/tests/unit/test_invoice_test_service.py -v` (pass).
+- [x] 28. Split `backend/src/routes/chart_of_accounts_routes.py` (850 lines) — extract import/export into `chart_of_accounts_io_routes.py`. Verify: `pytest backend/tests/ -k "chart_of_accounts" -v` (all pass).
+- [x] 29. Split `backend/src/routes/tenant_admin_credentials.py` (788 lines) — extract OAuth flow into `google_oauth_service.py`. Verify: `pytest backend/tests/unit/test_tenant_admin_credentials* -v` (pass).
+- [x] 30. Split `backend/src/routes/tenant_admin_templates.py` (777 lines) — extract AI help and delete routes into `tenant_admin_template_ai_routes.py`. Verify: `pytest backend/tests/unit/test_tenant_admin_templates* -v` (pass).
+- [x] 31. Split `backend/src/services/banking_service.py` (764 lines) — extract mutatie query/update into `banking_mutatie_service.py`. Verify: `pytest backend/tests/unit/test_banking_service.py -v` (pass).
 
 ### Phase 7: File Length Refactoring — Frontend (~3 days)
 
-- [ ] 32. Split `frontend/src/components/SysAdmin/PipelineResultsPanel.tsx` (656 lines) — extract log viewer and status display into child components. Verify: `npm run build` (no errors).
-- [ ] 33. Split `frontend/src/components/TenantAdmin/TemplateManagement/TemplateManagement.tsx` (645 lines) — extract modal forms. Verify: `npx vitest run src/components/TenantAdmin/TemplateManagement/` (pass).
-- [ ] 34. Split `frontend/src/pages/BudgetTemplatesPage.tsx` (593 lines) — extract template form modal. Verify: `npm run build` (no errors).
+- [x] 32. Split `frontend/src/components/SysAdmin/PipelineResultsPanel.tsx` (656 lines) — extract log viewer and status display into `PipelineLogAndErrors.tsx` and `PipelineSharedComponents.tsx`. Verify: `npm run build` (no errors).
+- [x] 33. Split `frontend/src/components/TenantAdmin/TemplateManagement/TemplateManagement.tsx` (645 lines) — extract helpers into `TemplateManagementHelpers.tsx`. Verify: `npx vitest run src/components/TenantAdmin/TemplateManagement/` (pass).
+- [x] 34. Split `frontend/src/pages/BudgetTemplatesPage.tsx` (593 lines) — extract template form modal into `BudgetTemplateFormModal.tsx`. Verify: `npm run build` (no errors).
 
 ### Phase 8: Missing Test Coverage (~5 days)
 
-- [ ] 35. Write tests for `backend/src/services/budget_mutation_service.py` (762 lines). Verify: `pytest backend/tests/unit/test_budget_mutation_service.py -v` (pass).
-- [ ] 36. Write tests for `backend/src/services/budget_query_service.py` (703 lines). Verify: `pytest backend/tests/unit/test_budget_query_service.py -v` (pass).
-- [ ] 37. Write tests for `backend/src/banking_checks.py` (546 lines). Verify: `pytest backend/tests/unit/test_banking_checks.py -v` (pass).
-- [ ] 38. Write tests for `backend/src/pdf_decision_helpers.py` (534 lines). Verify: `pytest backend/tests/unit/test_pdf_decision_helpers.py -v` (pass).
-- [ ] 39. Write tests for `backend/src/services/credential_service.py`. Verify: `pytest backend/tests/unit/test_credential_service.py -v` (pass).
-- [ ] 40. Write tests for `frontend/src/components/BankingTransactionModal.tsx`. Verify: `npx vitest run src/components/BankingTransactionModal.test.tsx` (pass).
-- [ ] 41. Write tests for `frontend/src/components/MissingInvoices.tsx`. Verify: `npx vitest run src/components/MissingInvoices.test.tsx` (pass).
+- [x] 35. Write tests for `backend/src/services/budget_mutation_service.py` (762 lines). Verify: `pytest backend/tests/unit/test_budget_mutation_service.py -v` (pass).
+- [x] 36. Write tests for `backend/src/services/budget_query_service.py` (703 lines). Verify: `pytest backend/tests/unit/test_budget_query_service.py -v` (pass).
+- [x] 37. Write tests for `backend/src/banking_checks.py` (546 lines). Verify: `pytest backend/tests/unit/test_banking_checks.py -v` (pass).
+- [x] 38. Write tests for `backend/src/pdf_decision_helpers.py` (534 lines). Verify: `pytest backend/tests/unit/test_pdf_decision_helpers.py -v` (pass).
+- [x] 39. Write tests for `backend/src/services/credential_service.py`. Verify: `pytest backend/tests/unit/test_credential_service.py -v` (pass).
+- [x] 40. Write tests for `frontend/src/components/BankingTransactionModal.tsx`. Verify: `npx vitest run src/__tests__/BankingTransactionModal.test.tsx` (pass).
+- [x] 41. Write tests for `frontend/src/components/MissingInvoices.tsx`. Verify: `npx vitest run src/__tests__/MissingInvoices.test.tsx` (pass).
 
 ### Phase 9: Type Safety & Documentation (~3 days)
 
-- [ ] 42. Add proper return types to `frontend/src/services/timeTrackingService.ts` (5 `any` occurrences). Verify: `npx tsc --noEmit`.
-- [ ] 43. Replace `Record<string, any>` in `frontend/src/utils/pivotTreeBuilder.ts` with typed row interface (7 occurrences). Verify: `npx tsc --noEmit`.
-- [ ] 44. Type Formik `Field` render props in `Budget*Modal.tsx` (3 files, 6 each). Use `FieldProps<string>`. Verify: `npx tsc --noEmit`.
-- [ ] 45. Add return type annotations to `backend/src/services/budget_ai_service.py` public functions. Verify: `python3 -c "import ast; ast.parse(open('backend/src/services/budget_ai_service.py').read())"` (no syntax errors).
-- [ ] 46. Review `manualsSysAdm/` for Google Drive references — storage default is now S3. Update or annotate.
-- [ ] 47. Review/delete `backend/src/services/GOOGLE_DRIVE_UPDATE_SUMMARY.md` given S3 default change.
-- [ ] 48. Run `vulture backend/src/ --min-confidence 80` and remove confirmed dead code. Verify: `pytest backend/tests/ -x` (pass).
+- [x] 42. Add proper return types to `frontend/src/services/timeTrackingService.ts` (5 `any` occurrences). Verify: `npx tsc --noEmit`.
+- [x] 43. Replace `Record<string, any>` in `frontend/src/utils/pivotTreeBuilder.ts` with typed `PivotRow` interface (7 occurrences). Verify: `npx tsc --noEmit`.
+- [x] 44. Type Formik `Field` render props in `Budget*Modal.tsx` (3 files, 6 each). Use `FieldProps<string>`. Verify: `npx tsc --noEmit`.
+- [x] 45. Add return type annotations to `backend/src/services/budget_ai_service.py` public functions. Verify: `python3 -c "import ast; ast.parse(open('backend/src/services/budget_ai_service.py').read())"` (no syntax errors).
+- [x] 46. Review `manualsSysAdm/` for Google Drive references — storage default is now S3. Added storage notes to affected docs.
+- [x] 47. Review/delete `backend/src/services/GOOGLE_DRIVE_UPDATE_SUMMARY.md` given S3 default change. Deleted (historical note, not active docs).
+- [x] 48. Run `vulture backend/src/ --min-confidence 80` and remove confirmed dead code. Verify: 0 results at 80% confidence — no dead code found.
 
 ## Task Dependency Graph
 
@@ -160,8 +160,8 @@ Code quality maintenance sprint based on CI test results (2026-06-29) and local 
 
 ### Phase 10: CI Verification Gates
 
-- [ ] 49. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 1–5 complete. Verify: 0 backend failures, 0 frontend failures. If failures remain, fix them before proceeding.
-- [ ] 50. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 6–7 complete. Verify: no regressions introduced by file splits.
+- [x] 49. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 1–5 complete. Verify: 0 backend failures, 0 frontend failures. If failures remain, fix them before proceeding.
+- [x] 50. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 6–7 complete. Verify: no regressions introduced by file splits.
 - [ ] 51. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 8–9 complete. Verify: new tests pass in CI, no new failures.
 - [ ] 52. Final check: confirm no recurring failures from 2026-06-27 spec remain (backfill migration imports, `_render_template`, `_checks` attribute, storage default).
 

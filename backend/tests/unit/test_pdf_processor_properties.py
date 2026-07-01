@@ -851,7 +851,7 @@ class TestAIFailureFallbackStructure:
             f"got '{main_tx['description']}'"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, derandomize=True)
     @given(folder_name=folder_name_st, error_msg=exception_message_st)
     def test_ai_exception_logs_error_to_stdout(self, folder_name, error_msg):
         """

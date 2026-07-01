@@ -15,6 +15,9 @@
 // Types
 // ---------------------------------------------------------------------------
 
+/** A generic row from a pivot query result. Keys are column names, values are scalars. */
+export type PivotRow = Record<string, string | number | boolean | null | undefined>;
+
 /** A single node in the hierarchical pivot tree. */
 export interface PivotTreeNode {
   /** The group column value for this node (e.g. 'Airbnb', '2024'). Null for rollup rows. */
@@ -30,7 +33,7 @@ export interface PivotTreeNode {
   /** Whether this node is expanded in the UI (default true for top-level). */
   isExpanded: boolean;
   /** The original flat row data, if this is a leaf node. */
-  originalRow?: Record<string, any>;
+  originalRow?: PivotRow;
 }
 
 /** Options for tree building. */
@@ -60,7 +63,7 @@ export interface BuildTreeOptions {
  * );
  */
 export function buildHierarchicalTree(
-  rows: Record<string, any>[],
+  rows: PivotRow[],
   groupColumns: string[],
   aggregateColumns: string[],
   options?: BuildTreeOptions,
@@ -88,7 +91,7 @@ export function buildHierarchicalTree(
  * and recurses into the next group column for children.
  */
 function buildLevel(
-  rows: Record<string, any>[],
+  rows: PivotRow[],
   groupColumns: string[],
   aggregateColumns: string[],
   depth: number,
@@ -144,10 +147,10 @@ function buildLevel(
  * that we compute client-side instead.
  */
 function groupBy(
-  rows: Record<string, any>[],
+  rows: PivotRow[],
   column: string,
-): Map<string | number | null, Record<string, any>[]> {
-  const map = new Map<string | number | null, Record<string, any>[]>();
+): Map<string | number | null, PivotRow[]> {
+  const map = new Map<string | number | null, PivotRow[]>();
 
   for (const row of rows) {
     const value = row[column];
@@ -169,7 +172,7 @@ function groupBy(
  * Compute aggregate values from a set of rows (for leaf nodes or direct computation).
  */
 function computeAggregates(
-  rows: Record<string, any>[],
+  rows: PivotRow[],
   aggregateColumns: string[],
   options?: BuildTreeOptions,
 ): Record<string, number | null> {

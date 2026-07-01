@@ -7,14 +7,8 @@ import os
 from dotenv import load_dotenv
 from pdf_processor import PDFProcessor
 from transaction_logic import TransactionLogic
-from banking_processor import BankingProcessor
-from str_processor import STRProcessor
-from str_database import STRDatabase
 from database import DatabaseManager
 from dialect_helpers import dialect
-from btw_processor import BTWProcessor
-from toeristenbelasting_processor import ToeristenbelastingProcessor
-from pdf_validation import PDFValidator
 from reporting_routes import reporting_bp
 from routes.aangifte_ib_routes import aangifte_ib_bp
 from routes.financial_reporting_routes import financial_reporting_bp
@@ -38,6 +32,7 @@ from routes.tenant_admin_storage import tenant_admin_storage_bp
 from routes.tenant_admin_settings import tenant_admin_settings_bp
 from routes.tenant_admin_config import tenant_admin_config_bp
 from routes.tenant_admin_templates import tenant_admin_templates_bp
+from routes.tenant_admin_template_ai_routes import tenant_admin_template_ai_bp
 from routes.tenant_admin_details import tenant_admin_details_bp
 from routes.tenant_admin_email import tenant_admin_email_bp
 from routes.email_log_routes import email_log_bp
@@ -54,6 +49,7 @@ from routes.tax_routes import tax_bp
 from routes.pdf_validation_routes import pdf_validation_bp
 from routes.duplicate_detection_routes import duplicate_detection_bp
 from routes.chart_of_accounts_routes import chart_of_accounts_bp
+from routes.chart_of_accounts_io_routes import chart_of_accounts_io_bp
 from routes.asset_routes import asset_bp
 from routes.pivot_routes import pivot_bp
 from routes.year_end_config_routes import year_end_config_bp
@@ -68,33 +64,23 @@ from routes.contact_routes import contact_bp
 from routes.product_routes import product_bp
 from routes.zzp_routes import zzp_bp
 from routes.zzp_time_routes import zzp_time_bp
+from routes.zzp_debtor_routes import zzp_debtor_bp
 from routes.storage import storage_bp
 from routes.verification_routes import verification_bp
 from routes.tenant_function_routes import tenant_function_bp
-from auth.cognito_utils import cognito_required
-from auth.tenant_context import tenant_required
 
-from xlsx_export import XLSXExportProcessor
 from route_validator import check_route_conflicts
-from error_handlers import configure_logging, register_error_handlers, error_response
+from error_handlers import configure_logging, register_error_handlers
 from performance_optimizer import performance_middleware, register_performance_endpoints
 from security_audit import SecurityAudit, register_security_endpoints
-from mutaties_cache import get_cache, invalidate_cache
-from bnb_cache import get_bnb_cache
-from report_generators import generate_table_rows
-from services.template_service import TemplateService
 from services.function_registry import validate_function_registry
 
 # Load environment variables from .env file
 # Look in parent directory if .env not found in current directory (for when running from src/)
-import os
 from pathlib import Path
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-from duplicate_checker import DuplicateChecker
-from datetime import datetime
-from werkzeug.utils import secure_filename
 
 # Create Flask app without static folder to prevent route conflicts
 app = Flask(__name__, static_folder=None)
@@ -161,6 +147,7 @@ app.register_blueprint(tenant_admin_storage_bp)
 app.register_blueprint(tenant_admin_settings_bp)
 app.register_blueprint(tenant_admin_config_bp)
 app.register_blueprint(tenant_admin_templates_bp)
+app.register_blueprint(tenant_admin_template_ai_bp)
 app.register_blueprint(tenant_admin_details_bp)
 app.register_blueprint(tenant_admin_email_bp)
 app.register_blueprint(verification_bp)  # SES email verification management
@@ -170,6 +157,7 @@ app.register_blueprint(contact_bp)  # Shared contact registry (ZZP)
 app.register_blueprint(product_bp)  # Shared product registry (ZZP)
 app.register_blueprint(zzp_bp)  # ZZP module routes
 app.register_blueprint(zzp_time_bp)  # ZZP time tracking routes
+app.register_blueprint(zzp_debtor_bp)  # ZZP debtor/creditor routes
 app.register_blueprint(storage_bp)  # S3 storage endpoints (pre-signed URLs, logo upload)
 app.register_blueprint(email_log_bp)
 app.register_blueprint(auth_bp)
@@ -184,6 +172,7 @@ app.register_blueprint(tax_bp)  # Tax processing endpoints (BTW, tourist tax)
 app.register_blueprint(pdf_validation_bp)  # PDF validation endpoints
 app.register_blueprint(duplicate_detection_bp)  # Duplicate detection endpoints
 app.register_blueprint(chart_of_accounts_bp)  # Chart of Accounts management endpoints
+app.register_blueprint(chart_of_accounts_io_bp)  # Chart of Accounts import/export
 app.register_blueprint(asset_bp)  # Asset administration endpoints
 app.register_blueprint(pivot_bp)  # Pivot Views endpoints
 app.register_blueprint(year_end_config_bp)  # Year-end configuration endpoints

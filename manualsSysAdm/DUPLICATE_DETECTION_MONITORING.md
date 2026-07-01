@@ -3,6 +3,9 @@
 > **⚠️ Update Notice (June 2026)**  
 > Some monitoring helper functions referenced in this guide (`get_metrics_collector`, `get_performance_summary`, `export_performance_metrics`, `reset_performance_metrics`) were removed as unused dead code. The core duplicate detection flow (`duplicate_checker.py`, `DuplicateWarningDialog.tsx`, `pdf_processor.py`) remains fully operational.
 
+> **⚠️ Storage Note (June 2026)**  
+> The default storage provider is now **S3** (not Google Drive). Google Drive remains available as an optional tenant-configured provider. References to Google Drive below apply only when a tenant has explicitly configured `google_drive` as their `invoice_provider`.
+
 ## Overview
 
 This guide provides system administrators with comprehensive information for monitoring, maintaining, and troubleshooting the duplicate invoice detection system in myAdmin.

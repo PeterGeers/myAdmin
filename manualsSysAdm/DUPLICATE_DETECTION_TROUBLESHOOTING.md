@@ -3,6 +3,9 @@
 > **⚠️ Update Notice (June 2026)**  
 > References to `/api/duplicate-detection/performance/*` endpoints in this guide are outdated — those API routes have been removed. Core troubleshooting steps (database checks, index verification, audit logs) remain valid.
 
+> **⚠️ Storage Note (June 2026)**  
+> The default storage provider is now **S3** (not Google Drive). Google Drive sections below apply only when a tenant has `google_drive` configured as their storage provider.
+
 ## Overview
 
 This guide provides detailed troubleshooting procedures for common issues with the duplicate invoice detection system. It's designed for system administrators and support personnel.

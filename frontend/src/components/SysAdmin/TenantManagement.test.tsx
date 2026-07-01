@@ -126,15 +126,15 @@ describe('TenantManagement Component', () => {
       });
 
       // Fill required fields
-      const adminInput = screen.getByLabelText(/administration/i);
-      const nameInput = screen.getByLabelText(/display.*name/i);
-      const emailInput = screen.getByLabelText(/email/i);
+      const adminInput = screen.getByPlaceholderText(/administrationPlaceholder/i);
+      const nameInput = screen.getByPlaceholderText(/displayNamePlaceholder/i);
+      const emailInput = screen.getByPlaceholderText(/contactEmailPlaceholder/i);
 
       fireEvent.change(adminInput, { target: { value: 'new-tenant' } });
       fireEvent.change(nameInput, { target: { value: 'New Tenant' } });
       fireEvent.change(emailInput, { target: { value: 'admin@new.com' } });
 
-      const submitButton = screen.getByRole('button', { name: /create|save|submit/i });
+      const submitButton = screen.getByRole('button', { name: 'tenantManagement.actions.create' });
       fireEvent.click(submitButton);
 
       await waitFor(() => {
