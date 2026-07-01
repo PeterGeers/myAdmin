@@ -232,10 +232,10 @@ from routes.system_health_routes import set_scalability_manager  # noqa: E402
 set_scalability_manager(scalability_manager)
 
 # Set scalability manager and test mode for scalability_bp
-from scalability_routes import (
+from scalability_routes import (  # noqa: E402
     set_scalability_manager as set_scalability_bp_manager,
     set_test_mode as set_scalability_test_mode,
-)  # noqa: E402
+)
 
 set_scalability_bp_manager(scalability_manager)
 set_scalability_test_mode(flag)
@@ -371,10 +371,10 @@ ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}
 set_str_config(UPLOAD_FOLDER, flag)
 
 # Set test mode and logger for tax_bp
-from routes.tax_routes import (
+from routes.tax_routes import (  # noqa: E402
     set_test_mode as set_tax_test_mode,
     set_logger as set_tax_logger,
-)  # noqa: E402
+)
 
 set_tax_test_mode(flag)
 set_tax_logger(logger)
@@ -390,28 +390,28 @@ from routes.duplicate_detection_routes import set_test_mode as set_duplicate_tes
 set_duplicate_test_mode(flag)
 
 # Set test mode and logger for reporting_bp
-from reporting_routes import (
+from reporting_routes import (  # noqa: E402
     set_test_mode as set_reporting_test_mode,
     set_logger as set_reporting_logger,
-)  # noqa: E402
+)
 
 set_reporting_test_mode(flag)
 set_reporting_logger(logger)
 
 # Set test mode and logger for aangifte_ib_bp
-from routes.aangifte_ib_routes import (
+from routes.aangifte_ib_routes import (  # noqa: E402
     set_test_mode as set_aangifte_ib_test_mode,
     set_logger as set_aangifte_ib_logger,
-)  # noqa: E402
+)
 
 set_aangifte_ib_test_mode(flag)
 set_aangifte_ib_logger(logger)
 
 # Set test mode and logger for financial_reporting_bp
-from routes.financial_reporting_routes import (
+from routes.financial_reporting_routes import (  # noqa: E402
     set_test_mode as set_fin_reporting_test_mode,
     set_logger as set_fin_reporting_logger,
-)  # noqa: E402
+)
 
 set_fin_reporting_test_mode(flag)
 set_fin_reporting_logger(logger)
