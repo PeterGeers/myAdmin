@@ -10,86 +10,98 @@ from flask.typing import ResponseReturnValue
 import os
 
 # Create blueprint
-static_bp = Blueprint('static', __name__)
+static_bp = Blueprint("static", __name__)
 
 
-@static_bp.route('/static/<path:filename>')
+@static_bp.route("/static/<path:filename>")
 def serve_static(filename) -> ResponseReturnValue:
     """Serve static files from React build"""
-    static_folder = '/app/frontend/build/static'
+    static_folder = "/app/frontend/build/static"
     return send_from_directory(static_folder, filename)
 
 
-@static_bp.route('/backend-static/<path:filename>')
+@static_bp.route("/backend-static/<path:filename>")
 def serve_backend_static(filename) -> ResponseReturnValue:
     """Serve backend static files"""
-    backend_static_folder = '/app/static'
+    backend_static_folder = "/app/static"
     return send_from_directory(backend_static_folder, filename)
 
 
-@static_bp.route('/manifest.json')
+@static_bp.route("/manifest.json")
 def serve_manifest() -> ResponseReturnValue:
     """Serve React manifest.json"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
-    return send_from_directory(build_folder, 'manifest.json')
+    build_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "build"
+    )
+    return send_from_directory(build_folder, "manifest.json")
 
 
-@static_bp.route('/favicon.ico')
+@static_bp.route("/favicon.ico")
 def serve_favicon() -> ResponseReturnValue:
     """Serve React favicon"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
-    return send_from_directory(build_folder, 'favicon.ico')
+    build_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "build"
+    )
+    return send_from_directory(build_folder, "favicon.ico")
 
 
-@static_bp.route('/logo192.png')
+@static_bp.route("/logo192.png")
 def serve_logo192() -> ResponseReturnValue:
     """Serve React logo192.png"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
-    return send_from_directory(build_folder, 'logo192.png')
+    build_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "build"
+    )
+    return send_from_directory(build_folder, "logo192.png")
 
 
-@static_bp.route('/logo512.png')
+@static_bp.route("/logo512.png")
 def serve_logo512() -> ResponseReturnValue:
     """Serve React logo512.png"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
-    return send_from_directory(build_folder, 'logo512.png')
+    build_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "build"
+    )
+    return send_from_directory(build_folder, "logo512.png")
 
 
-@static_bp.route('/jabaki-logo.png')
+@static_bp.route("/jabaki-logo.png")
 def serve_jabaki_logo() -> ResponseReturnValue:
     """Serve Jabaki logo from backend static folder"""
-    static_folder = '/app/static'
-    return send_from_directory(static_folder, 'jabaki-logo.png')
+    static_folder = "/app/static"
+    return send_from_directory(static_folder, "jabaki-logo.png")
 
 
-@static_bp.route('/config.js')
+@static_bp.route("/config.js")
 def serve_config() -> ResponseReturnValue:
     """Serve React config.js"""
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
-    return send_from_directory(build_folder, 'config.js')
+    build_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "build"
+    )
+    return send_from_directory(build_folder, "config.js")
 
 
-@static_bp.route('/')
+@static_bp.route("/")
 def serve_index() -> ResponseReturnValue:
     """Serve React index.html"""
-    build_folder = '/app/frontend/build'
+    build_folder = "/app/frontend/build"
     try:
-        return send_from_directory(build_folder, 'index.html')
+        return send_from_directory(build_folder, "index.html")
     except Exception as e:
-        return jsonify({'error': 'Frontend not built', 'details': str(e)}), 404
+        return jsonify({"error": "Frontend not built", "details": str(e)}), 404
 
 
 @static_bp.app_errorhandler(404)
 def handle_404(e) -> ResponseReturnValue:
     """Handle 404 errors by serving React app for non-API routes"""
     # For API routes, return JSON error - DO NOT serve HTML
-    if request.path.startswith('/api/'):
+    if request.path.startswith("/api/"):
         print(f"404 API route: {request.path}", flush=True)
-        return jsonify({'error': 'API endpoint not found', 'path': request.path}), 404
-    
+        return jsonify({"error": "API endpoint not found", "path": request.path}), 404
+
     # Only serve React app for non-API routes
-    build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+    build_folder = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "build"
+    )
     try:
-        return send_from_directory(build_folder, 'index.html')
+        return send_from_directory(build_folder, "index.html")
     except Exception:
-        return jsonify({'error': 'Frontend not built'}), 404
+        return jsonify({"error": "Frontend not built"}), 404

@@ -178,17 +178,15 @@ class TestEnvironmentModeSwitching:
             assert db_test.test_mode is True
             assert db_prod.test_mode is False
     
-    @patch('pdf_validation.GoogleDriveService')
     @patch('pdf_validation.DatabaseManager')
-    def test_pdf_validator_test_mode(self, mock_db, mock_drive):
+    def test_pdf_validator_test_mode(self, mock_db):
         validator = PDFValidator(test_mode=True)
         
         assert validator.test_mode is True
         mock_db.assert_called_once_with(test_mode=True)
     
-    @patch('pdf_validation.GoogleDriveService')
     @patch('pdf_validation.DatabaseManager')
-    def test_pdf_validator_production_mode(self, mock_db, mock_drive):
+    def test_pdf_validator_production_mode(self, mock_db):
         validator = PDFValidator(test_mode=False)
         
         assert validator.test_mode is False

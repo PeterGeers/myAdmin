@@ -241,7 +241,7 @@ class MySQLDialect:
         Returns:
             Backtick-quoted identifier string.
         """
-        stripped = name.strip('`')
+        stripped = name.strip("`")
         return f"`{stripped}`"
 
     # --- Introspection queries (Requirements 6.2–6.4) ---

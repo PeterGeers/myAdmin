@@ -14,13 +14,14 @@ from services.invoice_service import InvoiceService
 from db_exceptions import ClosedPeriodError
 import os
 
-invoice_bp = Blueprint('invoices', __name__)
+invoice_bp = Blueprint("invoices", __name__)
 
 # Upload folder configuration
-UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = "uploads"
 
 # Access to flag from app.py (test mode)
 flag = False
+
 
 def set_test_mode(test_mode) -> None:
     """Set the test mode flag from app.py"""
@@ -28,159 +29,184 @@ def set_test_mode(test_mode) -> None:
     flag = test_mode
 
 
-@invoice_bp.route('/api/upload', methods=['POST', 'OPTIONS'])
+@invoice_bp.route("/api/upload", methods=["POST", "OPTIONS"])
 def upload_file_wrapper() -> ResponseReturnValue:
     """Upload and process PDF file - wrapper to handle OPTIONS without auth"""
-    if request.method == 'OPTIONS':
+    if request.method == "OPTIONS":
         # Handle CORS preflight without authentication
-        response = jsonify({'status': 'OK'})
+        response = jsonify({"status": "OK"})
         return response
-    
+
     # For POST requests, apply authentication
     return upload_file_authenticated()
 
-@cognito_required(required_permissions=['invoices_create'])
+
+@cognito_required(required_permissions=["invoices_create"])
 @tenant_required()
-def upload_file_authenticated(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def upload_file_authenticated(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Upload and process PDF file"""
     print("\n*** UPLOAD ENDPOINT CALLED ***", flush=True)
     print(f"Tenant: {tenant}", flush=True)
-    
+
     try:
         # Initialize invoice service
         invoice_service = InvoiceService(test_mode=flag)
-        
+
         print("=== UPLOAD REQUEST START ===", flush=True)
         print(f"Request method: {request.method}", flush=True)
         print(f"Request files: {list(request.files.keys())}", flush=True)
         print(f"Request form field count: {len(request.form)}", flush=True)
-        
-        if 'file' not in request.files:
+
+        if "file" not in request.files:
             print("ERROR: No file in request", flush=True)
-            return jsonify({'success': False, 'error': 'No file provided'}), 400
-        
-        file = request.files['file']
-        folder_name = request.form.get('folderName', 'General')
+            return jsonify({"success": False, "error": "No file provided"}), 400
+
+        file = request.files["file"]
+        folder_name = request.form.get("folderName", "General")
         print(f"File: {file.filename}, Folder: {folder_name}", flush=True)
-        
-        if file.filename == '':
+
+        if file.filename == "":
             print("ERROR: No file selected", flush=True)
-            return jsonify({'success': False, 'error': 'No file selected'}), 400
-        
+            return jsonify({"success": False, "error": "No file selected"}), 400
+
         if file and invoice_service.allowed_file(file.filename):
             filename = secure_filename(file.filename)
             temp_path = os.path.join(UPLOAD_FOLDER, filename)
             print(f"Saving file to: {temp_path}", flush=True)
             file.save(temp_path)
             print("File saved successfully", flush=True)
-            
+
             # Upload to Google Drive
-            drive_result = invoice_service.upload_to_drive(temp_path, filename, folder_name, tenant)
-            
+            drive_result = invoice_service.upload_to_drive(
+                temp_path, filename, folder_name, tenant
+            )
+
             # Check if user wants to force upload (bypass duplicate check)
-            force_upload = request.form.get('forceUpload', 'false').lower() == 'true'
-            
+            force_upload = request.form.get("forceUpload", "false").lower() == "true"
+
             if not force_upload:
                 # Early duplicate detection - check before processing
                 print("Checking for duplicates before processing...", flush=True)
                 duplicate_check_result = invoice_service.check_early_duplicates(
                     filename, folder_name, drive_result, tenant
                 )
-                if duplicate_check_result['has_duplicates']:
-                    print(f"Duplicate detected - stopping upload: {duplicate_check_result['message']}", flush=True)
+                if duplicate_check_result["has_duplicates"]:
+                    print(
+                        f"Duplicate detected - stopping upload: {duplicate_check_result['message']}",
+                        flush=True,
+                    )
                     # Clean up temp file
                     invoice_service.cleanup_temp_file(temp_path)
-                    return jsonify({
-                        'success': False,
-                        'error': 'duplicate_detected',
-                        'message': duplicate_check_result['message'],
-                        'duplicate_info': duplicate_check_result['duplicate_info']
-                    }), 409
+                    return jsonify(
+                        {
+                            "success": False,
+                            "error": "duplicate_detected",
+                            "message": duplicate_check_result["message"],
+                            "duplicate_info": duplicate_check_result["duplicate_info"],
+                        }
+                    ), 409
             else:
                 print("Force upload enabled - bypassing duplicate check...", flush=True)
-            
+
             print("No duplicates found - proceeding with processing...", flush=True)
-            
+
             # Process the invoice file
-            result = invoice_service.process_invoice_file(temp_path, drive_result, folder_name, tenant)
-            
+            result = invoice_service.process_invoice_file(
+                temp_path, drive_result, folder_name, tenant
+            )
+
             # Move file to the correct vendor folder
             try:
-                invoice_service.move_file_to_folder(temp_path, filename, result['folder'])
+                invoice_service.move_file_to_folder(
+                    temp_path, filename, result["folder"]
+                )
             except Exception as move_error:
                 print(f"Error moving file: {move_error}", flush=True)
                 # Continue even if move fails - file is already processed
-            
+
             # Build vendorData from first transaction for frontend display
             vendor_data = None
-            if result['transactions']:
-                first_tx = result['transactions'][0]
+            if result["transactions"]:
+                first_tx = result["transactions"][0]
                 vendor_data = {
-                    'date': first_tx.get('date'),
-                    'total_amount': first_tx.get('amount', 0),
-                    'vat_amount': result['transactions'][1].get('amount', 0) if len(result['transactions']) > 1 and 'VAT' in (result['transactions'][1].get('description') or '') else 0,
-                    'description': first_tx.get('description', ''),
-                    'vendor': result['folder']
+                    "date": first_tx.get("date"),
+                    "total_amount": first_tx.get("amount", 0),
+                    "vat_amount": result["transactions"][1].get("amount", 0)
+                    if len(result["transactions"]) > 1
+                    and "VAT" in (result["transactions"][1].get("description") or "")
+                    else 0,
+                    "description": first_tx.get("description", ""),
+                    "vendor": result["folder"],
                 }
 
-            return jsonify({
-                'success': True,
-                'filename': filename,
-                'folder': result['folder'],
-                'extractedText': result['extracted_text'],
-                'vendorData': vendor_data,
-                'transactions': result['transactions'],
-                'preparedTransactions': result['prepared_transactions'],
-                'templateTransactions': result['template_transactions'],
-                'parserUsed': result['parser_used']
-            })
-        
-        return jsonify({'success': False, 'error': 'Invalid file type'}), 400
-        
+            return jsonify(
+                {
+                    "success": True,
+                    "filename": filename,
+                    "folder": result["folder"],
+                    "extractedText": result["extracted_text"],
+                    "vendorData": vendor_data,
+                    "transactions": result["transactions"],
+                    "preparedTransactions": result["prepared_transactions"],
+                    "templateTransactions": result["template_transactions"],
+                    "parserUsed": result["parser_used"],
+                }
+            )
+
+        return jsonify({"success": False, "error": "Invalid file type"}), 400
+
     except Exception as e:
         print("\n=== UPLOAD ERROR ===", flush=True)
         print(f"Error type: {type(e).__name__}", flush=True)
         print(f"Error message: {str(e)}", flush=True)
         import traceback
+
         print("Full traceback:", flush=True)
         traceback.print_exc()
         print("=== END ERROR ===", flush=True)
-        return jsonify({'success': False, 'error': f"{type(e).__name__}: {str(e)}"}), 500
+        return jsonify(
+            {"success": False, "error": f"{type(e).__name__}: {str(e)}"}
+        ), 500
 
 
-
-@invoice_bp.route('/api/approve-transactions', methods=['POST'])
-@cognito_required(required_permissions=['transactions_create'])
+@invoice_bp.route("/api/approve-transactions", methods=["POST"])
+@cognito_required(required_permissions=["transactions_create"])
 @tenant_required()
-def approve_transactions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def approve_transactions(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Save approved transactions to database"""
     from transaction_logic import TransactionLogic
-    
+
     try:
         transaction_logic = TransactionLogic(test_mode=flag)
         data = request.get_json()
-        transactions = data.get('transactions', [])
-        
+        transactions = data.get("transactions", [])
+
         # Enforce tenant on all transactions before saving
         for txn in transactions:
-            txn['Administration'] = tenant
-        
+            txn["Administration"] = tenant
+
         saved_transactions = transaction_logic.save_approved_transactions(transactions)
-        
+
         skipped = len(transactions) - len(saved_transactions)
-        msg = f'Successfully saved {len(saved_transactions)} transactions'
+        msg = f"Successfully saved {len(saved_transactions)} transactions"
         if skipped > 0:
-            msg += f' ({skipped} zero-amount lines skipped)'
-        
-        return jsonify({
-            'success': True,
-            'savedTransactions': saved_transactions,
-            'skippedCount': skipped,
-            'message': msg
-        })
+            msg += f" ({skipped} zero-amount lines skipped)"
+
+        return jsonify(
+            {
+                "success": True,
+                "savedTransactions": saved_transactions,
+                "skippedCount": skipped,
+                "message": msg,
+            }
+        )
     except ClosedPeriodError as e:
         print(f"Closed period error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         print(f"Approval error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

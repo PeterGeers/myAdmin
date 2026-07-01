@@ -270,9 +270,9 @@ class TestOpeningBalanceDateEndpoint:
 
     def test_with_closure_returns_date_and_year(self, client):
         """With closure → returns opening_balance_date and last_closed_year"""
-        with patch('banking_checks._get_opening_balance_date', return_value='2025-01-01'), \
+        with patch('routes.banking_routes._get_opening_balance_date', return_value='2025-01-01', create=True), \
              patch('banking_processor._get_opening_balance_date', return_value='2025-01-01'), \
-             patch('database.DatabaseManager'):
+             patch('routes.banking_routes.DatabaseManager'):
 
             resp = client.get('/api/banking/opening-balance-date')
 
@@ -284,9 +284,9 @@ class TestOpeningBalanceDateEndpoint:
 
     def test_without_closure_returns_nulls(self, client):
         """Without closure → returns nulls"""
-        with patch('banking_checks._get_opening_balance_date', return_value=None), \
+        with patch('routes.banking_routes._get_opening_balance_date', return_value=None, create=True), \
              patch('banking_processor._get_opening_balance_date', return_value=None), \
-             patch('database.DatabaseManager'):
+             patch('routes.banking_routes.DatabaseManager'):
 
             resp = client.get('/api/banking/opening-balance-date')
 

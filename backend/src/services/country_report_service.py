@@ -15,24 +15,25 @@ logger = logging.getLogger(__name__)
 def get_country_report_data(user_tenants):
     """
     Fetch country booking data from database
-    
+
     Args:
         user_tenants: List of tenant IDs the user has access to
-        
+
     Returns:
         tuple: (country_data, region_data, total_bookings)
     """
     from database import DatabaseManager
-    
+
     db = DatabaseManager(test_mode=False)
     connection = db.get_connection()
     cursor = connection.cursor()
-    
+
     # Build tenant filter
-    placeholders = ', '.join(['%s'] * len(user_tenants))
-    
+    placeholders = ", ".join(["%s"] * len(user_tenants))
+
     # Get country statistics with JOIN to countries table
-    cursor.execute(f"""
+    cursor.execute(
+        f"""
         SELECT 
             v.country, 
             c.name as countryName, 
@@ -44,19 +45,25 @@ def get_country_report_data(user_tenants):
         WHERE v.country IS NOT NULL AND v.administration IN ({placeholders})
         GROUP BY v.country, c.name, c.name_nl, c.region
         ORDER BY COUNT(*) DESC
-    """, user_tenants)
-    
+    """,
+        user_tenants,
+    )
+
     country_data = cursor.fetchall()
-    
+
     # Get total bookings
-    cursor.execute(f"""
+    cursor.execute(
+        f"""
         SELECT COUNT(*) FROM vw_bnb_total 
         WHERE country IS NOT NULL AND administration IN ({placeholders})
-    """, user_tenants)
+    """,
+        user_tenants,
+    )
     total_bookings = cursor.fetchone()[0]
-    
+
     # Get bookings by region
-    cursor.execute(f"""
+    cursor.execute(
+        f"""
         SELECT 
             c.region as countryRegion,
             COUNT(*) as bookings
@@ -65,29 +72,31 @@ def get_country_report_data(user_tenants):
         WHERE c.region IS NOT NULL AND v.administration IN ({placeholders})
         GROUP BY c.region
         ORDER BY bookings DESC
-    """, user_tenants)
-    
+    """,
+        user_tenants,
+    )
+
     region_data = cursor.fetchall()
-    
+
     cursor.close()
     connection.close()
-    
+
     return country_data, region_data, total_bookings
 
 
 def generate_country_report_html(country_data, region_data, total_bookings):
     """
     Generate HTML content for country bookings report
-    
+
     Args:
         country_data: List of tuples (country_code, name, name_nl, region, bookings)
         region_data: List of tuples (region, bookings)
         total_bookings: Total number of bookings
-        
+
     Returns:
         str: Complete HTML content for the report
     """
-    
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -295,7 +304,7 @@ def generate_country_report_html(country_data, region_data, total_bookings):
         <div class="header">
             <h1>🌍 Bookings by Country</h1>
             <div class="subtitle">Guest Origin Analysis Report</div>
-            <div class="subtitle">Generated: {datetime.now().strftime('%B %d, %Y at %H:%M')}</div>
+            <div class="subtitle">Generated: {datetime.now().strftime("%B %d, %Y at %H:%M")}</div>
         </div>
         
         <div class="stats-grid">
@@ -312,7 +321,7 @@ def generate_country_report_html(country_data, region_data, total_bookings):
                 <div class="label">Regions</div>
             </div>
             <div class="stat-card">
-                <div class="number">{country_data[0][1] if country_data else 'N/A'}</div>
+                <div class="number">{country_data[0][1] if country_data else "N/A"}</div>
                 <div class="label">Top Country</div>
             </div>
         </div>
@@ -332,12 +341,12 @@ def generate_country_report_html(country_data, region_data, total_bookings):
                         </thead>
                         <tbody>
 """
-    
+
     # Add region data
     for region, bookings in region_data:
-        percentage = (bookings / total_bookings * 100)
+        percentage = bookings / total_bookings * 100
         bar_width = percentage
-        region_class = region.lower().replace(' ', '-').replace('/', '-')
+        region_class = region.lower().replace(" ", "-").replace("/", "-")
         html_content += f"""
                             <tr>
                                 <td><span class="region-badge {region_class}">{region}</span></td>
@@ -346,7 +355,7 @@ def generate_country_report_html(country_data, region_data, total_bookings):
                                 <td><div class="chart-bar" style="width: {bar_width}%;"></div></td>
                             </tr>
 """
-    
+
     html_content += """
                         </tbody>
                     </table>
@@ -369,11 +378,13 @@ def generate_country_report_html(country_data, region_data, total_bookings):
                         </thead>
                         <tbody>
 """
-    
+
     # Add country data
     for rank, (code, name, name_nl, region, bookings) in enumerate(country_data, 1):
-        percentage = (bookings / total_bookings * 100)
-        region_class = region.lower().replace(' ', '-').replace('/', '-') if region else ''
+        percentage = bookings / total_bookings * 100
+        region_class = (
+            region.lower().replace(" ", "-").replace("/", "-") if region else ""
+        )
         html_content += f"""
                             <tr>
                                 <td><strong>#{rank}</strong></td>
@@ -381,13 +392,13 @@ def generate_country_report_html(country_data, region_data, total_bookings):
                                     <span class="country-code">{code}</span>
                                     {name}
                                 </td>
-                                <td>{name_nl or 'N/A'}</td>
-                                <td><span class="region-badge {region_class}">{region or 'N/A'}</span></td>
+                                <td>{name_nl or "N/A"}</td>
+                                <td><span class="region-badge {region_class}">{region or "N/A"}</span></td>
                                 <td class="number">{bookings:,}</td>
                                 <td class="number">{percentage:.1f}%</td>
                             </tr>
 """
-    
+
     html_content += f"""
                         </tbody>
                     </table>
@@ -403,29 +414,29 @@ def generate_country_report_html(country_data, region_data, total_bookings):
 </body>
 </html>
 """
-    
+
     return html_content
 
 
-def save_report(html_content, output_filename='country_bookings_report.html'):
+def save_report(html_content, output_filename="country_bookings_report.html"):
     """
     Save HTML report to file system
-    
+
     Args:
         html_content: HTML string to save
         output_filename: Name of the output file
-        
+
     Returns:
         Path: Path to the saved file
     """
     # Determine the reports directory (relative to this service file)
-    output_dir = Path(__file__).parent.parent.parent / 'reports'
+    output_dir = Path(__file__).parent.parent.parent / "reports"
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / output_filename
-    
-    with open(output_file, 'w', encoding='utf-8') as f:
+
+    with open(output_file, "w", encoding="utf-8") as f:
         f.write(html_content)
-    
-    logger.info(f'Country report saved: {output_file}')
-    
+
+    logger.info(f"Country report saved: {output_file}")
+
     return output_file

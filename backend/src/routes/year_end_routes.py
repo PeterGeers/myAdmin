@@ -21,18 +21,20 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from services.year_end_service import YearEndClosureService
 
-year_end_bp = Blueprint('year_end', __name__)
+year_end_bp = Blueprint("year_end", __name__)
 
 
-@year_end_bp.route('/api/year-end/available-years', methods=['GET'])
-@cognito_required(required_permissions=['finance_read'])
+@year_end_bp.route("/api/year-end/available-years", methods=["GET"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
-def get_available_years(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_available_years(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """
     Get list of years that can be closed.
-    
+
     Returns years with transactions that haven't been closed yet.
-    
+
     Returns:
         [
             {
@@ -43,29 +45,28 @@ def get_available_years(user_email, user_roles, tenant, user_tenants) -> Respons
     try:
         service = YearEndClosureService()
         years = service.get_available_years(tenant)
-        
+
         # Format as list of year objects
-        return jsonify([{'year': year} for year in years]), 200
-    
+        return jsonify([{"year": year} for year in years]), 200
+
     except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'message': 'Failed to get available years'
-        }), 500
+        return jsonify(
+            {"error": str(e), "message": "Failed to get available years"}
+        ), 500
 
 
-@year_end_bp.route('/api/year-end/validate', methods=['POST'])
-@cognito_required(required_permissions=['finance_read'])
+@year_end_bp.route("/api/year-end/validate", methods=["POST"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
 def validate_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Validate if a year is ready to be closed.
-    
+
     Request body:
         {
             "year": int
         }
-    
+
     Returns:
         {
             "can_close": bool,
@@ -80,45 +81,40 @@ def validate_year(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
     """
     try:
         data = request.get_json()
-        year = data.get('year')
-        
+        year = data.get("year")
+
         if not year:
-            return jsonify({
-                'error': 'year is required'
-            }), 400
-        
+            return jsonify({"error": "year is required"}), 400
+
         service = YearEndClosureService()
         validation = service.validate_year_closure(tenant, year)
-        
+
         return jsonify(validation), 200
-    
+
     except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'message': 'Failed to validate year'
-        }), 500
+        return jsonify({"error": str(e), "message": "Failed to validate year"}), 500
 
 
-@year_end_bp.route('/api/year-end/close', methods=['POST'])
-@cognito_required(required_permissions=['finance_write'])
+@year_end_bp.route("/api/year-end/close", methods=["POST"])
+@cognito_required(required_permissions=["finance_write"])
 @tenant_required()
 def close_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Close a fiscal year.
-    
+
     This creates:
     1. Year-end closure transaction (P&L to equity)
     2. Opening balance transactions for next year
     3. Closure status record
-    
+
     All operations are performed in a database transaction.
-    
+
     Request body:
         {
             "year": int,
             "notes": str (optional)
         }
-    
+
     Returns:
         {
             "success": bool,
@@ -133,34 +129,36 @@ def close_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
     """
     try:
         data = request.get_json()
-        year = data.get('year')
-        notes = data.get('notes', '')
-        
+        year = data.get("year")
+        notes = data.get("notes", "")
+
         if not year:
-            return jsonify({
-                'error': 'year is required'
-            }), 400
-        
+            return jsonify({"error": "year is required"}), 400
+
         service = YearEndClosureService()
         result = service.close_year(tenant, year, user_email, notes)
-        
+
         return jsonify(result), 200
-    
+
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'message': f'Failed to close year {data.get("year", "unknown")}'
-        }), 500
+        return jsonify(
+            {
+                "success": False,
+                "error": str(e),
+                "message": f"Failed to close year {data.get('year', 'unknown')}",
+            }
+        ), 500
 
 
-@year_end_bp.route('/api/year-end/closed-years', methods=['GET'])
-@cognito_required(required_permissions=['finance_read'])
+@year_end_bp.route("/api/year-end/closed-years", methods=["GET"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
-def get_closed_years(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_closed_years(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """
     Get list of closed years with details.
-    
+
     Returns:
         [
             {
@@ -176,23 +174,22 @@ def get_closed_years(user_email, user_roles, tenant, user_tenants) -> ResponseRe
     try:
         service = YearEndClosureService()
         closed_years = service.get_closed_years(tenant)
-        
+
         return jsonify(closed_years), 200
-    
+
     except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'message': 'Failed to get closed years'
-        }), 500
+        return jsonify({"error": str(e), "message": "Failed to get closed years"}), 500
 
 
-@year_end_bp.route('/api/year-end/status/<int:year>', methods=['GET'])
-@cognito_required(required_permissions=['finance_read'])
+@year_end_bp.route("/api/year-end/status/<int:year>", methods=["GET"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
-def get_year_status(year, user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_year_status(
+    year, user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """
     Get closure status for a specific year.
-    
+
     Returns:
         {
             "year": int,
@@ -202,46 +199,43 @@ def get_year_status(year, user_email, user_roles, tenant, user_tenants) -> Respo
             "opening_balance_transaction_number": str,
             "notes": str
         }
-        
+
         Or null if year is not closed.
     """
     try:
         service = YearEndClosureService()
         status = service.get_year_status(tenant, year)
-        
+
         if status:
             return jsonify(status), 200
         else:
-            return jsonify({
-                'year': year,
-                'closed': False,
-                'message': f'Year {year} is not closed'
-            }), 200
-    
+            return jsonify(
+                {"year": year, "closed": False, "message": f"Year {year} is not closed"}
+            ), 200
+
     except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'message': f'Failed to get status for year {year}'
-        }), 500
+        return jsonify(
+            {"error": str(e), "message": f"Failed to get status for year {year}"}
+        ), 500
 
 
-@year_end_bp.route('/api/year-end/reopen', methods=['POST'])
-@cognito_required(required_permissions=['finance_write'])
+@year_end_bp.route("/api/year-end/reopen", methods=["POST"])
+@cognito_required(required_permissions=["finance_write"])
 @tenant_required()
 def reopen_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Reopen a closed fiscal year.
-    
+
     This reverses the year closure by deleting:
     1. Opening balance transactions for next year
     2. Year-end closure transaction
     3. Closure status record
-    
+
     Request body:
         {
             "year": int
         }
-    
+
     Returns:
         {
             "success": bool,
@@ -251,21 +245,21 @@ def reopen_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
     """
     try:
         data = request.get_json()
-        year = data.get('year')
-        
+        year = data.get("year")
+
         if not year:
-            return jsonify({
-                'error': 'year is required'
-            }), 400
-        
+            return jsonify({"error": "year is required"}), 400
+
         service = YearEndClosureService()
         result = service.reopen_year(tenant, year, user_email)
-        
+
         return jsonify(result), 200
-    
+
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'message': f'Failed to reopen year {data.get("year", "unknown")}'
-        }), 500
+        return jsonify(
+            {
+                "success": False,
+                "error": str(e),
+                "message": f"Failed to reopen year {data.get('year', 'unknown')}",
+            }
+        ), 500

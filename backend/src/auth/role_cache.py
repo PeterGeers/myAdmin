@@ -37,9 +37,9 @@ def get_tenant_roles(email: str, tenant: str, db) -> List[str]:
     rows = db.execute_query(
         "SELECT role FROM user_tenant_roles WHERE email = %s AND administration = %s",
         (email, tenant),
-        fetch=True
+        fetch=True,
     )
-    roles = [r['role'] for r in (rows or [])]
+    roles = [r["role"] for r in (rows or [])]
     _role_cache[key] = (roles, now)
     return roles
 

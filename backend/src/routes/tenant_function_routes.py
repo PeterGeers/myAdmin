@@ -22,19 +22,21 @@ from services.tenant_function_service import TenantFunctionService
 
 logger = logging.getLogger(__name__)
 
-tenant_function_bp = Blueprint('tenant_functions', __name__)
+tenant_function_bp = Blueprint("tenant_functions", __name__)
 
 
 def _get_service() -> "TenantFunctionService":
-    test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
     db = DatabaseManager(test_mode=test_mode)
     return TenantFunctionService(db)
 
 
-@tenant_function_bp.route('/api/tenant/functions', methods=['GET'])
+@tenant_function_bp.route("/api/tenant/functions", methods=["GET"])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def get_tenant_functions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_tenant_functions(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """
     Get all optional functions with their activation state for the current tenant.
 
@@ -46,16 +48,18 @@ def get_tenant_functions(user_email, user_roles, tenant, user_tenants) -> Respon
     try:
         service = _get_service()
         functions = service.get_all_functions(tenant)
-        return jsonify({'success': True, 'data': functions})
+        return jsonify({"success": True, "data": functions})
     except Exception as e:
         logger.error(f"Error getting tenant functions: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@tenant_function_bp.route('/api/tenant/functions', methods=['POST'])
+@tenant_function_bp.route("/api/tenant/functions", methods=["POST"])
 @cognito_required(required_permissions=[])
 @tenant_required()
-def toggle_tenant_function(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def toggle_tenant_function(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """
     Toggle an optional function for the current tenant.
 
@@ -68,56 +72,66 @@ def toggle_tenant_function(user_email, user_roles, tenant, user_tenants) -> Resp
     """
     try:
         # Step 1: Check Tenant_Admin role
-        if 'Tenant_Admin' not in user_roles:
-            return jsonify({'success': False, 'error': 'Access denied'}), 403
+        if "Tenant_Admin" not in user_roles:
+            return jsonify({"success": False, "error": "Access denied"}), 403
 
         # Step 2: Parse request body
         data = request.get_json(silent=True)
         if not data:
-            return jsonify({
-                'success': False,
-                'error': 'Request body must be valid JSON with '
-                         '"function_name" and "is_active" fields'
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Request body must be valid JSON with "
+                    '"function_name" and "is_active" fields',
+                }
+            ), 400
 
-        function_name = data.get('function_name')
-        is_active = data.get('is_active')
+        function_name = data.get("function_name")
+        is_active = data.get("is_active")
 
         # Step 3: Validate function_name in FUNCTION_REGISTRY
         if not function_name or function_name not in FUNCTION_REGISTRY:
             valid_names = list(FUNCTION_REGISTRY.keys())
-            return jsonify({
-                'success': False,
-                'error': f'Invalid function_name. Must be one of: {valid_names}'
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Invalid function_name. Must be one of: {valid_names}",
+                }
+            ), 400
 
         # Step 4: Validate is_active is a boolean
         if is_active is None or not isinstance(is_active, bool):
-            return jsonify({
-                'success': False,
-                'error': 'Missing or invalid "is_active" field: must be a boolean'
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": 'Missing or invalid "is_active" field: must be a boolean',
+                }
+            ), 400
 
         # Step 5: Check parent module is active
-        parent_module = FUNCTION_REGISTRY[function_name]['parent_module']
+        parent_module = FUNCTION_REGISTRY[function_name]["parent_module"]
         db = DatabaseManager(
-            test_mode=os.getenv('TEST_MODE', 'false').lower() == 'true'
+            test_mode=os.getenv("TEST_MODE", "false").lower() == "true"
         )
         if not has_module(db, tenant, parent_module):
-            return jsonify({
-                'success': False,
-                'error': f"Parent module '{parent_module}' must be activated first"
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Parent module '{parent_module}' must be activated first",
+                }
+            ), 400
 
         # Step 6: Persist the toggle state
         service = _get_service()
-        result = service.set_function_state(tenant, function_name, is_active, user_email)
+        result = service.set_function_state(
+            tenant, function_name, is_active, user_email
+        )
 
-        if result['success']:
+        if result["success"]:
             return jsonify(result)
         else:
             return jsonify(result), 500
 
     except Exception as e:
         logger.error(f"Error toggling tenant function: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

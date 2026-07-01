@@ -58,19 +58,24 @@ def years_to_date_range_conditions(years):
 
     # Check if years are contiguous
     is_contiguous = all(
-        year_ints[i] + 1 == year_ints[i + 1]
-        for i in range(len(year_ints) - 1)
+        year_ints[i] + 1 == year_ints[i + 1] for i in range(len(year_ints) - 1)
     )
 
     if is_contiguous and len(year_ints) > 1:
         # Single range covering all contiguous years
         start_date = f"{year_ints[0]}-01-01"
         end_date = f"{year_ints[-1] + 1}-01-01"
-        return ("TransactionDate >= %s AND TransactionDate < %s", [start_date, end_date])
+        return (
+            "TransactionDate >= %s AND TransactionDate < %s",
+            [start_date, end_date],
+        )
 
     if len(year_ints) == 1:
         start_date, end_date = year_to_date_range(year_ints[0])
-        return ("TransactionDate >= %s AND TransactionDate < %s", [start_date, end_date])
+        return (
+            "TransactionDate >= %s AND TransactionDate < %s",
+            [start_date, end_date],
+        )
 
     # Non-contiguous: build OR conditions
     conditions = []

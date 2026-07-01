@@ -27,6 +27,7 @@ class GoogleDriveStorage(StorageProvider):
         """Lazy-init the GoogleDriveService."""
         if self._service is None:
             from google_drive_service import GoogleDriveService
+
             self._service = GoogleDriveService(
                 self.tenant, parameter_service=self.parameter_service
             )
@@ -36,16 +37,17 @@ class GoogleDriveStorage(StorageProvider):
         """Upload file to Google Drive. Returns the file ID as reference."""
         import tempfile
         import os
+
         metadata = metadata or {}
-        folder_id = metadata.get('folder_id', '')
-        filename = metadata.get('filename') or os.path.basename(path)
-        mime_type = metadata.get('mime_type', 'application/octet-stream')
+        folder_id = metadata.get("folder_id", "")
+        filename = metadata.get("filename") or os.path.basename(path)
+        mime_type = metadata.get("mime_type", "application/octet-stream")
 
         svc = self._get_service()
 
-        if isinstance(file_data, bytes) and mime_type.startswith('text/'):
+        if isinstance(file_data, bytes) and mime_type.startswith("text/"):
             result = svc.upload_text_file(
-                file_data.decode('utf-8'), filename, folder_id, mime_type
+                file_data.decode("utf-8"), filename, folder_id, mime_type
             )
         else:
             with tempfile.NamedTemporaryFile(delete=False, suffix=filename) as tmp:
@@ -56,7 +58,7 @@ class GoogleDriveStorage(StorageProvider):
             finally:
                 os.unlink(tmp_path)
 
-        return result.get('id', '')
+        return result.get("id", "")
 
     def download(self, reference: str) -> bytes:
         """Download file from Google Drive by file ID."""
@@ -77,19 +79,23 @@ class GoogleDriveStorage(StorageProvider):
         """List files in a Google Drive folder (path = folder ID)."""
         try:
             svc = self._get_service()
-            results = svc.service.files().list(
-                q=f"'{path}' in parents and trashed=false",
-                fields="files(id, name, mimeType, size, modifiedTime)"
-            ).execute()
+            results = (
+                svc.service.files()
+                .list(
+                    q=f"'{path}' in parents and trashed=false",
+                    fields="files(id, name, mimeType, size, modifiedTime)",
+                )
+                .execute()
+            )
             return [
                 {
-                    'id': f['id'],
-                    'name': f['name'],
-                    'mime_type': f.get('mimeType'),
-                    'size': f.get('size'),
-                    'modified': f.get('modifiedTime'),
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mime_type": f.get("mimeType"),
+                    "size": f.get("size"),
+                    "modified": f.get("modifiedTime"),
                 }
-                for f in results.get('files', [])
+                for f in results.get("files", [])
             ]
         except Exception as e:
             logger.error("Failed to list Google Drive folder %s: %s", path, e)

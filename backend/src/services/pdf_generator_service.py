@@ -23,14 +23,26 @@ from dialect_helpers import dialect  # noqa: E402
 
 # Map ISO 3166-1 country codes/names to Babel locale identifiers
 COUNTRY_LOCALE_MAP = {
-    'NL': 'nl_NL', 'Nederland': 'nl_NL', 'Netherlands': 'nl_NL',
-    'DE': 'de_DE', 'Duitsland': 'de_DE', 'Germany': 'de_DE',
-    'US': 'en_US', 'Verenigde Staten': 'en_US', 'United States': 'en_US',
-    'GB': 'en_GB', 'Verenigd Koninkrijk': 'en_GB', 'United Kingdom': 'en_GB',
-    'FR': 'fr_FR', 'Frankrijk': 'fr_FR', 'France': 'fr_FR',
-    'BE': 'nl_BE', 'Belgie': 'nl_BE', 'Belgium': 'nl_BE',
+    "NL": "nl_NL",
+    "Nederland": "nl_NL",
+    "Netherlands": "nl_NL",
+    "DE": "de_DE",
+    "Duitsland": "de_DE",
+    "Germany": "de_DE",
+    "US": "en_US",
+    "Verenigde Staten": "en_US",
+    "United States": "en_US",
+    "GB": "en_GB",
+    "Verenigd Koninkrijk": "en_GB",
+    "United Kingdom": "en_GB",
+    "FR": "fr_FR",
+    "Frankrijk": "fr_FR",
+    "France": "fr_FR",
+    "BE": "nl_BE",
+    "Belgie": "nl_BE",
+    "Belgium": "nl_BE",
 }
-DEFAULT_LOCALE = 'nl_NL'
+DEFAULT_LOCALE = "nl_NL"
 
 
 class PDFGeneratorService:
@@ -62,27 +74,31 @@ class PDFGeneratorService:
         html = self._render_html(tenant, invoice, is_preview=True)
         return self._html_to_pdf(html)
 
-    def _render_html(self, tenant: str, invoice: dict,
-                     is_copy: bool = False,
-                     is_preview: bool = False) -> str:
+    def _render_html(
+        self,
+        tenant: str,
+        invoice: dict,
+        is_copy: bool = False,
+        is_preview: bool = False,
+    ) -> str:
         """Render the invoice HTML from template + data."""
         template_html = self._load_template(tenant)
         logo_url = self._get_tenant_logo(tenant)
         branding = self._get_branding(tenant)
 
-        contact = invoice.get('contact', {})
+        contact = invoice.get("contact", {})
         # If contact only has summary fields, try to load full contact
-        if contact and not contact.get('street_address'):
-            full = self._load_full_contact(tenant, contact.get('id'))
+        if contact and not contact.get("street_address"):
+            full = self._load_full_contact(tenant, contact.get("id"))
             if full:
                 contact = full
 
-        lines = invoice.get('lines', [])
-        vat_summary = invoice.get('vat_summary', [])
+        lines = invoice.get("lines", [])
+        vat_summary = invoice.get("vat_summary", [])
 
         # Resolve locale from client's country for formatting
         locale = self._resolve_locale(contact)
-        currency = invoice.get('currency', 'EUR')
+        currency = invoice.get("currency", "EUR")
 
         def fmt_amount(val):
             return self._format_amount(val, currency, locale)
@@ -94,74 +110,74 @@ class PDFGeneratorService:
             return self._format_date(val, locale)
 
         # Build lines HTML
-        lines_html = ''
+        lines_html = ""
         for line in lines:
             lines_html += (
-                f'<tr>'
-                f'<td>{line.get("description", "")}</td>'
+                f"<tr>"
+                f"<td>{line.get('description', '')}</td>"
                 f'<td class="right">{fmt_qty(line.get("quantity", 0))}</td>'
                 f'<td class="right">{fmt_amount(line.get("unit_price", 0))}</td>'
                 f'<td class="right">{float(line.get("vat_rate", 0)):.0f}%</td>'
                 f'<td class="right">{fmt_amount(line.get("line_total", 0))}</td>'
-                f'</tr>'
+                f"</tr>"
             )
 
         # Build VAT summary HTML
-        vat_html = ''
+        vat_html = ""
         for v in vat_summary:
             vat_html += (
-                f'<tr>'
-                f'<td>{v.get("vat_code", "")} ({float(v.get("vat_rate", 0)):.0f}%)</td>'
+                f"<tr>"
+                f"<td>{v.get('vat_code', '')} ({float(v.get('vat_rate', 0)):.0f}%)</td>"
                 f'<td class="right">{fmt_amount(v.get("base_amount", 0))}</td>'
                 f'<td class="right">{fmt_amount(v.get("vat_amount", 0))}</td>'
-                f'</tr>'
+                f"</tr>"
             )
 
-        logo_tag = f'<img src="{logo_url}" class="logo" />' if logo_url else ''
+        logo_tag = f'<img src="{logo_url}" class="logo" />' if logo_url else ""
 
         # Determine watermark: preview (locale-aware) takes precedence, then copy
         if is_preview:
-            watermark_text = 'CONCEPT' if locale == 'nl_NL' else 'DRAFT'
+            watermark_text = "CONCEPT" if locale == "nl_NL" else "DRAFT"
             copy_watermark = f'<div class="watermark">{watermark_text}</div>'
         elif is_copy:
             copy_watermark = '<div class="watermark">COPY</div>'
         else:
-            copy_watermark = ''
+            copy_watermark = ""
 
         replacements = {
-            '{{logo}}': logo_tag,
-            '{{copy_watermark}}': copy_watermark,
-            '{{invoice_number}}': invoice.get('invoice_number', ''),
-            '{{invoice_date}}': fmt_date(invoice.get('invoice_date', '')),
-            '{{due_date}}': fmt_date(invoice.get('due_date', '')),
-            '{{currency}}': invoice.get('currency', 'EUR'),
-            '{{payment_terms}}': str(invoice.get('payment_terms_days', 30)),
-            '{{notes}}': invoice.get('notes', '') or '',
+            "{{logo}}": logo_tag,
+            "{{copy_watermark}}": copy_watermark,
+            "{{invoice_number}}": invoice.get("invoice_number", ""),
+            "{{invoice_date}}": fmt_date(invoice.get("invoice_date", "")),
+            "{{due_date}}": fmt_date(invoice.get("due_date", "")),
+            "{{currency}}": invoice.get("currency", "EUR"),
+            "{{payment_terms}}": str(invoice.get("payment_terms_days", 30)),
+            "{{notes}}": invoice.get("notes", "") or "",
             # Tenant (sender) branding
-            '{{tenant_name}}': branding.get('company_name', ''),
-            '{{tenant_address}}': branding.get('company_address', ''),
-            '{{tenant_postal_city}}': branding.get('company_postal_city', ''),
-            '{{tenant_country}}': branding.get('company_country', ''),
-            '{{tenant_vat}}': branding.get('company_vat', ''),
-            '{{tenant_coc}}': branding.get('company_coc', ''),
-            '{{tenant_email}}': branding.get('contact_email', ''),
-            '{{tenant_iban}}': branding.get('company_iban', ''),
-            '{{tenant_phone}}': branding.get('company_phone', ''),
+            "{{tenant_name}}": branding.get("company_name", ""),
+            "{{tenant_address}}": branding.get("company_address", ""),
+            "{{tenant_postal_city}}": branding.get("company_postal_city", ""),
+            "{{tenant_country}}": branding.get("company_country", ""),
+            "{{tenant_vat}}": branding.get("company_vat", ""),
+            "{{tenant_coc}}": branding.get("company_coc", ""),
+            "{{tenant_email}}": branding.get("contact_email", ""),
+            "{{tenant_iban}}": branding.get("company_iban", ""),
+            "{{tenant_phone}}": branding.get("company_phone", ""),
             # Client (recipient) contact
-            '{{company_name}}': contact.get('company_name', ''),
-            '{{client_id}}': contact.get('client_id', ''),
-            '{{contact_person}}': contact.get('contact_person', '') or '',
-            '{{street_address}}': contact.get('street_address', '') or '',
-            '{{postal_code}}': contact.get('postal_code', '') or '',
-            '{{city}}': contact.get('city', '') or '',
-            '{{country}}': contact.get('country', '') or '',
-            '{{client_vat}}': contact.get('vat_number', '') or '',
+            "{{company_name}}": contact.get("company_name", ""),
+            "{{client_id}}": contact.get("client_id", ""),
+            "{{contact_person}}": contact.get("contact_person", "") or "",
+            "{{street_address}}": contact.get("street_address", "") or "",
+            "{{postal_code}}": contact.get("postal_code", "") or "",
+            "{{city}}": contact.get("city", "") or "",
+            "{{country}}": contact.get("country", "") or "",
+            "{{client_vat}}": contact.get("vat_number", "") or "",
             # Line items and totals
-            '{{lines}}': lines_html,
-            '{{vat_summary}}': vat_html,
-            '{{subtotal}}': fmt_amount(invoice.get('subtotal', 0)),
-            '{{vat_total}}': fmt_amount(invoice.get('vat_total', 0)),
-            '{{grand_total}}': fmt_amount(invoice.get('grand_total', 0)),
+            "{{lines}}": lines_html,
+            "{{vat_summary}}": vat_html,
+            "{{subtotal}}": fmt_amount(invoice.get("subtotal", 0)),
+            "{{vat_total}}": fmt_amount(invoice.get("vat_total", 0)),
+            "{{grand_total}}": fmt_amount(invoice.get("grand_total", 0)),
         }
 
         html = template_html
@@ -175,32 +191,42 @@ class PDFGeneratorService:
         branding = {}
         if not self.parameter_service:
             return branding
-        keys = ['company_name', 'company_address', 'company_postal_city',
-                'company_country', 'company_vat', 'company_coc',
-                'company_iban', 'company_phone', 'contact_email']
+        keys = [
+            "company_name",
+            "company_address",
+            "company_postal_city",
+            "company_country",
+            "company_vat",
+            "company_coc",
+            "company_iban",
+            "company_phone",
+            "contact_email",
+        ]
         for key in keys:
-            val = self.parameter_service.get_param('zzp_branding', key, tenant=tenant)
+            val = self.parameter_service.get_param("zzp_branding", key, tenant=tenant)
             if val:
                 branding[key] = val
 
         # If company_iban not set via branding, try rekeningschema
-        if not branding.get('company_iban'):
+        if not branding.get("company_iban"):
             iban = self._get_invoice_iban(tenant)
             if iban:
-                branding['company_iban'] = iban
+                branding["company_iban"] = iban
 
         return branding
 
     def _resolve_locale(self, contact: dict) -> str:
         """Resolve Babel locale from contact's country. Default: nl_NL."""
-        country = (contact.get('country') or '').strip()
+        country = (contact.get("country") or "").strip()
         if not country:
             return DEFAULT_LOCALE
         # Try exact match, then uppercase, then title case
-        return (COUNTRY_LOCALE_MAP.get(country)
-                or COUNTRY_LOCALE_MAP.get(country.upper())
-                or COUNTRY_LOCALE_MAP.get(country.title())
-                or DEFAULT_LOCALE)
+        return (
+            COUNTRY_LOCALE_MAP.get(country)
+            or COUNTRY_LOCALE_MAP.get(country.upper())
+            or COUNTRY_LOCALE_MAP.get(country.title())
+            or DEFAULT_LOCALE
+        )
 
     def _format_amount(self, val, currency_code: str, locale: str) -> str:
         """Format currency amount using locale conventions with invoice currency symbol."""
@@ -212,19 +238,19 @@ class PDFGeneratorService:
         n = float(val or 0)
         if n == int(n):
             return str(int(n))
-        return format_decimal(n, format='#,##0.##', locale=locale)
+        return format_decimal(n, format="#,##0.##", locale=locale)
 
     def _format_date(self, val, locale: str) -> str:
         """Format date according to locale conventions."""
-        s = str(val or '')
+        s = str(val or "")
         try:
             if isinstance(val, date):
                 d = val
-            elif len(s) >= 10 and s[4] == '-':
+            elif len(s) >= 10 and s[4] == "-":
                 d = date.fromisoformat(s[:10])
             else:
                 return s
-            return babel_format_date(d, format='short', locale=locale)
+            return babel_format_date(d, format="short", locale=locale)
         except Exception:
             return s
 
@@ -239,18 +265,18 @@ class PDFGeneratorService:
             return None
         try:
             # Try ZZP-specific flag first, then generic fallback
-            for flag in ('zzp_invoice_ledger', 'invoice_bank_account'):
+            for flag in ("zzp_invoice_ledger", "invoice_bank_account"):
                 rows = self.db.execute_query(
-                    f"""SELECT {dialect.json_unquote_extract('parameters', '$.iban')} AS iban
+                    f"""SELECT {dialect.json_unquote_extract("parameters", "$.iban")} AS iban
                        FROM rekeningschema
                        WHERE administration = %s
-                         AND {dialect.json_extract('parameters', f'$.{flag}')} = true
+                         AND {dialect.json_extract("parameters", f"$.{flag}")} = true
                        LIMIT 1""",
                     (tenant,),
                 )
                 if rows and isinstance(rows, list) and len(rows) > 0:
-                    iban = rows[0].get('iban') if isinstance(rows[0], dict) else None
-                    if iban and isinstance(iban, str) and iban != 'null':
+                    iban = rows[0].get("iban") if isinstance(rows[0], dict) else None
+                    if iban and isinstance(iban, str) and iban != "null":
                         return iban
             return None
         except Exception as e:
@@ -291,13 +317,14 @@ class PDFGeneratorService:
         if self.template_service:
             try:
                 meta = self.template_service.get_template_metadata(
-                    tenant, 'zzp_invoice'
+                    tenant, "zzp_invoice"
                 )
-                if meta and meta.get('local_path'):
+                if meta and meta.get("local_path"):
                     import os
-                    path = meta['local_path']
+
+                    path = meta["local_path"]
                     if os.path.exists(path):
-                        with open(path, 'r', encoding='utf-8') as f:
+                        with open(path, "r", encoding="utf-8") as f:
                             return f.read()
             except Exception as e:
                 logger.warning("Failed to load tenant template, using default: %s", e)
@@ -314,17 +341,18 @@ class PDFGeneratorService:
         if not self.parameter_service:
             return None
 
-        return resolve_tenant_logo(tenant, 'zzp_branding', self.parameter_service)
+        return resolve_tenant_logo(tenant, "zzp_branding", self.parameter_service)
 
     @staticmethod
     def _default_template() -> str:
         """Return the built-in default invoice HTML template."""
         import os
+
         template_path = os.path.join(
-            os.path.dirname(__file__), '..', 'templates', 'zzp_invoice_default.html'
+            os.path.dirname(__file__), "..", "templates", "zzp_invoice_default.html"
         )
         if os.path.exists(template_path):
-            with open(template_path, 'r', encoding='utf-8') as f:
+            with open(template_path, "r", encoding="utf-8") as f:
                 return f.read()
 
         # Inline fallback if file doesn't exist yet

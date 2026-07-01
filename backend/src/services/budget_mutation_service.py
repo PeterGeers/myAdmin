@@ -54,7 +54,7 @@ class BudgetMutationService:
 
         Validates: Requirements 3.5, 6.9
         """
-        return amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+        return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
     @staticmethod
     def divide_annual(annual_amount: Decimal, months: int = 12) -> List[Decimal]:
@@ -74,7 +74,7 @@ class BudgetMutationService:
         Validates: Requirements 2.3, 3.2
         """
         monthly = (annual_amount / months).quantize(
-            Decimal('0.01'), rounding=ROUND_HALF_EVEN
+            Decimal("0.01"), rounding=ROUND_HALF_EVEN
         )
         amounts = [monthly] * months
         # Adjust last month for rounding remainder
@@ -114,24 +114,22 @@ class BudgetMutationService:
             )
         except IntegrityError:
             return {
-                'success': False,
-                'error': f"Budget version '{name}' already exists for fiscal year {fiscal_year}",
+                "success": False,
+                "error": f"Budget version '{name}' already exists for fiscal year {fiscal_year}",
             }
 
         return {
-            'success': True,
-            'data': {
-                'id': version_id,
-                'name': name,
-                'fiscal_year': fiscal_year,
-                'status': 'Draft',
-                'is_active': False,
+            "success": True,
+            "data": {
+                "id": version_id,
+                "name": name,
+                "fiscal_year": fiscal_year,
+                "status": "Draft",
+                "is_active": False,
             },
         }
 
-    def delete_version(
-        self, administration: str, version_id: int
-    ) -> Dict[str, Any]:
+    def delete_version(self, administration: str, version_id: int) -> Dict[str, Any]:
         """
         Delete a budget version. Only Draft versions can be deleted.
 
@@ -156,12 +154,12 @@ class BudgetMutationService:
         if not results:
             # Defense-in-depth: returns "not found" for cross-tenant access attempts
             # rather than 403, so we don't reveal existence of other tenants' resources.
-            return {'success': False, 'error': "Budget version not found"}
+            return {"success": False, "error": "Budget version not found"}
 
         version = results[0]
 
-        if version['status'] != 'Draft':
-            return {'success': False, 'error': "Only Draft versions can be deleted"}
+        if version["status"] != "Draft":
+            return {"success": False, "error": "Only Draft versions can be deleted"}
 
         self.db.execute_query(
             "DELETE FROM budget_versions WHERE id = %s AND administration = %s",
@@ -170,7 +168,7 @@ class BudgetMutationService:
             commit=True,
         )
 
-        return {'success': True, 'data': {'id': version_id}}
+        return {"success": True, "data": {"id": version_id}}
 
     def transition_status(
         self, administration: str, version_id: int, action: str
@@ -196,11 +194,11 @@ class BudgetMutationService:
         Validates: Requirements 1.3, 1.4, 1.5
         """
         # Validate action
-        valid_actions = ('approve', 'revise')
+        valid_actions = ("approve", "revise")
         if action not in valid_actions:
             return {
-                'success': False,
-                'error': "Invalid action. Use 'approve' or 'revise'"
+                "success": False,
+                "error": "Invalid action. Use 'approve' or 'revise'",
             }
 
         # Fetch current version (tenant-isolated)
@@ -213,21 +211,21 @@ class BudgetMutationService:
         result = self.db.execute_query(query, (version_id, administration))
 
         if not result:
-            return {'success': False, 'error': "Budget version not found"}
+            return {"success": False, "error": "Budget version not found"}
 
         version = result[0]
-        current_status = version['status']
+        current_status = version["status"]
 
         # Define allowed transitions
         allowed_transitions = {
-            'Draft': 'Approved',
-            'Approved': 'Revised',
+            "Draft": "Approved",
+            "Approved": "Revised",
         }
 
         # Determine target status from action
         action_to_target = {
-            'approve': 'Approved',
-            'revise': 'Revised',
+            "approve": "Approved",
+            "revise": "Revised",
         }
         target_status = action_to_target[action]
 
@@ -236,16 +234,16 @@ class BudgetMutationService:
         if allowed_target != target_status:
             allowed_msg = allowed_target if allowed_target else "none"
             return {
-                'success': False,
-                'error': (
+                "success": False,
+                "error": (
                     f"Cannot transition from {current_status} to {target_status}. "
                     f"Allowed: {allowed_msg}"
-                )
+                ),
             }
 
         now = datetime.now()
 
-        if action == 'approve':
+        if action == "approve":
             # Simple status update: Draft → Approved
             update_query = """
                 UPDATE budget_versions
@@ -255,18 +253,19 @@ class BudgetMutationService:
             self.db.execute_query(
                 update_query,
                 (target_status, now, version_id, administration),
-                fetch=False, commit=True
+                fetch=False,
+                commit=True,
             )
             return {
-                'success': True,
-                'data': {
-                    'id': version_id,
-                    'name': version['name'],
-                    'fiscal_year': version['fiscal_year'],
-                    'status': target_status,
-                    'is_active': version['is_active'],
-                    'status_changed_at': now.isoformat()
-                }
+                "success": True,
+                "data": {
+                    "id": version_id,
+                    "name": version["name"],
+                    "fiscal_year": version["fiscal_year"],
+                    "status": target_status,
+                    "is_active": version["is_active"],
+                    "status_changed_at": now.isoformat(),
+                },
             }
 
         # action == 'revise': create a copy of the Approved version
@@ -278,10 +277,10 @@ class BudgetMutationService:
             SELECT COUNT(*) as cnt FROM budget_versions
             WHERE administration = %s AND fiscal_year = %s AND name LIKE %s
             """,
-            (administration, version['fiscal_year'], f"{version['name']} (Revised%"),
+            (administration, version["fiscal_year"], f"{version['name']} (Revised%"),
         )
-        if existing and existing[0]['cnt'] > 0:
-            count = existing[0]['cnt'] + 1
+        if existing and existing[0]["cnt"] > 0:
+            count = existing[0]["cnt"] + 1
             revised_name = f"{version['name']} (Revised {count})"
 
         with self.db.transaction() as (cursor, conn):
@@ -292,8 +291,14 @@ class BudgetMutationService:
             """
             cursor.execute(
                 insert_version_query,
-                (administration, revised_name, version['fiscal_year'],
-                 'Revised', False, now)
+                (
+                    administration,
+                    revised_name,
+                    version["fiscal_year"],
+                    "Revised",
+                    False,
+                    now,
+                ),
             )
             new_version_id = cursor.lastrowid
 
@@ -312,20 +317,19 @@ class BudgetMutationService:
                 WHERE version_id = %s AND administration = %s
             """
             cursor.execute(
-                copy_lines_query,
-                (new_version_id, version_id, administration)
+                copy_lines_query, (new_version_id, version_id, administration)
             )
 
         return {
-            'success': True,
-            'data': {
-                'id': new_version_id,
-                'name': revised_name,
-                'fiscal_year': version['fiscal_year'],
-                'status': 'Revised',
-                'is_active': False,
-                'status_changed_at': now.isoformat()
-            }
+            "success": True,
+            "data": {
+                "id": new_version_id,
+                "name": revised_name,
+                "fiscal_year": version["fiscal_year"],
+                "status": "Revised",
+                "is_active": False,
+                "status_changed_at": now.isoformat(),
+            },
         }
 
     def activate_version(
@@ -356,14 +360,14 @@ class BudgetMutationService:
         )
 
         if not results:
-            return {'success': False, 'error': "Budget version not found"}
+            return {"success": False, "error": "Budget version not found"}
 
         version = results[0]
 
-        if active and version['status'] not in ('Approved', 'Revised'):
+        if active and version["status"] not in ("Approved", "Revised"):
             return {
-                'success': False,
-                'error': "Only Approved or Revised versions may be activated",
+                "success": False,
+                "error": "Only Approved or Revised versions may be activated",
             }
 
         # Simply set the is_active flag — no deactivation of other versions
@@ -379,13 +383,13 @@ class BudgetMutationService:
         )
 
         return {
-            'success': True,
-            'data': {
-                'id': version['id'],
-                'name': version['name'],
-                'fiscal_year': version['fiscal_year'],
-                'status': version['status'],
-                'is_active': active,
+            "success": True,
+            "data": {
+                "id": version["id"],
+                "name": version["name"],
+                "fiscal_year": version["fiscal_year"],
+                "status": version["status"],
+                "is_active": active,
             },
         }
 
@@ -423,21 +427,32 @@ class BudgetMutationService:
             Dict with 'success' and 'data' or 'error'.
         """
         # Compute 12 monthly amounts based on period_mode
-        if period_mode == 'Monthly':
+        if period_mode == "Monthly":
             if amounts is None or len(amounts) != 12:
-                return {'success': False, 'error': "Monthly mode requires exactly 12 amounts"}
-            monthly_amounts = [
-                self.round_monetary(Decimal(str(a))) for a in amounts
-            ]
-        elif period_mode == 'Annual':
+                return {
+                    "success": False,
+                    "error": "Monthly mode requires exactly 12 amounts",
+                }
+            monthly_amounts = [self.round_monetary(Decimal(str(a))) for a in amounts]
+        elif period_mode == "Annual":
             if annual_amount is None:
-                return {'success': False, 'error': "Annual mode requires an annual_amount"}
+                return {
+                    "success": False,
+                    "error": "Annual mode requires an annual_amount",
+                }
             monthly_amounts = self.divide_annual(Decimal(str(annual_amount)))
         else:
-            return {'success': False, 'error': "Invalid period_mode. Use 'Monthly' or 'Annual'"}
+            return {
+                "success": False,
+                "error": "Invalid period_mode. Use 'Monthly' or 'Annual'",
+            }
 
         # Build dimension description for error messages
-        dim_desc = f"{detail_dimension_type}={detail_dimension_value}" if detail_dimension_type else "none"
+        dim_desc = (
+            f"{detail_dimension_type}={detail_dimension_value}"
+            if detail_dimension_type
+            else "none"
+        )
 
         try:
             line_id = self.db.execute_query(
@@ -452,8 +467,13 @@ class BudgetMutationService:
                         %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    version_id, administration, account_code, period_mode,
-                    detail_dimension_type, detail_dimension_value, notes,
+                    version_id,
+                    administration,
+                    account_code,
+                    period_mode,
+                    detail_dimension_type,
+                    detail_dimension_value,
+                    notes,
                     *monthly_amounts,
                 ),
                 fetch=False,
@@ -461,17 +481,17 @@ class BudgetMutationService:
             )
         except IntegrityError:
             return {
-                'success': False,
-                'error': f"Budget line already exists for account {account_code} with dimension {dim_desc}",
+                "success": False,
+                "error": f"Budget line already exists for account {account_code} with dimension {dim_desc}",
             }
 
         total = sum(monthly_amounts)
         return {
-            'success': True,
-            'data': {
-                'id': line_id,
-                'account_code': account_code,
-                'total': float(total),
+            "success": True,
+            "data": {
+                "id": line_id,
+                "account_code": account_code,
+                "total": float(total),
             },
         }
 
@@ -507,21 +527,25 @@ class BudgetMutationService:
         )
 
         if not results:
-            return {'success': False, 'error': "Budget line not found"}
+            return {"success": False, "error": "Budget line not found"}
 
         line = results[0]
 
         # Compute new monthly amounts
         if amounts is not None:
             if len(amounts) != 12:
-                return {'success': False, 'error': "Monthly mode requires exactly 12 amounts"}
-            monthly_amounts = [
-                self.round_monetary(Decimal(str(a))) for a in amounts
-            ]
+                return {
+                    "success": False,
+                    "error": "Monthly mode requires exactly 12 amounts",
+                }
+            monthly_amounts = [self.round_monetary(Decimal(str(a))) for a in amounts]
         elif annual_amount is not None:
             monthly_amounts = self.divide_annual(Decimal(str(annual_amount)))
         else:
-            return {'success': False, 'error': "Provide either amounts (12 values) or annual_amount"}
+            return {
+                "success": False,
+                "error": "Provide either amounts (12 values) or annual_amount",
+            }
 
         self.db.execute_query(
             """
@@ -538,17 +562,15 @@ class BudgetMutationService:
 
         total = sum(monthly_amounts)
         return {
-            'success': True,
-            'data': {
-                'id': line_id,
-                'account_code': line['account_code'],
-                'total': float(total),
+            "success": True,
+            "data": {
+                "id": line_id,
+                "account_code": line["account_code"],
+                "total": float(total),
             },
         }
 
-    def delete_line(
-        self, administration: str, line_id: int
-    ) -> Dict[str, Any]:
+    def delete_line(self, administration: str, line_id: int) -> Dict[str, Any]:
         """
         Delete a budget line.
 
@@ -571,7 +593,7 @@ class BudgetMutationService:
         )
 
         if not results:
-            return {'success': False, 'error': "Budget line not found"}
+            return {"success": False, "error": "Budget line not found"}
 
         self.db.execute_query(
             "DELETE FROM budget_lines WHERE id = %s AND administration = %s",
@@ -580,7 +602,7 @@ class BudgetMutationService:
             commit=True,
         )
 
-        return {'success': True, 'data': {'id': line_id, 'deleted': True}}
+        return {"success": True, "data": {"id": line_id, "deleted": True}}
 
     # -------------------------------------------------------------------------
     # Copy Budget
@@ -624,15 +646,15 @@ class BudgetMutationService:
         )
 
         if not results:
-            return {'success': False, 'error': "Budget version not found"}
+            return {"success": False, "error": "Budget version not found"}
 
         source_version = results[0]
 
         # 2. Validate target year is later than source year
-        if target_fiscal_year <= source_version['fiscal_year']:
+        if target_fiscal_year <= source_version["fiscal_year"]:
             return {
-                'success': False,
-                'error': f"Target year must be later than source year {source_version['fiscal_year']}",
+                "success": False,
+                "error": f"Target year must be later than source year {source_version['fiscal_year']}",
             }
 
         # 3. Get all budget lines for the source version
@@ -655,7 +677,7 @@ class BudgetMutationService:
         lines_to_copy: List[Dict[str, Any]] = []
 
         for line in source_lines:
-            account_code = line['account_code']
+            account_code = line["account_code"]
             account_exists = self.db.execute_query(
                 "SELECT Account FROM rekeningschema WHERE administration = %s AND Account = %s",
                 (administration, account_code),
@@ -696,29 +718,37 @@ class BudgetMutationService:
                         (
                             new_version_id,
                             administration,
-                            line['account_code'],
-                            line['period_mode'],
-                            line['detail_dimension_type'],
-                            line['detail_dimension_value'],
-                            line['month_01'], line['month_02'], line['month_03'],
-                            line['month_04'], line['month_05'], line['month_06'],
-                            line['month_07'], line['month_08'], line['month_09'],
-                            line['month_10'], line['month_11'], line['month_12'],
+                            line["account_code"],
+                            line["period_mode"],
+                            line["detail_dimension_type"],
+                            line["detail_dimension_value"],
+                            line["month_01"],
+                            line["month_02"],
+                            line["month_03"],
+                            line["month_04"],
+                            line["month_05"],
+                            line["month_06"],
+                            line["month_07"],
+                            line["month_08"],
+                            line["month_09"],
+                            line["month_10"],
+                            line["month_11"],
+                            line["month_12"],
                         ),
                     )
         except IntegrityError:
             return {
-                'success': False,
-                'error': f"Budget version '{version_name}' already exists for fiscal year {target_fiscal_year}",
+                "success": False,
+                "error": f"Budget version '{version_name}' already exists for fiscal year {target_fiscal_year}",
             }
 
         # 8. Return result
         return {
-            'success': True,
-            'data': {
-                'version_id': new_version_id,
-                'lines_copied': len(lines_to_copy),
-                'excluded_accounts': excluded_accounts,
+            "success": True,
+            "data": {
+                "version_id": new_version_id,
+                "lines_copied": len(lines_to_copy),
+                "excluded_accounts": excluded_accounts,
             },
         }
 
@@ -745,12 +775,12 @@ class BudgetMutationService:
         months_with_data = len(monthly_actuals)
 
         if months_with_data == 0:
-            return [Decimal('0.00')] * 12
+            return [Decimal("0.00")] * 12
 
         if months_with_data == 12:
             # Use actual monthly amounts directly
             return [
-                self.round_monetary(monthly_actuals.get(m, Decimal('0.00')))
+                self.round_monetary(monthly_actuals.get(m, Decimal("0.00")))
                 for m in range(1, 13)
             ]
 

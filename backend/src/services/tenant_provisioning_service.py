@@ -27,7 +27,7 @@ from services.parameter_service import ParameterService
 logger = logging.getLogger(__name__)
 
 # Path to chart of accounts JSON templates
-_TEMPLATE_DIR = Path(__file__).parent.parent / 'templates' / 'chart_of_accounts'
+_TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "chart_of_accounts"
 
 
 class TenantProvisioningService:
@@ -43,12 +43,12 @@ class TenantProvisioningService:
         contact_email: str,
         modules: list,
         created_by: str,
-        locale: str = 'nl',
+        locale: str = "nl",
         phone_number: Optional[str] = None,
         street: Optional[str] = None,
         city: Optional[str] = None,
         zipcode: Optional[str] = None,
-        country: str = 'Netherlands',
+        country: str = "Netherlands",
         initial_admin_email: Optional[str] = None,
     ) -> dict:
         """
@@ -88,25 +88,32 @@ class TenantProvisioningService:
             }
         """
         results = {
-            'tenant': None,
-            'modules': [],
-            'chart': None,
-            'chart_rows': 0,
-            'warnings': [],
+            "tenant": None,
+            "modules": [],
+            "chart": None,
+            "chart_rows": 0,
+            "warnings": [],
         }
 
         # Ensure TENADMIN is always included
-        if 'TENADMIN' not in modules:
-            modules = list(modules) + ['TENADMIN']
+        if "TENADMIN" not in modules:
+            modules = list(modules) + ["TENADMIN"]
 
         # Step 1: Insert tenant record
-        results['tenant'] = self._insert_tenant(
-            administration, display_name, contact_email,
-            created_by, phone_number, street, city, zipcode, country
+        results["tenant"] = self._insert_tenant(
+            administration,
+            display_name,
+            contact_email,
+            created_by,
+            phone_number,
+            street,
+            city,
+            zipcode,
+            country,
         )
 
         # Step 2: Insert modules
-        results['modules'] = self._insert_modules(administration, modules)
+        results["modules"] = self._insert_modules(administration, modules)
 
         # Step 2b: Seed module parameters
         param_service = ParameterService(self.db)
@@ -115,30 +122,39 @@ class TenantProvisioningService:
             params_seeded += param_service.seed_module_params(administration, module)
 
         # Seed storage params (only when S3_SHARED_BUCKET is configured)
-        s3_bucket = os.getenv('S3_SHARED_BUCKET')
+        s3_bucket = os.getenv("S3_SHARED_BUCKET")
         if s3_bucket:
             param_service.set_param(
-                'tenant', administration, 'storage', 'invoice_provider',
-                's3_shared', value_type='string', created_by='provisioning'
+                "tenant",
+                administration,
+                "storage",
+                "invoice_provider",
+                "s3_shared",
+                value_type="string",
+                created_by="provisioning",
             )
             param_service.set_param(
-                'tenant', administration, 'storage', 's3_shared_bucket',
+                "tenant",
+                administration,
+                "storage",
+                "s3_shared_bucket",
                 s3_bucket,
-                value_type='string', created_by='provisioning'
+                value_type="string",
+                created_by="provisioning",
             )
             params_seeded += 2
-        results['params_seeded'] = params_seeded
+        results["params_seeded"] = params_seeded
 
         # Step 2c: Initiate SES email verification (non-blocking)
         try:
             from services.email_verification_service import EmailVerificationService
+
             verification_service = EmailVerificationService(db_manager=self.db)
             verification_result = verification_service.initiate_verification(
-                administration=administration,
-                email=contact_email
+                administration=administration, email=contact_email
             )
-            results['email_verification'] = verification_result
-            if verification_result.get('success'):
+            results["email_verification"] = verification_result
+            if verification_result.get("success"):
                 logger.info(
                     f"Email verification initiated for '{contact_email}' "
                     f"(tenant: {administration})"
@@ -154,16 +170,18 @@ class TenantProvisioningService:
                 f"Email verification initiation failed for '{contact_email}' "
                 f"(tenant: {administration}): {e} — provisioning continues"
             )
-            results['email_verification'] = {
-                'success': False,
-                'status': 'failed',
-                'error': str(e)
+            results["email_verification"] = {
+                "success": False,
+                "status": "failed",
+                "error": str(e),
             }
 
         # Step 3: Load chart of accounts from JSON template
-        chart_result = self._load_chart_of_accounts(administration, locale, results['warnings'])
-        results['chart'] = chart_result['status']
-        results['chart_rows'] = chart_result['rows']
+        chart_result = self._load_chart_of_accounts(
+            administration, locale, results["warnings"]
+        )
+        results["chart"] = chart_result["status"]
+        results["chart_rows"] = chart_result["rows"]
 
         # Step 4: Create initial admin user (optional)
         if initial_admin_email and initial_admin_email.strip():
@@ -174,23 +192,21 @@ class TenantProvisioningService:
                     created_by=created_by,
                     locale=locale,
                 )
-                results['initial_admin'] = admin_result
+                results["initial_admin"] = admin_result
             except Exception as e:
                 logger.warning(
                     f"Initial admin user creation failed for '{administration}': {e}"
                 )
-                results['initial_admin'] = {
-                    'status': 'failed',
-                    'warning': str(e),
+                results["initial_admin"] = {
+                    "status": "failed",
+                    "warning": str(e),
                 }
-                results['warnings'].append(
-                    f"Initial admin user creation failed: {e}"
-                )
+                results["warnings"].append(f"Initial admin user creation failed: {e}")
 
         admin_status = (
             f", initial_admin={results['initial_admin']['status']}"
-            if 'initial_admin' in results
-            else ''
+            if "initial_admin" in results
+            else ""
         )
         logger.info(
             f"Provisioning complete for '{administration}': "
@@ -205,7 +221,7 @@ class TenantProvisioningService:
         administration: str,
         email: str,
         created_by: str,
-        locale: str = 'nl',
+        locale: str = "nl",
     ) -> Dict[str, Any]:
         """
         Create an initial admin user for a newly provisioned tenant.
@@ -256,7 +272,7 @@ class TenantProvisioningService:
                     f"Tenant_Admin role already exists for {email} "
                     f"in '{administration}' — skipping"
                 )
-                return {'status': 'skipped'}
+                return {"status": "skipped"}
 
             # ── Service instances ───────────────────────────────────
             from services.cognito_service import CognitoService
@@ -265,7 +281,7 @@ class TenantProvisioningService:
             from services.ses_email_service import SESEmailService
             from utils.frontend_url import get_frontend_url
 
-            test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
             cognito = CognitoService()
             invitation_service = InvitationService(test_mode=test_mode)
             email_template = EmailTemplateService(administration=administration)
@@ -278,14 +294,28 @@ class TenantProvisioningService:
             if cognito_user is None:
                 # ── NEW user path ───────────────────────────────────
                 return self._create_new_admin_user(
-                    administration, email, created_by, locale,
-                    cognito, invitation_service, email_template, ses, login_url,
+                    administration,
+                    email,
+                    created_by,
+                    locale,
+                    cognito,
+                    invitation_service,
+                    email_template,
+                    ses,
+                    login_url,
                 )
             else:
                 # ── EXISTING user path ──────────────────────────────
                 return self._add_admin_role_existing_user(
-                    administration, email, created_by, locale,
-                    cognito, cognito_user, email_template, ses, login_url,
+                    administration,
+                    email,
+                    created_by,
+                    locale,
+                    cognito,
+                    cognito_user,
+                    email_template,
+                    ses,
+                    login_url,
                 )
 
         except Exception as exc:
@@ -294,7 +324,7 @@ class TenantProvisioningService:
                 f"for '{administration}': {exc}"
             )
             logger.error(msg)
-            return {'status': 'failed', 'warning': msg}
+            return {"status": "failed", "warning": msg}
 
     # -------------------------------------------------------------------------
     # Initial-admin helpers
@@ -319,15 +349,15 @@ class TenantProvisioningService:
             administration=administration,
             email=email,
             created_by=created_by,
-            template_type='user_invitation',
+            template_type="user_invitation",
         )
-        if not invitation.get('success'):
+        if not invitation.get("success"):
             return {
-                'status': 'failed',
-                'warning': f"Invitation creation failed: {invitation.get('error')}",
+                "status": "failed",
+                "warning": f"Invitation creation failed: {invitation.get('error')}",
             }
 
-        temp_password = invitation['temporary_password']
+        temp_password = invitation["temporary_password"]
 
         # 2. Create Cognito user (suppresses default welcome email)
         cognito.create_user(
@@ -351,7 +381,7 @@ class TenantProvisioningService:
             email=email,
             username=email,
             created_by=created_by,
-            template_type='user_invitation',
+            template_type="user_invitation",
         )
 
         # 5. Insert user_tenant_roles row
@@ -367,14 +397,19 @@ class TenantProvisioningService:
 
         # 6. Send invitation email
         self._send_invitation_email(
-            email, administration, temp_password, locale,
-            email_template, ses, login_url, created_by, invitation_service,
+            email,
+            administration,
+            temp_password,
+            locale,
+            email_template,
+            ses,
+            login_url,
+            created_by,
+            invitation_service,
         )
 
-        logger.info(
-            f"Initial admin user {email} created for '{administration}'"
-        )
-        return {'status': 'created'}
+        logger.info(f"Initial admin user {email} created for '{administration}'")
+        return {"status": "created"}
 
     def _add_admin_role_existing_user(
         self,
@@ -406,14 +441,20 @@ class TenantProvisioningService:
 
         # 3. Send tenant-added notification email
         self._send_tenant_added_email(
-            email, administration, cognito_user, locale,
-            email_template, ses, login_url, created_by,
+            email,
+            administration,
+            cognito_user,
+            locale,
+            email_template,
+            ses,
+            login_url,
+            created_by,
         )
 
         logger.info(
             f"Existing user {email} granted Tenant_Admin for '{administration}'"
         )
-        return {'status': 'existing_user'}
+        return {"status": "existing_user"}
 
     def _send_invitation_email(
         self,
@@ -434,7 +475,7 @@ class TenantProvisioningService:
                 temporary_password=temp_password,
                 tenant=administration,
                 login_url=login_url,
-                format='html',
+                format="html",
                 language=locale,
             )
             text_body = email_template.render_user_invitation(
@@ -442,11 +483,12 @@ class TenantProvisioningService:
                 temporary_password=temp_password,
                 tenant=administration,
                 login_url=login_url,
-                format='txt',
+                format="txt",
                 language=locale,
             )
             subject = email_template.get_invitation_subject(
-                administration, language=locale,
+                administration,
+                language=locale,
             )
 
             result = ses.send_invitation(
@@ -458,15 +500,15 @@ class TenantProvisioningService:
                 sent_by=created_by,
             )
 
-            if result.get('success'):
+            if result.get("success"):
                 invitation_service.mark_invitation_sent(
-                    administration=administration, email=email,
+                    administration=administration,
+                    email=email,
                 )
                 logger.info(f"Invitation email sent to {email}")
             else:
                 logger.warning(
-                    f"SES failed to send invitation to {email}: "
-                    f"{result.get('error')}"
+                    f"SES failed to send invitation to {email}: {result.get('error')}"
                 )
                 invitation_service.mark_invitation_failed(
                     administration=administration,
@@ -495,21 +537,21 @@ class TenantProvisioningService:
         """Send tenant-added notification to an existing user."""
         try:
             # Resolve display name from Cognito attributes
-            user_name = email.split('@')[0]
-            for attr in cognito_user.get('UserAttributes', []):
-                if attr['Name'] == 'name':
-                    user_name = attr['Value']
+            user_name = email.split("@")[0]
+            for attr in cognito_user.get("UserAttributes", []):
+                if attr["Name"] == "name":
+                    user_name = attr["Value"]
                     break
 
             html_body = email_template.render_template(
-                template_name='tenant_added',
+                template_name="tenant_added",
                 variables={
-                    'email': email,
-                    'tenant': administration,
-                    'name': user_name,
-                    'login_url': login_url,
+                    "email": email,
+                    "tenant": administration,
+                    "name": user_name,
+                    "login_url": login_url,
                 },
-                format='html',
+                format="html",
                 language=locale,
             )
             text_body = (
@@ -521,14 +563,10 @@ class TenantProvisioningService:
                 f"Regards,\nmyAdmin"
             )
 
-            if locale == 'nl':
-                subject = (
-                    f"U bent toegevoegd aan {administration} in myAdmin"
-                )
+            if locale == "nl":
+                subject = f"U bent toegevoegd aan {administration} in myAdmin"
             else:
-                subject = (
-                    f"You've been added to {administration} in myAdmin"
-                )
+                subject = f"You've been added to {administration} in myAdmin"
 
             result = ses.send_invitation(
                 to_email=email,
@@ -539,10 +577,9 @@ class TenantProvisioningService:
                 sent_by=created_by,
             )
 
-            if result.get('success'):
+            if result.get("success"):
                 logger.info(
-                    f"Tenant-added notification sent to {email} "
-                    f"for '{administration}'"
+                    f"Tenant-added notification sent to {email} for '{administration}'"
                 )
             else:
                 logger.warning(
@@ -555,18 +592,26 @@ class TenantProvisioningService:
             )
 
     def _insert_tenant(
-        self, administration, display_name, contact_email,
-        created_by, phone_number, street, city, zipcode, country
+        self,
+        administration,
+        display_name,
+        contact_email,
+        created_by,
+        phone_number,
+        street,
+        city,
+        zipcode,
+        country,
     ) -> str:
         """Insert tenant record. Returns 'created' or 'skipped'."""
         existing = self.db.execute_query(
             "SELECT administration FROM tenants WHERE administration = %s",
             (administration,),
-            fetch=True
+            fetch=True,
         )
         if existing:
             logger.info(f"Tenant '{administration}' already exists — skipping insert")
-            return 'skipped'
+            return "skipped"
 
         self.db.execute_query(
             """
@@ -577,13 +622,20 @@ class TenantProvisioningService:
             ) VALUES (%s, %s, 'active', %s, %s, %s, %s, %s, %s, NOW(), NOW(), %s)
             """,
             (
-                administration, display_name, contact_email,
-                phone_number, street, city, zipcode, country, created_by
+                administration,
+                display_name,
+                contact_email,
+                phone_number,
+                street,
+                city,
+                zipcode,
+                country,
+                created_by,
             ),
-            commit=True
+            commit=True,
         )
         logger.info(f"Tenant '{administration}' inserted")
-        return 'created'
+        return "created"
 
     def _insert_modules(self, administration: str, modules: list) -> list:
         """Insert modules, skipping any that already exist."""
@@ -595,11 +647,13 @@ class TenantProvisioningService:
                 WHERE administration = %s AND module_name = %s
                 """,
                 (administration, module),
-                fetch=True
+                fetch=True,
             )
             if existing:
-                logger.info(f"Module '{module}' already exists for '{administration}' — skipping")
-                results.append({'name': module, 'status': 'skipped'})
+                logger.info(
+                    f"Module '{module}' already exists for '{administration}' — skipping"
+                )
+                results.append({"name": module, "status": "skipped"})
             else:
                 self.db.execute_query(
                     """
@@ -607,10 +661,10 @@ class TenantProvisioningService:
                     VALUES (%s, %s, TRUE, NOW())
                     """,
                     (administration, module),
-                    commit=True
+                    commit=True,
                 )
                 logger.info(f"Module '{module}' inserted for '{administration}'")
-                results.append({'name': module, 'status': 'created'})
+                results.append({"name": module, "status": "created"})
         return results
 
     def _load_chart_of_accounts(
@@ -627,20 +681,20 @@ class TenantProvisioningService:
         count_result = self.db.execute_query(
             "SELECT COUNT(*) as cnt FROM rekeningschema WHERE administration = %s",
             (administration,),
-            fetch=True
+            fetch=True,
         )
-        existing_count = count_result[0]['cnt'] if count_result else 0
+        existing_count = count_result[0]["cnt"] if count_result else 0
         if existing_count > 0:
             logger.info(
                 f"Chart of accounts already exists for '{administration}' "
                 f"({existing_count} rows) — skipping"
             )
-            return {'status': 'skipped', 'rows': existing_count}
+            return {"status": "skipped", "rows": existing_count}
 
         # Resolve template path with locale fallback
-        template_path = _TEMPLATE_DIR / f'{locale}.json'
+        template_path = _TEMPLATE_DIR / f"{locale}.json"
         if not template_path.exists():
-            fallback = _TEMPLATE_DIR / 'nl.json'
+            fallback = _TEMPLATE_DIR / "nl.json"
             if fallback.exists():
                 msg = (
                     f"Chart template for locale '{locale}' not found, "
@@ -656,11 +710,11 @@ class TenantProvisioningService:
                 )
                 logger.error(msg)
                 warnings.append(msg)
-                return {'status': 'failed', 'rows': 0}
+                return {"status": "failed", "rows": 0}
 
         # Load and insert
         try:
-            with open(template_path, encoding='utf-8') as f:
+            with open(template_path, encoding="utf-8") as f:
                 accounts = json.load(f)
 
             inserted = 0
@@ -673,18 +727,20 @@ class TenantProvisioningService:
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
-                        account['Account'],
-                        account.get('AccountLookup'),
-                        account['AccountName'],
-                        account['SubParent'],
-                        account['Parent'],
-                        account['VW'],
-                        account.get('Belastingaangifte'),
+                        account["Account"],
+                        account.get("AccountLookup"),
+                        account["AccountName"],
+                        account["SubParent"],
+                        account["Parent"],
+                        account["VW"],
+                        account.get("Belastingaangifte"),
                         administration,
-                        account.get('Pattern', False),
-                        json.dumps(account['parameters']) if account.get('parameters') else None,
+                        account.get("Pattern", False),
+                        json.dumps(account["parameters"])
+                        if account.get("parameters")
+                        else None,
                     ),
-                    commit=True
+                    commit=True,
                 )
                 inserted += 1
 
@@ -692,7 +748,7 @@ class TenantProvisioningService:
                 f"Chart of accounts loaded for '{administration}': "
                 f"{inserted} rows from {template_path.name}"
             )
-            return {'status': 'created', 'rows': inserted}
+            return {"status": "created", "rows": inserted}
 
         except Exception as e:
             msg = (
@@ -701,4 +757,4 @@ class TenantProvisioningService:
             )
             logger.error(msg)
             warnings.append(msg)
-            return {'status': 'failed', 'rows': 0}
+            return {"status": "failed", "rows": 0}

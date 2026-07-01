@@ -18,8 +18,14 @@ logger = logging.getLogger(__name__)
 
 # Expected headers in import/export Excel files
 EXCEL_HEADERS = [
-    'Account', 'AccountName', 'AccountLookup', 'SubParent',
-    'Parent', 'VW', 'Belastingaangifte', 'Pattern'
+    "Account",
+    "AccountName",
+    "AccountLookup",
+    "SubParent",
+    "Parent",
+    "VW",
+    "Belastingaangifte",
+    "Pattern",
 ]
 
 
@@ -45,8 +51,8 @@ class ChartOfAccountsIOService:
             SELECT AccountID, Account, AccountName, AccountLookup,
                    SubParent, Parent, VW, Belastingaangifte,
                    administration,
-                   {dialect.ifnull(dialect.json_extract('parameters', '$.bank_account'), 'false')} as bank_account,
-                   {dialect.json_unquote_extract('parameters', '$.iban')} as iban
+                   {dialect.ifnull(dialect.json_extract("parameters", "$.bank_account"), "false")} as bank_account,
+                   {dialect.json_unquote_extract("parameters", "$.iban")} as iban
             FROM rekeningschema
             WHERE administration = %s
             ORDER BY Account
@@ -64,22 +70,26 @@ class ChartOfAccountsIOService:
 
         # Data rows
         for account in accounts:
-            ws.append([
-                account['Account'],
-                account['AccountName'],
-                account.get('AccountLookup', ''),
-                account.get('SubParent', ''),
-                account.get('Parent', ''),
-                account.get('VW', ''),
-                account.get('Belastingaangifte', ''),
-                1 if account.get('bank_account') else 0
-            ])
+            ws.append(
+                [
+                    account["Account"],
+                    account["AccountName"],
+                    account.get("AccountLookup", ""),
+                    account.get("SubParent", ""),
+                    account.get("Parent", ""),
+                    account.get("VW", ""),
+                    account.get("Belastingaangifte", ""),
+                    1 if account.get("bank_account") else 0,
+                ]
+            )
 
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
-        filename = f'chart_of_accounts_{tenant}_{datetime.now().strftime("%Y%m%d")}.xlsx'
+        filename = (
+            f"chart_of_accounts_{tenant}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        )
         return output, filename, len(accounts)
 
     def import_from_excel(self, tenant: str, file_stream) -> Dict[str, Any]:
@@ -99,23 +109,29 @@ class ChartOfAccountsIOService:
             wb = openpyxl.load_workbook(file_stream)
             ws = wb.active
         except Exception as e:
-            return {'success': False, 'error': 'Failed to parse Excel file', 'details': str(e)}
+            return {
+                "success": False,
+                "error": "Failed to parse Excel file",
+                "details": str(e),
+            }
 
         # Validate headers
         headers = [cell.value for cell in ws[1]]
         if headers != EXCEL_HEADERS:
             return {
-                'success': False,
-                'error': 'Invalid Excel format',
-                'expected_headers': EXCEL_HEADERS,
-                'found_headers': headers,
+                "success": False,
+                "error": "Invalid Excel format",
+                "expected_headers": EXCEL_HEADERS,
+                "found_headers": headers,
             }
 
         # Parse rows
         accounts_to_import: List[Dict[str, Any]] = []
         errors: List[str] = []
 
-        for row_num, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        for row_num, row in enumerate(
+            ws.iter_rows(min_row=2, values_only=True), start=2
+        ):
             if not any(row):  # Skip empty rows
                 continue
 
@@ -128,23 +144,25 @@ class ChartOfAccountsIOService:
                 errors.append(f"Row {row_num}: Account name required")
                 continue
 
-            accounts_to_import.append({
-                'account': str(account).strip(),
-                'name': str(name).strip(),
-                'lookup': str(lookup).strip() if lookup else '',
-                'sub_parent': str(sub_parent).strip() if sub_parent else '',
-                'parent': str(parent).strip() if parent else '',
-                'vw': str(vw).strip() if vw else '',
-                'tax': str(tax).strip() if tax else '',
-                'bank_account': bool(pattern),
-                'iban': str(lookup).strip() if lookup and pattern else None,
-            })
+            accounts_to_import.append(
+                {
+                    "account": str(account).strip(),
+                    "name": str(name).strip(),
+                    "lookup": str(lookup).strip() if lookup else "",
+                    "sub_parent": str(sub_parent).strip() if sub_parent else "",
+                    "parent": str(parent).strip() if parent else "",
+                    "vw": str(vw).strip() if vw else "",
+                    "tax": str(tax).strip() if tax else "",
+                    "bank_account": bool(pattern),
+                    "iban": str(lookup).strip() if lookup and pattern else None,
+                }
+            )
 
         if errors:
             return {
-                'success': False,
-                'errors': errors,
-                'parsed': len(accounts_to_import),
+                "success": False,
+                "errors": errors,
+                "parsed": len(accounts_to_import),
             }
 
         # Upsert accounts
@@ -153,15 +171,15 @@ class ChartOfAccountsIOService:
 
         for acc in accounts_to_import:
             params_dict: Dict[str, Any] = {}
-            if acc['bank_account']:
-                params_dict['bank_account'] = True
-            if acc['iban']:
-                params_dict['iban'] = acc['iban']
+            if acc["bank_account"]:
+                params_dict["bank_account"] = True
+            if acc["iban"]:
+                params_dict["iban"] = acc["iban"]
             parameters_json = json.dumps(params_dict) if params_dict else None
 
             exists = self.db.execute_query(
                 "SELECT 1 FROM rekeningschema WHERE administration = %s AND Account = %s",
-                (tenant, acc['account']),
+                (tenant, acc["account"]),
             )
 
             if exists:
@@ -173,10 +191,19 @@ class ChartOfAccountsIOService:
                         parameters = %s
                     WHERE administration = %s AND Account = %s
                     """,
-                    (acc['name'], acc['lookup'], acc['sub_parent'], acc['parent'],
-                     acc['vw'], acc['tax'], parameters_json,
-                     tenant, acc['account']),
-                    fetch=False, commit=True,
+                    (
+                        acc["name"],
+                        acc["lookup"],
+                        acc["sub_parent"],
+                        acc["parent"],
+                        acc["vw"],
+                        acc["tax"],
+                        parameters_json,
+                        tenant,
+                        acc["account"],
+                    ),
+                    fetch=False,
+                    commit=True,
                 )
                 updated += 1
             else:
@@ -187,15 +214,25 @@ class ChartOfAccountsIOService:
                      Belastingaangifte, administration, parameters)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (acc['account'], acc['name'], acc['lookup'], acc['sub_parent'],
-                     acc['parent'], acc['vw'], acc['tax'], tenant, parameters_json),
-                    fetch=False, commit=True,
+                    (
+                        acc["account"],
+                        acc["name"],
+                        acc["lookup"],
+                        acc["sub_parent"],
+                        acc["parent"],
+                        acc["vw"],
+                        acc["tax"],
+                        tenant,
+                        parameters_json,
+                    ),
+                    fetch=False,
+                    commit=True,
                 )
                 imported += 1
 
         return {
-            'success': True,
-            'imported': imported,
-            'updated': updated,
-            'total': imported + updated,
+            "success": True,
+            "imported": imported,
+            "updated": updated,
+            "total": imported + updated,
         }

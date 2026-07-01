@@ -22,8 +22,8 @@ from database import DatabaseManager
 logger = logging.getLogger(__name__)
 
 # Valid property ranges
-VALID_PROPERTY_RANGES = ['1-5', '6-20', '21-50', '50+']
-VALID_LOCALES = ['nl', 'en']
+VALID_PROPERTY_RANGES = ["1-5", "6-20", "21-50", "50+"]
+VALID_LOCALES = ["nl", "en"]
 
 
 class SignupService:
@@ -31,21 +31,24 @@ class SignupService:
 
     def __init__(self):
         """Initialize Cognito client and promo DB config"""
-        self.region = os.getenv('AWS_REGION', 'eu-west-1')
-        self.user_pool_id = os.getenv('SIGNUP_COGNITO_USER_POOL_ID', os.getenv('COGNITO_USER_POOL_ID'))
-        self.app_client_id = os.getenv('SIGNUP_COGNITO_APP_CLIENT_ID')
-        self.csrf_secret = os.getenv('CSRF_SECRET', '')
-        self.redirect_url = os.getenv('SIGNUP_REDIRECT_URL', 'https://app.myadmin.jabaki.nl/welcome')
+        self.region = os.getenv("AWS_REGION", "eu-west-1")
+        self.user_pool_id = os.getenv(
+            "SIGNUP_COGNITO_USER_POOL_ID", os.getenv("COGNITO_USER_POOL_ID")
+        )
+        self.app_client_id = os.getenv("SIGNUP_COGNITO_APP_CLIENT_ID")
+        self.csrf_secret = os.getenv("CSRF_SECRET", "")
+        self.redirect_url = os.getenv(
+            "SIGNUP_REDIRECT_URL", "https://app.myadmin.jabaki.nl/welcome"
+        )
 
         if not self.app_client_id:
             logger.warning("SIGNUP_COGNITO_APP_CLIENT_ID not set — signup will fail")
 
-        self.cognito = boto3.client('cognito-idp', region_name=self.region)
+        self.cognito = boto3.client("cognito-idp", region_name=self.region)
 
         # Create DatabaseManager for promo database (separate from main finance DB)
         self.db = DatabaseManager()
-        self.db.config['database'] = os.getenv('PROMO_DB_NAME', 'myadmin_promo')
-
+        self.db.config["database"] = os.getenv("PROMO_DB_NAME", "myadmin_promo")
 
     def _get_connection(self):
         """Get a connection to the promo database via DatabaseManager"""
@@ -55,7 +58,9 @@ class SignupService:
     # Input Validation
     # ========================================================================
 
-    def validate_signup_input(self, data: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, str]]]:
+    def validate_signup_input(
+        self, data: Dict[str, Any]
+    ) -> Tuple[bool, Optional[Dict[str, str]]]:
         """
         Validate signup input fields.
         Returns (is_valid, errors_dict or None)
@@ -63,42 +68,44 @@ class SignupService:
         errors = {}
 
         # Required fields
-        first_name = self._sanitize(data.get('firstName', ''))
+        first_name = self._sanitize(data.get("firstName", ""))
         if not first_name or len(first_name) > 50:
-            errors['firstName'] = 'Required, max 50 characters'
+            errors["firstName"] = "Required, max 50 characters"
 
-        last_name = self._sanitize(data.get('lastName', ''))
+        last_name = self._sanitize(data.get("lastName", ""))
         if not last_name or len(last_name) > 50:
-            errors['lastName'] = 'Required, max 50 characters'
+            errors["lastName"] = "Required, max 50 characters"
 
-        email = data.get('email', '').strip().lower()
+        email = data.get("email", "").strip().lower()
         if not email or not self._is_valid_email(email):
-            errors['email'] = 'Valid email required'
+            errors["email"] = "Valid email required"
 
-        password = data.get('password', '')
+        password = data.get("password", "")
         if not password or len(password) < 8:
-            errors['password'] = 'Minimum 8 characters required'
+            errors["password"] = "Minimum 8 characters required"
 
-        accepted_terms = data.get('acceptedTerms')
+        accepted_terms = data.get("acceptedTerms")
         if accepted_terms is not True:
-            errors['acceptedTerms'] = 'Must accept terms and conditions'
+            errors["acceptedTerms"] = "Must accept terms and conditions"
 
-        locale = data.get('locale', '')
+        locale = data.get("locale", "")
         if locale not in VALID_LOCALES:
-            errors['locale'] = f"Must be one of: {', '.join(VALID_LOCALES)}"
+            errors["locale"] = f"Must be one of: {', '.join(VALID_LOCALES)}"
 
         # Optional fields with validation
-        company_name = self._sanitize(data.get('companyName', '') or '')
+        company_name = self._sanitize(data.get("companyName", "") or "")
         if len(company_name) > 100:
-            errors['companyName'] = 'Max 100 characters'
+            errors["companyName"] = "Max 100 characters"
 
-        property_range = data.get('propertyRange', '')
+        property_range = data.get("propertyRange", "")
         if property_range and property_range not in VALID_PROPERTY_RANGES:
-            errors['propertyRange'] = f"Must be one of: {', '.join(VALID_PROPERTY_RANGES)}"
+            errors["propertyRange"] = (
+                f"Must be one of: {', '.join(VALID_PROPERTY_RANGES)}"
+            )
 
-        referral_source = self._sanitize(data.get('referralSource', '') or '')
+        referral_source = self._sanitize(data.get("referralSource", "") or "")
         if len(referral_source) > 50:
-            errors['referralSource'] = 'Max 50 characters'
+            errors["referralSource"] = "Max 50 characters"
 
         if errors:
             return False, errors
@@ -107,16 +114,16 @@ class SignupService:
     def _sanitize(self, value: str) -> str:
         """Strip HTML tags and escape special characters"""
         if not value:
-            return ''
+            return ""
         # Remove HTML tags
-        clean = re.sub(r'<[^>]+>', '', value)
+        clean = re.sub(r"<[^>]+>", "", value)
         # Escape HTML entities
         clean = html.escape(clean)
         return clean.strip()
 
     def _is_valid_email(self, email: str) -> bool:
         """Validate email format"""
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(pattern, email))
 
     def validate_csrf_token(self, token: str) -> bool:
@@ -130,15 +137,16 @@ class SignupService:
 
     def is_honeypot_filled(self, data: Dict[str, Any]) -> bool:
         """Check if honeypot field is filled (indicates bot)"""
-        honeypot = data.get('honeypot', '')
+        honeypot = data.get("honeypot", "")
         return bool(honeypot)
-
 
     # ========================================================================
     # Core Operations
     # ========================================================================
 
-    def create_signup(self, data: Dict[str, Any], ip_address: str = None, user_agent: str = None) -> Dict[str, Any]:
+    def create_signup(
+        self, data: Dict[str, Any], ip_address: str = None, user_agent: str = None
+    ) -> Dict[str, Any]:
         """
         Create a new trial signup:
         1. Create Cognito user
@@ -148,14 +156,14 @@ class SignupService:
         Returns dict with userId on success.
         Raises ValueError for validation errors, specific exceptions for Cognito errors.
         """
-        email = data.get('email', '').strip().lower()
-        first_name = self._sanitize(data.get('firstName', ''))
-        last_name = self._sanitize(data.get('lastName', ''))
-        password = data.get('password', '')
-        company_name = self._sanitize(data.get('companyName', '') or '')
-        property_range = data.get('propertyRange', '') or None
-        referral_source = self._sanitize(data.get('referralSource', '') or '') or None
-        locale = data.get('locale', 'nl')
+        email = data.get("email", "").strip().lower()
+        first_name = self._sanitize(data.get("firstName", ""))
+        last_name = self._sanitize(data.get("lastName", ""))
+        password = data.get("password", "")
+        company_name = self._sanitize(data.get("companyName", "") or "")
+        property_range = data.get("propertyRange", "") or None
+        referral_source = self._sanitize(data.get("referralSource", "") or "") or None
+        locale = data.get("locale", "nl")
 
         # 1. Create Cognito user
         try:
@@ -164,17 +172,17 @@ class SignupService:
                 Username=email,
                 Password=password,
                 UserAttributes=[
-                    {'Name': 'email', 'Value': email},
-                    {'Name': 'name', 'Value': f"{first_name} {last_name}"},
-                    {'Name': 'given_name', 'Value': first_name},
-                    {'Name': 'family_name', 'Value': last_name}
-                ]
+                    {"Name": "email", "Value": email},
+                    {"Name": "name", "Value": f"{first_name} {last_name}"},
+                    {"Name": "given_name", "Value": first_name},
+                    {"Name": "family_name", "Value": last_name},
+                ],
             )
-            cognito_user_id = response.get('UserSub')
+            cognito_user_id = response.get("UserSub")
             logger.info(f"Cognito user created: {email} (sub: {cognito_user_id})")
         except ClientError as e:
-            error_code = e.response['Error']['Code']
-            if error_code == 'UsernameExistsException':
+            error_code = e.response["Error"]["Code"]
+            if error_code == "UsernameExistsException":
                 raise UsernameExistsError(f"Email {email} is already registered")
             logger.error(f"Cognito sign_up failed: {e}")
             raise
@@ -188,8 +196,18 @@ class SignupService:
                    (cognito_user_id, email, first_name, last_name, company_name, 
                     property_range, referral_source, locale, ip_address, user_agent)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (cognito_user_id, email, first_name, last_name, company_name,
-                 property_range, referral_source, locale, ip_address, user_agent)
+                (
+                    cognito_user_id,
+                    email,
+                    first_name,
+                    last_name,
+                    company_name,
+                    property_range,
+                    referral_source,
+                    locale,
+                    ip_address,
+                    user_agent,
+                ),
             )
             conn.commit()
             logger.info(f"Pending signup inserted for {email}")
@@ -204,21 +222,21 @@ class SignupService:
         # 3. Send admin notification (non-blocking)
         try:
             self._send_admin_notification(
-                'New Trial Signup',
+                "New Trial Signup",
                 f"New signup from {first_name} {last_name} ({email})",
                 {
-                    'email': email,
-                    'name': f"{first_name} {last_name}",
-                    'company': company_name or 'N/A',
-                    'property_range': property_range or 'N/A',
-                    'referral': referral_source or 'N/A',
-                    'locale': locale
-                }
+                    "email": email,
+                    "name": f"{first_name} {last_name}",
+                    "company": company_name or "N/A",
+                    "property_range": property_range or "N/A",
+                    "referral": referral_source or "N/A",
+                    "locale": locale,
+                },
             )
         except Exception as e:
             logger.warning(f"Admin notification failed (non-critical): {e}")
 
-        return {'userId': cognito_user_id}
+        return {"userId": cognito_user_id}
 
     def verify_signup(self, email: str, code: str) -> Dict[str, Any]:
         """
@@ -231,22 +249,20 @@ class SignupService:
         signup = self._get_pending_signup(email)
         if not signup:
             raise SignupNotFoundError(f"No pending signup for {email}")
-        if signup['status'] == 'verified':
+        if signup["status"] == "verified":
             raise AlreadyVerifiedError(f"Signup for {email} is already verified")
 
         # Confirm with Cognito
         try:
             self.cognito.confirm_sign_up(
-                ClientId=self.app_client_id,
-                Username=email,
-                ConfirmationCode=code
+                ClientId=self.app_client_id, Username=email, ConfirmationCode=code
             )
             logger.info(f"Cognito email verified: {email}")
         except ClientError as e:
-            error_code = e.response['Error']['Code']
-            if error_code == 'CodeMismatchException':
+            error_code = e.response["Error"]["Code"]
+            if error_code == "CodeMismatchException":
                 raise InvalidCodeError("Invalid verification code")
-            if error_code == 'ExpiredCodeException':
+            if error_code == "ExpiredCodeException":
                 raise InvalidCodeError("Verification code has expired")
             logger.error(f"Cognito confirm_sign_up failed: {e}")
             raise
@@ -259,7 +275,7 @@ class SignupService:
                 """UPDATE pending_signups 
                    SET status = 'verified', verified_at = NOW() 
                    WHERE email = %s""",
-                (email,)
+                (email,),
             )
             conn.commit()
             logger.info(f"Signup verified in DB: {email}")
@@ -273,14 +289,17 @@ class SignupService:
         # Admin notification
         try:
             self._send_admin_notification(
-                'Signup Verified — Ready for Provisioning',
+                "Signup Verified — Ready for Provisioning",
                 f"{email} has verified their email. Ready for tenant provisioning.",
-                {'email': email, 'name': f"{signup['first_name']} {signup['last_name']}"}
+                {
+                    "email": email,
+                    "name": f"{signup['first_name']} {signup['last_name']}",
+                },
             )
         except Exception as e:
             logger.warning(f"Admin notification failed (non-critical): {e}")
 
-        return {'redirectUrl': self.redirect_url}
+        return {"redirectUrl": self.redirect_url}
 
     def resend_verification(self, email: str) -> Dict[str, Any]:
         """
@@ -293,21 +312,22 @@ class SignupService:
         signup = self._get_pending_signup(email)
         if not signup:
             raise SignupNotFoundError(f"No pending signup for {email}")
-        if signup['status'] == 'verified':
+        if signup["status"] == "verified":
             raise AlreadyVerifiedError(f"Signup for {email} is already verified")
 
         # Rate limit: 60 seconds between resends
-        last_resend = signup.get('last_resend_at')
+        last_resend = signup.get("last_resend_at")
         if last_resend:
             elapsed = (datetime.utcnow() - last_resend).total_seconds()
             if elapsed < 60:
-                raise ResendRateLimitError(f"Please wait {int(60 - elapsed)} seconds before resending")
+                raise ResendRateLimitError(
+                    f"Please wait {int(60 - elapsed)} seconds before resending"
+                )
 
         # Resend via Cognito
         try:
             self.cognito.resend_confirmation_code(
-                ClientId=self.app_client_id,
-                Username=email
+                ClientId=self.app_client_id, Username=email
             )
             logger.info(f"Verification code resent for {email}")
         except ClientError as e:
@@ -320,7 +340,7 @@ class SignupService:
             cursor = conn.cursor()
             cursor.execute(
                 "UPDATE pending_signups SET last_resend_at = NOW() WHERE email = %s",
-                (email,)
+                (email,),
             )
             conn.commit()
         except Exception as e:
@@ -329,7 +349,7 @@ class SignupService:
             cursor.close()
             conn.close()
 
-        return {'message': 'Verification email resent'}
+        return {"message": "Verification email resent"}
 
     # ========================================================================
     # Helpers
@@ -340,10 +360,7 @@ class SignupService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT * FROM pending_signups WHERE email = %s",
-                (email,)
-            )
+            cursor.execute("SELECT * FROM pending_signups WHERE email = %s", (email,))
             result = cursor.fetchone()
             return result
         except Exception as e:
@@ -353,10 +370,13 @@ class SignupService:
             cursor.close()
             conn.close()
 
-    def _send_admin_notification(self, title: str, message: str, data: Dict[str, Any] = None):
+    def _send_admin_notification(
+        self, title: str, message: str, data: Dict[str, Any] = None
+    ):
         """Send admin notification via SNS (reuses existing pattern)"""
         try:
             from aws_notifications import get_notification_service
+
             service = get_notification_service()
             if service and service.is_enabled():
                 service.send_business_notification(title, message, data)
@@ -370,22 +390,32 @@ class SignupService:
 # Custom Exceptions
 # ========================================================================
 
+
 class UsernameExistsError(Exception):
     """Email already registered in Cognito"""
+
     pass
+
 
 class SignupNotFoundError(Exception):
     """No pending signup found for email"""
+
     pass
+
 
 class AlreadyVerifiedError(Exception):
     """Signup already verified"""
+
     pass
+
 
 class InvalidCodeError(Exception):
     """Invalid or expired verification code"""
+
     pass
+
 
 class ResendRateLimitError(Exception):
     """Resend attempted too soon"""
+
     pass

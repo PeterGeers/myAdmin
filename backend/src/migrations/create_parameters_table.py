@@ -12,7 +12,7 @@ import logging
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from database import DatabaseManager
 
@@ -25,9 +25,9 @@ def table_exists(db, table_name):
         "SELECT COUNT(*) AS cnt FROM information_schema.tables "
         "WHERE table_schema = DATABASE() AND table_name = %s",
         (table_name,),
-        fetch=True
+        fetch=True,
     )
-    return result[0]['cnt'] > 0
+    return result[0]["cnt"] > 0
 
 
 def run_migration(db=None):
@@ -35,7 +35,7 @@ def run_migration(db=None):
     if db is None:
         db = DatabaseManager()
 
-    if table_exists(db, 'parameters'):
+    if table_exists(db, "parameters"):
         logger.info("Table 'parameters' already exists, skipping creation.")
         return False
 
@@ -61,6 +61,6 @@ def run_migration(db=None):
     return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     run_migration()

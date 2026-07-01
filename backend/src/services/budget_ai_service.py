@@ -28,8 +28,8 @@ class BudgetAIService:
     """
 
     def __init__(self, db=None):
-        self.api_key = os.getenv('OPENROUTER_API_KEY')
-        self.api_url = 'https://openrouter.ai/api/v1/chat/completions'
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.db = db
         self.usage_tracker = AIUsageTracker(db) if db else None
 
@@ -44,7 +44,14 @@ class BudgetAIService:
         """
         return resolver.resolve_profile("text_generation")
 
-    def _call_openrouter(self, system_prompt: str, user_prompt: str, administration: str, max_tokens_override: int | None = None, timeout_override: int | None = None) -> dict:
+    def _call_openrouter(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        administration: str,
+        max_tokens_override: int | None = None,
+        timeout_override: int | None = None,
+    ) -> dict:
         """Call OpenRouter with registry-resolved fallback chain.
 
         Iterates models in chain order, using each model's configured
@@ -63,7 +70,10 @@ class BudgetAIService:
             or success=False with error message on failure.
         """
         if not self.api_key:
-            return {"success": False, "error": "AI service unavailable: API key not configured"}
+            return {
+                "success": False,
+                "error": "AI service unavailable: API key not configured",
+            }
 
         try:
             chain = self._get_model_chain()
@@ -95,14 +105,18 @@ class BudgetAIService:
                 )
                 if response.status_code == 200:
                     data = response.json()
-                    content = data.get('choices', [{}])[0].get('message', {}).get('content', '')
-                    tokens_used = data.get('usage', {}).get('total_tokens', 0)
+                    content = (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    )
+                    tokens_used = data.get("usage", {}).get("total_tokens", 0)
 
                     # Track usage with the successful model
                     if self.usage_tracker:
                         self.usage_tracker.log_ai_request(
                             administration=administration,
-                            template_type='budget',
+                            template_type="budget",
                             tokens_used=tokens_used,
                             model_used=model.model_id,
                         )
@@ -126,7 +140,9 @@ class BudgetAIService:
     # AI Feature stubs (implemented in tasks 14.2–14.5)
     # ------------------------------------------------------------------
 
-    def generate_narrative(self, dashboard_data: dict, period: str, year: int, administration: str) -> dict:
+    def generate_narrative(
+        self, dashboard_data: dict, period: str, year: int, administration: str
+    ) -> dict:
         """Generate a Dutch executive summary from dashboard data.
 
         Formats dashboard rows into a compact prompt and requests a 2-4 sentence
@@ -142,24 +158,24 @@ class BudgetAIService:
             dict with success, data (narrative, model_used, tokens_used) on success;
             or success=False with error message on failure.
         """
-        rows = dashboard_data.get('rows', [])[:50]
+        rows = dashboard_data.get("rows", [])[:50]
 
         if not rows:
             return {
-                'success': True,
-                'data': {
-                    'narrative': 'Geen data beschikbaar voor analyse.',
-                    'model_used': None,
-                    'tokens_used': 0,
-                }
+                "success": True,
+                "data": {
+                    "narrative": "Geen data beschikbaar voor analyse.",
+                    "model_used": None,
+                    "tokens_used": 0,
+                },
             }
 
         # Format rows into compact text for the prompt
         row_lines = []
         for r in rows:
-            budget = r.get('budget', 0)
-            actual = r.get('actual', 0)
-            variance = r.get('variance', 0)
+            budget = r.get("budget", 0)
+            actual = r.get("actual", 0)
+            variance = r.get("variance", 0)
             row_lines.append(
                 f"- {r.get('code', '')} {r.get('name', '')}: "
                 f"budget={budget:.2f}, realisatie={actual:.2f}, afwijking={variance:.2f}"
@@ -179,23 +195,28 @@ class BudgetAIService:
         )
 
         result = self._call_openrouter(
-            system_prompt, user_prompt, administration,
-            max_tokens_override=500, timeout_override=15
+            system_prompt,
+            user_prompt,
+            administration,
+            max_tokens_override=500,
+            timeout_override=15,
         )
 
-        if not result['success']:
+        if not result["success"]:
             return result
 
         return {
-            'success': True,
-            'data': {
-                'narrative': result['content'],
-                'model_used': result['model_used'],
-                'tokens_used': result['tokens_used'],
-            }
+            "success": True,
+            "data": {
+                "narrative": result["content"],
+                "model_used": result["model_used"],
+                "tokens_used": result["tokens_used"],
+            },
         }
 
-    def translate_query(self, question: str, year: int, hierarchy_context: list, administration: str) -> dict:
+    def translate_query(
+        self, question: str, year: int, hierarchy_context: list, administration: str
+    ) -> dict:
         """Translate natural language question to dashboard parameters.
 
         Sends the user's natural language question along with account hierarchy
@@ -232,15 +253,17 @@ class BudgetAIService:
             f"User question: {question}"
         )
 
-        result = self._call_openrouter(system_prompt, user_prompt, administration, max_tokens_override=300)
+        result = self._call_openrouter(
+            system_prompt, user_prompt, administration, max_tokens_override=300
+        )
 
-        if not result['success']:
+        if not result["success"]:
             return result
 
         # Parse JSON from response
-        content = result['content'].strip()
+        content = result["content"].strip()
         # Try to extract JSON from potential markdown code blocks
-        json_match = re.search(r'\{[^}]*\}', content, re.DOTALL)
+        json_match = re.search(r"\{[^}]*\}", content, re.DOTALL)
         if json_match:
             content = json_match.group()
 
@@ -248,12 +271,19 @@ class BudgetAIService:
             params = json.loads(content)
         except json.JSONDecodeError:
             return {
-                'success': False,
-                'error': "Could not interpret query. Try rephrasing with specific account names or periods."
+                "success": False,
+                "error": "Could not interpret query. Try rephrasing with specific account names or periods.",
             }
 
         # Validate against allowed schema
-        allowed_keys = {'year', 'level', 'period', 'parent_code', 'subparent_code', 'reference_number'}
+        allowed_keys = {
+            "year",
+            "level",
+            "period",
+            "parent_code",
+            "subparent_code",
+            "reference_number",
+        }
         validated_params = {}
 
         for key, value in params.items():
@@ -261,30 +291,34 @@ class BudgetAIService:
                 continue
             str_val = str(value)
             # Security: reject values with semicolons or exceeding 100 chars
-            if ';' in str_val or len(str_val) > 100:
+            if ";" in str_val or len(str_val) > 100:
                 return {
-                    'success': False,
-                    'error': "Could not interpret query safely. Try rephrasing your question."
+                    "success": False,
+                    "error": "Could not interpret query safely. Try rephrasing your question.",
                 }
             # Security: reject SQL fragments
-            if re.search(r'(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|EXEC)', str_val, re.IGNORECASE):
+            if re.search(
+                r"(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|EXEC)", str_val, re.IGNORECASE
+            ):
                 return {
-                    'success': False,
-                    'error': "Could not interpret query safely. Try rephrasing your question."
+                    "success": False,
+                    "error": "Could not interpret query safely. Try rephrasing your question.",
                 }
             validated_params[key] = value
 
         return {
-            'success': True,
-            'data': {
-                'interpreted_params': validated_params,
-                'filter_description': f"Interpreted from: {question}",
-                'model_used': result['model_used'],
-                'tokens_used': result['tokens_used'],
-            }
+            "success": True,
+            "data": {
+                "interpreted_params": validated_params,
+                "filter_description": f"Interpreted from: {question}",
+                "model_used": result["model_used"],
+                "tokens_used": result["tokens_used"],
+            },
         }
 
-    def suggest_adjustments(self, budget_lines: list, context_notes: str, administration: str) -> dict:
+    def suggest_adjustments(
+        self, budget_lines: list, context_notes: str, administration: str
+    ) -> dict:
         """Suggest adjustments to draft budget lines based on context.
 
         Sends current budget line amounts and user-provided context notes to the
@@ -304,18 +338,20 @@ class BudgetAIService:
         """
         if len(budget_lines) > 100:
             return {
-                'success': False,
-                'error': "Too many budget lines for AI analysis. Select a subset (max 100 lines)."
+                "success": False,
+                "error": "Too many budget lines for AI analysis. Select a subset (max 100 lines).",
             }
 
         # Build compact line summary for the prompt
         line_text = "\n".join(
-            f"- {item['account_code']} ({item.get('account_name', '')}): " +
-            ", ".join(f"m{i+1}={item.get(f'month_{i+1:02d}', 0)}" for i in range(12))
+            f"- {item['account_code']} ({item.get('account_name', '')}): "
+            + ", ".join(
+                f"m{i + 1}={item.get(f'month_{i + 1:02d}', 0)}" for i in range(12)
+            )
             for item in budget_lines
         )
 
-        valid_codes = {item['account_code'] for item in budget_lines}
+        valid_codes = {item["account_code"] for item in budget_lines}
 
         system_prompt = (
             "You are a financial budget advisor. Given budget line data and context notes, "
@@ -329,14 +365,14 @@ class BudgetAIService:
 
         result = self._call_openrouter(system_prompt, user_prompt, administration)
 
-        if not result['success']:
+        if not result["success"]:
             return result
 
         # Parse suggestions from AI response
         try:
-            content = result['content'].strip()
+            content = result["content"].strip()
             # Extract JSON array from response (handles markdown code blocks)
-            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+            json_match = re.search(r"\[.*\]", content, re.DOTALL)
             if json_match:
                 content = json_match.group()
             suggestions = json.loads(content)
@@ -344,18 +380,25 @@ class BudgetAIService:
             suggestions = []
 
         # Filter: only include suggestions for accounts present in the budget lines
-        filtered = [s for s in suggestions if s.get('account_code') in valid_codes]
+        filtered = [s for s in suggestions if s.get("account_code") in valid_codes]
 
         return {
-            'success': True,
-            'data': {
-                'suggestions': filtered,
-                'model_used': result['model_used'],
-                'tokens_used': result['tokens_used'],
-            }
+            "success": True,
+            "data": {
+                "suggestions": filtered,
+                "model_used": result["model_used"],
+                "tokens_used": result["tokens_used"],
+            },
         }
 
-    def generate_lines(self, chart_of_accounts: list, prior_actuals: list, fiscal_year: int, context_notes: str, administration: str) -> dict:
+    def generate_lines(
+        self,
+        chart_of_accounts: list,
+        prior_actuals: list,
+        fiscal_year: int,
+        context_notes: str,
+        administration: str,
+    ) -> dict:
         """Generate proposed budget lines from prior-year actuals and context notes.
 
         Uses AI to analyze the tenant's chart of accounts and prior-year actuals,
@@ -377,23 +420,27 @@ class BudgetAIService:
         # Build account summary from monthly actuals
         account_totals: dict = {}
         for row in prior_actuals:
-            code = row.get('account_code', '')
-            amount = float(row.get('amount', 0))
+            code = row.get("account_code", "")
+            amount = float(row.get("amount", 0))
             if code not in account_totals:
                 account_totals[code] = {}
-            month = int(row.get('maand', 0))
+            month = int(row.get("maand", 0))
             account_totals[code][month] = account_totals[code].get(month, 0) + amount
 
         # Build account text for AI
         account_lines = []
         for acct in chart_of_accounts[:200]:
-            code = acct['account_code']
-            name = acct.get('account_name', '')
+            code = acct["account_code"]
+            name = acct.get("account_name", "")
             monthly = account_totals.get(code, {})
             total = sum(monthly.values())
             if total != 0 or code in account_totals:
-                months_str = ", ".join(f"M{m}:{v:.0f}" for m, v in sorted(monthly.items()))
-                account_lines.append(f"- {code} {name}: total={total:.2f} [{months_str}]")
+                months_str = ", ".join(
+                    f"M{m}:{v:.0f}" for m, v in sorted(monthly.items())
+                )
+                account_lines.append(
+                    f"- {code} {name}: total={total:.2f} [{months_str}]"
+                )
             else:
                 account_lines.append(f"- {code} {name}: no activity in {prior_year}")
 
@@ -416,21 +463,22 @@ class BudgetAIService:
         )
 
         user_prompt = (
-            f"Chart of accounts with {prior_year} monthly actuals:\n"
-            f"{account_text}"
+            f"Chart of accounts with {prior_year} monthly actuals:\n{account_text}"
         )
         if context_notes:
             user_prompt += f"\n\nContext notes for {fiscal_year}:\n{context_notes}"
 
-        result = self._call_openrouter(system_prompt, user_prompt, administration, max_tokens_override=4000)
+        result = self._call_openrouter(
+            system_prompt, user_prompt, administration, max_tokens_override=4000
+        )
 
-        if not result['success']:
+        if not result["success"]:
             return result
 
         # Parse proposed lines from AI response
         try:
-            content = result['content'].strip()
-            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+            content = result["content"].strip()
+            json_match = re.search(r"\[.*\]", content, re.DOTALL)
             if json_match:
                 content = json_match.group()
             proposed_lines = json.loads(content)
@@ -440,18 +488,20 @@ class BudgetAIService:
         # Validate: ensure each line has required fields and amounts is length 12
         valid_lines = []
         for line in proposed_lines:
-            if (isinstance(line, dict) and
-                    'account_code' in line and
-                    'amounts' in line and
-                    isinstance(line['amounts'], list) and
-                    len(line['amounts']) == 12):
+            if (
+                isinstance(line, dict)
+                and "account_code" in line
+                and "amounts" in line
+                and isinstance(line["amounts"], list)
+                and len(line["amounts"]) == 12
+            ):
                 valid_lines.append(line)
 
         return {
-            'success': True,
-            'data': {
-                'proposed_lines': valid_lines,
-                'model_used': result['model_used'],
-                'tokens_used': result['tokens_used'],
-            }
+            "success": True,
+            "data": {
+                "proposed_lines": valid_lines,
+                "model_used": result["model_used"],
+                "tokens_used": result["tokens_used"],
+            },
         }

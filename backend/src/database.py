@@ -6,7 +6,10 @@ from contextlib import contextmanager
 import time
 import logging
 from db_exceptions import (
-    DatabaseError, IntegrityError, ConnectionError, OperationalError
+    DatabaseError,
+    IntegrityError,
+    ConnectionError,
+    OperationalError,
 )
 from database_banking_queries import DatabaseBankingQueriesMixin
 
@@ -16,85 +19,120 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class DatabaseManager(DatabaseBankingQueriesMixin):
     _scalability_manager = None
     _use_scalability = True
     _legacy_pool = None
     _use_legacy_pool = True
-    
+
     def __init__(self, test_mode=False):
         self.test_mode = test_mode
-        
+
         # Use test database if test_mode is True or TEST_MODE env var is set
-        use_test = test_mode or os.getenv('TEST_MODE', 'false').lower() == 'true'
-        db_name = os.getenv('TEST_DB_NAME', 'testfinance') if use_test else os.getenv('DB_NAME', os.getenv('MYSQL_DATABASE', 'finance'))
-        
+        use_test = test_mode or os.getenv("TEST_MODE", "false").lower() == "true"
+        db_name = (
+            os.getenv("TEST_DB_NAME", "testfinance")
+            if use_test
+            else os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "finance"))
+        )
+
         self.config = {
-            'host': os.getenv('DB_HOST', os.getenv('RAILWAY_PRIVATE_DOMAIN', 'localhost')),
-            'user': os.getenv('DB_USER', os.getenv('MYSQL_USER', 'root')),
-            'password': os.getenv('DB_PASSWORD', os.getenv('MYSQL_PASSWORD', '')),
-            'database': db_name,
-            'port': int(os.getenv('DB_PORT', '3306'))  # Always use 3306 for internal Railway connections
+            "host": os.getenv(
+                "DB_HOST", os.getenv("RAILWAY_PRIVATE_DOMAIN", "localhost")
+            ),
+            "user": os.getenv("DB_USER", os.getenv("MYSQL_USER", "root")),
+            "password": os.getenv("DB_PASSWORD", os.getenv("MYSQL_PASSWORD", "")),
+            "database": db_name,
+            "port": int(
+                os.getenv("DB_PORT", "3306")
+            ),  # Always use 3306 for internal Railway connections
         }
-        
+
         # Try to initialize scalability manager
         self._initialize_scalability_manager()
-        
+
         # Fallback to legacy pool if scalability manager fails
-        if not DatabaseManager._scalability_manager and DatabaseManager._use_legacy_pool and not DatabaseManager._legacy_pool:
+        if (
+            not DatabaseManager._scalability_manager
+            and DatabaseManager._use_legacy_pool
+            and not DatabaseManager._legacy_pool
+        ):
             try:
                 pool_config = self.config.copy()
-                pool_config.update({
-                    'pool_name': 'legacy_pool',
-                    'pool_size': 20,  # Increased from 5 to 20 for better concurrency
-                    'pool_reset_session': True,
-                    'pool_recycle': 3600,  # Recycle connections every hour
-                    'autocommit': False
-                })
-                DatabaseManager._legacy_pool = pooling.MySQLConnectionPool(**pool_config)
+                pool_config.update(
+                    {
+                        "pool_name": "legacy_pool",
+                        "pool_size": 20,  # Increased from 5 to 20 for better concurrency
+                        "pool_reset_session": True,
+                        "pool_recycle": 3600,  # Recycle connections every hour
+                        "autocommit": False,
+                    }
+                )
+                DatabaseManager._legacy_pool = pooling.MySQLConnectionPool(
+                    **pool_config
+                )
                 logger.info("✅ Legacy connection pool initialized with 20 connections")
             except Exception as e:
-                logger.warning(f"⚠️ Legacy connection pool failed, using direct connections: {e}")
+                logger.warning(
+                    f"⚠️ Legacy connection pool failed, using direct connections: {e}"
+                )
                 DatabaseManager._use_legacy_pool = False
-    
+
     def _initialize_scalability_manager(self):
         """Initialize scalability manager for advanced connection pooling"""
-        if DatabaseManager._scalability_manager is None and DatabaseManager._use_scalability:
+        if (
+            DatabaseManager._scalability_manager is None
+            and DatabaseManager._use_scalability
+        ):
             try:
                 # Import here to avoid circular imports
                 from scalability_manager import get_scalability_manager
-                DatabaseManager._scalability_manager = get_scalability_manager(self.config)
-                logger.info("🚀 Scalability Manager initialized for database connections")
+
+                DatabaseManager._scalability_manager = get_scalability_manager(
+                    self.config
+                )
+                logger.info(
+                    "🚀 Scalability Manager initialized for database connections"
+                )
             except Exception as e:
-                logger.warning(f"⚠️ Scalability Manager initialization failed, using legacy pool: {e}")
+                logger.warning(
+                    f"⚠️ Scalability Manager initialization failed, using legacy pool: {e}"
+                )
                 DatabaseManager._use_scalability = False
-    
+
     def _get_db_config(self):
         """Get database configuration for SQLAlchemy"""
         return self.config
-    
-    def get_connection(self, pool_type='primary'):
+
+    def get_connection(self, pool_type="primary"):
         """Get database connection with scalability improvements"""
         # Try scalability manager first (advanced pooling)
         if DatabaseManager._scalability_manager:
             try:
-                return DatabaseManager._scalability_manager.get_database_connection(pool_type)
+                return DatabaseManager._scalability_manager.get_database_connection(
+                    pool_type
+                )
             except Exception as e:
-                logger.warning(f"⚠️ Scalability manager connection failed, falling back to legacy: {e}")
-        
+                logger.warning(
+                    f"⚠️ Scalability manager connection failed, falling back to legacy: {e}"
+                )
+
         # Fallback to legacy pool
         if DatabaseManager._use_legacy_pool and DatabaseManager._legacy_pool:
             try:
                 return DatabaseManager._legacy_pool.get_connection()
             except Exception as e:
-                logger.warning(f"⚠️ Legacy pool connection failed, using direct connection: {e}")
+                logger.warning(
+                    f"⚠️ Legacy pool connection failed, using direct connection: {e}"
+                )
                 DatabaseManager._use_legacy_pool = False
-        
+
         # Final fallback to direct connection
         return mysql.connector.connect(**self.config)
-    
+
     @contextmanager
-    def transaction(self, pool_type='primary'):
+    def transaction(self, pool_type="primary"):
         """Context manager for multi-statement transactions.
 
         Usage:
@@ -112,15 +150,17 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 raise
 
     @contextmanager
-    def get_cursor(self, dictionary=True, pool_type='primary'):
+    def get_cursor(self, dictionary=True, pool_type="primary"):
         """Context manager for database operations with scalability improvements"""
         start_time = time.time()
-        
+
         # Use scalability manager's connection context if available
         if DatabaseManager._scalability_manager:
             _yielded = False
             try:
-                with DatabaseManager._scalability_manager.get_database_connection(pool_type) as conn:
+                with DatabaseManager._scalability_manager.get_database_connection(
+                    pool_type
+                ) as conn:
                     cursor = conn.cursor(dictionary=dictionary)
                     try:
                         _yielded = True
@@ -128,32 +168,42 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                     except mysql.connector.IntegrityError as e:
                         conn.rollback()
                         raise IntegrityError(
-                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                            str(e),
+                            error_code=getattr(e, "errno", None),
+                            original_error=e,
                         ) from e
                     except mysql.connector.OperationalError as e:
                         conn.rollback()
                         raise OperationalError(
-                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                            str(e),
+                            error_code=getattr(e, "errno", None),
+                            original_error=e,
                         ) from e
                     except mysql.connector.InterfaceError as e:
                         conn.rollback()
                         raise ConnectionError(
-                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                            str(e),
+                            error_code=getattr(e, "errno", None),
+                            original_error=e,
                         ) from e
                     except mysql.connector.Error as e:
                         conn.rollback()
                         raise DatabaseError(
-                            str(e), error_code=getattr(e, 'errno', None), original_error=e
+                            str(e),
+                            error_code=getattr(e, "errno", None),
+                            original_error=e,
                         ) from e
                     except Exception as e:
                         conn.rollback()
                         raise e
                     finally:
                         cursor.close()
-                        
+
                         # Record performance metrics
                         response_time = time.time() - start_time
-                        DatabaseManager._scalability_manager.record_request_metrics(response_time)
+                        DatabaseManager._scalability_manager.record_request_metrics(
+                            response_time
+                        )
                 return
             except (DatabaseError, IntegrityError, ConnectionError, OperationalError):
                 raise
@@ -162,8 +212,10 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 # (before yield). If user code raised inside the yield, re-raise directly.
                 if _yielded:
                     raise
-                logger.warning(f"⚠️ Scalability manager cursor failed, falling back: {e}")
-        
+                logger.warning(
+                    f"⚠️ Scalability manager cursor failed, falling back: {e}"
+                )
+
         # Fallback to legacy approach
         conn = self.get_connection()
         cursor = conn.cursor(dictionary=dictionary)
@@ -172,22 +224,22 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         except mysql.connector.IntegrityError as e:
             conn.rollback()
             raise IntegrityError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
         except mysql.connector.OperationalError as e:
             conn.rollback()
             raise OperationalError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
         except mysql.connector.InterfaceError as e:
             conn.rollback()
             raise ConnectionError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
         except mysql.connector.Error as e:
             conn.rollback()
             raise DatabaseError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
         except Exception as e:
             conn.rollback()
@@ -195,17 +247,23 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         finally:
             cursor.close()
             conn.close()
-    
-    def execute_query(self, query, params=None, fetch=True, commit=False, pool_type='primary'):
+
+    def execute_query(
+        self, query, params=None, fetch=True, commit=False, pool_type="primary"
+    ):
         """Execute query with automatic connection management and scalability improvements"""
         # Determine optimal pool type based on query
-        if pool_type == 'primary':
-            if query.strip().upper().startswith(('SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN')):
-                if 'pattern_' in query.lower() or 'analytics' in query.lower():
-                    pool_type = 'analytics'
+        if pool_type == "primary":
+            if (
+                query.strip()
+                .upper()
+                .startswith(("SELECT", "SHOW", "DESCRIBE", "EXPLAIN"))
+            ):
+                if "pattern_" in query.lower() or "analytics" in query.lower():
+                    pool_type = "analytics"
                 else:
-                    pool_type = 'readonly'
-        
+                    pool_type = "readonly"
+
         try:
             with self.get_cursor(pool_type=pool_type) as (cursor, conn):
                 cursor.execute(query, params or ())
@@ -219,55 +277,53 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
             errno = e.error_code
             if errno == 1452:
                 msg = str(e)
-                if 'fk_mutaties_debet' in msg:
+                if "fk_mutaties_debet" in msg:
                     raise ValueError(
                         "Debet account does not exist in the chart of accounts (rekeningschema) "
                         "for this administration. Please check the account number."
                     ) from (original or e)
-                elif 'fk_mutaties_credit' in msg:
+                elif "fk_mutaties_credit" in msg:
                     raise ValueError(
                         "Credit account does not exist in the chart of accounts (rekeningschema) "
                         "for this administration. Please check the account number."
                     ) from (original or e)
                 else:
-                    raise ValueError(
-                        f"Foreign key constraint violation: {msg}"
-                    ) from (original or e)
+                    raise ValueError(f"Foreign key constraint violation: {msg}") from (
+                        original or e
+                    )
             raise
         except mysql.connector.IntegrityError as e:
             # Direct mysql.connector.IntegrityError (not yet wrapped by get_cursor)
             if e.errno == 1452:
                 msg = str(e)
-                if 'fk_mutaties_debet' in msg:
+                if "fk_mutaties_debet" in msg:
                     raise ValueError(
                         "Debet account does not exist in the chart of accounts (rekeningschema) "
                         "for this administration. Please check the account number."
                     ) from e
-                elif 'fk_mutaties_credit' in msg:
+                elif "fk_mutaties_credit" in msg:
                     raise ValueError(
                         "Credit account does not exist in the chart of accounts (rekeningschema) "
                         "for this administration. Please check the account number."
                     ) from e
                 else:
-                    raise ValueError(
-                        f"Foreign key constraint violation: {msg}"
-                    ) from e
+                    raise ValueError(f"Foreign key constraint violation: {msg}") from e
             raise IntegrityError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
         except mysql.connector.OperationalError as e:
             raise OperationalError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
         except mysql.connector.InterfaceError as e:
             raise ConnectionError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
         except mysql.connector.Error as e:
             raise DatabaseError(
-                str(e), error_code=getattr(e, 'errno', None), original_error=e
+                str(e), error_code=getattr(e, "errno", None), original_error=e
             ) from e
-    
+
     def execute_ddl(self, statement):
         """Execute a DDL statement (CREATE, ALTER, DROP) with auto-commit.
 
@@ -279,52 +335,56 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         """Execute multiple queries in batch for better performance"""
         if not queries_with_params:
             return []
-        
+
         # Use scalability manager for batch processing if available
         if DatabaseManager._scalability_manager:
             try:
+
                 def execute_single_query(query_params):
                     query, params = query_params
                     return self.execute_query(query, params, fetch=False, commit=False)
-                
+
                 results = DatabaseManager._scalability_manager.batch_process_items(
                     queries_with_params, execute_single_query
                 )
-                
+
                 # Commit all changes at once
                 if commit:
                     with self.get_cursor() as (cursor, conn):
                         conn.commit()
-                
+
                 return results
             except Exception as e:
-                logger.warning(f"⚠️ Batch processing failed, falling back to sequential: {e}")
-        
+                logger.warning(
+                    f"⚠️ Batch processing failed, falling back to sequential: {e}"
+                )
+
         # Fallback to sequential processing
         results = []
         with self.get_cursor() as (cursor, conn):
             for query, params in queries_with_params:
                 cursor.execute(query, params or ())
                 results.append(cursor.rowcount)
-            
+
             if commit:
                 conn.commit()
-        
+
         return results
-    
+
     def execute_async_query(self, query, params=None, fetch=True, commit=False):
         """Execute query asynchronously using scalability manager"""
         if DatabaseManager._scalability_manager:
             future = DatabaseManager._scalability_manager.submit_async_task(
-                'io', self.execute_query, query, params, fetch, commit
+                "io", self.execute_query, query, params, fetch, commit
             )
             return future
         else:
             # Fallback to synchronous execution
             return self.execute_query(query, params, fetch, commit)
-    
+
     def create_tables(self):
-        self.execute_query('''
+        self.execute_query(
+            """
             CREATE TABLE IF NOT EXISTS transactions (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 date DATE,
@@ -337,31 +397,42 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 ref4 VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''', fetch=False, commit=True)
-    
+        """,
+            fetch=False,
+            commit=True,
+        )
+
     def get_bnb_lookup(self, lookup_type):
         """Get BnB lookup data based on lookup type (e.g., 'bdc')"""
         return self.execute_query(
-            "SELECT * FROM bnblookup WHERE bnblookup.lookUp LIKE %s",
-            (lookup_type,)
+            "SELECT * FROM bnblookup WHERE bnblookup.lookUp LIKE %s", (lookup_type,)
         )
-    
+
     def insert_transactions(self, transactions):
         with self.get_cursor(dictionary=False) as (cursor, conn):
-            query = '''
+            query = """
                 INSERT INTO transactions (date, description, amount, debet, credit, ref, ref3, ref4)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            '''
-            
-            data = [(
-                t['date'], t['description'], t['amount'], t['debet'], t['credit'],
-                t.get('ref', ''), t.get('ref3', ''), t.get('ref4', '')
-            ) for t in transactions]
-            
+            """
+
+            data = [
+                (
+                    t["date"],
+                    t["description"],
+                    t["amount"],
+                    t["debet"],
+                    t["credit"],
+                    t.get("ref", ""),
+                    t.get("ref3", ""),
+                    t.get("ref4", ""),
+                )
+                for t in transactions
+            ]
+
             cursor.executemany(query, data)
             conn.commit()
-    
-    def insert_transaction(self, transaction, table_name='mutaties'):
+
+    def insert_transaction(self, transaction, table_name="mutaties"):
         """Insert a single transaction into the specified table"""
         return self.execute_query(
             f"""INSERT INTO {table_name} 
@@ -369,32 +440,34 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                  Debet, Credit, ReferenceNumber, Ref1, Ref2, Ref3, Ref4, Administration)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
-                transaction.get('TransactionNumber', ''),
-                transaction.get('TransactionDate', ''),
-                transaction.get('TransactionDescription', ''),
-                transaction.get('TransactionAmount', 0),
-                transaction.get('Debet', ''),
-                transaction.get('Credit', ''),
-                transaction.get('ReferenceNumber', ''),
-                transaction.get('Ref1', ''),
-                transaction.get('Ref2', ''),
-                transaction.get('Ref3', ''),
-                transaction.get('Ref4', ''),
-                transaction.get('Administration', 'GoodwinSolutions')
+                transaction.get("TransactionNumber", ""),
+                transaction.get("TransactionDate", ""),
+                transaction.get("TransactionDescription", ""),
+                transaction.get("TransactionAmount", 0),
+                transaction.get("Debet", ""),
+                transaction.get("Credit", ""),
+                transaction.get("ReferenceNumber", ""),
+                transaction.get("Ref1", ""),
+                transaction.get("Ref2", ""),
+                transaction.get("Ref3", ""),
+                transaction.get("Ref4", ""),
+                transaction.get("Administration", "GoodwinSolutions"),
             ),
             fetch=False,
-            commit=True
+            commit=True,
         )
-    
+
     # Database optimization methods
     def get_migration_manager(self):
         """Get database migration manager"""
         from database_migrations import DatabaseMigration
+
         return DatabaseMigration(self.test_mode)
 
     def get_query_optimizer(self):
         """Get query optimizer with caching"""
         from database_migrations import QueryOptimizer
+
         return QueryOptimizer(self.test_mode)
 
     def optimize_database(self):
@@ -451,7 +524,7 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
         """Clear query cache"""
         optimizer = self.get_query_optimizer()
         return optimizer.clear_cache()
-    
+
     # Scalability monitoring and management methods
     def get_scalability_statistics(self):
         """Get comprehensive scalability statistics"""
@@ -459,93 +532,107 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
             return DatabaseManager._scalability_manager.get_comprehensive_statistics()
         else:
             return {
-                'scalability_manager': 'Not initialized',
-                'legacy_pool_active': DatabaseManager._use_legacy_pool,
-                'direct_connections': not DatabaseManager._use_legacy_pool
+                "scalability_manager": "Not initialized",
+                "legacy_pool_active": DatabaseManager._use_legacy_pool,
+                "direct_connections": not DatabaseManager._use_legacy_pool,
             }
-    
+
     def get_scalability_health(self):
         """Get scalability health status"""
         if DatabaseManager._scalability_manager:
             return DatabaseManager._scalability_manager.get_health_status()
         else:
             return {
-                'health_score': 50,
-                'status': 'limited',
-                'issues': ['Scalability manager not initialized'],
-                'scalability_ready': False,
-                'concurrent_user_capacity': '1x baseline',
-                'recommendations': ['Initialize scalability manager for 10x improvement']
+                "health_score": 50,
+                "status": "limited",
+                "issues": ["Scalability manager not initialized"],
+                "scalability_ready": False,
+                "concurrent_user_capacity": "1x baseline",
+                "recommendations": [
+                    "Initialize scalability manager for 10x improvement"
+                ],
             }
-    
+
     def optimize_for_concurrency(self):
         """Optimize database settings for high concurrency"""
         optimizations = []
-        
+
         try:
             # Check current connection limits
-            max_connections = self.execute_query("SHOW VARIABLES LIKE 'max_connections'")
+            max_connections = self.execute_query(
+                "SHOW VARIABLES LIKE 'max_connections'"
+            )
             if max_connections:
-                current_max = int(max_connections[0]['Value'])
+                current_max = int(max_connections[0]["Value"])
                 if current_max < 500:
-                    optimizations.append({
-                        'setting': 'max_connections',
-                        'current': current_max,
-                        'recommended': 500,
-                        'query': "SET GLOBAL max_connections = 500;"
-                    })
-            
+                    optimizations.append(
+                        {
+                            "setting": "max_connections",
+                            "current": current_max,
+                            "recommended": 500,
+                            "query": "SET GLOBAL max_connections = 500;",
+                        }
+                    )
+
             # Check thread cache size
             thread_cache = self.execute_query("SHOW VARIABLES LIKE 'thread_cache_size'")
             if thread_cache:
-                current_cache = int(thread_cache[0]['Value'])
+                current_cache = int(thread_cache[0]["Value"])
                 if current_cache < 100:
-                    optimizations.append({
-                        'setting': 'thread_cache_size',
-                        'current': current_cache,
-                        'recommended': 100,
-                        'query': "SET GLOBAL thread_cache_size = 100;"
-                    })
-            
+                    optimizations.append(
+                        {
+                            "setting": "thread_cache_size",
+                            "current": current_cache,
+                            "recommended": 100,
+                            "query": "SET GLOBAL thread_cache_size = 100;",
+                        }
+                    )
+
             # Check query cache
             query_cache = self.execute_query("SHOW VARIABLES LIKE 'query_cache_size'")
             if query_cache:
-                current_cache = int(query_cache[0]['Value'])
+                current_cache = int(query_cache[0]["Value"])
                 if current_cache < 268435456:  # 256MB
-                    optimizations.append({
-                        'setting': 'query_cache_size',
-                        'current': current_cache,
-                        'recommended': 268435456,
-                        'query': "SET GLOBAL query_cache_size = 268435456;"
-                    })
-            
+                    optimizations.append(
+                        {
+                            "setting": "query_cache_size",
+                            "current": current_cache,
+                            "recommended": 268435456,
+                            "query": "SET GLOBAL query_cache_size = 268435456;",
+                        }
+                    )
+
             return {
-                'optimizations_available': len(optimizations),
-                'recommendations': optimizations,
-                'scalability_impact': '2-3x improvement in concurrent performance'
+                "optimizations_available": len(optimizations),
+                "recommendations": optimizations,
+                "scalability_impact": "2-3x improvement in concurrent performance",
             }
-            
+
         except Exception as e:
             logger.error(f"❌ Error checking database optimization: {e}")
             return {
-                'error': str(e),
-                'optimizations_available': 0,
-                'recommendations': []
+                "error": str(e),
+                "optimizations_available": 0,
+                "recommendations": [],
             }
-    
+
     def get_connection_pool_status(self):
         """Get detailed connection pool status"""
         status = {
-            'scalability_manager_active': DatabaseManager._scalability_manager is not None,
-            'legacy_pool_active': DatabaseManager._use_legacy_pool,
-            'direct_connections_fallback': not DatabaseManager._use_legacy_pool and not DatabaseManager._scalability_manager
+            "scalability_manager_active": DatabaseManager._scalability_manager
+            is not None,
+            "legacy_pool_active": DatabaseManager._use_legacy_pool,
+            "direct_connections_fallback": not DatabaseManager._use_legacy_pool
+            and not DatabaseManager._scalability_manager,
         }
-        
+
         if DatabaseManager._scalability_manager:
-            status['scalability_stats'] = DatabaseManager._scalability_manager.connection_pool.get_pool_statistics()
-        
+            status["scalability_stats"] = (
+                DatabaseManager._scalability_manager.connection_pool.get_pool_statistics()
+            )
+
         return status
-    
+
     @classmethod
     def shutdown_scalability_manager(cls):
         """Shutdown scalability manager gracefully"""

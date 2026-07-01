@@ -6,6 +6,7 @@ from datetime import datetime
 import tempfile
 import html
 
+
 class BTWProcessor:
     def __init__(self, test_mode=False, tax_rate_service=None):
         self.test_mode = test_mode
@@ -16,43 +17,49 @@ class BTWProcessor:
         """Get VAT ledger accounts from TaxRateService or use defaults."""
         if self.tax_rate_service and reference_date:
             from datetime import date as date_type
+
             if isinstance(reference_date, str):
                 ref_date = date_type.fromisoformat(reference_date)
             else:
                 ref_date = reference_date
             codes = self.tax_rate_service.get_all_vat_codes(administration, ref_date)
             if codes:
-                return [c['ledger_account'] for c in codes if c.get('ledger_account')]
-        return ['2010', '2020', '2021']
+                return [c["ledger_account"] for c in codes if c.get("ledger_account")]
+        return ["2010", "2020", "2021"]
 
     def _get_received_vat_accounts(self, administration, reference_date=None):
         """Get received VAT accounts (high + low rate) from TaxRateService or defaults."""
         if self.tax_rate_service and reference_date:
             from datetime import date as date_type
+
             if isinstance(reference_date, str):
                 ref_date = date_type.fromisoformat(reference_date)
             else:
                 ref_date = reference_date
             codes = self.tax_rate_service.get_all_vat_codes(administration, ref_date)
             if codes:
-                return [c['ledger_account'] for c in codes
-                        if c.get('ledger_account') and c['ledger_account'] != '2010']
-        return ['2020', '2021']
+                return [
+                    c["ledger_account"]
+                    for c in codes
+                    if c.get("ledger_account") and c["ledger_account"] != "2010"
+                ]
+        return ["2020", "2021"]
 
     def _get_primary_vat_account(self, administration, reference_date=None):
         """Get the primary VAT settlement account (2010) from TaxRateService or default."""
         if self.tax_rate_service and reference_date:
             from datetime import date as date_type
+
             if isinstance(reference_date, str):
                 ref_date = date_type.fromisoformat(reference_date)
             else:
                 ref_date = reference_date
             codes = self.tax_rate_service.get_all_vat_codes(administration, ref_date)
-            for c in (codes or []):
-                if c.get('code') == 'zero' and c.get('ledger_account'):
-                    return c['ledger_account']
-        return '2010'
-    
+            for c in codes or []:
+                if c.get("code") == "zero" and c.get("ledger_account"):
+                    return c["ledger_account"]
+        return "2010"
+
     def generate_btw_report(self, administration, year, quarter):
         """Generate BTW declaration report based on R script logic"""
         try:
@@ -67,232 +74,263 @@ class BTWProcessor:
                 quarter_end_date = f"{year}-12-31"
             elif quarter_month == 3:
                 quarter_end_date = f"{year}-03-31"
-            
+
             # Get balance data (BTW accounts 2010, 2020, 2021)
             balance_data = self._get_balance_data(administration, quarter_end_date)
-            
+
             # Get quarter data (BTW accounts + revenue accounts 8001, 8002, 8003)
             quarter_data = self._get_quarter_data(administration, year, quarter)
-            
+
             # Calculate BTW amounts
             calculations = self._calculate_btw_amounts(
-                balance_data, quarter_data,
-                administration=administration, reference_date=quarter_end_date
+                balance_data,
+                quarter_data,
+                administration=administration,
+                reference_date=quarter_end_date,
             )
-            
+
             # Generate HTML report
             html_report = self._generate_html_report(
-                administration, year, quarter, quarter_end_date,
-                balance_data, quarter_data, calculations
+                administration,
+                year,
+                quarter,
+                quarter_end_date,
+                balance_data,
+                quarter_data,
+                calculations,
             )
-            
+
             # Prepare transaction for saving
             transaction = self._prepare_btw_transaction(
                 administration, year, quarter, calculations
             )
-            
+
             return {
-                'success': True,
-                'html_report': html_report,
-                'transaction': transaction,
-                'calculations': calculations,
-                'quarter_end_date': quarter_end_date
+                "success": True,
+                "html_report": html_report,
+                "transaction": transaction,
+                "calculations": calculations,
+                "quarter_end_date": quarter_end_date,
             }
-            
+
         except Exception as e:
-            return {'success': False, 'error': str(e)}
-    
+            return {"success": False, "error": str(e)}
+
     def _get_balance_data(self, administration, end_date):
         """
         Get balance data for BTW accounts up to end date.
-        
+
         NEW APPROACH (with year-end closure):
         - Show opening balance from current year (netted VAT from previous year)
         - Show current year transactions only
         - Calculate ending balance = opening + current year
-        
+
         This prevents showing cumulative balances from unclosed historical years.
         """
         try:
             # Extract year from end_date
-            year = int(end_date.split('-')[0])
-            
+            year = int(end_date.split("-")[0])
+
             # Get opening balance for the year (from Opening Balance transactions)
             opening_balance = self._get_opening_balance_vat(administration, year)
-            
+
             # Get current year transactions (excluding opening balance)
-            current_year_data = self._get_current_year_vat(administration, year, end_date)
-            
+            current_year_data = self._get_current_year_vat(
+                administration, year, end_date
+            )
+
             # Combine opening balance + current year data
             results = []
-            
+
             # Add opening balance as first row if it exists
-            if opening_balance and abs(opening_balance['amount']) > 0.01:
-                results.append({
-                    'Reknum': 'Opening',
-                    'AccountName': 'Opening Balance (netted)',
-                    'amount': opening_balance['amount']
-                })
-            
+            if opening_balance and abs(opening_balance["amount"]) > 0.01:
+                results.append(
+                    {
+                        "Reknum": "Opening",
+                        "AccountName": "Opening Balance (netted)",
+                        "amount": opening_balance["amount"],
+                    }
+                )
+
             # Add current year data
             results.extend(current_year_data)
-            
+
             return results
         except Exception as e:
             print(f"Error getting balance data: {e}", flush=True)
             import traceback
+
             traceback.print_exc()
             return []
-    
+
     def _get_opening_balance_vat(self, administration, year):
         """
         Get the opening balance for VAT accounts for the specified year.
-        
+
         This looks for Opening Balance transactions with VAT accounts (2010, 2020, 2021).
         With VAT netting enabled, there should be only one entry for the primary account.
-        
+
         Returns:
             dict: {'amount': net_opening_balance} or None
         """
         try:
             cache = get_cache()
             df = cache.get_data(self.db)
-            
-            vat_accounts = self._get_vat_accounts(administration, f'{year}-01-01')
+
+            vat_accounts = self._get_vat_accounts(administration, f"{year}-01-01")
             # Filter for opening balance transactions in the specified year
             df_filtered = df[
-                (df['ReferenceNumber'] == 'Opening Balance') &
-                (df['TransactionDate'] == f'{year}-01-01') &
-                (df['administration'].str.startswith(administration)) &
-                (df['Reknum'].isin(vat_accounts))
+                (df["ReferenceNumber"] == "Opening Balance")
+                & (df["TransactionDate"] == f"{year}-01-01")
+                & (df["administration"].str.startswith(administration))
+                & (df["Reknum"].isin(vat_accounts))
             ].copy()
-            
+
             if df_filtered.empty:
                 return None
-            
+
             # Sum all opening balance amounts (should be just one with netting)
-            total = df_filtered['Amount'].sum()
-            
-            return {'amount': total}
+            total = df_filtered["Amount"].sum()
+
+            return {"amount": total}
         except Exception as e:
             print(f"Error getting opening balance VAT: {e}", flush=True)
             return None
-    
+
     def _get_current_year_vat(self, administration, year, end_date):
         """
         Get VAT transactions for the current year only (excluding opening balance).
-        
+
         Args:
             administration: Tenant identifier
             year: Year to get transactions for
             end_date: End date for the report (e.g., '2026-03-31')
-            
+
         Returns:
             list: List of dicts with Reknum, AccountName, amount
         """
         try:
             cache = get_cache()
             df = cache.get_data(self.db)
-            
+
             vat_accounts = self._get_vat_accounts(administration, end_date)
             # Filter by date range (current year up to end_date, excluding opening balance)
             df_filtered = df[
-                (df['TransactionDate'] >= f'{year}-01-01') &
-                (df['TransactionDate'] <= end_date) &
-                (df['ReferenceNumber'] != 'Opening Balance') &
-                (df['administration'].str.startswith(administration)) &
-                (df['Reknum'].isin(vat_accounts))
+                (df["TransactionDate"] >= f"{year}-01-01")
+                & (df["TransactionDate"] <= end_date)
+                & (df["ReferenceNumber"] != "Opening Balance")
+                & (df["administration"].str.startswith(administration))
+                & (df["Reknum"].isin(vat_accounts))
             ].copy()
-            
+
             # Group by account
-            grouped = df_filtered.groupby(['Reknum', 'AccountName'], as_index=False).agg({
-                'Amount': 'sum'
-            })
-            
+            grouped = df_filtered.groupby(
+                ["Reknum", "AccountName"], as_index=False
+            ).agg({"Amount": "sum"})
+
             # Rename Amount to amount (lowercase for consistency)
-            grouped = grouped.rename(columns={'Amount': 'amount'})
-            
+            grouped = grouped.rename(columns={"Amount": "amount"})
+
             # Convert to list of dicts
-            results = grouped.to_dict('records')
-            
+            results = grouped.to_dict("records")
+
             return results
         except Exception as e:
             print(f"Error getting current year VAT: {e}", flush=True)
             return []
-    
+
     def _get_quarter_data(self, administration, year, quarter):
         """Get quarter data for BTW and revenue accounts using cache"""
         try:
             # Get cache instance
             cache = get_cache()
             df = cache.get_data(self.db)
-            
+
             # Filter by year and quarter
-            df_filtered = df[(df['jaar'] == int(year)) & (df['kwartaal'] == int(quarter))].copy()
-            
+            df_filtered = df[
+                (df["jaar"] == int(year)) & (df["kwartaal"] == int(quarter))
+            ].copy()
+
             # Filter by administration (LIKE pattern) - lowercase column name
-            df_filtered = df_filtered[df_filtered['administration'].str.startswith(administration)]
-            
+            df_filtered = df_filtered[
+                df_filtered["administration"].str.startswith(administration)
+            ]
+
             # Filter by BTW and revenue accounts
-            vat_accounts = self._get_vat_accounts(administration, f'{year}-{int(quarter)*3:02d}-01')
-            all_accounts = vat_accounts + ['8001', '8002', '8003']
-            df_filtered = df_filtered[df_filtered['Reknum'].isin(all_accounts)]
-            
+            vat_accounts = self._get_vat_accounts(
+                administration, f"{year}-{int(quarter) * 3:02d}-01"
+            )
+            all_accounts = vat_accounts + ["8001", "8002", "8003"]
+            df_filtered = df_filtered[df_filtered["Reknum"].isin(all_accounts)]
+
             # Group by account
-            grouped = df_filtered.groupby(['Reknum', 'AccountName'], as_index=False).agg({
-                'Amount': 'sum'
-            })
-            
+            grouped = df_filtered.groupby(
+                ["Reknum", "AccountName"], as_index=False
+            ).agg({"Amount": "sum"})
+
             # Rename Amount to amount (lowercase for consistency)
-            grouped = grouped.rename(columns={'Amount': 'amount'})
-            
+            grouped = grouped.rename(columns={"Amount": "amount"})
+
             # Convert to list of dicts
-            results = grouped.to_dict('records')
-            
+            results = grouped.to_dict("records")
+
             return results
         except Exception as e:
             print(f"Error getting quarter data: {e}", flush=True)
             return []
-    
-    def _calculate_btw_amounts(self, balance_data, quarter_data, administration=None, reference_date=None):
+
+    def _calculate_btw_amounts(
+        self, balance_data, quarter_data, administration=None, reference_date=None
+    ):
         """Calculate BTW amounts based on R script logic"""
         try:
             # Calculate total balance (te betalen/ontvangen)
-            total_balance = sum(row['amount'] for row in balance_data)
-            
+            total_balance = sum(row["amount"] for row in balance_data)
+
             # Calculate received BTW (high + low rate accounts)
-            received_accounts = self._get_received_vat_accounts(administration, reference_date)
-            received_btw = sum(
-                row['amount'] for row in quarter_data 
-                if row['Reknum'] in received_accounts
+            received_accounts = self._get_received_vat_accounts(
+                administration, reference_date
             )
-            
+            received_btw = sum(
+                row["amount"]
+                for row in quarter_data
+                if row["Reknum"] in received_accounts
+            )
+
             # Calculate prepaid BTW
             prepaid_btw = received_btw - total_balance
-            
+
             # Determine payment instruction
             if total_balance >= 0:
                 payment_instruction = f"€{abs(total_balance):.0f} te ontvangen"
             else:
                 payment_instruction = f"€{abs(total_balance):.0f} te betalen"
-            
+
             return {
-                'total_balance': total_balance,
-                'received_btw': received_btw,
-                'prepaid_btw': prepaid_btw,
-                'payment_instruction': payment_instruction
+                "total_balance": total_balance,
+                "received_btw": received_btw,
+                "prepaid_btw": prepaid_btw,
+                "payment_instruction": payment_instruction,
             }
         except Exception as e:
             print(f"Error calculating BTW amounts: {e}", flush=True)
             return {
-                'total_balance': 0,
-                'received_btw': 0,
-                'prepaid_btw': 0,
-                'payment_instruction': '€0 te betalen'
+                "total_balance": 0,
+                "received_btw": 0,
+                "prepaid_btw": 0,
+                "payment_instruction": "€0 te betalen",
             }
-    
-    def _generate_html_report(self, administration, year, quarter, end_date, 
-                            balance_data, quarter_data, calculations):
+
+    def _generate_html_report(
+        self,
+        administration,
+        year,
+        quarter,
+        end_date,
+        balance_data,
+        quarter_data,
+        calculations,
+    ):
         """Generate HTML report similar to R markdown output"""
         html_content = f"""
         <!DOCTYPE html>
@@ -327,16 +365,16 @@ class BTWProcessor:
                 </thead>
                 <tbody>
         """
-        
+
         for row in balance_data:
             html_content += f"""
                     <tr>
-                        <td>{html.escape(str(row['Reknum']))}</td>
-                        <td>{html.escape(str(row['AccountName']))}</td>
-                        <td class="amount">€{row['amount']:,.2f}</td>
+                        <td>{html.escape(str(row["Reknum"]))}</td>
+                        <td>{html.escape(str(row["AccountName"]))}</td>
+                        <td class="amount">€{row["amount"]:,.2f}</td>
                     </tr>
             """
-        
+
         html_content += f"""
                 </tbody>
             </table>
@@ -352,16 +390,16 @@ class BTWProcessor:
                 </thead>
                 <tbody>
         """
-        
+
         for row in quarter_data:
             html_content += f"""
                     <tr>
-                        <td>{html.escape(str(row['Reknum']))}</td>
-                        <td>{html.escape(str(row['AccountName']))}</td>
-                        <td class="amount">€{row['amount']:,.2f}</td>
+                        <td>{html.escape(str(row["Reknum"]))}</td>
+                        <td>{html.escape(str(row["AccountName"]))}</td>
+                        <td class="amount">€{row["amount"]:,.2f}</td>
                     </tr>
             """
-        
+
         html_content += f"""
                 </tbody>
             </table>
@@ -369,56 +407,56 @@ class BTWProcessor:
             <div class="summary">
                 <h3>Samenvatting</h3>
                 <ul>
-                    <li><strong>Netto:</strong> {calculations['payment_instruction']}</li>
-                    <li><strong>Ontvangen BTW:</strong> €{round(abs(calculations['received_btw']))}</li>
-                    <li><strong>Vooruitbetaalde BTW:</strong> €{round(calculations['prepaid_btw'])}</li>
+                    <li><strong>Netto:</strong> {calculations["payment_instruction"]}</li>
+                    <li><strong>Ontvangen BTW:</strong> €{round(abs(calculations["received_btw"]))}</li>
+                    <li><strong>Vooruitbetaalde BTW:</strong> €{round(calculations["prepaid_btw"])}</li>
                 </ul>
                 
                 <p><a href="https://mijnzakelijk.belastingdienst.nl/GTService/#/inloggen" target="_blank">
                 Inloggen belastingdienst</a></p>
             </div>
             
-            <p><em>Gegenereerd op: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</em></p>
+            <p><em>Gegenereerd op: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</em></p>
         </body>
         </html>
         """
-        
+
         return html_content
-    
+
     def _prepare_btw_transaction(self, administration, year, quarter, calculations):
         """Prepare BTW transaction for saving to mutaties table"""
         # Get last BTW transaction for reference
         _last_btw = self._get_last_btw_transaction(administration)
-        
-        total_balance = calculations['total_balance']
-        transaction_date = datetime.now().strftime('%Y-%m-%d')
-        
+
+        total_balance = calculations["total_balance"]
+        transaction_date = datetime.now().strftime("%Y-%m-%d")
+
         # Determine debet/credit based on amount
         primary_vat = self._get_primary_vat_account(administration, transaction_date)
         if total_balance < 0:  # Te betalen
             debet = primary_vat
-            credit = '1300'
+            credit = "1300"
         else:  # Te ontvangen
-            debet = '1300'
+            debet = "1300"
             credit = primary_vat
-        
+
         transaction = {
-            'TransactionNumber': 'BTW',
-            'TransactionDate': transaction_date,
-            'TransactionDescription': f'BTW aangifte {year} Q{quarter}',
-            'TransactionAmount': round(abs(total_balance)),
-            'Debet': debet,
-            'Credit': credit,
-            'ReferenceNumber': 'BTW',
-            'Ref1': f'BTW aangifte {administration}',
-            'Ref2': f'{year}-Q{quarter}',
-            'Ref3': calculations['payment_instruction'],
-            'Ref4': f'Generated {transaction_date}',
-            'Administration': administration
+            "TransactionNumber": "BTW",
+            "TransactionDate": transaction_date,
+            "TransactionDescription": f"BTW aangifte {year} Q{quarter}",
+            "TransactionAmount": round(abs(total_balance)),
+            "Debet": debet,
+            "Credit": credit,
+            "ReferenceNumber": "BTW",
+            "Ref1": f"BTW aangifte {administration}",
+            "Ref2": f"{year}-Q{quarter}",
+            "Ref3": calculations["payment_instruction"],
+            "Ref4": f"Generated {transaction_date}",
+            "Administration": administration,
         }
-        
+
         return transaction
-    
+
     def _get_last_btw_transaction(self, administration):
         """Get last BTW transaction for reference"""
         conn = None
@@ -426,9 +464,9 @@ class BTWProcessor:
         try:
             conn = self.db.get_connection()
             cursor = conn.cursor(dictionary=True)
-            
-            table_name = 'mutaties_test' if self.test_mode else 'mutaties'
-            
+
+            table_name = "mutaties_test" if self.test_mode else "mutaties"
+
             query = f"""
                 SELECT * FROM {table_name}
                 WHERE TransactionNumber = 'BTW'
@@ -436,10 +474,10 @@ class BTWProcessor:
                 ORDER BY TransactionDate DESC, ID DESC
                 LIMIT 1
             """
-            
+
             cursor.execute(query, (administration,))
             result = cursor.fetchone()
-            
+
             return result
         except Exception as e:
             print(f"Error getting last BTW transaction: {e}", flush=True)
@@ -449,10 +487,10 @@ class BTWProcessor:
                 cursor.close()
             if conn:
                 conn.close()
-    
+
     def save_btw_transaction(self, transaction):
         """Save BTW transaction to database.
-        
+
         Checks for existing BTW transaction for the same administration,
         year and quarter to prevent duplicates from double-clicks.
         """
@@ -461,13 +499,13 @@ class BTWProcessor:
         try:
             conn = self.db.get_connection()
             cursor = conn.cursor(dictionary=True)
-            
-            table_name = 'mutaties_test' if self.test_mode else 'mutaties'
-            
+
+            table_name = "mutaties_test" if self.test_mode else "mutaties"
+
             # Check for existing BTW transaction for same administration + year-quarter
-            ref2 = transaction.get('Ref2', '')  # Format: "2026-Q1"
-            administration = transaction.get('Administration', '')
-            
+            ref2 = transaction.get("Ref2", "")  # Format: "2026-Q1"
+            administration = transaction.get("Administration", "")
+
             if ref2 and administration:
                 dup_query = f"""
                     SELECT ID FROM {table_name}
@@ -480,10 +518,10 @@ class BTWProcessor:
                 existing = cursor.fetchone()
                 if existing:
                     return {
-                        'success': False, 
-                        'error': f'BTW transaction for {administration} {ref2} already exists (ID: {existing["ID"]}). Delete the existing transaction first if you want to re-save.'
+                        "success": False,
+                        "error": f"BTW transaction for {administration} {ref2} already exists (ID: {existing['ID']}). Delete the existing transaction first if you want to re-save.",
                     }
-            
+
             insert_query = f"""
                 INSERT INTO {table_name} (
                     TransactionNumber, TransactionDate, TransactionDescription,
@@ -491,40 +529,43 @@ class BTWProcessor:
                     Ref1, Ref2, Ref3, Ref4, Administration
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            
-            cursor.execute(insert_query, (
-                transaction['TransactionNumber'],
-                transaction['TransactionDate'],
-                transaction['TransactionDescription'],
-                transaction['TransactionAmount'],
-                transaction['Debet'],
-                transaction['Credit'],
-                transaction['ReferenceNumber'],
-                transaction['Ref1'],
-                transaction['Ref2'],
-                transaction['Ref3'],
-                transaction['Ref4'],
-                transaction['Administration']
-            ))
-            
+
+            cursor.execute(
+                insert_query,
+                (
+                    transaction["TransactionNumber"],
+                    transaction["TransactionDate"],
+                    transaction["TransactionDescription"],
+                    transaction["TransactionAmount"],
+                    transaction["Debet"],
+                    transaction["Credit"],
+                    transaction["ReferenceNumber"],
+                    transaction["Ref1"],
+                    transaction["Ref2"],
+                    transaction["Ref3"],
+                    transaction["Ref4"],
+                    transaction["Administration"],
+                ),
+            )
+
             conn.commit()
             transaction_id = cursor.lastrowid
-            
-            return {'success': True, 'transaction_id': transaction_id}
-            
+
+            return {"success": True, "transaction_id": transaction_id}
+
         except Exception as e:
             if conn:
                 conn.rollback()
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
         finally:
             if cursor:
                 cursor.close()
             if conn:
                 conn.close()
-    
+
     def upload_report_to_drive(self, html_content, filename, administration):
         """Upload HTML report to Google Drive BTW folder
-        
+
         Args:
             html_content: HTML content to upload
             filename: Name of the file
@@ -534,46 +575,53 @@ class BTWProcessor:
             if self.test_mode:
                 # In test mode, save locally
                 safe_filename = os.path.basename(filename)
-                local_path = os.path.join('uploads', safe_filename)
-                with open(local_path, 'w', encoding='utf-8') as f:
+                local_path = os.path.join("uploads", safe_filename)
+                with open(local_path, "w", encoding="utf-8") as f:
                     f.write(html_content)
                 return {
-                    'success': True,
-                    'url': f'http://localhost:5000/uploads/{safe_filename}',
-                    'location': 'local'
+                    "success": True,
+                    "url": f"http://localhost:5000/uploads/{safe_filename}",
+                    "location": "local",
                 }
             else:
                 # Production mode - upload to Google Drive
                 drive_service = GoogleDriveService(administration)
-                
+
                 # Find BTW folder
                 folders = drive_service.list_subfolders()
                 btw_folder_id = None
-                
+
                 for folder in folders:
-                    if folder['name'].lower() == 'btw':
-                        btw_folder_id = folder['id']
+                    if folder["name"].lower() == "btw":
+                        btw_folder_id = folder["id"]
                         break
-                
+
                 if not btw_folder_id:
-                    return {'success': False, 'error': 'BTW folder not found in Google Drive'}
-                
+                    return {
+                        "success": False,
+                        "error": "BTW folder not found in Google Drive",
+                    }
+
                 # Create temporary file
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as temp_file:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".html", delete=False, encoding="utf-8"
+                ) as temp_file:
                     temp_file.write(html_content)
                     temp_path = temp_file.name
-                
+
                 try:
                     # Upload to Google Drive
-                    result = drive_service.upload_file(temp_path, filename, btw_folder_id)
+                    result = drive_service.upload_file(
+                        temp_path, filename, btw_folder_id
+                    )
                     return {
-                        'success': True,
-                        'url': result['url'],
-                        'location': 'google_drive'
+                        "success": True,
+                        "url": result["url"],
+                        "location": "google_drive",
                     }
                 finally:
                     # Clean up temp file
                     os.unlink(temp_path)
-                    
+
         except Exception as e:
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}

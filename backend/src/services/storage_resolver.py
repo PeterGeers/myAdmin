@@ -33,26 +33,29 @@ def resolve_storage_provider(tenant: str, parameter_service=None) -> str:
     try:
         if parameter_service is None:
             from database import DatabaseManager
+
             db = DatabaseManager()
             from services.parameter_service import ParameterService
+
             parameter_service = ParameterService(db)
 
         provider = parameter_service.get_param(
-            'storage', 'invoice_provider', tenant=tenant
+            "storage", "invoice_provider", tenant=tenant
         )
 
-        if provider == 'google_drive':
-            return 'google_drive'
+        if provider == "google_drive":
+            return "google_drive"
 
-        return 's3_shared'
+        return "s3_shared"
 
     except Exception as e:
         logger.warning(
             "Failed to resolve storage provider for tenant '%s': %s. "
             "Defaulting to 's3_shared'.",
-            tenant, e
+            tenant,
+            e,
         )
-        return 's3_shared'
+        return "s3_shared"
 
 
 def get_s3_storage(tenant: str, parameter_service=None):
@@ -68,22 +71,32 @@ def get_s3_storage(tenant: str, parameter_service=None):
     """
     if parameter_service is None:
         from database import DatabaseManager
+
         db = DatabaseManager()
         from services.parameter_service import ParameterService
+
         parameter_service = ParameterService(db)
 
     import sys
     import os
-    src_storage = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'storage')
-    logger.info("Storage package path: %s, exists: %s, sys.path[0:3]: %s", 
-                src_storage, os.path.exists(src_storage), sys.path[:3])
+
+    src_storage = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
+    logger.info(
+        "Storage package path: %s, exists: %s, sys.path[0:3]: %s",
+        src_storage,
+        os.path.exists(src_storage),
+        sys.path[:3],
+    )
     if os.path.exists(src_storage) and os.path.dirname(src_storage) not in sys.path:
         sys.path.insert(0, os.path.dirname(src_storage))
     from storage.s3_shared_storage import S3SharedStorage
+
     return S3SharedStorage(tenant, parameter_service)
 
 
-def list_s3_folders(tenant: str, parameter_service=None, category: str = 'invoices') -> List[str]:
+def list_s3_folders(
+    tenant: str, parameter_service=None, category: str = "invoices"
+) -> List[str]:
     """List folder names under {tenant}/{category}/ in S3.
 
     Uses list_objects_v2 with Delimiter='/' to extract unique reference
@@ -107,40 +120,40 @@ def list_s3_folders(tenant: str, parameter_service=None, category: str = 'invoic
         continuation_token = None
         while True:
             kwargs = {
-                'Bucket': storage.bucket,
-                'Prefix': prefix,
-                'Delimiter': '/',
+                "Bucket": storage.bucket,
+                "Prefix": prefix,
+                "Delimiter": "/",
             }
             if continuation_token:
-                kwargs['ContinuationToken'] = continuation_token
+                kwargs["ContinuationToken"] = continuation_token
 
             response = storage._client.list_objects_v2(**kwargs)
 
             # Extract folder names from CommonPrefixes
-            for cp in response.get('CommonPrefixes', []):
+            for cp in response.get("CommonPrefixes", []):
                 # cp['Prefix'] looks like '{tenant}/invoices/Supplier1/'
-                folder_path = cp['Prefix']
+                folder_path = cp["Prefix"]
                 # Strip the base prefix and trailing slash to get folder name
-                folder_name = folder_path[len(prefix):].rstrip('/')
+                folder_name = folder_path[len(prefix) :].rstrip("/")
                 if folder_name:
                     folder_names.add(folder_name)
 
             # Check Contents for .folder marker objects
-            for obj in response.get('Contents', []):
-                key = obj['Key']
-                if key.endswith('/.folder'):
+            for obj in response.get("Contents", []):
+                key = obj["Key"]
+                if key.endswith("/.folder"):
                     # Key looks like '{tenant}/invoices/FolderName/.folder'
                     # Extract the folder name between prefix and /.folder
-                    relative = key[len(prefix):]
-                    parts = relative.split('/')
-                    if len(parts) == 2 and parts[1] == '.folder':
+                    relative = key[len(prefix) :]
+                    parts = relative.split("/")
+                    if len(parts) == 2 and parts[1] == ".folder":
                         folder_name = parts[0]
                         if folder_name:
                             folder_names.add(folder_name)
 
             # Handle pagination
-            if response.get('IsTruncated'):
-                continuation_token = response.get('NextContinuationToken')
+            if response.get("IsTruncated"):
+                continuation_token = response.get("NextContinuationToken")
             else:
                 break
 
@@ -149,7 +162,9 @@ def list_s3_folders(tenant: str, parameter_service=None, category: str = 'invoic
     except Exception as e:
         logger.warning(
             "Failed to list S3 folders for tenant '%s', category '%s': %s",
-            tenant, category, e
+            tenant,
+            category,
+            e,
         )
         return []
 
@@ -177,18 +192,18 @@ def create_s3_folder(tenant: str, folder_name: str, parameter_service=None) -> d
         storage._client.put_object(
             Bucket=storage.bucket,
             Key=key,
-            Body=b'',
-            ContentType='application/x-directory',
+            Body=b"",
+            ContentType="application/x-directory",
         )
 
-        logger.info(
-            "Created S3 folder marker: s3://%s/%s", storage.bucket, key
-        )
-        return {'id': key, 'name': folder_name, 'url': key}
+        logger.info("Created S3 folder marker: s3://%s/%s", storage.bucket, key)
+        return {"id": key, "name": folder_name, "url": key}
 
     except Exception as e:
         logger.warning(
             "Failed to create S3 folder '%s' for tenant '%s': %s",
-            folder_name, tenant, e
+            folder_name,
+            tenant,
+            e,
         )
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}

@@ -14,6 +14,7 @@ from typing import Optional
 @dataclass
 class RateLimitResult:
     """Result of a rate limit check."""
+
     allowed: bool
     retry_after_seconds: int
     limit_type: Optional[str]
@@ -27,10 +28,7 @@ class RateLimiter:
     """
 
     def __init__(
-        self,
-        max_per_email: int = 5,
-        max_per_ip: int = 10,
-        window_seconds: int = 900
+        self, max_per_email: int = 5, max_per_ip: int = 10, window_seconds: int = 900
     ):
         """Initialize the rate limiter.
 
@@ -70,9 +68,7 @@ class RateLimiter:
             if len(email_timestamps) >= self.max_per_email:
                 retry_after = self._calculate_retry_after(email_timestamps, cutoff)
                 return RateLimitResult(
-                    allowed=False,
-                    retry_after_seconds=retry_after,
-                    limit_type="email"
+                    allowed=False, retry_after_seconds=retry_after, limit_type="email"
                 )
 
             # Clean and check IP limit
@@ -83,16 +79,10 @@ class RateLimiter:
             if len(ip_timestamps) >= self.max_per_ip:
                 retry_after = self._calculate_retry_after(ip_timestamps, cutoff)
                 return RateLimitResult(
-                    allowed=False,
-                    retry_after_seconds=retry_after,
-                    limit_type="ip"
+                    allowed=False, retry_after_seconds=retry_after, limit_type="ip"
                 )
 
-        return RateLimitResult(
-            allowed=True,
-            retry_after_seconds=0,
-            limit_type=None
-        )
+        return RateLimitResult(allowed=True, retry_after_seconds=0, limit_type=None)
 
     def record_request(self, email: str, ip: str) -> None:
         """Record a request against both email and IP windows.
@@ -140,16 +130,12 @@ class RateLimiter:
             cutoff: Timestamps older than this are removed.
         """
         if key in self._store:
-            self._store[key] = [
-                ts for ts in self._store[key] if ts > cutoff
-            ]
+            self._store[key] = [ts for ts in self._store[key] if ts > cutoff]
             # Remove empty lists to prevent unbounded memory growth
             if not self._store[key]:
                 del self._store[key]
 
-    def _calculate_retry_after(
-        self, timestamps: list[float], cutoff: float
-    ) -> int:
+    def _calculate_retry_after(self, timestamps: list[float], cutoff: float) -> int:
         """Calculate seconds until the earliest timestamp in the window expires.
 
         The earliest request in the window will expire at (earliest + window_seconds).

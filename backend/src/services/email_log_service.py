@@ -34,9 +34,16 @@ class EmailLogService:
                    (recipient, email_type, administration, status,
                     ses_message_id, subject, sent_by)
                    VALUES (%s, %s, %s, 'sent', %s, %s, %s)""",
-                (recipient, email_type, administration,
-                 ses_message_id, subject, sent_by),
-                fetch=False, commit=True,
+                (
+                    recipient,
+                    email_type,
+                    administration,
+                    ses_message_id,
+                    subject,
+                    sent_by,
+                ),
+                fetch=False,
+                commit=True,
             )
         except Exception as e:
             logger.error(f"Failed to log email send: {e}")
@@ -57,9 +64,9 @@ class EmailLogService:
                    (recipient, email_type, administration, status,
                     error_message, sent_by)
                    VALUES (%s, %s, %s, 'failed', %s, %s)""",
-                (recipient, email_type, administration,
-                 error_message, sent_by),
-                fetch=False, commit=True,
+                (recipient, email_type, administration, error_message, sent_by),
+                fetch=False,
+                commit=True,
             )
         except Exception as e:
             logger.error(f"Failed to log email failure: {e}")
@@ -78,7 +85,8 @@ class EmailLogService:
                    SET status = %s, error_message = %s
                    WHERE ses_message_id = %s""",
                 (status, error_message, ses_message_id),
-                fetch=False, commit=True,
+                fetch=False,
+                commit=True,
             )
             return True
         except Exception as e:

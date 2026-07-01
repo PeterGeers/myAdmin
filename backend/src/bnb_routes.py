@@ -7,57 +7,60 @@ from utils.date_utils import normalize_dates
 
 logger = logging.getLogger(__name__)
 
-bnb_bp = Blueprint('bnb', __name__)
+bnb_bp = Blueprint("bnb", __name__)
 
-@bnb_bp.route('/bnb-listing-data', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+
+@bnb_bp.route("/bnb-listing-data", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
     """Get BNB data summarized by listing"""
     try:
-        years = request.args.get('years', '').split(',')
-        listings = request.args.get('listings', 'all')
-        channels = request.args.get('channels', 'all')
-        _period = request.args.get('period', 'year')  # year, q, m
-        
+        years = request.args.get("years", "").split(",")
+        listings = request.args.get("listings", "all")
+        channels = request.args.get("channels", "all")
+        _period = request.args.get("period", "year")  # year, q, m
+
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         # Build WHERE clause
         where_conditions = []
         params = []
-        
+
         # Add tenant filter
-        placeholders = ', '.join(['%s'] * len(user_tenants))
+        placeholders = ", ".join(["%s"] * len(user_tenants))
         where_conditions.append(f"administration IN ({placeholders})")
         params.extend(user_tenants)
-        
-        if years and years != ['']:
-            placeholders = ','.join(['%s'] * len(years))
+
+        if years and years != [""]:
+            placeholders = ",".join(["%s"] * len(years))
             where_conditions.append(f"year IN ({placeholders})")
             params.extend(years)
-        
-        if listings != 'all':
-            listing_list = listings.split(',')
-            placeholders = ','.join(['%s'] * len(listing_list))
+
+        if listings != "all":
+            listing_list = listings.split(",")
+            placeholders = ",".join(["%s"] * len(listing_list))
             where_conditions.append(f"listing IN ({placeholders})")
             params.extend(listing_list)
-            
-        if channels != 'all':
-            channel_list = channels.split(',')
-            placeholders = ','.join(['%s'] * len(channel_list))
+
+        if channels != "all":
+            channel_list = channels.split(",")
+            placeholders = ",".join(["%s"] * len(channel_list))
             where_conditions.append(f"channel IN ({placeholders})")
             params.extend(channel_list)
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
+        where_clause = (
+            "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        )
+
         # Always include q and m fields for frontend expandable functionality
         group_fields = ["listing", "year", "q", "m"]
         select_fields = ["listing", "year", "q", "m"]
-        
+
         query = f"""
-        SELECT {', '.join(select_fields)},
+        SELECT {", ".join(select_fields)},
                SUM(amountGross) as amountGross,
                SUM(amountNett) as amountNett,
                SUM(amountChannelFee) as amountChannelFee,
@@ -65,71 +68,74 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
                SUM(amountVat) as amountVat
         FROM bnb 
         {where_clause}
-        GROUP BY {', '.join(group_fields)}
+        GROUP BY {", ".join(group_fields)}
         ORDER BY year, q, m, listing
         """
-        
+
         cursor.execute(query, params)
         results = cursor.fetchall()
-        
+
         cursor.close()
         connection.close()
-        
-        return jsonify({'success': True, 'data': results})
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/bnb-channel-data', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        return jsonify({"success": True, "data": results})
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/bnb-channel-data", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
     """Get BNB data summarized by channel"""
     try:
-        years = request.args.get('years', '').split(',')
-        listings = request.args.get('listings', 'all')
-        channels = request.args.get('channels', 'all')
-        _period = request.args.get('period', 'year')  # year, q, m
-        
+        years = request.args.get("years", "").split(",")
+        listings = request.args.get("listings", "all")
+        channels = request.args.get("channels", "all")
+        _period = request.args.get("period", "year")  # year, q, m
+
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         # Build WHERE clause
         where_conditions = []
         params = []
-        
+
         # Add tenant filter
-        placeholders = ', '.join(['%s'] * len(user_tenants))
+        placeholders = ", ".join(["%s"] * len(user_tenants))
         where_conditions.append(f"administration IN ({placeholders})")
         params.extend(user_tenants)
-        
-        if years and years != ['']:
-            placeholders = ','.join(['%s'] * len(years))
+
+        if years and years != [""]:
+            placeholders = ",".join(["%s"] * len(years))
             where_conditions.append(f"year IN ({placeholders})")
             params.extend(years)
-        
-        if listings != 'all':
-            listing_list = listings.split(',')
-            placeholders = ','.join(['%s'] * len(listing_list))
+
+        if listings != "all":
+            listing_list = listings.split(",")
+            placeholders = ",".join(["%s"] * len(listing_list))
             where_conditions.append(f"listing IN ({placeholders})")
             params.extend(listing_list)
-            
-        if channels != 'all':
-            channel_list = channels.split(',')
-            placeholders = ','.join(['%s'] * len(channel_list))
+
+        if channels != "all":
+            channel_list = channels.split(",")
+            placeholders = ",".join(["%s"] * len(channel_list))
             where_conditions.append(f"channel IN ({placeholders})")
             params.extend(channel_list)
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
+        where_clause = (
+            "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        )
+
         # Always include q and m fields for frontend expandable functionality
         group_fields = ["channel", "year", "q", "m"]
         select_fields = ["channel", "year", "q", "m"]
-        
+
         query = f"""
-        SELECT {', '.join(select_fields)},
+        SELECT {", ".join(select_fields)},
                SUM(amountGross) as amountGross,
                SUM(amountNett) as amountNett,
                SUM(amountChannelFee) as amountChannelFee,
@@ -137,49 +143,52 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
                SUM(amountVat) as amountVat
         FROM bnb 
         {where_clause}
-        GROUP BY {', '.join(group_fields)}
+        GROUP BY {", ".join(group_fields)}
         ORDER BY year, q, m, channel
         """
-        
+
         cursor.execute(query, params)
         results = cursor.fetchall()
-        
+
         cursor.close()
         connection.close()
-        
-        return jsonify({'success': True, 'data': results})
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/bnb-actuals', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        return jsonify({"success": True, "data": results})
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/bnb-actuals", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
     """Get BNB actuals data"""
     try:
-        years = request.args.get('years', '').split(',')
-        
+        years = request.args.get("years", "").split(",")
+
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         where_conditions = []
         params = []
-        
+
         # Add tenant filter
-        placeholders = ', '.join(['%s'] * len(user_tenants))
+        placeholders = ", ".join(["%s"] * len(user_tenants))
         where_conditions.append(f"administration IN ({placeholders})")
         params.extend(user_tenants)
-        
-        if years and years != ['']:
-            placeholders = ','.join(['%s'] * len(years))
+
+        if years and years != [""]:
+            placeholders = ",".join(["%s"] * len(years))
             where_conditions.append(f"year IN ({placeholders})")
             params.extend(years)
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
+        where_clause = (
+            "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        )
+
         query = f"""
             SELECT year, SUM(amountNett) as total_amount
             FROM bnb 
@@ -187,24 +196,22 @@ def get_bnb_actuals(user_email, user_roles, tenant, user_tenants):
             GROUP BY year
             ORDER BY year
         """
-        
+
         cursor.execute(query, params)
         results = cursor.fetchall()
-        
+
         cursor.close()
         connection.close()
-        
-        return jsonify({
-            'success': True,
-            'data': results
-        })
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/bnb-filter-options', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        return jsonify({"success": True, "data": results})
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/bnb-filter-options", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
     """Get available filter options for BNB data"""
@@ -212,20 +219,20 @@ def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor()
-        
+
         # Build tenant filter with placeholders for user_tenants
-        placeholders = ', '.join(['%s'] * len(user_tenants))
-        
+        placeholders = ", ".join(["%s"] * len(user_tenants))
+
         # Get distinct years
         years_query = f"SELECT DISTINCT year FROM bnb WHERE year IS NOT NULL AND administration IN ({placeholders}) ORDER BY year DESC"
         cursor.execute(years_query, user_tenants)
         years = [str(row[0]) for row in cursor.fetchall()]
-        
+
         # Get distinct listings
         listings_query = f"SELECT DISTINCT listing FROM bnb WHERE listing IS NOT NULL AND administration IN ({placeholders}) ORDER BY listing"
         cursor.execute(listings_query, user_tenants)
         listings = [row[0] for row in cursor.fetchall()]
-        
+
         # Get distinct channels with normalization
         channels_query = f"""
             SELECT DISTINCT 
@@ -240,66 +247,73 @@ def get_bnb_filter_options(user_email, user_roles, tenant, user_tenants):
         """
         cursor.execute(channels_query, user_tenants)
         channels = [row[0] for row in cursor.fetchall()]
-        
+
         cursor.close()
         connection.close()
-        
-        return jsonify({
-            'success': True,
-            'years': years,
-            'listings': listings,
-            'channels': channels
-        })
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/bnb-violin-data', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        return jsonify(
+            {
+                "success": True,
+                "years": years,
+                "listings": listings,
+                "channels": channels,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/bnb-violin-data", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
     """Get BNB data for violin plots"""
     try:
-        years = request.args.get('years', '').split(',')
-        listings = request.args.get('listings', 'all')
-        channels = request.args.get('channels', 'all')
-        metric = request.args.get('metric', 'pricePerNight')  # 'pricePerNight' or 'nightsPerStay'
-        
+        years = request.args.get("years", "").split(",")
+        listings = request.args.get("listings", "all")
+        channels = request.args.get("channels", "all")
+        metric = request.args.get(
+            "metric", "pricePerNight"
+        )  # 'pricePerNight' or 'nightsPerStay'
+
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         # Build WHERE clause
         where_conditions = []
         params = []
-        
+
         # Add tenant filter
-        placeholders = ', '.join(['%s'] * len(user_tenants))
+        placeholders = ", ".join(["%s"] * len(user_tenants))
         where_conditions.append(f"administration IN ({placeholders})")
         params.extend(user_tenants)
-        
-        if years and years != ['']:
-            placeholders = ','.join(['%s'] * len(years))
+
+        if years and years != [""]:
+            placeholders = ",".join(["%s"] * len(years))
             where_conditions.append(f"year IN ({placeholders})")
             params.extend(years)
-        
-        if listings != 'all':
-            listing_list = listings.split(',')
-            placeholders = ','.join(['%s'] * len(listing_list))
+
+        if listings != "all":
+            listing_list = listings.split(",")
+            placeholders = ",".join(["%s"] * len(listing_list))
             where_conditions.append(f"listing IN ({placeholders})")
             params.extend(listing_list)
-            
-        if channels != 'all':
-            channel_list = channels.split(',')
-            placeholders = ','.join(['%s'] * len(channel_list))
+
+        if channels != "all":
+            channel_list = channels.split(",")
+            placeholders = ",".join(["%s"] * len(channel_list))
             where_conditions.append(f"channel IN ({placeholders})")
             params.extend(channel_list)
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
+        where_clause = (
+            "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        )
+
         # Select appropriate metric with normalized channel names
-        if metric == 'pricePerNight':
+        if metric == "pricePerNight":
             # Calculate price per night (amountGross / nights)
             query = f"""
             SELECT listing, 
@@ -328,21 +342,22 @@ def get_bnb_violin_data(user_email, user_roles, tenant, user_tenants):
             {where_clause} AND nights > 0
             ORDER BY listing, channel, year
             """
-        
+
         cursor.execute(query, params)
         results = cursor.fetchall()
-        
+
         cursor.close()
         connection.close()
-        
-        return jsonify({'success': True, 'data': results})
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/bnb-returning-guests', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        return jsonify({"success": True, "data": results})
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/bnb-returning-guests", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
     """Get returning guests summary"""
@@ -350,10 +365,10 @@ def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         # Build tenant filter with placeholders for user_tenants
-        placeholders = ', '.join(['%s'] * len(user_tenants))
-        
+        placeholders = ", ".join(["%s"] * len(user_tenants))
+
         # Get guest summary with booking count > 1
         query = f"""
             SELECT guestName, COUNT(*) as aantal
@@ -364,36 +379,37 @@ def get_bnb_returning_guests(user_email, user_roles, tenant, user_tenants):
             HAVING COUNT(*) > 1
             ORDER BY aantal DESC, guestName ASC
         """
-        
+
         cursor.execute(query, user_tenants)
         results = cursor.fetchall()
-        
+
         cursor.close()
         connection.close()
-        
-        return jsonify({'success': True, 'data': results})
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/bnb-guest-bookings', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        return jsonify({"success": True, "data": results})
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/bnb-guest-bookings", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
     """Get all bookings for a specific guest"""
     try:
-        guest_name = request.args.get('guestName')
+        guest_name = request.args.get("guestName")
         if not guest_name:
-            return jsonify({'success': False, 'error': 'Guest name required'}), 400
-        
+            return jsonify({"success": False, "error": "Guest name required"}), 400
+
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         # Build tenant filter with placeholders for user_tenants
-        placeholders = ', '.join(['%s'] * len(user_tenants))
-        
+        placeholders = ", ".join(["%s"] * len(user_tenants))
+
         query = f"""
             SELECT checkinDate, checkoutDate, channel, listing, nights, 
                    amountGross, amountNett, reservationCode, administration
@@ -401,58 +417,59 @@ def get_bnb_guest_bookings(user_email, user_roles, tenant, user_tenants):
             WHERE guestName = %s AND administration IN ({placeholders})
             ORDER BY checkinDate DESC
         """
-        
+
         # Combine guest_name with user_tenants for query parameters
         params = [guest_name] + user_tenants
-        
+
         cursor.execute(query, params)
         results = cursor.fetchall()
-        
+
         cursor.close()
         connection.close()
-        
-        normalize_dates(results, ['checkinDate', 'checkoutDate'])
-        return jsonify({'success': True, 'data': results})
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/bnb-table', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        normalize_dates(results, ["checkinDate", "checkoutDate"])
+        return jsonify({"success": True, "data": results})
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/bnb-table", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def get_bnb_table(user_email, user_roles, tenant, user_tenants):
     """Get BNB table data with PowerBI-style filters"""
     try:
         from datetime import datetime
-        
+
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
-        date_from = request.args.get('dateFrom', datetime.now().strftime('%Y-01-01'))
-        date_to = request.args.get('dateTo', datetime.now().strftime('%Y-%m-%d'))
-        
+
+        date_from = request.args.get("dateFrom", datetime.now().strftime("%Y-01-01"))
+        date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
+
         conditions = {
-            'channel': request.args.get('channel', 'all'),
-            'listing': request.args.get('listing', 'all')
+            "channel": request.args.get("channel", "all"),
+            "listing": request.args.get("listing", "all"),
         }
-        
+
         where_parts = ["checkinDate BETWEEN %s AND %s"]
         params = [date_from, date_to]
-        
+
         # Add tenant filter
-        placeholders = ', '.join(['%s'] * len(user_tenants))
+        placeholders = ", ".join(["%s"] * len(user_tenants))
         where_parts.append(f"administration IN ({placeholders})")
         params.extend(user_tenants)
-        
+
         for key, value in conditions.items():
-            if value != 'all':
+            if value != "all":
                 where_parts.append(f"{key} = %s")
                 params.append(value)
-        
+
         where_clause = " AND ".join(where_parts)
-        
+
         query = f"""
             SELECT checkinDate, checkoutDate, channel, listing, nights, guests,
                    amountGross, amountNett, amountChannelFee, amountTouristTax, amountVat,
@@ -462,42 +479,53 @@ def get_bnb_table(user_email, user_roles, tenant, user_tenants):
             ORDER BY checkinDate DESC
             LIMIT 1000
         """
-        
+
         cursor.execute(query, params)
         results = cursor.fetchall()
-        
+
         cursor.close()
         connection.close()
-        
-        normalize_dates(results, ['checkinDate', 'checkoutDate'])
-        return jsonify({'success': True, 'data': results})
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@bnb_bp.route('/generate-country-report', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+        normalize_dates(results, ["checkinDate", "checkoutDate"])
+        return jsonify({"success": True, "data": results})
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@bnb_bp.route("/generate-country-report", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def generate_country_report(user_email, user_roles, tenant, user_tenants):
     """Generate HTML report of bookings by country"""
     try:
-        from services.country_report_service import get_country_report_data, generate_country_report_html
-        
+        from services.country_report_service import (
+            get_country_report_data,
+            generate_country_report_html,
+        )
+
         # Get data from service
-        country_data, region_data, total_bookings = get_country_report_data(user_tenants)
-        
+        country_data, region_data, total_bookings = get_country_report_data(
+            user_tenants
+        )
+
         # Generate HTML report
-        html_content = generate_country_report_html(country_data, region_data, total_bookings)
-        
-        logger.info(f'Country report generated successfully for user {user_email}')
-        
+        html_content = generate_country_report_html(
+            country_data, region_data, total_bookings
+        )
+
+        logger.info(f"Country report generated successfully for user {user_email}")
+
         # Return HTML file directly for download
         from flask import make_response
+
         response = make_response(html_content)
-        response.headers['Content-Type'] = 'text/html; charset=utf-8'
-        response.headers['Content-Disposition'] = 'attachment; filename=country_bookings_report.html'
+        response.headers["Content-Type"] = "text/html; charset=utf-8"
+        response.headers["Content-Disposition"] = (
+            "attachment; filename=country_bookings_report.html"
+        )
         return response
-        
+
     except Exception as e:
-        logger.error(f'Error generating country report: {str(e)}')
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"Error generating country report: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500

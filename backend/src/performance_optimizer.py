@@ -7,6 +7,7 @@ import psutil
 from flask import request
 from database_migrations import QueryOptimizer
 
+
 class PerformanceProfiler:
     """Performance profiling and optimization utilities"""
 
@@ -17,7 +18,7 @@ class PerformanceProfiler:
 
     def _calculate_memory_diff(self, snapshot_before, snapshot_after):
         """Calculate memory difference between snapshots"""
-        top_stats = snapshot_after.compare_to(snapshot_before, 'lineno')
+        top_stats = snapshot_after.compare_to(snapshot_before, "lineno")
 
         total_memory_diff = 0
         memory_details = []
@@ -25,29 +26,33 @@ class PerformanceProfiler:
         for stat in top_stats[:10]:  # Top 10 memory changes
             memory_diff = stat.size_diff
             total_memory_diff += memory_diff
-            memory_details.append({
-                'filename': stat.traceback[0].filename,
-                'lineno': stat.traceback[0].lineno,
-                'size_diff': memory_diff,
-                'block_count_diff': stat.count_diff
-            })
+            memory_details.append(
+                {
+                    "filename": stat.traceback[0].filename,
+                    "lineno": stat.traceback[0].lineno,
+                    "size_diff": memory_diff,
+                    "block_count_diff": stat.count_diff,
+                }
+            )
 
         return {
-            'total_diff_bytes': total_memory_diff,
-            'total_diff_mb': total_memory_diff / (1024 * 1024),
-            'details': memory_details
+            "total_diff_bytes": total_memory_diff,
+            "total_diff_mb": total_memory_diff / (1024 * 1024),
+            "details": memory_details,
         }
 
-    def _log_performance(self, function_name, execution_time, memory_diff, args, kwargs, error=None):
+    def _log_performance(
+        self, function_name, execution_time, memory_diff, args, kwargs, error=None
+    ):
         """Log performance metrics"""
         log_entry = {
-            'timestamp': datetime.now().isoformat(),
-            'function': function_name,
-            'execution_time_seconds': execution_time,
-            'memory_diff': memory_diff,
-            'args': str(args),
-            'kwargs': str(kwargs),
-            'error': error
+            "timestamp": datetime.now().isoformat(),
+            "function": function_name,
+            "execution_time_seconds": execution_time,
+            "memory_diff": memory_diff,
+            "args": str(args),
+            "kwargs": str(kwargs),
+            "error": error,
         }
 
         self.performance_logs.append(log_entry)
@@ -63,68 +68,72 @@ class PerformanceProfiler:
             return {"message": "No performance data available"}
 
         # Calculate statistics
-        total_time = sum(log['execution_time_seconds'] for log in self.performance_logs)
+        total_time = sum(log["execution_time_seconds"] for log in self.performance_logs)
         avg_time = total_time / len(self.performance_logs)
-        max_time = max(log['execution_time_seconds'] for log in self.performance_logs)
-        min_time = min(log['execution_time_seconds'] for log in self.performance_logs)
+        max_time = max(log["execution_time_seconds"] for log in self.performance_logs)
+        min_time = min(log["execution_time_seconds"] for log in self.performance_logs)
 
         # Group by function
         function_stats = {}
         for log in self.performance_logs:
-            func_name = log['function']
+            func_name = log["function"]
             if func_name not in function_stats:
-                function_stats[func_name] = {
-                    'count': 0,
-                    'total_time': 0,
-                    'errors': 0
-                }
-            function_stats[func_name]['count'] += 1
-            function_stats[func_name]['total_time'] += log['execution_time_seconds']
-            if log['error']:
-                function_stats[func_name]['errors'] += 1
+                function_stats[func_name] = {"count": 0, "total_time": 0, "errors": 0}
+            function_stats[func_name]["count"] += 1
+            function_stats[func_name]["total_time"] += log["execution_time_seconds"]
+            if log["error"]:
+                function_stats[func_name]["errors"] += 1
 
         return {
-            'summary': {
-                'total_calls': len(self.performance_logs),
-                'total_time_seconds': total_time,
-                'average_time_seconds': avg_time,
-                'max_time_seconds': max_time,
-                'min_time_seconds': min_time
+            "summary": {
+                "total_calls": len(self.performance_logs),
+                "total_time_seconds": total_time,
+                "average_time_seconds": avg_time,
+                "max_time_seconds": max_time,
+                "min_time_seconds": min_time,
             },
-            'by_function': function_stats,
-            'logs': self.performance_logs[-50:]  # Last 50 logs
+            "by_function": function_stats,
+            "logs": self.performance_logs[-50:],  # Last 50 logs
         }
 
     def detect_n_plus_1_queries(self, db_manager, query_patterns):
         """Detect potential N+1 query patterns"""
         n_plus_1_report = {
-            'potential_issues': [],
-            'analysis_date': datetime.now().isoformat()
+            "potential_issues": [],
+            "analysis_date": datetime.now().isoformat(),
         }
 
         for pattern in query_patterns:
             # Analyze the query pattern
-            analysis = self.query_optimizer.analyze_query(pattern['query'])
+            analysis = self.query_optimizer.analyze_query(pattern["query"])
 
             # Check for N+1 patterns
             if self._is_potential_n_plus_1(analysis):
-                n_plus_1_report['potential_issues'].append({
-                    'query_pattern': pattern['name'],
-                    'query': pattern['query'],
-                    'analysis': analysis,
-                    'recommendation': self._get_n_plus_1_fix_recommendation(pattern)
-                })
+                n_plus_1_report["potential_issues"].append(
+                    {
+                        "query_pattern": pattern["name"],
+                        "query": pattern["query"],
+                        "analysis": analysis,
+                        "recommendation": self._get_n_plus_1_fix_recommendation(
+                            pattern
+                        ),
+                    }
+                )
 
         return n_plus_1_report
 
     def _is_potential_n_plus_1(self, analysis):
         """Check if query analysis suggests N+1 pattern"""
-        if not analysis.get('explain_result'):
+        if not analysis.get("explain_result"):
             return False
 
-        for row in analysis['explain_result']:
+        for row in analysis["explain_result"]:
             # Look for queries that scan many rows without proper joins
-            if row.get('rows') and row['rows'] > 100 and row.get('type') not in ['eq_ref', 'const']:
+            if (
+                row.get("rows")
+                and row["rows"] > 100
+                and row.get("type") not in ["eq_ref", "const"]
+            ):
                 return True
 
         return False
@@ -134,12 +143,15 @@ class PerformanceProfiler:
         recommendations = []
 
         # Common N+1 patterns and fixes
-        if 'WHERE id IN' in query_pattern['query'].upper():
+        if "WHERE id IN" in query_pattern["query"].upper():
             recommendations.append(
                 "Consider using JOIN instead of multiple queries with IN clauses"
             )
 
-        if 'SELECT * FROM' in query_pattern['query'].upper() and 'WHERE' in query_pattern['query'].upper():
+        if (
+            "SELECT * FROM" in query_pattern["query"].upper()
+            and "WHERE" in query_pattern["query"].upper()
+        ):
             recommendations.append(
                 "Use JOIN to fetch related data in a single query instead of multiple queries"
             )
@@ -162,23 +174,27 @@ class PerformanceProfiler:
 
         # Process in batches
         for i in range(0, total_items, batch_size):
-            batch = items[i:i + batch_size]
+            batch = items[i : i + batch_size]
             batch_results = process_func(batch)
             results.extend(batch_results)
             processed_items += len(batch)
 
             # Progress reporting
             progress = (processed_items / total_items) * 100
-            print(f"Batch processing: {progress:.1f}% complete ({processed_items}/{total_items})")
+            print(
+                f"Batch processing: {progress:.1f}% complete ({processed_items}/{total_items})"
+            )
 
         end_time = time.time()
         processing_time = end_time - start_time
 
         return {
-            'results': results,
-            'total_items': total_items,
-            'processing_time_seconds': processing_time,
-            'items_per_second': total_items / processing_time if processing_time > 0 else 0
+            "results": results,
+            "total_items": total_items,
+            "processing_time_seconds": processing_time,
+            "items_per_second": total_items / processing_time
+            if processing_time > 0
+            else 0,
         }
 
     def check_memory_leaks(self):
@@ -195,25 +211,27 @@ class PerformanceProfiler:
         tracemalloc.stop()
 
         # Compare snapshots
-        top_stats = snapshot2.compare_to(snapshot1, 'lineno')
+        top_stats = snapshot2.compare_to(snapshot1, "lineno")
 
         memory_leak_report = {
-            'timestamp': datetime.now().isoformat(),
-            'potential_leaks': [],
-            'memory_usage_summary': self._get_memory_summary()
+            "timestamp": datetime.now().isoformat(),
+            "potential_leaks": [],
+            "memory_usage_summary": self._get_memory_summary(),
         }
 
         # Analyze top memory differences
         for stat in top_stats[:20]:  # Top 20 potential leaks
             if stat.size_diff > 100000:  # More than 100KB difference
-                memory_leak_report['potential_leaks'].append({
-                    'filename': stat.traceback[0].filename,
-                    'lineno': stat.traceback[0].lineno,
-                    'size_diff_bytes': stat.size_diff,
-                    'size_diff_mb': stat.size_diff / (1024 * 1024),
-                    'block_count_diff': stat.count_diff,
-                    'traceback': self._format_traceback(stat.traceback)
-                })
+                memory_leak_report["potential_leaks"].append(
+                    {
+                        "filename": stat.traceback[0].filename,
+                        "lineno": stat.traceback[0].lineno,
+                        "size_diff_bytes": stat.size_diff,
+                        "size_diff_mb": stat.size_diff / (1024 * 1024),
+                        "block_count_diff": stat.count_diff,
+                        "traceback": self._format_traceback(stat.traceback),
+                    }
+                )
 
         return memory_leak_report
 
@@ -221,79 +239,82 @@ class PerformanceProfiler:
         """Get current memory usage summary"""
         process = psutil.Process(os.getpid())
         return {
-            'rss_mb': process.memory_info().rss / (1024 * 1024),
-            'vms_mb': process.memory_info().vms / (1024 * 1024),
-            'percent': process.memory_percent()
+            "rss_mb": process.memory_info().rss / (1024 * 1024),
+            "vms_mb": process.memory_info().vms / (1024 * 1024),
+            "percent": process.memory_percent(),
         }
 
     def _format_traceback(self, traceback):
         """Format traceback for reporting"""
-        return "\n".join([
-            f"  File: {frame.filename}:{frame.lineno}"
-            for frame in traceback
-        ])
+        return "\n".join(
+            [f"  File: {frame.filename}:{frame.lineno}" for frame in traceback]
+        )
 
     def implement_caching_strategies(self, cache_config):
         """Implement various caching strategies"""
         caching_strategies = {
-            'query_caching': cache_config.get('query_caching', True),
-            'result_caching': cache_config.get('result_caching', True),
-            'ttl_seconds': cache_config.get('ttl_seconds', 300)
+            "query_caching": cache_config.get("query_caching", True),
+            "result_caching": cache_config.get("result_caching", True),
+            "ttl_seconds": cache_config.get("ttl_seconds", 300),
         }
 
         # Configure query optimizer caching
-        if caching_strategies['query_caching']:
-            self.query_optimizer.cache_ttl = caching_strategies['ttl_seconds']
+        if caching_strategies["query_caching"]:
+            self.query_optimizer.cache_ttl = caching_strategies["ttl_seconds"]
 
         return {
-            'status': 'Caching strategies implemented',
-            'config': caching_strategies,
-            'query_cache_ttl': self.query_optimizer.cache_ttl
+            "status": "Caching strategies implemented",
+            "config": caching_strategies,
+            "query_cache_ttl": self.query_optimizer.cache_ttl,
         }
 
     def analyze_performance_bottlenecks(self, performance_data):
         """Analyze performance data for bottlenecks"""
-        if not performance_data or not performance_data.get('logs'):
+        if not performance_data or not performance_data.get("logs"):
             return {"message": "No performance data to analyze"}
 
         bottlenecks = []
         slow_threshold = 1.0  # 1 second threshold for "slow" queries
 
-        for log in performance_data['logs']:
-            if log['execution_time_seconds'] > slow_threshold:
+        for log in performance_data["logs"]:
+            if log["execution_time_seconds"] > slow_threshold:
                 bottleneck = {
-                    'function': log['function'],
-                    'execution_time': log['execution_time_seconds'],
-                    'memory_usage': log.get('memory_diff', {}).get('total_diff_mb', 0),
-                    'args': log['args'],
-                    'recommendations': []
+                    "function": log["function"],
+                    "execution_time": log["execution_time_seconds"],
+                    "memory_usage": log.get("memory_diff", {}).get("total_diff_mb", 0),
+                    "args": log["args"],
+                    "recommendations": [],
                 }
 
                 # Add recommendations based on function name
-                if 'query' in log['function'].lower():
-                    bottleneck['recommendations'].append(
+                if "query" in log["function"].lower():
+                    bottleneck["recommendations"].append(
                         "Consider adding database indexes for this query"
                     )
-                    bottleneck['recommendations'].append(
+                    bottleneck["recommendations"].append(
                         "Review query structure for optimization opportunities"
                     )
 
-                if 'process' in log['function'].lower() or 'parse' in log['function'].lower():
-                    bottleneck['recommendations'].append(
+                if (
+                    "process" in log["function"].lower()
+                    or "parse" in log["function"].lower()
+                ):
+                    bottleneck["recommendations"].append(
                         "Check for inefficient loops or algorithms"
                     )
-                    bottleneck['recommendations'].append(
+                    bottleneck["recommendations"].append(
                         "Consider batch processing for large datasets"
                     )
 
                 bottlenecks.append(bottleneck)
 
         return {
-            'bottlenecks_found': len(bottlenecks),
-            'slow_threshold_seconds': slow_threshold,
-            'bottlenecks': bottlenecks,
-            'analysis_date': datetime.now().isoformat()
+            "bottlenecks_found": len(bottlenecks),
+            "slow_threshold_seconds": slow_threshold,
+            "bottlenecks": bottlenecks,
+            "analysis_date": datetime.now().isoformat(),
         }
+
 
 # Performance monitoring middleware
 def performance_middleware(app):
@@ -306,22 +327,24 @@ def performance_middleware(app):
         request.start_time = time.time()
 
         # Start memory tracking for API requests
-        if request.path.startswith('/api/'):
+        if request.path.startswith("/api/"):
             tracemalloc.start()
 
     @app.after_request
     def log_performance(response):
         # Calculate execution time
-        if hasattr(request, 'start_time'):
+        if hasattr(request, "start_time"):
             execution_time = time.time() - request.start_time
-            response.headers['X-Execution-Time'] = f"{execution_time:.4f}s"
+            response.headers["X-Execution-Time"] = f"{execution_time:.4f}s"
 
         # Log memory usage for API requests
-        if request.path.startswith('/api/') and hasattr(tracemalloc, 'get_traced_memory'):
+        if request.path.startswith("/api/") and hasattr(
+            tracemalloc, "get_traced_memory"
+        ):
             current, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
-            response.headers['X-Memory-Usage'] = f"{current / 1024:.2f} KB"
-            response.headers['X-Memory-Peak'] = f"{peak / 1024:.2f} KB"
+            response.headers["X-Memory-Usage"] = f"{current / 1024:.2f} KB"
+            response.headers["X-Memory-Peak"] = f"{peak / 1024:.2f} KB"
 
         return response
 
@@ -329,6 +352,7 @@ def performance_middleware(app):
     app.perf_profiler = profiler
 
     return profiler
+
 
 # Memory management utilities
 class MemoryManager:
@@ -338,25 +362,31 @@ class MemoryManager:
         """Get current memory usage report"""
         try:
             import psutil
+
             process = psutil.Process(os.getpid())
             mem_info = process.memory_info()
 
             return {
-                'timestamp': datetime.now().isoformat(),
-                'process_id': os.getpid(),
-                'rss_mb': mem_info.rss / (1024 * 1024),
-                'vms_mb': mem_info.vms / (1024 * 1024),
-                'percent': process.memory_percent(),
-                'threads': process.num_threads(),
-                'open_files': len(process.open_files()) if hasattr(process, 'open_files') else 'N/A',
-                'connections': len(process.connections()) if hasattr(process, 'connections') else 'N/A'
+                "timestamp": datetime.now().isoformat(),
+                "process_id": os.getpid(),
+                "rss_mb": mem_info.rss / (1024 * 1024),
+                "vms_mb": mem_info.vms / (1024 * 1024),
+                "percent": process.memory_percent(),
+                "threads": process.num_threads(),
+                "open_files": len(process.open_files())
+                if hasattr(process, "open_files")
+                else "N/A",
+                "connections": len(process.connections())
+                if hasattr(process, "connections")
+                else "N/A",
             }
 
         except ImportError:
             return {
-                'error': 'psutil not available for detailed memory monitoring',
-                'timestamp': datetime.now().isoformat()
+                "error": "psutil not available for detailed memory monitoring",
+                "timestamp": datetime.now().isoformat(),
             }
+
 
 # Performance optimization API endpoints
 def register_performance_endpoints(app):
@@ -365,58 +395,52 @@ def register_performance_endpoints(app):
     profiler = PerformanceProfiler()
     memory_manager = MemoryManager()
 
-    @app.route('/api/performance/status', methods=['GET'])
+    @app.route("/api/performance/status", methods=["GET"])
     def performance_status():
         """Get current performance status"""
         report = profiler.get_performance_report()
         memory_report = memory_manager.get_memory_usage_report()
 
         return {
-            'success': True,
-            'performance': report,
-            'memory': memory_report,
-            'timestamp': datetime.now().isoformat()
+            "success": True,
+            "performance": report,
+            "memory": memory_report,
+            "timestamp": datetime.now().isoformat(),
         }
 
-    @app.route('/api/performance/analyze', methods=['POST'])
+    @app.route("/api/performance/analyze", methods=["POST"])
     def analyze_performance():
         """Analyze performance data"""
         data = request.get_json()
         analysis = profiler.analyze_performance_bottlenecks(data)
 
-        return {
-            'success': True,
-            'analysis': analysis
-        }
+        return {"success": True, "analysis": analysis}
 
-    @app.route('/api/performance/memory-check', methods=['GET'])
+    @app.route("/api/performance/memory-check", methods=["GET"])
     def memory_check():
         """Check for memory leaks"""
         leak_report = profiler.check_memory_leaks()
 
-        return {
-            'success': True,
-            'memory_report': leak_report
-        }
+        return {"success": True, "memory_report": leak_report}
 
-    @app.route('/api/performance/optimize', methods=['POST'])
+    @app.route("/api/performance/optimize", methods=["POST"])
     def optimize_performance():
         """Run performance optimization"""
         data = request.get_json()
-        cache_config = data.get('caching', {})
+        cache_config = data.get("caching", {})
 
         # Implement caching strategies
         caching_result = profiler.implement_caching_strategies(cache_config)
 
         # Check for N+1 queries
-        query_patterns = data.get('query_patterns', [])
+        query_patterns = data.get("query_patterns", [])
         n_plus_1_report = profiler.detect_n_plus_1_queries(app.db, query_patterns)
 
         return {
-            'success': True,
-            'caching': caching_result,
-            'n_plus_1_analysis': n_plus_1_report,
-            'recommendations': _get_performance_recommendations()
+            "success": True,
+            "caching": caching_result,
+            "n_plus_1_analysis": n_plus_1_report,
+            "recommendations": _get_performance_recommendations(),
         }
 
     def _get_performance_recommendations():
@@ -429,5 +453,5 @@ def register_performance_endpoints(app):
             "Profile critical functions to identify bottlenecks",
             "Consider using connection pooling for database connections",
             "Implement proper pagination for API endpoints",
-            "Use asynchronous processing for I/O-bound operations"
+            "Use asynchronous processing for I/O-bound operations",
         ]

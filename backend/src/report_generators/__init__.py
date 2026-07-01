@@ -29,10 +29,8 @@ from . import toeristenbelasting_generator
 
 __all__ = [
     # Generators will be exported here as they are implemented
-    'generate_table_rows',
-    'str_invoice_generator',
-    'btw_aangifte_generator',
-    'toeristenbelasting_generator',
+    "generate_table_rows",
+    "str_invoice_generator",
+    "btw_aangifte_generator",
+    "toeristenbelasting_generator",
 ]
-
-

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 # --- Custom Exceptions ---
 
+
 class InvalidTokenError(Exception):
     """Raised when JWT signature, issuer, or audience validation fails (HTTP 401)."""
 
@@ -56,6 +57,7 @@ class ServiceUnavailableError(Exception):
 
 # --- JWKS Cache ---
 
+
 @dataclass
 class JWKSCache:
     """In-memory cache for JWKS public keys."""
@@ -78,6 +80,7 @@ class JWKSCache:
 
 
 # --- JWT Verifier ---
+
 
 class JWTVerifier:
     """Cryptographic JWT verification against AWS Cognito JWKS.
@@ -248,6 +251,7 @@ class JWTVerifier:
             RSA public key suitable for PyJWT verification.
         """
         from jwt import algorithms
+
         return algorithms.RSAAlgorithm.from_jwk(jwk_data)
 
     def _fetch_jwks(self) -> dict:
@@ -266,17 +270,13 @@ class JWTVerifier:
             response.raise_for_status()
             return response.json()
         except (requests.RequestException, ValueError) as e:
-            logger.warning(
-                f"Failed to fetch JWKS from {self.jwks_url}: {e}"
-            )
+            logger.warning(f"Failed to fetch JWKS from {self.jwks_url}: {e}")
             # If we have cached keys, we can continue with those
             if self._cache.has_keys:
                 logger.info("Using cached JWKS keys due to endpoint failure")
                 return None
             # No cache available — service unavailable
-            raise ServiceUnavailableError(
-                "Authentication service unavailable"
-            )
+            raise ServiceUnavailableError("Authentication service unavailable")
 
     def _refresh_cache(self) -> None:
         """Refresh the JWKS cache from the Cognito endpoint.

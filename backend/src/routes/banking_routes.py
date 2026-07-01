@@ -19,7 +19,7 @@ from auth.tenant_context import tenant_required
 from services.banking_service import BankingService
 
 # Create blueprint
-banking_bp = Blueprint('banking', __name__)
+banking_bp = Blueprint("banking", __name__)
 
 # Service instance (will be set by set_test_mode)
 banking_service = None
@@ -31,443 +31,488 @@ def set_test_mode(test_mode: bool) -> None:
     banking_service = BankingService(test_mode=test_mode)
 
 
-@banking_bp.route('/api/banking/scan-files', methods=['GET'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/scan-files", methods=["GET"])
+@cognito_required(required_permissions=["banking_read"])
 @tenant_required()
-def banking_scan_files(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_scan_files(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Scan download folder for CSV files"""
     try:
-        folder_path = request.args.get('folder', None)
+        folder_path = request.args.get("folder", None)
         result = banking_service.scan_banking_files(folder_path)
-        
-        if result['success']:
+
+        if result["success"]:
             return jsonify(result)
         else:
             return jsonify(result), 500
     except Exception as e:
         print(f"Banking scan files error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/process-files', methods=['POST'])
-@cognito_required(required_permissions=['banking_process'])
+@banking_bp.route("/api/banking/process-files", methods=["POST"])
+@cognito_required(required_permissions=["banking_process"])
 @tenant_required()
-def banking_process_files(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_process_files(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Process selected CSV files"""
     try:
         data = request.get_json()
-        file_paths = data.get('files', [])
-        test_mode = data.get('test_mode', True)
-        
+        file_paths = data.get("files", [])
+        test_mode = data.get("test_mode", True)
+
         result = banking_service.process_banking_files(file_paths, tenant, test_mode)
-        
-        if result['success']:
+
+        if result["success"]:
             return jsonify(result)
         else:
-            status_code = 403 if 'Access denied' in result.get('error', '') else 400
+            status_code = 403 if "Access denied" in result.get("error", "") else 400
             return jsonify(result), status_code
-        
+
     except Exception as e:
         print(f"Banking process files error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/check-sequences', methods=['POST'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/check-sequences", methods=["POST"])
+@cognito_required(required_permissions=["banking_read"])
 @tenant_required()
-def banking_check_sequences(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_check_sequences(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Check sequence numbers against database"""
     try:
         data = request.get_json()
-        iban = data.get('iban')
-        sequences = data.get('sequences', [])
-        test_mode = data.get('test_mode', True)
-        
+        iban = data.get("iban")
+        sequences = data.get("sequences", [])
+        test_mode = data.get("test_mode", True)
+
         result = banking_service.check_sequences(iban, sequences, test_mode, tenant)
         return jsonify(result)
-        
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/apply-patterns', methods=['POST'])
-@cognito_required(required_permissions=['banking_process'])
+@banking_bp.route("/api/banking/apply-patterns", methods=["POST"])
+@cognito_required(required_permissions=["banking_process"])
 @tenant_required()
-def banking_apply_patterns(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_apply_patterns(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Apply enhanced pattern matching to predict debet/credit accounts"""
     try:
         data = request.get_json()
-        transactions = data.get('transactions', [])
-        test_mode = data.get('test_mode', True)
-        use_enhanced = data.get('use_enhanced', True)
-        
-        result = banking_service.apply_patterns(transactions, tenant, use_enhanced, test_mode)
+        transactions = data.get("transactions", [])
+        test_mode = data.get("test_mode", True)
+        use_enhanced = data.get("use_enhanced", True)
+
+        result = banking_service.apply_patterns(
+            transactions, tenant, use_enhanced, test_mode
+        )
         return jsonify(result)
-        
+
     except Exception as e:
         print(f"Pattern matching error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/save-transactions', methods=['POST'])
-@cognito_required(required_permissions=['transactions_create'])
+@banking_bp.route("/api/banking/save-transactions", methods=["POST"])
+@cognito_required(required_permissions=["transactions_create"])
 @tenant_required()
-def banking_save_transactions(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_save_transactions(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Save approved transactions to database with duplicate filtering"""
     try:
         data = request.get_json()
-        transactions = data.get('transactions', [])
-        test_mode = data.get('test_mode', True)
-        
+        transactions = data.get("transactions", [])
+        test_mode = data.get("test_mode", True)
+
         result = banking_service.save_transactions(transactions, tenant, test_mode)
         return jsonify(result)
-    
+
     except ClosedPeriodError as e:
         print(f"Closed period error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 400
-        
+        return jsonify({"success": False, "error": str(e)}), 400
+
     except Exception as e:
         print(f"Banking save transactions error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/lookups', methods=['GET'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/lookups", methods=["GET"])
+@cognito_required(required_permissions=["banking_read"])
 @tenant_required()
-def banking_lookups(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_lookups(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get mapping data for account codes and descriptions"""
     try:
         result = banking_service.get_lookups(tenant)
-        
-        if result['success']:
+
+        if result["success"]:
             return jsonify(result)
         else:
             return jsonify(result), 500
-        
+
     except Exception as e:
         print(f"Banking lookups error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/mutaties', methods=['GET'])
-@cognito_required(required_permissions=['transactions_read'])
+@banking_bp.route("/api/banking/mutaties", methods=["GET"])
+@cognito_required(required_permissions=["transactions_read"])
 @tenant_required()
-def banking_mutaties(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_mutaties(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get mutaties with filters and pagination"""
     try:
         # Get filter parameters
-        years = request.args.get('years', '').split(',') if request.args.get('years') else []
-        administration = request.args.get('administration', 'all')
-        limit = request.args.get('limit', '1000')
-        offset = request.args.get('offset', '0')
-        
+        years = (
+            request.args.get("years", "").split(",")
+            if request.args.get("years")
+            else []
+        )
+        administration = request.args.get("administration", "all")
+        limit = request.args.get("limit", "1000")
+        offset = request.args.get("offset", "0")
+
         filters = {
-            'years': years,
-            'administration': administration,
-            'limit': limit,
-            'offset': offset
+            "years": years,
+            "administration": administration,
+            "limit": limit,
+            "offset": offset,
         }
-        
+
         result = banking_service.get_mutaties(filters, tenant, user_tenants)
-        
-        if result['success']:
+
+        if result["success"]:
             return jsonify(result)
         else:
-            status_code = 403 if 'Access denied' in result.get('error', '') else 500
+            status_code = 403 if "Access denied" in result.get("error", "") else 500
             return jsonify(result), status_code
-        
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/filter-options', methods=['GET'])
-@cognito_required(required_permissions=['transactions_read'])
+@banking_bp.route("/api/banking/filter-options", methods=["GET"])
+@cognito_required(required_permissions=["transactions_read"])
 @tenant_required()
-def banking_filter_options(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_filter_options(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get filter options for mutaties"""
     try:
         from database import DatabaseManager
-        
+
         db = DatabaseManager(test_mode=banking_service.test_mode)
-        table_name = 'mutaties_test' if banking_service.test_mode else 'mutaties'
-        
+        table_name = "mutaties_test" if banking_service.test_mode else "mutaties"
+
         conn = db.get_connection()
         cursor = conn.cursor(dictionary=True)
-        
+
         # Build administration filter based on user's accessible tenants
         if len(user_tenants) == 1:
             admin_filter = "AND administration = %s"
             admin_params = [user_tenants[0]]
         else:
-            placeholders = ','.join(['%s'] * len(user_tenants))
+            placeholders = ",".join(["%s"] * len(user_tenants))
             admin_filter = f"AND administration IN ({placeholders})"
             admin_params = user_tenants
-        
+
         # Get distinct years (filtered by tenant)
         # Uses YEAR() on base table — acceptable since administration index
         # filters rows first. Not on vw_mutaties so no view materialization.
-        cursor.execute(f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL {admin_filter} ORDER BY year DESC", admin_params)
-        years = [str(row['year']) for row in cursor.fetchall()]
-        
+        cursor.execute(
+            f"SELECT DISTINCT YEAR(TransactionDate) as year FROM {table_name} WHERE TransactionDate IS NOT NULL {admin_filter} ORDER BY year DESC",
+            admin_params,
+        )
+        years = [str(row["year"]) for row in cursor.fetchall()]
+
         # Get distinct administrations (only those user has access to)
-        cursor.execute(f"SELECT DISTINCT administration FROM {table_name} WHERE administration IS NOT NULL {admin_filter} ORDER BY administration", admin_params)
-        administrations = [row['administration'] for row in cursor.fetchall()]
-        
+        cursor.execute(
+            f"SELECT DISTINCT administration FROM {table_name} WHERE administration IS NOT NULL {admin_filter} ORDER BY administration",
+            admin_params,
+        )
+        administrations = [row["administration"] for row in cursor.fetchall()]
+
         cursor.close()
         conn.close()
-        
-        return jsonify({
-            'success': True,
-            'years': years,
-            'administrations': administrations
-        })
-        
+
+        return jsonify(
+            {"success": True, "years": years, "administrations": administrations}
+        )
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/update-mutatie', methods=['POST'])
-@cognito_required(required_permissions=['transactions_update'])
+@banking_bp.route("/api/banking/update-mutatie", methods=["POST"])
+@cognito_required(required_permissions=["transactions_update"])
 @tenant_required()
-def banking_update_mutatie(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_update_mutatie(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Update a mutatie record"""
     try:
         data = request.get_json()
-        record_id = data.get('ID')
-        
+        record_id = data.get("ID")
+
         print(f"Update request for ID: {record_id}", flush=True)
         print(f"Data received: {data}", flush=True)
         print(f"Current tenant: {tenant}", flush=True)
-        
+
         if not record_id:
-            return jsonify({'success': False, 'error': 'No ID provided'}), 400
-        
+            return jsonify({"success": False, "error": "No ID provided"}), 400
+
         # --- Closed-period guard ---
         from db_exceptions import ClosedPeriodError
-        txn_date = str(data.get('TransactionDate', ''))
-        amount = float(data.get('TransactionAmount', 0))
+
+        txn_date = str(data.get("TransactionDate", ""))
+        amount = float(data.get("TransactionAmount", 0))
         if amount != 0 and txn_date and len(txn_date) >= 4:
             try:
                 year = int(txn_date[:4])
                 from database import DatabaseManager
+
                 db = DatabaseManager(test_mode=False)
                 rows = db.execute_query(
                     "SELECT year FROM year_closure_status WHERE administration = %s AND year = %s",
-                    [tenant, year]
+                    [tenant, year],
                 )
                 if rows:
-                    raise ClosedPeriodError(
-                        [{'transaction': data, 'year': year}]
-                    )
+                    raise ClosedPeriodError([{"transaction": data, "year": year}])
             except ClosedPeriodError:
                 raise
             except (ValueError, IndexError):
                 pass
-        
+
         result = banking_service.update_mutatie(record_id, data, tenant)
-        
-        if result['success']:
+
+        if result["success"]:
             return jsonify(result)
         else:
-            status_code = 404 if 'not found' in result.get('error', '').lower() else 403
+            status_code = 404 if "not found" in result.get("error", "").lower() else 403
             return jsonify(result), status_code
-    
+
     except ClosedPeriodError as e:
         print(f"Closed period error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 400
-        
+        return jsonify({"success": False, "error": str(e)}), 400
+
     except Exception as e:
         print(f"Update error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/insert-mutatie', methods=['POST'])
-@cognito_required(required_permissions=['transactions_create'])
+@banking_bp.route("/api/banking/insert-mutatie", methods=["POST"])
+@cognito_required(required_permissions=["transactions_create"])
 @tenant_required()
-def banking_insert_mutatie(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_insert_mutatie(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Insert a new mutatie record"""
     try:
         data = request.get_json()
-        
+
         print(f"Insert request for tenant: {tenant}", flush=True)
         print(f"Data received: {data}", flush=True)
-        
+
         # Force administration to current tenant
-        data['Administration'] = tenant
-        
+        data["Administration"] = tenant
+
         # --- Closed-period guard ---
         from db_exceptions import ClosedPeriodError
         from database import DatabaseManager
+
         db = DatabaseManager(test_mode=False)
-        
-        txn_date = str(data.get('TransactionDate', ''))
-        amount = float(data.get('TransactionAmount', 0))
+
+        txn_date = str(data.get("TransactionDate", ""))
+        amount = float(data.get("TransactionAmount", 0))
         if amount != 0 and txn_date and len(txn_date) >= 4:
             try:
                 year = int(txn_date[:4])
                 rows = db.execute_query(
                     "SELECT year FROM year_closure_status WHERE administration = %s AND year = %s",
-                    [tenant, year]
+                    [tenant, year],
                 )
                 if rows:
-                    raise ClosedPeriodError(
-                        [{'transaction': data, 'year': year}]
-                    )
+                    raise ClosedPeriodError([{"transaction": data, "year": year}])
             except ClosedPeriodError:
                 raise
             except (ValueError, IndexError):
                 pass
-        
-        table_name = 'mutaties'
+
+        table_name = "mutaties"
         success = db.insert_transaction(data, table_name)
-        
+
         if success:
-            return jsonify({
-                'success': True,
-                'message': 'Record inserted successfully'
-            })
+            return jsonify({"success": True, "message": "Record inserted successfully"})
         else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to insert record'
-            }), 500
-    
+            return jsonify({"success": False, "error": "Failed to insert record"}), 500
+
     except ClosedPeriodError as e:
         print(f"Closed period error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 400
-        
+        return jsonify({"success": False, "error": str(e)}), 400
+
     except Exception as e:
         print(f"Insert error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/check-accounts', methods=['GET'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/check-accounts", methods=["GET"])
+@cognito_required(required_permissions=["banking_read"])
 @tenant_required()
-def banking_check_accounts(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_check_accounts(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Check banking account balances"""
     try:
-        end_date = request.args.get('end_date')
+        end_date = request.args.get("end_date")
         result = banking_service.check_accounts(tenant, end_date)
-        
-        if result['success']:
+
+        if result["success"]:
             return jsonify(result)
         else:
             return jsonify(result), 500
-        
+
     except Exception as e:
         print(f"Banking check accounts error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/check-sequence', methods=['GET'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/check-sequence", methods=["GET"])
+@cognito_required(required_permissions=["banking_read"])
 @tenant_required()
-def banking_check_sequence(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_check_sequence(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Check sequence numbers for account"""
     try:
         from banking_processor import BankingProcessor
-        
-        administration = request.args.get('administration')
-        
+
+        administration = request.args.get("administration")
+
         # Validate administration parameter is present
-        if not administration or administration.strip() == '':
-            return jsonify({'error': 'Administration parameter is required'}), 400
-        
+        if not administration or administration.strip() == "":
+            return jsonify({"error": "Administration parameter is required"}), 400
+
         # Validate administration against user's accessible tenants
         if administration not in user_tenants:
-            return jsonify({'error': 'Access denied to requested administration'}), 403
-        
+            return jsonify({"error": "Access denied to requested administration"}), 403
+
         processor = BankingProcessor(test_mode=banking_service.test_mode)
-        account_code = request.args.get('account_code')
-        start_date = request.args.get('start_date', '2025-01-01')
-        
-        result = processor.check_sequence_numbers(account_code, administration, start_date)
+        account_code = request.args.get("account_code")
+        start_date = request.args.get("start_date", "2025-01-01")
+
+        result = processor.check_sequence_numbers(
+            account_code, administration, start_date
+        )
         return jsonify(result)
-        
+
     except Exception as e:
         print(f"Check sequence error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/check-revolut-balance', methods=['GET'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/check-revolut-balance", methods=["GET"])
+@cognito_required(required_permissions=["banking_read"])
 @tenant_required()
-def banking_check_revolut_balance(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_check_revolut_balance(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Check Revolut balance gaps by comparing calculated vs Ref3 balance"""
     try:
-        iban = request.args.get('iban', 'NL08REVO7549383472')
-        account_code = request.args.get('account_code', '1022')
-        start_date = request.args.get('start_date', '2025-05-01')
-        expected_balance = float(request.args.get('expected_balance', '262.54'))
-        
-        result = banking_service.check_revolut_balance(iban, account_code, start_date, expected_balance)
+        iban = request.args.get("iban", "NL08REVO7549383472")
+        account_code = request.args.get("account_code", "1022")
+        start_date = request.args.get("start_date", "2025-05-01")
+        expected_balance = float(request.args.get("expected_balance", "262.54"))
+
+        result = banking_service.check_revolut_balance(
+            iban, account_code, start_date, expected_balance
+        )
         return jsonify(result)
-        
+
     except Exception as e:
         print(f"Check Revolut balance error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/check-revolut-balance-debug', methods=['GET'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/check-revolut-balance-debug", methods=["GET"])
+@cognito_required(required_permissions=["banking_read"])
 def banking_check_revolut_balance_debug(user_email, user_roles) -> ResponseReturnValue:
     """Debug endpoint - returns only first 10 transactions with full details"""
     try:
         from banking_processor import BankingProcessor
-        
+
         processor = BankingProcessor(test_mode=banking_service.test_mode)
-        iban = request.args.get('iban', 'NL08REVO7549383472')
-        account_code = request.args.get('account_code', '1022')
-        start_date = request.args.get('start_date', '2025-05-01')
-        expected_balance = float(request.args.get('expected_balance', '262.54'))
-        
+        iban = request.args.get("iban", "NL08REVO7549383472")
+        account_code = request.args.get("account_code", "1022")
+        start_date = request.args.get("start_date", "2025-05-01")
+        expected_balance = float(request.args.get("expected_balance", "262.54"))
+
         result = processor.check_revolut_balance_gaps(
             iban=iban,
             account_code=account_code,
             start_date=start_date,
-            expected_final_balance=expected_balance
+            expected_final_balance=expected_balance,
         )
-        
+
         # Return only first 10 transactions for debugging
-        if result.get('success'):
-            return jsonify({
-                'success': True,
-                'iban': result.get('iban'),
-                'start_date': result.get('start_date'),
-                'starting_balance_debug': result.get('starting_balance_debug'),
-                'first_10_transactions': result.get('first_10_transactions', []),
-                'total_transactions': result.get('total_transactions', 0),
-                'note': 'Debug endpoint - showing first 10 transactions only'
-            })
+        if result.get("success"):
+            return jsonify(
+                {
+                    "success": True,
+                    "iban": result.get("iban"),
+                    "start_date": result.get("start_date"),
+                    "starting_balance_debug": result.get("starting_balance_debug"),
+                    "first_10_transactions": result.get("first_10_transactions", []),
+                    "total_transactions": result.get("total_transactions", 0),
+                    "note": "Debug endpoint - showing first 10 transactions only",
+                }
+            )
         else:
             return jsonify(result)
-        
+
     except Exception as e:
         print(f"Check Revolut balance debug error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/opening-balance-date', methods=['GET'])
-@cognito_required(required_permissions=['banking_read'])
+@banking_bp.route("/api/banking/opening-balance-date", methods=["GET"])
+@cognito_required(required_permissions=["banking_read"])
 @tenant_required()
-def banking_opening_balance_date(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def banking_opening_balance_date(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get the opening balance date based on the last annual closure"""
     try:
         from database import DatabaseManager
@@ -479,33 +524,39 @@ def banking_opening_balance_date(user_email, user_roles, tenant, user_tenants) -
         if opening_balance_date:
             # Derive last_closed_year from opening_balance_date (year - 1)
             last_closed_year = int(opening_balance_date[:4]) - 1
-            return jsonify({
-                'success': True,
-                'opening_balance_date': opening_balance_date,
-                'last_closed_year': last_closed_year
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "opening_balance_date": opening_balance_date,
+                    "last_closed_year": last_closed_year,
+                }
+            )
         else:
-            return jsonify({
-                'success': True,
-                'opening_balance_date': None,
-                'last_closed_year': None
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "opening_balance_date": None,
+                    "last_closed_year": None,
+                }
+            )
 
     except Exception as e:
         print(f"Opening balance date error: {e}", flush=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@banking_bp.route('/api/banking/migrate-revolut-ref2', methods=['POST'])
-@cognito_required(required_roles=['SysAdmin'])
+@banking_bp.route("/api/banking/migrate-revolut-ref2", methods=["POST"])
+@cognito_required(required_roles=["SysAdmin"])
 def banking_migrate_revolut_ref2(user_email, user_roles) -> ResponseReturnValue:
     """Migrate Revolut Ref2 to new format"""
     try:
         from migrate_revolut_ref2 import migrate_revolut_ref2
+
         result = migrate_revolut_ref2(test_mode=banking_service.test_mode)
         return jsonify(result)
     except Exception as e:
         print(f"Migration error: {e}", flush=True)
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

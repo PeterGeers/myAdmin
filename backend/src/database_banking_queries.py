@@ -22,9 +22,11 @@ class DatabaseBankingQueriesMixin:
     Requires self.execute_query() from DatabaseManager.
     """
 
-    def get_used_transaction_numbers(self, ref1, table_name='mutaties'):
+    def get_used_transaction_numbers(self, ref1, table_name="mutaties"):
         """Get existing transaction numbers for duplicate prevention"""
-        return self.execute_query(f"SELECT Ref2 FROM {table_name} WHERE Ref1 = %s", (ref1,))
+        return self.execute_query(
+            f"SELECT Ref2 FROM {table_name} WHERE Ref1 = %s", (ref1,)
+        )
 
     def get_bank_account_lookups(self, administration=None):
         """Get bank account lookup data from rekeningschema using parameters $.bank_account flag.
@@ -45,8 +47,9 @@ class DatabaseBankingQueriesMixin:
         """
         if administration:
             return self.execute_query(
-                base_query + " AND administration = %s ORDER BY administration, Account",
-                (administration,)
+                base_query
+                + " AND administration = %s ORDER BY administration, Account",
+                (administration,),
             )
         return self.execute_query(base_query + " ORDER BY administration, Account")
 
@@ -70,8 +73,9 @@ class DatabaseBankingQueriesMixin:
         """
         if administration:
             return self.execute_query(
-                base_query + " AND administration = %s ORDER BY administration, Account",
-                (administration,)
+                base_query
+                + " AND administration = %s ORDER BY administration, Account",
+                (administration,),
             )
         return self.execute_query(base_query + " ORDER BY administration, Account")
 
@@ -91,12 +95,11 @@ class DatabaseBankingQueriesMixin:
         """
         if administration:
             return self.execute_query(
-                base_query + " AND administration = %s",
-                (administration,)
+                base_query + " AND administration = %s", (administration,)
             )
         return self.execute_query(base_query)
 
-    def get_existing_sequences(self, iban, table_name='mutaties', administration=None):
+    def get_existing_sequences(self, iban, table_name="mutaties", administration=None):
         """Get existing Ref2 sequences for a specific IBAN within last 2 years."""
         query = f"""
             SELECT Ref2 as existing FROM {table_name}
@@ -110,14 +113,15 @@ class DatabaseBankingQueriesMixin:
             params.append(administration)
 
         results = self.execute_query(query, tuple(params))
-        return [r['existing'] for r in results]
+        return [r["existing"] for r in results]
 
     def get_patterns(self, administration):
         """Get patterns from vw_readreferences view with date filtering.
 
         Bank accounts are resolved from rekeningschema.parameters $.bank_account flag.
         """
-        return self.execute_query("""
+        return self.execute_query(
+            """
             SELECT debet, credit, administration, referenceNumber, Date
             FROM vw_readreferences
             WHERE administration = %s
@@ -132,22 +136,34 @@ class DatabaseBankingQueriesMixin:
             ))
             AND Date >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
             ORDER BY Date DESC
-        """, (administration, administration, administration))
+        """,
+            (administration, administration, administration),
+        )
 
-    def get_recent_transactions(self, limit=100, table_name='mutaties', administration=None):
+    def get_recent_transactions(
+        self, limit=100, table_name="mutaties", administration=None
+    ):
         """Get recent transactions for lookup data"""
         if administration:
-            return self.execute_query(f"""
+            return self.execute_query(
+                f"""
                 SELECT TransactionDescription, Debet, Credit, administration FROM {table_name}
                 WHERE administration = %s
                 ORDER BY ID DESC LIMIT %s
-            """, (administration, limit))
-        return self.execute_query(f"""
+            """,
+                (administration, limit),
+            )
+        return self.execute_query(
+            f"""
             SELECT TransactionDescription, Debet, Credit, administration FROM {table_name}
             ORDER BY ID DESC LIMIT %s
-        """, (limit,))
+        """,
+            (limit,),
+        )
 
-    def get_previous_transactions(self, reference_number, limit=3, table_name='mutaties'):
+    def get_previous_transactions(
+        self, reference_number, limit=3, table_name="mutaties"
+    ):
         """Get previous transactions with descriptions for AI pattern learning"""
         query = f"""
             SELECT TransactionDate as Datum, TransactionDescription as Omschrijving,
@@ -161,8 +177,13 @@ class DatabaseBankingQueriesMixin:
         results = self.execute_query(query, (f"%{reference_number}%", limit))
         return results if results else []
 
-    def check_duplicate_transactions(self, reference_number, transaction_date,
-                                     transaction_amount, table_name='mutaties'):
+    def check_duplicate_transactions(
+        self,
+        reference_number,
+        transaction_date,
+        transaction_amount,
+        table_name="mutaties",
+    ):
         """
         Check for existing transactions with matching criteria within 2-year window.
 
@@ -188,12 +209,16 @@ class DatabaseBankingQueriesMixin:
                 ORDER BY ID DESC
             """
 
-            results = self.execute_query(query, (reference_number, transaction_date, transaction_amount))
+            results = self.execute_query(
+                query, (reference_number, transaction_date, transaction_amount)
+            )
             return results if results else []
 
         except DatabaseError as e:
             print(f"Database error during duplicate check: {e}")
-            raise Exception(f"Database connection failed during duplicate check: {str(e)}")
+            raise Exception(
+                f"Database connection failed during duplicate check: {str(e)}"
+            )
         except Exception as e:
             print(f"Unexpected error during duplicate check: {e}")
             raise Exception(f"Duplicate check failed: {str(e)}")

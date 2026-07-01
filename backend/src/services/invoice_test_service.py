@@ -45,7 +45,9 @@ class InvoiceTestService:
     # Maximum characters for execution log output
     MAX_EXECUTION_LOG_LENGTH = 10_000
 
-    def process_file_dry_run(self, file_path: str, folder_name: str, administration: str = None) -> dict:
+    def process_file_dry_run(
+        self, file_path: str, folder_name: str, administration: str = None
+    ) -> dict:
         """Execute full pipeline in dry-run mode with timing and log capture.
 
         Processes a file through all pipeline stages (file parsing, text extraction,
@@ -64,10 +66,10 @@ class InvoiceTestService:
         errors = []
         pipeline_result = {}
         performance = {
-            'total_duration_ms': 0,
-            'ai_duration_ms': None,
-            'ai_model': None,
-            'ai_tokens': None,
+            "total_duration_ms": 0,
+            "ai_duration_ms": None,
+            "ai_model": None,
+            "ai_tokens": None,
         }
         ai_usage_preview = None
         execution_log = ""
@@ -76,18 +78,20 @@ class InvoiceTestService:
         try:
             resolver.resolve_profile("structured_extraction")
         except RegistryError as e:
-            errors.append({
-                'stage': 'registry_resolution',
-                'error_type': 'RegistryError',
-                'message': f'Could not load structured_extraction profile: {e}',
-            })
+            errors.append(
+                {
+                    "stage": "registry_resolution",
+                    "error_type": "RegistryError",
+                    "message": f"Could not load structured_extraction profile: {e}",
+                }
+            )
             # Return immediately — cannot proceed without model configuration
             return {
-                'pipeline_result': pipeline_result,
-                'performance': performance,
-                'ai_usage_preview': ai_usage_preview,
-                'execution_log': execution_log,
-                'errors': errors,
+                "pipeline_result": pipeline_result,
+                "performance": performance,
+                "ai_usage_preview": ai_usage_preview,
+                "execution_log": execution_log,
+                "errors": errors,
             }
 
         # Patch processor to capture AI result metadata for metrics
@@ -107,7 +111,7 @@ class InvoiceTestService:
             start_time = time.time()
 
             # folder_name is always included regardless of pipeline success/failure
-            pipeline_result['folder_name'] = folder_name
+            pipeline_result["folder_name"] = folder_name
 
             with contextlib.redirect_stdout(stdout_buffer):
                 # --- Stage 1: File parsing ---
@@ -115,37 +119,39 @@ class InvoiceTestService:
                 try:
                     # Mock drive result for dry-run (no actual upload)
                     mock_drive_result = {
-                        'id': os.path.basename(file_path),
-                        'url': f'dry-run://{os.path.basename(file_path)}',
+                        "id": os.path.basename(file_path),
+                        "url": f"dry-run://{os.path.basename(file_path)}",
                     }
                     file_data = self.processor.process_file(
                         file_path, mock_drive_result, folder_name
                     )
                     # Extract raw text and apply truncation
-                    raw_text = file_data.get('txt', '')
+                    raw_text = file_data.get("txt", "")
                     raw_text_truncated = len(raw_text) > self.MAX_RAW_TEXT_LENGTH
                     if raw_text_truncated:
-                        raw_text = raw_text[:self.MAX_RAW_TEXT_LENGTH]
+                        raw_text = raw_text[: self.MAX_RAW_TEXT_LENGTH]
 
-                    pipeline_result['raw_text'] = raw_text
-                    pipeline_result['raw_text_truncated'] = raw_text_truncated
+                    pipeline_result["raw_text"] = raw_text
+                    pipeline_result["raw_text_truncated"] = raw_text_truncated
                 except Exception as e:
-                    errors.append({
-                        'stage': 'file_parsing',
-                        'error_type': type(e).__name__,
-                        'message': str(e),
-                        'stack_trace': self._format_stack_trace(e, max_frames=50),
-                    })
+                    errors.append(
+                        {
+                            "stage": "file_parsing",
+                            "error_type": type(e).__name__,
+                            "message": str(e),
+                            "stack_trace": self._format_stack_trace(e, max_frames=50),
+                        }
+                    )
                     # Cannot continue without parsed file
                     total_duration_ms = int((time.time() - start_time) * 1000)
-                    performance['total_duration_ms'] = total_duration_ms
+                    performance["total_duration_ms"] = total_duration_ms
                     execution_log = self._truncate_log(stdout_buffer.getvalue())
                     return {
-                        'pipeline_result': pipeline_result,
-                        'performance': performance,
-                        'ai_usage_preview': ai_usage_preview,
-                        'execution_log': execution_log,
-                        'errors': errors,
+                        "pipeline_result": pipeline_result,
+                        "performance": performance,
+                        "ai_usage_preview": ai_usage_preview,
+                        "execution_log": execution_log,
+                        "errors": errors,
                     }
 
                 # --- Stage 2: Transaction extraction (AI or CSV) ---
@@ -158,26 +164,30 @@ class InvoiceTestService:
 
                     # Determine parser used
                     parser_used = self._determine_parser_used(transactions, file_data)
-                    pipeline_result['parser_used'] = parser_used
+                    pipeline_result["parser_used"] = parser_used
 
                     # Extract AI metrics from the file_data's ai_data or from captured result
                     ai_usage_meta = self._extract_ai_usage_meta(file_data, transactions)
 
-                    if parser_used == 'ai' or parser_used == 'ai_failed':
+                    if parser_used == "ai" or parser_used == "ai_failed":
                         ai_duration_ms = int((ai_end_time - ai_start_time) * 1000)
-                        performance['ai_duration_ms'] = ai_duration_ms
-                        performance['ai_model'] = ai_usage_meta.get('model') or None
-                        if ai_usage_meta.get('total_tokens', 0) > 0 or ai_usage_meta.get('model'):
-                            performance['ai_tokens'] = {
-                                'prompt_tokens': ai_usage_meta.get('prompt_tokens', 0),
-                                'completion_tokens': ai_usage_meta.get('completion_tokens', 0),
-                                'total_tokens': ai_usage_meta.get('total_tokens', 0),
+                        performance["ai_duration_ms"] = ai_duration_ms
+                        performance["ai_model"] = ai_usage_meta.get("model") or None
+                        if ai_usage_meta.get(
+                            "total_tokens", 0
+                        ) > 0 or ai_usage_meta.get("model"):
+                            performance["ai_tokens"] = {
+                                "prompt_tokens": ai_usage_meta.get("prompt_tokens", 0),
+                                "completion_tokens": ai_usage_meta.get(
+                                    "completion_tokens", 0
+                                ),
+                                "total_tokens": ai_usage_meta.get("total_tokens", 0),
                             }
                         else:
-                            performance['ai_tokens'] = {
-                                'prompt_tokens': 0,
-                                'completion_tokens': 0,
-                                'total_tokens': 0,
+                            performance["ai_tokens"] = {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0,
                             }
                     # For csv_rule, AI metrics stay as None (omitted)
 
@@ -185,19 +195,21 @@ class InvoiceTestService:
                     extraction_result = self._build_extraction_result(
                         file_data, transactions, parser_used
                     )
-                    pipeline_result['extraction_result'] = extraction_result
-                    pipeline_result['formatted_transactions'] = transactions
+                    pipeline_result["extraction_result"] = extraction_result
+                    pipeline_result["formatted_transactions"] = transactions
 
                 except Exception as e:
-                    errors.append({
-                        'stage': 'transaction_formatting',
-                        'error_type': type(e).__name__,
-                        'message': str(e),
-                        'stack_trace': self._format_stack_trace(e, max_frames=50),
-                    })
-                    pipeline_result['extraction_result'] = None
-                    pipeline_result['formatted_transactions'] = []
-                    pipeline_result['parser_used'] = 'ai_failed'
+                    errors.append(
+                        {
+                            "stage": "transaction_formatting",
+                            "error_type": type(e).__name__,
+                            "message": str(e),
+                            "stack_trace": self._format_stack_trace(e, max_frames=50),
+                        }
+                    )
+                    pipeline_result["extraction_result"] = None
+                    pipeline_result["formatted_transactions"] = []
+                    pipeline_result["parser_used"] = "ai_failed"
 
                 # --- Stage 3: Transaction preparation ---
                 try:
@@ -205,26 +217,30 @@ class InvoiceTestService:
                         prepared = self._prepare_transactions_dry_run(
                             transactions, folder_name, administration, file_data
                         )
-                        pipeline_result['prepared_transactions'] = prepared
+                        pipeline_result["prepared_transactions"] = prepared
                     else:
-                        pipeline_result['prepared_transactions'] = []
+                        pipeline_result["prepared_transactions"] = []
                 except Exception as e:
-                    errors.append({
-                        'stage': 'transaction_preparation',
-                        'error_type': type(e).__name__,
-                        'message': str(e),
-                        'stack_trace': self._format_stack_trace(e, max_frames=50),
-                    })
-                    pipeline_result['prepared_transactions'] = []
+                    errors.append(
+                        {
+                            "stage": "transaction_preparation",
+                            "error_type": type(e).__name__,
+                            "message": str(e),
+                            "stack_trace": self._format_stack_trace(e, max_frames=50),
+                        }
+                    )
+                    pipeline_result["prepared_transactions"] = []
 
             # End of stdout capture — compute final metrics
             total_duration_ms = int((time.time() - start_time) * 1000)
-            performance['total_duration_ms'] = total_duration_ms
+            performance["total_duration_ms"] = total_duration_ms
             execution_log = self._truncate_log(stdout_buffer.getvalue())
 
             # Build AI usage preview if AI was used
-            if performance.get('ai_model') or (performance.get('ai_tokens') and
-                    performance['ai_tokens'].get('total_tokens', 0) > 0):
+            if performance.get("ai_model") or (
+                performance.get("ai_tokens")
+                and performance["ai_tokens"].get("total_tokens", 0) > 0
+            ):
                 ai_usage_preview = self._build_ai_usage_preview(
                     administration, folder_name, performance
                 )
@@ -233,12 +249,12 @@ class InvoiceTestService:
             prompt_used = self._get_prompt_template()
 
             return {
-                'pipeline_result': pipeline_result,
-                'performance': performance,
-                'ai_usage_preview': ai_usage_preview,
-                'execution_log': execution_log,
-                'errors': errors,
-                'prompt_used': prompt_used,
+                "pipeline_result": pipeline_result,
+                "performance": performance,
+                "ai_usage_preview": ai_usage_preview,
+                "execution_log": execution_log,
+                "errors": errors,
+                "prompt_used": prompt_used,
             }
 
         finally:
@@ -254,25 +270,28 @@ class InvoiceTestService:
         Returns one of: "ai", "csv_rule", or "ai_failed".
         """
         if not transactions:
-            return 'ai_failed'
+            return "ai_failed"
 
         first_tx = transactions[0] if transactions else {}
-        if isinstance(first_tx, dict) and first_tx.get('parser_used_hint') == 'csv_rule':
-            return 'csv_rule'
+        if (
+            isinstance(first_tx, dict)
+            and first_tx.get("parser_used_hint") == "csv_rule"
+        ):
+            return "csv_rule"
 
         # Image AI data means AI was used
-        if 'ai_data' in file_data:
-            return 'ai'
+        if "ai_data" in file_data:
+            return "ai"
 
         # Check if extraction produced a valid amount
-        amount = first_tx.get('amount', 0) if isinstance(first_tx, dict) else 0
+        amount = first_tx.get("amount", 0) if isinstance(first_tx, dict) else 0
         try:
             if float(amount) > 0:
-                return 'ai'
+                return "ai"
         except (ValueError, TypeError):
             pass
 
-        return 'ai_failed'
+        return "ai_failed"
 
     def _extract_ai_usage_meta(self, file_data, transactions):
         """Extract AI usage metadata (_usage) from file_data or processor state.
@@ -281,9 +300,9 @@ class InvoiceTestService:
         completion_tokens, and total_tokens on the ai_data result.
         """
         # Check ai_data first (image processing path)
-        ai_data = file_data.get('ai_data', {})
-        if isinstance(ai_data, dict) and '_usage' in ai_data:
-            return ai_data['_usage']
+        ai_data = file_data.get("ai_data", {})
+        if isinstance(ai_data, dict) and "_usage" in ai_data:
+            return ai_data["_usage"]
 
         # For PDF/EML paths, the _usage is on the ai_result returned from
         # _extract_with_ai, which is not directly exposed. We can check if
@@ -298,10 +317,10 @@ class InvoiceTestService:
         # transaction has hints or if file_data was enriched.
         #
         # Best approach: check processor._last_ai_result if available
-        if hasattr(self.processor, '_last_ai_result'):
+        if hasattr(self.processor, "_last_ai_result"):
             last_result = self.processor._last_ai_result
-            if isinstance(last_result, dict) and '_usage' in last_result:
-                return last_result['_usage']
+            if isinstance(last_result, dict) and "_usage" in last_result:
+                return last_result["_usage"]
 
         return {}
 
@@ -312,47 +331,51 @@ class InvoiceTestService:
         always present (empty string / 0.0 defaults for missing values).
         """
         # Try to reconstruct from ai_data (image path)
-        ai_data = file_data.get('ai_data')
+        ai_data = file_data.get("ai_data")
         if ai_data and isinstance(ai_data, dict):
             return {
-                'date': ai_data.get('date', ''),
-                'total_amount': ai_data.get('total_amount', 0.0),
-                'vat_amount': ai_data.get('vat_amount', 0.0),
-                'description': ai_data.get('description', ''),
-                'vendor': ai_data.get('vendor', ''),
+                "date": ai_data.get("date", ""),
+                "total_amount": ai_data.get("total_amount", 0.0),
+                "vat_amount": ai_data.get("vat_amount", 0.0),
+                "description": ai_data.get("description", ""),
+                "vendor": ai_data.get("vendor", ""),
             }
 
         # Reconstruct from formatted transactions
         if transactions:
             first_tx = transactions[0] if isinstance(transactions[0], dict) else {}
-            total_amount = first_tx.get('amount', 0.0)
+            total_amount = first_tx.get("amount", 0.0)
             vat_amount = 0.0
             # Second transaction is typically VAT
             if len(transactions) > 1:
                 second_tx = transactions[1]
                 if isinstance(second_tx, dict):
-                    desc = second_tx.get('description', '')
-                    if 'VAT' in (desc or '').upper() or 'BTW' in (desc or '').upper():
-                        vat_amount = second_tx.get('amount', 0.0)
+                    desc = second_tx.get("description", "")
+                    if "VAT" in (desc or "").upper() or "BTW" in (desc or "").upper():
+                        vat_amount = second_tx.get("amount", 0.0)
 
             return {
-                'date': first_tx.get('date', ''),
-                'total_amount': total_amount,
-                'vat_amount': vat_amount,
-                'description': first_tx.get('description', ''),
-                'vendor': file_data.get('folder', '').split('/')[-1] if file_data.get('folder') else '',
+                "date": first_tx.get("date", ""),
+                "total_amount": total_amount,
+                "vat_amount": vat_amount,
+                "description": first_tx.get("description", ""),
+                "vendor": file_data.get("folder", "").split("/")[-1]
+                if file_data.get("folder")
+                else "",
             }
 
         # No data available
         return {
-            'date': '',
-            'total_amount': 0.0,
-            'vat_amount': 0.0,
-            'description': '',
-            'vendor': '',
+            "date": "",
+            "total_amount": 0.0,
+            "vat_amount": 0.0,
+            "description": "",
+            "vendor": "",
         }
 
-    def _prepare_transactions_dry_run(self, transactions, folder_name, administration, file_data):
+    def _prepare_transactions_dry_run(
+        self, transactions, folder_name, administration, file_data
+    ):
         """Prepare transactions using TransactionLogic in read-only mode.
 
         Gets previous transactions for the vendor and prepares new transaction
@@ -360,12 +383,18 @@ class InvoiceTestService:
         """
         from transaction_logic import TransactionLogic
 
-        tl = TransactionLogic(test_mode=False)  # Read-only access to production DB for vendor history
+        tl = TransactionLogic(
+            test_mode=False
+        )  # Read-only access to production DB for vendor history
         previous_transactions = tl.get_last_transactions(folder_name, administration)
 
         # Handle error result from get_last_transactions
-        if isinstance(previous_transactions, dict) and previous_transactions.get('error'):
-            print(f"Transaction template error: {previous_transactions.get('message', 'Unknown')}")
+        if isinstance(previous_transactions, dict) and previous_transactions.get(
+            "error"
+        ):
+            print(
+                f"Transaction template error: {previous_transactions.get('message', 'Unknown')}"
+            )
             return []
 
         if not previous_transactions:
@@ -376,27 +405,29 @@ class InvoiceTestService:
         if transactions:
             first_tx = transactions[0] if isinstance(transactions[0], dict) else {}
             vendor_data = {
-                'date': first_tx.get('date'),
-                'total_amount': first_tx.get('amount', 0),
-                'description': first_tx.get('description', ''),
+                "date": first_tx.get("date"),
+                "total_amount": first_tx.get("amount", 0),
+                "description": first_tx.get("description", ""),
             }
             # Get VAT from second transaction if present
             if len(transactions) > 1:
                 second_tx = transactions[1]
                 if isinstance(second_tx, dict):
-                    desc = second_tx.get('description', '')
-                    if 'VAT' in (desc or '').upper() or 'BTW' in (desc or '').upper():
-                        vendor_data['vat_amount'] = second_tx.get('amount', 0)
+                    desc = second_tx.get("description", "")
+                    if "VAT" in (desc or "").upper() or "BTW" in (desc or "").upper():
+                        vendor_data["vat_amount"] = second_tx.get("amount", 0)
 
         # Build new_data for prepare_new_transactions
         new_data = {
-            'folder_name': folder_name,
-            'description': vendor_data.get('description', f'Dry-run test for {folder_name}'),
-            'amount': vendor_data.get('total_amount', 0),
-            'drive_url': file_data.get('url', 'dry-run://test'),
-            'filename': file_data.get('name', 'test-file'),
-            'vendor_data': vendor_data,
-            'administration': administration or 'test-tool-dry-run',
+            "folder_name": folder_name,
+            "description": vendor_data.get(
+                "description", f"Dry-run test for {folder_name}"
+            ),
+            "amount": vendor_data.get("total_amount", 0),
+            "drive_url": file_data.get("url", "dry-run://test"),
+            "filename": file_data.get("name", "test-file"),
+            "vendor_data": vendor_data,
+            "administration": administration or "test-tool-dry-run",
         }
 
         prepared = tl.prepare_new_transactions(previous_transactions, new_data)
@@ -410,32 +441,36 @@ class InvoiceTestService:
         """
         from services.ai_usage_tracker import AIUsageTracker
 
-        model = performance.get('ai_model', '') or ''
-        tokens = performance.get('ai_tokens', {}) or {}
-        total_tokens = tokens.get('total_tokens', 0)
+        model = performance.get("ai_model", "") or ""
+        tokens = performance.get("ai_tokens", {}) or {}
+        total_tokens = tokens.get("total_tokens", 0)
 
         # Get rate from MODEL_PRICING
         rate_per_million = AIUsageTracker.MODEL_PRICING.get(
-            model, AIUsageTracker.MODEL_PRICING.get('default', 0.5)
+            model, AIUsageTracker.MODEL_PRICING.get("default", 0.5)
         )
 
         # Calculate cost: (tokens / 1,000,000) × rate_per_million, rounded to 6 places
         if total_tokens > 0:
-            cost = Decimal(total_tokens) / Decimal(1_000_000) * Decimal(str(rate_per_million))
-            cost = cost.quantize(Decimal('0.000001'))
+            cost = (
+                Decimal(total_tokens)
+                / Decimal(1_000_000)
+                * Decimal(str(rate_per_million))
+            )
+            cost = cost.quantize(Decimal("0.000001"))
         else:
-            cost = Decimal('0.000000')
+            cost = Decimal("0.000000")
 
         return {
-            'administration': administration or 'test-tool-dry-run',
-            'feature': f'invoice_extraction_{folder_name}',
-            'tokens_used': total_tokens,
-            'cost_estimate': str(cost),
-            'cost_breakdown': {
-                'model': model,
-                'rate_per_million': rate_per_million,
-                'total_tokens': total_tokens,
-                'formula': f'({total_tokens} / 1000000) * {rate_per_million}',
+            "administration": administration or "test-tool-dry-run",
+            "feature": f"invoice_extraction_{folder_name}",
+            "tokens_used": total_tokens,
+            "cost_estimate": str(cost),
+            "cost_breakdown": {
+                "model": model,
+                "rate_per_million": rate_per_million,
+                "total_tokens": total_tokens,
+                "formula": f"({total_tokens} / 1000000) * {rate_per_million}",
             },
         }
 
@@ -444,25 +479,36 @@ class InvoiceTestService:
         if len(log_text) <= self.MAX_EXECUTION_LOG_LENGTH:
             return log_text
         # Keep the most recent characters
-        return log_text[-self.MAX_EXECUTION_LOG_LENGTH:]
+        return log_text[-self.MAX_EXECUTION_LOG_LENGTH :]
 
     def _get_prompt_template(self) -> str:
         """Return the AI extraction prompt template (without text content)."""
         from services.invoice_test_ai_rerun import get_prompt_template
+
         return get_prompt_template()
 
-    def rerun_with_custom_prompt(self, text_content: str, custom_prompt: str, vendor_hint: str = None) -> dict:
+    def rerun_with_custom_prompt(
+        self, text_content: str, custom_prompt: str, vendor_hint: str = None
+    ) -> dict:
         """Re-run AI extraction with a custom prompt against already-extracted text.
 
         Delegates to invoice_test_ai_rerun module.
         """
         from services.invoice_test_ai_rerun import rerun_with_custom_prompt as _rerun
-        return _rerun(text_content, custom_prompt, vendor_hint,
-                      call_ai_fn=self._call_ai_with_custom_prompt)
 
-    def _call_ai_with_custom_prompt(self, ai, text_content: str, custom_prompt: str, vendor_hint: str = None) -> dict:
+        return _rerun(
+            text_content,
+            custom_prompt,
+            vendor_hint,
+            call_ai_fn=self._call_ai_with_custom_prompt,
+        )
+
+    def _call_ai_with_custom_prompt(
+        self, ai, text_content: str, custom_prompt: str, vendor_hint: str = None
+    ) -> dict:
         """Call OpenRouter API with a custom prompt. Delegates to module function."""
         from services.invoice_test_ai_rerun import _call_ai_with_custom_prompt
+
         return _call_ai_with_custom_prompt(ai, text_content, custom_prompt, vendor_hint)
 
     def get_vendor_history(self, folder_name: str, administration: str = None) -> list:
@@ -471,6 +517,7 @@ class InvoiceTestService:
         Delegates to invoice_test_ai_rerun module.
         """
         from services.invoice_test_ai_rerun import get_vendor_history
+
         return get_vendor_history(folder_name, administration)
 
     @staticmethod

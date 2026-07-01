@@ -62,18 +62,18 @@ class YearEndJournalEntryHelper:
         """
         # Get required accounts from configuration
         equity_account_info = self.config_service.get_account_by_purpose(
-            administration, 'equity_result'
+            administration, "equity_result"
         )
         pl_closing_account_info = self.config_service.get_account_by_purpose(
-            administration, 'pl_closing'
+            administration, "pl_closing"
         )
 
         if not equity_account_info or not pl_closing_account_info:
             raise ValueError("Required accounts not configured for year-end closure")
 
         # Extract account codes
-        equity_account = equity_account_info['Account']
-        pl_closing_account = pl_closing_account_info['Account']
+        equity_account = equity_account_info["Account"]
+        pl_closing_account = pl_closing_account_info["Account"]
 
         # No transaction needed if result is zero
         if net_result == 0:
@@ -112,16 +112,19 @@ class YearEndJournalEntryHelper:
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
 
-        cursor.execute(insert_query, [
-            transaction_number,
-            transaction_date,
-            description,
-            amount,
-            debet,
-            credit,
-            reference_number,
-            administration
-        ])
+        cursor.execute(
+            insert_query,
+            [
+                transaction_number,
+                transaction_date,
+                description,
+                amount,
+                debet,
+                credit,
+                reference_number,
+                administration,
+            ],
+        )
 
         return transaction_number
 
@@ -163,13 +166,13 @@ class YearEndJournalEntryHelper:
         """
         # Get equity account from configuration
         equity_account_info = self.config_service.get_account_by_purpose(
-            administration, 'equity_result'
+            administration, "equity_result"
         )
 
         if not equity_account_info:
             raise ValueError("Equity result account not configured")
 
-        equity_account = equity_account_info['Account']
+        equity_account = equity_account_info["Account"]
 
         # Get ending balances from previous year
         ending_balances = self._get_ending_balances(administration, year - 1, cursor)
@@ -178,7 +181,9 @@ class YearEndJournalEntryHelper:
             return None  # No balances to carry forward
 
         # Filter out equity account - it will be calculated as the balancing account
-        non_equity_balances = [b for b in ending_balances if b['account'] != equity_account]
+        non_equity_balances = [
+            b for b in ending_balances if b["account"] != equity_account
+        ]
 
         if not non_equity_balances:
             return None  # No non-equity balances to carry forward
@@ -188,7 +193,7 @@ class YearEndJournalEntryHelper:
         regular_accounts = []
 
         for balance_info in non_equity_balances:
-            account = balance_info['account']
+            account = balance_info["account"]
 
             # Check if account has VAT netting flag
             if self._is_vat_netting_account(administration, account, cursor):
@@ -222,7 +227,7 @@ class YearEndJournalEntryHelper:
 
             if vat_primary_account:
                 # Calculate net VAT balance
-                net_vat_balance = sum(b['balance'] for b in vat_accounts)
+                net_vat_balance = sum(b["balance"] for b in vat_accounts)
 
                 # Create single entry for netted VAT if non-zero
                 if abs(net_vat_balance) > 0.01:
@@ -239,25 +244,28 @@ class YearEndJournalEntryHelper:
                         credit = vat_primary_account
                         amount = abs(net_vat_balance)
 
-                    cursor.execute(insert_query, [
-                        transaction_number,
-                        transaction_date,
-                        description,
-                        amount,
-                        debet,
-                        credit,
-                        reference_number,
-                        administration
-                    ])
+                    cursor.execute(
+                        insert_query,
+                        [
+                            transaction_number,
+                            transaction_date,
+                            description,
+                            amount,
+                            debet,
+                            credit,
+                            reference_number,
+                            administration,
+                        ],
+                    )
 
                     records_created += 1
 
         # Create opening balance entries for regular (non-VAT) accounts
         # Equity account is used as the offsetting account for all entries
         for balance_info in regular_accounts:
-            account = balance_info['account']
-            account_name = balance_info['account_name']
-            balance = balance_info['balance']
+            account = balance_info["account"]
+            account_name = balance_info["account_name"]
+            balance = balance_info["balance"]
 
             # Skip zero balances (shouldn't happen due to query filter)
             if balance == 0:
@@ -279,16 +287,19 @@ class YearEndJournalEntryHelper:
                 credit = account
                 amount = abs(balance)
 
-            cursor.execute(insert_query, [
-                transaction_number,
-                transaction_date,
-                description,
-                amount,
-                debet,
-                credit,
-                reference_number,
-                administration
-            ])
+            cursor.execute(
+                insert_query,
+                [
+                    transaction_number,
+                    transaction_date,
+                    description,
+                    amount,
+                    debet,
+                    credit,
+                    reference_number,
+                    administration,
+                ],
+            )
 
             records_created += 1
 
@@ -325,13 +336,16 @@ class YearEndJournalEntryHelper:
         """
         cursor.execute(check_query, [administration, f"OpeningBalance {year}"])
         result = cursor.fetchone()
-        has_opening_balance = (result['count'] if isinstance(result, dict) else result[0]) > 0
+        has_opening_balance = (
+            result["count"] if isinstance(result, dict) else result[0]
+        ) > 0
 
         # Choose query based on whether opening balance exists
         if has_opening_balance:
             # Re-closure: Use current year only (includes OpeningBalance + year transactions)
             # Use sargable date range instead of YEAR() for index usage
             from utils.query_helpers import year_to_date_range
+
             start_date, end_date = year_to_date_range(year)
             query = """
                 SELECT
@@ -368,18 +382,22 @@ class YearEndJournalEntryHelper:
         for row in cursor.fetchall():
             # Handle both dict and tuple cursor results
             if isinstance(row, dict):
-                balances.append({
-                    'account': row['account'],
-                    'account_name': row['account_name'],
-                    'balance': float(row['balance'])
-                })
+                balances.append(
+                    {
+                        "account": row["account"],
+                        "account_name": row["account_name"],
+                        "balance": float(row["balance"]),
+                    }
+                )
             else:
                 # Tuple format: (account, account_name, balance)
-                balances.append({
-                    'account': row[0],
-                    'account_name': row[1],
-                    'balance': float(row[2])
-                })
+                balances.append(
+                    {
+                        "account": row[0],
+                        "account_name": row[1],
+                        "balance": float(row[2]),
+                    }
+                )
 
         return balances
 
@@ -409,7 +427,9 @@ class YearEndJournalEntryHelper:
 
         if result:
             # Handle both dict and tuple cursor results
-            vat_netting = result['vat_netting'] if isinstance(result, dict) else result[0]
+            vat_netting = (
+                result["vat_netting"] if isinstance(result, dict) else result[0]
+            )
 
             # Handle both boolean true and string "true"
             if vat_netting is not None:
@@ -419,13 +439,11 @@ class YearEndJournalEntryHelper:
                     return bool(vat_netting)
                 else:
                     # String value
-                    return str(vat_netting).strip('"').lower() == 'true'
+                    return str(vat_netting).strip('"').lower() == "true"
 
         return False
 
-    def _get_vat_primary_account(
-        self, administration: str, cursor
-    ) -> Optional[str]:
+    def _get_vat_primary_account(self, administration: str, cursor) -> Optional[str]:
         """
         Get the primary VAT account that receives the net balance.
 
@@ -457,8 +475,8 @@ class YearEndJournalEntryHelper:
         if result:
             # Handle both dict and tuple cursor results
             if isinstance(result, dict):
-                vat_primary = result.get('vat_primary')
-                account = result.get('Account')
+                vat_primary = result.get("vat_primary")
+                account = result.get("Account")
             else:
                 account = result[0]
                 vat_primary = result[1]

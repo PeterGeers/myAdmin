@@ -1,16 +1,18 @@
 """One-time script to apply tenant isolation migration to invoice_lines and contact_emails."""
+
 import mysql.connector
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 
 def run():
     conn = mysql.connector.connect(
-        host=os.environ.get('DB_HOST', 'db'),
-        user=os.environ.get('DB_USER', 'root'),
-        password=os.environ.get('DB_PASSWORD', ''),
-        database=os.environ.get('DB_NAME', 'finance'),
+        host=os.environ.get("DB_HOST", "db"),
+        user=os.environ.get("DB_USER", "root"),
+        password=os.environ.get("DB_PASSWORD", ""),
+        database=os.environ.get("DB_NAME", "finance"),
     )
     cursor = conn.cursor()
 
@@ -45,8 +47,14 @@ def run():
 
     # 4. Add indexes
     for idx_name, idx_sql in [
-        ("idx_administration", "CREATE INDEX idx_administration ON invoice_lines (administration)"),
-        ("idx_admin_invoice", "CREATE INDEX idx_admin_invoice ON invoice_lines (administration, invoice_id)"),
+        (
+            "idx_administration",
+            "CREATE INDEX idx_administration ON invoice_lines (administration)",
+        ),
+        (
+            "idx_admin_invoice",
+            "CREATE INDEX idx_admin_invoice ON invoice_lines (administration, invoice_id)",
+        ),
     ]:
         try:
             cursor.execute(idx_sql)
@@ -85,7 +93,9 @@ def run():
 
     # 8. Add index
     try:
-        cursor.execute("CREATE INDEX idx_administration ON contact_emails (administration)")
+        cursor.execute(
+            "CREATE INDEX idx_administration ON contact_emails (administration)"
+        )
         print("Created idx_administration on contact_emails")
     except Exception as e:
         print(f"Index idx_administration on contact_emails: {e}")
@@ -105,8 +115,11 @@ def run():
     cursor.execute(
         "INSERT INTO database_migrations (migration_name, status, notes) "
         "VALUES (%s, %s, %s)",
-        ('tenant_isolation_child_tables', 'success',
-         'Add administration to invoice_lines and contact_emails for REQ13')
+        (
+            "tenant_isolation_child_tables",
+            "success",
+            "Add administration to invoice_lines and contact_emails for REQ13",
+        ),
     )
     print("Recorded migration")
 
@@ -116,5 +129,5 @@ def run():
     print("Migration complete!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()

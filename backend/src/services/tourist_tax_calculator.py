@@ -22,46 +22,63 @@ class TouristTaxCalculator:
     def __init__(self, tax_rate_service):
         self.tax_rate_service = tax_rate_service
 
-    def calculate(self, tenant: str, reference_date: date,
-                  base_amount_excl_vat: float,
-                  number_of_nights: int = 1,
-                  number_of_guests: int = 1,
-                  room_price: float = None) -> dict:
+    def calculate(
+        self,
+        tenant: str,
+        reference_date: date,
+        base_amount_excl_vat: float,
+        number_of_nights: int = 1,
+        number_of_guests: int = 1,
+        room_price: float = None,
+    ) -> dict:
         """
         Calculate tourist tax using the municipality-specific method.
         Returns dict with amount (rounded to 2 decimals), method, rate, description.
         """
         rate_info = self.tax_rate_service.get_tax_rate(
-            tenant, 'tourist_tax', 'standard', reference_date
+            tenant, "tourist_tax", "standard", reference_date
         )
 
         if rate_info is None:
-            return {'amount': 0, 'method': 'none', 'rate': 0, 'description': ''}
+            return {"amount": 0, "method": "none", "rate": 0, "description": ""}
 
-        rate = rate_info['rate']
-        method = rate_info.get('calc_method', 'percentage')
-        description = rate_info.get('description', '')
+        rate = rate_info["rate"]
+        method = rate_info.get("calc_method", "percentage")
+        description = rate_info.get("description", "")
 
-        amount = self._dispatch(method, rate, base_amount_excl_vat,
-                                number_of_nights, number_of_guests, room_price)
+        amount = self._dispatch(
+            method,
+            rate,
+            base_amount_excl_vat,
+            number_of_nights,
+            number_of_guests,
+            room_price,
+        )
 
         return {
-            'amount': round(amount, 2),
-            'method': method,
-            'rate': rate,
-            'description': description,
+            "amount": round(amount, 2),
+            "method": method,
+            "rate": rate,
+            "description": description,
         }
 
-    def _dispatch(self, method: str, rate: float, base_amount_excl_vat: float,
-                  nights: int, guests: int, room_price: Optional[float]) -> float:
+    def _dispatch(
+        self,
+        method: str,
+        rate: float,
+        base_amount_excl_vat: float,
+        nights: int,
+        guests: int,
+        room_price: Optional[float],
+    ) -> float:
         """Route to the correct formula based on calc_method."""
-        if method == 'percentage':
+        if method == "percentage":
             return self._calc_percentage(base_amount_excl_vat, rate)
-        elif method == 'fixed_per_guest_night':
+        elif method == "fixed_per_guest_night":
             return self._calc_fixed_per_guest_night(rate, guests, nights)
-        elif method == 'fixed_per_night':
+        elif method == "fixed_per_night":
             return self._calc_fixed_per_night(rate, nights)
-        elif method == 'percentage_of_room_price':
+        elif method == "percentage_of_room_price":
             return self._calc_percentage_of_room_price(room_price or 0, rate)
         else:
             logger.warning("Unknown calc_method '%s' for tourist tax", method)

@@ -48,8 +48,9 @@ def get_prompt_template() -> str:
     return EXTRACTION_PROMPT_TEMPLATE
 
 
-def rerun_with_custom_prompt(text_content: str, custom_prompt: str, vendor_hint: str = None,
-                            call_ai_fn=None) -> dict:
+def rerun_with_custom_prompt(
+    text_content: str, custom_prompt: str, vendor_hint: str = None, call_ai_fn=None
+) -> dict:
     """Re-run AI extraction with a custom prompt against already-extracted text.
 
     Allows testing prompt modifications without re-uploading or re-parsing the
@@ -69,9 +70,9 @@ def rerun_with_custom_prompt(text_content: str, custom_prompt: str, vendor_hint:
 
     errors = []
     performance = {
-        'ai_duration_ms': None,
-        'ai_model': None,
-        'ai_tokens': None,
+        "ai_duration_ms": None,
+        "ai_model": None,
+        "ai_tokens": None,
     }
     extraction_result = None
     ai_usage_preview = None
@@ -80,17 +81,19 @@ def rerun_with_custom_prompt(text_content: str, custom_prompt: str, vendor_hint:
     try:
         resolver.resolve_profile("structured_extraction")
     except RegistryError as e:
-        errors.append({
-            'stage': 'registry_resolution',
-            'error_type': 'RegistryError',
-            'message': f'Could not load structured_extraction profile: {e}',
-        })
+        errors.append(
+            {
+                "stage": "registry_resolution",
+                "error_type": "RegistryError",
+                "message": f"Could not load structured_extraction profile: {e}",
+            }
+        )
         return {
-            'success': False,
-            'extraction_result': None,
-            'performance': performance,
-            'ai_usage_preview': None,
-            'errors': errors,
+            "success": False,
+            "extraction_result": None,
+            "performance": performance,
+            "ai_usage_preview": None,
+            "errors": errors,
         }
 
     # Sanitize user-provided text content before AI processing
@@ -100,17 +103,23 @@ def rerun_with_custom_prompt(text_content: str, custom_prompt: str, vendor_hint:
     # Handle rejection (>50% stripped) — return HTTP 422-style error
     if sanitize_result.rejected:
         return {
-            'success': False,
-            'extraction_result': None,
-            'performance': performance,
-            'ai_usage_preview': None,
-            'errors': [{'stage': 'sanitization', 'error_type': 'RejectedContent',
-                        'message': 'Document content could not be safely processed'}],
-            'error': 'Document content could not be safely processed',
+            "success": False,
+            "extraction_result": None,
+            "performance": performance,
+            "ai_usage_preview": None,
+            "errors": [
+                {
+                    "stage": "sanitization",
+                    "error_type": "RejectedContent",
+                    "message": "Document content could not be safely processed",
+                }
+            ],
+            "error": "Document content could not be safely processed",
         }
 
     try:
         from ai_extractor import AIExtractor
+
         ai = AIExtractor()
 
         # Call AIExtractor with custom prompt using sanitized text
@@ -120,65 +129,78 @@ def rerun_with_custom_prompt(text_content: str, custom_prompt: str, vendor_hint:
         ai_duration_ms = int((time.time() - start_time) * 1000)
 
         # Check for error responses (validation failure)
-        if isinstance(ai_result, dict) and 'error' in ai_result and '_usage' not in ai_result:
+        if (
+            isinstance(ai_result, dict)
+            and "error" in ai_result
+            and "_usage" not in ai_result
+        ):
             return {
-                'success': False,
-                'extraction_result': None,
-                'performance': performance,
-                'ai_usage_preview': None,
-                'errors': [{'stage': 'ai_extraction', 'error_type': 'ValidationFailure',
-                            'message': ai_result['error']}],
-                'error': ai_result['error'],
+                "success": False,
+                "extraction_result": None,
+                "performance": performance,
+                "ai_usage_preview": None,
+                "errors": [
+                    {
+                        "stage": "ai_extraction",
+                        "error_type": "ValidationFailure",
+                        "message": ai_result["error"],
+                    }
+                ],
+                "error": ai_result["error"],
             }
 
         # Populate performance metrics
-        usage = ai_result.get('_usage', {})
-        performance['ai_duration_ms'] = ai_duration_ms
-        performance['ai_model'] = usage.get('model', '') or None
-        performance['ai_tokens'] = {
-            'prompt_tokens': usage.get('prompt_tokens', 0),
-            'completion_tokens': usage.get('completion_tokens', 0),
-            'total_tokens': usage.get('total_tokens', 0),
+        usage = ai_result.get("_usage", {})
+        performance["ai_duration_ms"] = ai_duration_ms
+        performance["ai_model"] = usage.get("model", "") or None
+        performance["ai_tokens"] = {
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
         }
 
         # Build extraction result with all 5 required fields
         extraction_result = {
-            'date': ai_result.get('date', ''),
-            'total_amount': ai_result.get('total_amount', 0.0),
-            'vat_amount': ai_result.get('vat_amount', 0.0),
-            'description': ai_result.get('description', ''),
-            'vendor': ai_result.get('vendor', '') or vendor_hint or '',
+            "date": ai_result.get("date", ""),
+            "total_amount": ai_result.get("total_amount", 0.0),
+            "vat_amount": ai_result.get("vat_amount", 0.0),
+            "description": ai_result.get("description", ""),
+            "vendor": ai_result.get("vendor", "") or vendor_hint or "",
         }
 
         # Check if extraction actually succeeded (non-fallback)
-        success = bool(performance['ai_model'])
+        success = bool(performance["ai_model"])
 
         # Build AI usage preview for the re-run
         ai_usage_preview = build_ai_usage_preview(
-            'test-tool-rerun', 'rerun', performance
+            "test-tool-rerun", "rerun", performance
         )
         # Override feature to match the expected format
-        ai_usage_preview['feature'] = 'invoice_extraction_rerun'
+        ai_usage_preview["feature"] = "invoice_extraction_rerun"
 
     except Exception as e:
-        errors.append({
-            'stage': 'ai_extraction',
-            'error_type': type(e).__name__,
-            'message': str(e),
-            'stack_trace': _format_stack_trace(e, max_frames=50),
-        })
+        errors.append(
+            {
+                "stage": "ai_extraction",
+                "error_type": type(e).__name__,
+                "message": str(e),
+                "stack_trace": _format_stack_trace(e, max_frames=50),
+            }
+        )
         success = False
 
     return {
-        'success': success and len(errors) == 0,
-        'extraction_result': extraction_result,
-        'performance': performance,
-        'ai_usage_preview': ai_usage_preview,
-        'errors': errors,
+        "success": success and len(errors) == 0,
+        "extraction_result": extraction_result,
+        "performance": performance,
+        "ai_usage_preview": ai_usage_preview,
+        "errors": errors,
     }
 
 
-def _call_ai_with_custom_prompt(ai, text_content: str, custom_prompt: str, vendor_hint: str = None) -> dict:
+def _call_ai_with_custom_prompt(
+    ai, text_content: str, custom_prompt: str, vendor_hint: str = None
+) -> dict:
     """Call OpenRouter API with a custom prompt, using the registry fallback chain.
 
     Uses system+user role separation for security. The system message anchors
@@ -259,71 +281,87 @@ Return ONLY valid JSON in this exact format:
 
             if response.status_code == 200:
                 result = response.json()
-                content = result['choices'][0]['message']['content'].strip()
-                usage = result.get('usage', {})
+                content = result["choices"][0]["message"]["content"].strip()
+                usage = result.get("usage", {})
 
                 # Strip markdown code block if present
-                if content.startswith('```json'):
-                    content = content.replace('```json', '').replace('```', '').strip()
+                if content.startswith("```json"):
+                    content = content.replace("```json", "").replace("```", "").strip()
 
                 try:
                     data = json.loads(content)
 
                     # Validate AI response structure and types
                     if not sanitizer.validate_response(data):
-                        model_failures.append({
-                            'model': model.model_id,
-                            'failure_reason': 'invalid_response_format',
-                            'details': 'Response failed field/type validation',
-                        })
-                        print(f"Custom prompt re-run: {model.model_id} response failed validation, discarding")
+                        model_failures.append(
+                            {
+                                "model": model.model_id,
+                                "failure_reason": "invalid_response_format",
+                                "details": "Response failed field/type validation",
+                            }
+                        )
+                        print(
+                            f"Custom prompt re-run: {model.model_id} response failed validation, discarding"
+                        )
                         continue
 
                     print(f"Custom prompt re-run: success with {model.model_id}")
                     return {
-                        'date': ai._validate_date(data.get('date')),
-                        'total_amount': round(float(data.get('total_amount', 0)), 2),
-                        'vat_amount': round(float(data.get('vat_amount', 0)), 2),
-                        'description': str(data.get('description', '')),
-                        'vendor': str(data.get('vendor', vendor_hint or 'Unknown')),
-                        '_usage': {
-                            'prompt_tokens': usage.get('prompt_tokens', 0),
-                            'completion_tokens': usage.get('completion_tokens', 0),
-                            'total_tokens': usage.get('total_tokens', 0),
-                            'model': model.model_id,
+                        "date": ai._validate_date(data.get("date")),
+                        "total_amount": round(float(data.get("total_amount", 0)), 2),
+                        "vat_amount": round(float(data.get("vat_amount", 0)), 2),
+                        "description": str(data.get("description", "")),
+                        "vendor": str(data.get("vendor", vendor_hint or "Unknown")),
+                        "_usage": {
+                            "prompt_tokens": usage.get("prompt_tokens", 0),
+                            "completion_tokens": usage.get("completion_tokens", 0),
+                            "total_tokens": usage.get("total_tokens", 0),
+                            "model": model.model_id,
                         },
                     }
                 except json.JSONDecodeError:
-                    model_failures.append({
-                        'model': model.model_id,
-                        'failure_reason': 'invalid_response',
-                        'details': f'Invalid JSON response: {content[:200]}',
-                    })
-                    print(f"Custom prompt re-run: {model.model_id} returned invalid JSON")
+                    model_failures.append(
+                        {
+                            "model": model.model_id,
+                            "failure_reason": "invalid_response",
+                            "details": f"Invalid JSON response: {content[:200]}",
+                        }
+                    )
+                    print(
+                        f"Custom prompt re-run: {model.model_id} returned invalid JSON"
+                    )
                     continue
             else:
-                model_failures.append({
-                    'model': model.model_id,
-                    'failure_reason': 'api_error',
-                    'details': f'HTTP {response.status_code}: {response.text[:200]}',
-                })
-                print(f"Custom prompt re-run: {model.model_id} API error {response.status_code}")
+                model_failures.append(
+                    {
+                        "model": model.model_id,
+                        "failure_reason": "api_error",
+                        "details": f"HTTP {response.status_code}: {response.text[:200]}",
+                    }
+                )
+                print(
+                    f"Custom prompt re-run: {model.model_id} API error {response.status_code}"
+                )
                 continue
 
         except req.exceptions.Timeout:
-            model_failures.append({
-                'model': model.model_id,
-                'failure_reason': 'timeout',
-                'details': f'No response within {model.timeout} seconds',
-            })
+            model_failures.append(
+                {
+                    "model": model.model_id,
+                    "failure_reason": "timeout",
+                    "details": f"No response within {model.timeout} seconds",
+                }
+            )
             print(f"Custom prompt re-run: {model.model_id} timeout")
             continue
         except Exception as e:
-            model_failures.append({
-                'model': model.model_id,
-                'failure_reason': 'api_error',
-                'details': str(e),
-            })
+            model_failures.append(
+                {
+                    "model": model.model_id,
+                    "failure_reason": "api_error",
+                    "details": str(e),
+                }
+            )
             print(f"Custom prompt re-run: {model.model_id} error: {e}")
             continue
 
@@ -358,7 +396,7 @@ def get_vendor_history(folder_name: str, administration: str = None) -> list:
         transactions = tl.get_last_transactions(folder_name, administration)
 
         # Handle error result from get_last_transactions
-        if isinstance(transactions, dict) and transactions.get('error'):
+        if isinstance(transactions, dict) and transactions.get("error"):
             return []
 
         if not transactions:
@@ -371,17 +409,19 @@ def get_vendor_history(folder_name: str, administration: str = None) -> list:
             if not isinstance(tx, dict):
                 continue
             # Format date to string if it's a date object
-            tx_date = tx.get('TransactionDate', '')
-            if hasattr(tx_date, 'strftime'):
-                tx_date = tx_date.strftime('%Y-%m-%d')
+            tx_date = tx.get("TransactionDate", "")
+            if hasattr(tx_date, "strftime"):
+                tx_date = tx_date.strftime("%Y-%m-%d")
             else:
-                tx_date = str(tx_date) if tx_date else ''
+                tx_date = str(tx_date) if tx_date else ""
 
-            result.append({
-                'date': tx_date,
-                'amount': tx.get('TransactionAmount', 0),
-                'description': tx.get('TransactionDescription', ''),
-            })
+            result.append(
+                {
+                    "date": tx_date,
+                    "amount": tx.get("TransactionAmount", 0),
+                    "description": tx.get("TransactionDescription", ""),
+                }
+            )
 
         return result
 
@@ -398,32 +438,34 @@ def build_ai_usage_preview(administration, folder_name, performance):
     """
     from services.ai_usage_tracker import AIUsageTracker
 
-    model = performance.get('ai_model', '') or ''
-    tokens = performance.get('ai_tokens', {}) or {}
-    total_tokens = tokens.get('total_tokens', 0)
+    model = performance.get("ai_model", "") or ""
+    tokens = performance.get("ai_tokens", {}) or {}
+    total_tokens = tokens.get("total_tokens", 0)
 
     # Get rate from MODEL_PRICING
     rate_per_million = AIUsageTracker.MODEL_PRICING.get(
-        model, AIUsageTracker.MODEL_PRICING.get('default', 0.5)
+        model, AIUsageTracker.MODEL_PRICING.get("default", 0.5)
     )
 
     # Calculate cost: (tokens / 1,000,000) × rate_per_million, rounded to 6 places
     if total_tokens > 0:
-        cost = Decimal(total_tokens) / Decimal(1_000_000) * Decimal(str(rate_per_million))
-        cost = cost.quantize(Decimal('0.000001'))
+        cost = (
+            Decimal(total_tokens) / Decimal(1_000_000) * Decimal(str(rate_per_million))
+        )
+        cost = cost.quantize(Decimal("0.000001"))
     else:
-        cost = Decimal('0.000000')
+        cost = Decimal("0.000000")
 
     return {
-        'administration': administration or 'test-tool-dry-run',
-        'feature': f'invoice_extraction_{folder_name}',
-        'tokens_used': total_tokens,
-        'cost_estimate': str(cost),
-        'cost_breakdown': {
-            'model': model,
-            'rate_per_million': rate_per_million,
-            'total_tokens': total_tokens,
-            'formula': f'({total_tokens} / 1000000) * {rate_per_million}',
+        "administration": administration or "test-tool-dry-run",
+        "feature": f"invoice_extraction_{folder_name}",
+        "tokens_used": total_tokens,
+        "cost_estimate": str(cost),
+        "cost_breakdown": {
+            "model": model,
+            "rate_per_million": rate_per_million,
+            "total_tokens": total_tokens,
+            "formula": f"({total_tokens} / 1000000) * {rate_per_million}",
         },
     }
 
@@ -431,6 +473,7 @@ def build_ai_usage_preview(administration, folder_name, performance):
 def _format_stack_trace(e: Exception, max_frames: int = 50) -> str:
     """Format an exception's stack trace, limited to max_frames."""
     import traceback
+
     tb = traceback.extract_tb(e.__traceback__)
     limited_tb = tb[-max_frames:] if len(tb) > max_frames else tb
     lines = ["Traceback (most recent call last):\n"]

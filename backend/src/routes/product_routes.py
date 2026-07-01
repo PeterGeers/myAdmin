@@ -19,7 +19,7 @@ from services.parameter_service import ParameterService
 
 logger = logging.getLogger(__name__)
 
-product_bp = Blueprint('products', __name__)
+product_bp = Blueprint("products", __name__)
 
 # ── Service initialisation ──────────────────────────────────
 
@@ -41,106 +41,116 @@ def _get_service() -> ProductService:
 # ── Endpoints ───────────────────────────────────────────────
 
 
-@product_bp.route('/api/products', methods=['GET'])
-@cognito_required(required_permissions=['zzp_read'])
+@product_bp.route("/api/products", methods=["GET"])
+@cognito_required(required_permissions=["zzp_read"])
 @tenant_required()
-@module_required('ZZP')
+@module_required("ZZP")
 def list_products(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List products for tenant."""
     try:
         svc = _get_service()
-        include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+        include_inactive = (
+            request.args.get("include_inactive", "false").lower() == "true"
+        )
         products = svc.list_products(tenant, include_inactive=include_inactive)
-        return jsonify({'success': True, 'data': products})
+        return jsonify({"success": True, "data": products})
     except Exception as e:
         logger.error("list_products error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
-@product_bp.route('/api/products/<int:product_id>', methods=['GET'])
-@cognito_required(required_permissions=['zzp_read'])
+@product_bp.route("/api/products/<int:product_id>", methods=["GET"])
+@cognito_required(required_permissions=["zzp_read"])
 @tenant_required()
-@module_required('ZZP')
-def get_product(user_email, user_roles, tenant, user_tenants, product_id) -> ResponseReturnValue:
+@module_required("ZZP")
+def get_product(
+    user_email, user_roles, tenant, user_tenants, product_id
+) -> ResponseReturnValue:
     """Get a single product by id."""
     try:
         svc = _get_service()
         product = svc.get_product(tenant, product_id)
         if not product:
-            return jsonify({'success': False, 'error': 'Product not found'}), 404
-        return jsonify({'success': True, 'data': product})
+            return jsonify({"success": False, "error": "Product not found"}), 404
+        return jsonify({"success": True, "data": product})
     except Exception as e:
         logger.error("get_product error for %s/%s: %s", tenant, product_id, e)
-        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
-@product_bp.route('/api/products', methods=['POST'])
-@cognito_required(required_permissions=['zzp_crud'])
+@product_bp.route("/api/products", methods=["POST"])
+@cognito_required(required_permissions=["zzp_crud"])
 @tenant_required()
-@module_required('ZZP')
+@module_required("ZZP")
 def create_product(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """Create a new product."""
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'success': False, 'error': 'Request body required'}), 400
+            return jsonify({"success": False, "error": "Request body required"}), 400
         svc = _get_service()
         product = svc.create_product(tenant, data, created_by=user_email)
-        return jsonify({'success': True, 'data': product}), 201
+        return jsonify({"success": True, "data": product}), 201
     except ValueError as ve:
-        return jsonify({'success': False, 'error': str(ve)}), 400
+        return jsonify({"success": False, "error": str(ve)}), 400
     except Exception as e:
         logger.error("create_product error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
-@product_bp.route('/api/products/<int:product_id>', methods=['PUT'])
-@cognito_required(required_permissions=['zzp_crud'])
+@product_bp.route("/api/products/<int:product_id>", methods=["PUT"])
+@cognito_required(required_permissions=["zzp_crud"])
 @tenant_required()
-@module_required('ZZP')
-def update_product(user_email, user_roles, tenant, user_tenants, product_id) -> ResponseReturnValue:
+@module_required("ZZP")
+def update_product(
+    user_email, user_roles, tenant, user_tenants, product_id
+) -> ResponseReturnValue:
     """Update an existing product."""
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'success': False, 'error': 'Request body required'}), 400
+            return jsonify({"success": False, "error": "Request body required"}), 400
         svc = _get_service()
         product = svc.update_product(tenant, product_id, data)
-        return jsonify({'success': True, 'data': product})
+        return jsonify({"success": True, "data": product})
     except ValueError as ve:
-        return jsonify({'success': False, 'error': str(ve)}), 400
+        return jsonify({"success": False, "error": str(ve)}), 400
     except Exception as e:
         logger.error("update_product error for %s/%s: %s", tenant, product_id, e)
-        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
-@product_bp.route('/api/products/<int:product_id>', methods=['DELETE'])
-@cognito_required(required_permissions=['zzp_crud'])
+@product_bp.route("/api/products/<int:product_id>", methods=["DELETE"])
+@cognito_required(required_permissions=["zzp_crud"])
 @tenant_required()
-@module_required('ZZP')
-def delete_product(user_email, user_roles, tenant, user_tenants, product_id) -> ResponseReturnValue:
+@module_required("ZZP")
+def delete_product(
+    user_email, user_roles, tenant, user_tenants, product_id
+) -> ResponseReturnValue:
     """Soft-delete a product (deactivate)."""
     try:
         svc = _get_service()
         svc.soft_delete_product(tenant, product_id)
-        return jsonify({'success': True, 'message': 'Product deactivated'})
+        return jsonify({"success": True, "message": "Product deactivated"})
     except ValueError as ve:
-        return jsonify({'success': False, 'error': str(ve)}), 400
+        return jsonify({"success": False, "error": str(ve)}), 400
     except Exception as e:
         logger.error("delete_product error for %s/%s: %s", tenant, product_id, e)
-        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
-@product_bp.route('/api/products/types', methods=['GET'])
-@cognito_required(required_permissions=['zzp_read'])
+@product_bp.route("/api/products/types", methods=["GET"])
+@cognito_required(required_permissions=["zzp_read"])
 @tenant_required()
-@module_required('ZZP')
-def get_product_types(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+@module_required("ZZP")
+def get_product_types(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get configurable product types for this tenant."""
     try:
         svc = _get_service()
         types = svc.get_product_types(tenant)
-        return jsonify({'success': True, 'data': types})
+        return jsonify({"success": True, "data": types})
     except Exception as e:
         logger.error("get_product_types error for %s: %s", tenant, e)
-        return jsonify({'success': False, 'error': 'An internal error occurred'}), 500
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500

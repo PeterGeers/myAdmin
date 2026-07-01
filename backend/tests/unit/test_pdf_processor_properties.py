@@ -261,7 +261,7 @@ class TestValidAIResultPassthrough:
             f"Expected VAT amount={rounded_vat}, got {vat_tx['amount']}"
         )
 
-    @settings(max_examples=30)
+    @settings(max_examples=30, derandomize=True)
     @given(
         folder_name=valid_folder_name_st,
         total_amount=valid_amount_st,

@@ -34,28 +34,35 @@ class S3SharedStorage(StorageProvider):
         bucket = None
         if parameter_service:
             bucket = parameter_service.get_param(
-                'storage', 's3_shared_bucket', tenant=tenant
+                "storage", "s3_shared_bucket", tenant=tenant
             )
-        self.bucket = bucket or os.getenv('S3_SHARED_BUCKET', '')
+        self.bucket = bucket or os.getenv("S3_SHARED_BUCKET", "")
         if not self.bucket:
             raise ValueError("S3 shared bucket not configured")
-        self._client = boto3.client('s3')
+        self._client = boto3.client("s3")
 
-    def _make_key(self, path: str, metadata: dict = None, category: str = 'invoices') -> str:
+    def _make_key(
+        self, path: str, metadata: dict = None, category: str = "invoices"
+    ) -> str:
         """Build S3 key: {tenant}/{category}/{reference}/{uuid}_{filename}"""
         metadata = metadata or {}
-        ref = metadata.get('reference_number', 'general')
+        ref = metadata.get("reference_number", "general")
         filename = os.path.basename(path)
         unique = uuid.uuid4().hex[:12]
         return f"{self.tenant}/{category}/{ref}/{unique}_{filename}"
 
-    def upload(self, file_data: bytes, path: str, metadata: dict = None, category: str = 'invoices') -> str:
+    def upload(
+        self,
+        file_data: bytes,
+        path: str,
+        metadata: dict = None,
+        category: str = "invoices",
+    ) -> str:
         """Upload file to shared S3 bucket. Returns the S3 key as reference."""
         key = self._make_key(path, metadata, category=category)
-        content_type = (metadata or {}).get('mime_type', 'application/octet-stream')
+        content_type = (metadata or {}).get("mime_type", "application/octet-stream")
         self._client.put_object(
-            Bucket=self.bucket, Key=key, Body=file_data,
-            ContentType=content_type
+            Bucket=self.bucket, Key=key, Body=file_data, ContentType=content_type
         )
         logger.info("Uploaded to s3://%s/%s", self.bucket, key)
         return key
@@ -63,7 +70,7 @@ class S3SharedStorage(StorageProvider):
     def download(self, reference: str) -> bytes:
         """Download file from S3 by key."""
         response = self._client.get_object(Bucket=self.bucket, Key=reference)
-        return response['Body'].read()
+        return response["Body"].read()
 
     def delete(self, reference: str) -> bool:
         """Delete file from S3 by key."""
@@ -83,19 +90,17 @@ class S3SharedStorage(StorageProvider):
         if category:
             prefix = f"{self.tenant}/{category}/"
         else:
-            prefix = path if path.endswith('/') else path + '/'
+            prefix = path if path.endswith("/") else path + "/"
         try:
-            response = self._client.list_objects_v2(
-                Bucket=self.bucket, Prefix=prefix
-            )
+            response = self._client.list_objects_v2(Bucket=self.bucket, Prefix=prefix)
             return [
                 {
-                    'key': obj['Key'],
-                    'name': os.path.basename(obj['Key']),
-                    'size': obj.get('Size'),
-                    'modified': obj.get('LastModified'),
+                    "key": obj["Key"],
+                    "name": os.path.basename(obj["Key"]),
+                    "size": obj.get("Size"),
+                    "modified": obj.get("LastModified"),
                 }
-                for obj in response.get('Contents', [])
+                for obj in response.get("Contents", [])
             ]
         except ClientError as e:
             logger.error("Failed to list s3://%s/%s: %s", self.bucket, prefix, e)

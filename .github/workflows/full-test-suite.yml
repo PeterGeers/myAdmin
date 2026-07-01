@@ -72,6 +72,7 @@ jobs:
       - name: Run all unit tests
         working-directory: backend
         run: |
+          mkdir -p reports
           python -m pytest tests/unit/ \
             --tb=short -q \
             --cov=src --cov-report=html:reports/coverage-html --cov-report=xml:reports/coverage.xml \
@@ -89,12 +90,17 @@ jobs:
         if: always()
         working-directory: backend
         run: |
+          mkdir -p reports
           echo "## Backend Test Results" > reports/SUMMARY.md
           echo "" >> reports/SUMMARY.md
           echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/SUMMARY.md
           echo "" >> reports/SUMMARY.md
           # Extract pass/fail counts from output
-          tail -5 reports/test-output.txt >> reports/SUMMARY.md
+          if [ -f reports/test-output.txt ]; then
+            tail -5 reports/test-output.txt >> reports/SUMMARY.md
+          else
+            echo "No test output file found" >> reports/SUMMARY.md
+          fi
 
       - name: Upload backend test reports
         if: always()
@@ -126,6 +132,7 @@ jobs:
       - name: Run all tests
         working-directory: frontend
         run: |
+          mkdir -p reports
           npx vitest run --reporter=verbose --reporter=junit --outputFile=reports/junit-results.xml \
             2>&1 | tee reports/test-output.txt || true
         env:
@@ -147,7 +154,11 @@ jobs:
           echo "" >> reports/SUMMARY.md
           echo "Run date: $(date -u '+%Y-%m-%d %H:%M UTC')" >> reports/SUMMARY.md
           echo "" >> reports/SUMMARY.md
-          tail -10 reports/test-output.txt >> reports/SUMMARY.md
+          if [ -f reports/test-output.txt ]; then
+            tail -10 reports/test-output.txt >> reports/SUMMARY.md
+          else
+            echo "No test output file found" >> reports/SUMMARY.md
+          fi
 
       - name: Upload frontend test reports
         if: always()

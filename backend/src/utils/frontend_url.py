@@ -28,18 +28,18 @@ def get_frontend_url() -> str:
         Frontend base URL (no trailing slash)
     """
     # Production: env var is the source of truth
-    env_url = os.getenv('FRONTEND_URL')
+    env_url = os.getenv("FRONTEND_URL")
     if env_url:
-        return env_url.rstrip('/')
+        return env_url.rstrip("/")
 
     # Local dev: Referer has the real frontend origin
     try:
-        referer = flask_request.headers.get('Referer')
+        referer = flask_request.headers.get("Referer")
         if referer:
             parsed = urlparse(referer)
-            if parsed.scheme in ('http', 'https') and parsed.netloc:
+            if parsed.scheme in ("http", "https") and parsed.netloc:
                 return f"{parsed.scheme}://{parsed.netloc}"
     except RuntimeError:
         pass
 
-    return 'http://localhost:3000'
+    return "http://localhost:3000"
