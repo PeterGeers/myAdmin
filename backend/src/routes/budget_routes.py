@@ -575,15 +575,15 @@ def budget_ai_draft_suggestions(user_email, user_roles, tenant, user_tenants) ->
                 if child_accounts:
                     valid_accounts = {a['Account'] for a in child_accounts}
                     budget_lines = [
-                        l for l in budget_lines
-                        if l.get('account_code') in valid_accounts
+                        line for line in budget_lines
+                        if line.get('account_code') in valid_accounts
                     ]
             except Exception:
                 pass
 
         # Enrich lines with account names
         if budget_lines:
-            account_codes = list({l.get('account_code', '') for l in budget_lines})
+            account_codes = list({line.get('account_code', '') for line in budget_lines})
             try:
                 if account_codes:
                     placeholders = ', '.join(['%s'] * len(account_codes))

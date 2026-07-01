@@ -71,7 +71,7 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
         
         # Initialize services
         email_service = EmailTemplateService(administration=tenant)
-        cognito_service = CognitoService()
+        _cognito_service = CognitoService()
         
         # Get user details if not provided
         if not user_data.get('name'):
@@ -313,7 +313,7 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                 if attr['Name'] == 'name':
                     user_name = attr['Value']
                     break
-        except:
+        except Exception:
             pass
         
         # Resolve frontend URL from request context

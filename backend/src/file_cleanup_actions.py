@@ -12,7 +12,6 @@ import re
 import logging
 from typing import Optional
 from urllib.parse import urlparse
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

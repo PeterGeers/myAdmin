@@ -9,7 +9,7 @@ Provides:
 - update_mutatie(): Single record update with tenant validation
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from database import DatabaseManager
 

@@ -17,7 +17,7 @@ Usage:
 
 import logging
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Union
 from decimal import Decimal, InvalidOperation
 
 logger = logging.getLogger(__name__)

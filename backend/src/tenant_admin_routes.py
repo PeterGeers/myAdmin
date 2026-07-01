@@ -13,21 +13,13 @@ Route endpoints have been extracted to focused modules:
 Based on the architecture at .kiro/specs/Common/Multitennant/architecture.md
 """
 
-from flask import Blueprint, request, jsonify
-from auth.cognito_utils import cognito_required
-from auth.tenant_context import (
-    get_current_tenant,
-    get_user_tenants,
-    is_tenant_admin,
-    get_tenant_config,
-    set_tenant_config
-)
+from flask import Blueprint
 from database import DatabaseManager
 import os
 import json
 import boto3
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 # Initialize logger
 logger = logging.getLogger(__name__)

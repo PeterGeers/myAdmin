@@ -98,7 +98,7 @@ class DuplicateDetectionErrorHandler:
         Returns:
             Dictionary containing error analysis results
         """
-        error_type = type(error).__name__
+        _error_type = type(error).__name__
         error_message = str(error)
         
         # Check for specific error patterns

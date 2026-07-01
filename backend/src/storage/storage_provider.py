@@ -10,7 +10,7 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 

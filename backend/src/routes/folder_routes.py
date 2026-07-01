@@ -11,7 +11,6 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from google_drive_service import GoogleDriveService
 from services.storage_resolver import resolve_storage_provider, list_s3_folders, create_s3_folder
-from config import Config
 import os
 
 folder_bp = Blueprint('folders', __name__)

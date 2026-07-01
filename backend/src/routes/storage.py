@@ -128,7 +128,7 @@ def upload_logo(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         if content_type not in ALLOWED_LOGO_TYPES:
             return jsonify({
                 'success': False,
-                'error': f'Invalid file type. Allowed: PNG, JPG, SVG'
+                'error': 'Invalid file type. Allowed: PNG, JPG, SVG'
             }), 400
 
         # Validate file size (read content to check)

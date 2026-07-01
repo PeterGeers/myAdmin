@@ -402,7 +402,7 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
             # Clean up - delete test file
             try:
                 drive_service.service.files().delete(fileId=test_file_id).execute()
-            except:
+            except Exception:
                 pass  # Ignore cleanup errors
                 
         except Exception as e:

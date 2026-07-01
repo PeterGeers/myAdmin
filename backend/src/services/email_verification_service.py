@@ -9,7 +9,7 @@ providing fast DB lookups for verified sender resolution during invoice sending.
 import os
 import re
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 import boto3

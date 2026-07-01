@@ -19,7 +19,7 @@ from services.logo_resolver import resolve_tenant_logo
 
 logger = logging.getLogger(__name__)
 
-from dialect_helpers import dialect
+from dialect_helpers import dialect  # noqa: E402
 
 # Map ISO 3166-1 country codes/names to Babel locale identifiers
 COUNTRY_LOCALE_MAP = {

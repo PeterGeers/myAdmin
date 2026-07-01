@@ -146,7 +146,7 @@ def calculate_airbnb_row(row, df_columns, source_file: str,
             booking_status = 'planned'
         else:
             booking_status = 'realised'
-    except:
+    except Exception:
         booking_status = 'realised'
 
     # Calculate financial amounts like R code
@@ -173,7 +173,7 @@ def calculate_airbnb_row(row, df_columns, source_file: str,
         quarter = (checkin_dt.month - 1) // 3 + 1
         month = checkin_dt.month
         days_before_reservation = (checkin_dt - reservation_dt).days
-    except:
+    except Exception:
         year = datetime.now().year
         quarter = 1
         month = 1

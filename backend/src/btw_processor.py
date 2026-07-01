@@ -388,7 +388,7 @@ class BTWProcessor:
     def _prepare_btw_transaction(self, administration, year, quarter, calculations):
         """Prepare BTW transaction for saving to mutaties table"""
         # Get last BTW transaction for reference
-        last_btw = self._get_last_btw_transaction(administration)
+        _last_btw = self._get_last_btw_transaction(administration)
         
         total_balance = calculations['total_balance']
         transaction_date = datetime.now().strftime('%Y-%m-%d')

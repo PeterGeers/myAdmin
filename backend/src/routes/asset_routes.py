@@ -11,6 +11,7 @@ API endpoints for managing assets:
 
 import os
 import logging
+from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
@@ -297,8 +298,7 @@ def depreciation_schedule_report(user_email, user_roles, tenant, user_tenants) -
         return jsonify({'error': str(e)}), 500
 
 
-def import_datetime() -> "datetime":
-    from datetime import datetime
+def import_datetime() -> datetime:
     return datetime.now()
 
 

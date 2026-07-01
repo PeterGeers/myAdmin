@@ -11,7 +11,7 @@ from datetime import datetime
 import os
 
 try:
-    from PIL import Image
+    from PIL import Image  # noqa: F401
     import pytesseract
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 except ImportError:
@@ -110,7 +110,7 @@ def process_image(file_path, drive_result, config, folder_name='Unknown', tenant
 
     # Format as text for compatibility
     text_lines = [
-        f"[AI/OCR Extracted Data]",
+        "[AI/OCR Extracted Data]",
         f"Date: {result['date']}",
         f"Total Amount: €{result['total_amount']:.2f}",
         f"VAT Amount: €{result['vat_amount']:.2f}",

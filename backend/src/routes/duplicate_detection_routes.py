@@ -2,13 +2,12 @@
 Duplicate Detection Routes Blueprint
 Handles duplicate transaction detection and user decision logging
 """
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify
 from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from duplicate_checker import DuplicateChecker
 from datetime import datetime
-import json
 
 # Create blueprint
 duplicate_detection_bp = Blueprint('duplicate_detection', __name__)

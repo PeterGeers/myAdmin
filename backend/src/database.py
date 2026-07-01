@@ -1,10 +1,8 @@
 import mysql.connector
 from mysql.connector import pooling
-from datetime import datetime
 import os
 from dotenv import load_dotenv
 from contextlib import contextmanager
-import threading
 import time
 import logging
 from db_exceptions import (

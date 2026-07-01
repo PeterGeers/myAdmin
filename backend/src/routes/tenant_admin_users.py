@@ -54,7 +54,7 @@ def get_user_attribute(user_attributes, attribute_name) -> Optional[str]:
             if attribute_name == 'custom:tenants':
                 try:
                     return json.loads(value) if value else []
-                except:
+                except Exception:
                     return [value] if value else []
             return value
     return None
@@ -249,7 +249,7 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
         data = request.get_json()
         email = data.get('email')
         name = data.get('name')
-        password = data.get('password')
+        _password = data.get('password')
         groups = data.get('groups', [])
         
         if not email:

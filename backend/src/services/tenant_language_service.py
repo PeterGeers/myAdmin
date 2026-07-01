@@ -5,7 +5,6 @@ This service manages tenant default language preferences stored in the database.
 The default_language column was added to the tenants table in Phase 2.2 of i18n implementation.
 """
 from database import DatabaseManager
-from typing import Optional
 
 def get_tenant_language(administration: str) -> str:
     """

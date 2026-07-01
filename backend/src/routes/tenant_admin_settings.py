@@ -184,7 +184,7 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
 # Tenant Language Endpoints (i18n)
 # ============================================================================
 
-from services.tenant_language_service import (
+from services.tenant_language_service import (  # noqa: E402
     get_tenant_language,
     update_tenant_language,
     validate_language_code

@@ -479,7 +479,7 @@ def str_import_payout_authenticated(user_email, user_roles) -> ResponseReturnVal
         # Combine results
         response = {
             'success': True,
-            'message': f"Payout CSV processed successfully",
+            'message': "Payout CSV processed successfully",
             'processing': {
                 'total_rows': payout_result['summary']['total_rows'],
                 'reservation_rows': payout_result['summary']['reservation_rows'],

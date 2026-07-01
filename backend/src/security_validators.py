@@ -15,7 +15,7 @@ Extracted from security_audit.py to separate validators from audit reporting.
 import re
 import os
 import logging
-from typing import Dict, Optional, List
+from typing import Dict
 
 import bleach
 

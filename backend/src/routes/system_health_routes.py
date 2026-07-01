@@ -176,10 +176,10 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                 expiry_str = token_data['expiry']
                 try:
                     expiry_date = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
-                except:
+                except Exception:
                     try:
                         expiry_date = datetime.strptime(expiry_str, "%d-%m-%Y %H:%M:%S")
-                    except:
+                    except Exception:
                         results[tenant] = {
                             'status': 'error',
                             'message': f'Invalid expiry format: {expiry_str}',

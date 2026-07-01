@@ -13,7 +13,6 @@ These functions score/rank patterns to make predictions.
 They do NOT detect patterns or manage caching.
 """
 
-import re
 from datetime import datetime, date
 from typing import Dict, List, Optional, Tuple, Any, Callable
 

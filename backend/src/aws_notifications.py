@@ -6,7 +6,7 @@ Handles sending notifications via AWS SNS (Simple Notification Service)
 import boto3
 import logging
 import os
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from botocore.exceptions import ClientError
 

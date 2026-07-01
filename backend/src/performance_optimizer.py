@@ -3,6 +3,7 @@ import tracemalloc
 from datetime import datetime
 import gc
 import os
+import psutil
 from flask import request
 from database_migrations import QueryOptimizer
 
@@ -415,7 +416,7 @@ def register_performance_endpoints(app):
             'success': True,
             'caching': caching_result,
             'n_plus_1_analysis': n_plus_1_report,
-            'recommendations': self._get_performance_recommendations()
+            'recommendations': _get_performance_recommendations()
         }
 
     def _get_performance_recommendations():

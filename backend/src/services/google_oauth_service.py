@@ -149,7 +149,7 @@ def test_google_drive_connectivity(credentials, client_id=None, client_secret=No
         service = build('drive', 'v3', credentials=creds)
 
         # Test by listing files (limit 1)
-        results = service.files().list(
+        _results = service.files().list(
             pageSize=1,
             fields="files(id, name)"
         ).execute()

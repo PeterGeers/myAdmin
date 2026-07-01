@@ -436,7 +436,7 @@ class TestDefaultValueResolutionCompleteness:
         app.config['TESTING'] = True
         return app.test_client()
 
-    @h_settings(max_examples=100, database=None)
+    @h_settings(max_examples=100, database=None, derandomize=True)
     @given(
         namespace=st.text(min_size=1, max_size=20,
                           alphabet=st.characters(whitelist_categories=('L', 'N'),

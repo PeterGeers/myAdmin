@@ -227,7 +227,7 @@ class DatabaseMigration:
         for table in tables:
             try:
                 # Check if table exists first
-                table_exists = self.db.execute_query(f"""
+                table_exists = self.db.execute_query("""
                     SELECT COUNT(*) as count FROM information_schema.tables
                     WHERE table_schema = DATABASE() AND table_name = %s
                 """, (table,))

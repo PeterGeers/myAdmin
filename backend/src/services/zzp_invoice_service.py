@@ -10,8 +10,8 @@ Reference: .kiro/specs/zzp-module/design.md §5.3
 """
 
 import logging
-from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional
+from datetime import date, timedelta
+from typing import Optional
 
 from services.field_config_mixin import FieldConfigMixin
 from services.zzp_invoice_delivery import ZZPInvoiceDeliveryHelper
@@ -172,8 +172,8 @@ class ZZPInvoiceService(FieldConfigMixin):
 
     def _update_totals(self, invoice_id: int, lines: list, tenant: str) -> dict:
         """Calculate and persist invoice header totals from lines."""
-        subtotal = round(sum(l['line_total'] for l in lines), 2)
-        vat_total = round(sum(l['vat_amount'] for l in lines), 2)
+        subtotal = round(sum(line['line_total'] for line in lines), 2)
+        vat_total = round(sum(line['vat_amount'] for line in lines), 2)
         grand_total = round(subtotal + vat_total, 2)
 
         self.db.execute_query(

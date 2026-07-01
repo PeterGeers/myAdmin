@@ -1,5 +1,4 @@
 from database import DatabaseManager
-from google_drive_service import GoogleDriveService
 import re
 
 class PDFValidator:
@@ -251,7 +250,7 @@ class PDFValidator:
             print(f"Extracted file ID (id parameter): {file_id}")
             return file_id
         
-        print(f"Could not extract file ID from URL")
+        print("Could not extract file ID from URL")
         return None
     
     def _extract_folder_id(self, url):
@@ -290,7 +289,7 @@ class PDFValidator:
                     return f"https://drive.google.com/file/d/{file_item['id']}/view"
             
             return None
-        except:
+        except Exception:
             return None
     
     def _find_folder_by_reference(self, reference_number):
@@ -320,7 +319,7 @@ class PDFValidator:
             gmail_service = build('gmail', 'v1', credentials=self.drive_service.service._http.credentials)
             
             # Try to get the message
-            message = gmail_service.users().messages().get(userId='me', id=message_id, format='minimal').execute()
+            gmail_service.users().messages().get(userId='me', id=message_id, format='minimal').execute()
             print(f"Gmail message exists: {message_id}")
             return True
         except Exception as e:

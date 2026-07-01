@@ -149,7 +149,7 @@ Return ONLY valid JSON:
             import subprocess
             subprocess.run([r'C:\Program Files\Tesseract-OCR\tesseract.exe', '--version'], 
                           capture_output=True, check=True)
-        except:
+        except Exception:
             print("Tesseract not installed")
             return self._fallback_data(vendor_hint)
         
@@ -188,7 +188,7 @@ Return ONLY valid JSON:
                 except ValueError:
                     continue
             return datetime.now().strftime('%Y-%m-%d')
-        except:
+        except Exception:
             return datetime.now().strftime('%Y-%m-%d')
     
     def _fallback_data(self, vendor_hint):

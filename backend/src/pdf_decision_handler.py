@@ -67,7 +67,7 @@ def handle_duplicate_decision(
                 user_message='System components unavailable. Please try again later.'
             )
 
-        db = components['db']
+        _db = components['db']
         duplicate_checker = components['duplicate_checker']
         file_cleanup_manager = components['file_cleanup_manager']
 

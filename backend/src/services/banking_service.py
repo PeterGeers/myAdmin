@@ -155,7 +155,7 @@ class BankingService:
                             'error': validation['error']
                         }
                     else:
-                        print(f"[TENANT VALIDATION] ALLOWED: IBAN matches current tenant", flush=True)
+                        print("[TENANT VALIDATION] ALLOWED: IBAN matches current tenant", flush=True)
             
             records = processor.prepare_for_review(df)
             

@@ -5,7 +5,7 @@ Handles monthly STR channel revenue calculations based on account 1600 transacti
 
 import logging
 from flask import Blueprint, request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime
 import calendar
 from database import DatabaseManager
 from dialect_helpers import dialect

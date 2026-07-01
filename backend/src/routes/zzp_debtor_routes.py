@@ -18,7 +18,6 @@ from services.module_registry import module_required
 from database import DatabaseManager
 from dialect_helpers import dialect
 from services.parameter_service import ParameterService
-from services.zzp_invoice_service import ZZPInvoiceService
 
 logger = logging.getLogger(__name__)
 

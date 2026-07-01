@@ -52,7 +52,7 @@ def get_user_tenants(jwt_token: str) -> List[str]:
             try:
                 # Handle escaped quotes like [\"GoodwinSolutions\",\"PeterPrive\"]
                 if tenants.startswith('[') and '\\' in tenants:
-                    print(f"[Backend] Detected escaped quotes, unescaping...", flush=True)
+                    print("[Backend] Detected escaped quotes, unescaping...", flush=True)
                     # Replace escaped quotes with regular quotes
                     tenants = tenants.replace('\\"', '"').replace("\\'", "'")
                     print(f"[Backend] After unescaping: {tenants}", flush=True)

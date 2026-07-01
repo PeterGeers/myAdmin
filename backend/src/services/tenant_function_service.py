@@ -13,7 +13,6 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from database import DatabaseManager
-from db_exceptions import DatabaseError
 from services.function_registry import FUNCTION_REGISTRY
 from services.module_registry import has_module
 

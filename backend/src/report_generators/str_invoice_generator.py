@@ -9,7 +9,7 @@ the TemplateService to generate complete invoice HTML.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ def generate_table_rows(invoice_data: Dict[str, Any], language: str = 'nl') -> s
     except Exception as e:
         logger.error(f"Failed to generate STR invoice table rows: {e}")
         # Return minimal fallback
-        return f'                <tr><td colspan="4">Error generating invoice details</td></tr>'
+        return '                <tr><td colspan="4">Error generating invoice details</td></tr>'
 
 
 def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -163,7 +163,7 @@ def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str,
         if isinstance(checkin_date, str):
             try:
                 checkin_dt = datetime.strptime(checkin_date, '%Y-%m-%d')
-            except:
+            except Exception:
                 checkin_dt = datetime.now()
         else:
             checkin_dt = checkin_date
@@ -172,7 +172,7 @@ def prepare_invoice_data(booking_data: Dict[str, Any], custom_billing: Dict[str,
         if isinstance(checkout_date, str):
             try:
                 checkout_dt = datetime.strptime(checkout_date, '%Y-%m-%d')
-            except:
+            except Exception:
                 checkout_dt = datetime.now()
         else:
             checkout_dt = checkout_date

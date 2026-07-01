@@ -14,11 +14,10 @@ REQ-PAT-006: Implement pattern caching for performance
 """
 
 import json
-import os
 import time
 import threading
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from pathlib import Path
 import logging
 
@@ -430,7 +429,7 @@ class PersistentPatternCache:
             file_cache[cache_key] = cache_entry
             
             # Clean up expired entries
-            current_time = time.time()
+            _current_time = time.time()
             file_cache = {
                 k: v for k, v in file_cache.items()
                 if self._is_cache_entry_valid(v)

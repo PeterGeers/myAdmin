@@ -1,9 +1,6 @@
 import re
 import os
-import hashlib
-import secrets
-import bleach
-from flask import request, jsonify
+from flask import request, jsonify, current_app
 from datetime import datetime
 import logging
 from database import DatabaseManager
@@ -195,7 +192,7 @@ class SecurityAudit:
                     "Implement CSP headers"
                 ]
             },
-            'security_headers': self.audit_security_headers(app),
+            'security_headers': self.audit_security_headers(current_app._get_current_object()),
             'overall_security_score': self.calculate_security_score(),
             'critical_issues': self.get_critical_issues(),
             'general_recommendations': [

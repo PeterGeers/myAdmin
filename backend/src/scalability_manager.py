@@ -19,16 +19,11 @@ Key Features:
 
 import threading
 import time
-import queue
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from typing import Dict, Any, Optional, List, Callable
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass
-import psutil
-import mysql.connector
 from mysql.connector import pooling
-import os
 from contextlib import contextmanager
 
 from scalability_workers import AsyncProcessingManager, ResourceMonitor
@@ -147,7 +142,7 @@ class AdvancedConnectionPool:
                 'errors': 0
             }
             
-            logger.info(f"✅ Read-only connection pool created")
+            logger.info("✅ Read-only connection pool created")
             
         except Exception as e:
             logger.warning(f"⚠️ Failed to create read-only pool, will use primary: {e}")
@@ -175,7 +170,7 @@ class AdvancedConnectionPool:
                 'errors': 0
             }
             
-            logger.info(f"✅ Analytics connection pool created")
+            logger.info("✅ Analytics connection pool created")
             
         except Exception as e:
             logger.warning(f"⚠️ Failed to create analytics pool, will use primary: {e}")
@@ -219,7 +214,7 @@ class AdvancedConnectionPool:
             if connection:
                 try:
                     connection.close()
-                except:
+                except Exception:
                     pass
             
             # Update response time statistics

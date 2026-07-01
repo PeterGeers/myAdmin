@@ -204,7 +204,7 @@ def calculate_booking_row(row, df_columns, source_file: str,
         commission_amount = 0
 
     # Get tax rates based on check-in date
-    tax_rates = get_tax_rates(checkin_date, tax_rate_service, tenant)
+    _tax_rates = get_tax_rates(checkin_date, tax_rate_service, tenant)
 
     # Calculate gross amount using Booking.com algorithm
     uplift_factor = 1.047826
@@ -244,7 +244,7 @@ def calculate_booking_row(row, df_columns, source_file: str,
     # Calculate dates and periods
     try:
         checkin_dt = datetime.strptime(str(checkin_date), '%Y-%m-%d')
-        checkout_dt = datetime.strptime(str(checkout_date), '%Y-%m-%d')
+        _checkout_dt = datetime.strptime(str(checkout_date), '%Y-%m-%d')
         reservation_dt = datetime.strptime(str(row.get('Booked on', '')).split(' ')[0], '%Y-%m-%d')
 
         year = checkin_dt.year
@@ -440,7 +440,7 @@ def process_booking_payout(file_path: str, tax_rate_service=None,
         results['summary']['updated_count'] = len(updates)
         results['updates'] = updates
 
-        print(f"\nPayout processing completed:")
+        print("\nPayout processing completed:")
         print(f"  Total rows: {results['summary']['total_rows']}")
         print(f"  Reservation rows: {results['summary']['reservation_rows']}")
         print(f"  Updates prepared: {results['summary']['updated_count']}")

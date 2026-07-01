@@ -8,7 +8,6 @@ and listing name normalization used across all STR platform parsers.
 import re
 import pandas as pd
 from datetime import datetime, date
-from typing import Optional
 
 
 def get_tax_rates(checkin_date: str, tax_rate_service=None, tenant: str = None) -> dict:

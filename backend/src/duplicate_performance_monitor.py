@@ -238,11 +238,11 @@ class DuplicateDetectionMetrics:
         if not logs:
             return {'total_decisions': 0}
         
-        execution_times = [l['execution_time'] for l in logs]
-        successes = sum(1 for l in logs if l['success'])
-        continue_decisions = sum(1 for l in logs if l['decision'] == 'continue')
-        cancel_decisions = sum(1 for l in logs if l['decision'] == 'cancel')
-        total_retries = sum(l['retry_count'] for l in logs)
+        execution_times = [entry['execution_time'] for entry in logs]
+        successes = sum(1 for entry in logs if entry['success'])
+        continue_decisions = sum(1 for entry in logs if entry['decision'] == 'continue')
+        cancel_decisions = sum(1 for entry in logs if entry['decision'] == 'cancel')
+        total_retries = sum(entry['retry_count'] for entry in logs)
         
         return {
             'total_decisions': len(logs),
@@ -332,7 +332,7 @@ class DuplicateDetectionMetrics:
         # Factor 4: Decision logging success (10% weight)
         logs = self.metrics.get('decision_logs', [])
         if logs:
-            log_success_rate = sum(1 for l in logs if l['success']) / len(logs)
+            log_success_rate = sum(1 for entry in logs if entry['success']) / len(logs)
             log_health = log_success_rate * 100
         else:
             log_health = 100  # No failures if no logs

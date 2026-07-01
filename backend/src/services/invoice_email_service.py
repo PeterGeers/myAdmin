@@ -12,7 +12,7 @@ Reference: .kiro/specs/zzp-invoice-pdf-preview/design.md §5
 
 import logging
 from datetime import date
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from babel.numbers import format_currency
 from babel.dates import format_date as babel_format_date

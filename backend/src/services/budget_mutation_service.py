@@ -12,7 +12,7 @@ from decimal import Decimal, ROUND_HALF_EVEN
 from typing import Any, Dict, List, Optional
 
 from database import DatabaseManager
-from db_exceptions import DatabaseError, IntegrityError
+from db_exceptions import IntegrityError
 
 
 class BudgetMutationService:

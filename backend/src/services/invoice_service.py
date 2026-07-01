@@ -12,8 +12,8 @@ Extracted from app.py during refactoring (Phase 2.1)
 
 import os
 import shutil
-from typing import Dict, Any, List
-from werkzeug.utils import secure_filename
+from datetime import datetime
+from typing import Dict, Any
 from database import DatabaseManager
 from dialect_helpers import dialect
 from google_drive_service import GoogleDriveService
@@ -268,13 +268,71 @@ class InvoiceService:
         # Handle error from get_last_transactions (e.g., no booking history)
         if isinstance(last_transactions, dict) and last_transactions.get('error'):
             print(f"Transaction template error: {last_transactions['message']}", flush=True)
-            # Still return file processing results but with no prepared transactions
+            print(f"Building default transaction records for new vendor: {folder_name}", flush=True)
+            
+            # Build default transaction records from AI-extracted data so the user
+            # can manually define opposite accounts and reference number
+            vendor_data = {}
+            if transactions:
+                first_tx = transactions[0]
+                vendor_data = {
+                    'date': first_tx.get('date'),
+                    'total_amount': first_tx.get('amount', 0),
+                    'vat_amount': first_tx.get('vat_amount', 0),
+                    'description': first_tx.get('description', ''),
+                }
+                # Get VAT amount from second transaction if it's a VAT line
+                if len(transactions) > 1 and 'VAT' in (transactions[1].get('description') or '').upper():
+                    vendor_data['vat_amount'] = transactions[1].get('amount', 0)
+            
+            transaction_date = vendor_data.get('date') or datetime.now().strftime('%Y-%m-%d')
+            description = vendor_data.get('description', f"Invoice from {folder_name}")
+            total_amount = vendor_data.get('total_amount', 0)
+            vat_amount = vendor_data.get('vat_amount', 0)
+            
+            # Main transaction record (empty Debet/Credit for manual entry)
+            default_transactions = [
+                {
+                    'ID': 'NEW_1',
+                    'TransactionNumber': folder_name,
+                    'TransactionDate': transaction_date,
+                    'TransactionDescription': description,
+                    'TransactionAmount': total_amount,
+                    'Debet': '',
+                    'Credit': '',
+                    'ReferenceNumber': folder_name,
+                    'Ref1': None,
+                    'Ref2': None,
+                    'Ref3': drive_result.get('url', ''),
+                    'Ref4': os.path.basename(temp_path),
+                    'Administration': tenant
+                },
+                # VAT transaction record
+                {
+                    'ID': 'NEW_2',
+                    'TransactionNumber': folder_name,
+                    'TransactionDate': transaction_date,
+                    'TransactionDescription': description + ' BTW',
+                    'TransactionAmount': vat_amount,
+                    'Debet': '',
+                    'Credit': '',
+                    'ReferenceNumber': folder_name,
+                    'Ref1': None,
+                    'Ref2': None,
+                    'Ref3': drive_result.get('url', ''),
+                    'Ref4': os.path.basename(temp_path),
+                    'Administration': tenant
+                }
+            ]
+            
+            print(f"Created {len(default_transactions)} default transaction records for manual entry", flush=True)
+            
             return {
                 'success': True,
                 'folder': result['folder'],
                 'extracted_text': result['txt'],
                 'transactions': transactions,
-                'prepared_transactions': [],
+                'prepared_transactions': default_transactions,
                 'template_transactions': [],
                 'parser_used': parser_used,
                 'template_error': last_transactions['message']

@@ -12,8 +12,7 @@ Requirements addressed:
 from flask import Blueprint, jsonify, request
 import logging
 import time
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from datetime import datetime
 
 from database import DatabaseManager
 from scalability_manager import get_scalability_manager

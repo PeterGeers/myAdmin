@@ -424,7 +424,7 @@ class PatternAnalyzer:
                 'pattern_application_results': application_results
             }
 
-            print(f"✅ Incremental analysis complete:")
+            print("✅ Incremental analysis complete:")
             print(f"   - {len(new_transactions)} new transactions processed")
             print(f"   - {len(truly_new_patterns)} new patterns discovered")
             print(f"   - {len(updated_patterns)} existing patterns updated")

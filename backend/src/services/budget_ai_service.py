@@ -310,12 +310,12 @@ class BudgetAIService:
 
         # Build compact line summary for the prompt
         line_text = "\n".join(
-            f"- {l['account_code']} ({l.get('account_name', '')}): " +
-            ", ".join(f"m{i+1}={l.get(f'month_{i+1:02d}', 0)}" for i in range(12))
-            for l in budget_lines
+            f"- {item['account_code']} ({item.get('account_name', '')}): " +
+            ", ".join(f"m{i+1}={item.get(f'month_{i+1:02d}', 0)}" for i in range(12))
+            for item in budget_lines
         )
 
-        valid_codes = {l['account_code'] for l in budget_lines}
+        valid_codes = {item['account_code'] for item in budget_lines}
 
         system_prompt = (
             "You are a financial budget advisor. Given budget line data and context notes, "
