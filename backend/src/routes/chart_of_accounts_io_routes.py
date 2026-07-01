@@ -20,16 +20,19 @@ from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
-chart_of_accounts_io_bp = Blueprint('chart_of_accounts_io', __name__)
+chart_of_accounts_io_bp = Blueprint("chart_of_accounts_io", __name__)
 
 
 def _has_fin_module(tenant: str) -> bool:
     """Check if a tenant has the FIN module enabled."""
     from routes.chart_of_accounts_routes import has_fin_module
+
     return has_fin_module(tenant)
 
 
-@chart_of_accounts_io_bp.route('/api/tenant-admin/chart-of-accounts/export', methods=['GET'])
+@chart_of_accounts_io_bp.route(
+    "/api/tenant-admin/chart-of-accounts/export", methods=["GET"]
+)
 @cognito_required(required_permissions=[])
 def export_accounts(user_email, user_roles) -> ResponseReturnValue:
     """Export all accounts to Excel file.
@@ -42,44 +45,49 @@ def export_accounts(user_email, user_roles) -> ResponseReturnValue:
         tenant = get_current_tenant(request)
 
         # Extract user tenants from JWT
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            jwt_token = auth_header.replace('Bearer ', '').strip()
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            jwt_token = auth_header.replace("Bearer ", "").strip()
             user_tenants = get_user_tenants(jwt_token)
         else:
-            return jsonify({'error': 'Invalid authorization'}), 401
+            return jsonify({"error": "Invalid authorization"}), 401
 
         # Check if user is tenant admin
         if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({'error': 'Tenant admin access required'}), 403
+            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not _has_fin_module(tenant):
-            return jsonify({'error': 'FIN module not enabled'}), 403
+            return jsonify({"error": "FIN module not enabled"}), 403
 
         # Delegate to service
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         db = DatabaseManager(test_mode=test_mode)
         from services.chart_of_accounts_io_service import ChartOfAccountsIOService
+
         io_service = ChartOfAccountsIOService(db=db)
 
         output, filename, count = io_service.export_to_excel(tenant)
 
-        logger.info(f"EXPORT_ACCOUNTS: {user_email} exported {count} accounts for tenant {tenant}")
+        logger.info(
+            f"EXPORT_ACCOUNTS: {user_email} exported {count} accounts for tenant {tenant}"
+        )
 
         return send_file(
             output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True,
-            download_name=filename
+            download_name=filename,
         )
 
     except Exception as e:
         logger.error(f"Error exporting accounts: {e}")
-        return jsonify({'error': 'Failed to export accounts', 'details': str(e)}), 500
+        return jsonify({"error": "Failed to export accounts", "details": str(e)}), 500
 
 
-@chart_of_accounts_io_bp.route('/api/tenant-admin/chart-of-accounts/import', methods=['POST'])
+@chart_of_accounts_io_bp.route(
+    "/api/tenant-admin/chart-of-accounts/import", methods=["POST"]
+)
 @cognito_required(required_permissions=[])
 def import_accounts(user_email, user_roles) -> ResponseReturnValue:
     """Import accounts from Excel file.
@@ -95,42 +103,45 @@ def import_accounts(user_email, user_roles) -> ResponseReturnValue:
         tenant = get_current_tenant(request)
 
         # Extract user tenants from JWT
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            jwt_token = auth_header.replace('Bearer ', '').strip()
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            jwt_token = auth_header.replace("Bearer ", "").strip()
             user_tenants = get_user_tenants(jwt_token)
         else:
-            return jsonify({'error': 'Invalid authorization'}), 401
+            return jsonify({"error": "Invalid authorization"}), 401
 
         # Check if user is tenant admin
         if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({'error': 'Tenant admin access required'}), 403
+            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not _has_fin_module(tenant):
-            return jsonify({'error': 'FIN module not enabled'}), 403
+            return jsonify({"error": "FIN module not enabled"}), 403
 
         # Get uploaded file
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
 
-        file = request.files['file']
+        file = request.files["file"]
 
         if not file.filename:
-            return jsonify({'error': 'No file selected'}), 400
+            return jsonify({"error": "No file selected"}), 400
 
-        if not file.filename.endswith(('.xlsx', '.xls')):
-            return jsonify({'error': 'Invalid file type. Must be Excel file (.xlsx or .xls)'}), 400
+        if not file.filename.endswith((".xlsx", ".xls")):
+            return jsonify(
+                {"error": "Invalid file type. Must be Excel file (.xlsx or .xls)"}
+            ), 400
 
         # Delegate to service
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         db = DatabaseManager(test_mode=test_mode)
         from services.chart_of_accounts_io_service import ChartOfAccountsIOService
+
         io_service = ChartOfAccountsIOService(db=db)
 
         result = io_service.import_from_excel(tenant, file)
 
-        if not result.get('success'):
+        if not result.get("success"):
             return jsonify(result), 400
 
         logger.info(
@@ -142,4 +153,4 @@ def import_accounts(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error importing accounts: {e}")
-        return jsonify({'error': 'Failed to import accounts', 'details': str(e)}), 500
+        return jsonify({"error": "Failed to import accounts", "details": str(e)}), 500

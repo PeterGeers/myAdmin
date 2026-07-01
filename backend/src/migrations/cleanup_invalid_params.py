@@ -1,8 +1,10 @@
 """Remove invalid parameters: default_administration, download_folder, vendor_folder_mappings."""
+
 import sys
 import os
 import logging
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -13,6 +15,7 @@ SQL = (
     "OR (namespace = 'storage' AND `key` IN ('download_folder', 'vendor_folder_mappings'))"
 )
 
+
 def run_cleanup(db=None):
     if db is None:
         db = DatabaseManager()
@@ -20,6 +23,7 @@ def run_cleanup(db=None):
     logger.info("Deleted %s rows", result)
     return result
 
-if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     run_cleanup()

@@ -16,31 +16,31 @@ from services.email_log_service import EmailLogService
 
 logger = logging.getLogger(__name__)
 
-email_log_bp = Blueprint('email_log', __name__)
+email_log_bp = Blueprint("email_log", __name__)
 
 
-@email_log_bp.route('/api/email-log', methods=['GET'])
-@cognito_required(required_roles=['SysAdmin', 'Tenant_Admin'])
+@email_log_bp.route("/api/email-log", methods=["GET"])
+@cognito_required(required_roles=["SysAdmin", "Tenant_Admin"])
 def get_email_logs(user_email, user_roles) -> ResponseReturnValue:
     """
     Query email logs.
     SysAdmin sees all tenants. Tenant Admin sees only their own tenant.
     """
     try:
-        is_sysadmin = 'SysAdmin' in user_roles
+        is_sysadmin = "SysAdmin" in user_roles
         # Use explicit administration param when provided (Tenant Admin panel)
-        explicit_tenant = request.args.get('administration')
+        explicit_tenant = request.args.get("administration")
         if explicit_tenant:
             tenant = explicit_tenant
         elif is_sysadmin:
             tenant = None  # SysAdmin sees all
         else:
             tenant = get_current_tenant(request)
-        
-        recipient = request.args.get('recipient')
-        limit = min(int(request.args.get('limit', 100)), 500)
 
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        recipient = request.args.get("recipient")
+        limit = min(int(request.args.get("limit", 100)), 500)
+
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         service = EmailLogService(test_mode=test_mode)
         logs = service.get_logs(
             administration=tenant,
@@ -48,14 +48,14 @@ def get_email_logs(user_email, user_roles) -> ResponseReturnValue:
             limit=limit,
         )
 
-        return jsonify({'success': True, 'logs': logs, 'count': len(logs)})
+        return jsonify({"success": True, "logs": logs, "count": len(logs)})
 
     except Exception as e:
         logger.error(f"Error fetching email logs: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@email_log_bp.route('/api/webhooks/ses', methods=['POST'])
+@email_log_bp.route("/api/webhooks/ses", methods=["POST"])
 def ses_notification_webhook() -> ResponseReturnValue:
     """
     Receive SES delivery notifications via SNS.
@@ -71,44 +71,45 @@ def ses_notification_webhook() -> ResponseReturnValue:
     try:
         # SNS sends JSON with content-type text/plain
         message = json.loads(request.data)
-        msg_type = request.headers.get('x-amz-sns-message-type', '')
+        msg_type = request.headers.get("x-amz-sns-message-type", "")
 
         # Auto-confirm SNS subscription
-        if msg_type == 'SubscriptionConfirmation':
-            subscribe_url = message.get('SubscribeURL')
+        if msg_type == "SubscriptionConfirmation":
+            subscribe_url = message.get("SubscribeURL")
             if subscribe_url:
                 import urllib.request
+
                 urllib.request.urlopen(subscribe_url)
                 logger.info("SNS subscription confirmed")
-            return jsonify({'status': 'subscribed'}), 200
+            return jsonify({"status": "subscribed"}), 200
 
         # Process SES notification
-        if msg_type == 'Notification':
-            ses_message = json.loads(message.get('Message', '{}'))
-            notification_type = ses_message.get('notificationType', '').lower()
-            mail = ses_message.get('mail', {})
-            ses_message_id = mail.get('messageId')
+        if msg_type == "Notification":
+            ses_message = json.loads(message.get("Message", "{}"))
+            notification_type = ses_message.get("notificationType", "").lower()
+            mail = ses_message.get("mail", {})
+            ses_message_id = mail.get("messageId")
 
             if not ses_message_id:
-                return jsonify({'status': 'ignored'}), 200
+                return jsonify({"status": "ignored"}), 200
 
-            test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
             service = EmailLogService(test_mode=test_mode)
 
             error_message = None
-            if notification_type == 'bounce':
-                bounce = ses_message.get('bounce', {})
+            if notification_type == "bounce":
+                bounce = ses_message.get("bounce", {})
                 error_message = (
                     f"Bounce type: {bounce.get('bounceType')} "
                     f"({bounce.get('bounceSubType')})"
                 )
-                status = 'bounced'
-            elif notification_type == 'complaint':
-                status = 'complained'
-            elif notification_type == 'delivery':
-                status = 'delivered'
+                status = "bounced"
+            elif notification_type == "complaint":
+                status = "complained"
+            elif notification_type == "delivery":
+                status = "delivered"
             else:
-                status = notification_type or 'unknown'
+                status = notification_type or "unknown"
 
             service.update_status(
                 ses_message_id=ses_message_id,
@@ -117,8 +118,8 @@ def ses_notification_webhook() -> ResponseReturnValue:
             )
             logger.info(f"SES {status} for message {ses_message_id}")
 
-        return jsonify({'status': 'ok'}), 200
+        return jsonify({"status": "ok"}), 200
 
     except Exception as e:
         logger.error(f"Error processing SES webhook: {e}")
-        return jsonify({'status': 'error'}), 200  # Return 200 to prevent SNS retries
+        return jsonify({"status": "error"}), 200  # Return 200 to prevent SNS retries

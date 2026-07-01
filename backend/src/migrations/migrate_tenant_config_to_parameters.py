@@ -21,36 +21,36 @@ import json
 import logging
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from database import DatabaseManager
 from services.parameter_service import ParameterService
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def map_key_to_namespace(config_key: str) -> tuple:
     """Map a tenant_config key to (namespace, key) in parameters table."""
-    if config_key.startswith('google_drive_'):
-        return ('storage', config_key)
-    if config_key.startswith('storage_'):
-        return ('storage', config_key[len('storage_'):])
-    if config_key.startswith('company_logo'):
-        return ('str_branding', config_key)
-    return ('config', config_key)
+    if config_key.startswith("google_drive_"):
+        return ("storage", config_key)
+    if config_key.startswith("storage_"):
+        return ("storage", config_key[len("storage_") :])
+    if config_key.startswith("company_logo"):
+        return ("str_branding", config_key)
+    return ("config", config_key)
 
 
 def migrate(dry_run: bool = False):
     """Migrate all tenant_config rows to parameters table."""
-    test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
     db = DatabaseManager(test_mode=test_mode)
     param_service = ParameterService(db)
 
     # Read all tenant_config rows
     rows = db.execute_query(
         "SELECT administration, config_key, config_value, is_secret FROM tenant_config ORDER BY administration, config_key",
-        fetch=True
+        fetch=True,
     )
 
     if not rows:
@@ -62,46 +62,48 @@ def migrate(dry_run: bool = False):
     skipped = 0
 
     for row in rows:
-        tenant = row['administration']
-        config_key = row['config_key']
-        config_value = row['config_value']
-        is_secret = bool(row.get('is_secret', False))
+        tenant = row["administration"]
+        config_key = row["config_key"]
+        config_value = row["config_value"]
+        is_secret = bool(row.get("is_secret", False))
 
         namespace, key = map_key_to_namespace(config_key)
 
         # Determine value type
         value = config_value
-        value_type = 'string'
+        value_type = "string"
         if config_value:
             try:
                 parsed = json.loads(config_value)
                 if isinstance(parsed, bool):
                     value = parsed
-                    value_type = 'boolean'
+                    value_type = "boolean"
                 elif isinstance(parsed, (int, float)):
                     value = parsed
-                    value_type = 'number'
+                    value_type = "number"
                 elif isinstance(parsed, (dict, list)):
                     value = parsed
-                    value_type = 'json'
+                    value_type = "json"
             except (json.JSONDecodeError, TypeError):
                 pass  # Keep as string
 
         if dry_run:
-            logger.info(f"  [DRY RUN] {tenant}: {config_key} -> parameters(scope=tenant, ns={namespace}, key={key}, type={value_type}, secret={is_secret})")
+            logger.info(
+                f"  [DRY RUN] {tenant}: {config_key} -> parameters(scope=tenant, ns={namespace}, key={key}, type={value_type}, secret={is_secret})"
+            )
             migrated += 1
             continue
 
         try:
             param_service.set_param(
-                scope='tenant',
+                scope="tenant",
                 scope_id=tenant,
                 namespace=namespace,
                 key=key,
                 value=value,
                 value_type=value_type,
                 is_secret=is_secret,
-                created_by='migration_r17',
+                created_by="migration_r17",
             )
             migrated += 1
             logger.info(f"  OK {tenant}: {config_key} -> {namespace}.{key}")
@@ -112,8 +114,8 @@ def migrate(dry_run: bool = False):
     logger.info(f"\nMigration complete: {migrated} migrated, {skipped} skipped.")
 
 
-if __name__ == '__main__':
-    dry_run = '--dry-run' in sys.argv
+if __name__ == "__main__":
+    dry_run = "--dry-run" in sys.argv
     if dry_run:
         logger.info("=== DRY RUN MODE ===")
     migrate(dry_run=dry_run)

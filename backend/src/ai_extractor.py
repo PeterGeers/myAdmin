@@ -13,7 +13,7 @@ load_dotenv()
 
 class AIExtractor:
     def __init__(self):
-        self.api_key = os.getenv('OPENROUTER_API_KEY')
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.sanitizer = AISanitizer()
 
@@ -22,7 +22,9 @@ class AIExtractor:
         else:
             print("AI Extractor initialized successfully")
 
-    def extract_invoice_data(self, text_content, vendor_hint=None, previous_transactions=None):
+    def extract_invoice_data(
+        self, text_content, vendor_hint=None, previous_transactions=None
+    ):
         """Extract invoice data using AI with fallback models.
 
         Sanitizes text content through AISanitizer before prompt construction
@@ -38,7 +40,9 @@ class AIExtractor:
 
         # Handle rejection (>50% stripped)
         if sanitize_result.rejected:
-            print("AI extraction rejected: document content could not be safely processed")
+            print(
+                "AI extraction rejected: document content could not be safely processed"
+            )
             return {"error": "Document content could not be safely processed"}
 
         # Build prompt with system+user role separation
@@ -66,60 +70,70 @@ class AIExtractor:
                     self.base_url,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
                     },
                     json={
                         "model": model.model_id,
                         "messages": messages,
                         "temperature": 0.1,
-                        "max_tokens": model.max_tokens
+                        "max_tokens": model.max_tokens,
                     },
-                    timeout=model.timeout
+                    timeout=model.timeout,
                 )
 
                 if response.status_code == 200:
                     result = response.json()
-                    content = result['choices'][0]['message']['content'].strip()
+                    content = result["choices"][0]["message"]["content"].strip()
 
                     # Capture actual token usage from API response
-                    usage = result.get('usage', {})
+                    usage = result.get("usage", {})
 
                     # Extract JSON from response
-                    if content.startswith('```json'):
-                        content = content.replace('```json', '').replace('```', '').strip()
+                    if content.startswith("```json"):
+                        content = (
+                            content.replace("```json", "").replace("```", "").strip()
+                        )
 
                     try:
                         data = json.loads(content)
 
                         # Validate AI response structure and types
                         if not self.sanitizer.validate_response(data):
-                            print(f"{model.model_id} returned invalid response format, discarding")
+                            print(
+                                f"{model.model_id} returned invalid response format, discarding"
+                            )
                             continue  # Try next model
 
                         # Validate and clean data
                         print(f"Successfully extracted data using {model.model_id}")
                         return {
-                            'date': self._validate_date(data.get('date')),
-                            'total_amount': round(float(data.get('total_amount', 0)), 2),
-                            'vat_amount': round(float(data.get('vat_amount', 0)), 2),
-                            'description': str(data.get('description', '')),
-                            'vendor': str(data.get('vendor', vendor_hint or 'Unknown')),
-                            '_usage': {
-                                'prompt_tokens': usage.get('prompt_tokens', 0),
-                                'completion_tokens': usage.get('completion_tokens', 0),
-                                'total_tokens': usage.get('total_tokens', 0),
-                                'model': model.model_id
-                            }
+                            "date": self._validate_date(data.get("date")),
+                            "total_amount": round(
+                                float(data.get("total_amount", 0)), 2
+                            ),
+                            "vat_amount": round(float(data.get("vat_amount", 0)), 2),
+                            "description": str(data.get("description", "")),
+                            "vendor": str(data.get("vendor", vendor_hint or "Unknown")),
+                            "_usage": {
+                                "prompt_tokens": usage.get("prompt_tokens", 0),
+                                "completion_tokens": usage.get("completion_tokens", 0),
+                                "total_tokens": usage.get("total_tokens", 0),
+                                "model": model.model_id,
+                            },
                         }
                     except json.JSONDecodeError:
                         print(f"{model.model_id} returned invalid JSON: {content}")
                         continue  # Try next model
                 else:
-                    print(f"{model.model_id} API error: {response.status_code} - {response.text}")
+                    print(
+                        f"{model.model_id} API error: {response.status_code} - {response.text}"
+                    )
                     continue  # Try next model
 
             except requests.exceptions.Timeout:
-                print(f"{model.model_id} timeout after {model.timeout} seconds, trying next model")
+                print(
+                    f"{model.model_id} timeout after {model.timeout} seconds, trying next model"
+                )
                 continue
             except Exception as e:
                 print(f"{model.model_id} error: {e}, trying next model")
@@ -128,38 +142,38 @@ class AIExtractor:
         # All models failed — return validation failure error
         print("All AI models failed to produce valid response")
         return {"error": "AI extraction failed: invalid response format"}
-    
+
     def _validate_date(self, date_str):
         """Validate and format date"""
         if not date_str:
-            return datetime.now().strftime('%Y-%m-%d')
-        
+            return datetime.now().strftime("%Y-%m-%d")
+
         try:
             # Try to parse various date formats
-            for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%Y/%m/%d']:
+            for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
                 try:
                     parsed = datetime.strptime(date_str, fmt)
-                    return parsed.strftime('%Y-%m-%d')
+                    return parsed.strftime("%Y-%m-%d")
                 except ValueError:
                     continue
-            
+
             # If no format matches, return current date
-            return datetime.now().strftime('%Y-%m-%d')
+            return datetime.now().strftime("%Y-%m-%d")
         except Exception:
-            return datetime.now().strftime('%Y-%m-%d')
-    
+            return datetime.now().strftime("%Y-%m-%d")
+
     def _fallback_data(self, vendor_hint):
         """Return fallback data when AI fails"""
         return {
-            'date': datetime.now().strftime('%Y-%m-%d'),
-            'total_amount': 0.0,
-            'vat_amount': 0.0,
-            'description': f'{vendor_hint or "Unknown"} invoice',
-            'vendor': vendor_hint or 'Unknown',
-            '_usage': {
-                'prompt_tokens': 0,
-                'completion_tokens': 0,
-                'total_tokens': 0,
-                'model': ''
-            }
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "total_amount": 0.0,
+            "vat_amount": 0.0,
+            "description": f"{vendor_hint or 'Unknown'} invoice",
+            "vendor": vendor_hint or "Unknown",
+            "_usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "model": "",
+            },
         }

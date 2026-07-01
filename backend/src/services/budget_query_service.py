@@ -48,8 +48,7 @@ class BudgetQueryService:
         Returns:
             The amount rounded to 2 decimal places.
         """
-        return amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
-
+        return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
     # -------------------------------------------------------------------------
     # Budget Version Queries
@@ -92,15 +91,13 @@ class BudgetQueryService:
         results = self.db.execute_query(query, params)
         versions = results if results else []
 
-        return {'success': True, 'data': versions}
+        return {"success": True, "data": versions}
 
     # -------------------------------------------------------------------------
     # Budget Line Queries
     # -------------------------------------------------------------------------
 
-    def list_lines(
-        self, administration: str, version_id: int
-    ) -> Dict[str, Any]:
+    def list_lines(self, administration: str, version_id: int) -> Dict[str, Any]:
         """
         List all budget lines for a version.
 
@@ -128,7 +125,7 @@ class BudgetQueryService:
         )
 
         lines = results if results else []
-        return {'success': True, 'data': lines}
+        return {"success": True, "data": lines}
 
     # -------------------------------------------------------------------------
     # Hierarchy Rollup
@@ -149,14 +146,12 @@ class BudgetQueryService:
 
         Validates: Requirements 6.7, 7.1, 7.2
         """
-        all_months = [
-            Decimal(str(row.get(f'm{i:02d}', 0) or 0)) for i in range(1, 13)
-        ]
+        all_months = [Decimal(str(row.get(f"m{i:02d}", 0) or 0)) for i in range(1, 13)]
         if months is None:
-            return sum(all_months, Decimal('0.00'))
+            return sum(all_months, Decimal("0.00"))
         return sum(
             (all_months[m - 1] for m in months if 1 <= m <= 12),
-            Decimal('0.00'),
+            Decimal("0.00"),
         )
 
     def get_rollup(
@@ -188,30 +183,30 @@ class BudgetQueryService:
 
         Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
         """
-        valid_levels = ('parent', 'subparent', 'account')
+        valid_levels = ("parent", "subparent", "account")
         if level not in valid_levels:
             return {
-                'success': False,
-                'error': f"Invalid level '{level}'. Use: parent, subparent, account",
+                "success": False,
+                "error": f"Invalid level '{level}'. Use: parent, subparent, account",
             }
 
-        if level == 'subparent' and not parent_code:
+        if level == "subparent" and not parent_code:
             return {
-                'success': False,
-                'error': "parent_code is required when level is 'subparent'",
+                "success": False,
+                "error": "parent_code is required when level is 'subparent'",
             }
 
-        if level == 'account' and not subparent_code:
+        if level == "account" and not subparent_code:
             return {
-                'success': False,
-                'error': "subparent_code is required when level is 'account'",
+                "success": False,
+                "error": "subparent_code is required when level is 'account'",
             }
 
-        month_cols = ', '.join(
-            f'SUM(bl.month_{i:02d}) AS m{i:02d}' for i in range(1, 13)
+        month_cols = ", ".join(
+            f"SUM(bl.month_{i:02d}) AS m{i:02d}" for i in range(1, 13)
         )
 
-        if level == 'parent':
+        if level == "parent":
             query = f"""
                 SELECT r.Parent AS code,
                        {month_cols}
@@ -224,7 +219,7 @@ class BudgetQueryService:
             """
             params: tuple = (version_id, administration)
 
-        elif level == 'subparent':
+        elif level == "subparent":
             query = f"""
                 SELECT r.SubParent AS code, MAX(r.Parent) AS parent_code,
                        {month_cols}
@@ -239,8 +234,8 @@ class BudgetQueryService:
 
         else:  # level == 'account'
             # At account level we don't aggregate — return individual lines
-            month_cols_individual = ', '.join(
-                f'bl.month_{i:02d} AS m{i:02d}' for i in range(1, 13)
+            month_cols_individual = ", ".join(
+                f"bl.month_{i:02d} AS m{i:02d}" for i in range(1, 13)
             )
             query = f"""
                 SELECT bl.account_code AS code, r.SubParent AS subparent_code,
@@ -261,31 +256,31 @@ class BudgetQueryService:
         data: List[Dict[str, Any]] = []
 
         for row in rows:
-            code = row.get('code') or ''
+            code = row.get("code") or ""
             budget_total = self._sum_months(row, months)
 
             entry: Dict[str, Any] = {
-                'code': code if code else 'Unassigned',
-                'name': row.get('name', ''),
-                'budget': float(self.round_monetary(budget_total)),
+                "code": code if code else "Unassigned",
+                "name": row.get("name", ""),
+                "budget": float(self.round_monetary(budget_total)),
             }
 
             # Include hierarchy references when available
-            if level == 'subparent':
-                entry['parent_code'] = row.get('parent_code', '')
+            if level == "subparent":
+                entry["parent_code"] = row.get("parent_code", "")
                 # Handle NULL SubParent → "Unassigned"
                 if not code:
-                    entry['code'] = 'Unassigned'
-            elif level == 'account':
-                entry['subparent_code'] = row.get('subparent_code', '')
+                    entry["code"] = "Unassigned"
+            elif level == "account":
+                entry["subparent_code"] = row.get("subparent_code", "")
 
             data.append(entry)
 
         # For parent and subparent levels, resolve names via secondary query
-        if level in ('parent', 'subparent') and data:
-            codes_to_resolve = [d['code'] for d in data if d['code'] != 'Unassigned']
+        if level in ("parent", "subparent") and data:
+            codes_to_resolve = [d["code"] for d in data if d["code"] != "Unassigned"]
             if codes_to_resolve:
-                placeholders = ', '.join(['%s'] * len(codes_to_resolve))
+                placeholders = ", ".join(["%s"] * len(codes_to_resolve))
                 name_query = f"""
                     SELECT DISTINCT Account, AccountName
                     FROM rekeningschema
@@ -296,19 +291,18 @@ class BudgetQueryService:
                 name_map: Dict[str, str] = {}
                 if name_rows:
                     for nr in name_rows:
-                        name_map[nr['Account']] = nr.get('AccountName', '')
+                        name_map[nr["Account"]] = nr.get("AccountName", "")
 
                 for entry in data:
-                    if entry['code'] != 'Unassigned' and entry['code'] in name_map:
-                        entry['name'] = name_map[entry['code']]
+                    if entry["code"] != "Unassigned" and entry["code"] in name_map:
+                        entry["name"] = name_map[entry["code"]]
 
         # Ensure "Unassigned" entries have a name
         for entry in data:
-            if entry['code'] == 'Unassigned':
-                entry['name'] = 'Unassigned'
+            if entry["code"] == "Unassigned":
+                entry["name"] = "Unassigned"
 
-        return {'success': True, 'data': data}
-
+        return {"success": True, "data": data}
 
     # -------------------------------------------------------------------------
     # Dashboard
@@ -332,20 +326,25 @@ class BudgetQueryService:
 
         Validates: Requirements 6.7
         """
-        if period and period.startswith('month-'):
+        if period and period.startswith("month-"):
             try:
-                month_num = int(period.split('-')[1])
+                month_num = int(period.split("-")[1])
                 if 1 <= month_num <= 12:
                     return [month_num]
             except (ValueError, IndexError):
                 pass
             return list(range(1, 13))
 
-        quarters = {'q1': [1, 2, 3], 'q2': [4, 5, 6], 'q3': [7, 8, 9], 'q4': [10, 11, 12]}
+        quarters = {
+            "q1": [1, 2, 3],
+            "q2": [4, 5, 6],
+            "q3": [7, 8, 9],
+            "q4": [10, 11, 12],
+        }
         if period in quarters:
             return quarters[period]
 
-        if period == 'ytd':
+        if period == "ytd":
             return list(range(1, datetime.now().month + 1))
 
         # 'full' or unrecognized defaults to full year
@@ -385,7 +384,7 @@ class BudgetQueryService:
         """
         # Default period to 'ytd' if not specified
         if not period:
-            period = 'ytd'
+            period = "ytd"
 
         month_list = self._parse_period(period)
 
@@ -399,9 +398,9 @@ class BudgetQueryService:
                 (version_id, administration),
             )
             if not version_results:
-                return {'success': False, 'error': "Budget version not found"}
+                return {"success": False, "error": "Budget version not found"}
             active_version = version_results[0]
-            resolved_year = active_version['fiscal_year']
+            resolved_year = active_version["fiscal_year"]
         elif year:
             version_results = self.db.execute_query(
                 """
@@ -413,23 +412,23 @@ class BudgetQueryService:
             )
             if not version_results:
                 return {
-                    'success': True,
-                    'data': {
-                        'year': year,
-                        'level': level,
-                        'period': period,
-                        'active_version': None,
-                        'rows': [],
-                        'notification': f"No active budget version for {year}",
+                    "success": True,
+                    "data": {
+                        "year": year,
+                        "level": level,
+                        "period": period,
+                        "active_version": None,
+                        "rows": [],
+                        "notification": f"No active budget version for {year}",
                     },
                 }
             active_version = version_results[0]
             resolved_year = year
         else:
-            return {'success': False, 'error': "Either version_id or year is required"}
+            return {"success": False, "error": "Either version_id or year is required"}
 
-        vid = active_version['id']
-        version_name = active_version['name']
+        vid = active_version["id"]
+        version_name = active_version["name"]
 
         # 2. Get budget rollup
         budget_map: Dict[str, float] = {}
@@ -438,16 +437,21 @@ class BudgetQueryService:
             # When filtering by reference_number, query budget_lines filtered by
             # detail_dimension_value where detail_dimension_type='ReferenceNumber'
             budget_data = self._get_budget_rollup_filtered(
-                administration, vid, level, parent_code, subparent_code,
-                month_list, reference_number
+                administration,
+                vid,
+                level,
+                parent_code,
+                subparent_code,
+                month_list,
+                reference_number,
             )
         else:
             rollup_result = self.get_rollup(
                 administration, vid, level, parent_code, subparent_code, month_list
             )
-            if rollup_result['success']:
-                for row in rollup_result['data']:
-                    budget_map[row['code']] = row['budget']
+            if rollup_result["success"]:
+                for row in rollup_result["data"]:
+                    budget_map[row["code"]] = row["budget"]
             budget_data = None
 
         if budget_data is not None:
@@ -455,38 +459,51 @@ class BudgetQueryService:
 
         # 3. Get actuals rollup from vw_mutaties
         actuals_map = self._get_actuals_rollup(
-            administration, resolved_year, level, parent_code, subparent_code,
-            month_list, reference_number
+            administration,
+            resolved_year,
+            level,
+            parent_code,
+            subparent_code,
+            month_list,
+            reference_number,
         )
 
         # 4. Resolve names for all codes
         all_codes = set(budget_map.keys()) | set(actuals_map.keys())
-        all_codes.discard('Unassigned')
+        all_codes.discard("Unassigned")
         name_map = self._resolve_names(administration, list(all_codes))
 
         # 5. Merge budget and actuals
         rows: List[Dict[str, Any]] = []
-        for code in sorted(all_codes | {'Unassigned'} if 'Unassigned' in (set(budget_map.keys()) | set(actuals_map.keys())) else sorted(all_codes)):
+        for code in sorted(
+            all_codes | {"Unassigned"}
+            if "Unassigned" in (set(budget_map.keys()) | set(actuals_map.keys()))
+            else sorted(all_codes)
+        ):
             budget_val = budget_map.get(code, 0.0)
             actual_val = actuals_map.get(code, 0.0)
             variance = round(actual_val - budget_val, 2)
 
-            rows.append({
-                'code': code,
-                'name': name_map.get(code, 'Unassigned' if code == 'Unassigned' else ''),
-                'budget': budget_val,
-                'actual': actual_val,
-                'variance': variance,
-            })
+            rows.append(
+                {
+                    "code": code,
+                    "name": name_map.get(
+                        code, "Unassigned" if code == "Unassigned" else ""
+                    ),
+                    "budget": budget_val,
+                    "actual": actual_val,
+                    "variance": variance,
+                }
+            )
 
         return {
-            'success': True,
-            'data': {
-                'year': resolved_year,
-                'level': level,
-                'period': period,
-                'active_version': {'id': vid, 'name': version_name},
-                'rows': rows,
+            "success": True,
+            "data": {
+                "year": resolved_year,
+                "level": level,
+                "period": period,
+                "active_version": {"id": vid, "name": version_name},
+                "rows": rows,
             },
         }
 
@@ -522,11 +539,11 @@ class BudgetQueryService:
         Returns:
             Dict mapping code to budget total (float).
         """
-        month_cols = ', '.join(
-            f'SUM(bl.month_{i:02d}) AS m{i:02d}' for i in range(1, 13)
+        month_cols = ", ".join(
+            f"SUM(bl.month_{i:02d}) AS m{i:02d}" for i in range(1, 13)
         )
 
-        if level == 'parent':
+        if level == "parent":
             query = f"""
                 SELECT r.Parent AS code,
                        {month_cols}
@@ -541,7 +558,7 @@ class BudgetQueryService:
             """
             params: tuple = (version_id, administration, reference_number)
 
-        elif level == 'subparent':
+        elif level == "subparent":
             query = f"""
                 SELECT r.SubParent AS code,
                        {month_cols}
@@ -557,8 +574,8 @@ class BudgetQueryService:
             params = (version_id, administration, parent_code, reference_number)
 
         else:  # account
-            month_cols_individual = ', '.join(
-                f'bl.month_{i:02d} AS m{i:02d}' for i in range(1, 13)
+            month_cols_individual = ", ".join(
+                f"bl.month_{i:02d} AS m{i:02d}" for i in range(1, 13)
             )
             query = f"""
                 SELECT bl.account_code AS code,
@@ -578,7 +595,7 @@ class BudgetQueryService:
 
         budget_map: Dict[str, float] = {}
         for row in rows:
-            code = row.get('code') or 'Unassigned'
+            code = row.get("code") or "Unassigned"
             total = self._sum_months(row, months)
             budget_map[code] = float(self.round_monetary(total))
 
@@ -609,9 +626,9 @@ class BudgetQueryService:
         Returns:
             Dict mapping code to actual total (float).
         """
-        placeholders = ', '.join(['%s'] * len(months))
+        placeholders = ", ".join(["%s"] * len(months))
 
-        if level == 'parent':
+        if level == "parent":
             query = f"""
                 SELECT r.Parent AS code, SUM(vm.Amount) AS actual
                 FROM vw_mutaties vm
@@ -623,7 +640,7 @@ class BudgetQueryService:
             """
             params_list: list = [administration, year, *months]
 
-        elif level == 'subparent':
+        elif level == "subparent":
             query = f"""
                 SELECT r.SubParent AS code, SUM(vm.Amount) AS actual
                 FROM vw_mutaties vm
@@ -653,9 +670,9 @@ class BudgetQueryService:
             query += "  AND vm.ReferenceNumber = %s"
             params_list.append(reference_number)
 
-        if level == 'parent':
+        if level == "parent":
             query += "\n                GROUP BY r.Parent"
-        elif level == 'subparent':
+        elif level == "subparent":
             query += "\n                GROUP BY r.SubParent"
         else:
             query += "\n                GROUP BY vm.Reknum"
@@ -665,15 +682,13 @@ class BudgetQueryService:
 
         actuals_map: Dict[str, float] = {}
         for row in rows:
-            code = row.get('code') or 'Unassigned'
-            actual = Decimal(str(row.get('actual', 0) or 0))
+            code = row.get("code") or "Unassigned"
+            actual = Decimal(str(row.get("actual", 0) or 0))
             actuals_map[code] = float(self.round_monetary(actual))
 
         return actuals_map
 
-    def _resolve_names(
-        self, administration: str, codes: List[str]
-    ) -> Dict[str, str]:
+    def _resolve_names(self, administration: str, codes: List[str]) -> Dict[str, str]:
         """
         Resolve account/parent/subparent codes to names via rekeningschema.
 
@@ -687,7 +702,7 @@ class BudgetQueryService:
         if not codes:
             return {}
 
-        placeholders = ', '.join(['%s'] * len(codes))
+        placeholders = ", ".join(["%s"] * len(codes))
         name_query = f"""
             SELECT DISTINCT Account, AccountName
             FROM rekeningschema
@@ -698,6 +713,6 @@ class BudgetQueryService:
         name_map: Dict[str, str] = {}
         if name_rows:
             for nr in name_rows:
-                name_map[nr['Account']] = nr.get('AccountName', '')
+                name_map[nr["Account"]] = nr.get("AccountName", "")
 
         return name_map

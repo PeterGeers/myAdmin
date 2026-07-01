@@ -46,19 +46,19 @@ class TemplatePreviewService:
 
         # Import TemplateService for template operations
         from services.template_service import TemplateService
+
         self.template_service = TemplateService(db_manager)
 
         # Initialize helper modules
         self.html_processor = TemplateHtmlProcessor()
         self.renderer = TemplatePdfRenderer(db_manager, administration)
 
-        logger.info(f"TemplatePreviewService initialized for administration '{administration}'")
+        logger.info(
+            f"TemplatePreviewService initialized for administration '{administration}'"
+        )
 
     def generate_preview(
-        self,
-        template_type: str,
-        template_content: str,
-        field_mappings: Dict[str, Any]
+        self, template_type: str, template_content: str, field_mappings: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Generate preview with sample data.
@@ -86,66 +86,71 @@ class TemplatePreviewService:
             # 1. Validate template
             validation = self.validate_template(template_type, template_content)
 
-            if not validation['is_valid']:
+            if not validation["is_valid"]:
                 logger.warning(f"Template validation failed for type '{template_type}'")
-                return {
-                    'success': False,
-                    'validation': validation
-                }
+                return {"success": False, "validation": validation}
 
             # 2. Fetch sample data
             sample_data_result = self.fetch_sample_data(template_type)
 
             if not sample_data_result:
-                logger.warning(f"No sample data available for template type '{template_type}'")
+                logger.warning(
+                    f"No sample data available for template type '{template_type}'"
+                )
                 return {
-                    'success': False,
-                    'validation': {
-                        'is_valid': False,
-                        'errors': [{
-                            'type': 'no_sample_data',
-                            'message': 'No sample data available for preview generation',
-                            'severity': 'error'
-                        }],
-                        'warnings': []
-                    }
+                    "success": False,
+                    "validation": {
+                        "is_valid": False,
+                        "errors": [
+                            {
+                                "type": "no_sample_data",
+                                "message": "No sample data available for preview generation",
+                                "severity": "error",
+                            }
+                        ],
+                        "warnings": [],
+                    },
                 }
 
-            sample_data = sample_data_result['data']
-            sample_data_info = sample_data_result['metadata']
+            sample_data = sample_data_result["data"]
+            sample_data_info = sample_data_result["metadata"]
 
             # 3. Generate preview using template renderer
             preview_html = self.html_processor.render_template(
-                template_content,
-                sample_data,
-                field_mappings
+                template_content, sample_data, field_mappings
             )
 
-            logger.info(f"Successfully generated preview for template type '{template_type}'")
+            logger.info(
+                f"Successfully generated preview for template type '{template_type}'"
+            )
 
             return {
-                'success': True,
-                'preview_html': preview_html,
-                'validation': validation,
-                'sample_data_info': sample_data_info
+                "success": True,
+                "preview_html": preview_html,
+                "validation": validation,
+                "sample_data_info": sample_data_info,
             }
 
         except Exception as e:
             logger.error(f"Failed to generate preview: {e}")
             return {
-                'success': False,
-                'validation': {
-                    'is_valid': False,
-                    'errors': [{
-                        'type': 'preview_generation_error',
-                        'message': f'Failed to generate preview: {str(e)}',
-                        'severity': 'error'
-                    }],
-                    'warnings': []
-                }
+                "success": False,
+                "validation": {
+                    "is_valid": False,
+                    "errors": [
+                        {
+                            "type": "preview_generation_error",
+                            "message": f"Failed to generate preview: {str(e)}",
+                            "severity": "error",
+                        }
+                    ],
+                    "warnings": [],
+                },
             }
 
-    def validate_template(self, template_type: str, template_content: str) -> Dict[str, Any]:
+    def validate_template(
+        self, template_type: str, template_content: str
+    ) -> Dict[str, Any]:
         """
         Validate template syntax and structure.
 
@@ -179,22 +184,34 @@ class TemplatePreviewService:
             errors.extend(syntax_errors)
 
             # Check 2: Required placeholders
-            placeholder_errors = self.html_processor.validate_placeholders(template_type, template_content)
+            placeholder_errors = self.html_processor.validate_placeholders(
+                template_type, template_content
+            )
             errors.extend(placeholder_errors)
 
             # Check 3: Security scan
             security_issues = self.html_processor.validate_security(template_content)
-            errors.extend([issue for issue in security_issues if issue.get('severity') == 'error'])
-            warnings.extend([issue for issue in security_issues if issue.get('severity') == 'warning'])
+            errors.extend(
+                [issue for issue in security_issues if issue.get("severity") == "error"]
+            )
+            warnings.extend(
+                [
+                    issue
+                    for issue in security_issues
+                    if issue.get("severity") == "warning"
+                ]
+            )
 
             # Check 4: File size
-            max_size = int(os.getenv('TEMPLATE_MAX_SIZE_MB', '5')) * 1024 * 1024
-            if len(template_content.encode('utf-8')) > max_size:
-                errors.append({
-                    'type': 'file_size',
-                    'message': f'Template exceeds {max_size // (1024 * 1024)}MB limit',
-                    'severity': 'error'
-                })
+            max_size = int(os.getenv("TEMPLATE_MAX_SIZE_MB", "5")) * 1024 * 1024
+            if len(template_content.encode("utf-8")) > max_size:
+                errors.append(
+                    {
+                        "type": "file_size",
+                        "message": f"Template exceeds {max_size // (1024 * 1024)}MB limit",
+                        "severity": "error",
+                    }
+                )
 
             is_valid = len(errors) == 0
 
@@ -209,28 +226,30 @@ class TemplatePreviewService:
             )
 
             return {
-                'is_valid': is_valid,
-                'errors': errors,
-                'warnings': warnings,
-                'checks_performed': [
-                    'html_syntax',
-                    'required_placeholders',
-                    'security_scan',
-                    'file_size'
-                ]
+                "is_valid": is_valid,
+                "errors": errors,
+                "warnings": warnings,
+                "checks_performed": [
+                    "html_syntax",
+                    "required_placeholders",
+                    "security_scan",
+                    "file_size",
+                ],
             }
 
         except Exception as e:
             logger.error(f"Template validation failed: {e}")
             return {
-                'is_valid': False,
-                'errors': [{
-                    'type': 'validation_error',
-                    'message': f'Validation failed: {str(e)}',
-                    'severity': 'error'
-                }],
-                'warnings': [],
-                'checks_performed': []
+                "is_valid": False,
+                "errors": [
+                    {
+                        "type": "validation_error",
+                        "message": f"Validation failed: {str(e)}",
+                        "severity": "error",
+                    }
+                ],
+                "warnings": [],
+                "checks_performed": [],
             }
 
     def fetch_sample_data(self, template_type: str) -> Optional[Dict[str, Any]]:
@@ -254,13 +273,13 @@ class TemplatePreviewService:
         try:
             logger.info(f"Fetching sample data for template type '{template_type}'")
 
-            if template_type in ['str_invoice_nl', 'str_invoice_en']:
+            if template_type in ["str_invoice_nl", "str_invoice_en"]:
                 return self.renderer.fetch_str_invoice_sample()
-            elif template_type == 'btw_aangifte':
+            elif template_type == "btw_aangifte":
                 return self.renderer.fetch_btw_sample()
-            elif template_type == 'aangifte_ib':
+            elif template_type == "aangifte_ib":
                 return self.renderer.fetch_aangifte_ib_sample()
-            elif template_type == 'toeristenbelasting':
+            elif template_type == "toeristenbelasting":
                 return self.renderer.fetch_toeristenbelasting_sample()
             else:
                 return self.renderer.fetch_generic_sample()
@@ -275,7 +294,7 @@ class TemplatePreviewService:
         template_content: str,
         field_mappings: Dict[str, Any],
         user_email: str,
-        notes: str = ''
+        notes: str = "",
     ) -> Dict[str, Any]:
         """
         Approve and save template.
@@ -305,41 +324,44 @@ class TemplatePreviewService:
             }
         """
         try:
-            logger.info(f"Approving template type '{template_type}' by user '{user_email}'")
+            logger.info(
+                f"Approving template type '{template_type}' by user '{user_email}'"
+            )
 
             # 1. Validate template one more time
             validation = self.validate_template(template_type, template_content)
-            if not validation['is_valid']:
+            if not validation["is_valid"]:
                 return {
-                    'success': False,
-                    'message': 'Template validation failed',
-                    'validation': validation
+                    "success": False,
+                    "message": "Template validation failed",
+                    "validation": validation,
                 }
 
             # 1.5. Auto-generate field_mappings if empty
-            if not field_mappings or not field_mappings.get('fields'):
-                logger.info(f"Auto-generating field_mappings for template type '{template_type}'")
-                field_mappings = self.renderer.generate_default_field_mappings(template_type, template_content)
+            if not field_mappings or not field_mappings.get("fields"):
+                logger.info(
+                    f"Auto-generating field_mappings for template type '{template_type}'"
+                )
+                field_mappings = self.renderer.generate_default_field_mappings(
+                    template_type, template_content
+                )
 
             # 2. Get current template metadata (if exists)
             current_metadata = self.template_service.get_template_metadata(
-                self.administration,
-                template_type
+                self.administration, template_type
             )
 
             previous_file_id = None
             version = 1
 
             if current_metadata:
-                previous_file_id = current_metadata.get('template_file_id')
+                previous_file_id = current_metadata.get("template_file_id")
                 # Increment version (would need to query for max version)
                 version = 2  # Simplified - should query for actual max version
 
             # 3. Save template to Google Drive
             file_id = self._save_template_to_drive(
-                template_type,
-                template_content,
-                version
+                template_type, template_content, version
             )
 
             # 4. Update database metadata
@@ -350,16 +372,11 @@ class TemplatePreviewService:
                 user_email,
                 notes,
                 previous_file_id,
-                version
+                version,
             )
 
             # 5. Log approval
-            self._log_template_approval(
-                template_type,
-                user_email,
-                notes,
-                validation
-            )
+            self._log_template_approval(template_type, user_email, notes, validation)
 
             logger.info(
                 f"Successfully approved template type '{template_type}', "
@@ -367,16 +384,16 @@ class TemplatePreviewService:
             )
 
             result = {
-                'success': True,
-                'template_id': f"tmpl_{template_type}_{version}",
-                'file_id': file_id,
-                'message': 'Template approved and activated'
+                "success": True,
+                "template_id": f"tmpl_{template_type}_{version}",
+                "file_id": file_id,
+                "message": "Template approved and activated",
             }
 
             if previous_file_id:
-                result['previous_version'] = {
-                    'file_id': previous_file_id,
-                    'archived_at': datetime.now().isoformat()
+                result["previous_version"] = {
+                    "file_id": previous_file_id,
+                    "archived_at": datetime.now().isoformat(),
                 }
 
             return result
@@ -384,17 +401,14 @@ class TemplatePreviewService:
         except Exception as e:
             logger.error(f"Failed to approve template: {e}")
             return {
-                'success': False,
-                'message': f'Failed to approve template: {str(e)}'
+                "success": False,
+                "message": f"Failed to approve template: {str(e)}",
             }
 
     # Template approval helper methods
 
     def _save_template_to_drive(
-        self,
-        template_type: str,
-        template_content: str,
-        version: int
+        self, template_type: str, template_content: str, version: int
     ) -> str:
         """
         Save template to Google Drive.
@@ -420,27 +434,22 @@ class TemplatePreviewService:
 
             # Create file metadata
             file_name = f"{template_type}_v{version}.html"
-            file_metadata = {
-                'name': file_name,
-                'mimeType': 'text/html'
-            }
+            file_metadata = {"name": file_name, "mimeType": "text/html"}
 
             # Create media upload
-            file_content = BytesIO(template_content.encode('utf-8'))
+            file_content = BytesIO(template_content.encode("utf-8"))
             media = MediaIoBaseUpload(
-                file_content,
-                mimetype='text/html',
-                resumable=True
+                file_content, mimetype="text/html", resumable=True
             )
 
             # Upload file
-            file = drive_service.service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id'
-            ).execute()
+            file = (
+                drive_service.service.files()
+                .create(body=file_metadata, media_body=media, fields="id")
+                .execute()
+            )
 
-            file_id = file.get('id')
+            file_id = file.get("id")
 
             logger.info(f"Saved template to Google Drive: file_id '{file_id}'")
 
@@ -458,7 +467,7 @@ class TemplatePreviewService:
         user_email: str,
         notes: str,
         previous_file_id: Optional[str],
-        version: int
+        version: int,
     ):
         """
         Update template metadata in database.
@@ -481,7 +490,9 @@ class TemplatePreviewService:
                 SELECT id FROM tenant_template_config
                 WHERE administration = %s AND template_type = %s
             """
-            existing = self.db.execute_query(check_query, (self.administration, template_type))
+            existing = self.db.execute_query(
+                check_query, (self.administration, template_type)
+            )
 
             if existing:
                 # Update existing
@@ -501,10 +512,18 @@ class TemplatePreviewService:
                 """
                 self.db.execute_query(
                     update_query,
-                    (file_id, field_mappings_json, version, user_email, notes,
-                     previous_file_id, self.administration, template_type),
+                    (
+                        file_id,
+                        field_mappings_json,
+                        version,
+                        user_email,
+                        notes,
+                        previous_file_id,
+                        self.administration,
+                        template_type,
+                    ),
                     fetch=False,
-                    commit=True
+                    commit=True,
                 )
             else:
                 # Insert new
@@ -517,10 +536,18 @@ class TemplatePreviewService:
                 """
                 self.db.execute_query(
                     insert_query,
-                    (self.administration, template_type, file_id, field_mappings_json,
-                     version, user_email, notes, previous_file_id),
+                    (
+                        self.administration,
+                        template_type,
+                        file_id,
+                        field_mappings_json,
+                        version,
+                        user_email,
+                        notes,
+                        previous_file_id,
+                    ),
                     fetch=False,
-                    commit=True
+                    commit=True,
                 )
 
             logger.info(f"Updated template metadata for type '{template_type}'")
@@ -534,7 +561,7 @@ class TemplatePreviewService:
         template_type: str,
         user_email: str,
         notes: str,
-        validation: Dict[str, Any]
+        validation: Dict[str, Any],
     ) -> None:
         """
         Log template approval in validation log.
@@ -546,8 +573,8 @@ class TemplatePreviewService:
             validation: Validation results
         """
         try:
-            errors_json = json.dumps(validation.get('errors', []))
-            warnings_json = json.dumps(validation.get('warnings', []))
+            errors_json = json.dumps(validation.get("errors", []))
+            warnings_json = json.dumps(validation.get("warnings", []))
 
             query = """
                 INSERT INTO template_validation_log
@@ -558,9 +585,15 @@ class TemplatePreviewService:
 
             self.db.execute_query(
                 query,
-                (self.administration, template_type, errors_json, warnings_json, user_email),
+                (
+                    self.administration,
+                    template_type,
+                    errors_json,
+                    warnings_json,
+                    user_email,
+                ),
                 fetch=False,
-                commit=True
+                commit=True,
             )
 
             logger.info(f"Logged template approval for type '{template_type}'")

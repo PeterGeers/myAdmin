@@ -21,57 +21,59 @@ logger = logging.getLogger(__name__)
 class AITemplateAssistant:
     """
     AI-powered template assistance using OpenRouter.
-    
+
     Provides functionality for:
     - Analyzing template validation errors
     - Generating fix suggestions with code examples
     - Sanitizing templates to remove PII before sending to AI
     - Applying auto-fixes to templates
     """
-    
+
     def __init__(self, db=None):
         """
         Initialize the AI template assistant.
-        
+
         Loads API key from environment and sets up the usage tracker.
         Model fallback chain is resolved from the AI Model Registry at request time.
-        
+
         Args:
             db: Optional database connection for usage tracking
         """
-        self.api_key = os.getenv('OPENROUTER_API_KEY')
-        self.api_url = 'https://openrouter.ai/api/v1/chat/completions'
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.db = db
-        
+
         # Initialize usage tracker if database is provided
         self.usage_tracker = AIUsageTracker(db) if db else None
-        
+
         if not self.api_key:
-            logger.warning("OPENROUTER_API_KEY not set - AI assistance will be unavailable")
-        
+            logger.warning(
+                "OPENROUTER_API_KEY not set - AI assistance will be unavailable"
+            )
+
         logger.info("AITemplateAssistant initialized (models resolved from registry)")
-    
+
     def get_fix_suggestions(
         self,
         template_type: str,
         template_content: str,
         validation_errors: List[Dict],
         required_placeholders: List[str],
-        administration: Optional[str] = None
+        administration: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get AI suggestions for fixing template errors.
-        
+
         Sends template and validation errors to OpenRouter AI for analysis
         and receives structured fix suggestions.
-        
+
         Args:
             template_type: Type of template (e.g., 'str_invoice_nl')
             template_content: Template HTML content
             validation_errors: List of validation error dictionaries
             required_placeholders: List of required placeholder names
             administration: Optional tenant identifier for usage tracking
-            
+
         Returns:
             Dictionary containing:
             {
@@ -81,179 +83,188 @@ class AITemplateAssistant:
             }
         """
         try:
-            logger.info(f"Getting AI fix suggestions for template type '{template_type}'")
-            
+            logger.info(
+                f"Getting AI fix suggestions for template type '{template_type}'"
+            )
+
             # Check if API key is available
             if not self.api_key:
                 return {
-                    'success': False,
-                    'error': 'AI service not configured - OPENROUTER_API_KEY not set'
+                    "success": False,
+                    "error": "AI service not configured - OPENROUTER_API_KEY not set",
                 }
-            
+
             # Resolve model chain from registry
             try:
                 chain = resolver.resolve_profile("template_assistance")
             except RegistryError:
-                logger.error("Failed to resolve 'template_assistance' profile from registry")
-                return {
-                    'success': False,
-                    'error': 'AI service unavailable'
-                }
-            
+                logger.error(
+                    "Failed to resolve 'template_assistance' profile from registry"
+                )
+                return {"success": False, "error": "AI service unavailable"}
+
             # Sanitize template to remove PII
             sanitized_template = self._sanitize_template(template_content)
-            
+
             # Build prompt for AI
             prompt = self._build_prompt(
                 template_type,
                 sanitized_template,
                 validation_errors,
-                required_placeholders
+                required_placeholders,
             )
-            
+
             # Try models in fallback chain
             last_error = None
             for model in chain:
                 try:
                     logger.info(f"Trying model: {model.model_id}")
-                    
+
                     # Call OpenRouter API
                     response = requests.post(
                         self.api_url,
                         headers={
-                            'Authorization': f'Bearer {self.api_key}',
-                            'Content-Type': 'application/json',
-                            'HTTP-Referer': os.getenv('APP_URL', 'http://localhost:3000'),
-                            'X-Title': 'Template Assistant'
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": os.getenv(
+                                "APP_URL", "http://localhost:3000"
+                            ),
+                            "X-Title": "Template Assistant",
                         },
                         json={
-                            'model': model.model_id,
-                            'messages': [
+                            "model": model.model_id,
+                            "messages": [
                                 {
-                                    'role': 'system',
-                                    'content': (
-                                        'You are a helpful assistant that fixes HTML template errors. '
-                                        'Provide specific, actionable fixes with code examples. '
-                                        'Always respond with valid JSON.'
-                                    )
+                                    "role": "system",
+                                    "content": (
+                                        "You are a helpful assistant that fixes HTML template errors. "
+                                        "Provide specific, actionable fixes with code examples. "
+                                        "Always respond with valid JSON."
+                                    ),
                                 },
-                                {
-                                    'role': 'user',
-                                    'content': prompt
-                                }
+                                {"role": "user", "content": prompt},
                             ],
-                            'temperature': 0.3,  # Lower for more consistent fixes
-                            'max_tokens': model.max_tokens
+                            "temperature": 0.3,  # Lower for more consistent fixes
+                            "max_tokens": model.max_tokens,
                         },
-                        timeout=model.timeout
+                        timeout=model.timeout,
                     )
-                    
+
                     if response.status_code != 200:
-                        logger.warning(f"{model.model_id} API error: {response.status_code} - trying next model")
-                        last_error = f'AI service returned error: {response.status_code}'
+                        logger.warning(
+                            f"{model.model_id} API error: {response.status_code} - trying next model"
+                        )
+                        last_error = (
+                            f"AI service returned error: {response.status_code}"
+                        )
                         continue
-                    
+
                     # Parse AI response
                     ai_response = response.json()
-                    
-                    if 'choices' not in ai_response or len(ai_response['choices']) == 0:
-                        logger.warning(f"{model.model_id} returned invalid format - trying next model")
-                        last_error = 'Invalid response from AI service'
+
+                    if "choices" not in ai_response or len(ai_response["choices"]) == 0:
+                        logger.warning(
+                            f"{model.model_id} returned invalid format - trying next model"
+                        )
+                        last_error = "Invalid response from AI service"
                         continue
-                    
-                    response_text = ai_response['choices'][0]['message']['content']
+
+                    response_text = ai_response["choices"][0]["message"]["content"]
                     suggestions = self._parse_ai_response(response_text)
-                    
+
                     # Extract token usage from response
                     tokens_used = 0
-                    if 'usage' in ai_response:
-                        usage = ai_response['usage']
+                    if "usage" in ai_response:
+                        usage = ai_response["usage"]
                         # Total tokens = prompt tokens + completion tokens
-                        tokens_used = usage.get('total_tokens', 0)
+                        tokens_used = usage.get("total_tokens", 0)
                         if tokens_used == 0:
                             # Fallback: sum prompt and completion tokens
-                            tokens_used = usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)
-                    
+                            tokens_used = usage.get("prompt_tokens", 0) + usage.get(
+                                "completion_tokens", 0
+                            )
+
                     # Log AI usage if tracker is available and administration is provided
                     if self.usage_tracker and administration and tokens_used > 0:
                         self.usage_tracker.log_ai_request(
                             administration=administration,
                             template_type=template_type,
                             tokens_used=tokens_used,
-                            model_used=model.model_id
+                            model_used=model.model_id,
                         )
-                    
-                    logger.info(f"Successfully received AI suggestions using {model.model_id} ({tokens_used} tokens)")
-                    
+
+                    logger.info(
+                        f"Successfully received AI suggestions using {model.model_id} ({tokens_used} tokens)"
+                    )
+
                     return {
-                        'success': True,
-                        'ai_suggestions': suggestions,
-                        'model_used': model.model_id,
-                        'tokens_used': tokens_used
+                        "success": True,
+                        "ai_suggestions": suggestions,
+                        "model_used": model.model_id,
+                        "tokens_used": tokens_used,
                     }
-                    
+
                 except requests.exceptions.Timeout:
                     logger.warning(f"{model.model_id} timed out - trying next model")
-                    last_error = 'AI service request timed out'
+                    last_error = "AI service request timed out"
                     continue
                 except requests.exceptions.RequestException as e:
-                    logger.warning(f"{model.model_id} request failed: {e} - trying next model")
-                    last_error = f'AI service request failed: {str(e)}'
+                    logger.warning(
+                        f"{model.model_id} request failed: {e} - trying next model"
+                    )
+                    last_error = f"AI service request failed: {str(e)}"
                     continue
                 except Exception as e:
                     logger.warning(f"{model.model_id} failed: {e} - trying next model")
-                    last_error = f'Failed to process response: {str(e)}'
+                    last_error = f"Failed to process response: {str(e)}"
                     continue
-            
+
             # All models failed
             logger.error(f"All models failed. Last error: {last_error}")
-            return {
-                'success': False,
-                'error': 'All models failed'
-            }
-            
+            return {"success": False, "error": "All models failed"}
+
         except Exception as e:
             logger.error(f"Unexpected error in get_fix_suggestions: {e}")
             return {
-                'success': False,
-                'error': f'Failed to get AI suggestions: {str(e)}'
+                "success": False,
+                "error": f"Failed to get AI suggestions: {str(e)}",
             }
-    
+
     def _build_prompt(
         self,
         template_type: str,
         template_content: str,
         validation_errors: List[Dict],
-        required_placeholders: List[str]
+        required_placeholders: List[str],
     ) -> str:
         """
         Build prompt for AI analysis.
-        
+
         Creates a structured prompt that includes template type, validation errors,
         required placeholders, and the sanitized template content.
-        
+
         Args:
             template_type: Type of template
             template_content: Sanitized template HTML content
             validation_errors: List of validation error dictionaries
             required_placeholders: List of required placeholder names
-            
+
         Returns:
             Formatted prompt string
         """
         # Format errors for prompt
         formatted_errors = self._format_errors(validation_errors)
-        
+
         # Limit template content to prevent token overflow
         max_template_length = 10000  # ~10KB
         truncated_template = template_content[:max_template_length]
         if len(template_content) > max_template_length:
             truncated_template += "\n... (template truncated for analysis)"
-        
+
         prompt = f"""
 I have an HTML template for a {template_type} report that has validation errors.
 
-**Required Placeholders**: {', '.join(required_placeholders)}
+**Required Placeholders**: {", ".join(required_placeholders)}
 
 **Validation Errors**:
 {formatted_errors}
@@ -287,266 +298,255 @@ Format your response as JSON:
 }}
 """
         return prompt
-    
+
     def _sanitize_template(self, template_content: str) -> str:
         """
         Remove any potentially sensitive data from template.
-        
+
         Sanitizes the template by removing:
         - Email addresses
         - Phone numbers
         - Potential addresses
-        
+
         Preserves placeholders like {{ email }} and {{ phone }}.
-        
+
         Args:
             template_content: Original template HTML content
-            
+
         Returns:
             Sanitized template content
         """
         sanitized = template_content
-        
+
         # Remove hardcoded email addresses (but keep placeholders)
         # Match emails that are NOT inside {{ }}
         sanitized = re.sub(
-            r'(?<!\{)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b(?!\})',
-            'email@example.com',
-            sanitized
+            r"(?<!\{)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b(?!\})",
+            "email@example.com",
+            sanitized,
         )
-        
+
         # Remove hardcoded phone numbers (10+ digits)
         # Match phone numbers that are NOT inside {{ }}
-        sanitized = re.sub(
-            r'(?<!\{)\b\d{10,}\b(?!\})',
-            '0123456789',
-            sanitized
-        )
-        
+        sanitized = re.sub(r"(?<!\{)\b\d{10,}\b(?!\})", "0123456789", sanitized)
+
         # Remove potential street addresses (basic pattern)
         # Match patterns like "123 Main Street" but not placeholders
         # Use a more specific pattern that captures the full address
         sanitized = re.sub(
-            r'(?<!\{)\b\d+\s+[A-Za-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr)\b(?!\})',
-            '123 Main Street',
+            r"(?<!\{)\b\d+\s+[A-Za-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr)\b(?!\})",
+            "123 Main Street",
             sanitized,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE,
         )
-        
+
         logger.debug("Template sanitized - removed potential PII")
-        
+
         return sanitized
-    
+
     def _format_errors(self, errors: List[Dict]) -> str:
         """
         Format errors for prompt.
-        
+
         Converts error dictionaries into a human-readable format
         for inclusion in the AI prompt.
-        
+
         Args:
             errors: List of error dictionaries
-            
+
         Returns:
             Formatted error string
         """
         if not errors:
             return "No errors"
-        
+
         formatted = []
         for i, error in enumerate(errors, 1):
-            error_type = error.get('type', 'unknown')
-            message = error.get('message', 'No message')
-            severity = error.get('severity', 'error')
-            line = error.get('line', '')
-            
+            error_type = error.get("type", "unknown")
+            message = error.get("message", "No message")
+            severity = error.get("severity", "error")
+            line = error.get("line", "")
+
             error_str = f"{i}. [{error_type}] {message}"
             if line:
                 error_str += f" (line {line})"
             error_str += f" [severity: {severity}]"
-            
+
             formatted.append(error_str)
-        
-        return '\n'.join(formatted)
-    
+
+        return "\n".join(formatted)
+
     def _parse_ai_response(self, response_text: str) -> Dict:
         """
         Parse AI response into structured format.
-        
+
         Extracts JSON from AI response, handling cases where the AI
         wraps the JSON in markdown code blocks.
-        
+
         Args:
             response_text: Raw response text from AI
-            
+
         Returns:
             Parsed response dictionary
         """
         try:
             # Try to extract JSON from response
             # AI might wrap it in markdown code blocks
-            if '```json' in response_text:
-                json_start = response_text.find('```json') + 7
-                json_end = response_text.find('```', json_start)
+            if "```json" in response_text:
+                json_start = response_text.find("```json") + 7
+                json_end = response_text.find("```", json_start)
                 response_text = response_text[json_start:json_end]
-            elif '```' in response_text:
-                json_start = response_text.find('```') + 3
-                json_end = response_text.find('```', json_start)
+            elif "```" in response_text:
+                json_start = response_text.find("```") + 3
+                json_end = response_text.find("```", json_start)
                 response_text = response_text[json_start:json_end]
-            
+
             # Parse JSON
             parsed = json.loads(response_text.strip())
-            
+
             # Validate structure
             if not isinstance(parsed, dict):
                 raise ValueError("Response is not a dictionary")
-            
+
             # Ensure required fields exist
-            if 'analysis' not in parsed:
-                parsed['analysis'] = 'Analysis not provided'
-            if 'fixes' not in parsed:
-                parsed['fixes'] = []
-            if 'auto_fix_available' not in parsed:
-                parsed['auto_fix_available'] = False
-            if 'confidence' not in parsed:
-                parsed['confidence'] = 'low'
-            
+            if "analysis" not in parsed:
+                parsed["analysis"] = "Analysis not provided"
+            if "fixes" not in parsed:
+                parsed["fixes"] = []
+            if "auto_fix_available" not in parsed:
+                parsed["auto_fix_available"] = False
+            if "confidence" not in parsed:
+                parsed["confidence"] = "low"
+
             logger.debug("Successfully parsed AI response")
-            
+
             return parsed
-            
+
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse AI response as JSON: {e}")
             # Fallback: return raw text as analysis
             return {
-                'analysis': response_text,
-                'fixes': [],
-                'auto_fix_available': False,
-                'confidence': 'low'
+                "analysis": response_text,
+                "fixes": [],
+                "auto_fix_available": False,
+                "confidence": "low",
             }
         except Exception as e:
             logger.error(f"Failed to parse AI response: {e}")
             return {
-                'analysis': 'Failed to parse AI response',
-                'fixes': [],
-                'auto_fix_available': False,
-                'confidence': 'low'
+                "analysis": "Failed to parse AI response",
+                "fixes": [],
+                "auto_fix_available": False,
+                "confidence": "low",
             }
-    
-    def apply_auto_fixes(
-        self,
-        template_content: str,
-        fixes: List[Dict]
-    ) -> str:
+
+    def apply_auto_fixes(self, template_content: str, fixes: List[Dict]) -> str:
         """
         Apply auto-fixable suggestions to template.
-        
+
         Iterates through fixes and applies those marked as auto_fixable.
         Currently supports adding missing placeholders.
-        
+
         Args:
             template_content: Original template HTML content
             fixes: List of fix dictionaries from AI
-            
+
         Returns:
             Modified template content with fixes applied
         """
         try:
             logger.info(f"Applying auto-fixes to template ({len(fixes)} fixes)")
-            
+
             modified_template = template_content
             fixes_applied = 0
-            
+
             for fix in fixes:
-                if not fix.get('auto_fixable', False):
+                if not fix.get("auto_fixable", False):
                     continue
-                
-                issue = fix.get('issue', '')
-                code_example = fix.get('code_example', '')
-                location = fix.get('location', '')
-                
+
+                issue = fix.get("issue", "")
+                code_example = fix.get("code_example", "")
+                location = fix.get("location", "")
+
                 # Skip if code_example is invalid
                 if not code_example or not isinstance(code_example, str):
                     logger.warning(f"Skipping fix with invalid code_example: {issue}")
                     continue
-                
+
                 # Apply fix based on issue type
-                if 'missing' in issue.lower() and 'placeholder' in issue.lower():
+                if "missing" in issue.lower() and "placeholder" in issue.lower():
                     # Add missing placeholder
                     modified_template = self._add_placeholder(
-                        modified_template,
-                        code_example,
-                        location
+                        modified_template, code_example, location
                     )
                     fixes_applied += 1
                     logger.debug(f"Applied fix for: {issue}")
-            
+
             logger.info(f"Successfully applied {fixes_applied} auto-fixes")
-            
+
             return modified_template
-            
+
         except Exception as e:
             logger.error(f"Failed to apply auto-fixes: {e}")
             # Return original template if fixes fail
             return template_content
-    
-    def _add_placeholder(
-        self,
-        template: str,
-        code_to_add: str,
-        location: str
-    ) -> str:
+
+    def _add_placeholder(self, template: str, code_to_add: str, location: str) -> str:
         """
         Add missing placeholder to template.
-        
+
         Attempts to intelligently place the code based on the location hint.
         Falls back to adding at the end of the body if location is unclear.
-        
+
         Args:
             template: Original template HTML content
             code_to_add: Code snippet to add
             location: Location hint from AI (e.g., 'header section', 'line 45')
-            
+
         Returns:
             Modified template with code added
         """
         try:
             # Try to find a good insertion point based on location hint
             location_lower = location.lower()
-            
+
             # Check for specific section hints
-            if 'header' in location_lower:
+            if "header" in location_lower:
                 # Try to add in header section
-                if '<header' in template:
+                if "<header" in template:
                     # Add before closing header tag
-                    template = template.replace('</header>', f'{code_to_add}\n</header>', 1)
+                    template = template.replace(
+                        "</header>", f"{code_to_add}\n</header>", 1
+                    )
                     return template
-                elif '<head>' in template:
+                elif "<head>" in template:
                     # Add before closing head tag
-                    template = template.replace('</head>', f'{code_to_add}\n</head>', 1)
+                    template = template.replace("</head>", f"{code_to_add}\n</head>", 1)
                     return template
-            
-            elif 'footer' in location_lower:
+
+            elif "footer" in location_lower:
                 # Try to add in footer section
-                if '<footer' in template:
-                    template = template.replace('</footer>', f'{code_to_add}\n</footer>', 1)
+                if "<footer" in template:
+                    template = template.replace(
+                        "</footer>", f"{code_to_add}\n</footer>", 1
+                    )
                     return template
-            
-            elif 'body' in location_lower or 'main' in location_lower:
+
+            elif "body" in location_lower or "main" in location_lower:
                 # Try to add in body/main section
-                if '<main' in template:
-                    template = template.replace('</main>', f'{code_to_add}\n</main>', 1)
+                if "<main" in template:
+                    template = template.replace("</main>", f"{code_to_add}\n</main>", 1)
                     return template
-            
+
             # Default: add before closing body tag
-            if '</body>' in template:
-                template = template.replace('</body>', f'{code_to_add}\n</body>', 1)
+            if "</body>" in template:
+                template = template.replace("</body>", f"{code_to_add}\n</body>", 1)
             else:
                 # Last resort: append to end
-                template += '\n' + code_to_add
-            
+                template += "\n" + code_to_add
+
             return template
-            
+
         except Exception as e:
             logger.error(f"Failed to add placeholder: {e}")
             # Return original template if addition fails

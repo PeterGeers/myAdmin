@@ -78,7 +78,8 @@ from services.function_registry import validate_function_registry
 # Load environment variables from .env file
 # Look in parent directory if .env not found in current directory (for when running from src/)
 from pathlib import Path
-env_path = Path(__file__).parent.parent / '.env'
+
+env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 
@@ -86,24 +87,28 @@ load_dotenv(dotenv_path=env_path)
 app = Flask(__name__, static_folder=None)
 
 # Configure Flask-Babel for internationalization
-app.config['BABEL_DEFAULT_LOCALE'] = 'nl'
-app.config['BABEL_TRANSLATION_DIRECTORIES'] = 'translations'
+app.config["BABEL_DEFAULT_LOCALE"] = "nl"
+app.config["BABEL_TRANSLATION_DIRECTORIES"] = "translations"
 
 # Initialize Flask-Babel
 from i18n import init_babel  # noqa: E402
+
 babel = init_babel(app)
 
 # Configure timeouts for long-running operations and scalability
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
-app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+app.config["PERMANENT_SESSION_LIFETIME"] = 300  # 5 minutes
 
 # Scalability configurations
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
-app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False  # Disable pretty printing for performance
-app.config['JSON_SORT_KEYS'] = False  # Disable key sorting for performance
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100MB max file size
+app.config["JSONIFY_PRETTYPRINT_REGULAR"] = (
+    False  # Disable pretty printing for performance
+)
+app.config["JSON_SORT_KEYS"] = False  # Disable key sorting for performance
 
 # Initialize rate limiter (used by signup routes)
 from shared_limiter import init_limiter  # noqa: E402
+
 init_limiter(app)
 
 # MODE CONFIGURATION
@@ -116,21 +121,23 @@ try:
     # Scalability manager disabled — advanced pooling handled directly by DatabaseManager
     scalability_manager = None
     print("⚠️ Scalability Manager disabled to avoid database pool issues", flush=True)
-    
+
 except Exception as e:
     print(f"⚠️ Scalability Manager initialization failed: {e}", flush=True)
     scalability_manager = None
 
-build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
+build_folder = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "build"
+)
 
 # Register API blueprints IMMEDIATELY after app creation
-app.register_blueprint(reporting_bp, url_prefix='/api/reports')
-app.register_blueprint(aangifte_ib_bp, url_prefix='/api/reports')
-app.register_blueprint(financial_reporting_bp, url_prefix='/api/reports')
-app.register_blueprint(actuals_bp, url_prefix='/api/reports')
-app.register_blueprint(bnb_bp, url_prefix='/api/bnb')
-app.register_blueprint(str_channel_bp, url_prefix='/api/str-channel')
-app.register_blueprint(str_invoice_bp, url_prefix='/api/str-invoice')
+app.register_blueprint(reporting_bp, url_prefix="/api/reports")
+app.register_blueprint(aangifte_ib_bp, url_prefix="/api/reports")
+app.register_blueprint(financial_reporting_bp, url_prefix="/api/reports")
+app.register_blueprint(actuals_bp, url_prefix="/api/reports")
+app.register_blueprint(bnb_bp, url_prefix="/api/bnb")
+app.register_blueprint(str_channel_bp, url_prefix="/api/str-channel")
+app.register_blueprint(str_invoice_bp, url_prefix="/api/str-invoice")
 app.register_blueprint(missing_invoices_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(admin_bp)
@@ -158,10 +165,12 @@ app.register_blueprint(product_bp)  # Shared product registry (ZZP)
 app.register_blueprint(zzp_bp)  # ZZP module routes
 app.register_blueprint(zzp_time_bp)  # ZZP time tracking routes
 app.register_blueprint(zzp_debtor_bp)  # ZZP debtor/creditor routes
-app.register_blueprint(storage_bp)  # S3 storage endpoints (pre-signed URLs, logo upload)
+app.register_blueprint(
+    storage_bp
+)  # S3 storage endpoints (pre-signed URLs, logo upload)
 app.register_blueprint(email_log_bp)
 app.register_blueprint(auth_bp)
-app.register_blueprint(sysadmin_health_bp, url_prefix='/api/sysadmin/health')
+app.register_blueprint(sysadmin_health_bp, url_prefix="/api/sysadmin/health")
 app.register_blueprint(system_health_bp)  # System health and status endpoints
 app.register_blueprint(cache_bp)  # Cache management endpoints
 app.register_blueprint(folder_bp)  # Folder management endpoints
@@ -192,41 +201,48 @@ validate_function_registry()
 # Local Docker: /app/docs-site (via volume mount ./docs/site:/app/docs-site)
 # Local dev: ../../docs/site (relative to backend/src/)
 _app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-docs_site_path = os.path.join(_app_root, 'docs-site')
+docs_site_path = os.path.join(_app_root, "docs-site")
 if not os.path.isdir(docs_site_path):
     # Fallback for local development (docs/ at project root)
-    docs_site_path = os.path.join(_app_root, '..', 'docs', 'site')
+    docs_site_path = os.path.join(_app_root, "..", "docs", "site")
 
 
-@app.route('/docs/')
-@app.route('/docs/<path:path>')
-def serve_docs(path='index.html'):
+@app.route("/docs/")
+@app.route("/docs/<path:path>")
+def serve_docs(path="index.html"):
     """Serve the MkDocs documentation site, embeddable in iframe."""
     try:
         abs_docs_path = os.path.abspath(docs_site_path)
         # If path is a directory, serve its index.html
         full_path = os.path.join(abs_docs_path, path)
         if os.path.isdir(full_path):
-            path = os.path.join(path, 'index.html')
+            path = os.path.join(path, "index.html")
         response = send_from_directory(abs_docs_path, path)
         # Allow embedding in iframe from any origin (needed for help drawer)
-        response.headers['X-Frame-Options'] = 'ALLOWALL'
-        response.headers['Content-Security-Policy'] = ''
+        response.headers["X-Frame-Options"] = "ALLOWALL"
+        response.headers["Content-Security-Policy"] = ""
         return response
     except Exception:
-        return jsonify({'error': 'Documentation not found'}), 404
+        return jsonify({"error": "Documentation not found"}), 404
+
 
 # Set scalability manager reference for system_health_bp
 from routes.system_health_routes import set_scalability_manager  # noqa: E402
+
 set_scalability_manager(scalability_manager)
 
 # Set scalability manager and test mode for scalability_bp
-from scalability_routes import set_scalability_manager as set_scalability_bp_manager, set_test_mode as set_scalability_test_mode  # noqa: E402
+from scalability_routes import (
+    set_scalability_manager as set_scalability_bp_manager,
+    set_test_mode as set_scalability_test_mode,
+)  # noqa: E402
+
 set_scalability_bp_manager(scalability_manager)
 set_scalability_test_mode(flag)
 
 # Set test mode flag for cache_bp
 from routes.cache_routes import set_test_mode  # noqa: E402
+
 set_test_mode(flag)
 
 # Set config and flag for folder_bp (after config is instantiated)
@@ -234,14 +250,17 @@ set_test_mode(flag)
 
 # Set test mode flag for invoice_bp
 from routes.invoice_routes import set_test_mode as set_invoice_test_mode  # noqa: E402
+
 set_invoice_test_mode(flag)
 
 # Set test mode flag for banking_bp
 from routes.banking_routes import set_test_mode as set_banking_test_mode  # noqa: E402
+
 set_banking_test_mode(flag)
 
 # Set test mode flag for budget_bp
 from routes.budget_routes import set_test_mode as set_budget_test_mode  # noqa: E402
+
 set_budget_test_mode(flag)
 
 # Set config for str_bp - import here, call later after UPLOAD_FOLDER is defined
@@ -253,28 +272,28 @@ swagger_config = {
     "headers": [],
     "specs": [
         {
-            "endpoint": 'apispec_1',
-            "route": '/apispec_1.json',
+            "endpoint": "apispec_1",
+            "route": "/apispec_1.json",
             "rule_filter": lambda rule: True,  # all in
             "model_filter": lambda tag: True,  # all in
         }
     ],
     "static_url_path": "/flasgger_static",
     "swagger_ui": True,
-    "specs_route": "/apidocs/"
+    "specs_route": "/apidocs/",
 }
 
 # Load OpenAPI spec from YAML file
 try:
     # Use the organized OpenAPI spec in openapi/ directory
-    spec_path = os.path.join(os.path.dirname(__file__), 'openapi', 'openapi_spec.yaml')
-    with open(spec_path, 'r') as f:
+    spec_path = os.path.join(os.path.dirname(__file__), "openapi", "openapi_spec.yaml")
+    with open(spec_path, "r") as f:
         template = yaml.safe_load(f)
-    app.config['SWAGGER'] = {
-        'title': 'myAdmin API',
-        'uiversion': 3,
-        'specs_route': '/apidocs/',
-        'openapi': '3.0.2'
+    app.config["SWAGGER"] = {
+        "title": "myAdmin API",
+        "uiversion": 3,
+        "specs_route": "/apidocs/",
+        "openapi": "3.0.2",
     }
     swagger = Swagger(app, template=template)
 except Exception as e:
@@ -284,25 +303,37 @@ except Exception as e:
 # CORS Policy Hardening (Security Requirement 5)
 # Explicit allowlist from environment variable — no wildcard, no "null"
 ALLOWED_ORIGINS = [
-    origin.strip() for origin in
-    os.getenv('ALLOWED_ORIGINS', 'https://myadmin.jabaki.nl,https://petergeers.github.io').split(',')
+    origin.strip()
+    for origin in os.getenv(
+        "ALLOWED_ORIGINS", "https://myadmin.jabaki.nl,https://petergeers.github.io"
+    ).split(",")
     if origin.strip()
 ]
 
 # Add development origins only in non-production environments
-if os.getenv('RAILWAY_ENVIRONMENT') != 'production':
-    ALLOWED_ORIGINS.extend(['http://localhost:3000', 'http://localhost:3001'])
+if os.getenv("RAILWAY_ENVIRONMENT") != "production":
+    ALLOWED_ORIGINS.extend(["http://localhost:3000", "http://localhost:3001"])
 
-CORS(app, resources={
-    r"/api/*": {
-        "origins": ALLOWED_ORIGINS,
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "X-Tenant", "X-Language", "X-CSRF-Token", "X-Frontend-URL"],
-        "supports_credentials": True,
-        "expose_headers": ["Content-Type", "Authorization"],
-        "vary_header": True  # Adds Vary: Origin for cache correctness
-    }
-})
+CORS(
+    app,
+    resources={
+        r"/api/*": {
+            "origins": ALLOWED_ORIGINS,
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": [
+                "Content-Type",
+                "Authorization",
+                "X-Tenant",
+                "X-Language",
+                "X-CSRF-Token",
+                "X-Frontend-URL",
+            ],
+            "supports_credentials": True,
+            "expose_headers": ["Content-Type", "Authorization"],
+            "vary_header": True,  # Adds Vary: Origin for cache correctness
+        }
+    },
+)
 
 # Configure logging
 logger = configure_logging(app)
@@ -330,39 +361,58 @@ transaction_logic = TransactionLogic(test_mode=flag)
 
 # Set config and flag for folder_bp (must be after config is instantiated)
 from routes.folder_routes import set_config_and_flag  # noqa: E402
+
 set_config_and_flag(config, flag)
 
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'csv', 'mhtml', 'eml'}
+UPLOAD_FOLDER = "uploads"
+ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "csv", "mhtml", "eml"}
 
 # Set config for str_bp (must be after UPLOAD_FOLDER is defined)
 set_str_config(UPLOAD_FOLDER, flag)
 
 # Set test mode and logger for tax_bp
-from routes.tax_routes import set_test_mode as set_tax_test_mode, set_logger as set_tax_logger  # noqa: E402
+from routes.tax_routes import (
+    set_test_mode as set_tax_test_mode,
+    set_logger as set_tax_logger,
+)  # noqa: E402
+
 set_tax_test_mode(flag)
 set_tax_logger(logger)
 
 # Set test mode for pdf_validation_bp
 from routes.pdf_validation_routes import set_test_mode as set_pdf_test_mode  # noqa: E402
+
 set_pdf_test_mode(flag)
 
 # Set test mode for duplicate_detection_bp
 from routes.duplicate_detection_routes import set_test_mode as set_duplicate_test_mode  # noqa: E402
+
 set_duplicate_test_mode(flag)
 
 # Set test mode and logger for reporting_bp
-from reporting_routes import set_test_mode as set_reporting_test_mode, set_logger as set_reporting_logger  # noqa: E402
+from reporting_routes import (
+    set_test_mode as set_reporting_test_mode,
+    set_logger as set_reporting_logger,
+)  # noqa: E402
+
 set_reporting_test_mode(flag)
 set_reporting_logger(logger)
 
 # Set test mode and logger for aangifte_ib_bp
-from routes.aangifte_ib_routes import set_test_mode as set_aangifte_ib_test_mode, set_logger as set_aangifte_ib_logger  # noqa: E402
+from routes.aangifte_ib_routes import (
+    set_test_mode as set_aangifte_ib_test_mode,
+    set_logger as set_aangifte_ib_logger,
+)  # noqa: E402
+
 set_aangifte_ib_test_mode(flag)
 set_aangifte_ib_logger(logger)
 
 # Set test mode and logger for financial_reporting_bp
-from routes.financial_reporting_routes import set_test_mode as set_fin_reporting_test_mode, set_logger as set_fin_reporting_logger  # noqa: E402
+from routes.financial_reporting_routes import (
+    set_test_mode as set_fin_reporting_test_mode,
+    set_logger as set_fin_reporting_logger,
+)  # noqa: E402
+
 set_fin_reporting_test_mode(flag)
 set_fin_reporting_logger(logger)
 
@@ -373,6 +423,7 @@ for _attempt in range(5):
     try:
         from services.pivot_service import build_registry_from_db
         from services.parameter_service import ParameterService as _PivotParamService
+
         _pivot_db = DatabaseManager(test_mode=flag)
         _pivot_ps = _PivotParamService(_pivot_db)
         build_registry_from_db(_pivot_db, _pivot_ps)
@@ -382,16 +433,25 @@ for _attempt in range(5):
     except Exception as e:
         if _attempt < 4:
             import time as _time
-            print(f"⚠️ Pivot registry init attempt {_attempt + 1}/5 failed ({e}), retrying in 3s...", flush=True)
+
+            print(
+                f"⚠️ Pivot registry init attempt {_attempt + 1}/5 failed ({e}), retrying in 3s...",
+                flush=True,
+            )
             _time.sleep(3)
         else:
-            print(f"⚠️ Pivot registry initialization failed after 5 attempts: {e}", flush=True)
+            print(
+                f"⚠️ Pivot registry initialization failed after 5 attempts: {e}",
+                flush=True,
+            )
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def check_for_early_duplicates(filename, folder_name, drive_result):
     """
@@ -401,7 +461,7 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
     try:
         # Initialize database connection
         db = DatabaseManager(test_mode=flag)
-        
+
         # Check if this exact file already exists in the database
         # Look for transactions with the same filename in Ref4 and same folder in ReferenceNumber
         query = f"""
@@ -413,47 +473,50 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
             ORDER BY ID DESC
             LIMIT 5
         """
-        
+
         results = db.execute_query(query, (filename, folder_name), fetch=True)
-        
+
         if results and len(results) > 0:
             # Found potential duplicates
             duplicate_info = {
-                'has_duplicates': True,
-                'duplicate_count': len(results),
-                'existing_transactions': []
+                "has_duplicates": True,
+                "duplicate_count": len(results),
+                "existing_transactions": [],
             }
-            
+
             for result in results:
-                duplicate_info['existing_transactions'].append({
-                    'id': result.get('ID'),
-                    'date': str(result.get('TransactionDate', '')),
-                    'amount': float(result.get('TransactionAmount', 0)),
-                    'description': result.get('TransactionDescription', ''),
-                    'file_url': result.get('Ref3', ''),
-                    'filename': result.get('Ref4', '')
-                })
-            
+                duplicate_info["existing_transactions"].append(
+                    {
+                        "id": result.get("ID"),
+                        "date": str(result.get("TransactionDate", "")),
+                        "amount": float(result.get("TransactionAmount", 0)),
+                        "description": result.get("TransactionDescription", ""),
+                        "file_url": result.get("Ref3", ""),
+                        "filename": result.get("Ref4", ""),
+                    }
+                )
+
             return {
-                'has_duplicates': True,
-                'message': f'File "{filename}" already exists in folder "{folder_name}". Found {len(results)} matching transactions.',
-                'duplicate_info': duplicate_info
+                "has_duplicates": True,
+                "message": f'File "{filename}" already exists in folder "{folder_name}". Found {len(results)} matching transactions.',
+                "duplicate_info": duplicate_info,
             }
-        
+
         return {
-            'has_duplicates': False,
-            'message': 'No duplicates found',
-            'duplicate_info': None
+            "has_duplicates": False,
+            "message": "No duplicates found",
+            "duplicate_info": None,
         }
-        
+
     except Exception as e:
         print(f"Error in early duplicate check: {e}", flush=True)
         # On error, allow processing to continue (graceful degradation)
         return {
-            'has_duplicates': False,
-            'message': f'Duplicate check failed: {e}',
-            'duplicate_info': None
+            "has_duplicates": False,
+            "message": f"Duplicate check failed: {e}",
+            "duplicate_info": None,
         }
+
 
 # Serve static files
 # MOVED TO: routes/static_routes.py (static_bp)
@@ -491,10 +554,12 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
 # - /api/upload
 # - /api/approve-transactions
 
+
 @app.errorhandler(500)
 def handle_500(e):
     print(f"500 error: {e}")
-    return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+    return jsonify({"error": "Internal server error", "message": str(e)}), 500
+
 
 # Banking processor routes moved to: routes/banking_routes.py (Phase 3.2)
 # - /api/banking/scan-files
@@ -553,19 +618,19 @@ def handle_500(e):
 # - /api/log-duplicate-decision
 # - /api/handle-duplicate-decision
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Starting Flask development server...")
     print("For production, use: waitress-serve --host=127.0.0.1 --port=5000 wsgi:app")
-    
+
     # Validate routes before starting
     if not check_route_conflicts(app):
         print("ERROR: Route conflicts detected. Fix before starting.")
         exit(1)
-    
+
     # Add request logging
     @app.before_request
     def log_request():
-        if request.path.startswith('/api/'):
+        if request.path.startswith("/api/"):
             try:
                 print(f"API Request: {request.method} {request.path}", flush=True)
             except (OSError, UnicodeError):
@@ -576,44 +641,55 @@ if __name__ == '__main__':
     def check_plan_expiry():
         # Only check tenant-specific API routes (not sysadmin, signup, health, static)
         skip_prefixes = (
-            '/api/sysadmin', '/api/signup', '/api/health',
-            '/api/system', '/static', '/api/tenant-admin'
+            "/api/sysadmin",
+            "/api/signup",
+            "/api/health",
+            "/api/system",
+            "/static",
+            "/api/tenant-admin",
         )
-        if not request.path.startswith('/api/') or any(request.path.startswith(p) for p in skip_prefixes):
+        if not request.path.startswith("/api/") or any(
+            request.path.startswith(p) for p in skip_prefixes
+        ):
             return None
-        if request.method == 'OPTIONS':
+        if request.method == "OPTIONS":
             return None
 
-        tenant = request.headers.get('X-Tenant')
+        tenant = request.headers.get("X-Tenant")
         if not tenant:
             return None
 
         try:
             from database import DatabaseManager as PlanDB
+
             db = PlanDB()
             result = db.execute_query(
                 "SELECT plan, plan_expires_at FROM tenants WHERE administration = %s",
-                (tenant,), fetch=True
+                (tenant,),
+                fetch=True,
             )
-            if result and result[0].get('plan') == 'trial':
-                expires = result[0].get('plan_expires_at')
+            if result and result[0].get("plan") == "trial":
+                expires = result[0].get("plan_expires_at")
                 if expires:
                     from datetime import datetime
+
                     if datetime.now() > expires:
-                        return jsonify({
-                            'error': 'Trial expired',
-                            'message': 'Your trial period has expired. Please contact support to upgrade.',
-                            'plan': 'trial',
-                            'expired_at': expires.isoformat()
-                        }), 403
+                        return jsonify(
+                            {
+                                "error": "Trial expired",
+                                "message": "Your trial period has expired. Please contact support to upgrade.",
+                                "plan": "trial",
+                                "expired_at": expires.isoformat(),
+                            }
+                        ), 403
         except Exception as e:
             # Don't block requests if plan check fails
             print(f"Plan check error (non-blocking): {e}", flush=True)
-    
+
     # Get host from environment variable, default to 0.0.0.0 for Docker
-    host = os.getenv('FLASK_RUN_HOST', '0.0.0.0')
-    port = int(os.getenv('FLASK_RUN_PORT', '5000'))
-    debug = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
-    
+    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.getenv("FLASK_RUN_PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "true").lower() == "true"
+
     print(f"Starting Flask on {host}:{port} (debug={debug})")
     app.run(debug=debug, port=port, host=host, threaded=True)

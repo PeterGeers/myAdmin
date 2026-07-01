@@ -66,7 +66,7 @@ class YearEndClosureService:
         """
 
         results = self.db.execute_query(query, [administration, administration])
-        return [row['year'] for row in results] if results else []
+        return [row["year"] for row in results] if results else []
 
     def get_closed_years(self, administration: str) -> Dict[str, Any]:
         """
@@ -138,49 +138,44 @@ class YearEndClosureService:
         Returns:
             dict: Validation result with can_close, errors, warnings, info
         """
-        validation = {
-            'can_close': True,
-            'errors': [],
-            'warnings': [],
-            'info': {}
-        }
+        validation = {"can_close": True, "errors": [], "warnings": [], "info": {}}
 
         # Check if already closed
         if self._is_year_closed(administration, year):
-            validation['can_close'] = False
-            validation['errors'].append(f"Year {year} is already closed")
+            validation["can_close"] = False
+            validation["errors"].append(f"Year {year} is already closed")
             return validation
 
         # Check if previous year is closed (except for first year)
         first_year = self._get_first_year(administration)
         if first_year and year > first_year:
             if not self._is_year_closed(administration, year - 1):
-                validation['can_close'] = False
-                validation['errors'].append(
+                validation["can_close"] = False
+                validation["errors"].append(
                     f"Previous year {year - 1} must be closed first"
                 )
 
         # Check if required accounts are configured
         config_validation = self.config_service.validate_configuration(administration)
-        if not config_validation['valid']:
-            validation['can_close'] = False
-            validation['errors'].extend(config_validation['errors'])
+        if not config_validation["valid"]:
+            validation["can_close"] = False
+            validation["errors"].extend(config_validation["errors"])
 
         # Calculate net P&L result
         net_result = self._calculate_net_pl_result(administration, year)
-        validation['info']['net_result'] = net_result
-        validation['info']['net_result_formatted'] = f"€{net_result:,.2f}"
+        validation["info"]["net_result"] = net_result
+        validation["info"]["net_result_formatted"] = f"€{net_result:,.2f}"
 
         # Count balance sheet accounts with non-zero balances
         balance_count = self._count_balance_sheet_accounts(administration, year)
-        validation['info']['balance_sheet_accounts'] = balance_count
+        validation["info"]["balance_sheet_accounts"] = balance_count
 
         # Optional warnings (don't prevent closure)
         if net_result == 0:
-            validation['warnings'].append("Net P&L result is zero")
+            validation["warnings"].append("Net P&L result is zero")
 
         if balance_count == 0:
-            validation['warnings'].append("No balance sheet accounts with balances")
+            validation["warnings"].append("No balance sheet accounts with balances")
 
         return validation
 
@@ -194,7 +189,7 @@ class YearEndClosureService:
         """
 
         result = self.db.execute_query(query, [administration, year])
-        return result[0]['count'] > 0 if result else False
+        return result[0]["count"] > 0 if result else False
 
     def _get_first_year(self, administration: str) -> Optional[int]:
         """Get first year with transactions"""
@@ -206,10 +201,10 @@ class YearEndClosureService:
         """
 
         result = self.db.execute_query(query, [administration])
-        if result and result[0]['first_date']:
+        if result and result[0]["first_date"]:
             # Extract year from the date in Python
-            first_date = result[0]['first_date']
-            if hasattr(first_date, 'year'):
+            first_date = result[0]["first_date"]
+            if hasattr(first_date, "year"):
                 return first_date.year
             # Handle string dates
             return int(str(first_date)[:4])
@@ -233,6 +228,7 @@ class YearEndClosureService:
             float: Net P&L result
         """
         from utils.query_helpers import year_to_date_range
+
         start_date, end_date = year_to_date_range(year)
 
         query = """
@@ -245,7 +241,7 @@ class YearEndClosureService:
         """
 
         result = self.db.execute_query(query, [administration, start_date, end_date])
-        return float(result[0]['net_result']) if result else 0.0
+        return float(result[0]["net_result"]) if result else 0.0
 
     def _count_balance_sheet_accounts(self, administration: str, year: int) -> int:
         """
@@ -264,6 +260,7 @@ class YearEndClosureService:
             int: Count of accounts with balances
         """
         from utils.query_helpers import year_to_date_range
+
         start_date, end_date = year_to_date_range(year)
 
         query = """
@@ -282,9 +279,11 @@ class YearEndClosureService:
         """
 
         result = self.db.execute_query(query, [administration, start_date, end_date])
-        return int(result[0]['count']) if result else 0
+        return int(result[0]["count"]) if result else 0
 
-    def close_year(self, administration: str, year: int, user_email: str, notes: str = '') -> Dict[str, Any]:
+    def close_year(
+        self, administration: str, year: int, user_email: str, notes: str = ""
+    ) -> Dict[str, Any]:
         """
         Close a fiscal year.
 
@@ -311,8 +310,8 @@ class YearEndClosureService:
         """
         # Step 1: Validate year can be closed
         validation = self.validate_year_closure(administration, year)
-        if not validation['can_close']:
-            error_msg = '; '.join(validation['errors'])
+        if not validation["can_close"]:
+            error_msg = "; ".join(validation["errors"])
             raise Exception(f"Cannot close year {year}: {error_msg}")
 
         # Get database connection
@@ -339,7 +338,7 @@ class YearEndClosureService:
                 closure_transaction_number,
                 opening_transaction_number,
                 notes,
-                cursor
+                cursor,
             )
 
             # Commit all changes
@@ -347,18 +346,19 @@ class YearEndClosureService:
 
             # Invalidate cache so reports pick up new transactions
             from mutaties_cache import invalidate_cache
+
             invalidate_cache()
 
             # Return success result
             return {
-                'success': True,
-                'year': year,
-                'closure_transaction_number': closure_transaction_number,
-                'opening_transaction_number': opening_transaction_number,
-                'net_result': validation['info']['net_result'],
-                'net_result_formatted': validation['info']['net_result_formatted'],
-                'balance_sheet_accounts': validation['info']['balance_sheet_accounts'],
-                'message': f'Year {year} closed successfully'
+                "success": True,
+                "year": year,
+                "closure_transaction_number": closure_transaction_number,
+                "opening_transaction_number": opening_transaction_number,
+                "net_result": validation["info"]["net_result"],
+                "net_result_formatted": validation["info"]["net_result_formatted"],
+                "balance_sheet_accounts": validation["info"]["balance_sheet_accounts"],
+                "message": f"Year {year} closed successfully",
             }
 
         except Exception as e:
@@ -370,9 +370,16 @@ class YearEndClosureService:
             cursor.close()
             conn.close()
 
-    def _record_closure_status(self, administration: str, year: int, user_email: str,
-                               closure_transaction_number: str, opening_transaction_number: str,
-                               notes: str, cursor) -> None:
+    def _record_closure_status(
+        self,
+        administration: str,
+        year: int,
+        user_email: str,
+        closure_transaction_number: str,
+        opening_transaction_number: str,
+        notes: str,
+        cursor,
+    ) -> None:
         """
         Record year closure in status table.
 
@@ -403,17 +410,22 @@ class YearEndClosureService:
             ) VALUES (%s, %s, %s, %s, %s, %s, %s)
         """
 
-        cursor.execute(insert_query, [
-            administration,
-            year,
-            datetime.now(),
-            user_email,
-            closure_transaction_number,
-            opening_transaction_number,
-            notes
-        ])
+        cursor.execute(
+            insert_query,
+            [
+                administration,
+                year,
+                datetime.now(),
+                user_email,
+                closure_transaction_number,
+                opening_transaction_number,
+                notes,
+            ],
+        )
 
-    def reopen_year(self, administration: str, year: int, user_email: str) -> Dict[str, Any]:
+    def reopen_year(
+        self, administration: str, year: int, user_email: str
+    ) -> Dict[str, Any]:
         """
         Reopen a closed fiscal year.
 
@@ -443,15 +455,17 @@ class YearEndClosureService:
 
         # Check if next year is closed (can't reopen if next year is closed)
         if self._is_year_closed(administration, year + 1):
-            raise Exception(f"Cannot reopen year {year} because year {year + 1} is already closed")
+            raise Exception(
+                f"Cannot reopen year {year} because year {year + 1} is already closed"
+            )
 
         # Get closure information
         closure_info = self.get_year_status(administration, year)
         if not closure_info:
             raise Exception(f"No closure information found for year {year}")
 
-        closure_txn = closure_info.get('closure_transaction_number')
-        opening_txn = closure_info.get('opening_balance_transaction_number')
+        closure_txn = closure_info.get("closure_transaction_number")
+        opening_txn = closure_info.get("opening_balance_transaction_number")
 
         # Get database connection
         conn = self.db.get_connection()
@@ -460,11 +474,15 @@ class YearEndClosureService:
         try:
             # Step 2: Delete opening balance transactions for next year
             if opening_txn:
-                self.journal_helper.delete_transactions(administration, opening_txn, cursor)
+                self.journal_helper.delete_transactions(
+                    administration, opening_txn, cursor
+                )
 
             # Step 3: Delete year-end closure transaction
             if closure_txn:
-                self.journal_helper.delete_transactions(administration, closure_txn, cursor)
+                self.journal_helper.delete_transactions(
+                    administration, closure_txn, cursor
+                )
 
             # Step 4: Remove closure status record
             delete_status = """
@@ -479,13 +497,14 @@ class YearEndClosureService:
 
             # Invalidate cache so reports pick up changes
             from mutaties_cache import invalidate_cache
+
             invalidate_cache()
 
             # Return success result
             return {
-                'success': True,
-                'year': year,
-                'message': f'Year {year} reopened successfully'
+                "success": True,
+                "year": year,
+                "message": f"Year {year} reopened successfully",
             }
 
         except Exception as e:

@@ -7,4 +7,4 @@ Contains business logic services for credentials, templates, and other features.
 # Example: from services.credential_service import CredentialService
 # This avoids circular import issues and import context problems
 
-__all__ = ['credential_service', 'template_service', 'ai_template_assistant']
+__all__ = ["credential_service", "template_service", "ai_template_assistant"]

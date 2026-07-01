@@ -99,9 +99,7 @@ class BudgetService:
         """List budget versions for a tenant, optionally filtered by fiscal year."""
         return self._query.list_versions(administration, year)
 
-    def list_lines(
-        self, administration: str, version_id: int
-    ) -> Dict[str, Any]:
+    def list_lines(self, administration: str, version_id: int) -> Dict[str, Any]:
         """List all budget lines for a version."""
         return self._query.list_lines(administration, version_id)
 
@@ -132,8 +130,14 @@ class BudgetService:
     ) -> Dict[str, Any]:
         """Dashboard budget vs actuals comparison."""
         return self._query.get_dashboard(
-            administration, level, period, version_id, year,
-            parent_code, subparent_code, reference_number
+            administration,
+            level,
+            period,
+            version_id,
+            year,
+            parent_code,
+            subparent_code,
+            reference_number,
         )
 
     # -------------------------------------------------------------------------
@@ -146,9 +150,7 @@ class BudgetService:
         """Create a new budget version with status Draft."""
         return self._mutation.create_version(administration, name, fiscal_year)
 
-    def delete_version(
-        self, administration: str, version_id: int
-    ) -> Dict[str, Any]:
+    def delete_version(self, administration: str, version_id: int) -> Dict[str, Any]:
         """Delete a budget version. Only Draft versions can be deleted."""
         return self._mutation.delete_version(administration, version_id)
 
@@ -178,8 +180,15 @@ class BudgetService:
     ) -> Dict[str, Any]:
         """Create a new budget line for a version."""
         return self._mutation.create_line(
-            administration, version_id, account_code, period_mode,
-            amounts, annual_amount, detail_dimension_type, detail_dimension_value, notes
+            administration,
+            version_id,
+            account_code,
+            period_mode,
+            amounts,
+            annual_amount,
+            detail_dimension_type,
+            detail_dimension_value,
+            notes,
         )
 
     def update_line(
@@ -190,11 +199,11 @@ class BudgetService:
         annual_amount: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Update a budget line's monthly amounts."""
-        return self._mutation.update_line(administration, line_id, amounts, annual_amount)
+        return self._mutation.update_line(
+            administration, line_id, amounts, annual_amount
+        )
 
-    def delete_line(
-        self, administration: str, line_id: int
-    ) -> Dict[str, Any]:
+    def delete_line(self, administration: str, line_id: int) -> Dict[str, Any]:
         """Delete a budget line."""
         return self._mutation.delete_line(administration, line_id)
 

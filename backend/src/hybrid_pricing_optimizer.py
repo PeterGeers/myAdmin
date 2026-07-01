@@ -8,73 +8,77 @@ from business_pricing_model import BusinessPricingModel
 from services.ai_model_registry import resolver, RegistryError
 from services.ai_usage_tracker import AIUsageTracker
 import warnings
-warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
+
+warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
 
 load_dotenv()
 
+
 class HybridPricingOptimizer:
     def __init__(self, test_mode=False, tenant=None):
-        self.api_key = os.getenv('OPENROUTER_API_KEY')
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.db = DatabaseManager(test_mode=test_mode)
         self.business_model = BusinessPricingModel(test_mode=test_mode)
         self.usage_tracker = AIUsageTracker(self.db)
         self.tenant = tenant
-        
+
     def generate_pricing_strategy(self, months=14, listing=None):
         """Generate 14-month pricing with AI insights and rule-based execution"""
-        
+
         # If no specific listing, generate for all active listings
         if not listing:
             return self._generate_all_listings_pricing(months)
-        
+
         # Generate AI strategic insights
         ai_insights = self._generate_ai_insights(months, listing)
         print(f"AI insights generated: {bool(ai_insights)}")
-        
+
         # Generate rule-based daily pricing for 14 months with AI adjustments
         days = months * 30  # Approximate days
         daily_pricing = self._generate_daily_pricing(days, listing, ai_insights)
-        
+
         # Save pricing to database
         if daily_pricing:
             self._save_pricing_to_database(daily_pricing, listing)
-        
+
         # Save AI insights to file
         ai_saved = False
         if ai_insights:
             ai_saved = self._save_ai_insights_to_file(ai_insights, listing)
         print(f"AI insights saved: {ai_saved}")
-        
+
         return {
-            'daily_prices_count': len(daily_pricing),
-            'ai_insights_saved': bool(ai_insights),
-            'months_generated': months,
-            'listing': listing
+            "daily_prices_count": len(daily_pricing),
+            "ai_insights_saved": bool(ai_insights),
+            "months_generated": months,
+            "listing": listing,
         }
-    
+
     def _generate_ai_insights(self, months, listing):
         """Generate AI strategic insights"""
-        
+
         historical_data = self._get_historical_data(listing)
         listing_data = self._get_listing_performance(listing) if listing else {}
-        
-        print(f"Historical data for {listing}: avg_adr_24m={historical_data.get('avg_adr_24m', 0):.2f}")
+
+        print(
+            f"Historical data for {listing}: avg_adr_24m={historical_data.get('avg_adr_24m', 0):.2f}"
+        )
         print(f"Listing data: {listing_data}")
-        
+
         prompt = f"""
 Generate daily ADR for {listing} (Netherlands) for next 30 days.
 
 Location: Hoofddorp, Netherlands - NO US holidays (Thanksgiving, etc.)
-Historical ADR: €{historical_data.get('avg_adr_24m', 95):.2f}
-Base rates: €{listing_data.get('base_weekday_price', 85):.2f} weekday, €{listing_data.get('base_weekend_price', 110):.2f} weekend
+Historical ADR: €{historical_data.get("avg_adr_24m", 95):.2f}
+Base rates: €{listing_data.get("base_weekday_price", 85):.2f} weekday, €{listing_data.get("base_weekend_price", 110):.2f} weekend
 
-STRATEGY: Use historical ADR (€{historical_data.get('avg_adr_24m', 95):.2f}) as baseline, apply weekend premiums, stay within ±20%.
+STRATEGY: Use historical ADR (€{historical_data.get("avg_adr_24m", 95):.2f}) as baseline, apply weekend premiums, stay within ±20%.
 
 Return JSON:
 {{
   "daily_adr_recommendations": [
-    {{"date": "2025-11-12", "recommended_adr": 145.00, "historical_adr": {historical_data.get('avg_adr_24m', 95):.2f}, "variance": "-8.5%", "reasoning": "November weekday"}}
+    {{"date": "2025-11-12", "recommended_adr": 145.00, "historical_adr": {historical_data.get("avg_adr_24m", 95):.2f}, "variance": "-8.5%", "reasoning": "November weekday"}}
   ],
   "strategy_summary": "Netherlands pricing strategy"
 }}
@@ -94,174 +98,211 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                     self.base_url,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
                     },
                     json={
                         "model": model.model_id,
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.3,
-                        "max_tokens": model.max_tokens
+                        "max_tokens": model.max_tokens,
                     },
-                    timeout=model.timeout
+                    timeout=model.timeout,
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
-                    content = result['choices'][0]['message']['content'].strip()
-                    
+                    content = result["choices"][0]["message"]["content"].strip()
+
                     # Capture token usage
-                    usage = result.get('usage', {})
-                    tokens_used = usage.get('total_tokens', 0)
+                    usage = result.get("usage", {})
+                    tokens_used = usage.get("total_tokens", 0)
                     if tokens_used == 0:
-                        tokens_used = usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)
-                    
-                    if content.startswith('```json'):
-                        content = content.replace('```json', '').replace('```', '').strip()
-                    
+                        tokens_used = usage.get("prompt_tokens", 0) + usage.get(
+                            "completion_tokens", 0
+                        )
+
+                    if content.startswith("```json"):
+                        content = (
+                            content.replace("```json", "").replace("```", "").strip()
+                        )
+
                     try:
                         insights = json.loads(content)
                         print(f"AI insights generated using {model.model_id}")
-                        
+
                         # Log AI usage
                         if self.usage_tracker and self.tenant and tokens_used > 0:
                             self.usage_tracker.log_ai_request(
                                 administration=self.tenant,
-                                template_type='pricing_recommendation',
+                                template_type="pricing_recommendation",
                                 tokens_used=tokens_used,
-                                model_used=model.model_id
+                                model_used=model.model_id,
                             )
-                        
+
                         return insights
                     except json.JSONDecodeError as e:
                         print(f"{model.model_id} JSON parse error: {e}")
                         print(f"Raw content: {content[:500]}...")
                         continue
-                    
+
             except (requests.exceptions.Timeout, Exception) as e:
                 print(f"{model.model_id} request failed: {e}")
                 continue
-        
+
         return None
-    
+
     def _calculate_historical_rates(self, listing, historical_data):
         """Calculate actual historical nightly rates by period"""
-        if not listing or not historical_data.get('monthly_performance'):
+        if not listing or not historical_data.get("monthly_performance"):
             return {"note": "No historical rate data available"}
-        
+
         try:
             rates_analysis = {
                 "listing": listing,
-                "avg_adr_24m": historical_data.get('avg_adr_24m', 0),
-                "total_bookings_24m": historical_data.get('total_bookings_24m', 0),
+                "avg_adr_24m": historical_data.get("avg_adr_24m", 0),
+                "total_bookings_24m": historical_data.get("total_bookings_24m", 0),
                 "monthly_rates": [],
-                "seasonal_rates": []
+                "seasonal_rates": [],
             }
-            
+
             # Monthly rate trends
-            for month_data in historical_data.get('monthly_performance', []):
-                rates_analysis["monthly_rates"].append({
-                    "period": f"{month_data['year']}-{month_data['month']:02d}",
-                    "achieved_adr": round(month_data.get('avg_adr', 0), 2),
-                    "bookings": month_data.get('bookings', 0)
-                })
-            
+            for month_data in historical_data.get("monthly_performance", []):
+                rates_analysis["monthly_rates"].append(
+                    {
+                        "period": f"{month_data['year']}-{month_data['month']:02d}",
+                        "achieved_adr": round(month_data.get("avg_adr", 0), 2),
+                        "bookings": month_data.get("bookings", 0),
+                    }
+                )
+
             # Seasonal rate analysis
-            for season_data in historical_data.get('seasonal_performance', []):
-                rates_analysis["seasonal_rates"].append({
-                    "season": season_data['season'],
-                    "achieved_adr": round(season_data.get('avg_adr', 0), 2),
-                    "bookings": season_data.get('bookings', 0)
-                })
-            
+            for season_data in historical_data.get("seasonal_performance", []):
+                rates_analysis["seasonal_rates"].append(
+                    {
+                        "season": season_data["season"],
+                        "achieved_adr": round(season_data.get("avg_adr", 0), 2),
+                        "bookings": season_data.get("bookings", 0),
+                    }
+                )
+
             return rates_analysis
-            
+
         except Exception as e:
             print(f"Rate calculation error: {e}")
             return {"error": "Could not calculate historical rates"}
-    
+
     def _generate_daily_pricing(self, days, listing, ai_insights=None):
         """Generate business logic pricing with AI insights as additional data"""
         daily_prices = []
-        
+
         # Get AI daily recommendations if available
         ai_daily_recommendations = {}
-        if ai_insights and 'daily_adr_recommendations' in ai_insights:
-            for rec in ai_insights['daily_adr_recommendations']:
-                ai_daily_recommendations[rec['date']] = rec
-            print(f"AI daily recommendations loaded: {len(ai_daily_recommendations)} days")
-        
+        if ai_insights and "daily_adr_recommendations" in ai_insights:
+            for rec in ai_insights["daily_adr_recommendations"]:
+                ai_daily_recommendations[rec["date"]] = rec
+            print(
+                f"AI daily recommendations loaded: {len(ai_daily_recommendations)} days"
+            )
+
         start_date = datetime.now().date()
-        
+
         for i in range(days):
             current_date = start_date + timedelta(days=i)
             date_str = current_date.strftime("%Y-%m-%d")
-            
+
             # Use BusinessPricingModel for main pricing logic
-            business_result = self.business_model.calculate_business_price(listing, current_date)
-            final_price = business_result['final_price']
-            
+            business_result = self.business_model.calculate_business_price(
+                listing, current_date
+            )
+            final_price = business_result["final_price"]
+
             # Extract event info from business model
-            event_uplift = int((business_result['event_mult'] - 1) * 100)
+            event_uplift = int((business_result["event_mult"] - 1) * 100)
             event_name = self._get_event_name_for_date(current_date)
-            
+
             # Check if weekend (Friday=4, Saturday=5 only)
             is_weekend = current_date.weekday() in [4, 5]
-            
+
             # Get AI data if available, otherwise use business model data as fallback
             ai_data = ai_daily_recommendations.get(date_str, {})
-            
+
             # Get last year ADR for same date
             last_year_adr = self._get_last_year_adr(listing, current_date)
-            
+
             # Use business model data as AI fallback if no AI data available
             if not ai_data:
-                historical_adr = business_result.get('historical_adr', final_price)
+                historical_adr = business_result.get("historical_adr", final_price)
                 ai_data = {
-                    'recommended_adr': final_price,
-                    'historical_adr': historical_adr,
-                    'variance': f"{((final_price - historical_adr) / historical_adr * 100):.1f}" if historical_adr > 0 else "0.0",
-                    'reasoning': f"Business model: {business_result.get('reasoning', 'Standard pricing')}"
+                    "recommended_adr": final_price,
+                    "historical_adr": historical_adr,
+                    "variance": f"{((final_price - historical_adr) / historical_adr * 100):.1f}"
+                    if historical_adr > 0
+                    else "0.0",
+                    "reasoning": f"Business model: {business_result.get('reasoning', 'Standard pricing')}",
                 }
-            
-            daily_prices.append({
-                "date": date_str,
-                "price": final_price,
-                "is_weekend": is_weekend,
-                "event_uplift": event_uplift,
-                "event_name": event_name,
-                "ai_recommended_adr": float(ai_data.get('recommended_adr', final_price)) if ai_data.get('recommended_adr') else final_price,
-                "ai_historical_adr": float(ai_data.get('historical_adr', final_price)) if ai_data.get('historical_adr') else final_price,
-                "ai_variance": str(ai_data.get('variance', '0.0')).replace('%', '') if ai_data.get('variance') else '0.0',
-                "ai_reasoning": str(ai_data.get('reasoning', 'Business model pricing')) if ai_data.get('reasoning') else 'Business model pricing',
-                "last_year_adr": last_year_adr,
-                "base_rate": business_result['base_rate'],
-                "historical_mult": business_result['historical_mult'],
-                "occupancy_mult": business_result['occupancy_mult'],
-                "pace_mult": business_result['pace_mult'],
-                "event_mult": business_result['event_mult'],
-                "ai_correction": business_result['ai_correction'],
-                "btw_adjustment": business_result['btw_adjustment']
-            })
-        
+
+            daily_prices.append(
+                {
+                    "date": date_str,
+                    "price": final_price,
+                    "is_weekend": is_weekend,
+                    "event_uplift": event_uplift,
+                    "event_name": event_name,
+                    "ai_recommended_adr": float(
+                        ai_data.get("recommended_adr", final_price)
+                    )
+                    if ai_data.get("recommended_adr")
+                    else final_price,
+                    "ai_historical_adr": float(
+                        ai_data.get("historical_adr", final_price)
+                    )
+                    if ai_data.get("historical_adr")
+                    else final_price,
+                    "ai_variance": str(ai_data.get("variance", "0.0")).replace("%", "")
+                    if ai_data.get("variance")
+                    else "0.0",
+                    "ai_reasoning": str(
+                        ai_data.get("reasoning", "Business model pricing")
+                    )
+                    if ai_data.get("reasoning")
+                    else "Business model pricing",
+                    "last_year_adr": last_year_adr,
+                    "base_rate": business_result["base_rate"],
+                    "historical_mult": business_result["historical_mult"],
+                    "occupancy_mult": business_result["occupancy_mult"],
+                    "pace_mult": business_result["pace_mult"],
+                    "event_mult": business_result["event_mult"],
+                    "ai_correction": business_result["ai_correction"],
+                    "btw_adjustment": business_result["btw_adjustment"],
+                }
+            )
+
         return daily_prices
-    
+
     def _generate_all_listings_pricing(self, months=14):
         """Generate pricing for all active listings"""
         try:
             # Get all active listings
             conn = self.db.get_connection()
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT listing_name FROM listings WHERE active = TRUE ORDER BY listing_name")
-            listings = [row['listing_name'] for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT listing_name FROM listings WHERE active = TRUE ORDER BY listing_name"
+            )
+            listings = [row["listing_name"] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
-            
+
             if not listings:
                 print("No active listings found")
-                return {'daily_prices_count': 0, 'ai_insights_saved': False, 'months_generated': months, 'listing': None}
-            
+                return {
+                    "daily_prices_count": 0,
+                    "ai_insights_saved": False,
+                    "months_generated": months,
+                    "listing": None,
+                }
+
             print(f"Generating pricing for {len(listings)} listings: {listings}")
-            
+
             # Clear all existing recommendations first
             conn = self.db.get_connection()
             cursor = conn.cursor()
@@ -270,93 +311,106 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             cursor.close()
             conn.close()
             print("Cleared all existing pricing recommendations for new run")
-            
+
             total_prices = 0
             days = months * 30
-            
+
             # Generate pricing for each listing
             for listing_name in listings:
                 print(f"Processing listing: {listing_name}")
-                
+
                 # Generate AI insights for this listing
                 ai_insights = self._generate_ai_insights(months, listing_name)
-                
+
                 # Generate daily pricing
-                daily_pricing = self._generate_daily_pricing(days, listing_name, ai_insights)
-                
+                daily_pricing = self._generate_daily_pricing(
+                    days, listing_name, ai_insights
+                )
+
                 if daily_pricing:
                     # Save to database (without clearing since we cleared once at the start)
                     self._save_pricing_to_database_no_clear(daily_pricing, listing_name)
                     total_prices += len(daily_pricing)
-                
+
                 # Save AI insights
                 if ai_insights:
                     self._save_ai_insights_to_file(ai_insights, listing_name)
-            
-            print(f"Generated pricing for all listings: {total_prices} total daily prices")
-            
+
+            print(
+                f"Generated pricing for all listings: {total_prices} total daily prices"
+            )
+
             return {
-                'daily_prices_count': total_prices,
-                'ai_insights_saved': True,
-                'months_generated': months,
-                'listing': f'All listings ({len(listings)})'
+                "daily_prices_count": total_prices,
+                "ai_insights_saved": True,
+                "months_generated": months,
+                "listing": f"All listings ({len(listings)})",
             }
-            
+
         except Exception as e:
             print(f"Error generating all listings pricing: {e}")
-            return {'daily_prices_count': 0, 'ai_insights_saved': False, 'months_generated': months, 'listing': None, 'error': str(e)}
-    
+            return {
+                "daily_prices_count": 0,
+                "ai_insights_saved": False,
+                "months_generated": months,
+                "listing": None,
+                "error": str(e),
+            }
+
     def _save_pricing_to_database(self, daily_prices, listing):
         """Save pricing to database"""
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        
+
         try:
             # Clear ALL existing recommendations at start of new run
             cursor.execute("DELETE FROM pricing_recommendations")
             print("Cleared all existing pricing recommendations for new run")
-            
+
             # Insert new recommendations
             insert_sql = """
             INSERT INTO pricing_recommendations 
             (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            
+
             valid_prices = []
             for price in daily_prices:
                 try:
-                    datetime.strptime(price['date'], '%Y-%m-%d')
+                    datetime.strptime(price["date"], "%Y-%m-%d")
                     valid_prices.append(price)
                 except ValueError:
                     continue
-            
+
             for price in valid_prices:
-                cursor.execute(insert_sql, [
-                    listing,
-                    price['date'],
-                    price['price'],
-                    price['is_weekend'],
-                    price['event_uplift'],
-                    price['event_name'],
-                    price.get('ai_recommended_adr'),
-                    price.get('ai_historical_adr'), 
-                    price.get('ai_variance'),
-                    price.get('ai_reasoning'),
-                    price.get('last_year_adr'),
-                    price.get('base_rate'),
-                    price.get('historical_mult'),
-                    price.get('occupancy_mult'),
-                    price.get('pace_mult'),
-                    price.get('event_mult'),
-                    price.get('ai_correction'),
-                    price.get('btw_adjustment')
-                ])
-            
+                cursor.execute(
+                    insert_sql,
+                    [
+                        listing,
+                        price["date"],
+                        price["price"],
+                        price["is_weekend"],
+                        price["event_uplift"],
+                        price["event_name"],
+                        price.get("ai_recommended_adr"),
+                        price.get("ai_historical_adr"),
+                        price.get("ai_variance"),
+                        price.get("ai_reasoning"),
+                        price.get("last_year_adr"),
+                        price.get("base_rate"),
+                        price.get("historical_mult"),
+                        price.get("occupancy_mult"),
+                        price.get("pace_mult"),
+                        price.get("event_mult"),
+                        price.get("ai_correction"),
+                        price.get("btw_adjustment"),
+                    ],
+                )
+
             conn.commit()
             print(f"Saved {len(valid_prices)} pricing recommendations for {listing}")
             return True
-            
+
         except Exception as e:
             print(f"Error saving pricing: {e}")
             conn.rollback()
@@ -364,12 +418,12 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         finally:
             cursor.close()
             conn.close()
-    
+
     def _save_pricing_to_database_no_clear(self, daily_prices, listing):
         """Save pricing to database without clearing existing data"""
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        
+
         try:
             # Insert new recommendations without clearing
             insert_sql = """
@@ -377,41 +431,44 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             (listing_name, price_date, recommended_price, is_weekend, event_uplift, event_name, ai_recommended_adr, ai_historical_adr, ai_variance, ai_reasoning, last_year_adr, base_rate, historical_mult, occupancy_mult, pace_mult, event_mult, ai_correction, btw_adjustment)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            
+
             valid_prices = []
             for price in daily_prices:
                 try:
-                    datetime.strptime(price['date'], '%Y-%m-%d')
+                    datetime.strptime(price["date"], "%Y-%m-%d")
                     valid_prices.append(price)
                 except ValueError:
                     continue
-            
+
             for price in valid_prices:
-                cursor.execute(insert_sql, [
-                    listing,
-                    price['date'],
-                    price['price'],
-                    price['is_weekend'],
-                    price['event_uplift'],
-                    price['event_name'],
-                    price.get('ai_recommended_adr'),
-                    price.get('ai_historical_adr'), 
-                    price.get('ai_variance'),
-                    price.get('ai_reasoning'),
-                    price.get('last_year_adr'),
-                    price.get('base_rate'),
-                    price.get('historical_mult'),
-                    price.get('occupancy_mult'),
-                    price.get('pace_mult'),
-                    price.get('event_mult'),
-                    price.get('ai_correction'),
-                    price.get('btw_adjustment')
-                ])
-            
+                cursor.execute(
+                    insert_sql,
+                    [
+                        listing,
+                        price["date"],
+                        price["price"],
+                        price["is_weekend"],
+                        price["event_uplift"],
+                        price["event_name"],
+                        price.get("ai_recommended_adr"),
+                        price.get("ai_historical_adr"),
+                        price.get("ai_variance"),
+                        price.get("ai_reasoning"),
+                        price.get("last_year_adr"),
+                        price.get("base_rate"),
+                        price.get("historical_mult"),
+                        price.get("occupancy_mult"),
+                        price.get("pace_mult"),
+                        price.get("event_mult"),
+                        price.get("ai_correction"),
+                        price.get("btw_adjustment"),
+                    ],
+                )
+
             conn.commit()
             print(f"Saved {len(valid_prices)} pricing recommendations for {listing}")
             return True
-            
+
         except Exception as e:
             print(f"Error saving pricing: {e}")
             conn.rollback()
@@ -419,54 +476,55 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         finally:
             cursor.close()
             conn.close()
-    
+
     def _save_ai_insights_to_file(self, insights, listing):
         """Save AI insights to JSON file"""
         if not insights:
             print("No AI insights to save")
             return False
-            
+
         try:
             # Clear existing AI insights files for this listing
-            insights_dir = os.path.join(os.path.dirname(__file__), '..', 'ai_insights')
+            insights_dir = os.path.join(os.path.dirname(__file__), "..", "ai_insights")
             if os.path.exists(insights_dir):
                 listing_prefix = f"ai_insights_{listing.replace(' ', '_') if listing else 'general'}_"
                 for file in os.listdir(insights_dir):
                     if file.startswith(listing_prefix):
                         os.remove(os.path.join(insights_dir, file))
                         print(f"Removed old AI insights file: {file}")
-            
+
             filename = f"ai_insights_{listing.replace(' ', '_') if listing else 'general'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             filepath = os.path.join(insights_dir, filename)
-            
+
             print(f"Attempting to save to: {filepath}")
-            
+
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            
+
             # Add metadata
             insights_with_metadata = {
-                'generated_at': datetime.now().isoformat(),
-                'listing': listing,
-                'insights': insights
+                "generated_at": datetime.now().isoformat(),
+                "listing": listing,
+                "insights": insights,
             }
-            
-            with open(filepath, 'w') as f:
+
+            with open(filepath, "w") as f:
                 json.dump(insights_with_metadata, f, indent=2)
-            
+
             print(f"AI insights saved successfully to: {filename}")
             return True
-            
+
         except Exception as e:
             print(f"Error saving AI insights: {e}")
             import traceback
+
             traceback.print_exc()
             return False
-    
+
     def _get_events_data(self):
         """Get events from database"""
         conn = self.db.get_connection()
-        
+
         try:
             events_query = """
             SELECT event_name, start_date, end_date, uplift_percentage
@@ -474,67 +532,70 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             WHERE active = TRUE AND end_date >= {dialect.current_date()}
             ORDER BY start_date
             """
-            
+
             import pandas as pd
+
             events_df = pd.read_sql(events_query, conn)
-            
+
             events_list = []
             for _, row in events_df.iterrows():
-                events_list.append({
-                    "event_name": row['event_name'],
-                    "start_date": str(row['start_date']),
-                    "end_date": str(row['end_date']),
-                    "uplift_percentage": int(row['uplift_percentage'])
-                })
-            
+                events_list.append(
+                    {
+                        "event_name": row["event_name"],
+                        "start_date": str(row["start_date"]),
+                        "end_date": str(row["end_date"]),
+                        "uplift_percentage": int(row["uplift_percentage"]),
+                    }
+                )
+
             return {"events": events_list}
-            
+
         except Exception as e:
             print(f"Events data error: {e}")
             return {"events": []}
         finally:
             conn.close()
-    
+
     def _get_listing_performance(self, listing):
         """Get listing attributes"""
         if not listing:
             return {"base_weekday_price": 85.0, "base_weekend_price": 110.0}
-        
+
         conn = self.db.get_connection()
-        
+
         try:
             attributes_query = """
             SELECT base_weekday_price, base_weekend_price
             FROM listings 
             WHERE listing_name = %s AND active = TRUE
             """
-            
+
             import pandas as pd
+
             attributes_df = pd.read_sql(attributes_query, conn, params=[listing])
-            
+
             if not attributes_df.empty:
                 attr = attributes_df.iloc[0]
                 return {
-                    "base_weekday_price": float(attr['base_weekday_price']),
-                    "base_weekend_price": float(attr['base_weekend_price'])
+                    "base_weekday_price": float(attr["base_weekday_price"]),
+                    "base_weekend_price": float(attr["base_weekend_price"]),
                 }
             else:
                 return {"base_weekday_price": 85.0, "base_weekend_price": 110.0}
-                
+
         except Exception as e:
             print(f"Listing data error: {e}")
             return {"base_weekday_price": 85.0, "base_weekend_price": 110.0}
         finally:
             conn.close()
-    
+
     def _get_historical_data(self, listing=None):
         """Get listing-specific historical performance data"""
         conn = self.db.get_connection()
-        
+
         try:
             # Listing-specific historical data
             if listing:
-                
                 monthly_query = """
                 SELECT 
                     {dialect.year('checkinDate')} as year,
@@ -548,7 +609,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 GROUP BY {dialect.year('checkinDate')}, {dialect.month('checkinDate')}
                 ORDER BY year, month
                 """
-                
+
                 # Seasonal performance for this listing
                 seasonal_query = """
                 SELECT 
@@ -572,7 +633,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                     END
                 ORDER BY avg_adr DESC
                 """
-                
+
                 # Planned bookings for this listing
                 planned_query = """
                 SELECT 
@@ -583,20 +644,27 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 FROM bnbplanned 
                 WHERE listing = %s AND checkinDate >= {dialect.current_date()}
                 """
-                
+
                 import pandas as pd
+
                 monthly_df = pd.read_sql(monthly_query, conn, params=[listing])
                 seasonal_df = pd.read_sql(seasonal_query, conn, params=[listing])
                 planned_df = pd.read_sql(planned_query, conn, params=[listing])
-                
+
                 return {
                     "listing": listing,
-                    "monthly_performance": monthly_df.to_dict('records'),
-                    "seasonal_performance": seasonal_df.to_dict('records'),
-                    "planned_bookings": planned_df.to_dict('records'),
-                    "avg_adr_24m": float(monthly_df['avg_adr'].mean()) if not monthly_df.empty else 95.0,
-                    "total_bookings_24m": int(monthly_df['bookings'].sum()) if not monthly_df.empty else 0,
-                    "avg_los": float(monthly_df['avg_los'].mean()) if not monthly_df.empty else 2.1
+                    "monthly_performance": monthly_df.to_dict("records"),
+                    "seasonal_performance": seasonal_df.to_dict("records"),
+                    "planned_bookings": planned_df.to_dict("records"),
+                    "avg_adr_24m": float(monthly_df["avg_adr"].mean())
+                    if not monthly_df.empty
+                    else 95.0,
+                    "total_bookings_24m": int(monthly_df["bookings"].sum())
+                    if not monthly_df.empty
+                    else 0,
+                    "avg_los": float(monthly_df["avg_los"].mean())
+                    if not monthly_df.empty
+                    else 2.1,
                 }
             else:
                 # General market data
@@ -611,32 +679,35 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 GROUP BY {dialect.year('checkinDate')}, {dialect.month('checkinDate')}
                 ORDER BY year, month
                 """
-                
+
                 import pandas as pd
+
                 monthly_df = pd.read_sql(monthly_query, conn)
-                
+
                 return {
-                    "monthly_performance": monthly_df.to_dict('records'),
-                    "avg_adr": float(monthly_df['avg_adr'].mean()) if not monthly_df.empty else 95.0
+                    "monthly_performance": monthly_df.to_dict("records"),
+                    "avg_adr": float(monthly_df["avg_adr"].mean())
+                    if not monthly_df.empty
+                    else 95.0,
                 }
-            
+
         except Exception as e:
             print(f"Historical data error: {e}")
             return {"avg_adr": 95.0}
         finally:
             conn.close()
-    
+
     def _get_last_year_adr(self, listing, target_date):
         """Get ADR for same date last year"""
         if not listing:
             return None
-            
+
         conn = self.db.get_connection()
-        
+
         try:
             # Look for bookings within ±7 days of same date last year
             last_year_date = target_date.replace(year=target_date.year - 1)
-            
+
             query = """
             SELECT AVG(
                 CASE 
@@ -650,25 +721,28 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             AND checkinDate BETWEEN {dialect.date_subtract('%s', 7, 'DAY')} AND {dialect.date_add('%s', 7, 'DAY')}
             AND nights > 0
             """
-            
+
             import pandas as pd
-            result_df = pd.read_sql(query, conn, params=[listing, last_year_date, last_year_date])
-            
-            if not result_df.empty and result_df.iloc[0]['avg_adr'] is not None:
-                return float(result_df.iloc[0]['avg_adr'])
+
+            result_df = pd.read_sql(
+                query, conn, params=[listing, last_year_date, last_year_date]
+            )
+
+            if not result_df.empty and result_df.iloc[0]["avg_adr"] is not None:
+                return float(result_df.iloc[0]["avg_adr"])
             else:
                 return None
-                
+
         except Exception as e:
             print(f"Last year ADR lookup error: {e}")
             return None
         finally:
             conn.close()
-    
+
     def _get_event_name_for_date(self, date):
         """Get event name for a specific date"""
         conn = self.db.get_connection()
-        
+
         try:
             query = """
             SELECT event_name
@@ -678,15 +752,16 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             ORDER BY uplift_percentage DESC
             LIMIT 1
             """
-            
+
             import pandas as pd
+
             result_df = pd.read_sql(query, conn, params=[date])
-            
+
             if not result_df.empty:
-                return result_df.iloc[0]['event_name']
-            
+                return result_df.iloc[0]["event_name"]
+
             return None
-            
+
         except Exception:
             return None
         finally:

@@ -43,12 +43,11 @@ class TenantFunctionService:
         registry_entry = FUNCTION_REGISTRY.get(function_name)
         if not registry_entry:
             logger.warning(
-                "Unknown function '%s' requested for tenant '%s'",
-                function_name, tenant
+                "Unknown function '%s' requested for tenant '%s'", function_name, tenant
             )
             return False
 
-        default = registry_entry['default_enabled']
+        default = registry_entry["default_enabled"]
 
         try:
             query = """
@@ -58,13 +57,15 @@ class TenantFunctionService:
             """
             result = self.db.execute_query(query, (tenant, function_name))
             if result:
-                return bool(result[0]['is_active'])
+                return bool(result[0]["is_active"])
             return default
         except Exception as e:
             logger.error(
                 "DB read failed for function '%s', tenant '%s': %s. "
                 "Falling back to registry default.",
-                function_name, tenant, e
+                function_name,
+                tenant,
+                e,
             )
             return default
 
@@ -96,21 +97,22 @@ class TenantFunctionService:
             rows = self.db.execute_query(query, (tenant,))
             if rows:
                 for row in rows:
-                    overrides[row['function_name']] = bool(row['is_active'])
+                    overrides[row["function_name"]] = bool(row["is_active"])
         except Exception as e:
             logger.error(
                 "DB read failed for tenant '%s' functions: %s. "
                 "Using registry defaults only.",
-                tenant, e
+                tenant,
+                e,
             )
 
         # Build the merged function list
         functions = []
         for func_name, definition in FUNCTION_REGISTRY.items():
-            parent_module = definition['parent_module']
+            parent_module = definition["parent_module"]
 
             # Determine toggle state: override if available, else registry default
-            is_active = overrides.get(func_name, definition['default_enabled'])
+            is_active = overrides.get(func_name, definition["default_enabled"])
 
             # Check parent module activation
             module_active = has_module(self.db, tenant, parent_module)
@@ -118,19 +120,22 @@ class TenantFunctionService:
             # Effective state: both function toggle AND parent module must be active
             effective = is_active and module_active
 
-            functions.append({
-                'function_name': func_name,
-                'parent_module': parent_module,
-                'label': definition['label'],
-                'is_active': is_active,
-                'module_active': module_active,
-                'effective': effective,
-            })
+            functions.append(
+                {
+                    "function_name": func_name,
+                    "parent_module": parent_module,
+                    "label": definition["label"],
+                    "is_active": is_active,
+                    "module_active": module_active,
+                    "effective": effective,
+                }
+            )
 
         return functions
 
-    def set_function_state(self, tenant: str, function_name: str,
-                           is_active: bool, user_email: str) -> Dict[str, Any]:
+    def set_function_state(
+        self, tenant: str, function_name: str, is_active: bool, user_email: str
+    ) -> Dict[str, Any]:
         """
         Persists toggle state using INSERT ... ON DUPLICATE KEY UPDATE.
 
@@ -149,8 +154,8 @@ class TenantFunctionService:
         registry_entry = FUNCTION_REGISTRY.get(function_name)
         if not registry_entry:
             return {
-                'success': False,
-                'error': f"Unknown function '{function_name}'",
+                "success": False,
+                "error": f"Unknown function '{function_name}'",
             }
 
         try:
@@ -170,24 +175,27 @@ class TenantFunctionService:
             )
 
             return {
-                'success': True,
-                'data': {
-                    'function_name': function_name,
-                    'is_active': is_active,
+                "success": True,
+                "data": {
+                    "function_name": function_name,
+                    "is_active": is_active,
                 },
             }
         except Exception as e:
             logger.error(
                 "DB write failed for function '%s', tenant '%s': %s",
-                function_name, tenant, e
+                function_name,
+                tenant,
+                e,
             )
             return {
-                'success': False,
-                'error': f"Failed to persist function state: {e}",
+                "success": False,
+                "error": f"Failed to persist function state: {e}",
             }
 
-    def is_function_enabled(self, tenant: str, function_name: str,
-                            module_name: str) -> Tuple[bool, Optional[str]]:
+    def is_function_enabled(
+        self, tenant: str, function_name: str, module_name: str
+    ) -> Tuple[bool, Optional[str]]:
         """
         Checks module + function state.
 

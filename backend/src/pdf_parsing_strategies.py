@@ -4,6 +4,7 @@ PDF/file parsing strategies for different file types.
 Extracts text content from PDF, image, CSV, MHTML, and EML files.
 Also contains generic line-based parsing for unknown vendors.
 """
+
 from pypdf import PdfReader
 import pdfplumber
 import re
@@ -13,20 +14,23 @@ import os
 try:
     from PIL import Image  # noqa: F401
     import pytesseract
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+    pytesseract.pytesseract.tesseract_cmd = (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
 except ImportError:
     pytesseract = None
 
 
-def process_pdf(file_path, drive_result, config, folder_name='Unknown'):
+def process_pdf(file_path, drive_result, config, folder_name="Unknown"):
     """Process PDF file using PyPDF2 with pdfplumber fallback.
-    
+
     Args:
         file_path: Path to the PDF file
         drive_result: Google Drive upload result with id and url
         config: Config instance for storage folder resolution
         folder_name: Vendor/folder name for storage organization
-    
+
     Returns:
         Dictionary with name, url, txt, and folder fields
     """
@@ -34,14 +38,14 @@ def process_pdf(file_path, drive_result, config, folder_name='Unknown'):
 
     # Try PyPDF2 first
     try:
-        with open(file_path, 'rb') as file:
+        with open(file_path, "rb") as file:
             pdf_reader = PdfReader(file)
 
             for page in pdf_reader.pages:
                 try:
                     text = page.extract_text()
                     if text.strip():
-                        text_lines.extend(text.split('\n'))
+                        text_lines.extend(text.split("\n"))
                 except Exception as e:
                     print(f"PyPDF2 error on page: {e}")
     except Exception as e:
@@ -55,7 +59,7 @@ def process_pdf(file_path, drive_result, config, folder_name='Unknown'):
                 for page in pdf.pages:
                     text = page.extract_text()
                     if text:
-                        text_lines.extend(text.split('\n'))
+                        text_lines.extend(text.split("\n"))
             print(f"pdfplumber extracted {len(text_lines)} lines")
         except Exception as e:
             print(f"pdfplumber error: {e}")
@@ -68,23 +72,23 @@ def process_pdf(file_path, drive_result, config, folder_name='Unknown'):
     config.ensure_folder_exists(storage_folder)
 
     return {
-        'name': drive_result['id'],
-        'url': drive_result['url'],
-        'txt': '\n'.join(text_lines),
-        'folder': storage_folder
+        "name": drive_result["id"],
+        "url": drive_result["url"],
+        "txt": "\n".join(text_lines),
+        "folder": storage_folder,
     }
 
 
-def process_image(file_path, drive_result, config, folder_name='Unknown', tenant=None):
+def process_image(file_path, drive_result, config, folder_name="Unknown", tenant=None):
     """Process image file using AI vision, fallback to OCR.
-    
+
     Args:
         file_path: Path to the image file
         drive_result: Google Drive upload result with id and url
         config: Config instance for storage folder resolution
         folder_name: Vendor/folder name for storage organization
         tenant: Optional tenant identifier for AI usage tracking
-    
+
     Returns:
         Dictionary with name, url, txt, folder, and ai_data fields
     """
@@ -94,6 +98,7 @@ def process_image(file_path, drive_result, config, folder_name='Unknown', tenant
     previous_transactions = []
     try:
         from database import DatabaseManager
+
         db = DatabaseManager()
         previous_transactions = db.get_previous_transactions(folder_name, limit=3)
     except Exception as e:
@@ -102,6 +107,7 @@ def process_image(file_path, drive_result, config, folder_name='Unknown', tenant
     # Use AI vision processor
     try:
         from database import DatabaseManager
+
         db_for_tracker = DatabaseManager()
     except Exception:
         db_for_tracker = None
@@ -115,34 +121,35 @@ def process_image(file_path, drive_result, config, folder_name='Unknown', tenant
         f"Total Amount: €{result['total_amount']:.2f}",
         f"VAT Amount: €{result['vat_amount']:.2f}",
         f"Description: {result['description']}",
-        f"Vendor: {result['vendor']}"
+        f"Vendor: {result['vendor']}",
     ]
 
     storage_folder = config.get_storage_folder(folder_name)
     config.ensure_folder_exists(storage_folder)
 
     return {
-        'name': drive_result['id'],
-        'url': drive_result['url'],
-        'txt': '\n'.join(text_lines),
-        'folder': storage_folder,
-        'ai_data': result
+        "name": drive_result["id"],
+        "url": drive_result["url"],
+        "txt": "\n".join(text_lines),
+        "folder": storage_folder,
+        "ai_data": result,
     }
 
 
-def process_csv(file_path, drive_result, config, folder_name='Unknown'):
+def process_csv(file_path, drive_result, config, folder_name="Unknown"):
     """Process CSV file (e.g., AirBnB tax files).
-    
+
     Args:
         file_path: Path to the CSV file
         drive_result: Google Drive upload result with id and url
         config: Config instance for storage folder resolution
         folder_name: Vendor/folder name for storage organization
-    
+
     Returns:
         Dictionary with name, url, txt, and folder fields
     """
     import pandas as pd
+
     text_lines = []
 
     try:
@@ -159,11 +166,11 @@ def process_csv(file_path, drive_result, config, folder_name='Unknown'):
         if len(df) > 0:
             text_lines.append("[Sample Data:]")
             for i, row in df.head(3).iterrows():
-                text_lines.append(f"Row {i+1}: {dict(row)}")
+                text_lines.append(f"Row {i + 1}: {dict(row)}")
 
         # Store CSV data for vendor-specific processing
         text_lines.append("[CSV_DATA_START]")
-        text_lines.append(df.to_json(orient='records'))
+        text_lines.append(df.to_json(orient="records"))
         text_lines.append("[CSV_DATA_END]")
 
         print(f"CSV processed: {len(text_lines)} info lines")
@@ -177,22 +184,22 @@ def process_csv(file_path, drive_result, config, folder_name='Unknown'):
     config.ensure_folder_exists(storage_folder)
 
     return {
-        'name': drive_result['id'],
-        'url': drive_result['url'],
-        'txt': '\n'.join(text_lines),
-        'folder': storage_folder
+        "name": drive_result["id"],
+        "url": drive_result["url"],
+        "txt": "\n".join(text_lines),
+        "folder": storage_folder,
     }
 
 
-def process_mhtml(file_path, drive_result, config, folder_name='Unknown'):
+def process_mhtml(file_path, drive_result, config, folder_name="Unknown"):
     """Process MHTML email file.
-    
+
     Args:
         file_path: Path to the MHTML file
         drive_result: Google Drive upload result with id and url
         config: Config instance for storage folder resolution
         folder_name: Vendor/folder name for storage organization
-    
+
     Returns:
         Dictionary with name, url, txt, and folder fields
     """
@@ -201,37 +208,52 @@ def process_mhtml(file_path, drive_result, config, folder_name='Unknown'):
     text_lines = []
 
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
             content = file.read()
 
         # Decode HTML entities
         content = html.unescape(content)
 
         # Extract text from HTML content
-        text_content = re.sub(r'<[^>]+>', ' ', content)
+        text_content = re.sub(r"<[^>]+>", " ", content)
 
         # Clean up whitespace and split into lines
-        lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+        lines = [line.strip() for line in text_content.split("\n") if line.strip()]
 
         # Look for delivery date patterns
         delivery_date = None
         for line in lines:
-            date_match = re.search(r'bezorging van (\w+dag)\s+(\d{1,2})\s+(\w+)', line, re.IGNORECASE)
+            date_match = re.search(
+                r"bezorging van (\w+dag)\s+(\d{1,2})\s+(\w+)", line, re.IGNORECASE
+            )
             if date_match:
                 day, date_num, month = date_match.groups()
                 month_map = {
-                    'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
-                    'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
-                    'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
+                    "januari": "01",
+                    "februari": "02",
+                    "maart": "03",
+                    "april": "04",
+                    "mei": "05",
+                    "juni": "06",
+                    "juli": "07",
+                    "augustus": "08",
+                    "september": "09",
+                    "oktober": "10",
+                    "november": "11",
+                    "december": "12",
                 }
                 if month.lower() in month_map:
                     current_year = datetime.now().year
-                    delivery_date = f"{current_year}-{month_map[month.lower()]}-{date_num.zfill(2)}"
+                    delivery_date = (
+                        f"{current_year}-{month_map[month.lower()]}-{date_num.zfill(2)}"
+                    )
                     break
 
         # Extract amounts
         total_amount = 0
-        total_match = re.search(r'<strong>(\d+)</strong>.*?<strong>(\d+)</strong>', content)
+        total_match = re.search(
+            r"<strong>(\d+)</strong>.*?<strong>(\d+)</strong>", content
+        )
         if total_match:
             euros, cents = total_match.groups()
             total_amount = round(float(f"{euros}.{cents}"), 2)
@@ -252,33 +274,35 @@ def process_mhtml(file_path, drive_result, config, folder_name='Unknown'):
     config.ensure_folder_exists(storage_folder)
 
     return {
-        'name': drive_result['id'],
-        'url': drive_result['url'],
-        'txt': '\n'.join(text_lines),
-        'folder': storage_folder
+        "name": drive_result["id"],
+        "url": drive_result["url"],
+        "txt": "\n".join(text_lines),
+        "folder": storage_folder,
     }
 
 
-def process_eml(file_path, drive_result, config, folder_name='Unknown'):
+def process_eml(file_path, drive_result, config, folder_name="Unknown"):
     """Process EML email file.
-    
+
     Args:
         file_path: Path to the EML file
         drive_result: Google Drive upload result with id and url
         config: Config instance for storage folder resolution
         folder_name: Vendor/folder name for storage organization
-    
+
     Returns:
         Dictionary with name, url, txt, and folder fields
     """
     text_lines = []
 
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
             content = file.read()
 
         # Find the plain text part (after Content-Type: text/plain)
-        text_match = re.search(r'Content-Type: text/plain.*?\n\n(.*?)(?=--_)', content, re.DOTALL)
+        text_match = re.search(
+            r"Content-Type: text/plain.*?\n\n(.*?)(?=--_)", content, re.DOTALL
+        )
         if text_match:
             plain_text = text_match.group(1).strip()
         else:
@@ -286,12 +310,12 @@ def process_eml(file_path, drive_result, config, folder_name='Unknown'):
             boundary_match = re.search(r'boundary="([^"]+)"', content)
             if boundary_match:
                 boundary = boundary_match.group(1)
-                parts = content.split(f'--{boundary}')
+                parts = content.split(f"--{boundary}")
                 for part in parts:
-                    if 'Content-Type: text/plain' in part:
-                        text_start = part.find('\n\n')
+                    if "Content-Type: text/plain" in part:
+                        text_start = part.find("\n\n")
                         if text_start != -1:
-                            plain_text = part[text_start+2:].strip()
+                            plain_text = part[text_start + 2 :].strip()
                             break
                 else:
                     plain_text = content
@@ -300,25 +324,36 @@ def process_eml(file_path, drive_result, config, folder_name='Unknown'):
 
         # Extract delivery date
         delivery_date = None
-        date_match = re.search(r'bezorging van (\w+dag)\s+(\d{1,2})\s+(\w+)\s+(\d{4})', plain_text)
+        date_match = re.search(
+            r"bezorging van (\w+dag)\s+(\d{1,2})\s+(\w+)\s+(\d{4})", plain_text
+        )
         if date_match:
             day, date_num, month, year = date_match.groups()
             month_map = {
-                'januari': '01', 'februari': '02', 'maart': '03', 'april': '04',
-                'mei': '05', 'juni': '06', 'juli': '07', 'augustus': '08',
-                'september': '09', 'oktober': '10', 'november': '11', 'december': '12'
+                "januari": "01",
+                "februari": "02",
+                "maart": "03",
+                "april": "04",
+                "mei": "05",
+                "juni": "06",
+                "juli": "07",
+                "augustus": "08",
+                "september": "09",
+                "oktober": "10",
+                "november": "11",
+                "december": "12",
             }
             if month.lower() in month_map:
                 delivery_date = f"{year}-{month_map[month.lower()]}-{date_num.zfill(2)}"
 
         # Extract total amount
         total_amount = 0
-        total_match = re.search(r'Totaal\s*-+\s*([\d.]+)', plain_text)
+        total_match = re.search(r"Totaal\s*-+\s*([\d.]+)", plain_text)
         if total_match:
             total_amount = round(float(total_match.group(1)), 2)
 
         # Extract order number
-        order_match = re.search(r'Order\s+([\d-]+)', plain_text)
+        order_match = re.search(r"Order\s+([\d-]+)", plain_text)
         order_number = order_match.group(1) if order_match else None
 
         # Create summary
@@ -331,7 +366,7 @@ def process_eml(file_path, drive_result, config, folder_name='Unknown'):
             text_lines.append(f"[Order Number: {order_number}]")
 
         # Add plain text content (clean lines only)
-        plain_lines = [line.strip() for line in plain_text.split('\n') if line.strip()]
+        plain_lines = [line.strip() for line in plain_text.split("\n") if line.strip()]
         text_lines.extend(plain_lines)
 
     except Exception as e:
@@ -341,35 +376,32 @@ def process_eml(file_path, drive_result, config, folder_name='Unknown'):
     config.ensure_folder_exists(storage_folder)
 
     return {
-        'name': drive_result['id'],
-        'url': drive_result['url'],
-        'txt': '\n'.join(text_lines),
-        'folder': storage_folder
+        "name": drive_result["id"],
+        "url": drive_result["url"],
+        "txt": "\n".join(text_lines),
+        "folder": storage_folder,
     }
 
 
 def generic_parse(lines, file_data):
     """Generic parsing for unknown vendors.
-    
+
     Attempts to extract transactions by finding date and amount patterns in text lines.
-    
+
     Args:
         lines: List of text lines to parse
         file_data: File data dictionary with folder, url, and name
-    
+
     Returns:
         List of transaction dictionaries
     """
     transactions = []
 
     date_patterns = [
-        r'\b\d{1,2}[-/]\d{1,2}[-/]\d{4}\b',
-        r'\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b'
+        r"\b\d{1,2}[-/]\d{1,2}[-/]\d{4}\b",
+        r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b",
     ]
-    amount_patterns = [
-        r'[-+]?€?[\d,]+\.\d{2}',
-        r'\([\d,]+\.\d{2}\)'
-    ]
+    amount_patterns = [r"[-+]?€?[\d,]+\.\d{2}", r"\([\d,]+\.\d{2}\)"]
 
     for line in lines:
         line = line.strip()
@@ -388,24 +420,26 @@ def generic_parse(lines, file_data):
 
         if date_match and amount_matches:
             amount_str = amount_matches[-1]
-            is_negative = '(' in amount_str or amount_str.startswith('-')
-            amount = float(re.sub(r'[^\d.]', '', amount_str))
+            is_negative = "(" in amount_str or amount_str.startswith("-")
+            amount = float(re.sub(r"[^\d.]", "", amount_str))
 
-            description = re.sub(r'\b\d{1,2}[-/]\d{1,2}[-/]\d{4}\b', '', line)
-            description = re.sub(r'[-+]?€?[\d,]+\.\d{2}', '', description)
-            description = re.sub(r'\s+', ' ', description).strip()
+            description = re.sub(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{4}\b", "", line)
+            description = re.sub(r"[-+]?€?[\d,]+\.\d{2}", "", description)
+            description = re.sub(r"\s+", " ", description).strip()
 
-            transactions.append({
-                'date': date_match.group(),
-                'description': description or line[:50],
-                'amount': amount,
-                'debet': amount if is_negative else 0,
-                'credit': amount if not is_negative else 0,
-                'ref': file_data['folder'],
-                'ref1': None,
-                'ref2': None,
-                'ref3': file_data['url'],
-                'ref4': file_data['name']
-            })
+            transactions.append(
+                {
+                    "date": date_match.group(),
+                    "description": description or line[:50],
+                    "amount": amount,
+                    "debet": amount if is_negative else 0,
+                    "credit": amount if not is_negative else 0,
+                    "ref": file_data["folder"],
+                    "ref1": None,
+                    "ref2": None,
+                    "ref3": file_data["url"],
+                    "ref4": file_data["name"],
+                }
+            )
 
     return transactions

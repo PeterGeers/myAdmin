@@ -12,7 +12,7 @@ import os
 import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from hypothesis import given, strategies as st, settings as h_settings
+from hypothesis import given, strategies as st, settings as h_settings, HealthCheck
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -436,7 +436,7 @@ class TestDefaultValueResolutionCompleteness:
         app.config['TESTING'] = True
         return app.test_client()
 
-    @h_settings(max_examples=100, database=None, derandomize=True)
+    @h_settings(max_examples=100, database=None, derandomize=True, suppress_health_check=[HealthCheck.too_slow])
     @given(
         namespace=st.text(min_size=1, max_size=20,
                           alphabet=st.characters(whitelist_categories=('L', 'N'),

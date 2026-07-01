@@ -18,27 +18,27 @@ from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
 
-sysadmin_provisioning_bp = Blueprint('sysadmin_provisioning', __name__)
+sysadmin_provisioning_bp = Blueprint("sysadmin_provisioning", __name__)
 
 
 def _get_promo_db() -> DatabaseManager:
     """Get DatabaseManager for myadmin_promo database"""
-    test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
     db = DatabaseManager(test_mode=test_mode)
     # Override database to promo DB
-    promo_db_name = os.getenv('PROMO_DB_NAME', 'myadmin_promo')
-    db.config['database'] = promo_db_name
+    promo_db_name = os.getenv("PROMO_DB_NAME", "myadmin_promo")
+    db.config["database"] = promo_db_name
     return db
 
 
 def _get_finance_db() -> DatabaseManager:
     """Get DatabaseManager for finance database"""
-    test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
     return DatabaseManager(test_mode=test_mode)
 
 
-@sysadmin_provisioning_bp.route('/pending', methods=['GET'])
-@cognito_required(required_roles=['SysAdmin'])
+@sysadmin_provisioning_bp.route("/pending", methods=["GET"])
+@cognito_required(required_roles=["SysAdmin"])
 def list_pending_signups(user_email, user_roles) -> ResponseReturnValue:
     """
     List verified signups awaiting provisioning.
@@ -57,22 +57,22 @@ def list_pending_signups(user_email, user_roles) -> ResponseReturnValue:
         results = db.execute_query(query, fetch=True)
 
         signups = []
-        for row in (results or []):
+        for row in results or []:
             signup = dict(row)
-            for date_field in ('created_at', 'verified_at'):
+            for date_field in ("created_at", "verified_at"):
                 if signup.get(date_field):
                     signup[date_field] = signup[date_field].isoformat()
             signups.append(signup)
 
-        return jsonify({'success': True, 'signups': signups, 'count': len(signups)})
+        return jsonify({"success": True, "signups": signups, "count": len(signups)})
 
     except Exception as e:
         logger.error(f"Error listing pending signups: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@sysadmin_provisioning_bp.route('/provision', methods=['POST'])
-@cognito_required(required_roles=['SysAdmin'])
+@sysadmin_provisioning_bp.route("/provision", methods=["POST"])
+@cognito_required(required_roles=["SysAdmin"])
 def provision_signup(user_email, user_roles) -> ResponseReturnValue:
     """
     Provision a verified signup into a full tenant.
@@ -96,40 +96,43 @@ def provision_signup(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         data = request.get_json()
-        if not data or not data.get('email'):
-            return jsonify({'error': 'Email is required'}), 400
+        if not data or not data.get("email"):
+            return jsonify({"error": "Email is required"}), 400
 
-        email = data['email'].strip()
+        email = data["email"].strip()
 
         # Step 1: Look up signup
         promo_db = _get_promo_db()
         signup_rows = promo_db.execute_query(
-            "SELECT * FROM pending_signups WHERE email = %s",
-            (email,), fetch=True
+            "SELECT * FROM pending_signups WHERE email = %s", (email,), fetch=True
         )
         if not signup_rows:
-            return jsonify({'error': f'No signup found for {email}'}), 404
+            return jsonify({"error": f"No signup found for {email}"}), 404
 
         signup = signup_rows[0]
-        if signup['status'] == 'provisioned':
-            return jsonify({'error': f'{email} is already provisioned'}), 409
-        if signup['status'] != 'verified':
-            return jsonify({'error': f'Signup status is {signup["status"]}, must be verified'}), 400
+        if signup["status"] == "provisioned":
+            return jsonify({"error": f"{email} is already provisioned"}), 409
+        if signup["status"] != "verified":
+            return jsonify(
+                {"error": f"Signup status is {signup['status']}, must be verified"}
+            ), 400
 
         # Step 2: Generate or use provided administration name
-        admin_name = data.get('administration_name')
+        admin_name = data.get("administration_name")
         if not admin_name:
-            admin_name = _generate_admin_name(
-                signup.get('company_name', ''), email
-            )
+            admin_name = _generate_admin_name(signup.get("company_name", ""), email)
 
         # Determine modules and locale
-        modules = data.get('modules', ['FIN', 'TENADMIN'])
-        locale = data.get('locale', signup.get('locale', 'nl'))
-        display_name = signup.get('company_name') or f"{signup['first_name']} {signup['last_name']}"
+        modules = data.get("modules", ["FIN", "TENADMIN"])
+        locale = data.get("locale", signup.get("locale", "nl"))
+        display_name = (
+            signup.get("company_name")
+            or f"{signup['first_name']} {signup['last_name']}"
+        )
 
         # Step 3: Create tenant via shared service
         from services.tenant_provisioning_service import TenantProvisioningService
+
         finance_db = _get_finance_db()
         service = TenantProvisioningService(finance_db)
 
@@ -147,10 +150,11 @@ def provision_signup(user_email, user_roles) -> ResponseReturnValue:
         finance_db.execute_query(
             f"""
             UPDATE tenants
-            SET plan = 'trial', plan_expires_at = {dialect.date_add(dialect.current_timestamp(), 2, 'MONTH')}
+            SET plan = 'trial', plan_expires_at = {dialect.date_add(dialect.current_timestamp(), 2, "MONTH")}
             WHERE administration = %s
             """,
-            (admin_name,), commit=True
+            (admin_name,),
+            commit=True,
         )
 
         # Step 4: Update Cognito user custom:tenants
@@ -159,28 +163,29 @@ def provision_signup(user_email, user_roles) -> ResponseReturnValue:
         # Step 5: Mark provisioned
         promo_db.execute_query(
             f"UPDATE pending_signups SET status = 'provisioned', provisioned_at = {dialect.current_timestamp()} WHERE email = %s",
-            (email,), commit=True
+            (email,),
+            commit=True,
         )
 
         # Step 6: Send admin notification (non-critical)
-        _send_admin_notification(email, admin_name, signup.get('first_name', ''))
+        _send_admin_notification(email, admin_name, signup.get("first_name", ""))
 
         # Step 7: Send welcome email (non-critical)
-        _send_welcome_email(email, admin_name, signup.get('first_name', ''), locale)
+        _send_welcome_email(email, admin_name, signup.get("first_name", ""), locale)
 
         response = {
-            'success': True,
-            'administration': admin_name,
-            'display_name': display_name,
-            'provisioning': prov_results,
-            'plan': 'trial',
+            "success": True,
+            "administration": admin_name,
+            "display_name": display_name,
+            "provisioning": prov_results,
+            "plan": "trial",
         }
         if cognito_error:
-            response['cognito_warning'] = cognito_error
-        if prov_results.get('warnings'):
-            response['warnings'] = prov_results['warnings']
-        if 'initial_admin' in prov_results:
-            response['initial_admin'] = prov_results['initial_admin']
+            response["cognito_warning"] = cognito_error
+        if prov_results.get("warnings"):
+            response["warnings"] = prov_results["warnings"]
+        if "initial_admin" in prov_results:
+            response["initial_admin"] = prov_results["initial_admin"]
 
         logger.info(f"Signup {email} provisioned as '{admin_name}' by {user_email}")
         return jsonify(response), 201
@@ -188,32 +193,36 @@ def provision_signup(user_email, user_roles) -> ResponseReturnValue:
     except Exception as e:
         logger.error(f"Error provisioning signup: {e}")
         import traceback
+
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 def _generate_admin_name(company_name: str, email: str) -> str:
     """Generate PascalCase administration name from company or email."""
     import re
-    source = company_name.strip() if company_name else email.split('@')[0]
-    words = re.sub(r'[^a-zA-Z0-9\s]', '', source).split()
-    base = ''.join(w.capitalize() for w in words if w) or 'NewTenant'
+
+    source = company_name.strip() if company_name else email.split("@")[0]
+    words = re.sub(r"[^a-zA-Z0-9\s]", "", source).split()
+    base = "".join(w.capitalize() for w in words if w) or "NewTenant"
     return base[:50]
 
 
 def _update_cognito_tenants(email: str, admin_name: str) -> str:
     """Add admin_name to Cognito user's custom:tenants. Returns error string or None."""
     try:
-        region = os.getenv('AWS_REGION', 'eu-west-1')
-        pool_id = os.getenv('SIGNUP_COGNITO_USER_POOL_ID', os.getenv('COGNITO_USER_POOL_ID'))
-        client = boto3.client('cognito-idp', region_name=region)
+        region = os.getenv("AWS_REGION", "eu-west-1")
+        pool_id = os.getenv(
+            "SIGNUP_COGNITO_USER_POOL_ID", os.getenv("COGNITO_USER_POOL_ID")
+        )
+        client = boto3.client("cognito-idp", region_name=region)
 
         user = client.admin_get_user(UserPoolId=pool_id, Username=email)
         current_tenants = []
-        for attr in user.get('UserAttributes', []):
-            if attr['Name'] == 'custom:tenants':
+        for attr in user.get("UserAttributes", []):
+            if attr["Name"] == "custom:tenants":
                 try:
-                    current_tenants = json.loads(attr['Value'])
+                    current_tenants = json.loads(attr["Value"])
                 except (json.JSONDecodeError, TypeError):
                     pass
 
@@ -222,12 +231,13 @@ def _update_cognito_tenants(email: str, admin_name: str) -> str:
             client.admin_update_user_attributes(
                 UserPoolId=pool_id,
                 Username=email,
-                UserAttributes=[{
-                    'Name': 'custom:tenants',
-                    'Value': json.dumps(current_tenants)
-                }]
+                UserAttributes=[
+                    {"Name": "custom:tenants", "Value": json.dumps(current_tenants)}
+                ],
             )
-        logger.info(f"Cognito updated for {email}: custom:tenants = {json.dumps(current_tenants)}")
+        logger.info(
+            f"Cognito updated for {email}: custom:tenants = {json.dumps(current_tenants)}"
+        )
         return None
     except Exception as e:
         logger.warning(f"Cognito update failed for {email}: {e}")
@@ -238,18 +248,21 @@ def _send_admin_notification(email: str, admin_name: str, first_name: str) -> No
     """Send SNS notification to admin (non-critical)."""
     try:
         from aws_notifications import get_notification_service
+
         service = get_notification_service()
         if service and service.is_enabled():
             service.send_business_notification(
-                'Tenant Provisioned',
+                "Tenant Provisioned",
                 f"Tenant '{admin_name}' provisioned for {email}",
-                {'email': email, 'administration': admin_name, 'name': first_name}
+                {"email": email, "administration": admin_name, "name": first_name},
             )
     except Exception as e:
         logger.warning(f"Admin notification failed (non-critical): {e}")
 
 
-def _send_welcome_email(email: str, admin_name: str, first_name: str, locale: str) -> None:
+def _send_welcome_email(
+    email: str, admin_name: str, first_name: str, locale: str
+) -> None:
     """Send welcome email to the new tenant user via SES (non-critical)."""
     try:
         from services.ses_email_service import SESEmailService
@@ -260,10 +273,10 @@ def _send_welcome_email(email: str, admin_name: str, first_name: str, locale: st
             return
 
         login_url = get_frontend_url()
-        name = first_name or email.split('@')[0]
+        name = first_name or email.split("@")[0]
 
-        if locale == 'nl':
-            subject = f'Welkom bij myAdmin — {admin_name}'
+        if locale == "nl":
+            subject = f"Welkom bij myAdmin — {admin_name}"
             html = f"""
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #DD6B20;">Welkom bij myAdmin</h2>
@@ -282,7 +295,7 @@ def _send_welcome_email(email: str, admin_name: str, first_name: str, locale: st
             </div>
             """
         else:
-            subject = f'Welcome to myAdmin — {admin_name}'
+            subject = f"Welcome to myAdmin — {admin_name}"
             html = f"""
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #DD6B20;">Welcome to myAdmin</h2>
@@ -302,8 +315,11 @@ def _send_welcome_email(email: str, admin_name: str, first_name: str, locale: st
             """
 
         ses.send_email(
-            to_email=email, subject=subject, html_body=html,
-            email_type='invitation', administration=admin_name,
+            to_email=email,
+            subject=subject,
+            html_body=html,
+            email_type="invitation",
+            administration=admin_name,
         )
         logger.info(f"Welcome email sent to {email}")
     except Exception as e:

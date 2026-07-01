@@ -6,7 +6,7 @@ without circular import issues.
 
 Usage in routes:
     from shared_limiter import limiter
-    
+
     @bp.route('/api/endpoint')
     @limiter.limit("5 per hour")
     def endpoint():
@@ -22,9 +22,7 @@ from flask_limiter.util import get_remote_address
 
 # Global limiter instance
 limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=[],
-    storage_uri="memory://"
+    key_func=get_remote_address, default_limits=[], storage_uri="memory://"
 )
 
 

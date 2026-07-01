@@ -25,8 +25,9 @@ class TaxRateService:
         self._cache: Dict[tuple, Any] = {}
         self.db = db
 
-    def get_tax_rate(self, administration: str, tax_type: str, tax_code: str,
-                     reference_date: date) -> Optional[dict]:
+    def get_tax_rate(
+        self, administration: str, tax_type: str, tax_code: str, reference_date: date
+    ) -> Optional[dict]:
         """
         Get applicable tax rate for a given date.
         Checks tenant-specific first, falls back to _system_ defaults.
@@ -38,14 +39,16 @@ class TaxRateService:
             return self._cache[cache_key]
 
         result = self._lookup_rate(administration, tax_type, tax_code, reference_date)
-        if result is None and administration != '_system_':
-            result = self._lookup_rate('_system_', tax_type, tax_code, reference_date)
+        if result is None and administration != "_system_":
+            result = self._lookup_rate("_system_", tax_type, tax_code, reference_date)
 
         if result is not None:
             self._cache[cache_key] = result
         return result
 
-    def get_all_vat_codes(self, administration: str, reference_date: date) -> List[dict]:
+    def get_all_vat_codes(
+        self, administration: str, reference_date: date
+    ) -> List[dict]:
         """
         Get all active BTW codes for a tenant on a given date.
         Returns list of {code, rate, ledger_account, description},
@@ -61,29 +64,42 @@ class TaxRateService:
             ORDER BY tax_code, FIELD(administration, %s, '_system_')
         """
         rows = self.db.execute_query(
-            query, (administration, reference_date, reference_date, administration), fetch=True
+            query,
+            (administration, reference_date, reference_date, administration),
+            fetch=True,
         )
 
         seen_codes = {}
         results = []
         for row in rows:
-            code = row['tax_code']
+            code = row["tax_code"]
             if code in seen_codes:
                 continue
             seen_codes[code] = True
-            results.append({
-                'code': code,
-                'rate': self._to_float(row['rate']),
-                'ledger_account': row.get('ledger_account'),
-                'description': row.get('description'),
-            })
+            results.append(
+                {
+                    "code": code,
+                    "rate": self._to_float(row["rate"]),
+                    "ledger_account": row.get("ledger_account"),
+                    "description": row.get("description"),
+                }
+            )
         return results
 
-    def create_tax_rate(self, administration: str, tax_type: str, tax_code: str,
-                        rate: float, effective_from: date, ledger_account: str = None,
-                        effective_to: date = None, description: str = None,
-                        calc_method: str = 'percentage', calc_params: dict = None,
-                        created_by: str = None) -> int:
+    def create_tax_rate(
+        self,
+        administration: str,
+        tax_type: str,
+        tax_code: str,
+        rate: float,
+        effective_from: date,
+        ledger_account: str = None,
+        effective_to: date = None,
+        description: str = None,
+        calc_method: str = "percentage",
+        calc_params: dict = None,
+        created_by: str = None,
+    ) -> int:
         """
         Create a new tax rate. Auto-closes any existing rate whose date range
         overlaps with the new rate's effective_from.
@@ -110,10 +126,21 @@ class TaxRateService:
         """
         result = self.db.execute_query(
             insert_sql,
-            (administration, tax_type, tax_code, rate, ledger_account,
-             effective_from, effective_to, description, calc_method,
-             calc_params_json, created_by),
-            fetch=False, commit=True
+            (
+                administration,
+                tax_type,
+                tax_code,
+                rate,
+                ledger_account,
+                effective_from,
+                effective_to,
+                description,
+                calc_method,
+                calc_params_json,
+                created_by,
+            ),
+            fetch=False,
+            commit=True,
         )
         self._invalidate_cache()
         return result
@@ -123,8 +150,10 @@ class TaxRateService:
         Delete a tenant-specific tax rate override.
         System defaults (_system_) cannot be deleted via this method.
         """
-        if administration == '_system_':
-            raise PermissionError("System default tax rates cannot be deleted via this method")
+        if administration == "_system_":
+            raise PermissionError(
+                "System default tax rates cannot be deleted via this method"
+            )
 
         delete_sql = """
             DELETE FROM tax_rates WHERE id = %s AND administration = %s
@@ -139,8 +168,9 @@ class TaxRateService:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _lookup_rate(self, administration: str, tax_type: str, tax_code: str,
-                     reference_date: date) -> Optional[dict]:
+    def _lookup_rate(
+        self, administration: str, tax_type: str, tax_code: str, reference_date: date
+    ) -> Optional[dict]:
         """Query tax_rates for a specific administration + type + code + date."""
         query = """
             SELECT id, rate, ledger_account, description, calc_method, calc_params,
@@ -152,14 +182,15 @@ class TaxRateService:
             LIMIT 1
         """
         rows = self.db.execute_query(
-            query, (administration, tax_type, tax_code, reference_date, reference_date),
-            fetch=True
+            query,
+            (administration, tax_type, tax_code, reference_date, reference_date),
+            fetch=True,
         )
         if not rows:
             return None
 
         row = rows[0]
-        calc_params = row.get('calc_params')
+        calc_params = row.get("calc_params")
         if isinstance(calc_params, str):
             try:
                 calc_params = json.loads(calc_params)
@@ -167,19 +198,26 @@ class TaxRateService:
                 pass
 
         return {
-            'id': row['id'],
-            'rate': self._to_float(row['rate']),
-            'ledger_account': row.get('ledger_account'),
-            'description': row.get('description'),
-            'calc_method': row.get('calc_method', 'percentage'),
-            'calc_params': calc_params,
-            'effective_from': row.get('effective_from'),
-            'effective_to': row.get('effective_to'),
-            'scope_origin': 'tenant' if row['administration'] != '_system_' else 'system',
+            "id": row["id"],
+            "rate": self._to_float(row["rate"]),
+            "ledger_account": row.get("ledger_account"),
+            "description": row.get("description"),
+            "calc_method": row.get("calc_method", "percentage"),
+            "calc_params": calc_params,
+            "effective_from": row.get("effective_from"),
+            "effective_to": row.get("effective_to"),
+            "scope_origin": "tenant"
+            if row["administration"] != "_system_"
+            else "system",
         }
 
-    def _auto_close_overlapping(self, administration: str, tax_type: str,
-                                tax_code: str, new_effective_from: date) -> None:
+    def _auto_close_overlapping(
+        self,
+        administration: str,
+        tax_type: str,
+        tax_code: str,
+        new_effective_from: date,
+    ) -> None:
         """
         Auto-close any existing rate whose date range overlaps with new_effective_from.
         Sets existing rate's effective_to to new_effective_from - 1 day.
@@ -193,9 +231,16 @@ class TaxRateService:
         """
         self.db.execute_query(
             update_sql,
-            (close_day, administration, tax_type, tax_code,
-             new_effective_from, new_effective_from),
-            fetch=False, commit=True
+            (
+                close_day,
+                administration,
+                tax_type,
+                tax_code,
+                new_effective_from,
+                new_effective_from,
+            ),
+            fetch=False,
+            commit=True,
         )
 
     def _invalidate_cache(self) -> None:

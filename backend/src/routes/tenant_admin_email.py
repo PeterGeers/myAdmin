@@ -19,17 +19,17 @@ from services.invitation_service import InvitationService
 logger = logging.getLogger(__name__)
 
 # Create blueprint
-tenant_admin_email_bp = Blueprint('tenant_admin_email', __name__)
+tenant_admin_email_bp = Blueprint("tenant_admin_email", __name__)
 
 
-@tenant_admin_email_bp.route('/api/tenant-admin/send-email', methods=['POST'])
-@cognito_required(required_roles=['Tenant_Admin'])
+@tenant_admin_email_bp.route("/api/tenant-admin/send-email", methods=["POST"])
+@cognito_required(required_roles=["Tenant_Admin"])
 def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
     """
     Send email to a user using a template
-    
+
     Authorization: Tenant_Admin role required
-    
+
     Request body:
     {
         "email": "user@example.com",
@@ -40,104 +40,112 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
             "status": "CONFIRMED"
         }
     }
-    
+
     Returns:
         JSON with success status
     """
     try:
         # Get current tenant
         tenant = get_current_tenant(request)
-        
+
         # Get request data
         data = request.get_json()
-        
+
         if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        recipient_email = data.get('email')
-        template_type = data.get('template_type', 'user_invitation')
-        user_data = data.get('user_data', {})
-        
+            return jsonify({"error": "No data provided"}), 400
+
+        recipient_email = data.get("email")
+        template_type = data.get("template_type", "user_invitation")
+        user_data = data.get("user_data", {})
+
         if not recipient_email:
-            return jsonify({'error': 'Email is required'}), 400
-        
+            return jsonify({"error": "Email is required"}), 400
+
         # Normalize email to lowercase for Cognito case-sensitivity
         recipient_email = recipient_email.strip().lower()
-        
+
         # Validate template type
-        valid_templates = ['user_invitation', 'password_reset', 'account_update']
+        valid_templates = ["user_invitation", "password_reset", "account_update"]
         if template_type not in valid_templates:
-            return jsonify({'error': f'Invalid template type. Must be one of: {", ".join(valid_templates)}'}), 400
-        
+            return jsonify(
+                {
+                    "error": f"Invalid template type. Must be one of: {', '.join(valid_templates)}"
+                }
+            ), 400
+
         # Initialize services
         email_service = EmailTemplateService(administration=tenant)
         _cognito_service = CognitoService()
-        
+
         # Get user details if not provided
-        if not user_data.get('name'):
+        if not user_data.get("name"):
             try:
                 # Try to get user details from Cognito
                 import boto3
                 from botocore.exceptions import ClientError
-                
-                cognito_client = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
-                user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
-                
+
+                cognito_client = boto3.client(
+                    "cognito-idp", region_name=os.getenv("AWS_REGION", "eu-west-1")
+                )
+                user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+
                 response = cognito_client.admin_get_user(
                     UserPoolId=user_pool_id,
-                    Username=user_data.get('username', recipient_email)
+                    Username=user_data.get("username", recipient_email),
                 )
-                
+
                 # Extract name from attributes
-                for attr in response.get('UserAttributes', []):
-                    if attr['Name'] == 'name':
-                        user_data['name'] = attr['Value']
+                for attr in response.get("UserAttributes", []):
+                    if attr["Name"] == "name":
+                        user_data["name"] = attr["Value"]
                         break
-                
+
             except (ClientError, Exception) as e:
                 logger.warning(f"Could not fetch user details: {e}")
-                user_data['name'] = recipient_email.split('@')[0]
-        
+                user_data["name"] = recipient_email.split("@")[0]
+
         # Resolve frontend URL from request context
         from utils.frontend_url import get_frontend_url
+
         login_url = get_frontend_url()
-        
+
         # Render email template
         html_content = email_service.render_template(
             template_name=template_type,
             variables={
-                'email': recipient_email,
-                'tenant': tenant,
-                'name': user_data.get('name', recipient_email),
-                'login_url': login_url,
-                'temporary_password': user_data.get('temporary_password', '********')
+                "email": recipient_email,
+                "tenant": tenant,
+                "name": user_data.get("name", recipient_email),
+                "login_url": login_url,
+                "temporary_password": user_data.get("temporary_password", "********"),
             },
-            format='html'
+            format="html",
         )
-        
+
         text_content = email_service.render_template(
             template_name=template_type,
             variables={
-                'email': recipient_email,
-                'tenant': tenant,
-                'name': user_data.get('name', recipient_email),
-                'login_url': login_url,
-                'temporary_password': user_data.get('temporary_password', '********')
+                "email": recipient_email,
+                "tenant": tenant,
+                "name": user_data.get("name", recipient_email),
+                "login_url": login_url,
+                "temporary_password": user_data.get("temporary_password", "********"),
             },
-            format='txt'
+            format="txt",
         )
-        
+
         # Send email via SES (direct to recipient)
         from services.ses_email_service import SESEmailService
+
         ses = SESEmailService()
-        
+
         # Get subject line
         subject = email_service.get_invitation_subject(tenant)
-        if template_type == 'password_reset':
+        if template_type == "password_reset":
             subject = f"Password Reset - {tenant}"
-        elif template_type == 'account_update':
+        elif template_type == "account_update":
             subject = f"Account Update - {tenant}"
-        
+
         result = ses.send_email(
             to_email=recipient_email,
             subject=subject,
@@ -147,252 +155,257 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
             administration=tenant,
             sent_by=user_email,
         )
-        
-        if not result['success']:
-            logger.error(f"SES failed to send to {recipient_email}: {result.get('error')}")
-            return jsonify({
-                'error': 'Failed to send email',
-                'message': result.get('error')
-            }), 500
-        
-        logger.info(f"Email sent to {recipient_email} by {user_email} for tenant {tenant}, template={template_type}")
-        
-        return jsonify({
-            'success': True,
-            'message': f'Email sent successfully to {recipient_email}',
-            'template_type': template_type
-        })
-        
+
+        if not result["success"]:
+            logger.error(
+                f"SES failed to send to {recipient_email}: {result.get('error')}"
+            )
+            return jsonify(
+                {"error": "Failed to send email", "message": result.get("error")}
+            ), 500
+
+        logger.info(
+            f"Email sent to {recipient_email} by {user_email} for tenant {tenant}, template={template_type}"
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Email sent successfully to {recipient_email}",
+                "template_type": template_type,
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error sending email: {e}")
         import traceback
+
         traceback.print_exc()
-        return jsonify({
-            'error': 'Failed to send email',
-            'message': str(e)
-        }), 500
+        return jsonify({"error": "Failed to send email", "message": str(e)}), 500
 
 
-@tenant_admin_email_bp.route('/api/tenant-admin/email-templates', methods=['GET'])
-@cognito_required(required_roles=['Tenant_Admin'])
+@tenant_admin_email_bp.route("/api/tenant-admin/email-templates", methods=["GET"])
+@cognito_required(required_roles=["Tenant_Admin"])
 def list_email_templates(user_email, user_roles) -> ResponseReturnValue:
     """
     List available email templates
-    
+
     Authorization: Tenant_Admin role required
-    
+
     Returns:
         JSON with list of available templates
     """
     try:
         templates = [
             {
-                'template_type': 'user_invitation',
-                'display_name': 'User Invitation',
-                'description': 'Welcome email for new users with login credentials'
+                "template_type": "user_invitation",
+                "display_name": "User Invitation",
+                "description": "Welcome email for new users with login credentials",
             },
             {
-                'template_type': 'password_reset',
-                'display_name': 'Password Reset',
-                'description': 'Password reset instructions'
+                "template_type": "password_reset",
+                "display_name": "Password Reset",
+                "description": "Password reset instructions",
             },
             {
-                'template_type': 'account_update',
-                'display_name': 'Account Update',
-                'description': 'Notification about account changes'
-            }
+                "template_type": "account_update",
+                "display_name": "Account Update",
+                "description": "Notification about account changes",
+            },
         ]
-        
-        return jsonify({
-            'success': True,
-            'templates': templates
-        })
-        
+
+        return jsonify({"success": True, "templates": templates})
+
     except Exception as e:
         logger.error(f"Error listing email templates: {e}")
-        return jsonify({
-            'error': 'Failed to list templates',
-            'message': str(e)
-        }), 500
+        return jsonify({"error": "Failed to list templates", "message": str(e)}), 500
 
 
-@tenant_admin_email_bp.route('/api/tenant-admin/resend-invitation', methods=['POST'])
-@cognito_required(required_roles=['Tenant_Admin'])
+@tenant_admin_email_bp.route("/api/tenant-admin/resend-invitation", methods=["POST"])
+@cognito_required(required_roles=["Tenant_Admin"])
 def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
     """
     Resend invitation email to a user
-    
+
     Authorization: Tenant_Admin role required
-    
+
     Request body:
     {
         "email": "user@example.com",
         "username": "uuid"
     }
-    
+
     Returns:
         JSON with success status and new temporary password
     """
     try:
         # Get current tenant
         tenant = get_current_tenant(request)
-        
+
         # Get request data
         data = request.get_json()
-        
+
         if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        recipient_email = data.get('email')
-        username = data.get('username')
-        
+            return jsonify({"error": "No data provided"}), 400
+
+        recipient_email = data.get("email")
+        username = data.get("username")
+
         if not recipient_email:
-            return jsonify({'error': 'Email is required'}), 400
-        
+            return jsonify({"error": "Email is required"}), 400
+
         # Normalize email to lowercase for Cognito case-sensitivity
         recipient_email = recipient_email.strip().lower()
-        
+
         # Initialize services
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         invitation_service = InvitationService(test_mode=test_mode)
         email_service = EmailTemplateService(administration=tenant)
-        
+
         # Resend invitation (generates new password and extends expiry)
         invitation_result = invitation_service.resend_invitation(
-            administration=tenant,
-            email=recipient_email,
-            created_by=user_email
+            administration=tenant, email=recipient_email, created_by=user_email
         )
-        
-        if not invitation_result.get('success'):
-            return jsonify({
-                'error': 'Failed to resend invitation',
-                'message': invitation_result.get('error')
-            }), 500
-        
-        temp_password = invitation_result['temporary_password']
-        
+
+        if not invitation_result.get("success"):
+            return jsonify(
+                {
+                    "error": "Failed to resend invitation",
+                    "message": invitation_result.get("error"),
+                }
+            ), 500
+
+        temp_password = invitation_result["temporary_password"]
+
         # Update Cognito user with new temporary password
         try:
             import boto3
             from botocore.exceptions import ClientError
-            
-            cognito_client = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
-            user_pool_id = os.getenv('COGNITO_USER_POOL_ID')
-            
+
+            cognito_client = boto3.client(
+                "cognito-idp", region_name=os.getenv("AWS_REGION", "eu-west-1")
+            )
+            user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+
             # Set new permanent password — moves user from
             # FORCE_CHANGE_PASSWORD to CONFIRMED status
             cognito_client.admin_set_user_password(
                 UserPoolId=user_pool_id,
                 Username=username or recipient_email,
                 Password=temp_password,
-                Permanent=True
+                Permanent=True,
             )
-            
+
         except ClientError as e:
             logger.error(f"Failed to update Cognito password: {e}")
             invitation_service.mark_invitation_failed(
                 administration=tenant,
                 email=recipient_email,
-                error_message=f"Cognito update failed: {str(e)}"
+                error_message=f"Cognito update failed: {str(e)}",
             )
-            return jsonify({
-                'error': 'Failed to update user password',
-                'message': str(e)
-            }), 500
-        
+            return jsonify(
+                {"error": "Failed to update user password", "message": str(e)}
+            ), 500
+
         # Get user details for email
-        user_name = recipient_email.split('@')[0]
+        user_name = recipient_email.split("@")[0]
         try:
             response = cognito_client.admin_get_user(
-                UserPoolId=user_pool_id,
-                Username=username or recipient_email
+                UserPoolId=user_pool_id, Username=username or recipient_email
             )
-            
-            for attr in response.get('UserAttributes', []):
-                if attr['Name'] == 'name':
-                    user_name = attr['Value']
+
+            for attr in response.get("UserAttributes", []):
+                if attr["Name"] == "name":
+                    user_name = attr["Value"]
                     break
         except Exception:
             pass
-        
+
         # Resolve frontend URL from request context
         from utils.frontend_url import get_frontend_url
+
         login_url = get_frontend_url()
-        
+
         # Render email templates
         html_content = email_service.render_template(
-            template_name='user_invitation',
+            template_name="user_invitation",
             variables={
-                'email': recipient_email,
-                'tenant': tenant,
-                'name': user_name,
-                'login_url': login_url,
-                'temporary_password': temp_password
+                "email": recipient_email,
+                "tenant": tenant,
+                "name": user_name,
+                "login_url": login_url,
+                "temporary_password": temp_password,
             },
-            format='html'
+            format="html",
         )
-        
+
         text_content = email_service.render_template(
-            template_name='user_invitation',
+            template_name="user_invitation",
             variables={
-                'email': recipient_email,
-                'tenant': tenant,
-                'name': user_name,
-                'login_url': login_url,
-                'temporary_password': temp_password
+                "email": recipient_email,
+                "tenant": tenant,
+                "name": user_name,
+                "login_url": login_url,
+                "temporary_password": temp_password,
             },
-            format='txt'
+            format="txt",
         )
-        
+
         # Send email via SES (direct to recipient)
         from services.ses_email_service import SESEmailService
+
         ses = SESEmailService()
-        
+
         subject = email_service.get_invitation_subject(tenant)
-        
+
         result = ses.send_invitation(
             to_email=recipient_email,
             subject=subject,
             html_body=html_content,
-            text_body=text_content or f"Your new temporary password for {tenant}: {temp_password}",
+            text_body=text_content
+            or f"Your new temporary password for {tenant}: {temp_password}",
             administration=tenant,
             sent_by=user_email,
         )
-        
-        if result['success']:
+
+        if result["success"]:
             # Mark invitation as sent
             invitation_service.mark_invitation_sent(
-                administration=tenant,
-                email=recipient_email
+                administration=tenant, email=recipient_email
             )
-            logger.info(f"Invitation resent to {recipient_email} by {user_email} for tenant {tenant}")
-            return jsonify({
-                'success': True,
-                'message': f'Invitation resent successfully to {recipient_email}',
-                'expires_at': invitation_result.get('expires_at'),
-                'expiry_days': invitation_result.get('expiry_days')
-            })
+            logger.info(
+                f"Invitation resent to {recipient_email} by {user_email} for tenant {tenant}"
+            )
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Invitation resent successfully to {recipient_email}",
+                    "expires_at": invitation_result.get("expires_at"),
+                    "expiry_days": invitation_result.get("expiry_days"),
+                }
+            )
         else:
-            logger.warning(f"SES failed to resend invitation to {recipient_email}: {result.get('error')}")
+            logger.warning(
+                f"SES failed to resend invitation to {recipient_email}: {result.get('error')}"
+            )
             invitation_service.mark_invitation_failed(
                 administration=tenant,
                 email=recipient_email,
-                error_message=f"SES send failed: {result.get('error')}"
+                error_message=f"SES send failed: {result.get('error')}",
             )
-            return jsonify({
-                'success': False,
-                'error': f'Password was reset but the email to {recipient_email} could not be sent. Please share the credentials below manually.',
-                'message': result.get('error', 'SES send failed'),
-                'temporary_password': temp_password,
-                'email_failed': True
-            }), 500
-        
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Password was reset but the email to {recipient_email} could not be sent. Please share the credentials below manually.",
+                    "message": result.get("error", "SES send failed"),
+                    "temporary_password": temp_password,
+                    "email_failed": True,
+                }
+            ), 500
+
     except Exception as e:
         logger.error(f"Error resending invitation: {e}")
         import traceback
+
         traceback.print_exc()
-        return jsonify({
-            'error': 'Failed to resend invitation',
-            'message': str(e)
-        }), 500
+        return jsonify({"error": "Failed to resend invitation", "message": str(e)}), 500

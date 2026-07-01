@@ -12,6 +12,7 @@ from dataclasses import dataclass
 @dataclass
 class SanitizeResult:
     """Result of text sanitization."""
+
     text: str
     was_truncated: bool
     patterns_removed: int
@@ -29,11 +30,13 @@ class AISanitizer:
     REJECTION_THRESHOLD = 0.50  # Reject if >50% of content stripped
 
     INJECTION_PATTERNS = [
-        re.compile(r'(?i)\b(you are now|act as|pretend to be|assume the role)\b'),
-        re.compile(r'(?i)\b(ignore previous|disregard above|forget all|override instructions)\b'),
-        re.compile(r'(?i)\[SYSTEM\]'),
-        re.compile(r'(?i)###\s*(system|instruction|prompt)'),
-        re.compile(r'(?i)\b(new instructions?|updated instructions?)\s*:'),
+        re.compile(r"(?i)\b(you are now|act as|pretend to be|assume the role)\b"),
+        re.compile(
+            r"(?i)\b(ignore previous|disregard above|forget all|override instructions)\b"
+        ),
+        re.compile(r"(?i)\[SYSTEM\]"),
+        re.compile(r"(?i)###\s*(system|instruction|prompt)"),
+        re.compile(r"(?i)\b(new instructions?|updated instructions?)\s*:"),
     ]
 
     def sanitize(self, text: str) -> SanitizeResult:
@@ -47,7 +50,9 @@ class AISanitizer:
             and rejection flag.
         """
         if not text:
-            return SanitizeResult(text="", was_truncated=False, patterns_removed=0, rejected=False)
+            return SanitizeResult(
+                text="", was_truncated=False, patterns_removed=0, rejected=False
+            )
 
         original_length = len(text)
         sanitized = text
@@ -57,7 +62,7 @@ class AISanitizer:
         for pattern in self.INJECTION_PATTERNS:
             matches = pattern.findall(sanitized)
             patterns_removed += len(matches)
-            sanitized = pattern.sub('', sanitized)
+            sanitized = pattern.sub("", sanitized)
 
         # Check rejection threshold before truncation
         sanitized_length = len(sanitized)
@@ -74,7 +79,7 @@ class AISanitizer:
         # Truncate to MAX_TEXT_LENGTH
         was_truncated = len(sanitized) > self.MAX_TEXT_LENGTH
         if was_truncated:
-            sanitized = sanitized[:self.MAX_TEXT_LENGTH]
+            sanitized = sanitized[: self.MAX_TEXT_LENGTH]
 
         return SanitizeResult(
             text=sanitized,
@@ -141,7 +146,7 @@ class AISanitizer:
             f"{vendor_context}{context_info}\n"
             "Document text:\n"
             f"{sanitized_text}\n\n"
-            'Return ONLY valid JSON in this exact format:\n'
+            "Return ONLY valid JSON in this exact format:\n"
             '{"date": "YYYY-MM-DD", "total_amount": 0.00, "vat_amount": 0.00, '
             '"description": "text", "vendor": "name"}\n\n'
             "Rules:\n"
@@ -180,11 +185,11 @@ class AISanitizer:
             return False
 
         required_fields = {
-            'date': str,
-            'total_amount': (int, float),
-            'vat_amount': (int, float),
-            'description': str,
-            'vendor': str,
+            "date": str,
+            "total_amount": (int, float),
+            "vat_amount": (int, float),
+            "description": str,
+            "vendor": str,
         }
 
         for field, expected_type in required_fields.items():
@@ -194,7 +199,9 @@ class AISanitizer:
             if not isinstance(value, expected_type):
                 return False
             # Reject booleans masquerading as int (bool is subclass of int in Python)
-            if isinstance(expected_type, tuple) and (int in expected_type or float in expected_type):
+            if isinstance(expected_type, tuple) and (
+                int in expected_type or float in expected_type
+            ):
                 if isinstance(value, bool):
                     return False
 

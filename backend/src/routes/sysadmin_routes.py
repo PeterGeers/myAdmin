@@ -27,23 +27,23 @@ from .sysadmin_pivot_routes import sysadmin_pivot_bp
 from .sysadmin_test_tool import sysadmin_test_tool_bp
 
 # Create main blueprint for sysadmin routes
-sysadmin_bp = Blueprint('sysadmin', __name__, url_prefix='/api/sysadmin')
+sysadmin_bp = Blueprint("sysadmin", __name__, url_prefix="/api/sysadmin")
 
 # Register sub-blueprints
 # Tenant routes: /api/sysadmin/tenants (includes module management)
-sysadmin_bp.register_blueprint(sysadmin_tenants_bp, url_prefix='/tenants')
+sysadmin_bp.register_blueprint(sysadmin_tenants_bp, url_prefix="/tenants")
 
 # Tenant action routes: /api/sysadmin/tenants (reprovision, resend-invitation)
-sysadmin_bp.register_blueprint(sysadmin_tenant_actions_bp, url_prefix='/tenants')
+sysadmin_bp.register_blueprint(sysadmin_tenant_actions_bp, url_prefix="/tenants")
 
 # Role routes: /api/sysadmin/roles
-sysadmin_bp.register_blueprint(sysadmin_roles_bp, url_prefix='/roles')
+sysadmin_bp.register_blueprint(sysadmin_roles_bp, url_prefix="/roles")
 
 # Provisioning routes: /api/sysadmin/provisioning
-sysadmin_bp.register_blueprint(sysadmin_provisioning_bp, url_prefix='/provisioning')
+sysadmin_bp.register_blueprint(sysadmin_provisioning_bp, url_prefix="/provisioning")
 
 # Pivot data source management: /api/sysadmin/pivot
-sysadmin_bp.register_blueprint(sysadmin_pivot_bp, url_prefix='/pivot')
+sysadmin_bp.register_blueprint(sysadmin_pivot_bp, url_prefix="/pivot")
 
 # Invoice processing test tool: /api/sysadmin/test-tool
-sysadmin_bp.register_blueprint(sysadmin_test_tool_bp, url_prefix='/test-tool')
+sysadmin_bp.register_blueprint(sysadmin_test_tool_bp, url_prefix="/test-tool")

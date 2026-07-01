@@ -27,11 +27,13 @@ logger = logging.getLogger(__name__)
 # Create blueprint for tenant admin routes
 # Note: This blueprint now only contains shared middleware (security headers).
 # All route endpoints have been moved to dedicated modules.
-tenant_admin_bp = Blueprint('tenant_admin', __name__)
+tenant_admin_bp = Blueprint("tenant_admin", __name__)
 
 # Initialize Cognito client
-cognito_client = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'eu-west-1'))
-USER_POOL_ID = os.getenv('COGNITO_USER_POOL_ID')
+cognito_client = boto3.client(
+    "cognito-idp", region_name=os.getenv("AWS_REGION", "eu-west-1")
+)
+USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")
 
 
 # ============================================================================
@@ -41,10 +43,13 @@ USER_POOL_ID = os.getenv('COGNITO_USER_POOL_ID')
 # Canonical list of valid template types used across all template endpoints.
 # Any new template type must be added here (Requirements 3.1, 3.2).
 VALID_TEMPLATE_TYPES = [
-    'str_invoice_nl', 'str_invoice_en',
-    'btw_aangifte', 'aangifte_ib',
-    'toeristenbelasting', 'financial_report',
-    'zzp_invoice',
+    "str_invoice_nl",
+    "str_invoice_en",
+    "btw_aangifte",
+    "aangifte_ib",
+    "toeristenbelasting",
+    "financial_report",
+    "zzp_invoice",
 ]
 
 
@@ -77,13 +82,13 @@ def add_security_headers(response):
         "base-uri 'self'; "
         "form-action 'self'"
     )
-    response.headers['Content-Security-Policy'] = csp_policy
+    response.headers["Content-Security-Policy"] = csp_policy
 
     # Additional security headers
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
     return response
 
@@ -104,7 +109,7 @@ def has_fin_module(tenant: str) -> bool:
         True if tenant has FIN module and it's active, False otherwise
     """
     try:
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         db = DatabaseManager(test_mode=test_mode)
 
         query = """
@@ -114,7 +119,7 @@ def has_fin_module(tenant: str) -> bool:
         """
         result = db.execute_query(query, (tenant,))
 
-        return bool(result and result[0].get('is_active'))
+        return bool(result and result[0].get("is_active"))
 
     except Exception as e:
         logger.error(f"Error checking FIN module for tenant {tenant}: {e}")
@@ -184,7 +189,7 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
         Count of transactions using this account (0 if not used)
     """
     try:
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         db = DatabaseManager(test_mode=test_mode)
 
         query = """
@@ -195,19 +200,21 @@ def is_account_used_in_transactions(tenant: str, account: str) -> int:
         """
         result = db.execute_query(query, (tenant, account, account))
 
-        return result[0].get('count', 0) if result else 0
+        return result[0].get("count", 0) if result else 0
 
     except Exception as e:
-        logger.error(f"Error checking account usage for {account} in tenant {tenant}: {e}")
+        logger.error(
+            f"Error checking account usage for {account} in tenant {tenant}: {e}"
+        )
         return 0
 
 
 def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
     """Extract attribute value from Cognito user object"""
-    for attr in user.get('Attributes', []):
-        if attr['Name'] == attribute_name:
-            value = attr['Value']
-            if attribute_name == 'custom:tenants':
+    for attr in user.get("Attributes", []):
+        if attr["Name"] == attribute_name:
+            value = attr["Value"]
+            if attribute_name == "custom:tenants":
                 try:
                     return json.loads(value)
                 except Exception:
@@ -220,10 +227,9 @@ def get_user_groups(username: str) -> List[str]:
     """Get Cognito groups for a user"""
     try:
         response = cognito_client.admin_list_groups_for_user(
-            UserPoolId=USER_POOL_ID,
-            Username=username
+            UserPoolId=USER_POOL_ID, Username=username
         )
-        return [group['GroupName'] for group in response.get('Groups', [])]
+        return [group["GroupName"] for group in response.get("Groups", [])]
     except Exception as e:
         print(f"Error getting user groups: {e}", flush=True)
         return []

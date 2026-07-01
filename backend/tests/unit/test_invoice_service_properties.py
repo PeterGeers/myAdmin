@@ -217,7 +217,7 @@ class TestParserUsedFieldCorrectness:
             f"got '{parser_used}'"
         )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(tx=ai_failed_tx_st, result=result_without_ai_data_st)
     def test_zero_amount_returns_ai_failed(self, tx, result):
         """

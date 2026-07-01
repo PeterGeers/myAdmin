@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class XLSXExportProcessor(XLSXProgressExportMixin):
     """Processes financial ledger data into Excel workbooks with associated files.
-    
+
     Inherits file-download helpers and progress-reporting export methods
     from XLSXProgressExportMixin.
     """
@@ -35,20 +35,20 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
         self.template_service = TemplateService(self.db)
         # Default template path (fallback)
         self.default_template_path = os.path.join(
-            os.path.dirname(__file__), '..', 'templates', 'xlsx', 'template.xlsx'
+            os.path.dirname(__file__), "..", "templates", "xlsx", "template.xlsx"
         )
         # Output path from parameter service or environment-based default
         if parameter_service and tenant:
             self.default_output_base_path = parameter_service.get_param(
-                'storage', 'report_output_path', tenant=tenant
+                "storage", "report_output_path", tenant=tenant
             )
         else:
             self.default_output_base_path = None
         if not self.default_output_base_path:
-            if os.getenv('DOCKER_ENV') or os.path.exists('/.dockerenv'):
-                self.default_output_base_path = '/app/reports'
+            if os.getenv("DOCKER_ENV") or os.path.exists("/.dockerenv"):
+                self.default_output_base_path = "/app/reports"
             else:
-                self.default_output_base_path = os.path.join(os.getcwd(), 'reports')
+                self.default_output_base_path = os.path.join(os.getcwd(), "reports")
         os.makedirs(self.default_output_base_path, exist_ok=True)
         self.folder_search_log = []
         logger.info("XLSXExportProcessor initialized with TemplateService")
@@ -57,11 +57,11 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
         """Get template path for administration using TemplateService."""
         try:
             metadata = self.template_service.get_template_metadata(
-                administration, 'financial_report_xlsx'
+                administration, "financial_report_xlsx"
             )
-            if metadata and metadata.get('field_mappings'):
-                field_mappings = metadata['field_mappings']
-                template_path = field_mappings.get('template_path')
+            if metadata and metadata.get("field_mappings"):
+                field_mappings = metadata["field_mappings"]
+                template_path = field_mappings.get("template_path")
                 if template_path and os.path.exists(template_path):
                     logger.info(
                         f"Using template path from TemplateService for {administration}: "
@@ -83,11 +83,11 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
         """Get output base path for administration using TemplateService."""
         try:
             metadata = self.template_service.get_template_metadata(
-                administration, 'financial_report_xlsx'
+                administration, "financial_report_xlsx"
             )
-            if metadata and metadata.get('field_mappings'):
-                field_mappings = metadata['field_mappings']
-                output_path = field_mappings.get('output_base_path')
+            if metadata and metadata.get("field_mappings"):
+                field_mappings = metadata["field_mappings"]
+                output_path = field_mappings.get("output_base_path")
                 if output_path:
                     os.makedirs(output_path, exist_ok=True)
                     logger.info(
@@ -123,22 +123,22 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
             beginning_balance = []
             for row in balance_data:
                 balance_record = {
-                    'TransactionNumber': f'Beginbalans {year}',
-                    'TransactionDate': f'{year}-01-01',
-                    'TransactionDescription': f'Beginbalans van het jaar {year} van Administratie {administration}',
-                    'Amount': round(row['Amount'], 2),
-                    'Reknum': row['Reknum'],
-                    'AccountName': row['AccountName'],
-                    'Parent': row['Parent'],
-                    'Administration': row['Administration'],
-                    'VW': 'N',
-                    'jaar': year,
-                    'kwartaal': 1,
-                    'maand': 1,
-                    'week': 1,
-                    'ReferenceNumber': '',
-                    'DocUrl': '',
-                    'Document': ''
+                    "TransactionNumber": f"Beginbalans {year}",
+                    "TransactionDate": f"{year}-01-01",
+                    "TransactionDescription": f"Beginbalans van het jaar {year} van Administratie {administration}",
+                    "Amount": round(row["Amount"], 2),
+                    "Reknum": row["Reknum"],
+                    "AccountName": row["AccountName"],
+                    "Parent": row["Parent"],
+                    "Administration": row["Administration"],
+                    "VW": "N",
+                    "jaar": year,
+                    "kwartaal": 1,
+                    "maand": 1,
+                    "week": 1,
+                    "ReferenceNumber": "",
+                    "DocUrl": "",
+                    "Document": "",
                 }
                 beginning_balance.append(balance_record)
 
@@ -162,7 +162,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
             cursor.close()
             conn.close()
 
-    def write_workbook(self, data, filename, sheet_name='data', administration=None):
+    def write_workbook(self, data, filename, sheet_name="data", administration=None):
         """Write data to Excel workbook using template."""
         # Ensure output directory exists
         output_dir = os.path.dirname(filename)
@@ -175,7 +175,11 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                 print(f"Falling back to current directory: {filename}")
 
         # Get template path for this administration
-        template_path = self._get_template_path(administration) if administration else self.default_template_path
+        template_path = (
+            self._get_template_path(administration)
+            if administration
+            else self.default_template_path
+        )
 
         # Copy template if target file doesn't exist
         if not os.path.exists(filename):
@@ -183,6 +187,7 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                 shutil.copy2(template_path, filename)
             else:
                 from openpyxl import Workbook
+
                 wb = Workbook()
                 wb.save(filename)
 
@@ -199,21 +204,34 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
         # Convert data to DataFrame and select required columns
         df = pd.DataFrame(data)
         required_columns = [
-            'TransactionNumber', 'TransactionDate', 'TransactionDescription',
-            'Amount', 'Reknum', 'AccountName', 'SubParent', 'Parent', 'VW',
-            'jaar', 'kwartaal', 'maand', 'week', 'ReferenceNumber',
-            'Administration', 'DocUrl', 'Document'
+            "TransactionNumber",
+            "TransactionDate",
+            "TransactionDescription",
+            "Amount",
+            "Reknum",
+            "AccountName",
+            "SubParent",
+            "Parent",
+            "VW",
+            "jaar",
+            "kwartaal",
+            "maand",
+            "week",
+            "ReferenceNumber",
+            "Administration",
+            "DocUrl",
+            "Document",
         ]
         available_columns = [col for col in required_columns if col in df.columns]
         df = df[available_columns]
 
         # Convert Amount column to numeric
-        if 'Amount' in df.columns:
-            df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce')
+        if "Amount" in df.columns:
+            df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
 
         # Clean string columns (but not Amount)
-        for col in df.select_dtypes(include=['object']).columns:
-            if col != 'Amount':
+        for col in df.select_dtypes(include=["object"]).columns:
+            if col != "Amount":
                 df[col] = df[col].astype(str).str.strip()
 
         # Write data to worksheet
@@ -239,48 +257,61 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
                     print(f"Found {len(ledger_data)} records")
 
                     if not ledger_data:
-                        results.append({
-                            'administration': administration,
-                            'year': year,
-                            'error': 'No data found for this administration/year combination',
-                            'success': False
-                        })
+                        results.append(
+                            {
+                                "administration": administration,
+                                "year": year,
+                                "error": "No data found for this administration/year combination",
+                                "success": False,
+                            }
+                        )
                         continue
 
                     output_base_path = self._get_output_base_path(administration)
-                    folder_path = os.path.join(output_base_path, f"{administration}{year}")
+                    folder_path = os.path.join(
+                        output_base_path, f"{administration}{year}"
+                    )
                     filename = os.path.join(folder_path, f"{administration}{year}.xlsx")
 
                     try:
                         os.makedirs(output_base_path, exist_ok=True)
                     except OSError as e:
-                        print(f"Warning: Could not create base output directory {output_base_path}: {e}")
+                        print(
+                            f"Warning: Could not create base output directory {output_base_path}: {e}"
+                        )
                         filename = f"{administration}{year}.xlsx"
                         print(f"Using current directory for output: {filename}")
 
-                    output_file = self.write_workbook(ledger_data, filename, 'data', administration)
+                    output_file = self.write_workbook(
+                        ledger_data, filename, "data", administration
+                    )
                     print(f"Created file: {output_file}")
 
                     file_count = self.export_files(ledger_data, year, administration)
 
-                    results.append({
-                        'administration': administration,
-                        'year': year,
-                        'filename': output_file,
-                        'records': len(ledger_data),
-                        'files_processed': file_count,
-                        'success': True
-                    })
+                    results.append(
+                        {
+                            "administration": administration,
+                            "year": year,
+                            "filename": output_file,
+                            "records": len(ledger_data),
+                            "files_processed": file_count,
+                            "success": True,
+                        }
+                    )
 
                 except Exception as e:
                     print(f"Error processing {administration} {year}: {str(e)}")
                     import traceback
+
                     traceback.print_exc()
-                    results.append({
-                        'administration': administration,
-                        'year': year,
-                        'error': str(e),
-                        'success': False
-                    })
+                    results.append(
+                        {
+                            "administration": administration,
+                            "year": year,
+                            "error": str(e),
+                            "success": False,
+                        }
+                    )
 
         return results

@@ -16,13 +16,14 @@ import pandas as pd
 @dataclass
 class CsvAggregationRule:
     """Declarative CSV aggregation rule."""
-    folder_pattern: str          # substring match on folder_name
-    amount_column: str           # column to aggregate
-    amount_operation: str        # "sum"
-    date_column: str             # column for date extraction
-    date_operation: str          # "max"
-    description_template: str    # e.g. "Hosting Fee; {filename}"
-    vat_amount: float            # fixed VAT amount
+
+    folder_pattern: str  # substring match on folder_name
+    amount_column: str  # column to aggregate
+    amount_operation: str  # "sum"
+    date_column: str  # column for date extraction
+    date_operation: str  # "max"
+    description_template: str  # e.g. "Hosting Fee; {filename}"
+    vat_amount: float  # fixed VAT amount
 
 
 # Rule registry — add new rules here without modifying extraction logic
@@ -53,7 +54,9 @@ class CsvRuleEngine:
                 return rule
         return None
 
-    def apply(self, rule: CsvAggregationRule, lines: list[str], folder_name: str) -> Optional[dict]:
+    def apply(
+        self, rule: CsvAggregationRule, lines: list[str], folder_name: str
+    ) -> Optional[dict]:
         """Apply a CSV aggregation rule to extracted lines."""
         csv_data = self._extract_csv_data(lines)
         if csv_data is None:
@@ -70,24 +73,24 @@ class CsvRuleEngine:
                     total_amount = float(df[rule.amount_column].dropna().sum())
 
             # Extract date
-            date = datetime.now().strftime('%Y-%m-%d')
+            date = datetime.now().strftime("%Y-%m-%d")
             if rule.date_column in df.columns:
                 if rule.date_operation == "max":
                     max_date = df[rule.date_column].max()
                     if pd.notna(max_date):
                         parsed = pd.to_datetime(max_date)
-                        date = parsed.strftime('%Y-%m-%d')
+                        date = parsed.strftime("%Y-%m-%d")
 
             # Build description
             description = rule.description_template.format(filename=filename)
 
             return {
-                'date': date,
-                'total_amount': round(total_amount, 2),
-                'vat_amount': rule.vat_amount,
-                'description': description,
-                'vendor': folder_name,
-                'parser_used_hint': 'csv_rule',
+                "date": date,
+                "total_amount": round(total_amount, 2),
+                "vat_amount": rule.vat_amount,
+                "description": description,
+                "vendor": folder_name,
+                "parser_used_hint": "csv_rule",
             }
 
         except Exception as e:
@@ -97,7 +100,7 @@ class CsvRuleEngine:
     def _extract_csv_data(self, lines: list[str]) -> Optional[list[dict]]:
         """Extract JSON CSV data from processed lines."""
         for i, line in enumerate(lines):
-            if line == '[CSV_DATA_START]' and i + 1 < len(lines):
+            if line == "[CSV_DATA_START]" and i + 1 < len(lines):
                 try:
                     return json.loads(lines[i + 1])
                 except (json.JSONDecodeError, IndexError):
@@ -107,8 +110,8 @@ class CsvRuleEngine:
     def _extract_filename(self, lines: list[str]) -> str:
         """Extract filename from CSV info lines."""
         for line in lines:
-            if line.startswith('[CSV File:'):
-                match = re.search(r'\[CSV File: (.+)\]', line)
+            if line.startswith("[CSV File:"):
+                match = re.search(r"\[CSV File: (.+)\]", line)
                 if match:
                     return match.group(1)
-        return ''
+        return ""

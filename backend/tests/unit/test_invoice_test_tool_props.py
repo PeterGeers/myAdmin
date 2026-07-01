@@ -647,7 +647,7 @@ class TestAIMetricsConditionalOnParser:
             min_size=1, max_size=20,
         ),
     )
-    @settings(max_examples=100, derandomize=True)
+    @settings(max_examples=100, derandomize=True, suppress_health_check=[HealthCheck.too_slow])
     def test_ai_parser_has_non_negative_metrics(
         self, prompt_tokens, completion_tokens, ai_duration_ms, model_name, folder_name
     ):

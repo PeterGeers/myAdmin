@@ -13,7 +13,7 @@ from flask.typing import ResponseReturnValue
 
 logger = logging.getLogger(__name__)
 
-config_bp = Blueprint('config', __name__, url_prefix='/api/config')
+config_bp = Blueprint("config", __name__, url_prefix="/api/config")
 
 # Load ledger parameters once at import time
 _ledger_parameters = None
@@ -24,10 +24,11 @@ def _get_ledger_parameters() -> dict:
     if _ledger_parameters is None:
         config_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
-            'config', 'ledger_parameters.json'
+            "config",
+            "ledger_parameters.json",
         )
         try:
-            with open(config_path, encoding='utf-8') as f:
+            with open(config_path, encoding="utf-8") as f:
                 _ledger_parameters = json.load(f)
         except Exception as e:
             logger.error(f"Failed to load ledger_parameters.json: {e}")
@@ -35,7 +36,7 @@ def _get_ledger_parameters() -> dict:
     return _ledger_parameters
 
 
-@config_bp.route('/ledger-parameters', methods=['GET'])
+@config_bp.route("/ledger-parameters", methods=["GET"])
 def get_ledger_parameters() -> ResponseReturnValue:
     """
     Get predefined ledger account parameter definitions.

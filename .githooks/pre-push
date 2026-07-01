@@ -1,5 +1,5 @@
 #!/bin/sh
-# Pre-push hook: scans ALL files being pushed for secrets.
+# Pre-push hook: scans only CHANGED files being pushed for secrets.
 # Uses ggshield if available, falls back to local regex scanner.
 # Blocks push if secrets are found.
 
@@ -35,19 +35,20 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     echo "Scanning $(echo "$changed_files" | wc -l | tr -d ' ') files being pushed..."
 
-    # Try ggshield first (scans the commit range)
+    # Try ggshield first (scan only changed files — quota-friendly)
     if command -v ggshield >/dev/null 2>&1; then
-        output=$(ggshield secret scan commit-range "$remote_sha" 2>&1)
+        output=$(ggshield secret scan path $changed_files 2>&1)
         code=$?
 
+        # Detect quota exhaustion
         if echo "$output" | grep -qiE "no more API calls|quota|rate.limit"; then
             echo "ggshield quota exhausted - falling back to local scanner"
             "$REPO_ROOT/scripts/scan-secrets-local.sh" --pre-push "$remote_sha" "$local_sha"
             exit $?
-        else
-            echo "$output"
-            exit $code
         fi
+
+        echo "$output"
+        exit $code
     else
         echo "ggshield not found - running local scanner"
         "$REPO_ROOT/scripts/scan-secrets-local.sh" --pre-push "$remote_sha" "$local_sha"

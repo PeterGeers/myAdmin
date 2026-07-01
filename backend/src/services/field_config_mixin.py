@@ -21,7 +21,7 @@ class FieldConfigMixin:
     """Mixin providing parameter-driven field validation."""
 
     # Subclasses must define these
-    FIELD_CONFIG_KEY: str = ''
+    FIELD_CONFIG_KEY: str = ""
     ALWAYS_REQUIRED: List[str] = []
 
     def get_field_config(self, tenant: str) -> Dict[str, str]:
@@ -31,22 +31,23 @@ class FieldConfigMixin:
         ALWAYS_REQUIRED fields are forced to 'required' regardless of config.
         """
         config = None
-        if hasattr(self, 'parameter_service') and self.parameter_service:
+        if hasattr(self, "parameter_service") and self.parameter_service:
             config = self.parameter_service.get_param(
-                'zzp', self.FIELD_CONFIG_KEY, tenant=tenant
+                "zzp", self.FIELD_CONFIG_KEY, tenant=tenant
             )
 
         if not config:
             from services.module_registry import MODULE_REGISTRY
-            param_key = f'zzp.{self.FIELD_CONFIG_KEY}'
-            param_def = MODULE_REGISTRY['ZZP']['required_params'].get(param_key, {})
-            config = dict(param_def.get('default', {}))
+
+            param_key = f"zzp.{self.FIELD_CONFIG_KEY}"
+            param_def = MODULE_REGISTRY["ZZP"]["required_params"].get(param_key, {})
+            config = dict(param_def.get("default", {}))
         else:
             config = dict(config)
 
         # Enforce minimum required fields
         for field in self.ALWAYS_REQUIRED:
-            config[field] = 'required'
+            config[field] = "required"
 
         return config
 
@@ -57,8 +58,7 @@ class FieldConfigMixin:
         """
         config = self.get_field_config(tenant)
         missing = [
-            f for f, level in config.items()
-            if level == 'required' and not data.get(f)
+            f for f, level in config.items() if level == "required" and not data.get(f)
         ]
         if missing:
             raise ValueError(f"Required fields missing: {', '.join(missing)}")
@@ -66,5 +66,5 @@ class FieldConfigMixin:
     def strip_hidden_fields(self, tenant: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Remove hidden fields from response data."""
         config = self.get_field_config(tenant)
-        hidden = {f for f, level in config.items() if level == 'hidden'}
+        hidden = {f for f, level in config.items() if level == "hidden"}
         return {k: v for k, v in data.items() if k not in hidden}

@@ -22,39 +22,39 @@ from services.function_guard import function_guard
 
 logger = logging.getLogger(__name__)
 
-asset_bp = Blueprint('assets', __name__, url_prefix='/api/assets')
+asset_bp = Blueprint("assets", __name__, url_prefix="/api/assets")
 
 
 def _get_service() -> AssetService:
-    test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
     db = DatabaseManager(test_mode=test_mode)
     return AssetService(db)
 
 
-@asset_bp.route('', methods=['GET'])
-@cognito_required(required_permissions=['finance_read'])
+@asset_bp.route("", methods=["GET"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
-@function_guard('assets', 'FIN')
+@function_guard("assets", "FIN")
 def list_assets(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """List assets with current book values."""
     try:
         service = _get_service()
         assets = service.get_assets(
             administration=tenant,
-            status=request.args.get('status'),
-            category=request.args.get('category'),
-            ledger_account=request.args.get('ledger_account'),
+            status=request.args.get("status"),
+            category=request.args.get("category"),
+            ledger_account=request.args.get("ledger_account"),
         )
-        return jsonify({'success': True, 'assets': assets, 'count': len(assets)})
+        return jsonify({"success": True, "assets": assets, "count": len(assets)})
     except Exception as e:
         logger.error(f"Error listing assets: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@asset_bp.route('', methods=['POST'])
-@cognito_required(required_permissions=['finance_write'])
+@asset_bp.route("", methods=["POST"])
+@cognito_required(required_permissions=["finance_write"])
 @tenant_required()
-@function_guard('assets', 'FIN')
+@function_guard("assets", "FIN")
 def create_asset(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
     """
     Create a new asset.
@@ -79,45 +79,49 @@ def create_asset(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'error': 'Request body required'}), 400
+            return jsonify({"error": "Request body required"}), 400
 
-        required = ['description', 'ledger_account', 'purchase_date', 'purchase_amount']
+        required = ["description", "ledger_account", "purchase_date", "purchase_amount"]
         for field in required:
             if not data.get(field):
-                return jsonify({'error': f'Missing required field: {field}'}), 400
+                return jsonify({"error": f"Missing required field: {field}"}), 400
 
         service = _get_service()
         result = service.create_asset(administration=tenant, data=data)
         return jsonify(result), 201
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error creating asset: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@asset_bp.route('/<int:asset_id>', methods=['GET'])
-@cognito_required(required_permissions=['finance_read'])
+@asset_bp.route("/<int:asset_id>", methods=["GET"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
-@function_guard('assets', 'FIN')
-def get_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
+@function_guard("assets", "FIN")
+def get_asset(
+    user_email, user_roles, tenant, user_tenants, asset_id
+) -> ResponseReturnValue:
     """Get single asset with transaction history."""
     try:
         service = _get_service()
         asset = service.get_asset(administration=tenant, asset_id=asset_id)
         if not asset:
-            return jsonify({'error': 'Asset not found'}), 404
-        return jsonify({'success': True, 'asset': asset})
+            return jsonify({"error": "Asset not found"}), 404
+        return jsonify({"success": True, "asset": asset})
     except Exception as e:
         logger.error(f"Error getting asset {asset_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@asset_bp.route('/<int:asset_id>', methods=['PUT'])
-@cognito_required(required_permissions=['finance_write'])
+@asset_bp.route("/<int:asset_id>", methods=["PUT"])
+@cognito_required(required_permissions=["finance_write"])
 @tenant_required()
-@function_guard('assets', 'FIN')
-def update_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
+@function_guard("assets", "FIN")
+def update_asset(
+    user_email, user_roles, tenant, user_tenants, asset_id
+) -> ResponseReturnValue:
     """
     Update asset metadata.
 
@@ -127,25 +131,29 @@ def update_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> Resp
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'error': 'Request body required'}), 400
+            return jsonify({"error": "Request body required"}), 400
 
         service = _get_service()
         result = service.update_asset(
             administration=tenant, asset_id=asset_id, data=data
         )
-        if not result.get('success'):
-            return jsonify(result), 400 if result.get('error') == 'Asset not found' else 422
+        if not result.get("success"):
+            return jsonify(result), 400 if result.get(
+                "error"
+            ) == "Asset not found" else 422
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error updating asset {asset_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@asset_bp.route('/<int:asset_id>/dispose', methods=['POST'])
-@cognito_required(required_permissions=['finance_write'])
+@asset_bp.route("/<int:asset_id>/dispose", methods=["POST"])
+@cognito_required(required_permissions=["finance_write"])
 @tenant_required()
-@function_guard('assets', 'FIN')
-def dispose_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
+@function_guard("assets", "FIN")
+def dispose_asset(
+    user_email, user_roles, tenant, user_tenants, asset_id
+) -> ResponseReturnValue:
     """
     Dispose an asset.
 
@@ -158,31 +166,33 @@ def dispose_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> Res
     """
     try:
         data = request.get_json()
-        if not data or not data.get('disposal_date'):
-            return jsonify({'error': 'disposal_date is required'}), 400
+        if not data or not data.get("disposal_date"):
+            return jsonify({"error": "disposal_date is required"}), 400
 
         service = _get_service()
         result = service.dispose_asset(
             administration=tenant,
             asset_id=asset_id,
-            disposal_date=data['disposal_date'],
-            disposal_amount=float(data.get('disposal_amount', 0)),
-            credit_account=data.get('credit_account'),
+            disposal_date=data["disposal_date"],
+            disposal_amount=float(data.get("disposal_amount", 0)),
+            credit_account=data.get("credit_account"),
         )
-        if not result.get('success'):
-            status = 404 if result.get('error') == 'Asset not found' else 400
+        if not result.get("success"):
+            status = 404 if result.get("error") == "Asset not found" else 400
             return jsonify(result), status
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error disposing asset {asset_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@asset_bp.route('/generate-depreciation', methods=['POST'])
-@cognito_required(required_permissions=['finance_write'])
+@asset_bp.route("/generate-depreciation", methods=["POST"])
+@cognito_required(required_permissions=["finance_write"])
 @tenant_required()
-@function_guard('assets', 'FIN')
-def generate_depreciation(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+@function_guard("assets", "FIN")
+def generate_depreciation(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """
     Generate depreciation entries for a period.
 
@@ -194,26 +204,28 @@ def generate_depreciation(user_email, user_roles, tenant, user_tenants) -> Respo
     """
     try:
         data = request.get_json()
-        if not data or not data.get('year') or not data.get('period'):
-            return jsonify({'error': 'year and period are required'}), 400
+        if not data or not data.get("year") or not data.get("period"):
+            return jsonify({"error": "year and period are required"}), 400
 
         service = _get_service()
         result = service.generate_depreciation(
             administration=tenant,
-            period=data['period'],
-            year=int(data['year']),
+            period=data["period"],
+            year=int(data["year"]),
         )
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error generating depreciation: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@asset_bp.route('/reports/register', methods=['GET'])
-@cognito_required(required_permissions=['finance_read'])
+@asset_bp.route("/reports/register", methods=["GET"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
-@function_guard('assets', 'FIN')
-def asset_register_report(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+@function_guard("assets", "FIN")
+def asset_register_report(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Asset register report — all assets with current book values."""
     try:
         service = _get_service()
@@ -225,116 +237,136 @@ def asset_register_report(user_email, user_roles, tenant, user_tenants) -> Respo
         total_book = 0
         total_depreciation = 0
         for a in assets:
-            cat = a.get('category') or 'uncategorized'
+            cat = a.get("category") or "uncategorized"
             if cat not in categories:
-                categories[cat] = {'count': 0, 'purchase': 0, 'book_value': 0, 'depreciation': 0}
-            categories[cat]['count'] += 1
-            categories[cat]['purchase'] += a['purchase_amount']
-            categories[cat]['book_value'] += a['book_value']
-            categories[cat]['depreciation'] += a['total_depreciation']
-            total_purchase += a['purchase_amount']
-            total_book += a['book_value']
-            total_depreciation += a['total_depreciation']
+                categories[cat] = {
+                    "count": 0,
+                    "purchase": 0,
+                    "book_value": 0,
+                    "depreciation": 0,
+                }
+            categories[cat]["count"] += 1
+            categories[cat]["purchase"] += a["purchase_amount"]
+            categories[cat]["book_value"] += a["book_value"]
+            categories[cat]["depreciation"] += a["total_depreciation"]
+            total_purchase += a["purchase_amount"]
+            total_book += a["book_value"]
+            total_depreciation += a["total_depreciation"]
 
-        return jsonify({
-            'success': True,
-            'assets': assets,
-            'summary': {
-                'total_assets': len(assets),
-                'total_purchase': round(total_purchase, 2),
-                'total_book_value': round(total_book, 2),
-                'total_depreciation': round(total_depreciation, 2),
-                'by_category': categories,
+        return jsonify(
+            {
+                "success": True,
+                "assets": assets,
+                "summary": {
+                    "total_assets": len(assets),
+                    "total_purchase": round(total_purchase, 2),
+                    "total_book_value": round(total_book, 2),
+                    "total_depreciation": round(total_depreciation, 2),
+                    "by_category": categories,
+                },
             }
-        })
+        )
     except Exception as e:
         logger.error(f"Error generating asset register: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@asset_bp.route('/reports/depreciation-schedule', methods=['GET'])
-@cognito_required(required_permissions=['finance_read'])
+@asset_bp.route("/reports/depreciation-schedule", methods=["GET"])
+@cognito_required(required_permissions=["finance_read"])
 @tenant_required()
-@function_guard('assets', 'FIN')
-def depreciation_schedule_report(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+@function_guard("assets", "FIN")
+def depreciation_schedule_report(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Depreciation schedule — per asset, per year."""
     try:
-        year = request.args.get('year', str(import_datetime().year))
+        year = request.args.get("year", str(import_datetime().year))
 
         service = _get_service()
-        assets = service.get_assets(administration=tenant, status='active')
+        assets = service.get_assets(administration=tenant, status="active")
 
         schedule = []
         for a in assets:
-            if a.get('depreciation_method') == 'none' or not a.get('useful_life_years'):
+            if a.get("depreciation_method") == "none" or not a.get("useful_life_years"):
                 continue
 
-            purchase = a['purchase_amount']
-            residual = a.get('residual_value', 0)
-            life = a['useful_life_years']
+            purchase = a["purchase_amount"]
+            residual = a.get("residual_value", 0)
+            life = a["useful_life_years"]
             annual = (purchase - residual) / life if life > 0 else 0
 
-            schedule.append({
-                'asset_id': a['id'],
-                'description': a['description'],
-                'category': a.get('category'),
-                'purchase_amount': purchase,
-                'residual_value': residual,
-                'useful_life_years': life,
-                'depreciation_method': a['depreciation_method'],
-                'annual_depreciation': round(annual, 2),
-                'total_depreciation': a['total_depreciation'],
-                'book_value': a['book_value'],
-            })
+            schedule.append(
+                {
+                    "asset_id": a["id"],
+                    "description": a["description"],
+                    "category": a.get("category"),
+                    "purchase_amount": purchase,
+                    "residual_value": residual,
+                    "useful_life_years": life,
+                    "depreciation_method": a["depreciation_method"],
+                    "annual_depreciation": round(annual, 2),
+                    "total_depreciation": a["total_depreciation"],
+                    "book_value": a["book_value"],
+                }
+            )
 
-        return jsonify({
-            'success': True,
-            'year': year,
-            'schedule': schedule,
-            'total_annual_depreciation': round(sum(s['annual_depreciation'] for s in schedule), 2),
-        })
+        return jsonify(
+            {
+                "success": True,
+                "year": year,
+                "schedule": schedule,
+                "total_annual_depreciation": round(
+                    sum(s["annual_depreciation"] for s in schedule), 2
+                ),
+            }
+        )
     except Exception as e:
         logger.error(f"Error generating depreciation schedule: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 def import_datetime() -> datetime:
     return datetime.now()
 
 
-@asset_bp.route('/<int:asset_id>', methods=['DELETE'])
-@cognito_required(required_permissions=['finance_write'])
+@asset_bp.route("/<int:asset_id>", methods=["DELETE"])
+@cognito_required(required_permissions=["finance_write"])
 @tenant_required()
-@function_guard('assets', 'FIN')
-def delete_asset(user_email, user_roles, tenant, user_tenants, asset_id) -> ResponseReturnValue:
+@function_guard("assets", "FIN")
+def delete_asset(
+    user_email, user_roles, tenant, user_tenants, asset_id
+) -> ResponseReturnValue:
     """
     Delete an asset (only if no transactions are linked).
     For assets with transactions, use dispose instead.
     """
     try:
-        test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+        test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
         db = DatabaseManager(test_mode=test_mode)
 
         # Check asset exists
         existing = db.execute_query(
             "SELECT id FROM assets WHERE id = %s AND administration = %s",
-            (asset_id, tenant), fetch=True
+            (asset_id, tenant),
+            fetch=True,
         )
         if not existing:
-            return jsonify({'error': 'Asset not found'}), 404
+            return jsonify({"error": "Asset not found"}), 404
 
         # Delete linked transactions first
         db.execute_query(
             "DELETE FROM mutaties WHERE Ref1 = %s AND administration = %s COLLATE utf8mb4_unicode_ci",
-            (f'ASSET-{asset_id}', tenant), commit=True
+            (f"ASSET-{asset_id}", tenant),
+            commit=True,
         )
 
         db.execute_query(
             "DELETE FROM assets WHERE id = %s AND administration = %s",
-            (asset_id, tenant), commit=True
+            (asset_id, tenant),
+            commit=True,
         )
 
-        return jsonify({'success': True, 'message': f'Asset {asset_id} deleted'})
+        return jsonify({"success": True, "message": f"Asset {asset_id} deleted"})
     except Exception as e:
         logger.error(f"Error deleting asset {asset_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500

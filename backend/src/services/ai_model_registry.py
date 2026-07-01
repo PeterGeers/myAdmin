@@ -201,8 +201,7 @@ class ProfileResolver:
         if profile_name not in self._profiles:
             available = sorted(self._profiles.keys())
             raise RegistryError(
-                f"Unknown profile '{profile_name}'. "
-                f"Available profiles: {available}"
+                f"Unknown profile '{profile_name}'. Available profiles: {available}"
             )
 
         profile = self._profiles[profile_name]
@@ -258,8 +257,7 @@ class ProfileResolver:
         if profile_name not in self._profiles:
             available = sorted(self._profiles.keys())
             raise RegistryError(
-                f"Unknown profile '{profile_name}'. "
-                f"Available profiles: {available}"
+                f"Unknown profile '{profile_name}'. Available profiles: {available}"
             )
 
         profile = self._profiles[profile_name]
@@ -282,15 +280,17 @@ class ProfileResolver:
                     max_tokens = override.max_tokens
                     max_tokens_overridden = True
 
-            details.append({
-                "model_id": model_id,
-                "timeout": timeout,
-                "max_tokens": max_tokens,
-                "cost_tier": entry.cost_tier,
-                "supports_vision": entry.supports_vision,
-                "timeout_overridden": timeout_overridden,
-                "max_tokens_overridden": max_tokens_overridden,
-            })
+            details.append(
+                {
+                    "model_id": model_id,
+                    "timeout": timeout,
+                    "max_tokens": max_tokens,
+                    "cost_tier": entry.cost_tier,
+                    "supports_vision": entry.supports_vision,
+                    "timeout_overridden": timeout_overridden,
+                    "max_tokens_overridden": max_tokens_overridden,
+                }
+            )
 
         return details
 

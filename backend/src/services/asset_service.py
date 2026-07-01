@@ -36,7 +36,7 @@ class AssetService:
             {'success': True, 'asset_id': int, 'transaction_created': bool}
         """
         # Validate reference_number length (used in TransactionNumber CHAR(50))
-        ref_num = data.get('reference_number')
+        ref_num = data.get("reference_number")
         if ref_num and len(ref_num) > 44:
             raise ValueError(
                 f"reference_number '{ref_num[:20]}...' is too long "
@@ -55,21 +55,21 @@ class AssetService:
             """,
             (
                 administration,
-                data['description'],
-                data.get('category'),
-                data['ledger_account'],
-                data.get('depreciation_account'),
-                data['purchase_date'],
-                data['purchase_amount'],
-                data.get('depreciation_method', 'straight_line'),
-                data.get('depreciation_rate'),
-                data.get('depreciation_frequency', 'annual'),
-                data.get('useful_life_years'),
-                data.get('residual_value', 0),
-                data.get('reference_number'),
-                data.get('notes'),
+                data["description"],
+                data.get("category"),
+                data["ledger_account"],
+                data.get("depreciation_account"),
+                data["purchase_date"],
+                data["purchase_amount"],
+                data.get("depreciation_method", "straight_line"),
+                data.get("depreciation_rate"),
+                data.get("depreciation_frequency", "annual"),
+                data.get("useful_life_years"),
+                data.get("residual_value", 0),
+                data.get("reference_number"),
+                data.get("notes"),
             ),
-            commit=True
+            commit=True,
         )
 
         if not asset_id:
@@ -80,12 +80,13 @@ class AssetService:
             f"{data['description']} ({data['purchase_amount']})"
         )
         return {
-            'success': True,
-            'asset_id': asset_id,
+            "success": True,
+            "asset_id": asset_id,
         }
 
     def get_assets(
-        self, administration: str,
+        self,
+        administration: str,
         status: Optional[str] = None,
         category: Optional[str] = None,
         ledger_account: Optional[str] = None,
@@ -123,21 +124,26 @@ class AssetService:
                 AND administration = %s COLLATE utf8mb4_unicode_ci
                 GROUP BY SUBSTRING(Ref1, 7)
             ) dep ON dep.asset_id_str = CAST(a.id AS CHAR) COLLATE utf8mb4_unicode_ci
-            WHERE {' AND '.join(where)}
+            WHERE {" AND ".join(where)}
             ORDER BY a.purchase_date DESC
         """
         params_full = [administration] + params
 
         results = self.db.execute_query(query, tuple(params_full), fetch=True)
         assets = []
-        for row in (results or []):
+        for row in results or []:
             asset = dict(row)
-            for field in ('purchase_date', 'disposal_date', 'created_at', 'updated_at'):
-                if asset.get(field) and hasattr(asset[field], 'isoformat'):
+            for field in ("purchase_date", "disposal_date", "created_at", "updated_at"):
+                if asset.get(field) and hasattr(asset[field], "isoformat"):
                     asset[field] = asset[field].isoformat()
             # Convert Decimal to float for JSON
-            for field in ('purchase_amount', 'residual_value', 'disposal_amount',
-                          'total_depreciation', 'book_value'):
+            for field in (
+                "purchase_amount",
+                "residual_value",
+                "disposal_amount",
+                "total_depreciation",
+                "book_value",
+            ):
                 if isinstance(asset.get(field), Decimal):
                     asset[field] = float(asset[field])
             assets.append(asset)
@@ -151,16 +157,17 @@ class AssetService:
         # Get asset record
         result = self.db.execute_query(
             "SELECT * FROM assets WHERE id = %s AND administration = %s",
-            (asset_id, administration), fetch=True
+            (asset_id, administration),
+            fetch=True,
         )
         if not result:
             return None
 
         asset = dict(result[0])
-        for field in ('purchase_date', 'disposal_date', 'created_at', 'updated_at'):
-            if asset.get(field) and hasattr(asset[field], 'isoformat'):
+        for field in ("purchase_date", "disposal_date", "created_at", "updated_at"):
+            if asset.get(field) and hasattr(asset[field], "isoformat"):
                 asset[field] = asset[field].isoformat()
-        for field in ('purchase_amount', 'residual_value', 'disposal_amount'):
+        for field in ("purchase_amount", "residual_value", "disposal_amount"):
             if isinstance(asset.get(field), Decimal):
                 asset[field] = float(asset[field])
 
@@ -173,30 +180,31 @@ class AssetService:
             WHERE Ref1 = %s AND administration = %s
             ORDER BY TransactionDate
             """,
-            (f'ASSET-{asset_id}', administration), fetch=True
+            (f"ASSET-{asset_id}", administration),
+            fetch=True,
         )
 
-        asset['transactions'] = []
+        asset["transactions"] = []
         total_depreciation = 0
-        for tx in (transactions or []):
+        for tx in transactions or []:
             t = dict(tx)
-            if hasattr(t.get('TransactionDate'), 'isoformat'):
-                t['TransactionDate'] = t['TransactionDate'].isoformat()
-            if isinstance(t.get('TransactionAmount'), Decimal):
-                t['TransactionAmount'] = float(t['TransactionAmount'])
+            if hasattr(t.get("TransactionDate"), "isoformat"):
+                t["TransactionDate"] = t["TransactionDate"].isoformat()
+            if isinstance(t.get("TransactionAmount"), Decimal):
+                t["TransactionAmount"] = float(t["TransactionAmount"])
             # Determine transaction type from description
-            desc = t.get('TransactionDescription', '')
-            if desc.startswith('Afschrijving:'):
-                t['type'] = 'depreciation'
-                total_depreciation += abs(t['TransactionAmount'])
-            elif desc.startswith('Afboeking:') or desc.startswith('Verkoop:'):
-                t['type'] = 'disposal'
+            desc = t.get("TransactionDescription", "")
+            if desc.startswith("Afschrijving:"):
+                t["type"] = "depreciation"
+                total_depreciation += abs(t["TransactionAmount"])
+            elif desc.startswith("Afboeking:") or desc.startswith("Verkoop:"):
+                t["type"] = "disposal"
             else:
-                t['type'] = 'other'
-            asset['transactions'].append(t)
+                t["type"] = "other"
+            asset["transactions"].append(t)
 
-        asset['total_depreciation'] = total_depreciation
-        asset['book_value'] = float(asset['purchase_amount']) - total_depreciation
+        asset["total_depreciation"] = total_depreciation
+        asset["book_value"] = float(asset["purchase_amount"]) - total_depreciation
 
         return asset
 
@@ -210,10 +218,11 @@ class AssetService:
         # Check asset exists
         existing = self.db.execute_query(
             "SELECT id FROM assets WHERE id = %s AND administration = %s",
-            (asset_id, administration), fetch=True
+            (asset_id, administration),
+            fetch=True,
         )
         if not existing:
-            return {'success': False, 'error': 'Asset not found'}
+            return {"success": False, "error": "Asset not found"}
 
         # Check if depreciation entries exist (locks financial fields)
         dep_count = self.db.execute_query(
@@ -222,30 +231,33 @@ class AssetService:
             WHERE Ref1 = %s AND administration = %s
             AND TransactionDescription LIKE 'Afschrijving:%%'
             """,
-            (f'ASSET-{asset_id}', administration), fetch=True
+            (f"ASSET-{asset_id}", administration),
+            fetch=True,
         )
-        has_depreciation = dep_count and dep_count[0]['cnt'] > 0
+        has_depreciation = dep_count and dep_count[0]["cnt"] > 0
 
         # Build update
         allowed_fields = {
-            'description': 'description',
-            'category': 'category',
-            'depreciation_account': 'depreciation_account',
-            'depreciation_method': 'depreciation_method',
-            'depreciation_rate': 'depreciation_rate',
-            'depreciation_frequency': 'depreciation_frequency',
-            'useful_life_years': 'useful_life_years',
-            'residual_value': 'residual_value',
-            'reference_number': 'reference_number',
-            'notes': 'notes',
+            "description": "description",
+            "category": "category",
+            "depreciation_account": "depreciation_account",
+            "depreciation_method": "depreciation_method",
+            "depreciation_rate": "depreciation_rate",
+            "depreciation_frequency": "depreciation_frequency",
+            "useful_life_years": "useful_life_years",
+            "residual_value": "residual_value",
+            "reference_number": "reference_number",
+            "notes": "notes",
         }
         # Financial fields only if no depreciation yet
         if not has_depreciation:
-            allowed_fields.update({
-                'purchase_amount': 'purchase_amount',
-                'purchase_date': 'purchase_date',
-                'ledger_account': 'ledger_account',
-            })
+            allowed_fields.update(
+                {
+                    "purchase_amount": "purchase_amount",
+                    "purchase_date": "purchase_date",
+                    "ledger_account": "ledger_account",
+                }
+            )
 
         updates = []
         params = []
@@ -257,30 +269,34 @@ class AssetService:
 
         # Report locked fields that were attempted
         if has_depreciation:
-            for key in ('purchase_amount', 'purchase_date', 'ledger_account'):
+            for key in ("purchase_amount", "purchase_date", "ledger_account"):
                 if key in data:
                     locked_fields.append(key)
 
         if not updates:
-            return {'success': False, 'error': 'No fields to update'}
+            return {"success": False, "error": "No fields to update"}
 
         params.extend([asset_id, administration])
         self.db.execute_query(
             f"UPDATE assets SET {', '.join(updates)} WHERE id = %s AND administration = %s",
-            tuple(params), commit=True
+            tuple(params),
+            commit=True,
         )
 
-        result = {'success': True, 'asset_id': asset_id}
+        result = {"success": True, "asset_id": asset_id}
         if locked_fields:
-            result['locked_fields'] = locked_fields
-            result['warning'] = (
+            result["locked_fields"] = locked_fields
+            result["warning"] = (
                 f"Fields {locked_fields} cannot be changed after depreciation has started"
             )
         return result
 
     def dispose_asset(
-        self, administration: str, asset_id: int,
-        disposal_date: str, disposal_amount: float,
+        self,
+        administration: str,
+        asset_id: int,
+        disposal_date: str,
+        disposal_amount: float,
         credit_account: Optional[str] = None,
     ) -> dict:
         """
@@ -295,11 +311,11 @@ class AssetService:
         """
         asset = self.get_asset(administration, asset_id)
         if not asset:
-            return {'success': False, 'error': 'Asset not found'}
-        if asset['status'] == 'disposed':
-            return {'success': False, 'error': 'Asset already disposed'}
+            return {"success": False, "error": "Asset not found"}
+        if asset["status"] == "disposed":
+            return {"success": False, "error": "Asset already disposed"}
 
-        book_value = asset['book_value']
+        book_value = asset["book_value"]
         write_off = book_value - disposal_amount
 
         # Update asset status
@@ -310,7 +326,7 @@ class AssetService:
             WHERE id = %s AND administration = %s
             """,
             (disposal_date, disposal_amount, asset_id, administration),
-            commit=True
+            commit=True,
         )
 
         # Create write-off transaction if there's remaining book value
@@ -320,11 +336,11 @@ class AssetService:
                 date=disposal_date,
                 description=f"Afboeking: {asset['description']}",
                 amount=abs(write_off),
-                debet=asset['depreciation_account'] or '8099',
-                credit=asset['ledger_account'],
-                reference_number=asset.get('reference_number') or asset['description'],
-                ref1=f'ASSET-{asset_id}',
-                asset_reference=asset.get('reference_number') or asset['description'],
+                debet=asset["depreciation_account"] or "8099",
+                credit=asset["ledger_account"],
+                reference_number=asset.get("reference_number") or asset["description"],
+                ref1=f"ASSET-{asset_id}",
+                asset_reference=asset.get("reference_number") or asset["description"],
             )
 
         # Create sale proceeds transaction if sold (not scrapped)
@@ -335,10 +351,10 @@ class AssetService:
                 description=f"Verkoop: {asset['description']}",
                 amount=disposal_amount,
                 debet=credit_account,
-                credit=asset['ledger_account'],
-                reference_number=asset.get('reference_number') or asset['description'],
-                ref1=f'ASSET-{asset_id}',
-                asset_reference=asset.get('reference_number') or asset['description'],
+                credit=asset["ledger_account"],
+                reference_number=asset.get("reference_number") or asset["description"],
+                ref1=f"ASSET-{asset_id}",
+                asset_reference=asset.get("reference_number") or asset["description"],
             )
 
         logger.info(
@@ -347,11 +363,11 @@ class AssetService:
             f"write_off={write_off}"
         )
         return {
-            'success': True,
-            'asset_id': asset_id,
-            'book_value': book_value,
-            'disposal_amount': disposal_amount,
-            'write_off': write_off,
+            "success": True,
+            "asset_id": asset_id,
+            "book_value": book_value,
+            "disposal_amount": disposal_amount,
+            "write_off": write_off,
         }
 
     # -------------------------------------------------------------------------
@@ -383,7 +399,7 @@ class AssetService:
                 'details': [{'asset_id': 1, 'description': '...', 'amount': 750, 'status': 'created'}, ...]
             }
         """
-        ref2 = f'{year}-{period}' if period != 'annual' else str(year)
+        ref2 = f"{year}-{period}" if period != "annual" else str(year)
 
         # Get active assets that need depreciation
         assets = self.db.execute_query(
@@ -398,22 +414,23 @@ class AssetService:
             AND depreciation_method != 'none'
             AND useful_life_years > 0
             """,
-            (administration,), fetch=True
+            (administration,),
+            fetch=True,
         )
 
         results = {
-            'success': True,
-            'year': year,
-            'period': period,
-            'assets_processed': 0,
-            'entries_created': 0,
-            'entries_skipped': 0,
-            'details': [],
+            "success": True,
+            "year": year,
+            "period": period,
+            "assets_processed": 0,
+            "entries_created": 0,
+            "entries_skipped": 0,
+            "details": [],
         }
 
-        for asset in (assets or []):
-            asset_id = asset['id']
-            results['assets_processed'] += 1
+        for asset in assets or []:
+            asset_id = asset["id"]
+            results["assets_processed"] += 1
 
             # Check if this period's depreciation already exists (idempotent)
             existing = self.db.execute_query(
@@ -422,56 +439,63 @@ class AssetService:
                 WHERE Ref1 = %s AND Ref2 = %s AND administration = %s
                 AND TransactionDescription LIKE 'Afschrijving:%%'
                 """,
-                (f'ASSET-{asset_id}', ref2, administration), fetch=True
+                (f"ASSET-{asset_id}", ref2, administration),
+                fetch=True,
             )
-            if existing and existing[0]['cnt'] > 0:
-                results['entries_skipped'] += 1
-                results['details'].append({
-                    'asset_id': asset_id,
-                    'description': asset['description'],
-                    'status': 'skipped',
-                    'reason': f'Already exists for {ref2}',
-                })
+            if existing and existing[0]["cnt"] > 0:
+                results["entries_skipped"] += 1
+                results["details"].append(
+                    {
+                        "asset_id": asset_id,
+                        "description": asset["description"],
+                        "status": "skipped",
+                        "reason": f"Already exists for {ref2}",
+                    }
+                )
                 continue
 
             # Calculate period amount
             amount = self._calculate_period_amount(asset, period, administration)
             if amount <= 0:
-                results['entries_skipped'] += 1
-                results['details'].append({
-                    'asset_id': asset_id,
-                    'description': asset['description'],
-                    'status': 'skipped',
-                    'reason': 'Calculated amount is zero',
-                })
+                results["entries_skipped"] += 1
+                results["details"].append(
+                    {
+                        "asset_id": asset_id,
+                        "description": asset["description"],
+                        "status": "skipped",
+                        "reason": "Calculated amount is zero",
+                    }
+                )
                 continue
 
             # Determine the transaction date
             tx_date = self._period_end_date(year, period)
 
             # Insert depreciation transaction
-            dep_account = asset['depreciation_account'] or '4017'
-            asset_ref = asset.get('reference_number') or asset['description']
+            dep_account = asset["depreciation_account"] or "4017"
+            asset_ref = asset.get("reference_number") or asset["description"]
             self._insert_transaction(
                 administration=administration,
                 date=tx_date,
                 description=f"Afschrijving: {asset['description']}",
                 amount=round(amount, 2),
                 debet=dep_account,
-                credit=asset['ledger_account'],
+                credit=asset["ledger_account"],
                 reference_number=asset_ref,
-                ref1=f'ASSET-{asset_id}',
+                ref1=f"ASSET-{asset_id}",
                 ref2=ref2,
                 asset_reference=asset_ref,
             )
 
-            results['entries_created'] += 1
-            results['details'].append({
-                'asset_id': asset_id,
-                'description': asset['description'],
-                'amount': round(amount, 2),
-                'status': 'created',
-            })
+            results["entries_created"] += 1
+            results["details"].append(
+                {
+                    "asset_id": asset_id,
+                    "description": asset["description"],
+                    "amount": round(amount, 2),
+                    "status": "created",
+                }
+            )
 
         logger.info(
             f"Depreciation for '{administration}' {year}/{period}: "
@@ -480,41 +504,42 @@ class AssetService:
         )
         return results
 
-    def _calculate_period_amount(self, asset: dict, period: str,
-                                administration: str = '') -> float:
+    def _calculate_period_amount(
+        self, asset: dict, period: str, administration: str = ""
+    ) -> float:
         """
         Calculate depreciation amount for a single period.
 
         Straight-line: (purchase - residual) / useful_life / periods_per_year
         Declining balance: current_book_value * rate% / periods_per_year
         """
-        purchase = float(asset['purchase_amount'])
-        residual = float(asset.get('residual_value') or 0)
-        life = asset['useful_life_years']
-        method = asset['depreciation_method']
-        frequency = asset.get('depreciation_frequency', 'annual')
+        purchase = float(asset["purchase_amount"])
+        residual = float(asset.get("residual_value") or 0)
+        life = asset["useful_life_years"]
+        method = asset["depreciation_method"]
+        frequency = asset.get("depreciation_frequency", "annual")
 
         if life <= 0:
             return 0
 
         # Periods per year based on frequency
-        periods = {'annual': 1, 'quarterly': 4, 'monthly': 12}.get(frequency, 1)
+        periods = {"annual": 1, "quarterly": 4, "monthly": 12}.get(frequency, 1)
 
         # Check period matches frequency
         if not self._period_matches_frequency(period, frequency):
             return 0
 
-        if method == 'straight_line':
+        if method == "straight_line":
             annual = (purchase - residual) / life
             return annual / periods
 
-        elif method == 'declining_balance':
-            rate = float(asset.get('depreciation_rate') or 0)
+        elif method == "declining_balance":
+            rate = float(asset.get("depreciation_rate") or 0)
             if rate <= 0:
                 return 0
 
             # Get current book value from past depreciation
-            asset_id = asset['id']
+            asset_id = asset["id"]
             dep_result = self.db.execute_query(
                 """
                 SELECT COALESCE(SUM(ABS(TransactionAmount)), 0) as total_dep
@@ -522,9 +547,10 @@ class AssetService:
                 WHERE Ref1 = %s AND administration = %s
                 AND TransactionDescription LIKE 'Afschrijving:%%'
                 """,
-                (f'ASSET-{asset_id}', administration), fetch=True
+                (f"ASSET-{asset_id}", administration),
+                fetch=True,
             )
-            total_past = float(dep_result[0]['total_dep']) if dep_result else 0
+            total_past = float(dep_result[0]["total_dep"]) if dep_result else 0
             book_value = purchase - total_past
 
             # Don't depreciate below residual value
@@ -542,50 +568,58 @@ class AssetService:
 
     def _period_matches_frequency(self, period: str, frequency: str) -> bool:
         """Check if the requested period matches the asset's depreciation frequency."""
-        if frequency == 'annual':
-            return period == 'annual'
-        elif frequency == 'quarterly':
-            return period in ('Q1', 'Q2', 'Q3', 'Q4')
-        elif frequency == 'monthly':
-            return period.startswith('M') and len(period) == 3
+        if frequency == "annual":
+            return period == "annual"
+        elif frequency == "quarterly":
+            return period in ("Q1", "Q2", "Q3", "Q4")
+        elif frequency == "monthly":
+            return period.startswith("M") and len(period) == 3
         return False
 
     def _period_end_date(self, year: int, period: str) -> str:
         """Return the last day of the period as YYYY-MM-DD."""
-        if period == 'annual':
-            return f'{year}-12-31'
-        elif period == 'Q1':
-            return f'{year}-03-31'
-        elif period == 'Q2':
-            return f'{year}-06-30'
-        elif period == 'Q3':
-            return f'{year}-09-30'
-        elif period == 'Q4':
-            return f'{year}-12-31'
-        elif period.startswith('M'):
+        if period == "annual":
+            return f"{year}-12-31"
+        elif period == "Q1":
+            return f"{year}-03-31"
+        elif period == "Q2":
+            return f"{year}-06-30"
+        elif period == "Q3":
+            return f"{year}-09-30"
+        elif period == "Q4":
+            return f"{year}-12-31"
+        elif period.startswith("M"):
             month = int(period[1:])
             if month == 12:
-                return f'{year}-12-31'
+                return f"{year}-12-31"
             from calendar import monthrange
+
             _, last_day = monthrange(year, month)
-            return f'{year}-{month:02d}-{last_day:02d}'
-        return f'{year}-12-31'
+            return f"{year}-{month:02d}-{last_day:02d}"
+        return f"{year}-12-31"
 
     # -------------------------------------------------------------------------
     # Private helpers
     # -------------------------------------------------------------------------
 
     def _insert_transaction(
-        self, administration: str, date: str, description: str,
-        amount: float, debet: str, credit: str,
-        reference_number: str, ref1: str, ref2: str = '',
-        asset_reference: str = '',
+        self,
+        administration: str,
+        date: str,
+        description: str,
+        amount: float,
+        debet: str,
+        credit: str,
+        reference_number: str,
+        ref1: str,
+        ref2: str = "",
+        asset_reference: str = "",
     ):
         """Insert a transaction into mutaties."""
         # TransactionNumber: "Asset" + asset's invoice reference or description
         # Column is CHAR(50), so truncate to prevent overflow
         ref_part = asset_reference if asset_reference else reference_number
-        tx_number = f'Asset {ref_part}'[:50]
+        tx_number = f"Asset {ref_part}"[:50]
         self.db.execute_query(
             """
             INSERT INTO mutaties (
@@ -596,9 +630,17 @@ class AssetService:
             """,
             (
                 tx_number,
-                date, description, amount,
-                debet, credit, reference_number,
-                ref1, ref2, '', '', administration
+                date,
+                description,
+                amount,
+                debet,
+                credit,
+                reference_number,
+                ref1,
+                ref2,
+                "",
+                "",
+                administration,
             ),
-            commit=True
+            commit=True,
         )

@@ -22,7 +22,7 @@ import logging
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from database import DatabaseManager
 
@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 # DEPRECATED: These will be removed once all environments have the
 # updated nl.json template with proper parameters flags.
 _FALLBACK_ACCOUNTS = {
-    'zero': '2010',
-    'low': '2021',
-    'high': '2020',
+    "zero": "2010",
+    "low": "2021",
+    "high": "2020",
 }
 
 TEMPLATE_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'templates', 'chart_of_accounts', 'nl.json'
+    os.path.dirname(__file__), "..", "templates", "chart_of_accounts", "nl.json"
 )
 
 
@@ -59,23 +59,24 @@ def _resolve_vat_accounts_from_template(template_path=None):
     """
     path = template_path or TEMPLATE_PATH
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             accounts = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
         logger.warning(
             "Could not load nl.json template from %s: %s. "
             "Falling back to hardcoded VAT accounts (deprecated).",
-            path, exc
+            path,
+            exc,
         )
         return None
 
     # Find all accounts with vat_netting flag
     vat_accounts = []
     for acct in accounts:
-        params = acct.get('parameters')
+        params = acct.get("parameters")
         if not params or not isinstance(params, dict):
             continue
-        if params.get('vat_netting'):
+        if params.get("vat_netting"):
             vat_accounts.append(acct)
 
     if not vat_accounts:
@@ -92,26 +93,27 @@ def _resolve_vat_accounts_from_template(template_path=None):
     #   - "Ontvangen BTW Laag" = received VAT low rate
     resolved = {}
     for acct in vat_accounts:
-        name = acct.get('AccountName', '').lower()
-        account_number = acct.get('Account')
+        name = acct.get("AccountName", "").lower()
+        account_number = acct.get("Account")
         if not account_number:
             continue
 
-        if 'betaalde' in name and 'btw' in name:
-            resolved['zero'] = account_number
-        elif 'ontvangen' in name and 'hoog' in name:
-            resolved['high'] = account_number
-        elif 'ontvangen' in name and 'laag' in name:
-            resolved['low'] = account_number
+        if "betaalde" in name and "btw" in name:
+            resolved["zero"] = account_number
+        elif "ontvangen" in name and "hoog" in name:
+            resolved["high"] = account_number
+        elif "ontvangen" in name and "laag" in name:
+            resolved["low"] = account_number
 
-    expected_codes = {'zero', 'low', 'high'}
+    expected_codes = {"zero", "low", "high"}
     missing = expected_codes - set(resolved.keys())
     if missing:
         logger.warning(
             "Could not resolve all VAT accounts from template. "
             "Missing codes: %s. Resolved so far: %s. "
             "Falling back to hardcoded VAT accounts (deprecated).",
-            missing, resolved
+            missing,
+            resolved,
         )
         return None
 
@@ -122,12 +124,33 @@ def _resolve_vat_accounts_from_template(template_path=None):
 def _build_system_btw_rates(vat_accounts):
     """Build the seed data tuples using resolved VAT account numbers."""
     return [
-        ('_system_', 'btw', 'zero', 0.000, vat_accounts['zero'],
-         '2000-01-01', 'BTW 0% - Vrijgesteld'),
-        ('_system_', 'btw', 'low', 9.000, vat_accounts['low'],
-         '2000-01-01', 'BTW Laag tarief'),
-        ('_system_', 'btw', 'high', 21.000, vat_accounts['high'],
-         '2000-01-01', 'BTW Hoog tarief'),
+        (
+            "_system_",
+            "btw",
+            "zero",
+            0.000,
+            vat_accounts["zero"],
+            "2000-01-01",
+            "BTW 0% - Vrijgesteld",
+        ),
+        (
+            "_system_",
+            "btw",
+            "low",
+            9.000,
+            vat_accounts["low"],
+            "2000-01-01",
+            "BTW Laag tarief",
+        ),
+        (
+            "_system_",
+            "btw",
+            "high",
+            21.000,
+            vat_accounts["high"],
+            "2000-01-01",
+            "BTW Hoog tarief",
+        ),
     ]
 
 
@@ -142,7 +165,7 @@ def run_seed(db=None, template_path=None):
         logger.warning(
             "DEPRECATED: Using hardcoded VAT accounts %s. "
             "Update nl.json template with $.vat_netting flags to resolve this.",
-            _FALLBACK_ACCOUNTS
+            _FALLBACK_ACCOUNTS,
         )
         vat_accounts = dict(_FALLBACK_ACCOUNTS)
 
@@ -159,7 +182,9 @@ def run_seed(db=None, template_path=None):
         result = db.execute_query(insert_sql, row, fetch=False, commit=True)
         if result and result > 0:
             inserted += 1
-            logger.info("Inserted BTW rate: %s (%s) -> account %s", row[2], row[6], row[4])
+            logger.info(
+                "Inserted BTW rate: %s (%s) -> account %s", row[2], row[6], row[4]
+            )
         else:
             logger.info("BTW rate '%s' already exists, skipped.", row[2])
 
@@ -167,6 +192,6 @@ def run_seed(db=None, template_path=None):
     return inserted
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     run_seed()

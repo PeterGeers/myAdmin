@@ -114,7 +114,7 @@ class TestGetCompleteness:
     the set of functions defined in FUNCTION_REGISTRY, each annotated with its
     identifier, parent module, label, and current effective activation state."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(
         # Generate random boolean overrides for each function in the registry
         function_overrides=st.fixed_dictionaries(

@@ -9,42 +9,45 @@ from utils.date_utils import normalize_dates
 
 logger = logging.getLogger(__name__)
 
-str_invoice_bp = Blueprint('str_invoice', __name__)
+str_invoice_bp = Blueprint("str_invoice", __name__)
 
-@str_invoice_bp.route('/search-booking', methods=['GET'])
-@cognito_required(required_permissions=['str_read'])
+
+@str_invoice_bp.route("/search-booking", methods=["GET"])
+@cognito_required(required_permissions=["str_read"])
 @tenant_required()
 def search_booking(user_email, user_roles, tenant, user_tenants):
     """Search for booking by guest name or reservation code - filtered by tenant and date range"""
     try:
-        query = request.args.get('query', '').strip()
-        
+        query = request.args.get("query", "").strip()
+
         # Get limit parameter (default 20, use 0 or 'all' for no limit)
-        limit_param = request.args.get('limit', '20')
-        limit = 0 if limit_param in ['0', 'all'] else int(limit_param)
-        
+        limit_param = request.args.get("limit", "20")
+        limit = 0 if limit_param in ["0", "all"] else int(limit_param)
+
         # Get startDate parameter (default to 365 days ago if not provided)
-        start_date_param = request.args.get('startDate', '')
+        start_date_param = request.args.get("startDate", "")
         if start_date_param:
             start_date = start_date_param
         else:
-            start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        
+            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+
         # Get endDate parameter (default to 14 days in future if not provided)
-        end_date_param = request.args.get('endDate', '')
+        end_date_param = request.args.get("endDate", "")
         if end_date_param:
             end_date = end_date_param
         else:
             # Default to 14 days in the future
-            end_date = (datetime.now() + timedelta(days=14)).strftime('%Y-%m-%d')
-        
+            end_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
+
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         # Search by guest name or reservation code with tenant and date filtering
-        logger.info(f"STR Invoice Search - Query: '{query}', Tenant: '{tenant}', Date range: {start_date} to {end_date}")
-        
+        logger.info(
+            f"STR Invoice Search - Query: '{query}', Tenant: '{tenant}', Date range: {start_date} to {end_date}"
+        )
+
         # If query is empty, return all bookings in date range
         if not query:
             if limit > 0:
@@ -81,8 +84,20 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
                 LIMIT %s
                 """
                 search_pattern = f"%{query}%"
-                logger.info(f"Executing search with pattern: '{search_pattern}', limit: {limit}")
-                cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date, limit])
+                logger.info(
+                    f"Executing search with pattern: '{search_pattern}', limit: {limit}"
+                )
+                cursor.execute(
+                    search_query,
+                    [
+                        search_pattern,
+                        search_pattern,
+                        tenant,
+                        start_date,
+                        end_date,
+                        limit,
+                    ],
+                )
             else:
                 # No limit - return all results (but still filtered by tenant and date)
                 search_query = """
@@ -94,35 +109,40 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
                 ORDER BY checkinDate DESC
                 """
                 search_pattern = f"%{query}%"
-                logger.info(f"Executing search with pattern: '{search_pattern}', no limit")
-                cursor.execute(search_query, [search_pattern, search_pattern, tenant, start_date, end_date])
-        
+                logger.info(
+                    f"Executing search with pattern: '{search_pattern}', no limit"
+                )
+                cursor.execute(
+                    search_query,
+                    [search_pattern, search_pattern, tenant, start_date, end_date],
+                )
+
         results = cursor.fetchall()
         logger.info(f"Search returned {len(results)} results")
-        
+
         cursor.close()
         connection.close()
-        
-        normalize_dates(results, ['checkinDate', 'checkoutDate'])
-        return jsonify({
-            'success': True, 
-            'bookings': results, 
-            'date_range': {
-                'from': start_date,
-                'to': end_date
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
-@str_invoice_bp.route('/generate-invoice', methods=['POST'])
-@cognito_required(required_permissions=['str_create'])
+        normalize_dates(results, ["checkinDate", "checkoutDate"])
+        return jsonify(
+            {
+                "success": True,
+                "bookings": results,
+                "date_range": {"from": start_date, "to": end_date},
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@str_invoice_bp.route("/generate-invoice", methods=["POST"])
+@cognito_required(required_permissions=["str_create"])
 @tenant_required()
 def generate_invoice(user_email, user_roles, tenant, user_tenants):
     """Generate STR invoice for a specific booking using TemplateService with field mappings
-    
+
     Supports multiple output destinations:
     - download: Return content to frontend for download (default)
     - gdrive: Upload to tenant's Google Drive
@@ -130,20 +150,24 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
     """
     try:
         data = request.get_json()
-        reservation_code = data.get('reservationCode')
-        language = data.get('language', 'nl')  # 'nl' or 'en'
-        custom_billing = data.get('customBilling', {})
-        output_destination = data.get('output_destination', 'download')  # Default to download
-        folder_id = data.get('folder_id')  # Optional Google Drive folder ID
-        
+        reservation_code = data.get("reservationCode")
+        language = data.get("language", "nl")  # 'nl' or 'en'
+        custom_billing = data.get("customBilling", {})
+        output_destination = data.get(
+            "output_destination", "download"
+        )  # Default to download
+        folder_id = data.get("folder_id")  # Optional Google Drive folder ID
+
         if not reservation_code:
-            return jsonify({'success': False, 'error': 'Reservation code required'}), 400
-        
+            return jsonify(
+                {"success": False, "error": "Reservation code required"}
+            ), 400
+
         # Get booking details
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
         cursor = connection.cursor(dictionary=True)
-        
+
         booking_query = """
         SELECT amountGross, checkinDate, checkoutDate, guestName, channel, 
                listing, nights, guests, reservationCode, amountTouristTax,
@@ -151,173 +175,205 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
         FROM vw_bnb_total 
         WHERE reservationCode = %s AND administration IN ({})
         LIMIT 1
-        """.format(', '.join(['%s'] * len(user_tenants)))
-        
+        """.format(", ".join(["%s"] * len(user_tenants)))
+
         cursor.execute(booking_query, [reservation_code] + user_tenants)
         booking = cursor.fetchone()
-        
+
         cursor.close()
         connection.close()
-        
+
         if not booking:
-            return jsonify({'success': False, 'error': 'Booking not found or access denied'}), 404
-        
+            return jsonify(
+                {"success": False, "error": "Booking not found or access denied"}
+            ), 404
+
         # Additional validation: ensure booking administration is in user_tenants
-        booking_admin = booking.get('administration')
+        booking_admin = booking.get("administration")
         if booking_admin not in user_tenants:
-            return jsonify({
-                'success': False, 
-                'error': f'Access denied to administration: {booking_admin}'
-            }), 403
-        
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Access denied to administration: {booking_admin}",
+                }
+            ), 403
+
         # Import generator and TemplateService
         from report_generators import str_invoice_generator
         from services.template_service import TemplateService
-        
+
         # Initialize TemplateService
         template_service = TemplateService(db)
-        
+
         # Prepare invoice data using generator
-        invoice_data = str_invoice_generator.prepare_invoice_data(booking, custom_billing)
-        
+        invoice_data = str_invoice_generator.prepare_invoice_data(
+            booking, custom_billing
+        )
+
         # Generate table rows (complex section pre-generated by generator)
         table_rows = str_invoice_generator.generate_table_rows(invoice_data, language)
-        
+
         # Add table_rows to invoice_data
-        invoice_data['table_rows'] = table_rows
-        
+        invoice_data["table_rows"] = table_rows
+
         # DEBUG: Log invoice data structure to file
-        debug_file = os.path.join(os.path.dirname(__file__), '..', 'invoice_debug.log')
-        with open(debug_file, 'a', encoding='utf-8') as f:
-            f.write(f"\n{'='*80}\n")
+        debug_file = os.path.join(os.path.dirname(__file__), "..", "invoice_debug.log")
+        with open(debug_file, "a", encoding="utf-8") as f:
+            f.write(f"\n{'=' * 80}\n")
             f.write(f"INVOICE DATA DEBUG - {datetime.now().isoformat()}\n")
             f.write(f"Language: {language}\n")
             f.write(f"Reservation: {reservation_code}\n")
-            f.write(f"{'='*80}\n")
+            f.write(f"{'=' * 80}\n")
             f.write(f"Invoice data keys: {list(invoice_data.keys())}\n\n")
             f.write("Sample values:\n")
-            for key in ['company_name', 'reservationCode', 'table_rows', 'billing_name', 'channel']:
-                value = invoice_data.get(key, 'MISSING')
-                if key == 'table_rows':
-                    f.write(f"  {key}: {len(str(value))} chars - First 200: {str(value)[:200]}\n")
+            for key in [
+                "company_name",
+                "reservationCode",
+                "table_rows",
+                "billing_name",
+                "channel",
+            ]:
+                value = invoice_data.get(key, "MISSING")
+                if key == "table_rows":
+                    f.write(
+                        f"  {key}: {len(str(value))} chars - First 200: {str(value)[:200]}\n"
+                    )
                 else:
                     f.write(f"  {key}: {value}\n")
-        
+
         # Try to get template metadata from database
-        template_type = f'str_invoice_{language}'
+        template_type = f"str_invoice_{language}"
         metadata = None
-        
+
         try:
-            metadata = template_service.get_template_metadata(booking_admin, template_type)
+            metadata = template_service.get_template_metadata(
+                booking_admin, template_type
+            )
         except Exception as e:
             logger.warning(f"Could not get template metadata from database: {e}")
-        
+
         # Load template
         template_content = None
-        if metadata and metadata.get('template_file_id'):
+        if metadata and metadata.get("template_file_id"):
             # Load from Google Drive
             try:
                 template_content = template_service.fetch_template_from_drive(
-                    metadata['template_file_id'],
-                    booking_admin
+                    metadata["template_file_id"], booking_admin
                 )
-                field_mappings = metadata.get('field_mappings', {})
+                field_mappings = metadata.get("field_mappings", {})
             except Exception as e:
                 logger.error(f"Failed to fetch template from Google Drive: {e}")
                 # Fallback to filesystem
                 template_content = None
-        
+
         if not template_content:
             # Fallback: Load from filesystem
-            template_file = f'str_invoice_{language}_template.html'
-            template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'html', template_file)
-            
+            template_file = f"str_invoice_{language}_template.html"
+            template_path = os.path.join(
+                os.path.dirname(__file__), "..", "templates", "html", template_file
+            )
+
             if not os.path.exists(template_path):
                 logger.error(f"Template not found: {template_path}")
-                return jsonify({'success': False, 'error': 'Template not found'}), 500
-            
-            with open(template_path, 'r', encoding='utf-8') as f:
+                return jsonify({"success": False, "error": "Template not found"}), 500
+
+            with open(template_path, "r", encoding="utf-8") as f:
                 template_content = f.read()
-            
+
             # Use default field mappings (simple placeholder replacement)
             field_mappings = {
-                'fields': {key: {'path': key, 'format': 'text'} for key in invoice_data.keys()},
-                'formatting': {
-                    'locale': 'nl_NL' if language == 'nl' else 'en_US',
-                    'currency': 'EUR',
-                    'date_format': 'DD-MM-YYYY',
-                    'number_decimals': 2
-                }
+                "fields": {
+                    key: {"path": key, "format": "text"} for key in invoice_data.keys()
+                },
+                "formatting": {
+                    "locale": "nl_NL" if language == "nl" else "en_US",
+                    "currency": "EUR",
+                    "date_format": "DD-MM-YYYY",
+                    "number_decimals": 2,
+                },
             }
-        
+
         # Apply field mappings using TemplateService
         html_content = template_service.apply_field_mappings(
-            template_content,
-            invoice_data,
-            field_mappings
+            template_content, invoice_data, field_mappings
         )
-        
+
         # DEBUG: Check if placeholders were replaced - write to file
-        debug_file = os.path.join(os.path.dirname(__file__), '..', 'invoice_debug.log')
-        with open(debug_file, 'a', encoding='utf-8') as f:
+        debug_file = os.path.join(os.path.dirname(__file__), "..", "invoice_debug.log")
+        with open(debug_file, "a", encoding="utf-8") as f:
             f.write("\nTEMPLATE RENDERING DEBUG\n")
             f.write(f"Template length: {len(template_content)} chars\n")
             f.write(f"Rendered HTML length: {len(html_content)} chars\n")
-            f.write(f"Template source: {'Google Drive' if metadata else 'Filesystem'}\n")
+            f.write(
+                f"Template source: {'Google Drive' if metadata else 'Filesystem'}\n"
+            )
             f.write("\nPlaceholder check:\n")
-            unreplaced = ['{{ company_name }}', '{{ reservationCode }}', '{{ table_rows }}', '{{ channel }}']
+            unreplaced = [
+                "{{ company_name }}",
+                "{{ reservationCode }}",
+                "{{ table_rows }}",
+                "{{ channel }}",
+            ]
             for placeholder in unreplaced:
                 still_there = placeholder in html_content
-                f.write(f"  {placeholder}: {'STILL PRESENT (BAD!)' if still_there else 'Replaced (good)'}\n")
+                f.write(
+                    f"  {placeholder}: {'STILL PRESENT (BAD!)' if still_there else 'Replaced (good)'}\n"
+                )
             f.write("\nFirst 500 chars of rendered HTML:\n")
             f.write(html_content[:500])
-            f.write(f"\n{'='*80}\n\n")
-        
+            f.write(f"\n{'=' * 80}\n\n")
+
         # Generate filename
-        filename = f'Invoice_{reservation_code}_{language.upper()}.html'
-        
+        filename = f"Invoice_{reservation_code}_{language.upper()}.html"
+
         # Handle output destination
         from services.output_service import OutputService
+
         output_service = OutputService(db)
-        
+
         output_result = output_service.handle_output(
             content=html_content,
             filename=filename,
             destination=output_destination,
             administration=booking_admin,
-            content_type='text/html',
-            folder_id=folder_id
+            content_type="text/html",
+            folder_id=folder_id,
         )
-        
+
         # Return result based on destination
-        if output_destination == 'download':
-            return jsonify({
-                'success': True, 
-                'html': output_result['content'],
-                'booking_data': invoice_data,
-                'filename': output_result['filename']
-            })
+        if output_destination == "download":
+            return jsonify(
+                {
+                    "success": True,
+                    "html": output_result["content"],
+                    "booking_data": invoice_data,
+                    "filename": output_result["filename"],
+                }
+            )
         else:
             # For gdrive or s3, return URL and metadata
-            return jsonify({
-                'success': True,
-                'destination': output_result['destination'],
-                'url': output_result.get('url'),
-                'booking_data': invoice_data,
-                'filename': output_result['filename'],
-                'message': output_result['message']
-            })
-        
+            return jsonify(
+                {
+                    "success": True,
+                    "destination": output_result["destination"],
+                    "url": output_result.get("url"),
+                    "booking_data": invoice_data,
+                    "filename": output_result["filename"],
+                    "message": output_result["message"],
+                }
+            )
+
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
+        logger.error(f"Error in endpoint: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
-def get_basic_template(language='nl'):
+def get_basic_template(language="nl"):
     """Return basic template if file not found"""
-    if language == 'nl':
+    if language == "nl":
         return """
 <!DOCTYPE html>
 <html><head><title>Factuur</title></head>
@@ -340,23 +396,24 @@ def get_basic_template(language='nl'):
 </body></html>
 """
 
-@str_invoice_bp.route('/upload-template', methods=['POST'])
-@cognito_required(required_permissions=['str_create'])
+
+@str_invoice_bp.route("/upload-template", methods=["POST"])
+@cognito_required(required_permissions=["str_create"])
 @tenant_required()
 def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
     """Upload STR invoice templates to storage - tenant-specific
-    
+
     DESIGN DECISION: STR Templates are TENANT-SPECIFIC
-    
+
     Rationale:
     - STR invoices are property-specific and may require different branding per tenant
     - Different tenants may have different property portfolios and business requirements
     - Templates should be isolated by tenant to prevent cross-tenant template access
     - Each tenant should manage their own invoice templates independently
-    
+
     Security: This endpoint requires tenant filtering to ensure templates are uploaded
     to tenant-specific folders and users can only manage their own tenant's templates.
-    
+
     Provider-aware: Routes to S3SharedStorage for s3_shared tenants, preserves
     Google Drive path for google_drive tenants.
     """
@@ -365,14 +422,14 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
 
         provider = resolve_storage_provider(tenant)
 
-        if provider == 's3_shared':
+        if provider == "s3_shared":
             return _upload_template_s3(tenant)
         else:
             return _upload_template_gdrive(tenant)
 
     except Exception as e:
-        logger.error(f'Error in endpoint: {str(e)}')
-        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+        logger.error(f"Error in endpoint: {str(e)}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
 
 
 def _upload_template_s3(tenant):
@@ -380,60 +437,72 @@ def _upload_template_s3(tenant):
     from services.storage_resolver import get_s3_storage
 
     s3_storage = get_s3_storage(tenant)
-    db = DatabaseManager(test_mode=os.getenv('TEST_MODE', 'false').lower() == 'true')
+    db = DatabaseManager(test_mode=os.getenv("TEST_MODE", "false").lower() == "true")
 
     results = []
-    templates = ['str_invoice_nl.html', 'str_invoice_en.html']
+    templates = ["str_invoice_nl.html", "str_invoice_en.html"]
 
     for template_name in templates:
         tenant_template_name = f"{tenant}_{template_name}"
-        template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', template_name)
+        template_path = os.path.join(
+            os.path.dirname(__file__), "..", "templates", template_name
+        )
 
         if os.path.exists(template_path):
             try:
-                with open(template_path, 'rb') as f:
+                with open(template_path, "rb") as f:
                     content_bytes = f.read()
 
                 # Upload to S3 with category='templates'
                 s3_key = s3_storage.upload(
                     content_bytes,
                     tenant_template_name,
-                    metadata={'mime_type': 'text/html'},
-                    category='templates'
+                    metadata={"mime_type": "text/html"},
+                    category="templates",
                 )
 
                 # Store the S3 key in tenant_template_config
-                template_type = template_name.replace('.html', '')
+                template_type = template_name.replace(".html", "")
                 _store_template_file_id(db, tenant, template_type, s3_key)
 
-                results.append({
-                    'template': tenant_template_name,
-                    'status': 'uploaded',
-                    'key': s3_key,
-                    'tenant': tenant
-                })
+                results.append(
+                    {
+                        "template": tenant_template_name,
+                        "status": "uploaded",
+                        "key": s3_key,
+                        "tenant": tenant,
+                    }
+                )
 
             except Exception as e:
-                logger.error(f"S3 template upload error for {tenant_template_name}: {e}")
-                results.append({
-                    'template': tenant_template_name,
-                    'status': 'error',
-                    'error': 'Internal server error',
-                    'tenant': tenant
-                })
+                logger.error(
+                    f"S3 template upload error for {tenant_template_name}: {e}"
+                )
+                results.append(
+                    {
+                        "template": tenant_template_name,
+                        "status": "error",
+                        "error": "Internal server error",
+                        "tenant": tenant,
+                    }
+                )
         else:
-            results.append({
-                'template': tenant_template_name,
-                'status': 'not_found',
-                'tenant': tenant
-            })
+            results.append(
+                {
+                    "template": tenant_template_name,
+                    "status": "not_found",
+                    "tenant": tenant,
+                }
+            )
 
-    return jsonify({
-        'success': True,
-        'message': f'Template upload completed for tenant: {tenant}',
-        'results': results,
-        'tenant': tenant
-    })
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Template upload completed for tenant: {tenant}",
+            "results": results,
+            "tenant": tenant,
+        }
+    )
 
 
 def _upload_template_gdrive(tenant):
@@ -445,88 +514,110 @@ def _upload_template_gdrive(tenant):
     # Use tenant-specific folder structure
     # Read base template folder ID from tenant_config
     from auth.tenant_context import get_tenant_config
+
     base_template_folder_id = get_tenant_config(
-        DatabaseManager(test_mode=os.getenv('TEST_MODE', 'false').lower() == 'true'),
-        tenant, 'google_drive_templates_folder_id'
+        DatabaseManager(test_mode=os.getenv("TEST_MODE", "false").lower() == "true"),
+        tenant,
+        "google_drive_templates_folder_id",
     )
     if not base_template_folder_id:
-        return jsonify({
-            'success': False,
-            'error': 'Google Drive templates folder not configured for this tenant. '
-                     'Set google_drive_templates_folder_id in tenant config.'
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": "Google Drive templates folder not configured for this tenant. "
+                "Set google_drive_templates_folder_id in tenant config.",
+            }
+        ), 400
 
     # Create or find tenant-specific subfolder
     tenant_folder_name = f"templates_{tenant}"
 
     # Check if tenant folder exists, create if not
-    tenant_folder_result = drive_service.check_file_exists(tenant_folder_name, base_template_folder_id)
+    tenant_folder_result = drive_service.check_file_exists(
+        tenant_folder_name, base_template_folder_id
+    )
 
-    if tenant_folder_result['exists']:
-        tenant_folder_id = tenant_folder_result['file']['id']
+    if tenant_folder_result["exists"]:
+        tenant_folder_id = tenant_folder_result["file"]["id"]
     else:
         # Create tenant-specific folder
-        tenant_folder = drive_service.create_folder(tenant_folder_name, base_template_folder_id)
-        tenant_folder_id = tenant_folder['id']
+        tenant_folder = drive_service.create_folder(
+            tenant_folder_name, base_template_folder_id
+        )
+        tenant_folder_id = tenant_folder["id"]
 
     results = []
-    templates = ['str_invoice_nl.html', 'str_invoice_en.html']
+    templates = ["str_invoice_nl.html", "str_invoice_en.html"]
 
     for template_name in templates:
         # Use tenant-specific template naming
         tenant_template_name = f"{tenant}_{template_name}"
-        template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', template_name)
+        template_path = os.path.join(
+            os.path.dirname(__file__), "..", "templates", template_name
+        )
 
         if os.path.exists(template_path):
             try:
                 # Check if tenant-specific template already exists
-                existing = drive_service.check_file_exists(tenant_template_name, tenant_folder_id)
+                existing = drive_service.check_file_exists(
+                    tenant_template_name, tenant_folder_id
+                )
 
-                if existing['exists']:
-                    results.append({
-                        'template': tenant_template_name,
-                        'status': 'already_exists',
-                        'url': existing['file']['url'],
-                        'tenant': tenant
-                    })
+                if existing["exists"]:
+                    results.append(
+                        {
+                            "template": tenant_template_name,
+                            "status": "already_exists",
+                            "url": existing["file"]["url"],
+                            "tenant": tenant,
+                        }
+                    )
                 else:
                     # Read and upload content with tenant-specific naming
-                    with open(template_path, 'r', encoding='utf-8') as f:
+                    with open(template_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
                     upload_result = drive_service.upload_text_file(
-                        content, tenant_template_name, tenant_folder_id, 'text/html'
+                        content, tenant_template_name, tenant_folder_id, "text/html"
                     )
 
-                    results.append({
-                        'template': tenant_template_name,
-                        'status': 'uploaded',
-                        'url': upload_result['url'],
-                        'tenant': tenant
-                    })
+                    results.append(
+                        {
+                            "template": tenant_template_name,
+                            "status": "uploaded",
+                            "url": upload_result["url"],
+                            "tenant": tenant,
+                        }
+                    )
 
             except Exception:
-                results.append({
-                    'template': tenant_template_name,
-                    'status': 'error',
-                    'error': 'Internal server error',
-                    'tenant': tenant
-                })
+                results.append(
+                    {
+                        "template": tenant_template_name,
+                        "status": "error",
+                        "error": "Internal server error",
+                        "tenant": tenant,
+                    }
+                )
         else:
-            results.append({
-                'template': tenant_template_name,
-                'status': 'not_found',
-                'tenant': tenant
-            })
+            results.append(
+                {
+                    "template": tenant_template_name,
+                    "status": "not_found",
+                    "tenant": tenant,
+                }
+            )
 
-    return jsonify({
-        'success': True,
-        'message': f'Template upload completed for tenant: {tenant}',
-        'results': results,
-        'tenant': tenant,
-        'tenant_folder_url': f'https://drive.google.com/drive/folders/{tenant_folder_id}',
-        'base_folder_url': f'https://drive.google.com/drive/folders/{base_template_folder_id}'
-    })
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Template upload completed for tenant: {tenant}",
+            "results": results,
+            "tenant": tenant,
+            "tenant_folder_url": f"https://drive.google.com/drive/folders/{tenant_folder_id}",
+            "base_folder_url": f"https://drive.google.com/drive/folders/{base_template_folder_id}",
+        }
+    )
 
 
 def _store_template_file_id(db, tenant, template_type, file_id):
@@ -544,10 +635,7 @@ def _store_template_file_id(db, tenant, template_type, file_id):
             WHERE administration = %s AND template_type = %s
         """
         db.execute_query(
-            update_query,
-            (file_id, tenant, template_type),
-            fetch=False,
-            commit=True
+            update_query, (file_id, tenant, template_type), fetch=False, commit=True
         )
     else:
         insert_query = """
@@ -556,9 +644,6 @@ def _store_template_file_id(db, tenant, template_type, file_id):
             VALUES (%s, %s, %s, TRUE)
         """
         db.execute_query(
-            insert_query,
-            (tenant, template_type, file_id),
-            fetch=False,
-            commit=True
+            insert_query, (tenant, template_type, file_id), fetch=False, commit=True
         )
     logger.info(f"Stored template file_id for tenant={tenant}, type={template_type}")

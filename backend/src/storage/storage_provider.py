@@ -35,7 +35,7 @@ class StorageProvider(ABC):
         """List files at path, return list of metadata dicts."""
 
 
-VALID_PROVIDERS = ('google_drive', 's3_shared', 's3_tenant')
+VALID_PROVIDERS = ("google_drive", "s3_shared", "s3_tenant")
 
 
 def get_storage_provider(tenant: str, parameter_service) -> StorageProvider:
@@ -45,21 +45,24 @@ def get_storage_provider(tenant: str, parameter_service) -> StorageProvider:
     Defaults to s3_shared if no provider is configured.
     """
     provider_type = parameter_service.get_param(
-        'storage', 'invoice_provider', tenant=tenant
+        "storage", "invoice_provider", tenant=tenant
     )
     if not provider_type:
-        provider_type = 's3_shared'
+        provider_type = "s3_shared"
 
-    if provider_type == 'google_drive':
+    if provider_type == "google_drive":
         from storage.google_drive_storage import GoogleDriveStorage
+
         return GoogleDriveStorage(tenant, parameter_service)
 
-    elif provider_type == 's3_shared':
+    elif provider_type == "s3_shared":
         from storage.s3_shared_storage import S3SharedStorage
+
         return S3SharedStorage(tenant, parameter_service)
 
-    elif provider_type == 's3_tenant':
+    elif provider_type == "s3_tenant":
         from storage.s3_tenant_storage import S3TenantStorage
+
         return S3TenantStorage(tenant, parameter_service)
 
     else:

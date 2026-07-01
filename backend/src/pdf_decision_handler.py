@@ -6,6 +6,7 @@ including validation, audit logging, file cleanup, and error management.
 
 Internal helpers (validation, retry logic, enhanced processing) are in pdf_decision_helpers.py.
 """
+
 from typing import Dict, List, Optional
 
 from pdf_decision_helpers import (
@@ -24,7 +25,7 @@ def handle_duplicate_decision(
     transactions: List[Dict],
     file_data: Dict,
     user_id: Optional[str] = None,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
 ) -> Dict:
     """
     Handle user decision regarding duplicate transactions with comprehensive error handling.
@@ -49,8 +50,8 @@ def handle_duplicate_decision(
     validation_result = validate_duplicate_decision_inputs(
         decision, duplicate_info, transactions, file_data
     )
-    if not validation_result['valid']:
-        return validation_result['error_response']
+    if not validation_result["valid"]:
+        return validation_result["error_response"]
 
     # Initialize error tracking
     errors = []
@@ -59,66 +60,74 @@ def handle_duplicate_decision(
     try:
         # Component initialization with error handling
         components = initialize_duplicate_components()
-        if not components['success']:
+        if not components["success"]:
             return create_error_response(
-                'component_initialization_failed',
-                components['error'],
-                errors=['Failed to initialize required components'],
-                user_message='System components unavailable. Please try again later.'
+                "component_initialization_failed",
+                components["error"],
+                errors=["Failed to initialize required components"],
+                user_message="System components unavailable. Please try again later.",
             )
 
-        _db = components['db']
-        duplicate_checker = components['duplicate_checker']
-        file_cleanup_manager = components['file_cleanup_manager']
+        _db = components["db"]
+        duplicate_checker = components["duplicate_checker"]
+        file_cleanup_manager = components["file_cleanup_manager"]
 
         # Audit logging with error handling
         audit_result = log_duplicate_decision_with_retry(
             duplicate_checker, decision, duplicate_info, user_id, session_id
         )
-        if not audit_result['success']:
+        if not audit_result["success"]:
             warnings.append(f"Audit logging failed: {audit_result['error']}")
 
         # Process decision with comprehensive error handling
-        if decision == 'continue':
+        if decision == "continue":
             return handle_continue_decision_enhanced(
-                duplicate_info, transactions, file_data,
-                audit_result['success'], errors, warnings
+                duplicate_info,
+                transactions,
+                file_data,
+                audit_result["success"],
+                errors,
+                warnings,
             )
-        elif decision == 'cancel':
+        elif decision == "cancel":
             return handle_cancel_decision_enhanced(
-                duplicate_info, transactions, file_data, file_cleanup_manager,
-                audit_result['success'], errors, warnings
+                duplicate_info,
+                transactions,
+                file_data,
+                file_cleanup_manager,
+                audit_result["success"],
+                errors,
+                warnings,
             )
         else:
             return create_error_response(
-                'invalid_decision',
-                f'Invalid decision: {decision}',
+                "invalid_decision",
+                f"Invalid decision: {decision}",
                 errors=[f'Decision must be "continue" or "cancel", got: {decision}'],
-                user_message='Invalid action selected. Please choose Continue or Cancel.'
+                user_message="Invalid action selected. Please choose Continue or Cancel.",
             )
 
     except ImportError as e:
         error_msg = f"Required modules not available: {str(e)}"
         return create_error_response(
-            'import_error', error_msg,
+            "import_error",
+            error_msg,
             errors=[error_msg],
-            user_message='System components not available. Please contact support.'
+            user_message="System components not available. Please contact support.",
         )
     except Exception as e:
         error_msg = f"Unexpected error in duplicate decision handling: {str(e)}"
         print(error_msg)
         return create_error_response(
-            'unexpected_error', error_msg,
+            "unexpected_error",
+            error_msg,
             errors=[error_msg],
-            user_message='An unexpected error occurred. Please try again or contact support.'
+            user_message="An unexpected error occurred. Please try again or contact support.",
         )
 
 
 def handle_continue_decision(
-    duplicate_info: Dict,
-    transactions: List[Dict],
-    file_data: Dict,
-    log_success: bool
+    duplicate_info: Dict, transactions: List[Dict], file_data: Dict, log_success: bool
 ) -> Dict:
     """
     Handle the "Continue" decision for duplicate imports.
@@ -140,7 +149,9 @@ def handle_continue_decision(
     try:
         clean_transactions = []
         for transaction in transactions:
-            clean_transaction = {k: v for k, v in transaction.items() if k != 'duplicate_info'}
+            clean_transaction = {
+                k: v for k, v in transaction.items() if k != "duplicate_info"
+            }
             clean_transactions.append(clean_transaction)
 
         message_parts = [
@@ -151,21 +162,21 @@ def handle_continue_decision(
             message_parts.append("Note: Audit logging may have failed.")
 
         return {
-            'success': True,
-            'action_taken': 'continue',
-            'transactions': clean_transactions,
-            'cleanup_performed': False,
-            'message': ' '.join(message_parts)
+            "success": True,
+            "action_taken": "continue",
+            "transactions": clean_transactions,
+            "cleanup_performed": False,
+            "message": " ".join(message_parts),
         }
 
     except Exception as e:
         print(f"Error in continue decision handling: {e}")
         return {
-            'success': False,
-            'action_taken': 'continue_error',
-            'transactions': [],
-            'cleanup_performed': False,
-            'message': f'Error processing continue decision: {str(e)}'
+            "success": False,
+            "action_taken": "continue_error",
+            "transactions": [],
+            "cleanup_performed": False,
+            "message": f"Error processing continue decision: {str(e)}",
         }
 
 
@@ -174,7 +185,7 @@ def handle_cancel_decision(
     transactions: List[Dict],
     file_data: Dict,
     file_cleanup_manager,
-    log_success: bool
+    log_success: bool,
 ) -> Dict:
     """
     Handle the "Cancel" decision for duplicate imports.
@@ -198,13 +209,13 @@ def handle_cancel_decision(
         cleanup_performed = False
         cleanup_details = []
 
-        new_file_url = file_data.get('url', '')
-        new_file_id = file_data.get('name', '')
+        new_file_url = file_data.get("url", "")
+        new_file_id = file_data.get("name", "")
 
-        existing_transactions = duplicate_info.get('existing_transactions', [])
+        existing_transactions = duplicate_info.get("existing_transactions", [])
 
         if existing_transactions:
-            existing_file_url = existing_transactions[0].get('ref3', '')
+            existing_file_url = existing_transactions[0].get("ref3", "")
 
             should_cleanup = file_cleanup_manager.should_cleanup_file(
                 new_file_url, existing_file_url
@@ -218,7 +229,9 @@ def handle_cancel_decision(
                     cleanup_performed = True
                     cleanup_details.append("New file removed successfully.")
                 else:
-                    cleanup_details.append("File cleanup attempted but may have failed.")
+                    cleanup_details.append(
+                        "File cleanup attempted but may have failed."
+                    )
             else:
                 cleanup_details.append("File URLs match - no cleanup performed.")
         else:
@@ -238,19 +251,19 @@ def handle_cancel_decision(
             message_parts.append("Note: Audit logging may have failed.")
 
         return {
-            'success': True,
-            'action_taken': 'cancel',
-            'transactions': [],
-            'cleanup_performed': cleanup_performed,
-            'message': ' '.join(message_parts)
+            "success": True,
+            "action_taken": "cancel",
+            "transactions": [],
+            "cleanup_performed": cleanup_performed,
+            "message": " ".join(message_parts),
         }
 
     except Exception as e:
         print(f"Error in cancel decision handling: {e}")
         return {
-            'success': False,
-            'action_taken': 'cancel_error',
-            'transactions': [],
-            'cleanup_performed': False,
-            'message': f'Error processing cancel decision: {str(e)}'
+            "success": False,
+            "action_taken": "cancel_error",
+            "transactions": [],
+            "cleanup_performed": False,
+            "message": f"Error processing cancel decision: {str(e)}",
         }

@@ -3,6 +3,7 @@
 Extracted from reporting_routes.py for file size management.
 All endpoints are prefixed with /api/reports via blueprint registration.
 """
+
 from flask import Blueprint, request, jsonify
 from flask.typing import ResponseReturnValue
 from database import DatabaseManager
@@ -11,7 +12,7 @@ from contextlib import contextmanager
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 
-financial_reporting_bp = Blueprint('financial_reporting', __name__)
+financial_reporting_bp = Blueprint("financial_reporting", __name__)
 
 # Global variables set by app.py
 flag = False
@@ -35,7 +36,7 @@ class FinancialReportingService:
 
     def __init__(self, test_mode=False) -> None:
         self.db = DatabaseManager(test_mode=test_mode)
-        self.table_name = 'mutaties_test' if test_mode else 'mutaties'
+        self.table_name = "mutaties_test" if test_mode else "mutaties"
 
     @contextmanager
     def get_cursor(self):
@@ -54,55 +55,61 @@ class FinancialReportingService:
         params = []
 
         for key, value in conditions.items():
-            if value == 'all' or not value:
+            if value == "all" or not value:
                 continue
 
-            if key == 'date_range':
-                if value.get('from') and value.get('to'):
+            if key == "date_range":
+                if value.get("from") and value.get("to"):
                     where_parts.append("TransactionDate BETWEEN %s AND %s")
-                    params.extend([value['from'], value['to']])
-                elif value.get('to'):
+                    params.extend([value["from"], value["to"]])
+                elif value.get("to"):
                     where_parts.append("TransactionDate <= %s")
-                    params.append(value['to'])
-            elif key == 'years':
+                    params.append(value["to"])
+            elif key == "years":
                 if isinstance(value, list) and value:
-                    placeholders = ','.join(['%s'] * len(value))
+                    placeholders = ",".join(["%s"] * len(value))
                     where_parts.append(f"jaar IN ({placeholders})")
                     params.extend(value)
-            elif key == 'administration':
+            elif key == "administration":
                 where_parts.append("administration = %s")
                 params.append(value)
-            elif key == 'profit_loss':
+            elif key == "profit_loss":
                 where_parts.append("VW = %s")
                 params.append(value)
 
         return " AND ".join(where_parts) if where_parts else "1=1", params
 
 
-@financial_reporting_bp.route('/balance-data', methods=['GET'])
-@cognito_required(required_permissions=['reports_read'])
+@financial_reporting_bp.route("/balance-data", methods=["GET"])
+@cognito_required(required_permissions=["reports_read"])
 @tenant_required()
-def get_balance_data(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_balance_data(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get balance data grouped by Parent and ledger with tenant filtering"""
     try:
-        service = FinancialReportingService(request.args.get('testMode', 'false').lower() == 'true')
+        service = FinancialReportingService(
+            request.args.get("testMode", "false").lower() == "true"
+        )
 
         # Get administration parameter, default to current tenant
-        administration = request.args.get('administration', tenant)
+        administration = request.args.get("administration", tenant)
 
         # Validate user has access to requested administration
-        if administration != 'all' and administration not in user_tenants:
-            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+        if administration != "all" and administration not in user_tenants:
+            return jsonify(
+                {"success": False, "error": "Access denied to administration"}
+            ), 403
 
         # If 'all' is requested, filter by user_tenants
-        if administration == 'all':
+        if administration == "all":
             # Build WHERE clause with tenant filtering
             where_parts = []
             params = []
 
             # Date range
-            date_from = request.args.get('dateFrom')
-            date_to = request.args.get('dateTo', datetime.now().strftime('%Y-%m-%d'))
+            date_from = request.args.get("dateFrom")
+            date_to = request.args.get("dateTo", datetime.now().strftime("%Y-%m-%d"))
             if date_from:
                 where_parts.append("TransactionDate BETWEEN %s AND %s")
                 params.extend([date_from, date_to])
@@ -111,13 +118,13 @@ def get_balance_data(user_email, user_roles, tenant, user_tenants) -> ResponseRe
                 params.append(date_to)
 
             # Tenant filtering - only show data from user's accessible tenants
-            placeholders = ','.join(['%s'] * len(user_tenants))
+            placeholders = ",".join(["%s"] * len(user_tenants))
             where_parts.append(f"administration IN ({placeholders})")
             params.extend(user_tenants)
 
             # Profit/Loss filter
-            profit_loss = request.args.get('profitLoss', 'all')
-            if profit_loss != 'all':
+            profit_loss = request.args.get("profitLoss", "all")
+            if profit_loss != "all":
                 where_parts.append("VW = %s")
                 params.append(profit_loss)
 
@@ -125,100 +132,128 @@ def get_balance_data(user_email, user_roles, tenant, user_tenants) -> ResponseRe
         else:
             # Single administration requested
             conditions = {
-                'date_range': {
-                    'from': request.args.get('dateFrom'),
-                    'to': request.args.get('dateTo', datetime.now().strftime('%Y-%m-%d'))
+                "date_range": {
+                    "from": request.args.get("dateFrom"),
+                    "to": request.args.get(
+                        "dateTo", datetime.now().strftime("%Y-%m-%d")
+                    ),
                 },
-                'administration': administration,
-                'profit_loss': request.args.get('profitLoss', 'all')
+                "administration": administration,
+                "profit_loss": request.args.get("profitLoss", "all"),
             }
 
             where_clause, params = service.build_where_clause(conditions)
 
         with service.get_cursor() as cursor:
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT Parent, ledger, SUM(Amount) as total_amount
                 FROM vw_mutaties
                 WHERE {where_clause}
                 GROUP BY Parent, ledger
                 ORDER BY Parent, ledger
-            """, params)
+            """,
+                params,
+            )
             results = cursor.fetchall()
 
-        return jsonify({'success': True, 'data': results})
+        return jsonify({"success": True, "data": results})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@financial_reporting_bp.route('/trends-data', methods=['GET'])
-@cognito_required(required_permissions=['reports_read'])
+@financial_reporting_bp.route("/trends-data", methods=["GET"])
+@cognito_required(required_permissions=["reports_read"])
 @tenant_required()
-def get_trends_data(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_trends_data(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get P&L trends data by year"""
     try:
-        service = FinancialReportingService(request.args.get('testMode', 'false').lower() == 'true')
+        service = FinancialReportingService(
+            request.args.get("testMode", "false").lower() == "true"
+        )
 
-        years = [int(y) for y in request.args.get('years', str(datetime.now().year)).split(',') if y]
+        years = [
+            int(y)
+            for y in request.args.get("years", str(datetime.now().year)).split(",")
+            if y
+        ]
 
         # Get administration parameter, default to current tenant
-        administration = request.args.get('administration', tenant)
+        administration = request.args.get("administration", tenant)
 
         # Validate user has access to requested administration
         if administration not in user_tenants:
-            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+            return jsonify(
+                {"success": False, "error": "Access denied to administration"}
+            ), 403
 
         conditions = {
-            'years': years,
-            'administration': administration,
-            'profit_loss': request.args.get('profitLoss', 'Y')
+            "years": years,
+            "administration": administration,
+            "profit_loss": request.args.get("profitLoss", "Y"),
         }
 
         where_clause, params = service.build_where_clause(conditions)
 
         with service.get_cursor() as cursor:
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT Parent, ledger, jaar as year, SUM(Amount) as total_amount
                 FROM vw_mutaties
                 WHERE {where_clause}
                 GROUP BY Parent, ledger, jaar
                 ORDER BY Parent, ledger, jaar
-            """, params)
+            """,
+                params,
+            )
             results = cursor.fetchall()
 
-        return jsonify({'success': True, 'data': results})
+        return jsonify({"success": True, "data": results})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@financial_reporting_bp.route('/reference-analysis', methods=['GET'])
-@cognito_required(required_permissions=['reports_read'])
+@financial_reporting_bp.route("/reference-analysis", methods=["GET"])
+@cognito_required(required_permissions=["reports_read"])
 @tenant_required()
-def get_reference_analysis(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValue:
+def get_reference_analysis(
+    user_email, user_roles, tenant, user_tenants
+) -> ResponseReturnValue:
     """Get reference analysis data with trend and available accounts - filtered by user tenants"""
     try:
         service = FinancialReportingService()
-        years = [y for y in request.args.get('years', str(datetime.now().year)).split(',') if y]
-        reference_number = request.args.get('reference_number', '')
-        accounts = [a for a in request.args.get('accounts', '').split(',') if a]
+        years = [
+            y
+            for y in request.args.get("years", str(datetime.now().year)).split(",")
+            if y
+        ]
+        reference_number = request.args.get("reference_number", "")
+        accounts = [a for a in request.args.get("accounts", "").split(",") if a]
 
         # Get administration parameter, default to current tenant
-        administration = request.args.get('administration', tenant)
+        administration = request.args.get("administration", tenant)
 
         # Validate user has access to requested administration
-        if administration != 'all' and administration not in user_tenants:
-            return jsonify({'success': False, 'error': 'Access denied to administration'}), 403
+        if administration != "all" and administration not in user_tenants:
+            return jsonify(
+                {"success": False, "error": "Access denied to administration"}
+            ), 403
 
         with service.get_cursor() as cursor:
             # Get available accounts with tenant filtering
             account_conditions = {
-                'years': years,
-                'administration': administration if administration != 'all' else None
+                "years": years,
+                "administration": administration if administration != "all" else None,
             }
-            account_where, account_params = service.build_where_clause(account_conditions)
+            account_where, account_params = service.build_where_clause(
+                account_conditions
+            )
 
             # Add tenant filtering for 'all' case
-            if administration == 'all':
-                placeholders = ','.join(['%s'] * len(user_tenants))
+            if administration == "all":
+                placeholders = ",".join(["%s"] * len(user_tenants))
                 if account_where == "1=1":
                     account_where = f"administration IN ({placeholders})"
                 else:
@@ -228,13 +263,16 @@ def get_reference_analysis(user_email, user_roles, tenant, user_tenants) -> Resp
             # Get available accounts from vw_mutaties (already has Reknum and AccountName)
             account_where_view = account_where
 
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT DISTINCT Reknum, AccountName
                 FROM vw_mutaties
                 WHERE {account_where_view} AND Reknum IS NOT NULL AND Reknum != ''
                       AND AccountName IS NOT NULL AND AccountName != ''
                 ORDER BY Reknum
-            """, account_params)
+            """,
+                account_params,
+            )
             available_accounts = cursor.fetchall()
 
             transactions = []
@@ -242,14 +280,16 @@ def get_reference_analysis(user_email, user_roles, tenant, user_tenants) -> Resp
 
             if reference_number:
                 conditions = {
-                    'years': years,
-                    'administration': administration if administration != 'all' else None
+                    "years": years,
+                    "administration": administration
+                    if administration != "all"
+                    else None,
                 }
                 where_clause, params = service.build_where_clause(conditions)
 
                 # Add tenant filtering for 'all' case
-                if administration == 'all':
-                    placeholders = ','.join(['%s'] * len(user_tenants))
+                if administration == "all":
+                    placeholders = ",".join(["%s"] * len(user_tenants))
                     if where_clause == "1=1":
                         where_clause = f"administration IN ({placeholders})"
                     else:
@@ -261,35 +301,43 @@ def get_reference_analysis(user_email, user_roles, tenant, user_tenants) -> Resp
                 params.append(reference_number)
 
                 if accounts:
-                    placeholders = ','.join(['%s'] * len(accounts))
+                    placeholders = ",".join(["%s"] * len(accounts))
                     where_clause += f" AND Reknum IN ({placeholders})"
                     params.extend(accounts)
 
                 # Get transactions
-                cursor.execute(f"""
+                cursor.execute(
+                    f"""
                     SELECT TransactionDate, TransactionDescription, Amount, Reknum,
                            AccountName, ReferenceNumber, Administration
                     FROM vw_mutaties
                     WHERE {where_clause}
                     ORDER BY TransactionDate DESC
-                """, params)
+                """,
+                    params,
+                )
                 transactions = cursor.fetchall()
 
                 # Get trend data
-                cursor.execute(f"""
+                cursor.execute(
+                    f"""
                     SELECT jaar, kwartaal, SUM(Amount) as total_amount
                     FROM vw_mutaties
                     WHERE {where_clause}
                     GROUP BY jaar, kwartaal
                     ORDER BY jaar, kwartaal
-                """, params)
+                """,
+                    params,
+                )
                 trend_data = cursor.fetchall()
 
-        return jsonify({
-            'success': True,
-            'transactions': transactions,
-            'trend_data': trend_data,
-            'available_accounts': available_accounts
-        })
+        return jsonify(
+            {
+                "success": True,
+                "transactions": transactions,
+                "trend_data": trend_data,
+                "available_accounts": available_accounts,
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

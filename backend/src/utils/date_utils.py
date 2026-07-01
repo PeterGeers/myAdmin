@@ -9,6 +9,7 @@ Without explicit conversion, Flask's jsonify serializes datetime.date objects
 as HTTP date strings (e.g., "Mon, 15 Jan 2024 00:00:00 GMT") which the
 frontend's isISODateString() regex cannot match, causing sort failures.
 """
+
 import datetime
 
 

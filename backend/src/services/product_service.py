@@ -15,14 +15,14 @@ from services.field_config_mixin import FieldConfigMixin
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_VAT_CODES = {'high', 'low', 'zero'}
+ALLOWED_VAT_CODES = {"high", "low", "zero"}
 
 
 class ProductService(FieldConfigMixin):
     """Shared product/service CRUD scoped by tenant."""
 
-    FIELD_CONFIG_KEY = 'product_field_config'
-    ALWAYS_REQUIRED = ['product_code', 'name']
+    FIELD_CONFIG_KEY = "product_field_config"
+    ALWAYS_REQUIRED = ["product_code", "name"]
 
     def __init__(self, db, tax_rate_service=None, parameter_service=None):
         """Initialise with database handle and optional collaborators."""
@@ -64,9 +64,9 @@ class ProductService(FieldConfigMixin):
     def create_product(self, tenant: str, data: dict, created_by: str) -> dict:
         """Create a new product after validating fields, VAT code, type, and uniqueness."""
         self.validate_fields(tenant, data)
-        self._validate_vat_code(tenant, data['vat_code'])
-        self._validate_product_type(tenant, data['product_type'])
-        self._check_product_code_unique(tenant, data['product_code'])
+        self._validate_vat_code(tenant, data["vat_code"])
+        self._validate_product_type(tenant, data["product_type"])
+        self._check_product_code_unique(tenant, data["product_code"])
 
         product_id = self.db.execute_query(
             """INSERT INTO products
@@ -75,17 +75,18 @@ class ProductService(FieldConfigMixin):
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (
                 tenant,
-                data['product_code'],
-                data.get('external_reference'),
-                data['name'],
-                data.get('description'),
-                data['product_type'],
-                data.get('unit_price', 0.00),
-                data['vat_code'],
-                data.get('unit_of_measure', 'uur'),
+                data["product_code"],
+                data.get("external_reference"),
+                data["name"],
+                data.get("description"),
+                data["product_type"],
+                data.get("unit_price", 0.00),
+                data["vat_code"],
+                data.get("unit_of_measure", "uur"),
                 created_by,
             ),
-            fetch=False, commit=True,
+            fetch=False,
+            commit=True,
         )
         return self.get_product(tenant, product_id)
 
@@ -95,18 +96,26 @@ class ProductService(FieldConfigMixin):
         if not existing:
             raise ValueError(f"Product {product_id} not found")
 
-        if 'product_code' in data and data['product_code'] != existing['product_code']:
-            self._check_product_code_unique(tenant, data['product_code'], exclude_id=product_id)
+        if "product_code" in data and data["product_code"] != existing["product_code"]:
+            self._check_product_code_unique(
+                tenant, data["product_code"], exclude_id=product_id
+            )
 
-        if 'vat_code' in data:
-            self._validate_vat_code(tenant, data['vat_code'])
+        if "vat_code" in data:
+            self._validate_vat_code(tenant, data["vat_code"])
 
-        if 'product_type' in data:
-            self._validate_product_type(tenant, data['product_type'])
+        if "product_type" in data:
+            self._validate_product_type(tenant, data["product_type"])
 
         fields = [
-            'product_code', 'external_reference', 'name', 'description',
-            'product_type', 'unit_price', 'vat_code', 'unit_of_measure',
+            "product_code",
+            "external_reference",
+            "name",
+            "description",
+            "product_type",
+            "unit_price",
+            "vat_code",
+            "unit_of_measure",
         ]
         sets = []
         params = []
@@ -119,7 +128,9 @@ class ProductService(FieldConfigMixin):
             params.extend([product_id, tenant])
             self.db.execute_query(
                 f"UPDATE products SET {', '.join(sets)} WHERE id = %s AND administration = %s",
-                tuple(params), fetch=False, commit=True,
+                tuple(params),
+                fetch=False,
+                commit=True,
             )
 
         return self.get_product(tenant, product_id)
@@ -131,11 +142,15 @@ class ProductService(FieldConfigMixin):
             raise ValueError(f"Product {product_id} not found")
 
         if self._check_product_in_use(tenant, product_id):
-            raise ValueError("Cannot delete product: referenced by existing invoice lines")
+            raise ValueError(
+                "Cannot delete product: referenced by existing invoice lines"
+            )
 
         self.db.execute_query(
             "UPDATE products SET is_active = FALSE WHERE id = %s AND administration = %s",
-            (product_id, tenant), fetch=False, commit=True,
+            (product_id, tenant),
+            fetch=False,
+            commit=True,
         )
         return True
 
@@ -144,11 +159,16 @@ class ProductService(FieldConfigMixin):
     def get_product_types(self, tenant: str) -> List[str]:
         """Return allowed product types from tenant parameters or module defaults."""
         if self.parameter_service:
-            types = self.parameter_service.get_param('zzp', 'product_types', tenant=tenant)
+            types = self.parameter_service.get_param(
+                "zzp", "product_types", tenant=tenant
+            )
             if types:
                 return types
         from services.module_registry import MODULE_REGISTRY
-        return list(MODULE_REGISTRY['ZZP']['required_params']['zzp.product_types']['default'])
+
+        return list(
+            MODULE_REGISTRY["ZZP"]["required_params"]["zzp.product_types"]["default"]
+        )
 
     # ── Private helpers ─────────────────────────────────────
 
@@ -158,7 +178,9 @@ class ProductService(FieldConfigMixin):
                 f"Invalid vat_code '{vat_code}'. Must be one of: {', '.join(sorted(ALLOWED_VAT_CODES))}"
             )
         if self.tax_rate_service:
-            rate = self.tax_rate_service.get_tax_rate(tenant, 'btw', vat_code, date.today())
+            rate = self.tax_rate_service.get_tax_rate(
+                tenant, "btw", vat_code, date.today()
+            )
             if rate is None:
                 raise ValueError(
                     f"No BTW rate found for code '{vat_code}' in tenant's tax configuration"
@@ -171,16 +193,21 @@ class ProductService(FieldConfigMixin):
                 f"Invalid product_type '{product_type}'. Must be one of: {', '.join(valid)}"
             )
 
-    def _check_product_code_unique(self, tenant: str, product_code: str,
-                                   exclude_id: Optional[int] = None) -> None:
-        query = "SELECT id FROM products WHERE administration = %s AND product_code = %s"
+    def _check_product_code_unique(
+        self, tenant: str, product_code: str, exclude_id: Optional[int] = None
+    ) -> None:
+        query = (
+            "SELECT id FROM products WHERE administration = %s AND product_code = %s"
+        )
         params: list = [tenant, product_code]
         if exclude_id:
             query += " AND id != %s"
             params.append(exclude_id)
         rows = self.db.execute_query(query, tuple(params))
         if rows:
-            raise ValueError(f"product_code '{product_code}' already exists for this tenant")
+            raise ValueError(
+                f"product_code '{product_code}' already exists for this tenant"
+            )
 
     def _check_product_in_use(self, tenant: str, product_id: int) -> bool:
         rows = self.db.execute_query(

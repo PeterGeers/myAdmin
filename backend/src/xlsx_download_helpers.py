@@ -27,8 +27,8 @@ class XLSXDownloadHelpersMixin:
 
     def _write_download_log(self, folder_path, administration, year, failed_downloads):
         """Write download log file with failed downloads and folder search results."""
-        log_file = os.path.join(folder_path, 'download_log.txt')
-        with open(log_file, 'w', encoding='utf-8') as f:
+        log_file = os.path.join(folder_path, "download_log.txt")
+        with open(log_file, "w", encoding="utf-8") as f:
             f.write(f"Download Log - {administration} {year}\n")
             f.write("=" * 50 + "\n\n")
 
@@ -41,7 +41,7 @@ class XLSXDownloadHelpersMixin:
                     f.write(f"URL: {item['DocUrl']}\n")
                     f.write("-" * 30 + "\n")
 
-            if hasattr(self, 'folder_search_log') and self.folder_search_log:
+            if hasattr(self, "folder_search_log") and self.folder_search_log:
                 f.write("\nFOLDER SEARCH RESULTS:\n")
                 f.write("-" * 25 + "\n")
                 for item in self.folder_search_log:
@@ -55,29 +55,39 @@ class XLSXDownloadHelpersMixin:
     def _find_document_in_folder(self, service, folder_id, dest_folder, document_name):
         """Find and download specific document in folder."""
         try:
-            results = service.files().list(
-                q=f"'{folder_id}' in parents and trashed=false",
-                fields="files(id, name, mimeType)"
-            ).execute()
+            results = (
+                service.files()
+                .list(
+                    q=f"'{folder_id}' in parents and trashed=false",
+                    fields="files(id, name, mimeType)",
+                )
+                .execute()
+            )
 
-            files = results.get('files', [])
+            files = results.get("files", [])
 
             for file_item in files:
-                if file_item['mimeType'] != 'application/vnd.google-apps.folder':
-                    if file_item['name'] == document_name:
+                if file_item["mimeType"] != "application/vnd.google-apps.folder":
+                    if file_item["name"] == document_name:
                         print(f"Found exact match: {file_item['name']}")
                         return self._download_single_file(
-                            service, file_item['id'], file_item['name'], dest_folder
+                            service, file_item["id"], file_item["name"], dest_folder
                         )
 
-            if not hasattr(self, 'folder_search_log'):
+            if not hasattr(self, "folder_search_log"):
                 self.folder_search_log = []
 
-            self.folder_search_log.append({
-                'document_searched': document_name,
-                'folder_id': folder_id,
-                'files_found': [f['name'] for f in files if f['mimeType'] != 'application/vnd.google-apps.folder']
-            })
+            self.folder_search_log.append(
+                {
+                    "document_searched": document_name,
+                    "folder_id": folder_id,
+                    "files_found": [
+                        f["name"]
+                        for f in files
+                        if f["mimeType"] != "application/vnd.google-apps.folder"
+                    ],
+                }
+            )
 
             print(f"Document '{document_name}' not found in folder")
             return False
@@ -92,7 +102,7 @@ class XLSXDownloadHelpersMixin:
             request = service.files().get_media(fileId=file_id)
             file_path = os.path.join(dest_folder, filename)
 
-            with io.FileIO(file_path, 'wb') as fh:
+            with io.FileIO(file_path, "wb") as fh:
                 downloader = MediaIoBaseDownload(fh, request)
                 done = False
                 while done is False:
@@ -116,7 +126,7 @@ class XLSXDownloadHelpersMixin:
         """
         try:
             provider = resolve_storage_provider(administration)
-            if provider == 's3_shared':
+            if provider == "s3_shared":
                 return None
             drive_service = GoogleDriveService(administration)
             return drive_service.service
@@ -140,7 +150,7 @@ class XLSXDownloadHelpersMixin:
             file_data = storage.download(key)
             filename = os.path.basename(key)
             file_path = os.path.join(destination_folder, filename)
-            with open(file_path, 'wb') as f:
+            with open(file_path, "wb") as f:
                 f.write(file_data)
             print(f"Successfully downloaded S3 file: {filename}")
             return True
@@ -159,38 +169,42 @@ class XLSXDownloadHelpersMixin:
         """
         if not doc_url or not isinstance(doc_url, str):
             return False
-        return '/' in doc_url and 'drive.google' not in doc_url
+        return "/" in doc_url and "drive.google" not in doc_url
 
-    def _download_drive_file(self, service, doc_url, dest_folder, document_name=''):
+    def _download_drive_file(self, service, doc_url, dest_folder, document_name=""):
         """Download file from Google Drive."""
         try:
             print(f"Downloading from URL: {doc_url}")
-            file_id = doc_url.split('&')[0]
-            if '/d/' in file_id:
-                file_id = file_id.split('/d/')[1].split('/')[0]
-            elif '/folders/' in file_id:
-                file_id = file_id.split('/folders/')[1].split('/')[0]
-            elif 'id=' in file_id:
-                file_id = file_id.split('id=')[1]
+            file_id = doc_url.split("&")[0]
+            if "/d/" in file_id:
+                file_id = file_id.split("/d/")[1].split("/")[0]
+            elif "/folders/" in file_id:
+                file_id = file_id.split("/folders/")[1].split("/")[0]
+            elif "id=" in file_id:
+                file_id = file_id.split("id=")[1]
             else:
-                file_id = file_id.split('/')[-1]
+                file_id = file_id.split("/")[-1]
 
             print(f"Extracted file ID: {file_id}")
 
             file_metadata = service.files().get(fileId=file_id).execute()
-            filename = file_metadata.get('name', f'file_{file_id}')
-            mime_type = file_metadata.get('mimeType', '')
+            filename = file_metadata.get("name", f"file_{file_id}")
+            mime_type = file_metadata.get("mimeType", "")
             print(f"File name: {filename}, MIME type: {mime_type}")
 
-            if mime_type == 'application/vnd.google-apps.folder':
-                print(f"Found folder: {filename}, searching for document: {document_name}")
-                return self._find_document_in_folder(service, file_id, dest_folder, document_name)
+            if mime_type == "application/vnd.google-apps.folder":
+                print(
+                    f"Found folder: {filename}, searching for document: {document_name}"
+                )
+                return self._find_document_in_folder(
+                    service, file_id, dest_folder, document_name
+                )
 
             request = service.files().get_media(fileId=file_id)
             file_path = os.path.join(dest_folder, filename)
             print(f"Saving to: {file_path}")
 
-            with io.FileIO(file_path, 'wb') as fh:
+            with io.FileIO(file_path, "wb") as fh:
                 downloader = MediaIoBaseDownload(fh, request)
                 done = False
                 while done is False:

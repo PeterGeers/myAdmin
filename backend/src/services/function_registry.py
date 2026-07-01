@@ -18,7 +18,7 @@ from services.module_registry import MODULE_REGISTRY
 
 logger = logging.getLogger(__name__)
 
-IDENTIFIER_PATTERN = re.compile(r'^[a-z][a-z0-9_]{0,49}$')
+IDENTIFIER_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,49}$")
 
 
 class FunctionDefinition(TypedDict):
@@ -28,25 +28,25 @@ class FunctionDefinition(TypedDict):
 
 
 FUNCTION_REGISTRY: Dict[str, FunctionDefinition] = {
-    'assets': {
-        'parent_module': 'FIN',
-        'label': 'Activa beheer',
-        'default_enabled': True,
+    "assets": {
+        "parent_module": "FIN",
+        "label": "Activa beheer",
+        "default_enabled": True,
     },
-    'str_channel_revenue': {
-        'parent_module': 'STR',
-        'label': 'STR Kanaal omzet',
-        'default_enabled': True,
+    "str_channel_revenue": {
+        "parent_module": "STR",
+        "label": "STR Kanaal omzet",
+        "default_enabled": True,
     },
-    'generate_invoice': {
-        'parent_module': 'FIN',
-        'label': 'Generate Invoice',
-        'default_enabled': True,
+    "generate_invoice": {
+        "parent_module": "FIN",
+        "label": "Generate Invoice",
+        "default_enabled": True,
     },
-    'budget': {
-        'parent_module': 'FIN',
-        'label': 'Budget Management',
-        'default_enabled': True,
+    "budget": {
+        "parent_module": "FIN",
+        "label": "Budget Management",
+        "default_enabled": True,
     },
 }
 
@@ -83,7 +83,7 @@ def validate_function_registry() -> None:
         seen_identifiers.add(identifier)
 
         # Validate parent_module exists in MODULE_REGISTRY
-        parent_module = definition.get('parent_module', '')
+        parent_module = definition.get("parent_module", "")
         if parent_module not in MODULE_REGISTRY:
             raise ValueError(
                 f"Function '{identifier}' references invalid parent module "
@@ -91,11 +91,10 @@ def validate_function_registry() -> None:
             )
 
         # Validate label is non-empty and ≤ 100 characters
-        label = definition.get('label', '')
+        label = definition.get("label", "")
         if not label:
             raise ValueError(
-                f"Function '{identifier}' has an empty label: "
-                f"label must be non-empty"
+                f"Function '{identifier}' has an empty label: label must be non-empty"
             )
         if len(label) > 100:
             raise ValueError(
@@ -104,6 +103,5 @@ def validate_function_registry() -> None:
             )
 
     logger.info(
-        "Function registry validated: %d functions registered",
-        len(FUNCTION_REGISTRY)
+        "Function registry validated: %d functions registered", len(FUNCTION_REGISTRY)
     )

@@ -40,39 +40,48 @@ def function_guard(function_name: str, module_name: str):
     Returns:
         Decorated function that enforces function-level access control.
     """
+
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
             # Step 1: Check tenant context is available
-            tenant = kwargs.get('tenant')
+            tenant = kwargs.get("tenant")
             if not tenant:
-                return jsonify({
-                    'success': False,
-                    'error': 'Tenant context required'
-                }), 403
+                return jsonify(
+                    {"success": False, "error": "Tenant context required"}
+                ), 403
 
             # Create DatabaseManager instance
             from database import DatabaseManager
-            test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+
+            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
             db = DatabaseManager(test_mode=test_mode)
 
             # Step 2: Check parent module is active
             from services.module_registry import has_module
+
             if not has_module(db, tenant, module_name):
-                return jsonify({
-                    'success': False,
-                    'error': f"Module '{module_name}' is not active for this tenant"
-                }), 403
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": f"Module '{module_name}' is not active for this tenant",
+                    }
+                ), 403
 
             # Step 3: Check function toggle is enabled
             from services.tenant_function_service import TenantFunctionService
+
             service = TenantFunctionService(db)
             if not service.get_function_state(tenant, function_name):
-                return jsonify({
-                    'success': False,
-                    'error': f"Function '{function_name}' is disabled for this tenant"
-                }), 403
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": f"Function '{function_name}' is disabled for this tenant",
+                    }
+                ), 403
 
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator

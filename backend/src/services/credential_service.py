@@ -59,7 +59,7 @@ class CredentialService:
             ValueError: If encryption key is not provided and not found in environment
         """
         self.db = db_manager
-        self.encryption_key = encryption_key or os.getenv('CREDENTIALS_ENCRYPTION_KEY')
+        self.encryption_key = encryption_key or os.getenv("CREDENTIALS_ENCRYPTION_KEY")
 
         if not self.encryption_key:
             raise ValueError(
@@ -88,9 +88,9 @@ class CredentialService:
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=b'myAdmin_credential_salt',  # Static salt for master key consistency
+            salt=b"myAdmin_credential_salt",  # Static salt for master key consistency
             iterations=100000,
-            backend=default_backend()
+            backend=default_backend(),
         )
         derived_key = base64.urlsafe_b64encode(kdf.derive(key.encode()))
         return Fernet(derived_key)
@@ -113,9 +113,9 @@ class CredentialService:
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=tenant.encode('utf-8'),
+            salt=tenant.encode("utf-8"),
             iterations=100_000,
-            backend=default_backend()
+            backend=default_backend(),
         )
         derived_key = base64.urlsafe_b64encode(kdf.derive(master_key.encode()))
         return Fernet(derived_key)
@@ -152,16 +152,18 @@ class CredentialService:
                 cipher = self._fernet
 
             # Encrypt the plaintext
-            encrypted_bytes = cipher.encrypt(plaintext.encode('utf-8'))
+            encrypted_bytes = cipher.encrypt(plaintext.encode("utf-8"))
 
             # Return as base64 string for database storage
-            return base64.b64encode(encrypted_bytes).decode('utf-8')
+            return base64.b64encode(encrypted_bytes).decode("utf-8")
 
         except Exception as e:
             logger.error(f"Encryption failed: {type(e).__name__}")
             raise Exception(f"Failed to encrypt credential: {type(e).__name__}")
 
-    def decrypt_credential(self, encrypted_value: str, tenant: Optional[str] = None) -> Any:
+    def decrypt_credential(
+        self, encrypted_value: str, tenant: Optional[str] = None
+    ) -> Any:
         """
         Decrypt an encrypted credential value.
 
@@ -183,7 +185,7 @@ class CredentialService:
         """
         try:
             # Decode from base64
-            encrypted_bytes = base64.b64decode(encrypted_value.encode('utf-8'))
+            encrypted_bytes = base64.b64decode(encrypted_value.encode("utf-8"))
 
             if tenant:
                 # Try tenant-derived key first
@@ -195,12 +197,12 @@ class CredentialService:
                     try:
                         decrypted_bytes = self._fernet.decrypt(encrypted_bytes)
                     except InvalidToken:
-                        raise CredentialDecryptionError(tenant, 'unknown')
+                        raise CredentialDecryptionError(tenant, "unknown")
             else:
                 # No tenant context — use master key directly
                 decrypted_bytes = self._fernet.decrypt(encrypted_bytes)
 
-            plaintext = decrypted_bytes.decode('utf-8')
+            plaintext = decrypted_bytes.decode("utf-8")
 
             # Try to parse as JSON
             try:
@@ -212,11 +214,13 @@ class CredentialService:
             raise
         except Exception as e:
             if tenant:
-                raise CredentialDecryptionError(tenant, 'unknown')
+                raise CredentialDecryptionError(tenant, "unknown")
             logger.error(f"Decryption failed: {type(e).__name__}")
             raise Exception(f"Failed to decrypt credential: {type(e).__name__}")
 
-    def store_credential(self, administration: str, credential_type: str, value: Any) -> bool:
+    def store_credential(
+        self, administration: str, credential_type: str, value: Any
+    ) -> bool:
         """
         Store an encrypted credential in the database.
 
@@ -251,17 +255,21 @@ class CredentialService:
                 query,
                 (administration, credential_type, encrypted_value),
                 fetch=False,
-                commit=True
+                commit=True,
             )
 
-            logger.info(f"Stored credential for administration '{administration}', type '{credential_type}'")
+            logger.info(
+                f"Stored credential for administration '{administration}', type '{credential_type}'"
+            )
             return True
 
         except Exception as e:
             logger.error(f"Failed to store credential: {type(e).__name__}")
             raise Exception(f"Failed to store credential: {type(e).__name__}")
 
-    def get_credential(self, administration: str, credential_type: str) -> Optional[Any]:
+    def get_credential(
+        self, administration: str, credential_type: str
+    ) -> Optional[Any]:
         """
         Retrieve and decrypt a credential from the database.
 
@@ -290,24 +298,26 @@ class CredentialService:
             results = self.db.execute_query(query, (administration, credential_type))
 
             if not results or len(results) == 0:
-                logger.warning(f"No credential found for administration '{administration}', type '{credential_type}'")
+                logger.warning(
+                    f"No credential found for administration '{administration}', type '{credential_type}'"
+                )
                 return None
 
-            encrypted_value = results[0]['encrypted_value']
+            encrypted_value = results[0]["encrypted_value"]
 
             # Decode from base64
-            encrypted_bytes = base64.b64decode(encrypted_value.encode('utf-8'))
+            encrypted_bytes = base64.b64decode(encrypted_value.encode("utf-8"))
 
             # Try tenant-derived key first
             tenant_cipher = self._derive_tenant_key(self.encryption_key, administration)
             try:
                 decrypted_bytes = tenant_cipher.decrypt(encrypted_bytes)
-                plaintext = decrypted_bytes.decode('utf-8')
+                plaintext = decrypted_bytes.decode("utf-8")
             except InvalidToken:
                 # Fall back to master key (lazy migration)
                 try:
                     decrypted_bytes = self._fernet.decrypt(encrypted_bytes)
-                    plaintext = decrypted_bytes.decode('utf-8')
+                    plaintext = decrypted_bytes.decode("utf-8")
 
                     # Re-encrypt with tenant-derived key and update the database
                     self._migrate_credential(
@@ -322,7 +332,9 @@ class CredentialService:
             except json.JSONDecodeError:
                 result = plaintext
 
-            logger.info(f"Retrieved credential for administration '{administration}', type '{credential_type}'")
+            logger.info(
+                f"Retrieved credential for administration '{administration}', type '{credential_type}'"
+            )
             return result
 
         except CredentialDecryptionError:
@@ -332,8 +344,11 @@ class CredentialService:
             raise CredentialDecryptionError(administration, credential_type)
 
     def _migrate_credential(
-        self, administration: str, credential_type: str,
-        plaintext: str, tenant_cipher: Fernet
+        self,
+        administration: str,
+        credential_type: str,
+        plaintext: str,
+        tenant_cipher: Fernet,
     ) -> None:
         """
         Re-encrypt a credential with the tenant-derived key and update the DB.
@@ -348,8 +363,8 @@ class CredentialService:
             tenant_cipher: The tenant-derived Fernet cipher
         """
         try:
-            new_encrypted_bytes = tenant_cipher.encrypt(plaintext.encode('utf-8'))
-            new_encrypted_value = base64.b64encode(new_encrypted_bytes).decode('utf-8')
+            new_encrypted_bytes = tenant_cipher.encrypt(plaintext.encode("utf-8"))
+            new_encrypted_value = base64.b64encode(new_encrypted_bytes).decode("utf-8")
 
             update_query = """
                 UPDATE tenant_credentials 
@@ -360,7 +375,7 @@ class CredentialService:
                 update_query,
                 (new_encrypted_value, administration, credential_type),
                 fetch=False,
-                commit=True
+                commit=True,
             )
             logger.info(
                 f"Migrated credential to tenant-derived key for "
@@ -394,17 +409,18 @@ class CredentialService:
             """
 
             rows_affected = self.db.execute_query(
-                query,
-                (administration, credential_type),
-                fetch=False,
-                commit=True
+                query, (administration, credential_type), fetch=False, commit=True
             )
 
             if rows_affected > 0:
-                logger.info(f"Deleted credential for administration '{administration}', type '{credential_type}'")
+                logger.info(
+                    f"Deleted credential for administration '{administration}', type '{credential_type}'"
+                )
                 return True
             else:
-                logger.warning(f"No credential found to delete for administration '{administration}', type '{credential_type}'")
+                logger.warning(
+                    f"No credential found to delete for administration '{administration}', type '{credential_type}'"
+                )
                 return False
 
         except Exception as e:
@@ -436,9 +452,13 @@ class CredentialService:
 
             return [
                 {
-                    'type': row['credential_type'],
-                    'created_at': row['created_at'].isoformat() if row['created_at'] else None,
-                    'updated_at': row['updated_at'].isoformat() if row['updated_at'] else None
+                    "type": row["credential_type"],
+                    "created_at": row["created_at"].isoformat()
+                    if row["created_at"]
+                    else None,
+                    "updated_at": row["updated_at"].isoformat()
+                    if row["updated_at"]
+                    else None,
                 }
                 for row in results
             ]
@@ -467,7 +487,7 @@ class CredentialService:
 
             results = self.db.execute_query(query, (administration, credential_type))
 
-            return results[0]['count'] > 0 if results else False
+            return results[0]["count"] > 0 if results else False
 
         except Exception as e:
             logger.error(f"Failed to check credential existence: {type(e).__name__}")

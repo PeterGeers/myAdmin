@@ -28,7 +28,7 @@ reuse_port = True  # Enable SO_REUSEPORT for better load distribution
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 accesslog = "-"  # Log to stdout
-errorlog = "-"   # Log to stderr
+errorlog = "-"  # Log to stderr
 
 # Security
 limit_request_line = 8192  # Increased for large requests
@@ -43,10 +43,11 @@ graceful_timeout = 30
 
 # Environment variables for scalability
 raw_env = [
-    'SCALABILITY_ENABLED=true',
-    'MAX_CONCURRENT_USERS=1000',  # 10x improvement from ~100
-    'PERFORMANCE_MONITORING=true'
+    "SCALABILITY_ENABLED=true",
+    "MAX_CONCURRENT_USERS=1000",  # 10x improvement from ~100
+    "PERFORMANCE_MONITORING=true",
 ]
+
 
 # Hooks for scalability monitoring
 def on_starting(server):
@@ -56,13 +57,16 @@ def on_starting(server):
     server.log.info(f"   Threads per worker: {threads}")
     server.log.info(f"   Total concurrent capacity: {workers * threads}")
 
+
 def on_reload(server):
     """Called to recycle workers during a reload via SIGHUP."""
     server.log.info("🔄 Reloading with scalability optimizations")
 
+
 def worker_int(worker):
     """Called just after a worker exited on SIGINT or SIGQUIT."""
     worker.log.info("🔄 Worker interrupted, scalability manager will handle gracefully")
+
 
 def on_exit(server):
     """Called just before exiting."""

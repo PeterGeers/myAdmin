@@ -15,7 +15,7 @@ from typing import List
 logger = logging.getLogger(__name__)
 
 # Required top-level fields in a pivot model definition.
-REQUIRED_DEFINITION_FIELDS = ('data_source', 'group_columns', 'aggregate_measures')
+REQUIRED_DEFINITION_FIELDS = ("data_source", "group_columns", "aggregate_measures")
 
 
 class PivotModelStore:
@@ -32,7 +32,9 @@ class PivotModelStore:
     # CRUD operations
     # ------------------------------------------------------------------
 
-    def save_model(self, tenant: str, user_email: str, name: str, definition: dict) -> dict:
+    def save_model(
+        self, tenant: str, user_email: str, name: str, definition: dict
+    ) -> dict:
         """
         Save a new pivot model.
 
@@ -62,7 +64,7 @@ class PivotModelStore:
             raise ValueError(f"A model with name '{name}' already exists")
 
         json_def = self.serialize(definition)
-        data_source = definition.get('data_source', '')
+        data_source = definition.get("data_source", "")
 
         new_id = self.db.execute_query(
             "INSERT INTO pivot_models (administration, name, data_source, definition, created_by) "
@@ -72,9 +74,11 @@ class PivotModelStore:
             commit=True,
         )
 
-        return {'success': True, 'id': new_id}
+        return {"success": True, "id": new_id}
 
-    def update_model(self, tenant: str, user_email: str, model_id: int, definition: dict) -> dict:
+    def update_model(
+        self, tenant: str, user_email: str, model_id: int, definition: dict
+    ) -> dict:
         """
         Update an existing model's definition.
 
@@ -102,7 +106,7 @@ class PivotModelStore:
             raise ValueError("Pivot model not found")
 
         json_def = self.serialize(definition)
-        data_source = definition.get('data_source', '')
+        data_source = definition.get("data_source", "")
 
         self.db.execute_query(
             "UPDATE pivot_models SET definition = %s, data_source = %s, "
@@ -112,7 +116,7 @@ class PivotModelStore:
             commit=True,
         )
 
-        return {'success': True}
+        return {"success": True}
 
     def load_model(self, tenant: str, model_id: int) -> dict:
         """
@@ -139,16 +143,16 @@ class PivotModelStore:
             raise ValueError("Pivot model not found")
 
         row = rows[0]
-        definition = self.deserialize(row['definition'])
+        definition = self.deserialize(row["definition"])
 
         return {
-            'id': row['id'],
-            'name': row['name'],
-            'data_source': row['data_source'],
-            'definition': definition,
-            'created_by': row['created_by'],
-            'created_at': str(row['created_at']) if row['created_at'] else None,
-            'updated_at': str(row['updated_at']) if row['updated_at'] else None,
+            "id": row["id"],
+            "name": row["name"],
+            "data_source": row["data_source"],
+            "definition": definition,
+            "created_by": row["created_by"],
+            "created_at": str(row["created_at"]) if row["created_at"] else None,
+            "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
         }
 
     def list_models(self, tenant: str) -> List[dict]:
@@ -171,11 +175,11 @@ class PivotModelStore:
         )
         return [
             {
-                'id': r['id'],
-                'name': r['name'],
-                'data_source': r['data_source'],
-                'created_by': r['created_by'],
-                'created_at': str(r['created_at']) if r['created_at'] else None,
+                "id": r["id"],
+                "name": r["name"],
+                "data_source": r["data_source"],
+                "created_by": r["created_by"],
+                "created_at": str(r["created_at"]) if r["created_at"] else None,
             }
             for r in rows
         ]
@@ -269,21 +273,21 @@ class PivotModelStore:
             raise ValueError("Model definition must be a dict")
 
         # data_source
-        ds = definition.get('data_source')
+        ds = definition.get("data_source")
         if not ds or not isinstance(ds, str):
             raise ValueError(
                 "Invalid model definition: missing required field 'data_source'"
             )
 
         # group_columns
-        gc = definition.get('group_columns')
+        gc = definition.get("group_columns")
         if not gc or not isinstance(gc, list) or len(gc) == 0:
             raise ValueError(
                 "Invalid model definition: 'group_columns' must be a non-empty list"
             )
 
         # aggregate_measures
-        am = definition.get('aggregate_measures')
+        am = definition.get("aggregate_measures")
         if not am or not isinstance(am, list) or len(am) == 0:
             raise ValueError(
                 "Invalid model definition: 'aggregate_measures' must be a non-empty list"

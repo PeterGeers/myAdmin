@@ -18,16 +18,16 @@ from typing import Any
 # Patterns that indicate a key name holds sensitive data.
 # Case-insensitive matching is applied at check time.
 SENSITIVE_KEY_PATTERNS = [
-    re.compile(r'api[_\-\s]?key', re.IGNORECASE),
-    re.compile(r'password', re.IGNORECASE),
-    re.compile(r'encryption[_\-\s]?key', re.IGNORECASE),
-    re.compile(r'oauth[_\-\s]?(client[_\-\s]?)?secret', re.IGNORECASE),
-    re.compile(r'jwt[_\-\s]?(signing[_\-\s]?)?key', re.IGNORECASE),
-    re.compile(r'secret[_\-\s]?key', re.IGNORECASE),
-    re.compile(r'access[_\-\s]?token', re.IGNORECASE),
-    re.compile(r'refresh[_\-\s]?token', re.IGNORECASE),
-    re.compile(r'private[_\-\s]?key', re.IGNORECASE),
-    re.compile(r'client[_\-\s]?secret', re.IGNORECASE),
+    re.compile(r"api[_\-\s]?key", re.IGNORECASE),
+    re.compile(r"password", re.IGNORECASE),
+    re.compile(r"encryption[_\-\s]?key", re.IGNORECASE),
+    re.compile(r"oauth[_\-\s]?(client[_\-\s]?)?secret", re.IGNORECASE),
+    re.compile(r"jwt[_\-\s]?(signing[_\-\s]?)?key", re.IGNORECASE),
+    re.compile(r"secret[_\-\s]?key", re.IGNORECASE),
+    re.compile(r"access[_\-\s]?token", re.IGNORECASE),
+    re.compile(r"refresh[_\-\s]?token", re.IGNORECASE),
+    re.compile(r"private[_\-\s]?key", re.IGNORECASE),
+    re.compile(r"client[_\-\s]?secret", re.IGNORECASE),
 ]
 
 REDACTED = "[REDACTED]"

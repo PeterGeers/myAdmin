@@ -71,9 +71,9 @@ class PatternAnalyzer:
             for account in bank_accounts:
                 key = f"{account['administration']}_{account['Account']}"
                 self.bank_accounts_cache[key] = {
-                    'iban': account['rekeningNummer'],
-                    'account': account['Account'],
-                    'administration': account['administration']
+                    "iban": account["rekeningNummer"],
+                    "account": account["Account"],
+                    "administration": account["administration"],
                 }
 
         return self.bank_accounts_cache
@@ -87,10 +87,13 @@ class PatternAnalyzer:
         key = f"{administration}_{account_number}"
         return key in bank_accounts
 
-    def analyze_historical_patterns(self, administration: str,
-                                    reference_number: Optional[str] = None,
-                                    debet_account: Optional[str] = None,
-                                    credit_account: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_historical_patterns(
+        self,
+        administration: str,
+        reference_number: Optional[str] = None,
+        debet_account: Optional[str] = None,
+        credit_account: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Analyze last 2 years of transaction data to discover patterns
 
@@ -120,9 +123,9 @@ class PatternAnalyzer:
         query_conditions = [
             "administration = %s",
             "TransactionDate >= %s",
-            "(Debet IS NOT NULL OR Credit IS NOT NULL)"
+            "(Debet IS NOT NULL OR Credit IS NOT NULL)",
         ]
-        query_params = [administration, two_years_ago.strftime('%Y-%m-%d')]
+        query_params = [administration, two_years_ago.strftime("%Y-%m-%d")]
 
         # Add optional filters per REQ-PAT-002
         if reference_number:
@@ -141,7 +144,7 @@ class PatternAnalyzer:
             SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
                    TransactionDate, TransactionAmount, Ref1, administration
             FROM mutaties 
-            WHERE {' AND '.join(query_conditions)}
+            WHERE {" AND ".join(query_conditions)}
             ORDER BY TransactionDate DESC
         """
 
@@ -149,55 +152,74 @@ class PatternAnalyzer:
 
         if not transactions:
             return {
-                'total_transactions': 0,
-                'patterns_discovered': 0,
-                'debet_patterns': {},
-                'credit_patterns': {},
-                'reference_patterns': {},
-                'statistics': {}
+                "total_transactions": 0,
+                "patterns_discovered": 0,
+                "debet_patterns": {},
+                "credit_patterns": {},
+                "reference_patterns": {},
+                "statistics": {},
             }
 
         print(f"📊 Processing {len(transactions)} transactions from last 2 years...")
 
         # Analyze patterns (delegated to pattern_detection module)
-        debet_patterns = analyze_debet_patterns(transactions, administration, self.is_bank_account)
-        credit_patterns = analyze_credit_patterns(transactions, administration, self.is_bank_account)
-        reference_patterns_result = analyze_reference_patterns(transactions, administration, self.is_bank_account)
+        debet_patterns = analyze_debet_patterns(
+            transactions, administration, self.is_bank_account
+        )
+        credit_patterns = analyze_credit_patterns(
+            transactions, administration, self.is_bank_account
+        )
+        reference_patterns_result = analyze_reference_patterns(
+            transactions, administration, self.is_bank_account
+        )
 
         # Generate statistics (delegated to pattern_scoring module)
         statistics = generate_pattern_statistics(
-            transactions, debet_patterns, credit_patterns, reference_patterns_result, self.is_bank_account
+            transactions,
+            debet_patterns,
+            credit_patterns,
+            reference_patterns_result,
+            self.is_bank_account,
         )
 
         result = {
-            'total_transactions': len(transactions),
-            'patterns_discovered': len(debet_patterns) + len(credit_patterns) + len(reference_patterns_result),
-            'debet_patterns': debet_patterns,
-            'credit_patterns': credit_patterns,
-            'reference_patterns': reference_patterns_result,
-            'statistics': statistics,
-            'analysis_date': datetime.now().isoformat(),
-            'date_range': {
-                'from': two_years_ago.strftime('%Y-%m-%d'),
-                'to': datetime.now().strftime('%Y-%m-%d')
-            }
+            "total_transactions": len(transactions),
+            "patterns_discovered": len(debet_patterns)
+            + len(credit_patterns)
+            + len(reference_patterns_result),
+            "debet_patterns": debet_patterns,
+            "credit_patterns": credit_patterns,
+            "reference_patterns": reference_patterns_result,
+            "statistics": statistics,
+            "analysis_date": datetime.now().isoformat(),
+            "date_range": {
+                "from": two_years_ago.strftime("%Y-%m-%d"),
+                "to": datetime.now().strftime("%Y-%m-%d"),
+            },
         }
 
         # Store patterns in database for persistent storage (REQ-PAT-005)
         if not reference_number and not debet_account and not credit_account:
-            store_verb_patterns_to_database(self.db, administration, reference_patterns_result, result)
+            store_verb_patterns_to_database(
+                self.db, administration, reference_patterns_result, result
+            )
             # Invalidate persistent cache since we have new patterns
             self.persistent_cache.invalidate_cache(administration)
 
         # Cache the results with filter-specific key for backward compatibility
-        cache_key = build_cache_key(administration, reference_number, debet_account, credit_account)
+        cache_key = build_cache_key(
+            administration, reference_number, debet_account, credit_account
+        )
         self.patterns_cache[cache_key] = result
 
-        print(f"✅ Pattern analysis complete: {result['patterns_discovered']} patterns discovered")
+        print(
+            f"✅ Pattern analysis complete: {result['patterns_discovered']} patterns discovered"
+        )
         return result
 
-    def apply_patterns_to_transactions(self, transactions: List[Dict],
-                                       administration: str) -> Tuple[List[Dict], Dict[str, Any]]:
+    def apply_patterns_to_transactions(
+        self, transactions: List[Dict], administration: str
+    ) -> Tuple[List[Dict], Dict[str, Any]]:
         """
         Apply discovered patterns to predict missing values in transactions
 
@@ -214,14 +236,10 @@ class PatternAnalyzer:
         patterns = self.get_filtered_patterns(administration)
 
         results = {
-            'total_transactions': len(transactions),
-            'predictions_made': {
-                'debet': 0,
-                'credit': 0,
-                'reference': 0
-            },
-            'confidence_scores': [],
-            'failed_predictions': 0
+            "total_transactions": len(transactions),
+            "predictions_made": {"debet": 0, "credit": 0, "reference": 0},
+            "confidence_scores": [],
+            "failed_predictions": 0,
         }
 
         updated_transactions = []
@@ -231,58 +249,70 @@ class PatternAnalyzer:
             tx_predictions = []
 
             # Apply debet patterns (delegated to pattern_scoring module)
-            if not updated_tx.get('Debet'):
+            if not updated_tx.get("Debet"):
                 debet_prediction = predict_debet(
-                    updated_tx, patterns['reference_patterns'], administration,
-                    self.is_bank_account, self._extract_verb_from_description,
-                    self.get_filtered_patterns
+                    updated_tx,
+                    patterns["reference_patterns"],
+                    administration,
+                    self.is_bank_account,
+                    self._extract_verb_from_description,
+                    self.get_filtered_patterns,
                 )
                 if debet_prediction:
-                    updated_tx['Debet'] = debet_prediction['value']
-                    updated_tx['_debet_confidence'] = debet_prediction['confidence']
-                    results['predictions_made']['debet'] += 1
-                    tx_predictions.append(debet_prediction['confidence'])
+                    updated_tx["Debet"] = debet_prediction["value"]
+                    updated_tx["_debet_confidence"] = debet_prediction["confidence"]
+                    results["predictions_made"]["debet"] += 1
+                    tx_predictions.append(debet_prediction["confidence"])
 
             # Apply credit patterns (delegated to pattern_scoring module)
-            if not updated_tx.get('Credit'):
+            if not updated_tx.get("Credit"):
                 credit_prediction = predict_credit(
-                    updated_tx, patterns['reference_patterns'], administration,
-                    self.is_bank_account, self._extract_verb_from_description,
-                    self.get_filtered_patterns
+                    updated_tx,
+                    patterns["reference_patterns"],
+                    administration,
+                    self.is_bank_account,
+                    self._extract_verb_from_description,
+                    self.get_filtered_patterns,
                 )
                 if credit_prediction:
-                    updated_tx['Credit'] = credit_prediction['value']
-                    updated_tx['_credit_confidence'] = credit_prediction['confidence']
-                    results['predictions_made']['credit'] += 1
-                    tx_predictions.append(credit_prediction['confidence'])
+                    updated_tx["Credit"] = credit_prediction["value"]
+                    updated_tx["_credit_confidence"] = credit_prediction["confidence"]
+                    results["predictions_made"]["credit"] += 1
+                    tx_predictions.append(credit_prediction["confidence"])
 
             # Apply reference patterns (delegated to pattern_scoring module)
-            if not updated_tx.get('ReferenceNumber'):
+            if not updated_tx.get("ReferenceNumber"):
                 ref_prediction = predict_reference(
-                    updated_tx, patterns['reference_patterns'],
-                    self.is_bank_account, self._extract_verb_from_description
+                    updated_tx,
+                    patterns["reference_patterns"],
+                    self.is_bank_account,
+                    self._extract_verb_from_description,
                 )
                 if ref_prediction:
-                    updated_tx['ReferenceNumber'] = ref_prediction['value']
-                    updated_tx['_reference_confidence'] = ref_prediction['confidence']
-                    results['predictions_made']['reference'] += 1
-                    tx_predictions.append(ref_prediction['confidence'])
+                    updated_tx["ReferenceNumber"] = ref_prediction["value"]
+                    updated_tx["_reference_confidence"] = ref_prediction["confidence"]
+                    results["predictions_made"]["reference"] += 1
+                    tx_predictions.append(ref_prediction["confidence"])
 
             # Track confidence scores
             if tx_predictions:
-                results['confidence_scores'].extend(tx_predictions)
+                results["confidence_scores"].extend(tx_predictions)
             else:
-                results['failed_predictions'] += 1
+                results["failed_predictions"] += 1
 
             updated_transactions.append(updated_tx)
 
         # Calculate average confidence
-        if results['confidence_scores']:
-            results['average_confidence'] = sum(results['confidence_scores']) / len(results['confidence_scores'])
+        if results["confidence_scores"]:
+            results["average_confidence"] = sum(results["confidence_scores"]) / len(
+                results["confidence_scores"]
+            )
         else:
-            results['average_confidence'] = 0.0
+            results["average_confidence"] = 0.0
 
-        print(f"✅ Pattern application complete: {sum(results['predictions_made'].values())} predictions made")
+        print(
+            f"✅ Pattern application complete: {sum(results['predictions_made'].values())} predictions made"
+        )
         return updated_transactions, results
 
     def analyze_incremental_patterns(self, administration: str) -> Dict[str, Any]:
@@ -295,29 +325,35 @@ class PatternAnalyzer:
 
         try:
             # Get last analysis date and current metadata
-            metadata = self.db.execute_query("""
+            metadata = self.db.execute_query(
+                """
                 SELECT last_analysis_date, transactions_analyzed, patterns_discovered 
                 FROM pattern_analysis_metadata 
                 WHERE administration = %s
-            """, (administration,))
+            """,
+                (administration,),
+            )
 
-            if not metadata or not metadata[0]['last_analysis_date']:
+            if not metadata or not metadata[0]["last_analysis_date"]:
                 print("No previous analysis found, running full analysis...")
                 return self.analyze_historical_patterns(administration)
 
-            last_analysis_date = metadata[0]['last_analysis_date']
-            previous_transactions = metadata[0]['transactions_analyzed'] or 0
-            previous_patterns = metadata[0]['patterns_discovered'] or 0
+            last_analysis_date = metadata[0]["last_analysis_date"]
+            previous_transactions = metadata[0]["transactions_analyzed"] or 0
+            previous_patterns = metadata[0]["patterns_discovered"] or 0
 
             print(f"Last analysis: {last_analysis_date}")
-            print(f"Previous analysis: {previous_transactions} transactions, {previous_patterns} patterns")
+            print(
+                f"Previous analysis: {previous_transactions} transactions, {previous_patterns} patterns"
+            )
 
             # Step 1: Load existing patterns from database
             existing_patterns = load_patterns_from_database(self.db, administration)
-            existing_pattern_keys = set(existing_patterns['reference_patterns'].keys())
+            existing_pattern_keys = set(existing_patterns["reference_patterns"].keys())
 
             # Step 2: Get new transactions since last analysis
-            new_transactions = self.db.execute_query("""
+            new_transactions = self.db.execute_query(
+                """
                 SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
                        TransactionDate, TransactionAmount, Ref1, administration
                 FROM mutaties 
@@ -325,31 +361,36 @@ class PatternAnalyzer:
                 AND TransactionDate > %s
                 AND (Debet IS NOT NULL OR Credit IS NOT NULL)
                 ORDER BY TransactionDate DESC
-            """, (administration, last_analysis_date))
+            """,
+                (administration, last_analysis_date),
+            )
 
             if not new_transactions:
-                print("✅ No new transactions found since last analysis - patterns are up to date")
-                existing_patterns['total_transactions'] = 0
-                existing_patterns['incremental_update'] = {
-                    'new_transactions_processed': 0,
-                    'new_patterns_discovered': 0,
-                    'previous_transaction_count': previous_transactions,
-                    'previous_pattern_count': previous_patterns,
-                    'total_patterns_in_database': len(existing_pattern_keys),
-                    'efficiency_gain': 'No processing needed - already up to date'
+                print(
+                    "✅ No new transactions found since last analysis - patterns are up to date"
+                )
+                existing_patterns["total_transactions"] = 0
+                existing_patterns["incremental_update"] = {
+                    "new_transactions_processed": 0,
+                    "new_patterns_discovered": 0,
+                    "previous_transaction_count": previous_transactions,
+                    "previous_pattern_count": previous_patterns,
+                    "total_patterns_in_database": len(existing_pattern_keys),
+                    "efficiency_gain": "No processing needed - already up to date",
                 }
                 return existing_patterns
 
             print(f"📊 Found {len(new_transactions)} new transactions to process")
 
             # Step 3: Apply existing patterns to new transactions
-            updated_transactions, application_results = self.apply_patterns_to_transactions(
-                new_transactions, administration
+            updated_transactions, application_results = (
+                self.apply_patterns_to_transactions(new_transactions, administration)
             )
 
             # Step 4: Analyze complete dataset to discover new patterns
             two_years_ago = datetime.now() - timedelta(days=730)
-            all_transactions = self.db.execute_query("""
+            all_transactions = self.db.execute_query(
+                """
                 SELECT TransactionDescription, Debet, Credit, ReferenceNumber, 
                        TransactionDate, TransactionAmount, Ref1, administration
                 FROM mutaties 
@@ -357,9 +398,13 @@ class PatternAnalyzer:
                 AND TransactionDate >= %s
                 AND (Debet IS NOT NULL OR Credit IS NOT NULL)
                 ORDER BY TransactionDate DESC
-            """, (administration, two_years_ago.strftime('%Y-%m-%d')))
+            """,
+                (administration, two_years_ago.strftime("%Y-%m-%d")),
+            )
 
-            new_reference_patterns = analyze_reference_patterns(all_transactions, administration, self.is_bank_account)
+            new_reference_patterns = analyze_reference_patterns(
+                all_transactions, administration, self.is_bank_account
+            )
 
             # Step 5: Compare before/after to identify new patterns
             truly_new_patterns = {}
@@ -369,9 +414,15 @@ class PatternAnalyzer:
                 if pattern_key not in existing_pattern_keys:
                     truly_new_patterns[pattern_key] = pattern
                 else:
-                    existing_pattern = existing_patterns['reference_patterns'][pattern_key]
-                    if pattern.get('occurrences', 0) > existing_pattern.get('occurrences', 0):
-                        pattern['occurrences'] = pattern['occurrences'] - existing_pattern.get('occurrences', 0)
+                    existing_pattern = existing_patterns["reference_patterns"][
+                        pattern_key
+                    ]
+                    if pattern.get("occurrences", 0) > existing_pattern.get(
+                        "occurrences", 0
+                    ):
+                        pattern["occurrences"] = pattern[
+                            "occurrences"
+                        ] - existing_pattern.get("occurrences", 0)
                         updated_patterns[pattern_key] = pattern
 
             # Step 6: Store new/updated patterns
@@ -382,46 +433,59 @@ class PatternAnalyzer:
             )
 
             result = {
-                'total_transactions': len(new_transactions),
-                'patterns_discovered': len(patterns_to_store),
-                'debet_patterns': {},
-                'credit_patterns': {},
-                'reference_patterns': patterns_to_store,
-                'statistics': statistics,
-                'analysis_date': datetime.now().isoformat(),
-                'date_range': {
-                    'from': last_analysis_date.strftime('%Y-%m-%d'),
-                    'to': datetime.now().strftime('%Y-%m-%d')
-                }
+                "total_transactions": len(new_transactions),
+                "patterns_discovered": len(patterns_to_store),
+                "debet_patterns": {},
+                "credit_patterns": {},
+                "reference_patterns": patterns_to_store,
+                "statistics": statistics,
+                "analysis_date": datetime.now().isoformat(),
+                "date_range": {
+                    "from": last_analysis_date.strftime("%Y-%m-%d"),
+                    "to": datetime.now().strftime("%Y-%m-%d"),
+                },
             }
 
             if patterns_to_store:
-                store_verb_patterns_to_database(self.db, administration, patterns_to_store, result, is_incremental=True)
+                store_verb_patterns_to_database(
+                    self.db,
+                    administration,
+                    patterns_to_store,
+                    result,
+                    is_incremental=True,
+                )
                 self.persistent_cache.invalidate_cache(administration)
             else:
-                self.db.execute_query(f"""
+                self.db.execute_query(
+                    f"""
                     UPDATE pattern_analysis_metadata 
                     SET last_analysis_date = {dialect.current_timestamp()},
                         transactions_analyzed = transactions_analyzed + %s,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE administration = %s
-                """, (len(new_transactions), administration), fetch=False, commit=True)
+                """,
+                    (len(new_transactions), administration),
+                    fetch=False,
+                    commit=True,
+                )
 
             # Load final patterns from database
             final_result = load_patterns_from_database(self.db, administration)
-            final_result['total_transactions'] = len(new_transactions)
-            final_result['patterns_discovered'] = len(patterns_to_store)
-            final_result['incremental_update'] = {
-                'new_transactions_processed': len(new_transactions),
-                'new_patterns_discovered': len(truly_new_patterns),
-                'updated_patterns': len(updated_patterns),
-                'total_pattern_changes': len(patterns_to_store),
-                'previous_transaction_count': previous_transactions,
-                'previous_pattern_count': previous_patterns,
-                'total_patterns_in_database': final_result.get('patterns_discovered', 0),
-                'efficiency_gain': f"Analyzed {len(new_transactions)} new transactions vs {len(all_transactions)} total",
-                'time_range': f"{last_analysis_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}",
-                'pattern_application_results': application_results
+            final_result["total_transactions"] = len(new_transactions)
+            final_result["patterns_discovered"] = len(patterns_to_store)
+            final_result["incremental_update"] = {
+                "new_transactions_processed": len(new_transactions),
+                "new_patterns_discovered": len(truly_new_patterns),
+                "updated_patterns": len(updated_patterns),
+                "total_pattern_changes": len(patterns_to_store),
+                "previous_transaction_count": previous_transactions,
+                "previous_pattern_count": previous_patterns,
+                "total_patterns_in_database": final_result.get(
+                    "patterns_discovered", 0
+                ),
+                "efficiency_gain": f"Analyzed {len(new_transactions)} new transactions vs {len(all_transactions)} total",
+                "time_range": f"{last_analysis_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}",
+                "pattern_application_results": application_results,
             }
 
             print("✅ Incremental analysis complete:")
@@ -436,10 +500,13 @@ class PatternAnalyzer:
             print("🔄 Falling back to full analysis...")
             return self.analyze_historical_patterns(administration)
 
-    def get_filtered_patterns(self, administration: str,
-                              reference_number: Optional[str] = None,
-                              debet_account: Optional[str] = None,
-                              credit_account: Optional[str] = None) -> Dict[str, Any]:
+    def get_filtered_patterns(
+        self,
+        administration: str,
+        reference_number: Optional[str] = None,
+        debet_account: Optional[str] = None,
+        credit_account: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Get patterns with optional filtering — uses persistent cache with fallback to analysis.
 
@@ -456,7 +523,9 @@ class PatternAnalyzer:
 
         # Cache miss - analyze patterns and store in persistent cache
         print(f"🔍 Cache miss - analyzing patterns for {administration}")
-        patterns = self.analyze_historical_patterns(administration, reference_number, debet_account, credit_account)
+        patterns = self.analyze_historical_patterns(
+            administration, reference_number, debet_account, credit_account
+        )
 
         # Store in persistent cache for future use
         self.persistent_cache.store_patterns(
@@ -464,7 +533,9 @@ class PatternAnalyzer:
         )
 
         # Also store in legacy memory cache for backward compatibility
-        cache_key = build_cache_key(administration, reference_number, debet_account, credit_account)
+        cache_key = build_cache_key(
+            administration, reference_number, debet_account, credit_account
+        )
         self.patterns_cache[cache_key] = patterns
 
         return patterns
@@ -474,22 +545,24 @@ class PatternAnalyzer:
         patterns = self.get_filtered_patterns(administration)
 
         return {
-            'administration': administration,
-            'total_patterns': patterns['patterns_discovered'],
-            'statistics': patterns['statistics'],
-            'date_range': patterns['date_range'],
-            'analysis_date': patterns['analysis_date'],
-            'pattern_types': {
-                'debet': len(patterns['debet_patterns']),
-                'credit': len(patterns['credit_patterns']),
-                'reference': len(patterns['reference_patterns'])
+            "administration": administration,
+            "total_patterns": patterns["patterns_discovered"],
+            "statistics": patterns["statistics"],
+            "date_range": patterns["date_range"],
+            "analysis_date": patterns["analysis_date"],
+            "pattern_types": {
+                "debet": len(patterns["debet_patterns"]),
+                "credit": len(patterns["credit_patterns"]),
+                "reference": len(patterns["reference_patterns"]),
             },
-            'storage_stats': get_pattern_storage_stats(self.db, administration)
+            "storage_stats": get_pattern_storage_stats(self.db, administration),
         }
 
     def get_cache_performance_stats(self, administration: str) -> Dict[str, Any]:
         """Get comprehensive cache performance statistics"""
-        return get_cache_performance_stats(self.db, administration, self.persistent_cache)
+        return get_cache_performance_stats(
+            self.db, administration, self.persistent_cache
+        )
 
     def get_pattern_storage_stats(self, administration: str) -> Dict[str, Any]:
         """Get statistics about pattern storage performance"""
@@ -503,11 +576,15 @@ class PatternAnalyzer:
     # Private helper methods (thin wrappers for backward compatibility)
     # =========================================================================
 
-    def _extract_verb_from_description(self, description: str, reference_number: str) -> Optional[str]:
+    def _extract_verb_from_description(
+        self, description: str, reference_number: str
+    ) -> Optional[str]:
         """Extract verb from description - delegates to pattern_detection module"""
         return extract_verb_from_description(description, reference_number)
 
-    def _extract_compound_verb_from_description(self, description: str, reference_number: str) -> Optional[str]:
+    def _extract_compound_verb_from_description(
+        self, description: str, reference_number: str
+    ) -> Optional[str]:
         """Extract compound verb - delegates to pattern_detection module"""
         return extract_compound_verb_from_description(description, reference_number)
 
@@ -515,7 +592,9 @@ class PatternAnalyzer:
         """Extract company name - delegates to pattern_detection module"""
         return extract_company_name(description)
 
-    def _extract_reference_number_from_description(self, description: str) -> Optional[str]:
+    def _extract_reference_number_from_description(
+        self, description: str
+    ) -> Optional[str]:
         """Extract reference number - delegates to pattern_detection module"""
         return extract_reference_number_from_description(description)
 
@@ -527,41 +606,76 @@ class PatternAnalyzer:
         """Extract keywords - delegates to pattern_detection module"""
         return extract_keywords(description)
 
-    def _analyze_debet_patterns(self, transactions: List[Dict], administration: str) -> Dict[str, Any]:
+    def _analyze_debet_patterns(
+        self, transactions: List[Dict], administration: str
+    ) -> Dict[str, Any]:
         """Analyze debet patterns - delegates to pattern_detection module"""
-        return analyze_debet_patterns(transactions, administration, self.is_bank_account)
-
-    def _analyze_credit_patterns(self, transactions: List[Dict], administration: str) -> Dict[str, Any]:
-        """Analyze credit patterns - delegates to pattern_detection module"""
-        return analyze_credit_patterns(transactions, administration, self.is_bank_account)
-
-    def _analyze_reference_patterns(self, transactions: List[Dict], administration: str) -> Dict[str, Any]:
-        """Analyze reference patterns - delegates to pattern_detection module"""
-        return analyze_reference_patterns(transactions, administration, self.is_bank_account)
-
-    def _generate_pattern_statistics(self, transactions: List[Dict],
-                                     debet_patterns: Dict, credit_patterns: Dict,
-                                     reference_patterns: Dict) -> Dict[str, Any]:
-        """Generate statistics - delegates to pattern_scoring module"""
-        return generate_pattern_statistics(
-            transactions, debet_patterns, credit_patterns, reference_patterns, self.is_bank_account
+        return analyze_debet_patterns(
+            transactions, administration, self.is_bank_account
         )
 
-    def _calculate_statistics_from_db_patterns(self, debet_patterns: Dict,
-                                               credit_patterns: Dict,
-                                               reference_patterns: Dict) -> Dict:
+    def _analyze_credit_patterns(
+        self, transactions: List[Dict], administration: str
+    ) -> Dict[str, Any]:
+        """Analyze credit patterns - delegates to pattern_detection module"""
+        return analyze_credit_patterns(
+            transactions, administration, self.is_bank_account
+        )
+
+    def _analyze_reference_patterns(
+        self, transactions: List[Dict], administration: str
+    ) -> Dict[str, Any]:
+        """Analyze reference patterns - delegates to pattern_detection module"""
+        return analyze_reference_patterns(
+            transactions, administration, self.is_bank_account
+        )
+
+    def _generate_pattern_statistics(
+        self,
+        transactions: List[Dict],
+        debet_patterns: Dict,
+        credit_patterns: Dict,
+        reference_patterns: Dict,
+    ) -> Dict[str, Any]:
+        """Generate statistics - delegates to pattern_scoring module"""
+        return generate_pattern_statistics(
+            transactions,
+            debet_patterns,
+            credit_patterns,
+            reference_patterns,
+            self.is_bank_account,
+        )
+
+    def _calculate_statistics_from_db_patterns(
+        self, debet_patterns: Dict, credit_patterns: Dict, reference_patterns: Dict
+    ) -> Dict:
         """Calculate stats from DB patterns - delegates to pattern_scoring module"""
-        return calculate_statistics_from_db_patterns(debet_patterns, credit_patterns, reference_patterns)
+        return calculate_statistics_from_db_patterns(
+            debet_patterns, credit_patterns, reference_patterns
+        )
 
-    def _resolve_pattern_conflicts(self, matching_patterns: List[Tuple[str, Dict]],
-                                   transaction: Dict, administration: str) -> Optional[Tuple[str, Dict]]:
+    def _resolve_pattern_conflicts(
+        self,
+        matching_patterns: List[Tuple[str, Dict]],
+        transaction: Dict,
+        administration: str,
+    ) -> Optional[Tuple[str, Dict]]:
         """Resolve pattern conflicts - delegates to pattern_scoring module"""
-        return resolve_pattern_conflicts(matching_patterns, transaction, administration, self.is_bank_account)
+        return resolve_pattern_conflicts(
+            matching_patterns, transaction, administration, self.is_bank_account
+        )
 
-    def _store_verb_patterns_to_database(self, administration: str, verb_patterns: Dict,
-                                         analysis_metadata: Dict, is_incremental: bool = False):
+    def _store_verb_patterns_to_database(
+        self,
+        administration: str,
+        verb_patterns: Dict,
+        analysis_metadata: Dict,
+        is_incremental: bool = False,
+    ):
         """Store patterns to DB - delegates to pattern_storage module"""
-        store_verb_patterns_to_database(self.db, administration, verb_patterns, analysis_metadata, is_incremental)
+        store_verb_patterns_to_database(
+            self.db, administration, verb_patterns, analysis_metadata, is_incremental
+        )
 
     def _load_patterns_from_database(self, administration: str) -> Dict[str, Any]:
         """Load patterns from DB - delegates to pattern_storage module"""
@@ -571,9 +685,14 @@ class PatternAnalyzer:
         """Check refresh needed - delegates to pattern_storage module"""
         return should_refresh_patterns(self.db, administration)
 
-    def _build_cache_key(self, administration: str,
-                         reference_number: Optional[str] = None,
-                         debet_account: Optional[str] = None,
-                         credit_account: Optional[str] = None) -> str:
+    def _build_cache_key(
+        self,
+        administration: str,
+        reference_number: Optional[str] = None,
+        debet_account: Optional[str] = None,
+        credit_account: Optional[str] = None,
+    ) -> str:
         """Build cache key - delegates to pattern_storage module"""
-        return build_cache_key(administration, reference_number, debet_account, credit_account)
+        return build_cache_key(
+            administration, reference_number, debet_account, credit_account
+        )

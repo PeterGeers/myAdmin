@@ -12,20 +12,21 @@ from openpyxl.styles import Font, Border, Side
 HEADER_FONT = Font(bold=True)
 
 THIN_BORDER = Border(
-    left=Side(style='thin'),
-    right=Side(style='thin'),
-    top=Side(style='thin'),
-    bottom=Side(style='thin')
+    left=Side(style="thin"),
+    right=Side(style="thin"),
+    top=Side(style="thin"),
+    bottom=Side(style="thin"),
 )
 
-AMOUNT_NUMBER_FORMAT = '0.00'
+AMOUNT_NUMBER_FORMAT = "0.00"
 
 
 # --- Formatting Functions ---
 
+
 def apply_header_style(worksheet):
     """Apply bold font and thin border to the header row (row 1).
-    
+
     Args:
         worksheet: openpyxl Worksheet object with data already written
     """
@@ -36,13 +37,13 @@ def apply_header_style(worksheet):
 
 def format_amount_column(worksheet):
     """Find the 'Amount' column and apply number formatting to all data cells.
-    
+
     Args:
         worksheet: openpyxl Worksheet object with header in row 1
     """
     amount_col = None
     for idx, cell in enumerate(worksheet[1], 1):
-        if cell.value == 'Amount':
+        if cell.value == "Amount":
             amount_col = idx
             break
 
@@ -55,9 +56,9 @@ def format_amount_column(worksheet):
 
 def apply_worksheet_formatting(worksheet):
     """Apply all standard formatting to a data worksheet.
-    
+
     Applies header styling, amount column formatting, and autofilter.
-    
+
     Args:
         worksheet: openpyxl Worksheet object with data already written
     """

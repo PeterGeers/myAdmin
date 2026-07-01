@@ -53,31 +53,35 @@ class TemplateHtmlProcessor:
 
             def handle_starttag(self, tag, attrs):
                 # Skip self-closing tags
-                if tag not in ['br', 'hr', 'img', 'input', 'meta', 'link']:
+                if tag not in ["br", "hr", "img", "input", "meta", "link"]:
                     self.tag_stack.append((tag, self.line_number))
 
             def handle_endtag(self, tag):
                 if not self.tag_stack:
-                    self.errors.append({
-                        'type': 'syntax_error',
-                        'message': f'Unexpected closing tag: </{tag}>',
-                        'severity': 'error',
-                        'line': self.line_number
-                    })
+                    self.errors.append(
+                        {
+                            "type": "syntax_error",
+                            "message": f"Unexpected closing tag: </{tag}>",
+                            "severity": "error",
+                            "line": self.line_number,
+                        }
+                    )
                 elif self.tag_stack[-1][0] != tag:
                     expected_tag = self.tag_stack[-1][0]
-                    self.errors.append({
-                        'type': 'syntax_error',
-                        'message': f'Mismatched closing tag: expected </{expected_tag}>, got </{tag}>',
-                        'severity': 'error',
-                        'line': self.line_number
-                    })
+                    self.errors.append(
+                        {
+                            "type": "syntax_error",
+                            "message": f"Mismatched closing tag: expected </{expected_tag}>, got </{tag}>",
+                            "severity": "error",
+                            "line": self.line_number,
+                        }
+                    )
                 else:
                     self.tag_stack.pop()
 
             def handle_data(self, data):
                 # Count newlines to track line numbers
-                self.line_number += data.count('\n')
+                self.line_number += data.count("\n")
 
         parser = ValidationParser()
 
@@ -88,22 +92,28 @@ class TemplateHtmlProcessor:
             # Check for unclosed tags
             if parser.tag_stack:
                 unclosed_tags = [tag for tag, line in parser.tag_stack]
-                errors.append({
-                    'type': 'syntax_error',
-                    'message': f'Unclosed tags: {", ".join(unclosed_tags)}',
-                    'severity': 'error'
-                })
+                errors.append(
+                    {
+                        "type": "syntax_error",
+                        "message": f"Unclosed tags: {', '.join(unclosed_tags)}",
+                        "severity": "error",
+                    }
+                )
 
         except Exception as e:
-            errors.append({
-                'type': 'syntax_error',
-                'message': f'HTML parsing error: {str(e)}',
-                'severity': 'error'
-            })
+            errors.append(
+                {
+                    "type": "syntax_error",
+                    "message": f"HTML parsing error: {str(e)}",
+                    "severity": "error",
+                }
+            )
 
         return errors
 
-    def validate_placeholders(self, template_type: str, template_content: str) -> List[Dict[str, Any]]:
+    def validate_placeholders(
+        self, template_type: str, template_content: str
+    ) -> List[Dict[str, Any]]:
         """
         Check for required placeholders.
 
@@ -123,42 +133,46 @@ class TemplateHtmlProcessor:
         # Define required placeholders per template type
         # Each entry can have multiple acceptable names (legacy and new)
         REQUIRED_PLACEHOLDERS = {
-            'str_invoice_nl': [
-                ['invoice_number', 'reservationCode'],  # Either is acceptable
-                ['guest_name', 'billing_name', 'guestName'],
-                ['checkin_date', 'checkinDate'],
-                ['checkout_date', 'checkoutDate'],
-                ['amount_gross', 'amountGross', 'table_rows']  # amount_gross or table with amounts
+            "str_invoice_nl": [
+                ["invoice_number", "reservationCode"],  # Either is acceptable
+                ["guest_name", "billing_name", "guestName"],
+                ["checkin_date", "checkinDate"],
+                ["checkout_date", "checkoutDate"],
+                [
+                    "amount_gross",
+                    "amountGross",
+                    "table_rows",
+                ],  # amount_gross or table with amounts
             ],
-            'str_invoice_en': [
-                ['invoice_number', 'reservationCode'],
-                ['guest_name', 'billing_name', 'guestName'],
-                ['checkin_date', 'checkinDate'],
-                ['checkout_date', 'checkoutDate'],
-                ['amount_gross', 'amountGross', 'table_rows']
+            "str_invoice_en": [
+                ["invoice_number", "reservationCode"],
+                ["guest_name", "billing_name", "guestName"],
+                ["checkin_date", "checkinDate"],
+                ["checkout_date", "checkoutDate"],
+                ["amount_gross", "amountGross", "table_rows"],
             ],
-            'btw_aangifte': [
-                ['year'],
-                ['quarter'],
-                ['administration'],
-                ['balance_rows'],
-                ['quarter_rows'],
-                ['payment_instruction']
+            "btw_aangifte": [
+                ["year"],
+                ["quarter"],
+                ["administration"],
+                ["balance_rows"],
+                ["quarter_rows"],
+                ["payment_instruction"],
             ],
-            'aangifte_ib': [
-                ['year'],
-                ['administration'],
-                ['table_rows'],
-                ['generated_date']
+            "aangifte_ib": [
+                ["year"],
+                ["administration"],
+                ["table_rows"],
+                ["generated_date"],
             ],
-            'toeristenbelasting': [
-                ['year'],
-                ['contact_name'],
-                ['contact_email'],
-                ['nights_total'],
-                ['revenue_total'],
-                ['tourist_tax_total']
-            ]
+            "toeristenbelasting": [
+                ["year"],
+                ["contact_name"],
+                ["contact_email"],
+                ["nights_total"],
+                ["revenue_total"],
+                ["tourist_tax_total"],
+            ],
         }
 
         required = REQUIRED_PLACEHOLDERS.get(template_type, [])
@@ -166,8 +180,10 @@ class TemplateHtmlProcessor:
         # Find all placeholders in template
         # Updated regex to handle Jinja2 filters like {{ "%.2f"|format(variable) }}
         # This matches both simple {{ variable }} and filtered {{ ... | filter(variable) }}
-        simple_placeholders = re.findall(r'\{\{\s*(\w+)\s*\}\}', template_content)
-        filtered_placeholders = re.findall(r'\{\{[^}]*\|\s*\w+\((\w+)\)', template_content)
+        simple_placeholders = re.findall(r"\{\{\s*(\w+)\s*\}\}", template_content)
+        filtered_placeholders = re.findall(
+            r"\{\{[^}]*\|\s*\w+\((\w+)\)", template_content
+        )
 
         # Combine both types
         found_placeholders = set(simple_placeholders + filtered_placeholders)
@@ -186,18 +202,22 @@ class TemplateHtmlProcessor:
             if not found:
                 # Use the first option as the primary name in error message
                 primary_name = placeholder_options[0]
-                alternatives = placeholder_options[1:] if len(placeholder_options) > 1 else []
+                alternatives = (
+                    placeholder_options[1:] if len(placeholder_options) > 1 else []
+                )
 
                 message = f"Required placeholder '{{{{ {primary_name} }}}}' not found"
                 if alternatives:
                     message += f" (alternatives: {', '.join(['{{ ' + alt + ' }}' for alt in alternatives])})"
 
-                errors.append({
-                    'type': 'missing_placeholder',
-                    'message': message,
-                    'severity': 'error',
-                    'placeholder': primary_name
-                })
+                errors.append(
+                    {
+                        "type": "missing_placeholder",
+                        "message": message,
+                        "severity": "error",
+                        "placeholder": primary_name,
+                    }
+                )
 
         return errors
 
@@ -219,40 +239,42 @@ class TemplateHtmlProcessor:
         issues = []
 
         # Check for script tags
-        if re.search(r'<script[^>]*>', template_content, re.IGNORECASE):
-            issues.append({
-                'type': 'security_error',
-                'message': 'Script tags are not allowed in templates',
-                'severity': 'error'
-            })
+        if re.search(r"<script[^>]*>", template_content, re.IGNORECASE):
+            issues.append(
+                {
+                    "type": "security_error",
+                    "message": "Script tags are not allowed in templates",
+                    "severity": "error",
+                }
+            )
 
         # Check for event handlers (improved regex to avoid false positives)
         # Match event handlers like onclick=, onload=, etc. but not content="...on="
         # Use word boundary and ensure it's an actual HTML attribute
         event_handlers = re.findall(
-            r'<[^>]*\s(on\w+)\s*=',
-            template_content,
-            re.IGNORECASE
+            r"<[^>]*\s(on\w+)\s*=", template_content, re.IGNORECASE
         )
         if event_handlers:
-            issues.append({
-                'type': 'security_error',
-                'message': f'Event handlers are not allowed: {", ".join(set(event_handlers))}',
-                'severity': 'error'
-            })
+            issues.append(
+                {
+                    "type": "security_error",
+                    "message": f"Event handlers are not allowed: {', '.join(set(event_handlers))}",
+                    "severity": "error",
+                }
+            )
 
         # Check for external resources
         external_resources = re.findall(
-            r'(src|href)\s*=\s*["\']https?://',
-            template_content,
-            re.IGNORECASE
+            r'(src|href)\s*=\s*["\']https?://', template_content, re.IGNORECASE
         )
         if external_resources:
-            issues.append({
-                'type': 'security_warning',
-                'message': 'External resources detected. Ensure they are from trusted sources.',
-                'severity': 'warning'
-            })
+            issues.append(
+                {
+                    "type": "security_warning",
+                    "message": "External resources detected. Ensure they are from trusted sources.",
+                    "severity": "warning",
+                }
+            )
 
         return issues
 
@@ -260,7 +282,7 @@ class TemplateHtmlProcessor:
         self,
         template_content: str,
         sample_data: Dict[str, Any],
-        field_mappings: Dict[str, Any]
+        field_mappings: Dict[str, Any],
     ) -> str:
         """
         Render template with sample data using simple placeholder replacement.
@@ -283,23 +305,23 @@ class TemplateHtmlProcessor:
 
             # Simple placeholder replacement using {{ placeholder }} syntax
             # Find all placeholders
-            placeholders = re.findall(r'\{\{\s*(\w+)\s*\}\}', template_content)
+            placeholders = re.findall(r"\{\{\s*(\w+)\s*\}\}", template_content)
 
             logger.debug(f"Found {len(placeholders)} placeholders to replace")
 
             for placeholder in placeholders:
                 # Get value from sample data
-                value = sample_data.get(placeholder, f'[{placeholder}]')
+                value = sample_data.get(placeholder, f"[{placeholder}]")
 
                 # Format value if it's a number or date
                 if isinstance(value, (int, float)):
                     # Format numbers with thousands separator and 2 decimals
                     value = f"{value:,.2f}"
                 elif isinstance(value, datetime):
-                    value = value.strftime('%d-%m-%Y')
+                    value = value.strftime("%d-%m-%Y")
 
                 # Replace placeholder
-                pattern = r'\{\{\s*' + placeholder + r'\s*\}\}'
+                pattern = r"\{\{\s*" + placeholder + r"\s*\}\}"
                 rendered = re.sub(pattern, str(value), rendered)
                 logger.debug(f"Replaced {placeholder} with {value}")
 

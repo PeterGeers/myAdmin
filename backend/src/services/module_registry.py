@@ -19,110 +19,116 @@ from flask import jsonify
 logger = logging.getLogger(__name__)
 
 MODULE_REGISTRY: Dict[str, dict] = {
-    'FIN': {
-        'description': 'Financial Administration',
-        'required_params': {
-            'fin.default_currency': {'type': 'string', 'default': 'EUR'},
-            'fin.fiscal_year_start_month': {'type': 'number', 'default': 1},
-            'fin.locale': {'type': 'string', 'default': 'nl'},
+    "FIN": {
+        "description": "Financial Administration",
+        "required_params": {
+            "fin.default_currency": {"type": "string", "default": "EUR"},
+            "fin.fiscal_year_start_month": {"type": "number", "default": 1},
+            "fin.locale": {"type": "string", "default": "nl"},
         },
-        'required_tax_rates': ['btw'],
-        'required_roles': ['Finance_CRUD', 'Finance_Read', 'Finance_Export'],
+        "required_tax_rates": ["btw"],
+        "required_roles": ["Finance_CRUD", "Finance_Read", "Finance_Export"],
     },
-    'STR': {
-        'description': 'Short-Term Rental Management',
-        'required_params': {
-            'str.aantal_kamers': {'type': 'number', 'default': None},
-            'str.aantal_slaapplaatsen': {'type': 'number', 'default': None},
-            'str.platforms': {'type': 'json', 'default': ['airbnb', 'booking']},
+    "STR": {
+        "description": "Short-Term Rental Management",
+        "required_params": {
+            "str.aantal_kamers": {"type": "number", "default": None},
+            "str.aantal_slaapplaatsen": {"type": "number", "default": None},
+            "str.platforms": {"type": "json", "default": ["airbnb", "booking"]},
         },
-        'required_tax_rates': ['tourist_tax', 'btw_accommodation'],
-        'required_roles': ['STR_CRUD', 'STR_Read', 'STR_Export'],
+        "required_tax_rates": ["tourist_tax", "btw_accommodation"],
+        "required_roles": ["STR_CRUD", "STR_Read", "STR_Export"],
     },
-    'TENADMIN': {
-        'description': 'Tenant Administration',
-        'required_params': {},
-        'required_tax_rates': [],
-        'required_roles': ['Tenant_Admin'],
+    "TENADMIN": {
+        "description": "Tenant Administration",
+        "required_params": {},
+        "required_tax_rates": [],
+        "required_roles": ["Tenant_Admin"],
     },
-    'ZZP': {
-        'description': 'ZZP Freelancer Administration',
-        'depends_on': ['FIN'],
-        'required_params': {
-            'zzp.invoice_prefix': {'type': 'string', 'default': 'INV'},
-            'zzp.credit_note_prefix': {'type': 'string', 'default': 'CN'},
-            'zzp.default_payment_terms_days': {'type': 'number', 'default': 30},
-            'zzp.default_currency': {'type': 'string', 'default': 'EUR'},
-            'zzp.invoice_number_padding': {'type': 'number', 'default': 4},
-            'zzp.debtor_account': {'type': 'string', 'default': '1300'},
-            'zzp.creditor_account': {'type': 'string', 'default': '1600'},
-            'zzp.email_subject_template': {
-                'type': 'string',
-                'default': 'Factuur {invoice_number} - {company_name}',
+    "ZZP": {
+        "description": "ZZP Freelancer Administration",
+        "depends_on": ["FIN"],
+        "required_params": {
+            "zzp.invoice_prefix": {"type": "string", "default": "INV"},
+            "zzp.credit_note_prefix": {"type": "string", "default": "CN"},
+            "zzp.default_payment_terms_days": {"type": "number", "default": 30},
+            "zzp.default_currency": {"type": "string", "default": "EUR"},
+            "zzp.invoice_number_padding": {"type": "number", "default": 4},
+            "zzp.debtor_account": {"type": "string", "default": "1300"},
+            "zzp.creditor_account": {"type": "string", "default": "1600"},
+            "zzp.email_subject_template": {
+                "type": "string",
+                "default": "Factuur {invoice_number} - {company_name}",
             },
-            'zzp.invoice_email_bcc': {'type': 'string', 'default': ''},
-            'zzp.retention_years': {'type': 'number', 'default': 7},
-            'zzp.time_tracking_enabled': {'type': 'boolean', 'default': True},
-            'zzp.product_types': {'type': 'json', 'default': ['service', 'product', 'hours', 'subscription']},
-            'zzp.contact_types': {'type': 'json', 'default': ['client', 'supplier', 'both', 'other']},
-            'zzp.contact_field_config': {
-                'type': 'json',
-                'default': {
-                    'client_id': 'required',
-                    'contact_type': 'required',
-                    'company_name': 'required',
-                    'contact_person': 'optional',
-                    'street_address': 'optional',
-                    'postal_code': 'optional',
-                    'city': 'optional',
-                    'country': 'optional',
-                    'vat_number': 'optional',
-                    'kvk_number': 'optional',
-                    'phone': 'optional',
-                    'iban': 'optional',
-                    'emails': 'optional',
-                }
+            "zzp.invoice_email_bcc": {"type": "string", "default": ""},
+            "zzp.retention_years": {"type": "number", "default": 7},
+            "zzp.time_tracking_enabled": {"type": "boolean", "default": True},
+            "zzp.product_types": {
+                "type": "json",
+                "default": ["service", "product", "hours", "subscription"],
             },
-            'zzp.product_field_config': {
-                'type': 'json',
-                'default': {
-                    'product_code': 'required',
-                    'name': 'required',
-                    'product_type': 'required',
-                    'unit_price': 'required',
-                    'vat_code': 'required',
-                    'description': 'optional',
-                    'unit_of_measure': 'optional',
-                    'external_reference': 'optional',
-                }
+            "zzp.contact_types": {
+                "type": "json",
+                "default": ["client", "supplier", "both", "other"],
             },
-            'zzp.invoice_field_config': {
-                'type': 'json',
-                'default': {
-                    'contact_id': 'required',
-                    'invoice_date': 'required',
-                    'payment_terms_days': 'required',
-                    'currency': 'optional',
-                    'exchange_rate': 'hidden',
-                    'notes': 'optional',
-                }
+            "zzp.contact_field_config": {
+                "type": "json",
+                "default": {
+                    "client_id": "required",
+                    "contact_type": "required",
+                    "company_name": "required",
+                    "contact_person": "optional",
+                    "street_address": "optional",
+                    "postal_code": "optional",
+                    "city": "optional",
+                    "country": "optional",
+                    "vat_number": "optional",
+                    "kvk_number": "optional",
+                    "phone": "optional",
+                    "iban": "optional",
+                    "emails": "optional",
+                },
             },
-            'zzp.time_entry_field_config': {
-                'type': 'json',
-                'default': {
-                    'contact_id': 'required',
-                    'entry_date': 'required',
-                    'hours': 'required',
-                    'hourly_rate': 'required',
-                    'product_id': 'optional',
-                    'project_name': 'optional',
-                    'description': 'optional',
-                    'is_billable': 'optional',
-                }
+            "zzp.product_field_config": {
+                "type": "json",
+                "default": {
+                    "product_code": "required",
+                    "name": "required",
+                    "product_type": "required",
+                    "unit_price": "required",
+                    "vat_code": "required",
+                    "description": "optional",
+                    "unit_of_measure": "optional",
+                    "external_reference": "optional",
+                },
+            },
+            "zzp.invoice_field_config": {
+                "type": "json",
+                "default": {
+                    "contact_id": "required",
+                    "invoice_date": "required",
+                    "payment_terms_days": "required",
+                    "currency": "optional",
+                    "exchange_rate": "hidden",
+                    "notes": "optional",
+                },
+            },
+            "zzp.time_entry_field_config": {
+                "type": "json",
+                "default": {
+                    "contact_id": "required",
+                    "entry_date": "required",
+                    "hours": "required",
+                    "hourly_rate": "required",
+                    "product_id": "optional",
+                    "project_name": "optional",
+                    "description": "optional",
+                    "is_billable": "optional",
+                },
             },
         },
-        'required_tax_rates': ['btw'],
-        'required_roles': ['ZZP_CRUD', 'ZZP_Read', 'ZZP_Export'],
+        "required_tax_rates": ["btw"],
+        "required_roles": ["ZZP_CRUD", "ZZP_Read", "ZZP_Export"],
     },
 }
 
@@ -147,9 +153,11 @@ def has_module(db, tenant: str, module_name: str) -> bool:
             WHERE administration = %s AND module_name = %s
         """
         result = db.execute_query(query, (tenant, module_name))
-        return bool(result and result[0].get('is_active'))
+        return bool(result and result[0].get("is_active"))
     except Exception as e:
-        logger.error("Error checking module %s for tenant %s: %s", module_name, tenant, e)
+        logger.error(
+            "Error checking module %s for tenant %s: %s", module_name, tenant, e
+        )
         return False
 
 
@@ -168,29 +176,34 @@ def module_required(module_name: str):
         def get_accounts(user_email, user_roles, tenant, user_tenants):
             ...
     """
+
     def decorator(f):
         @functools.wraps(f)
         def decorated_function(*args, **kwargs):
-            tenant = kwargs.get('tenant')
+            tenant = kwargs.get("tenant")
             if not tenant:
-                return jsonify({'error': 'Tenant context required'}), 403
+                return jsonify({"error": "Tenant context required"}), 403
 
             from database import DatabaseManager
-            test_mode = os.getenv('TEST_MODE', 'false').lower() == 'true'
+
+            test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
             db = DatabaseManager(test_mode=test_mode)
 
             if not has_module(db, tenant, module_name):
-                return jsonify({
-                    'error': f'{module_name} module not enabled for this tenant'
-                }), 403
+                return jsonify(
+                    {"error": f"{module_name} module not enabled for this tenant"}
+                ), 403
 
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
-
-def activate_module(db, tenant: str, module_name: str, activated_by: str = 'system') -> bool:
+def activate_module(
+    db, tenant: str, module_name: str, activated_by: str = "system"
+) -> bool:
     """
     Activate a module for a tenant, enforcing dependency checks.
 
@@ -213,7 +226,7 @@ def activate_module(db, tenant: str, module_name: str, activated_by: str = 'syst
     if not module_def:
         raise ValueError(f"Unknown module: {module_name}")
 
-    for dep in module_def.get('depends_on', []):
+    for dep in module_def.get("depends_on", []):
         if not has_module(db, tenant, dep):
             raise ValueError(
                 f"Module '{dep}' must be active before enabling '{module_name}'"
@@ -225,16 +238,28 @@ def activate_module(db, tenant: str, module_name: str, activated_by: str = 'syst
             VALUES (%s, %s, TRUE, %s)
             ON DUPLICATE KEY UPDATE is_active = TRUE, updated_at = CURRENT_TIMESTAMP
         """
-        db.execute_query(query, (tenant, module_name, activated_by), fetch=False, commit=True)
-        logger.info("Module %s activated for tenant %s by %s", module_name, tenant, activated_by)
+        db.execute_query(
+            query, (tenant, module_name, activated_by), fetch=False, commit=True
+        )
+        logger.info(
+            "Module %s activated for tenant %s by %s", module_name, tenant, activated_by
+        )
 
         # Seed required parameters for the newly activated module
         from services.parameter_service import ParameterService
+
         param_service = ParameterService(db)
         params_seeded = param_service.seed_module_params(tenant, module_name)
-        logger.info("Seeded %d params for module %s on tenant %s", params_seeded, module_name, tenant)
+        logger.info(
+            "Seeded %d params for module %s on tenant %s",
+            params_seeded,
+            module_name,
+            tenant,
+        )
 
         return True
     except Exception as e:
-        logger.error("Failed to activate module %s for tenant %s: %s", module_name, tenant, e)
+        logger.error(
+            "Failed to activate module %s for tenant %s: %s", module_name, tenant, e
+        )
         raise
