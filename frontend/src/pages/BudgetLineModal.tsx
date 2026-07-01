@@ -9,7 +9,7 @@ import {
   Input, Select, Button, FormControl, FormLabel, FormErrorMessage,
   SimpleGrid, Text,
 } from '@chakra-ui/react';
-import { Formik, Form, Field, FieldArray } from 'formik';
+import { Formik, Form, Field, FieldArray, FieldProps } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { BudgetLine, PeriodMode, DimensionType } from '../types/budget';
@@ -89,7 +89,7 @@ const BudgetLineModal: React.FC<BudgetLineModalProps> = ({
                 <VStack spacing={4} align="stretch">
                   <HStack spacing={4}>
                     <Field name="account_code">
-                      {({ field, meta }: any) => (
+                      {({ field, meta }: FieldProps<string>) => (
                         <FormControl flex="2" isInvalid={!!(meta.touched && meta.error)}>
                           <FormLabel>{t('labels.accountCode')}</FormLabel>
                           <Input {...field} placeholder="e.g. 4000" />
@@ -98,7 +98,7 @@ const BudgetLineModal: React.FC<BudgetLineModalProps> = ({
                       )}
                     </Field>
                     <Field name="period_mode">
-                      {({ field, meta }: any) => (
+                      {({ field, meta }: FieldProps<string>) => (
                         <FormControl flex="1" isInvalid={!!(meta.touched && meta.error)}>
                           <FormLabel>{t('labels.periodMode')}</FormLabel>
                           <Select {...field}>
@@ -139,7 +139,7 @@ const BudgetLineModal: React.FC<BudgetLineModalProps> = ({
                   {/* Annual amount */}
                   {values.period_mode === 'Annual' && (
                     <Field name="annual_amount">
-                      {({ field, meta }: any) => (
+                      {({ field, meta }: FieldProps<string>) => (
                         <FormControl isInvalid={!!(meta.touched && meta.error)}>
                           <FormLabel>{t('labels.annualAmount')}</FormLabel>
                           <Input
@@ -158,7 +158,7 @@ const BudgetLineModal: React.FC<BudgetLineModalProps> = ({
                   {/* Dimension */}
                   <HStack spacing={4}>
                     <Field name="dimension_type">
-                      {({ field }: any) => (
+                      {({ field }: FieldProps<string>) => (
                         <FormControl flex="1">
                           <FormLabel>{t('labels.dimensionType')} ({tc('labels.optional')})</FormLabel>
                           <Select {...field}>
@@ -171,7 +171,7 @@ const BudgetLineModal: React.FC<BudgetLineModalProps> = ({
                     </Field>
                     {values.dimension_type && (
                       <Field name="dimension_value">
-                        {({ field }: any) => (
+                        {({ field }: FieldProps<string>) => (
                           <FormControl flex="1">
                             <FormLabel>{t('labels.dimensionValue')}</FormLabel>
                             <Input

@@ -15,7 +15,7 @@ import {
   Textarea, useToast, RadioGroup, Radio, Text, Spinner,
   Table, Thead, Tbody, Tr, Th, Td, Checkbox, Badge,
 } from '@chakra-ui/react';
-import { Formik, Field } from 'formik';
+import { Formik, Field, FieldProps } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { BudgetVersion } from '../types/budget';
@@ -196,7 +196,7 @@ const BudgetNewVersionModal: React.FC<BudgetNewVersionModalProps> = ({
               <ModalBody>
                 <VStack spacing={4}>
                   <Field name="name">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: FieldProps<string>) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.versionName')}</FormLabel>
                         <Input {...field} placeholder="e.g. Budget 2026" />
@@ -206,7 +206,7 @@ const BudgetNewVersionModal: React.FC<BudgetNewVersionModalProps> = ({
                   </Field>
 
                   <Field name="fiscal_year">
-                    {({ field, meta }: any) => (
+                    {({ field, meta }: FieldProps<string>) => (
                       <FormControl isRequired isInvalid={!!(meta.touched && meta.error)}>
                         <FormLabel>{t('labels.fiscalYear')}</FormLabel>
                         <Input

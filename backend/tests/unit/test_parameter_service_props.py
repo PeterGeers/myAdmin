@@ -94,7 +94,7 @@ string_value_st = st.text(min_size=1, max_size=100)
 class TestScopeResolutionOrder:
     """For any parameter with values at multiple scopes, get_param returns the most specific."""
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(
         ns=namespace_st,
         key=key_st,

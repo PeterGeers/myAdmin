@@ -52,11 +52,14 @@ def client():
         import importlib
         import routes.tenant_admin_templates as tat
         importlib.reload(tat)
+        import routes.tenant_admin_template_ai_routes as tat_ai
+        importlib.reload(tat_ai)
 
         from flask import Flask
         app = Flask(__name__)
         app.config['TESTING'] = True
         app.register_blueprint(tat.tenant_admin_templates_bp)
+        app.register_blueprint(tat_ai.tenant_admin_template_ai_bp)
 
         with app.test_client() as c:
             with app.app_context():
@@ -73,11 +76,14 @@ def client_not_admin():
         import importlib
         import routes.tenant_admin_templates as tat
         importlib.reload(tat)
+        import routes.tenant_admin_template_ai_routes as tat_ai
+        importlib.reload(tat_ai)
 
         from flask import Flask
         app = Flask(__name__)
         app.config['TESTING'] = True
         app.register_blueprint(tat.tenant_admin_templates_bp)
+        app.register_blueprint(tat_ai.tenant_admin_template_ai_bp)
 
         with app.test_client() as c:
             with app.app_context():
@@ -350,7 +356,7 @@ class TestRejectTemplate:
 
 class TestAIHelpTemplate:
 
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     @patch('services.ai_template_assistant.AITemplateAssistant')
     def test_ai_help_success(self, mock_ai_cls, mock_db_cls, client):
         """POST /ai-help returns AI suggestions."""
@@ -372,7 +378,7 @@ class TestAIHelpTemplate:
         data = resp.get_json()
         assert data['success'] is True
 
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     @patch('services.ai_template_assistant.AITemplateAssistant')
     def test_ai_help_fallback_on_failure(self, mock_ai_cls, mock_db_cls, client):
         """POST /ai-help returns generic help when AI fails."""
@@ -412,7 +418,7 @@ class TestAIHelpTemplate:
 
 class TestApplyAIFixes:
 
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     @patch('services.ai_template_assistant.AITemplateAssistant')
     def test_apply_fixes_success(self, mock_ai_cls, mock_db_cls, client):
         """POST /apply-ai-fixes applies fixes."""
@@ -454,7 +460,7 @@ class TestApplyAIFixes:
 
 class TestDeleteTemplate:
 
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     def test_delete_success(self, mock_db_cls, client):
         """DELETE /<template_type> deactivates template."""
         mock_db = MagicMock()
@@ -472,7 +478,7 @@ class TestDeleteTemplate:
         assert data['success'] is True
         assert 'deactivated' in data['message'].lower()
 
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     def test_delete_no_active_returns_404(self, mock_db_cls, client):
         """DELETE /<template_type> with no active template returns 404."""
         mock_db_cls.return_value.execute_query.return_value = []

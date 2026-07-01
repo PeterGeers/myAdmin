@@ -16,13 +16,14 @@ from services.banking_service import BankingService
 def service(mock_db):
     """Create a BankingService with mocked DatabaseManager and BankingProcessor."""
     with patch('services.banking_service.DatabaseManager', return_value=mock_db):
-        with patch('services.banking_service.BankingProcessor') as MockProcessor:
-            mock_processor = MagicMock()
-            MockProcessor.return_value = mock_processor
-            svc = BankingService(test_mode=True)
-            svc._mock_db = mock_db
-            svc._mock_processor = mock_processor
-            yield svc
+        with patch('services.banking_mutatie_service.DatabaseManager', return_value=mock_db):
+            with patch('services.banking_service.BankingProcessor') as MockProcessor:
+                mock_processor = MagicMock()
+                MockProcessor.return_value = mock_processor
+                svc = BankingService(test_mode=True)
+                svc._mock_db = mock_db
+                svc._mock_processor = mock_processor
+                yield svc
 
 
 # ---------------------------------------------------------------------------

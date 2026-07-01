@@ -11,7 +11,7 @@ Reference: .kiro/specs/vendor-parser-cleanup/design.md
 """
 
 import pytest
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, strategies as st, settings, HealthCheck
 from unittest.mock import patch, MagicMock
 
 import sys
@@ -181,7 +181,7 @@ class TestParserUsedFieldCorrectness:
             f"Expected 'ai_failed' for empty transactions, got '{parser_used}'"
         )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(tx=csv_rule_tx_st, result=any_result_st)
     def test_csv_rule_hint_returns_csv_rule(self, tx, result):
         """

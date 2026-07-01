@@ -19,6 +19,7 @@ from unittest.mock import patch, MagicMock, call
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from routes.tenant_admin_templates import tenant_admin_templates_bp
+from routes.tenant_admin_template_ai_routes import tenant_admin_template_ai_bp
 
 
 # ---------------------------------------------------------------------------
@@ -31,6 +32,7 @@ def app():
     import flask
     app = flask.Flask(__name__)
     app.register_blueprint(tenant_admin_templates_bp)
+    app.register_blueprint(tenant_admin_template_ai_bp)
     app.config['TESTING'] = True
     return app
 
@@ -50,10 +52,10 @@ class TestDeleteTenantTemplateSuccess:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
-    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
-    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_template_ai_routes.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_template_ai_routes.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     def test_successful_deactivation_returns_200(
         self, mock_db_cls, mock_tenant, mock_is_admin,
         mock_tenants, mock_roles, mock_creds, client
@@ -83,10 +85,10 @@ class TestDeleteTenantTemplateSuccess:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
-    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
-    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_template_ai_routes.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_template_ai_routes.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     def test_update_query_sets_inactive_and_archived(
         self, mock_db_cls, mock_tenant, mock_is_admin,
         mock_tenants, mock_roles, mock_creds, client
@@ -127,10 +129,10 @@ class TestDeleteTenantTemplateNotFound:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
-    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
-    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
-    @patch('routes.tenant_admin_templates.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_template_ai_routes.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_template_ai_routes.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
     def test_no_active_template_returns_404(
         self, mock_db_cls, mock_tenant, mock_is_admin,
         mock_tenants, mock_roles, mock_creds, client
@@ -163,9 +165,9 @@ class TestDeleteTenantTemplateAuth:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('user@test.com', ['Finance_Read'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Finance_Read'])
-    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
-    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=False)
-    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_template_ai_routes.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_template_ai_routes.is_tenant_admin', return_value=False)
+    @patch('routes.tenant_admin_template_ai_routes.get_current_tenant', return_value='TestTenant')
     def test_non_admin_returns_403(
         self, mock_tenant, mock_is_admin, mock_tenants,
         mock_roles, mock_creds, client
@@ -191,11 +193,11 @@ class TestDeleteTenantTemplateAudit:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
-    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
-    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
-    @patch('routes.tenant_admin_templates.DatabaseManager')
-    @patch('routes.tenant_admin_templates.logger')
+    @patch('routes.tenant_admin_template_ai_routes.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_template_ai_routes.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_template_ai_routes.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_template_ai_routes.DatabaseManager')
+    @patch('routes.tenant_admin_template_ai_routes.logger')
     def test_audit_log_contains_required_fields(
         self, mock_logger, mock_db_cls, mock_tenant, mock_is_admin,
         mock_tenants, mock_roles, mock_creds, client
@@ -240,9 +242,9 @@ class TestDeleteTenantTemplateInvalidType:
     @patch('auth.cognito_utils.extract_user_credentials',
            return_value=('admin@test.com', ['Tenant_Admin'], None))
     @patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin'])
-    @patch('routes.tenant_admin_templates.get_user_tenants', return_value=['TestTenant'])
-    @patch('routes.tenant_admin_templates.is_tenant_admin', return_value=True)
-    @patch('routes.tenant_admin_templates.get_current_tenant', return_value='TestTenant')
+    @patch('routes.tenant_admin_template_ai_routes.get_user_tenants', return_value=['TestTenant'])
+    @patch('routes.tenant_admin_template_ai_routes.is_tenant_admin', return_value=True)
+    @patch('routes.tenant_admin_template_ai_routes.get_current_tenant', return_value='TestTenant')
     def test_invalid_type_returns_400(
         self, mock_tenant, mock_is_admin, mock_tenants,
         mock_roles, mock_creds, client

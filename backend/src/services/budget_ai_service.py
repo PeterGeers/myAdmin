@@ -44,7 +44,7 @@ class BudgetAIService:
         """
         return resolver.resolve_profile("text_generation")
 
-    def _call_openrouter(self, system_prompt, user_prompt, administration, max_tokens_override=None, timeout_override=None):
+    def _call_openrouter(self, system_prompt: str, user_prompt: str, administration: str, max_tokens_override: int | None = None, timeout_override: int | None = None) -> dict:
         """Call OpenRouter with registry-resolved fallback chain.
 
         Iterates models in chain order, using each model's configured
@@ -126,7 +126,7 @@ class BudgetAIService:
     # AI Feature stubs (implemented in tasks 14.2–14.5)
     # ------------------------------------------------------------------
 
-    def generate_narrative(self, dashboard_data, period, year, administration):
+    def generate_narrative(self, dashboard_data: dict, period: str, year: int, administration: str) -> dict:
         """Generate a Dutch executive summary from dashboard data.
 
         Formats dashboard rows into a compact prompt and requests a 2-4 sentence
@@ -195,7 +195,7 @@ class BudgetAIService:
             }
         }
 
-    def translate_query(self, question, year, hierarchy_context, administration):
+    def translate_query(self, question: str, year: int, hierarchy_context: list, administration: str) -> dict:
         """Translate natural language question to dashboard parameters.
 
         Sends the user's natural language question along with account hierarchy
@@ -284,7 +284,7 @@ class BudgetAIService:
             }
         }
 
-    def suggest_adjustments(self, budget_lines, context_notes, administration):
+    def suggest_adjustments(self, budget_lines: list, context_notes: str, administration: str) -> dict:
         """Suggest adjustments to draft budget lines based on context.
 
         Sends current budget line amounts and user-provided context notes to the
@@ -355,7 +355,7 @@ class BudgetAIService:
             }
         }
 
-    def generate_lines(self, chart_of_accounts, prior_actuals, fiscal_year, context_notes, administration):
+    def generate_lines(self, chart_of_accounts: list, prior_actuals: list, fiscal_year: int, context_notes: str, administration: str) -> dict:
         """Generate proposed budget lines from prior-year actuals and context notes.
 
         Uses AI to analyze the tenant's chart of accounts and prior-year actuals,

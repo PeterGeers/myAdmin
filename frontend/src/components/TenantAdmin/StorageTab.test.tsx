@@ -150,7 +150,7 @@ describe('StorageTab Component', () => {
         expect(mockGetParameterSchema).toHaveBeenCalled();
       });
 
-      const connectButton = screen.queryByRole('button', { name: /connect|oauth|google/i });
+      const connectButton = screen.queryByRole('button', { name: /start google drive oauth/i });
       if (connectButton) {
         // Mock window.open
         const mockOpen = vi.fn().mockReturnValue({ closed: false });
