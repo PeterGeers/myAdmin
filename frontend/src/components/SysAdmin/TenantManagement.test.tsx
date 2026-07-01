@@ -134,7 +134,7 @@ describe('TenantManagement Component', () => {
       fireEvent.change(nameInput, { target: { value: 'New Tenant' } });
       fireEvent.change(emailInput, { target: { value: 'admin@new.com' } });
 
-      const submitButton = screen.getByRole('button', { name: 'tenantManagement.actions.create' });
+      const submitButton = screen.getByRole('button', { name: /tenantManagement\.actions\.create/i });
       fireEvent.click(submitButton);
 
       await waitFor(() => {

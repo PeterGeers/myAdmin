@@ -113,8 +113,8 @@ too_long_prompt_st = st.integers(
     max_value=MAX_PROMPT_LENGTH + 500,
 ).map(lambda n: 'a' * n)
 
-# Strategy: valid vendor name (matches ^[a-zA-Z0-9_-]{1,100}$)
-VALID_VENDOR_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-'
+# Strategy: valid vendor name (matches ^[a-zA-Z0-9_ -]{1,100}$)
+VALID_VENDOR_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_- '
 valid_vendor_name_st = st.text(
     alphabet=st.sampled_from(list(VALID_VENDOR_CHARS)),
     min_size=1,
@@ -133,7 +133,7 @@ invalid_vendor_name_empty_st = st.just('')
 invalid_vendor_name_bad_chars_st = st.text(
     min_size=1,
     max_size=100,
-).filter(lambda s: not re.match(r'^[a-zA-Z0-9_-]{1,100}$', s))
+).filter(lambda s: not re.match(r'^[a-zA-Z0-9_ -]{1,100}$', s))
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +290,7 @@ class TestVendorNameValidation:
     @settings(max_examples=100)
     def test_validation_matches_regex(self, name):
         """Validation result should match the regex pattern exactly."""
-        expected = bool(re.match(r'^[a-zA-Z0-9_-]{1,100}$', name))
+        expected = bool(re.match(r'^[a-zA-Z0-9_ -]{1,100}$', name))
         assert _validate_vendor_name(name) == expected
 
 
