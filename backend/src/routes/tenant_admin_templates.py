@@ -20,7 +20,6 @@ from flask.typing import ResponseReturnValue
 import os
 import json
 import logging
-from typing import Dict, Any, List
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import (
@@ -483,4 +482,4 @@ def reject_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
 
 # Re-export for backward compatibility with tests
-from routes.tenant_admin_template_ai_routes import _get_generic_help  # noqa: F401
+from routes.tenant_admin_template_ai_routes import _get_generic_help  # noqa: F401, E402

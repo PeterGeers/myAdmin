@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from database import DatabaseManager
 from dialect_helpers import dialect
-from pattern_cache import get_pattern_cache
 from pattern_scoring import calculate_statistics_from_db_patterns
 
 
@@ -144,7 +143,7 @@ def store_verb_patterns_to_database(
                 analysis_metadata.get('date_range', {}).get('to')
             ), fetch=False, commit=True)
 
-        print(f"✅ Verb patterns stored successfully in database")
+        print("✅ Verb patterns stored successfully in database")
 
     except Exception as e:
         print(f"❌ Error storing verb patterns to database: {e}")

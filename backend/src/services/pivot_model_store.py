@@ -10,7 +10,7 @@ Reference: .kiro/specs/dynamic-pivot-views/design.md §2 PivotModelStore
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 

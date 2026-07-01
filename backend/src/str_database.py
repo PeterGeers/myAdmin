@@ -41,7 +41,7 @@ class STRDatabase(DatabaseManager):
             inserted = 0
             
             # Check table structure first
-            available_columns = self.check_bnb_table_structure()
+            _available_columns = self.check_bnb_table_structure()
             
             for booking in new_bookings:
                 values = (
@@ -78,7 +78,7 @@ class STRDatabase(DatabaseManager):
             cursor.close()
             return inserted
             
-        except DatabaseError as e:
+        except DatabaseError:
             return 0
     
     def insert_planned_bookings(self, bookings: List[Dict]) -> int:
@@ -142,7 +142,7 @@ class STRDatabase(DatabaseManager):
             cursor.close()
             return inserted
             
-        except DatabaseError as e:
+        except DatabaseError:
             return 0
     
     def insert_future_summary(self, summary_data: List[Dict]) -> int:
@@ -175,7 +175,7 @@ class STRDatabase(DatabaseManager):
             cursor.close()
             return inserted
             
-        except DatabaseError as e:
+        except DatabaseError:
             return 0
     
     def get_existing_reservation_codes_for_channel(self, channel: str) -> set:
@@ -186,7 +186,7 @@ class STRDatabase(DatabaseManager):
             codes = {str(row[0]) for row in cursor.fetchall()}
             cursor.close()
             return codes
-        except DatabaseError as e:
+        except DatabaseError:
             return set()
     
     def check_bnb_table_structure(self):
@@ -200,7 +200,7 @@ class STRDatabase(DatabaseManager):
 
             
             return [col[0] for col in columns]
-        except DatabaseError as e:
+        except DatabaseError:
             return []
     
     def write_bnb_future_summary(self) -> Dict:
@@ -343,7 +343,7 @@ class STRDatabase(DatabaseManager):
             
             return summary
             
-        except DatabaseError as e:
+        except DatabaseError:
             return {}
     
     def update_from_payout(self, payout_updates: List[Dict]) -> Dict:

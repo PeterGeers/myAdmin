@@ -90,7 +90,7 @@ app.config['BABEL_DEFAULT_LOCALE'] = 'nl'
 app.config['BABEL_TRANSLATION_DIRECTORIES'] = 'translations'
 
 # Initialize Flask-Babel
-from i18n import init_babel
+from i18n import init_babel  # noqa: E402
 babel = init_babel(app)
 
 # Configure timeouts for long-running operations and scalability
@@ -103,7 +103,7 @@ app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False  # Disable pretty printing for
 app.config['JSON_SORT_KEYS'] = False  # Disable key sorting for performance
 
 # Initialize rate limiter (used by signup routes)
-from shared_limiter import init_limiter
+from shared_limiter import init_limiter  # noqa: E402
 init_limiter(app)
 
 # MODE CONFIGURATION
@@ -217,35 +217,35 @@ def serve_docs(path='index.html'):
         return jsonify({'error': 'Documentation not found'}), 404
 
 # Set scalability manager reference for system_health_bp
-from routes.system_health_routes import set_scalability_manager
+from routes.system_health_routes import set_scalability_manager  # noqa: E402
 set_scalability_manager(scalability_manager)
 
 # Set scalability manager and test mode for scalability_bp
-from scalability_routes import set_scalability_manager as set_scalability_bp_manager, set_test_mode as set_scalability_test_mode
+from scalability_routes import set_scalability_manager as set_scalability_bp_manager, set_test_mode as set_scalability_test_mode  # noqa: E402
 set_scalability_bp_manager(scalability_manager)
 set_scalability_test_mode(flag)
 
 # Set test mode flag for cache_bp
-from routes.cache_routes import set_test_mode
+from routes.cache_routes import set_test_mode  # noqa: E402
 set_test_mode(flag)
 
 # Set config and flag for folder_bp (after config is instantiated)
 # This is done later after config is created
 
 # Set test mode flag for invoice_bp
-from routes.invoice_routes import set_test_mode as set_invoice_test_mode
+from routes.invoice_routes import set_test_mode as set_invoice_test_mode  # noqa: E402
 set_invoice_test_mode(flag)
 
 # Set test mode flag for banking_bp
-from routes.banking_routes import set_test_mode as set_banking_test_mode
+from routes.banking_routes import set_test_mode as set_banking_test_mode  # noqa: E402
 set_banking_test_mode(flag)
 
 # Set test mode flag for budget_bp
-from routes.budget_routes import set_test_mode as set_budget_test_mode
+from routes.budget_routes import set_test_mode as set_budget_test_mode  # noqa: E402
 set_budget_test_mode(flag)
 
 # Set config for str_bp - import here, call later after UPLOAD_FOLDER is defined
-from routes.str_routes import set_config as set_str_config
+from routes.str_routes import set_config as set_str_config  # noqa: E402
 
 
 # Configure Swagger UI
@@ -329,7 +329,7 @@ processor = PDFProcessor(test_mode=flag)
 transaction_logic = TransactionLogic(test_mode=flag)
 
 # Set config and flag for folder_bp (must be after config is instantiated)
-from routes.folder_routes import set_config_and_flag
+from routes.folder_routes import set_config_and_flag  # noqa: E402
 set_config_and_flag(config, flag)
 
 UPLOAD_FOLDER = 'uploads'
@@ -339,30 +339,30 @@ ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'csv', 'mhtml', 'eml'}
 set_str_config(UPLOAD_FOLDER, flag)
 
 # Set test mode and logger for tax_bp
-from routes.tax_routes import set_test_mode as set_tax_test_mode, set_logger as set_tax_logger
+from routes.tax_routes import set_test_mode as set_tax_test_mode, set_logger as set_tax_logger  # noqa: E402
 set_tax_test_mode(flag)
 set_tax_logger(logger)
 
 # Set test mode for pdf_validation_bp
-from routes.pdf_validation_routes import set_test_mode as set_pdf_test_mode
+from routes.pdf_validation_routes import set_test_mode as set_pdf_test_mode  # noqa: E402
 set_pdf_test_mode(flag)
 
 # Set test mode for duplicate_detection_bp
-from routes.duplicate_detection_routes import set_test_mode as set_duplicate_test_mode
+from routes.duplicate_detection_routes import set_test_mode as set_duplicate_test_mode  # noqa: E402
 set_duplicate_test_mode(flag)
 
 # Set test mode and logger for reporting_bp
-from reporting_routes import set_test_mode as set_reporting_test_mode, set_logger as set_reporting_logger
+from reporting_routes import set_test_mode as set_reporting_test_mode, set_logger as set_reporting_logger  # noqa: E402
 set_reporting_test_mode(flag)
 set_reporting_logger(logger)
 
 # Set test mode and logger for aangifte_ib_bp
-from routes.aangifte_ib_routes import set_test_mode as set_aangifte_ib_test_mode, set_logger as set_aangifte_ib_logger
+from routes.aangifte_ib_routes import set_test_mode as set_aangifte_ib_test_mode, set_logger as set_aangifte_ib_logger  # noqa: E402
 set_aangifte_ib_test_mode(flag)
 set_aangifte_ib_logger(logger)
 
 # Set test mode and logger for financial_reporting_bp
-from routes.financial_reporting_routes import set_test_mode as set_fin_reporting_test_mode, set_logger as set_fin_reporting_logger
+from routes.financial_reporting_routes import set_test_mode as set_fin_reporting_test_mode, set_logger as set_fin_reporting_logger  # noqa: E402
 set_fin_reporting_test_mode(flag)
 set_fin_reporting_logger(logger)
 

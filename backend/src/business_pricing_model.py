@@ -1,5 +1,4 @@
 import pandas as pd
-from datetime import datetime, timedelta
 from database import DatabaseManager
 import warnings
 warnings.filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
@@ -148,7 +147,7 @@ class BusinessPricingModel:
             result_df = pd.read_sql(query, conn, params=[listing, date.month, date.year])
             
             if not result_df.empty:
-                bookings = result_df.iloc[0]['bookings']
+                _bookings = result_df.iloc[0]['bookings']
                 booked_days = result_df.iloc[0]['booked_days']
                 
                 # Estimate occupancy (rough calculation)
@@ -244,24 +243,24 @@ class BusinessPricingModel:
                     
                     # Apply multiplier rules based on revenue trends
                     if monthly_trend_ratio > 1.5:
-                        print(f"Strong monthly growth multiplier: 1.15")
+                        print("Strong monthly growth multiplier: 1.15")
                         return 1.15
                     elif monthly_trend_ratio > 1.2:
-                        print(f"Good monthly growth multiplier: 1.1")
+                        print("Good monthly growth multiplier: 1.1")
                         return 1.1
                     elif monthly_trend_ratio < 0.3:
-                        print(f"Very significant monthly decline multiplier: 0.9")
+                        print("Very significant monthly decline multiplier: 0.9")
                         return 0.9
                     elif monthly_trend_ratio < 0.7:
-                        print(f"Moderate monthly decline multiplier: 0.95")
+                        print("Moderate monthly decline multiplier: 0.95")
                         return 0.95
                     else:
-                        print(f"Stable monthly revenue multiplier: 1.0")
+                        print("Stable monthly revenue multiplier: 1.0")
                         return 1.0
                 elif total_records > 0:
                     print(f"Missing 2024 or 2023 data for {listing} (month {date.month}), using default 1.0")
                 else:
-                    print(f"No previous revenue data, using default 1.0")
+                    print("No previous revenue data, using default 1.0")
             else:
                 print(f"No monthly revenue data found for {listing} (month {date.month}), using default 1.0")
             

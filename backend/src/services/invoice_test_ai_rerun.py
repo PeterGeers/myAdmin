@@ -161,7 +161,6 @@ def rerun_with_custom_prompt(text_content: str, custom_prompt: str, vendor_hint:
         ai_usage_preview['feature'] = 'invoice_extraction_rerun'
 
     except Exception as e:
-        import traceback
         errors.append({
             'stage': 'ai_extraction',
             'error_type': type(e).__name__,

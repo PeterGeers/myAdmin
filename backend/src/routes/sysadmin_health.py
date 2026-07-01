@@ -41,7 +41,7 @@ def check_database_health() -> dict:
         db = DatabaseManager()
         
         # Test connection with simple query
-        result = db.execute_query("SELECT 1 as test", fetch=True)
+        _result = db.execute_query("SELECT 1 as test", fetch=True)
         
         # Get database info
         db_info = db.execute_query("SELECT VERSION() as version", fetch=True)

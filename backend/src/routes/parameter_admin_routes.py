@@ -179,7 +179,7 @@ def update_parameter(user_email, user_roles, tenant, user_tenants, param_id) -> 
             is_secret=row['is_secret'], created_by=user_email
         )
 
-        return jsonify({'success': True, 'message': f'Parameter updated'})
+        return jsonify({'success': True, 'message': 'Parameter updated'})
     except ValueError as e:
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:

@@ -8,7 +8,6 @@ Extracted from template_preview_service.py for maintainability.
 """
 
 import re
-import json
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime

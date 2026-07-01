@@ -6,7 +6,6 @@ The custom attribute 'custom:preferred_language' was added in Phase 2.1 of i18n 
 """
 import os
 import boto3
-from typing import Optional
 
 # Initialize Cognito client
 cognito_client = None

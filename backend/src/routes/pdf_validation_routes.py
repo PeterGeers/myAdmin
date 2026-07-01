@@ -117,7 +117,7 @@ def pdf_update_record(user_email, user_roles) -> ResponseReturnValue:
     try:
         data = request.get_json()
         old_ref3 = data.get('old_ref3')
-        old_ref4 = data.get('old_ref4')
+        _old_ref4 = data.get('old_ref4')
         reference_number = data.get('reference_number')
         ref3 = data.get('ref3')
         ref4 = data.get('ref4')

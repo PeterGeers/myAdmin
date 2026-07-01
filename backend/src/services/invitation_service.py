@@ -8,7 +8,6 @@ Manages user invitation lifecycle including:
 - Expiry handling
 """
 
-import os
 import secrets
 import string
 from datetime import datetime, timedelta

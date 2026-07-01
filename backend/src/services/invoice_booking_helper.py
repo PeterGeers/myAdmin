@@ -9,7 +9,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.4
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 

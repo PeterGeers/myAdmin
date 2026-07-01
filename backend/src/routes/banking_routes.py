@@ -191,7 +191,6 @@ def banking_filter_options(user_email, user_roles, tenant, user_tenants) -> Resp
     """Get filter options for mutaties"""
     try:
         from database import DatabaseManager
-        from datetime import datetime
         
         db = DatabaseManager(test_mode=banking_service.test_mode)
         table_name = 'mutaties_test' if banking_service.test_mode else 'mutaties'

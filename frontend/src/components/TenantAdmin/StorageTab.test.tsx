@@ -118,7 +118,10 @@ describe('StorageTab Component', () => {
 
   describe('Credentials', () => {
     it('shows no credentials message when list is empty', async () => {
-      mockFetch.mockResolvedValue({ credentials: [] });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ credentials: [] }),
+      });
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalled();
@@ -127,9 +130,12 @@ describe('StorageTab Component', () => {
 
     it('shows credential info when credentials exist', async () => {
       mockFetch.mockResolvedValue({
-        credentials: [
-          { type: 'google_drive_credentials', created_at: '2025-01-01', updated_at: '2025-06-01' },
-        ],
+        ok: true,
+        json: () => Promise.resolve({
+          credentials: [
+            { type: 'google_drive_credentials', created_at: '2025-01-01', updated_at: '2025-06-01' },
+          ],
+        }),
       });
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
@@ -140,17 +146,13 @@ describe('StorageTab Component', () => {
 
   describe('OAuth Flow', () => {
     it('starts OAuth flow when connect button is clicked', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      }); // getParameters response (via fetch)
-      
       render(<StorageTab tenant="test-tenant" />);
       await waitFor(() => {
         expect(mockGetParameterSchema).toHaveBeenCalled();
       });
 
-      const connectButton = screen.queryByRole('button', { name: /start google drive oauth/i });
+      // Wait for the Google Drive Configuration section to render (provider state must be set)
+      const connectButton = await screen.findByRole('button', { name: /start google drive oauth/i }).catch(() => null);
       if (connectButton) {
         // Mock window.open
         const mockOpen = vi.fn().mockReturnValue({ closed: false });

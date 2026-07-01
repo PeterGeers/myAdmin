@@ -8,7 +8,7 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import List
 
 from storage.storage_provider import StorageProvider
 
@@ -34,7 +34,8 @@ class GoogleDriveStorage(StorageProvider):
 
     def upload(self, file_data: bytes, path: str, metadata: dict = None) -> str:
         """Upload file to Google Drive. Returns the file ID as reference."""
-        import tempfile, os
+        import tempfile
+        import os
         metadata = metadata or {}
         folder_id = metadata.get('folder_id', '')
         filename = metadata.get('filename') or os.path.basename(path)

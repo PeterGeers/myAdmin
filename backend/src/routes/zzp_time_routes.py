@@ -16,6 +16,7 @@ from auth.tenant_context import tenant_required
 from services.module_registry import module_required
 from database import DatabaseManager
 from services.parameter_service import ParameterService
+from services.time_tracking_service import TimeTrackingService
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,11 @@ def set_test_mode(flag: bool) -> None:
     _test_mode = flag
 
 
-def _get_time_service() -> "TimeTrackingService":
-    from services.time_tracking_service import TimeTrackingService
+def _get_time_service() -> TimeTrackingService:
+    from services.time_tracking_service import TimeTrackingService as _TTS
     db = DatabaseManager(test_mode=_test_mode)
     param_svc = ParameterService(db)
-    return TimeTrackingService(db=db, parameter_service=param_svc)
+    return _TTS(db=db, parameter_service=param_svc)
 
 
 # ── Time Tracking Endpoints (Req 11) ───────────────────────

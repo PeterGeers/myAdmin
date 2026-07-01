@@ -9,7 +9,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.1
 
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
 

@@ -192,7 +192,7 @@ def get_country_name(country_code: str) -> Optional[str]:
         import pycountry
         country = pycountry.countries.get(alpha_2=country_code.upper())
         return country.name if country else None
-    except:
+    except Exception:
         # Fallback: basic mapping for common countries
         country_names = {
             'AE': 'United Arab Emirates',

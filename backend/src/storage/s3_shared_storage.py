@@ -15,7 +15,7 @@ Reference: .kiro/specs/parameter-driven-config/design.md
 import logging
 import uuid
 import os
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import boto3
 from botocore.exceptions import ClientError

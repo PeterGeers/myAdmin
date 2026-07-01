@@ -61,7 +61,7 @@ class TenantSettingsService:
                 if value and (value.startswith('{') or value.startswith('[')):
                     try:
                         value = json.loads(value)
-                    except:
+                    except Exception:
                         pass  # Keep as string if not valid JSON
                 
                 # Build nested structure from dot notation (e.g., "storage.facturen_folder_id")

@@ -12,7 +12,6 @@ See .kiro/specs/FIN/Data Model/mutaties_ref_fields.md
 """
 
 import logging
-from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List
 

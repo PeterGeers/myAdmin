@@ -296,7 +296,7 @@ def _render_table_rows(rows_data) -> str:
     html_rows = []
     
     for row in rows_data:
-        row_type = row.get('row_type', '')
+        _row_type = row.get('row_type', '')
         css_class = row.get('css_class', '')
         parent = row.get('parent', '')
         aangifte = row.get('aangifte', '')

@@ -17,7 +17,7 @@ import { validateVendorName } from '../InvoiceTestTool';
 
 const MAX_PROMPT_LENGTH = 10_000;
 const RAW_TEXT_TRUNCATION_LIMIT = 50_000;
-const VENDOR_NAME_REGEX = /^[a-zA-Z0-9_-]{1,100}$/;
+const VENDOR_NAME_REGEX = /^[a-zA-Z0-9_ -]{1,100}$/;
 
 // ─── Helper: Truncation indicator logic (frontend display) ───────────────────
 
@@ -221,10 +221,10 @@ describe('Property 10 (frontend): Vendor name validation', () => {
    *
    * **Validates: Requirements 7.1**
    */
-  it('PROPERTY: acceptance matches regex ^[a-zA-Z0-9_-]{1,100}$ exactly', () => {
+  it('PROPERTY: acceptance matches regex ^[a-zA-Z0-9_ -]{1,100}$ exactly', () => {
     // Generate a mix of valid and invalid strings
     const mixedArb = fc.oneof(
-      fc.stringMatching(/^[a-zA-Z0-9_-]{1,100}$/),
+      fc.stringMatching(/^[a-zA-Z0-9_ -]{1,100}$/),
       fc.string({ minLength: 1, maxLength: 120 }),
     );
 

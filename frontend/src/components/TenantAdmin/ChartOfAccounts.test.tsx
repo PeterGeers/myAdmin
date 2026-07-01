@@ -199,7 +199,7 @@ describe('ChartOfAccounts Component', () => {
     });
 
     it('handles empty account list', async () => {
-      mockListAccounts.mockResolvedValue({ success: true, data: [] });
+      mockListAccounts.mockResolvedValue({ accounts: [] });
       render(<ChartOfAccounts tenant="test-tenant" />);
       await waitFor(() => {
         expect(mockListAccounts).toHaveBeenCalled();

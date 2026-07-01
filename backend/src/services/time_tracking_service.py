@@ -9,7 +9,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.8
 
 import logging
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from services.field_config_mixin import FieldConfigMixin
 from dialect_helpers import dialect

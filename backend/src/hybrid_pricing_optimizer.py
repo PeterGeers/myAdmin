@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from database import DatabaseManager
 from business_pricing_model import BusinessPricingModel
-from dialect_helpers import dialect
 from services.ai_model_registry import resolver, RegistryError
 from services.ai_usage_tracker import AIUsageTracker
 import warnings
@@ -315,7 +314,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
         try:
             # Clear ALL existing recommendations at start of new run
             cursor.execute("DELETE FROM pricing_recommendations")
-            print(f"Cleared all existing pricing recommendations for new run")
+            print("Cleared all existing pricing recommendations for new run")
             
             # Insert new recommendations
             insert_sql = """
@@ -688,7 +687,7 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
             
             return None
             
-        except Exception as e:
+        except Exception:
             return None
         finally:
             conn.close()

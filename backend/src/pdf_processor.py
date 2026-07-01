@@ -7,7 +7,6 @@ Delegates to:
   - pdf_ai_extraction: AI-powered invoice data extraction
   - pdf_decision_handler: duplicate transaction decision handling
 """
-import re
 import os
 from datetime import datetime
 from typing import Dict, List, Optional

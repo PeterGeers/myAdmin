@@ -22,9 +22,8 @@ Usage:
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from report_generators.common_formatters import (
-    format_currency,
     format_amount,
     safe_float,
     escape_html

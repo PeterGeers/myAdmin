@@ -16,8 +16,6 @@ Endpoints:
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 import os
-import json
-import boto3
 from botocore.exceptions import ClientError
 
 from auth.cognito_utils import cognito_required

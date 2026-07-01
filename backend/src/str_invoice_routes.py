@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 import logging
 from database import DatabaseManager
-import re
 from datetime import datetime, timedelta
 import os
 from auth.cognito_utils import cognito_required
@@ -67,7 +66,7 @@ def search_booking(user_email, user_roles, tenant, user_tenants):
                 AND checkinDate <= %s
                 ORDER BY checkinDate DESC
                 """
-                logger.info(f"Executing query for all bookings, no limit")
+                logger.info("Executing query for all bookings, no limit")
                 cursor.execute(search_query, [tenant, start_date, end_date])
         else:
             # Search with pattern
@@ -196,7 +195,7 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
             f.write(f"Reservation: {reservation_code}\n")
             f.write(f"{'='*80}\n")
             f.write(f"Invoice data keys: {list(invoice_data.keys())}\n\n")
-            f.write(f"Sample values:\n")
+            f.write("Sample values:\n")
             for key in ['company_name', 'reservationCode', 'table_rows', 'billing_name', 'channel']:
                 value = invoice_data.get(key, 'MISSING')
                 if key == 'table_rows':
@@ -261,16 +260,16 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
         # DEBUG: Check if placeholders were replaced - write to file
         debug_file = os.path.join(os.path.dirname(__file__), '..', 'invoice_debug.log')
         with open(debug_file, 'a', encoding='utf-8') as f:
-            f.write(f"\nTEMPLATE RENDERING DEBUG\n")
+            f.write("\nTEMPLATE RENDERING DEBUG\n")
             f.write(f"Template length: {len(template_content)} chars\n")
             f.write(f"Rendered HTML length: {len(html_content)} chars\n")
             f.write(f"Template source: {'Google Drive' if metadata else 'Filesystem'}\n")
-            f.write(f"\nPlaceholder check:\n")
+            f.write("\nPlaceholder check:\n")
             unreplaced = ['{{ company_name }}', '{{ reservationCode }}', '{{ table_rows }}', '{{ channel }}']
             for placeholder in unreplaced:
                 still_there = placeholder in html_content
                 f.write(f"  {placeholder}: {'STILL PRESENT (BAD!)' if still_there else 'Replaced (good)'}\n")
-            f.write(f"\nFirst 500 chars of rendered HTML:\n")
+            f.write("\nFirst 500 chars of rendered HTML:\n")
             f.write(html_content[:500])
             f.write(f"\n{'='*80}\n\n")
         
@@ -362,7 +361,7 @@ def upload_template_to_drive(user_email, user_roles, tenant, user_tenants):
     Google Drive path for google_drive tenants.
     """
     try:
-        from services.storage_resolver import resolve_storage_provider, get_s3_storage
+        from services.storage_resolver import resolve_storage_provider
 
         provider = resolve_storage_provider(tenant)
 
@@ -506,7 +505,7 @@ def _upload_template_gdrive(tenant):
                         'tenant': tenant
                     })
 
-            except Exception as e:
+            except Exception:
                 results.append({
                     'template': tenant_template_name,
                     'status': 'error',

@@ -250,7 +250,7 @@ class TestIPExtraction:
             f"'{forwarded_for_value}', but got '{extracted_ip}'"
         )
 
-    @settings(max_examples=100)
+    @settings(max_examples=100, derandomize=True)
     @given(ip=ipv4_addresses)
     def test_remote_addr_fallback_when_no_forwarded_for(self, ip):
         """

@@ -16,7 +16,7 @@ Key Concepts:
 Journal entry creation is delegated to YearEndJournalEntryHelper.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from database import DatabaseManager
 from datetime import datetime

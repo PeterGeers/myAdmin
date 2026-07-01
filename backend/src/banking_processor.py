@@ -10,15 +10,12 @@ Banking account checks (balance verification, sequence gaps) are in banking_chec
 import pandas as pd
 import glob
 import os
-import re
 from datetime import datetime
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
 from pattern_analyzer import PatternAnalyzer
-from banking_checks import BankingChecks, _get_opening_balance_date
-import json
+from banking_checks import BankingChecks, _get_opening_balance_date  # noqa: F401
 import unicodedata
-import logging
 
 
 class BankingProcessor:
@@ -336,7 +333,7 @@ class BankingProcessor:
                 administration, reference_number, debet_account, credit_account
             )
 
-            print(f"✅ Pattern analysis complete:")
+            print("✅ Pattern analysis complete:")
             print(f"   - Processed {patterns['total_transactions']} transactions")
             print(f"   - Discovered {patterns['patterns_discovered']} patterns")
             print(f"   - Date range: {patterns['date_range']['from']} to {patterns['date_range']['to']}")
@@ -359,7 +356,7 @@ class BankingProcessor:
                 transactions, administration
             )
 
-            print(f"✅ Enhanced pattern application complete:")
+            print("✅ Enhanced pattern application complete:")
             print(f"   - Debet predictions: {results['predictions_made']['debet']}")
             print(f"   - Credit predictions: {results['predictions_made']['credit']}")
             print(f"   - Reference predictions: {results['predictions_made']['reference']}")

@@ -131,7 +131,7 @@ class GoogleDriveService:
                     except Exception as refresh_error:
                         # Token refresh failed - likely the refresh token is invalid/expired
                         logger.error(f"❌ Token refresh failed for {self.administration}: {refresh_error}")
-                        logger.error(f"⚠️  The refresh token may have expired or been revoked.")
+                        logger.error("⚠️  The refresh token may have expired or been revoked.")
                         
                         # Provide user-friendly error message
                         raise GoogleDriveAuthenticationError(

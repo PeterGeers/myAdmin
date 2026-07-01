@@ -30,7 +30,7 @@ def get_user_attribute(user: Dict[str, Any], attribute_name: str) -> Any:
                     if '\\' in value:
                         value = value.replace('\\', '')
                     return json.loads(value)
-                except:
+                except Exception:
                     return [value] if value else []
             return value
     return None

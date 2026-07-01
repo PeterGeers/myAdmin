@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 import logging
 from database import DatabaseManager
-from collections import defaultdict
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from utils.date_utils import normalize_dates
@@ -19,7 +18,7 @@ def get_bnb_listing_data(user_email, user_roles, tenant, user_tenants):
         years = request.args.get('years', '').split(',')
         listings = request.args.get('listings', 'all')
         channels = request.args.get('channels', 'all')
-        period = request.args.get('period', 'year')  # year, q, m
+        _period = request.args.get('period', 'year')  # year, q, m
         
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()
@@ -91,7 +90,7 @@ def get_bnb_channel_data(user_email, user_roles, tenant, user_tenants):
         years = request.args.get('years', '').split(',')
         listings = request.args.get('listings', 'all')
         channels = request.args.get('channels', 'all')
-        period = request.args.get('period', 'year')  # year, q, m
+        _period = request.args.get('period', 'year')  # year, q, m
         
         db = DatabaseManager(test_mode=False)
         connection = db.get_connection()

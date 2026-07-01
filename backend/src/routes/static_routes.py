@@ -91,5 +91,5 @@ def handle_404(e) -> ResponseReturnValue:
     build_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'frontend', 'build')
     try:
         return send_from_directory(build_folder, 'index.html')
-    except:
+    except Exception:
         return jsonify({'error': 'Frontend not built'}), 404

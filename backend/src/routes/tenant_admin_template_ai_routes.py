@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 tenant_admin_template_ai_bp = Blueprint('tenant_admin_template_ai', __name__)
 
 # Import valid types from main module
-from routes.tenant_admin_templates import VALID_TEMPLATE_TYPES
+from routes.tenant_admin_templates import VALID_TEMPLATE_TYPES  # noqa: E402
 
 
 @tenant_admin_template_ai_bp.route('/api/tenant-admin/templates/ai-help', methods=['POST'])

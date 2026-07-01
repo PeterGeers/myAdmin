@@ -4,7 +4,6 @@ Uses ReferenceNumber (= contact client_id) for matching.
 Reference: design.md 5.5
 """
 import logging
-from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 DEFAULT_TOLERANCE = 0.01

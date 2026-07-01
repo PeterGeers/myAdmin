@@ -12,7 +12,6 @@ import os
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
-from io import BytesIO
 
 logger = logging.getLogger(__name__)
 

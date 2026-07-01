@@ -138,7 +138,7 @@ def upload_file_authenticated(user_email, user_roles, tenant, user_tenants) -> R
         return jsonify({'success': False, 'error': 'Invalid file type'}), 400
         
     except Exception as e:
-        print(f"\n=== UPLOAD ERROR ===", flush=True)
+        print("\n=== UPLOAD ERROR ===", flush=True)
         print(f"Error type: {type(e).__name__}", flush=True)
         print(f"Error message: {str(e)}", flush=True)
         import traceback
