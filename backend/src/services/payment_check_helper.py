@@ -76,13 +76,20 @@ class PaymentCheckHelper:
                       TransactionDescription
                FROM mutaties
                WHERE administration = %s AND ReferenceNumber = %s
-                 AND Credit IN (
-                     SELECT Account FROM rekeningschema
-                     WHERE administration = %s
-                       AND JSON_EXTRACT(parameters, '$.bank_account') = true
+                 AND (
+                     Credit IN (
+                         SELECT Account FROM rekeningschema
+                         WHERE administration = %s
+                           AND JSON_EXTRACT(parameters, '$.bank_account') = true
+                     )
+                     OR Debit IN (
+                         SELECT Account FROM rekeningschema
+                         WHERE administration = %s
+                           AND JSON_EXTRACT(parameters, '$.bank_account') = true
+                     )
                  )
                ORDER BY TransactionDate DESC""",
-                (tenant, client_id, tenant),
+                (tenant, client_id, tenant, tenant),
             )
             or []
         )
