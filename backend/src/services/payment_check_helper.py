@@ -82,7 +82,7 @@ class PaymentCheckHelper:
                          WHERE administration = %s
                            AND JSON_EXTRACT(parameters, '$.bank_account') = true
                      )
-                     OR Debit IN (
+                     OR Debet IN (
                          SELECT Account FROM rekeningschema
                          WHERE administration = %s
                            AND JSON_EXTRACT(parameters, '$.bank_account') = true
