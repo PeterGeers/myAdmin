@@ -146,7 +146,8 @@ def test_build_body_invoice_includes_client_id_reference():
     svc = _make_service()
     body = svc._build_body('T1', _sample_invoice(), 'invoice')
     assert 'ACME' in body
-    assert '18392.00' in body
+    # Babel nl_NL formats as € 18.392,00 (dot=thousands, comma=decimal)
+    assert '18.392' in body
 
 
 def test_build_body_reminder_includes_due_date():

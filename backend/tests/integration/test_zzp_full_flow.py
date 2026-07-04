@@ -422,8 +422,8 @@ class TestZZPFullInvoiceFlow:
             'filename': f'{INVOICE_NUMBER}.pdf',
         }
 
-        with patch.object(invoice_service, '_store_pdf', return_value=storage_result), \
-             patch.object(invoice_service, '_update_status') as mock_update_status:
+        with patch.object(invoice_service._delivery, '_store_pdf', return_value=storage_result), \
+             patch.object(invoice_service._delivery, '_update_status') as mock_update_status:
             send_result = invoice_service.send_invoice(
                 TENANT, INVOICE_ID,
                 options={'send_email': True, 'output_destination': 'gdrive'},
@@ -752,8 +752,8 @@ class TestZZPFullInvoiceFlow:
             None,
         ]
 
-        with patch.object(invoice_service, '_store_pdf', return_value=storage_result), \
-             patch.object(invoice_service, '_update_status') as mock_update_status:
+        with patch.object(invoice_service._delivery, '_store_pdf', return_value=storage_result), \
+             patch.object(invoice_service._delivery, '_update_status') as mock_update_status:
             send_result = invoice_service.send_invoice(
                 TENANT, INVOICE_ID,
                 options={'send_email': True, 'output_destination': 'gdrive'},
@@ -891,8 +891,8 @@ class TestZZPFullInvoiceFlow:
             None,
         ]
 
-        with patch.object(invoice_service, '_store_pdf', return_value=cn_storage_result), \
-             patch.object(invoice_service, '_update_status') as mock_cn_update_status:
+        with patch.object(invoice_service._delivery, '_store_pdf', return_value=cn_storage_result), \
+             patch.object(invoice_service._delivery, '_update_status') as mock_cn_update_status:
             cn_send_result = invoice_service.send_invoice(
                 TENANT, CN_ID,
                 options={'send_email': True, 'output_destination': 'gdrive'},
