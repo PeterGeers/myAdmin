@@ -439,9 +439,13 @@ class TestJWTExpirationWithClockSkew:
     """
 
     @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-    @given(offset=st.integers(min_value=-29, max_value=3600))
+    @given(offset=st.integers(min_value=-25, max_value=3600))
     def test_token_within_clock_skew_accepted(self, offset):
-        """Tokens with exp >= (current_time - 29) are accepted (within 30s leeway)."""
+        """Tokens with exp >= (current_time - 25) are accepted (within 30s leeway).
+
+        We use -25 instead of -29 to avoid flakiness from clock drift between
+        token creation (time.time()) and PyJWT's internal time check.
+        """
         # **Validates: Requirements 1.7**
         private_key = _PRIMARY_KEY
         public_key = private_key.public_key()

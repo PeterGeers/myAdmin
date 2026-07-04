@@ -162,8 +162,8 @@ Code quality maintenance sprint based on CI test results (2026-06-29) and local 
 
 - [x] 49. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 1–5 complete. Verify: 0 backend failures, 0 frontend failures. If failures remain, fix them before proceeding.
 - [x] 50. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 6–7 complete. Verify: no regressions introduced by file splits.
-- [ ] 51. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 8–9 complete. Verify: new tests pass in CI, no new failures.
-- [ ] 52. Final check: confirm no recurring failures from 2026-06-27 spec remain (backfill migration imports, `_render_template`, `_checks` attribute, storage default).
+- [x] 51. Run `gh workflow run "Full Test Suite" --field scope=both` after waves 8–9 complete. Verify: new tests pass in CI, no new failures.
+- [x] 52. Final check: confirm no recurring failures from 2026-06-27 spec remain (backfill migration imports, `_render_template`, `_checks` attribute, storage default).
 
 ## Parallelization Notes
 

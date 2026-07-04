@@ -456,8 +456,8 @@ class TestValidateBookingAccount:
 
     @pytest.fixture(autouse=True)
     def setup_routes(self):
-        """Import the validation function from zzp_routes."""
-        from routes.zzp_routes import _validate_booking_account, _BOOKING_ACCOUNT_FLAG_MAP
+        """Import the validation function from zzp_debtor_routes."""
+        from routes.zzp_debtor_routes import _validate_booking_account, _BOOKING_ACCOUNT_FLAG_MAP
         self.validate = _validate_booking_account
         self.flag_map = _BOOKING_ACCOUNT_FLAG_MAP
 
@@ -545,8 +545,8 @@ from unittest.mock import patch
 
 @contextlib.contextmanager
 def unittest_mock_db(return_value):
-    """Mock DatabaseManager in zzp_routes for _validate_booking_account tests."""
+    """Mock DatabaseManager in zzp_debtor_routes for _validate_booking_account tests."""
     mock_db = Mock()
     mock_db.execute_query.return_value = return_value
-    with patch('routes.zzp_routes.DatabaseManager', return_value=mock_db):
+    with patch('routes.zzp_debtor_routes.DatabaseManager', return_value=mock_db):
         yield mock_db
