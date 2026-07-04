@@ -201,7 +201,8 @@ class TestReminderEmailFlow:
 
         call_kwargs = email_service.ses.send_email_with_attachments.call_args[1]
         body = call_kwargs['html_body']
-        assert '1210.00' in body
+        # Babel nl_NL formats 1210.00 as "€ 1.210,00"
+        assert '1.210,00' in body
         assert invoice['due_date'] in body
 
     def test_send_reminder_body_contains_client_id_reference(self, email_service):

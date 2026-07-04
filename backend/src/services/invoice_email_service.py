@@ -417,13 +417,17 @@ class InvoiceEmailService:
         """
         contact = invoice.get("contact", {})
         inv_number = invoice.get("invoice_number", "")
+        currency = invoice.get("currency", "EUR")
+        formatted_amount = self._format_amount(
+            invoice.get("grand_total", 0), currency, "nl_NL"
+        )
 
         if template_type == "reminder":
             body = (
                 f"<p>Geachte {contact.get('company_name', '')},</p>"
                 f"<p>Wij willen u vriendelijk herinneren aan de openstaande factuur "
                 f"<strong>{inv_number}</strong> met een bedrag van "
-                f"&euro; {invoice.get('grand_total', 0):.2f}, "
+                f"{formatted_amount}, "
                 f"vervaldatum {invoice.get('due_date', '')}.</p>"
                 f"<p>Wij verzoeken u het bedrag zo spoedig mogelijk over te maken "
                 f"onder vermelding van referentie <strong>{contact.get('client_id', '')}</strong>.</p>"
@@ -432,7 +436,7 @@ class InvoiceEmailService:
             body = (
                 f"<p>Geachte {contact.get('company_name', '')},</p>"
                 f"<p>Bijgaand ontvangt u factuur <strong>{inv_number}</strong> "
-                f"met een bedrag van &euro; {invoice.get('grand_total', 0):.2f}.</p>"
+                f"met een bedrag van {formatted_amount}.</p>"
                 f"<p>Gelieve het bedrag binnen {invoice.get('payment_terms_days', 30)} dagen "
                 f"over te maken onder vermelding van referentie "
                 f"<strong>{contact.get('client_id', '')}</strong>.</p>"
