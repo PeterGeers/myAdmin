@@ -199,7 +199,7 @@ class STRProcessor:
             )
 
             for _, row in df.iterrows():
-                if str(row.get("type", "")).lower() != "reservation":
+                if str(row.get("type", "")).strip().lower() != "reservation":
                     continue
                 booking = self._calculate_direct_row(row, file_path, source_file)
                 if booking:
