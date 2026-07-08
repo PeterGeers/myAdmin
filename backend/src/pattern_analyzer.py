@@ -95,7 +95,7 @@ class PatternAnalyzer:
         credit_account: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Analyze last 2 years of transaction data to discover patterns
+        Analyze last 1 year of transaction data to discover patterns
 
         Args:
             administration: The administration to analyze patterns for
@@ -116,8 +116,8 @@ class PatternAnalyzer:
 
         print(f"🔍 Analyzing historical patterns {filter_desc}...")
 
-        # Get transactions from last 2 years with optional filtering
-        two_years_ago = datetime.now() - timedelta(days=730)
+        # Get transactions from last 1 year with optional filtering
+        one_year_ago = datetime.now() - timedelta(days=365)
 
         # Build dynamic query with filters
         query_conditions = [
@@ -125,7 +125,7 @@ class PatternAnalyzer:
             "TransactionDate >= %s",
             "(Debet IS NOT NULL OR Credit IS NOT NULL)",
         ]
-        query_params = [administration, two_years_ago.strftime("%Y-%m-%d")]
+        query_params = [administration, one_year_ago.strftime("%Y-%m-%d")]
 
         # Add optional filters per REQ-PAT-002
         if reference_number:
@@ -160,7 +160,7 @@ class PatternAnalyzer:
                 "statistics": {},
             }
 
-        print(f"📊 Processing {len(transactions)} transactions from last 2 years...")
+        print(f"📊 Processing {len(transactions)} transactions from last 1 year...")
 
         # Analyze patterns (delegated to pattern_detection module)
         debet_patterns = analyze_debet_patterns(
@@ -193,7 +193,7 @@ class PatternAnalyzer:
             "statistics": statistics,
             "analysis_date": datetime.now().isoformat(),
             "date_range": {
-                "from": two_years_ago.strftime("%Y-%m-%d"),
+                "from": one_year_ago.strftime("%Y-%m-%d"),
                 "to": datetime.now().strftime("%Y-%m-%d"),
             },
         }
