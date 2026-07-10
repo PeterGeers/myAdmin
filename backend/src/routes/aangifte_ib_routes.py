@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from flask.typing import ResponseReturnValue
 from database import DatabaseManager
 from mutaties_cache import get_cache
+from utils.closure_helpers import get_closure_aware_start_year
 from datetime import datetime
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
@@ -59,9 +60,12 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         # Ensure cache is loaded (will auto-refresh if needed)
         cache.get_data(db)
 
+        # Compute closure-aware start year for balance sheet cumulation
+        start_year = get_closure_aware_start_year(db, administration)
+
         # Query from cache (much faster than SQL)
         summary_data = cache.query_aangifte_ib(
-            year, administration, user_tenants=user_tenants
+            year, administration, user_tenants=user_tenants, start_year=start_year
         )
         # Get ALL available years from database (not just cached years)
         available_years = cache.get_available_years(db)
@@ -119,9 +123,12 @@ def aangifte_ib_details(
         # Ensure cache is loaded (will auto-refresh if needed)
         cache.get_data(db)
 
+        # Compute closure-aware start year for balance sheet cumulation
+        start_year = get_closure_aware_start_year(db, administration)
+
         # Query from cache (much faster than SQL) with tenant filtering
         details_data = cache.query_aangifte_ib_details(
-            year, administration, parent, aangifte, user_tenants
+            year, administration, parent, aangifte, user_tenants, start_year=start_year
         )
 
         return jsonify(

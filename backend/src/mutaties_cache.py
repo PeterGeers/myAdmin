@@ -473,13 +473,14 @@ class MutatiesCache:
         db_manager=None,
         user_tenants=None,
         snapshot=None,
+        start_year=None,
     ):
         """
         Query Aangifte IB data from cache
 
-        Uses NEW MODEL (year-end closure):
-        - Balance sheet accounts (VW='N'): Current year only (includes OpeningBalance)
-        - P&L accounts (VW='Y'): Current year only
+        Uses closure-aware filtering:
+        - Balance sheet accounts (VW='N'): Cumulate from start_year through target year
+        - P&L accounts (VW='Y'): Current year only (period-based)
 
         Args:
             year: Year to filter (string or int)
@@ -487,6 +488,9 @@ class MutatiesCache:
             db_manager: DatabaseManager instance (for on-demand loading)
             user_tenants: List of tenants user has access to (for security filtering)
             snapshot: Optional DataFrame snapshot for consistent reads across calls
+            start_year: First year to include for balance sheet cumulation
+                        (from get_closure_aware_start_year). None means no closures
+                        exist — fall back to full cumulation (jaar <= target_year).
 
         Returns:
             dict: Summary data grouped by Parent and Aangifte
@@ -514,11 +518,19 @@ class MutatiesCache:
         if user_tenants is not None:
             df = df[df["administration"].isin(user_tenants)]
 
-        # NEW MODEL: Use current year only for ALL accounts
-        # Balance sheet accounts include OpeningBalance which brings forward history
-        mask = ((df["VW"] == "N") & (df["jaar"] == year_int)) | (
-            (df["VW"] == "Y") & (df["jaar"] == year_int)
-        )
+        # Closure-aware filtering:
+        # - VW='N' (balance sheet): cumulate from start_year through target_year
+        # - VW='Y' (P&L): current year only (period-based)
+        if start_year is not None:
+            # Closures exist: cumulate from start_year (last_closed_year + 1) through target year
+            mask = ((df["VW"] == "N") & (df["jaar"] >= start_year) & (df["jaar"] <= year_int)) | (
+                (df["VW"] == "Y") & (df["jaar"] == year_int)
+            )
+        else:
+            # No closures: cumulate all years <= target_year for balance sheet
+            mask = ((df["VW"] == "N") & (df["jaar"] <= year_int)) | (
+                (df["VW"] == "Y") & (df["jaar"] == year_int)
+            )
         df = df[mask]
 
         # Filter by administration (exact match for tenant isolation)
@@ -536,14 +548,14 @@ class MutatiesCache:
         return summary.to_dict("records")
 
     def query_aangifte_ib_details(
-        self, year, administration, parent, aangifte, user_tenants=None, snapshot=None
+        self, year, administration, parent, aangifte, user_tenants=None, snapshot=None, start_year=None
     ):
         """
         Query detailed accounts for specific Parent and Aangifte
 
-        Uses NEW MODEL (year-end closure):
-        - Balance sheet accounts (VW='N'): Current year only (includes OpeningBalance)
-        - P&L accounts (VW='Y'): Current year only
+        Uses closure-aware filtering:
+        - Balance sheet accounts (VW='N'): Cumulate from start_year through target year
+        - P&L accounts (VW='Y'): Current year only (period-based)
 
         Args:
             year: Year to filter
@@ -552,6 +564,9 @@ class MutatiesCache:
             aangifte: Aangifte category
             user_tenants: List of tenants user has access to (for security filtering)
             snapshot: Optional DataFrame snapshot for consistent reads across calls
+            start_year: First year to include for balance sheet cumulation
+                        (from get_closure_aware_start_year). None means no closures
+                        exist — fall back to full cumulation (jaar <= target_year).
 
         Returns:
             list: Account details with amounts
@@ -565,10 +580,21 @@ class MutatiesCache:
         if user_tenants is not None:
             df = df[df["administration"].isin(user_tenants)]
 
-        # NEW MODEL: Use current year only for ALL accounts
-        mask = ((df["VW"] == "N") & (df["jaar"] == int(year))) | (
-            (df["VW"] == "Y") & (df["jaar"] == int(year))
-        )
+        year_int = int(year)
+
+        # Closure-aware filtering:
+        # - VW='N' (balance sheet): cumulate from start_year through target_year
+        # - VW='Y' (P&L): current year only (period-based)
+        if start_year is not None:
+            # Closures exist: cumulate from start_year (last_closed_year + 1) through target year
+            mask = ((df["VW"] == "N") & (df["jaar"] >= start_year) & (df["jaar"] <= year_int)) | (
+                (df["VW"] == "Y") & (df["jaar"] == year_int)
+            )
+        else:
+            # No closures: cumulate all years <= target_year for balance sheet
+            mask = ((df["VW"] == "N") & (df["jaar"] <= year_int)) | (
+                (df["VW"] == "Y") & (df["jaar"] == year_int)
+            )
         df = df[mask]
 
         # Filter by criteria (exact match for tenant isolation)

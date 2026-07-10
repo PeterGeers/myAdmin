@@ -17,6 +17,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from services.template_service import TemplateService
 from xlsx_styles import apply_worksheet_formatting
 from xlsx_report_generators import XLSXProgressExportMixin
+from utils.closure_helpers import get_closure_aware_start_year
 import logging
 
 logger = logging.getLogger(__name__)
@@ -103,20 +104,36 @@ class XLSXExportProcessor(XLSXProgressExportMixin):
 
     def make_ledgers(self, year, administration):
         """Calculate starting balance and add all transactions for a specific year/administration."""
+        # Determine closure-aware start year for balance cumulation
+        start_year = get_closure_aware_start_year(self.db, administration)
+
         conn = self.db.get_connection()
         cursor = conn.cursor(dictionary=True)
 
         try:
             # Get balance accounts (VW = N) for years before target year
-            balance_query = """
-                SELECT Reknum, AccountName, Parent, Administration,
-                       SUM(Amount) as Amount
-                FROM vw_mutaties 
-                WHERE VW = 'N' AND Administration LIKE %s AND jaar < %s
-                GROUP BY Reknum, AccountName, Parent, Administration
-                HAVING ABS(SUM(Amount)) > 0.01
-            """
-            cursor.execute(balance_query, [f"{administration}%", year])
+            if start_year:
+                # Closures exist: only include years from start_year (last_closed_year + 1)
+                balance_query = """
+                    SELECT Reknum, AccountName, Parent, Administration,
+                           SUM(Amount) as Amount
+                    FROM vw_mutaties 
+                    WHERE VW = 'N' AND Administration LIKE %s AND jaar >= %s AND jaar < %s
+                    GROUP BY Reknum, AccountName, Parent, Administration
+                    HAVING ABS(SUM(Amount)) > 0.01
+                """
+                cursor.execute(balance_query, [f"{administration}%", start_year, year])
+            else:
+                # No closures: original behavior — all years before target
+                balance_query = """
+                    SELECT Reknum, AccountName, Parent, Administration,
+                           SUM(Amount) as Amount
+                    FROM vw_mutaties 
+                    WHERE VW = 'N' AND Administration LIKE %s AND jaar < %s
+                    GROUP BY Reknum, AccountName, Parent, Administration
+                    HAVING ABS(SUM(Amount)) > 0.01
+                """
+                cursor.execute(balance_query, [f"{administration}%", year])
             balance_data = cursor.fetchall()
 
             # Create beginning balance records
