@@ -43,7 +43,10 @@ def pdf_validate_urls_stream(
     # Reject 'all' — PDF validation must target a specific tenant
     if administration == "all":
         return jsonify(
-            {"success": False, "error": "A specific administration is required for PDF validation"}
+            {
+                "success": False,
+                "error": "A specific administration is required for PDF validation",
+            }
         ), 400
 
     def generate_progress():
@@ -103,7 +106,10 @@ def pdf_validate_urls(
         # Reject 'all' — PDF validation must target a specific tenant
         if administration == "all":
             return jsonify(
-                {"success": False, "error": "A specific administration is required for PDF validation"}
+                {
+                    "success": False,
+                    "error": "A specific administration is required for PDF validation",
+                }
             ), 400
 
         print(f"Validating year: {year}, administration: {administration}")

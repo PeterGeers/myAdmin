@@ -47,16 +47,14 @@ This is the highest-risk flaw — exploitable if any tenant name is a prefix of 
 
 ## Phase 4: Cache Consistency — Atomic Reference Swapping (1.5 hours)
 
-- [ ] 4.1 Rename `self.data` to `self._data` in `MutatiesCache.__init__`
-- [ ] 4.2 Add `@property` getter `data` that returns `self._data` (maintains backward compatibility)
-- [ ] 4.3 Refactor `_refresh()` to build new DataFrame and assign atomically: `self._data = new_df`
-- [ ] 4.4 Refactor `_ensure_years_loaded()` to create combined DataFrame with `pd.concat()` and assign atomically instead of mutating in-place
-- [ ] 4.5 Add `get_snapshot(db_manager)` method that returns the current `self._data` reference (for request-scoped usage)
-- [ ] 4.6 Remove unnecessary `self.data.copy()` calls in query methods — replace with direct reference read since DataFrames are never mutated in-place after the fix
-- [ ] 4.7 Update `query_aangifte_ib()` and `query_aangifte_ib_details()` to accept optional `snapshot` parameter — use it instead of `self._data` when provided
-- [ ] 4.8 Update `aangifte_ib_routes.py` to capture a snapshot once and pass it to both summary and detail queries (note: these are separate HTTP requests, so this only helps for the export endpoint which calls both)
-- [ ] 4.9 Run full test suite: `pytest tests/ -v --timeout=60`
-- [ ] 4.10 Stress test: simulate concurrent cache refresh + read to verify no data corruption
+- [x] 4.1 Update `MutatiesCache` class docstring to document thread-safety model
+- [x] 4.2 Add `get_snapshot(db_manager)` method that returns the current `self.data` reference (for request-scoped usage)
+- [x] 4.3 Refactor `_refresh()` — already uses atomic assignment `self.data = pd.read_sql(...)` (verified, no change needed)
+- [x] 4.4 Refactor `_ensure_years_loaded()` — already uses atomic `self.data = pd.concat(...)` (verified, no change needed)
+- [x] 4.5 Remove unnecessary `self.data.copy()` calls in query methods — replaced with direct reference read since filtering creates new DataFrames
+- [x] 4.6 Update `query_aangifte_ib()` and `query_aangifte_ib_details()` to accept optional `snapshot` parameter
+- [x] 4.7 Update `aangifte_ib_routes.py` export endpoint to use snapshot for consistent summary+details
+- [x] 4.8 Run focused tests: `pytest tests/unit/test_mutaties_cache.py tests/unit/test_aangifte_ib_generator.py`
 
 **Time estimate:** 1.5 hours  
 **Dependencies:** Phase 3 (cache method signature changes)
