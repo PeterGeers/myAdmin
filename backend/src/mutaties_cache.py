@@ -437,7 +437,7 @@ class MutatiesCache:
             "needs_refresh": self._needs_refresh(),
         }
 
-    def query_aangifte_ib(self, year, administration="all", db_manager=None):
+    def query_aangifte_ib(self, year, administration="all", db_manager=None, user_tenants=None):
         """
         Query Aangifte IB data from cache
 
@@ -449,6 +449,7 @@ class MutatiesCache:
             year: Year to filter (string or int)
             administration: Administration to filter (default: 'all')
             db_manager: DatabaseManager instance (for on-demand loading)
+            user_tenants: List of tenants user has access to (for security filtering)
 
         Returns:
             dict: Summary data grouped by Parent and Aangifte
@@ -470,6 +471,10 @@ class MutatiesCache:
 
         df = self.data.copy()
 
+        # SECURITY: Filter by user's accessible tenants first
+        if user_tenants is not None:
+            df = df[df["administration"].isin(user_tenants)]
+
         # NEW MODEL: Use current year only for ALL accounts
         # Balance sheet accounts include OpeningBalance which brings forward history
         mask = ((df["VW"] == "N") & (df["jaar"] == year_int)) | (
@@ -477,9 +482,9 @@ class MutatiesCache:
         )
         df = df[mask]
 
-        # Filter by administration
+        # Filter by administration (exact match for tenant isolation)
         if administration != "all":
-            df = df[df["administration"].str.startswith(administration)]
+            df = df[df["administration"] == administration]
 
         # Group by Parent and Aangifte
         summary = df.groupby(["Parent", "Aangifte"])["Amount"].sum().reset_index()
@@ -526,9 +531,9 @@ class MutatiesCache:
         )
         df = df[mask]
 
-        # Filter by criteria
+        # Filter by criteria (exact match for tenant isolation)
         if administration != "all":
-            df = df[df["administration"].str.startswith(administration)]
+            df = df[df["administration"] == administration]
 
         df = df[(df["Parent"] == parent) & (df["Aangifte"] == aangifte)]
 

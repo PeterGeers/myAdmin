@@ -115,7 +115,7 @@ const MutatiesReport: React.FC = () => {
       const params = new URLSearchParams({
         dateFrom: current.dateFrom,
         dateTo: current.dateTo,
-        administration: currentTenant || 'all',
+        administration: currentTenant,
         profitLoss: 'all'
       });
 

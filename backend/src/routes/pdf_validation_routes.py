@@ -40,6 +40,12 @@ def pdf_validate_urls_stream(
             {"success": False, "error": "Access denied to requested administration"}
         ), 403
 
+    # Reject 'all' — PDF validation must target a specific tenant
+    if administration == "all":
+        return jsonify(
+            {"success": False, "error": "A specific administration is required for PDF validation"}
+        ), 400
+
     def generate_progress():
         try:
             for progress_data in validator.validate_pdf_urls_with_progress(
@@ -93,6 +99,12 @@ def pdf_validate_urls(
             return jsonify(
                 {"success": False, "error": "Access denied to requested administration"}
             ), 403
+
+        # Reject 'all' — PDF validation must target a specific tenant
+        if administration == "all":
+            return jsonify(
+                {"success": False, "error": "A specific administration is required for PDF validation"}
+            ), 400
 
         print(f"Validating year: {year}, administration: {administration}")
 

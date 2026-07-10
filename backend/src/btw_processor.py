@@ -182,7 +182,7 @@ class BTWProcessor:
             df_filtered = df[
                 (df["ReferenceNumber"] == "Opening Balance")
                 & (df["TransactionDate"] == f"{year}-01-01")
-                & (df["administration"].str.startswith(administration))
+                & (df["administration"] == administration)
                 & (df["Reknum"].isin(vat_accounts))
             ].copy()
 
@@ -219,7 +219,7 @@ class BTWProcessor:
                 (df["TransactionDate"] >= f"{year}-01-01")
                 & (df["TransactionDate"] <= end_date)
                 & (df["ReferenceNumber"] != "Opening Balance")
-                & (df["administration"].str.startswith(administration))
+                & (df["administration"] == administration)
                 & (df["Reknum"].isin(vat_accounts))
             ].copy()
 
@@ -251,9 +251,9 @@ class BTWProcessor:
                 (df["jaar"] == int(year)) & (df["kwartaal"] == int(quarter))
             ].copy()
 
-            # Filter by administration (LIKE pattern) - lowercase column name
+            # Filter by administration (exact match for tenant isolation)
             df_filtered = df_filtered[
-                df_filtered["administration"].str.startswith(administration)
+                df_filtered["administration"] == administration
             ]
 
             # Filter by BTW and revenue accounts

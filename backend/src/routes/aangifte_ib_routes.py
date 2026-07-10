@@ -57,13 +57,10 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         db = DatabaseManager(test_mode=flag)
 
         # Ensure cache is loaded (will auto-refresh if needed)
-        df = cache.get_data(db)
-
-        # SECURITY: Filter by user's accessible tenants
-        df = df[df["administration"].isin(user_tenants)]
+        cache.get_data(db)
 
         # Query from cache (much faster than SQL)
-        summary_data = cache.query_aangifte_ib(year, administration)
+        summary_data = cache.query_aangifte_ib(year, administration, user_tenants=user_tenants)
         # Get ALL available years from database (not just cached years)
         available_years = cache.get_available_years(db)
         # Only show administrations user has access to
@@ -118,11 +115,7 @@ def aangifte_ib_details(
         db = DatabaseManager(test_mode=flag)
 
         # Ensure cache is loaded (will auto-refresh if needed)
-        df = cache.get_data(db)
-
-        # SECURITY: Filter by user's accessible tenants
-        # Note: Column name is 'administration' (lowercase) from vw_mutaties view
-        df = df[df["administration"].isin(user_tenants)]
+        cache.get_data(db)
 
         # Query from cache (much faster than SQL) with tenant filtering
         details_data = cache.query_aangifte_ib_details(
@@ -179,7 +172,12 @@ def aangifte_ib_export(
             return jsonify({"success": False, "error": "Year is required"}), 400
 
         # Validate user has access to requested administration
-        if administration != "all" and administration not in user_tenants:
+        if administration == "all":
+            return jsonify(
+                {"success": False, "error": "A specific administration is required for export"}
+            ), 400
+
+        if administration not in user_tenants:
             return jsonify(
                 {"success": False, "error": "Access denied to administration"}
             ), 403
