@@ -323,9 +323,7 @@ def _get_quarter_data(
         ].copy()
 
         # Filter by administration (exact match for tenant isolation)
-        df_filtered = df_filtered[
-            df_filtered["administration"] == administration
-        ]
+        df_filtered = df_filtered[df_filtered["administration"] == administration]
 
         # Filter by BTW and revenue accounts
         df_filtered = df_filtered[

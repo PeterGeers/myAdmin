@@ -60,7 +60,9 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         cache.get_data(db)
 
         # Query from cache (much faster than SQL)
-        summary_data = cache.query_aangifte_ib(year, administration, user_tenants=user_tenants)
+        summary_data = cache.query_aangifte_ib(
+            year, administration, user_tenants=user_tenants
+        )
         # Get ALL available years from database (not just cached years)
         available_years = cache.get_available_years(db)
         # Only show administrations user has access to
@@ -174,7 +176,10 @@ def aangifte_ib_export(
         # Validate user has access to requested administration
         if administration == "all":
             return jsonify(
-                {"success": False, "error": "A specific administration is required for export"}
+                {
+                    "success": False,
+                    "error": "A specific administration is required for export",
+                }
             ), 400
 
         if administration not in user_tenants:
@@ -186,8 +191,8 @@ def aangifte_ib_export(
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
 
-        # Ensure cache is loaded
-        cache.get_data(db)
+        # Get consistent snapshot for the entire export operation
+        snapshot = cache.get_snapshot(db)
 
         # Use report_generators to generate table rows
         from report_generators import generate_table_rows

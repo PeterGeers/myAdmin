@@ -13,8 +13,15 @@ logger = logging.getLogger(__name__)
 
 class MutatiesCache:
     """
-    Thread-safe in-memory cache for vw_mutaties data
-    Automatically refreshes data based on TTL (Time To Live)
+    Thread-safe in-memory cache for vw_mutaties data.
+    Automatically refreshes data based on TTL (Time To Live).
+
+    Thread safety model:
+    - All writes to self.data create a NEW DataFrame and assign atomically
+      (Python's GIL guarantees reference assignment is atomic)
+    - Readers grab self.data once and work with that snapshot reference
+    - Filtering operations (df[mask]) always return new DataFrames, never mutate
+    - Use get_snapshot() for consistent reads across multiple query calls
     """
 
     def __init__(self, ttl_minutes=30):
@@ -55,6 +62,28 @@ class MutatiesCache:
         if requested_years and self.data is not None:
             self._ensure_years_loaded(db_manager, requested_years)
 
+        return self.data
+
+    def get_snapshot(self, db_manager, requested_years=None):
+        """
+        Get a consistent snapshot of cached data for use within a single request.
+
+        This ensures that multiple query methods called within the same request
+        all operate on the same DataFrame, even if the cache refreshes between calls.
+
+        Usage in routes:
+            snapshot = cache.get_snapshot(db)
+            summary = cache.query_aangifte_ib(year, admin, snapshot=snapshot)
+            details = cache.query_aangifte_ib_details(year, admin, ..., snapshot=snapshot)
+
+        Args:
+            db_manager: DatabaseManager instance for loading data
+            requested_years: Optional list of year integers to ensure are loaded
+
+        Returns:
+            pandas.DataFrame: Snapshot reference to cached data
+        """
+        self.get_data(db_manager, requested_years)
         return self.data
 
     def _needs_refresh(self):
@@ -437,7 +466,14 @@ class MutatiesCache:
             "needs_refresh": self._needs_refresh(),
         }
 
-    def query_aangifte_ib(self, year, administration="all", db_manager=None, user_tenants=None):
+    def query_aangifte_ib(
+        self,
+        year,
+        administration="all",
+        db_manager=None,
+        user_tenants=None,
+        snapshot=None,
+    ):
         """
         Query Aangifte IB data from cache
 
@@ -450,26 +486,29 @@ class MutatiesCache:
             administration: Administration to filter (default: 'all')
             db_manager: DatabaseManager instance (for on-demand loading)
             user_tenants: List of tenants user has access to (for security filtering)
+            snapshot: Optional DataFrame snapshot for consistent reads across calls
 
         Returns:
             dict: Summary data grouped by Parent and Aangifte
         """
-        if self.data is None:
+        if snapshot is None and self.data is None:
             raise ValueError("Cache not loaded")
 
         year_int = int(year)
 
         # Check if year is in cache, load if needed
-        if year_int not in self.data["jaar"].unique():
+        source = snapshot if snapshot is not None else self.data
+        if year_int not in source["jaar"].unique():
             if db_manager:
                 logger.info(f"Year {year_int} not in cache, loading on-demand...")
                 self.load_additional_year(db_manager, year_int)
+                source = self.data  # Re-read after load
             else:
                 logger.warning(
                     f"Year {year_int} not in cache and no db_manager provided"
                 )
 
-        df = self.data.copy()
+        df = source
 
         # SECURITY: Filter by user's accessible tenants first
         if user_tenants is not None:
@@ -497,7 +536,7 @@ class MutatiesCache:
         return summary.to_dict("records")
 
     def query_aangifte_ib_details(
-        self, year, administration, parent, aangifte, user_tenants=None
+        self, year, administration, parent, aangifte, user_tenants=None, snapshot=None
     ):
         """
         Query detailed accounts for specific Parent and Aangifte
@@ -512,14 +551,15 @@ class MutatiesCache:
             parent: Parent category
             aangifte: Aangifte category
             user_tenants: List of tenants user has access to (for security filtering)
+            snapshot: Optional DataFrame snapshot for consistent reads across calls
 
         Returns:
             list: Account details with amounts
         """
-        if self.data is None:
+        if snapshot is None and self.data is None:
             raise ValueError("Cache not loaded")
 
-        df = self.data.copy()
+        df = snapshot if snapshot is not None else self.data
 
         # SECURITY: Filter by user's accessible tenants first
         if user_tenants is not None:
