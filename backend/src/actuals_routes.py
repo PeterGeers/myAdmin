@@ -6,6 +6,7 @@ from mutaties_cache import get_cache
 from database import DatabaseManager
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from utils.closure_helpers import get_closure_aware_start_year
 
 # testnow for the second time
 load_dotenv()
@@ -41,6 +42,9 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
         cache = get_cache()
         db = DatabaseManager(test_mode=test_mode)
 
+        # Closure-aware start year for balance sheet queries
+        start_year = get_closure_aware_start_year(db, administration if administration != "all" else tenant)
+
         # Get cached data — ensure requested years are loaded
         year_list = [int(y) for y in years]
         df = cache.get_data(db, requested_years=year_list)
@@ -71,7 +75,10 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
                     year_df = filtered[filtered["jaar"] == year]
                 else:
                     # Open year: cumulative from start through this year
-                    year_df = filtered[filtered["jaar"] <= year]
+                    if start_year:
+                        year_df = filtered[(filtered["jaar"] >= start_year) & (filtered["jaar"] <= year)]
+                    else:
+                        year_df = filtered[filtered["jaar"] <= year]
 
                 # Group by Parent, Reknum, AccountName for this year
                 if len(year_df) > 0:
@@ -98,6 +105,8 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
             # Original behavior: sum across all years up to max selected year
             max_year = max(year_list)
             filtered = filtered[filtered["jaar"] <= max_year]
+            if start_year:
+                filtered = filtered[filtered["jaar"] >= start_year]
 
             grouped = filtered.groupby(
                 ["Parent", "Reknum", "AccountName"], as_index=False
