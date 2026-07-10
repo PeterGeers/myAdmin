@@ -52,15 +52,12 @@ describe('tenantApiService', () => {
       );
     });
 
-    it('should use "all" when no tenant is selected', async () => {
-      mockAuthenticatedGet.mockResolvedValue(new Response());
-
-      await tenantAwareGet('/api/test');
-
-      expect(mockAuthenticatedGet).toHaveBeenCalledWith(
-        '/api/test?administration=all',
-        undefined
+    it('should throw error when no tenant is selected', async () => {
+      await expect(tenantAwareGet('/api/test')).rejects.toThrow(
+        'No tenant selected. Please select a tenant first.'
       );
+
+      expect(mockAuthenticatedGet).not.toHaveBeenCalled();
     });
   });
 

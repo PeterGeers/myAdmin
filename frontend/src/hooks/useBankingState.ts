@@ -245,9 +245,13 @@ export function useBankingState() {
   const fetchMutaties = useCallback(async () => {
     try {
       const tenant = localStorage.getItem('selectedTenant');
+      if (!tenant) {
+        console.error('No tenant selected for mutaties fetch');
+        return;
+      }
       const params = new URLSearchParams({
         years: mutatiesFilters.years.join(','),
-        administration: tenant || 'all',
+        administration: tenant,
         limit: '99999',
       });
       const response = await authenticatedGet(`/api/banking/mutaties?${params}`);

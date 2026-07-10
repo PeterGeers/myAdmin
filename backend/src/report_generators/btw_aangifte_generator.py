@@ -233,7 +233,7 @@ def _get_opening_balance_vat(
         df_filtered = df[
             (df["ReferenceNumber"] == "Opening Balance")
             & (df["TransactionDate"] == f"{year}-01-01")
-            & (df["administration"].str.startswith(administration))
+            & (df["administration"] == administration)
             & (df["Reknum"].isin(["2010", "2020", "2021"]))
         ].copy()
 
@@ -273,7 +273,7 @@ def _get_current_year_vat(
             (df["TransactionDate"] >= f"{year}-01-01")
             & (df["TransactionDate"] <= end_date)
             & (df["ReferenceNumber"] != "Opening Balance")
-            & (df["administration"].str.startswith(administration))
+            & (df["administration"] == administration)
             & (df["Reknum"].isin(["2010", "2020", "2021"]))
         ].copy()
 
@@ -322,9 +322,9 @@ def _get_quarter_data(
             (df["jaar"] == int(year)) & (df["kwartaal"] == int(quarter))
         ].copy()
 
-        # Filter by administration
+        # Filter by administration (exact match for tenant isolation)
         df_filtered = df_filtered[
-            df_filtered["administration"].str.startswith(administration)
+            df_filtered["administration"] == administration
         ]
 
         # Filter by BTW and revenue accounts

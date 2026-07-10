@@ -8,11 +8,13 @@
 import { authenticatedGet, authenticatedPost } from './apiService';
 
 /**
- * Makes a GET request with automatic tenant context
+ * Makes a GET request with automatic tenant context.
+ * Throws if no tenant is selected — callers must handle or use requireTenant() guard.
  * @param endpoint - API endpoint (without query parameters)
  * @param additionalParams - Additional query parameters
  * @param options - Additional options for the request
  * @returns Promise resolving to the response
+ * @throws Error if no tenant is selected in localStorage
  */
 export const tenantAwareGet = async (
   endpoint: string, 
@@ -20,8 +22,11 @@ export const tenantAwareGet = async (
   options?: RequestInit
 ): Promise<Response> => {
   const currentTenant = localStorage.getItem('selectedTenant');
+  if (!currentTenant) {
+    throw new Error('No tenant selected. Please select a tenant first.');
+  }
   const params = new URLSearchParams({
-    administration: currentTenant || 'all',
+    administration: currentTenant,
     ...additionalParams
   });
   
@@ -30,11 +35,13 @@ export const tenantAwareGet = async (
 };
 
 /**
- * Makes a POST request with automatic tenant context in body
+ * Makes a POST request with automatic tenant context in body.
+ * Throws if no tenant is selected — callers must handle or use requireTenant() guard.
  * @param endpoint - API endpoint
  * @param data - Request body data
  * @param options - Additional options for the request
  * @returns Promise resolving to the response
+ * @throws Error if no tenant is selected in localStorage
  */
 export const tenantAwarePost = async (
   endpoint: string,
@@ -42,6 +49,9 @@ export const tenantAwarePost = async (
   options?: RequestInit
 ): Promise<Response> => {
   const currentTenant = localStorage.getItem('selectedTenant');
+  if (!currentTenant) {
+    throw new Error('No tenant selected. Please select a tenant first.');
+  }
   
   const tenantAwareData = {
     ...data,
