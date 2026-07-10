@@ -63,12 +63,12 @@ This is the highest-risk flaw — exploitable if any tenant name is a prefix of 
 
 ## Phase 5: Verification & Documentation (30 min)
 
-- [ ] 5.1 Run full backend test suite: `pytest tests/ -v`
-- [ ] 5.2 Run full frontend test suite: `npm run test -- --run`
-- [ ] 5.3 Manual integration test: open Aangifte IB, verify summary matches detail totals
-- [ ] 5.4 Manual security test: verify that with tenant "GoodwinSolutions" selected, no data from "PeterPrive" or "kimgeers" leaks through
-- [ ] 5.5 Update `gitBug.md` with resolution notes
-- [ ] 5.6 Clean up debug scripts: remove `backend/scripts/debug_liquide*.py`
+- [ ] 5.1 Run full backend test suite:
+- [ ] 5.2 Run full frontend test suite:
+- [x] 5.3 Manual integration test: open Aangifte IB, verify summary matches detail totals
+- [x] 5.4 Manual security test: verify that with tenant "GoodwinSolutions" selected, no data from "PeterPrive" or "kimgeers" leaks through
+- [ ] 5.5 ~~Update `gitBug.md` with resolution notes~~ (file will be removed)
+- [x] 5.6 Clean up debug scripts: remove `backend/scripts/debug_liquide*.py` (already done)
 
 **Time estimate:** 30 min  
 **Dependencies:** All previous phases

@@ -191,8 +191,8 @@ def aangifte_ib_export(
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
 
-        # Get consistent snapshot for the entire export operation
-        snapshot = cache.get_snapshot(db)
+        # Ensure cache is loaded
+        cache.get_data(db)
 
         # Use report_generators to generate table rows
         from report_generators import generate_table_rows
