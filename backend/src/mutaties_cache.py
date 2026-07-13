@@ -523,9 +523,11 @@ class MutatiesCache:
         # - VW='Y' (P&L): current year only (period-based)
         if start_year is not None:
             # Closures exist: cumulate from start_year (last_closed_year + 1) through target year
-            mask = ((df["VW"] == "N") & (df["jaar"] >= start_year) & (df["jaar"] <= year_int)) | (
-                (df["VW"] == "Y") & (df["jaar"] == year_int)
-            )
+            mask = (
+                (df["VW"] == "N")
+                & (df["jaar"] >= start_year)
+                & (df["jaar"] <= year_int)
+            ) | ((df["VW"] == "Y") & (df["jaar"] == year_int))
         else:
             # No closures: cumulate all years <= target_year for balance sheet
             mask = ((df["VW"] == "N") & (df["jaar"] <= year_int)) | (
@@ -548,7 +550,14 @@ class MutatiesCache:
         return summary.to_dict("records")
 
     def query_aangifte_ib_details(
-        self, year, administration, parent, aangifte, user_tenants=None, snapshot=None, start_year=None
+        self,
+        year,
+        administration,
+        parent,
+        aangifte,
+        user_tenants=None,
+        snapshot=None,
+        start_year=None,
     ):
         """
         Query detailed accounts for specific Parent and Aangifte
@@ -587,9 +596,11 @@ class MutatiesCache:
         # - VW='Y' (P&L): current year only (period-based)
         if start_year is not None:
             # Closures exist: cumulate from start_year (last_closed_year + 1) through target year
-            mask = ((df["VW"] == "N") & (df["jaar"] >= start_year) & (df["jaar"] <= year_int)) | (
-                (df["VW"] == "Y") & (df["jaar"] == year_int)
-            )
+            mask = (
+                (df["VW"] == "N")
+                & (df["jaar"] >= start_year)
+                & (df["jaar"] <= year_int)
+            ) | ((df["VW"] == "Y") & (df["jaar"] == year_int))
         else:
             # No closures: cumulate all years <= target_year for balance sheet
             mask = ((df["VW"] == "N") & (df["jaar"] <= year_int)) | (

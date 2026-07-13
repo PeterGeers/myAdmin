@@ -43,7 +43,9 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
         db = DatabaseManager(test_mode=test_mode)
 
         # Closure-aware start year for balance sheet queries
-        start_year = get_closure_aware_start_year(db, administration if administration != "all" else tenant)
+        start_year = get_closure_aware_start_year(
+            db, administration if administration != "all" else tenant
+        )
 
         # Get cached data — ensure requested years are loaded
         year_list = [int(y) for y in years]
@@ -76,7 +78,10 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
                 else:
                     # Open year: cumulative from start through this year
                     if start_year:
-                        year_df = filtered[(filtered["jaar"] >= start_year) & (filtered["jaar"] <= year)]
+                        year_df = filtered[
+                            (filtered["jaar"] >= start_year)
+                            & (filtered["jaar"] <= year)
+                        ]
                     else:
                         year_df = filtered[filtered["jaar"] <= year]
 
