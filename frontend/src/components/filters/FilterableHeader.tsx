@@ -39,6 +39,8 @@ export const FilterableHeader: React.FC<FilterableHeaderProps> = ({
   onSort,
   placeholder,
   isNumeric = false,
+  w,
+  maxW,
 }) => {
   const ariaSortValue = sortable
     ? sortDirection === 'asc'
@@ -53,6 +55,8 @@ export const FilterableHeader: React.FC<FilterableHeaderProps> = ({
       bg="gray.700"
       aria-sort={ariaSortValue}
       isNumeric={isNumeric}
+      w={w}
+      maxW={maxW}
     >
       <VStack spacing={1} align={isNumeric ? 'flex-end' : 'flex-start'}>
         {/* Label row with optional sort indicator */}

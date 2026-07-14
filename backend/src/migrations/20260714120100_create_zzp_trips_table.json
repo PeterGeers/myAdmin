@@ -1,0 +1,12 @@
+{
+  "name": "create_zzp_trips_table",
+  "description": "Create zzp_trips table for trip/mileage registration. Stores individual trip records with odometer readings, generated distance column, category classification, billing status, and audit versioning.",
+  "timestamp": "20260714120100",
+  "up": [
+    "CREATE TABLE IF NOT EXISTS zzp_trips (id INT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(50) NOT NULL, vehicle_id INT NOT NULL, trip_date DATE NOT NULL, start_time TIME DEFAULT NULL, end_time TIME DEFAULT NULL, start_address VARCHAR(500) NOT NULL, end_address VARCHAR(500) NOT NULL, start_odometer INT NOT NULL, end_odometer INT NOT NULL, distance_km INT GENERATED ALWAYS AS (end_odometer - start_odometer) STORED, trip_category VARCHAR(50) NOT NULL COMMENT 'Zakelijk, Privé, Woon-werk', trip_purpose VARCHAR(255) NOT NULL COMMENT 'From configurable list', route_description TEXT DEFAULT NULL COMMENT 'Only if deviating from standard route', contact_id INT DEFAULT NULL COMMENT 'Linked client from contacts table', project_name VARCHAR(255) DEFAULT NULL, notes TEXT DEFAULT NULL, is_billable BOOLEAN DEFAULT FALSE, is_billed BOOLEAN DEFAULT FALSE, invoice_id INT DEFAULT NULL COMMENT 'Set when billed', is_gap_fill BOOLEAN DEFAULT FALSE COMMENT 'Auto-generated gap entry', is_cancelled BOOLEAN DEFAULT FALSE COMMENT 'Soft-delete', cancel_reason TEXT DEFAULT NULL, version INT DEFAULT 1 COMMENT 'Incremented on correction', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, created_by VARCHAR(255) DEFAULT NULL, FOREIGN KEY (vehicle_id) REFERENCES zzp_vehicles(id), FOREIGN KEY (contact_id) REFERENCES contacts(id), FOREIGN KEY (invoice_id) REFERENCES invoices(id), INDEX idx_administration (administration), INDEX idx_admin_vehicle_date (administration, vehicle_id, trip_date), INDEX idx_admin_contact (administration, contact_id), INDEX idx_admin_billed (administration, is_billed), INDEX idx_admin_category (administration, trip_category), INDEX idx_vehicle_odometer (vehicle_id, start_odometer)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS zzp_trips"
+  ],
+  "version": "1.0"
+}

@@ -140,6 +140,253 @@
     "overdue61_90": "61-90 days",
     "overdue90plus": "90+ days"
   },
+  "trips": {
+    "title": "Trip Registration",
+    "quickEntry": "Quick Entry",
+    "newTrip": "New Trip",
+    "editTrip": "Edit Trip",
+    "tripDetails": "Trip Details",
+    "registerTrip": "Register Trip",
+    "startTrip": "Start Trip",
+    "stopTrip": "Stop Trip",
+    "tripRunning": "Trip Active",
+    "noTrips": "No trips found",
+    "labels": {
+      "vehicle": "Vehicle",
+      "date": "Date",
+      "startTime": "Departure Time",
+      "endTime": "Arrival Time",
+      "startAddress": "Start Address",
+      "endAddress": "Destination",
+      "startOdometer": "Start Odometer",
+      "endOdometer": "End Odometer",
+      "distance": "Distance (km)",
+      "category": "Category",
+      "purpose": "Purpose",
+      "client": "Client",
+      "project": "Project",
+      "notes": "Notes",
+      "routeDescription": "Route Description",
+      "billable": "Billable",
+      "billed": "Billed",
+      "kmRate": "Km Rate",
+      "amount": "Amount",
+      "correctionReason": "Correction Reason",
+      "cancelReason": "Cancellation Reason",
+      "previousOdometer": "Previous reading: {{km}}"
+    },
+    "categories": {
+      "zakelijk": "Business",
+      "prive": "Private",
+      "woonWerk": "Commute"
+    },
+    "purposes": {
+      "klantbezoek": "Client Visit",
+      "vergadering": "Meeting",
+      "materiaalOphalen": "Material Pickup",
+      "overig": "Other"
+    },
+    "status": {
+      "billed": "Billed",
+      "unbilled": "Unbilled",
+      "billable": "Billable",
+      "cancelled": "Cancelled",
+      "gapFill": "Unregistered",
+      "corrected": "Corrected"
+    },
+    "gaps": {
+      "title": "Unregistered",
+      "warning": "There are {{km}} km missing between the previous trip and this trip",
+      "acceptGapFill": "Accept Gap Fill",
+      "unresolvedGaps": "Unresolved Gaps",
+      "fillGap": "Fill Gap",
+      "gapDetected": "Gap detected: {{km}} km",
+      "largeDistanceWarning": "Warning: distance of {{km}} km is unusually large"
+    },
+    "gapFill": {
+      "bannerMessage": "Missing {{km}} km ({{from}} → {{to}})",
+      "accept": "Accept as private",
+      "dismiss": "Dismiss",
+      "accepted": "Gap-fill trip created",
+      "error": "Failed to create gap-fill trip"
+    },
+    "bijtelling": {
+      "title": "Private km (bijtelling)",
+      "warning": "Warning: {{remaining}} km of private use remaining this year",
+      "warningMessage": "Warning: you are approaching the 500 km private use limit",
+      "exceeded": "Limit exceeded — private use addition applies",
+      "remainingKm": "{{remaining}} km of private use remaining",
+      "threshold": "Threshold reached",
+      "limit": "Limit",
+      "used": "Used",
+      "remaining": "Remaining",
+      "status": "Private use status",
+      "exempt": "Exempt",
+      "liable": "Liable"
+    },
+    "summary": {
+      "title": "Summary",
+      "totalKm": "Total km",
+      "zakelijkKm": "Business km",
+      "priveKm": "Private km",
+      "woonWerkKm": "Commute km",
+      "taxDeduction": "Tax Deduction",
+      "period": "Period",
+      "yearly": "Yearly",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly"
+    },
+    "billing": {
+      "invoiceSelected": "Invoice Selected",
+      "selectTrips": "Select trips to invoice",
+      "noUnbilled": "No unbilled trips for this contact",
+      "createInvoice": "Create Invoice",
+      "tripsInvoiced": "{{count}} trip(s) invoiced",
+      "billedProtected": "Cannot edit a billed trip"
+    },
+    "invoice": {
+      "button": "Invoice",
+      "noContact": "No client linked to selected trips",
+      "multipleContacts": "Selected trips have different clients",
+      "created": "Invoice created",
+      "error": "Error creating invoice"
+    },
+    "toast": {
+      "created": "Trip created",
+      "updated": "Trip updated",
+      "cancelled": "Trip cancelled",
+      "gapWarning": "Odometer gap detected",
+      "error": "An error occurred"
+    },
+    "actions": {
+      "cancelTrip": "Cancel trip",
+      "confirmCancel": "Confirm"
+    },
+    "cancelConfirm": {
+      "message": "Are you sure you want to cancel this trip? This cannot be undone."
+    },
+    "placeholders": {
+      "correctionReason": "Reason for correction...",
+      "cancelReason": "Reason for cancellation..."
+    },
+    "export": {
+      "title": "Export",
+      "pdf": "PDF",
+      "csv": "CSV",
+      "excel": "Excel (XLSX)",
+      "year": "Year",
+      "generating": "Generating...",
+      "downloadReady": "Download ready"
+    },
+    "import": {
+      "title": "Import Trips",
+      "uploadFile": "Upload File",
+      "selectVehicle": "Select Vehicle",
+      "columnMapping": "Column Mapping",
+      "preview": "Preview",
+      "commit": "Import",
+      "template": "Download Template",
+      "fileTypes": "CSV or Excel (.xlsx)",
+      "dragDrop": "Drag file here or click to select",
+      "mapping": {
+        "date": "Date",
+        "startAddress": "Start Address",
+        "endAddress": "Destination",
+        "startKm": "Start KM",
+        "endKm": "End KM",
+        "purpose": "Purpose",
+        "category": "Category",
+        "client": "Client",
+        "notes": "Notes"
+      },
+      "results": {
+        "totalRows": "Total Rows",
+        "valid": "Valid",
+        "warnings": "Warnings",
+        "errors": "Errors",
+        "skipErrors": "Skip Error Rows",
+        "importSuccess": "{{count}} trips imported successfully",
+        "duplicateDetected": "Duplicate trip detected"
+      }
+    },
+    "presets": {
+      "title": "Route Presets",
+      "newPreset": "New Route",
+      "editPreset": "Edit Route",
+      "fromAddress": "From",
+      "toAddress": "To",
+      "typicalDistance": "Typical Distance",
+      "useCount": "Times Used",
+      "noPresets": "No route presets yet"
+    },
+    "vehicles": {
+      "title": "Vehicles",
+      "newVehicle": "New Vehicle",
+      "editVehicle": "Edit Vehicle",
+      "licensePlate": "License Plate",
+      "make": "Make",
+      "model": "Model",
+      "yearBuilt": "Year",
+      "vin": "Chassis Number (VIN)",
+      "vehicleType": "Vehicle Type",
+      "odometerUnit": "Unit",
+      "ownerLeaseCompany": "Owner/Lease Company",
+      "startOdometer": "Start Odometer",
+      "startDate": "Start Date",
+      "deactivate": "Deactivate",
+      "deactivateConfirm": "Are you sure you want to deactivate this vehicle?",
+      "types": {
+        "privateForBusiness": "Private for Business Use",
+        "business": "Business Vehicle"
+      },
+      "units": {
+        "km": "Kilometers",
+        "miles": "Miles"
+      }
+    },
+    "audit": {
+      "title": "Correction History",
+      "version": "Version",
+      "action": "Action",
+      "changedBy": "Changed By",
+      "changedAt": "Changed At",
+      "changedFields": "Changed Fields",
+      "oldValue": "Old Value",
+      "newValue": "New Value",
+      "actions": {
+        "created": "Created",
+        "updated": "Updated",
+        "cancelled": "Cancelled",
+        "imported": "Imported"
+      }
+    },
+    "validation": {
+      "endOdometerGreater": "End odometer must be greater than start odometer",
+      "startOdometerRequired": "Start odometer is required",
+      "endOdometerRequired": "End odometer is required",
+      "dateRequired": "Date is required",
+      "startAddressRequired": "Start address is required",
+      "endAddressRequired": "Destination is required",
+      "categoryRequired": "Category is required",
+      "purposeRequired": "Purpose is required",
+      "vehicleRequired": "Vehicle is required",
+      "correctionReasonRequired": "Correction reason is required",
+      "cancelReasonRequired": "Cancellation reason is required",
+      "invalidDate": "Invalid date",
+      "futureDateNotAllowed": "Date cannot be in the future",
+      "licensePlateRequired": "License plate is required",
+      "licensePlateDuplicate": "This license plate is already registered"
+    },
+    "filters": {
+      "allVehicles": "All Vehicles",
+      "allCategories": "All Categories",
+      "allClients": "All Clients",
+      "dateFrom": "From",
+      "dateTo": "To",
+      "showGapFill": "Show Gaps",
+      "billingStatus": "Billing Status"
+    }
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",

@@ -61,7 +61,7 @@ interface DeleteDialogProps {
   selectedTenant: Tenant | null;
   actionLoading: boolean;
   onDelete: () => void;
-  cancelRef: React.RefObject<HTMLButtonElement>;
+  cancelRef: React.RefObject<HTMLButtonElement | null>;
   t: (key: string, params?: Record<string, unknown>) => string;
 }
 

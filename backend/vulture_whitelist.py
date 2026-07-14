@@ -413,6 +413,7 @@ copy_last_invoice  # noqa
 create_credit_note  # noqa
 create_invoice  # noqa
 create_invoice_from_time_entries  # noqa
+create_invoice_from_trips  # noqa
 create_time_entry  # noqa
 delete_time_entry  # noqa
 get_aging  # noqa

@@ -104,8 +104,8 @@ describe('Tenant Admin Integration Tests', () => {
       const listResult = await api.listUsers();
 
       expect(listResult.users).toHaveLength(1);
-      expect(listResult.users[0].email).toBe('newuser@example.com');
-      expect(listResult.users[0].groups).toContain('Tenant_Admin');
+      expect(listResult.users![0].email).toBe('newuser@example.com');
+      expect(listResult.users![0].groups).toContain('Tenant_Admin');
 
       // Verify complete flow
       expect(global.fetch).toHaveBeenCalledTimes(3);

@@ -55,7 +55,7 @@ const BnbActualsCharts: React.FC<BnbActualsChartsProps> = ({
             <LineChart
               data={(() => {
                 const trendData = data.reduce((acc, row) => {
-                  const period = `${row.year}-Q${row.q || 1}`;
+                  const period = `${row.year ?? ''}-Q${row.q || 1}`;
                   if (!acc[period]) {
                     acc[period] = { period, year: row.year, quarter: row.q || 1 };
                     selectedAmounts.forEach(amount => {
@@ -63,7 +63,7 @@ const BnbActualsCharts: React.FC<BnbActualsChartsProps> = ({
                     });
                   }
                   selectedAmounts.forEach(amount => {
-                    acc[period][amount] += Number(row[amount]) || 0;
+                    acc[period][amount] = (Number(acc[period][amount]) || 0) + (Number(row[amount]) || 0);
                   });
                   return acc;
                 }, {} as Record<string, Record<string, unknown>>);
@@ -121,7 +121,7 @@ const BnbActualsCharts: React.FC<BnbActualsChartsProps> = ({
                     data={(() => {
                       const primaryAmount = selectedAmounts[0] || 'amountGross';
                       const grouped = data.reduce((acc, row) => {
-                        const key = row[viewType];
+                        const key = String(row[viewType] ?? '');
                         if (!acc[key]) acc[key] = 0;
                         acc[key] += Number(row[primaryAmount]) || 0;
                         return acc;
@@ -136,12 +136,12 @@ const BnbActualsCharts: React.FC<BnbActualsChartsProps> = ({
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
-                    label={(entry: { name: string; percent: number }) => `${entry.name}: ${(entry.percent * 100).toFixed(1)}%`}
+                    label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''}: ${((percent ?? 0) * 100).toFixed(1)}%`}
                   >
                     {(() => {
                       const primaryAmount = selectedAmounts[0] || 'amountGross';
                       const grouped = data.reduce((acc, row) => {
-                        const key = row[viewType];
+                        const key = String(row[viewType] ?? '');
                         if (!acc[key]) acc[key] = 0;
                         acc[key] += Number(row[primaryAmount]) || 0;
                         return acc;
@@ -170,7 +170,7 @@ const BnbActualsCharts: React.FC<BnbActualsChartsProps> = ({
             <CardBody>
               {(() => {
                 const primaryAmount = selectedAmounts[0] || 'amountGross';
-                const years = Array.from(new Set(data.map(row => row.year))).sort((a, b) => b - a);
+                const years = Array.from(new Set(data.map(row => row.year))).sort((a, b) => Number(b ?? 0) - Number(a ?? 0));
                 const currentYear = years[0];
                 const previousYear = years[1];
                 

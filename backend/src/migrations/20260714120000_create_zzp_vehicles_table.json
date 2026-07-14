@@ -1,0 +1,12 @@
+{
+  "name": "create_zzp_vehicles_table",
+  "description": "Create zzp_vehicles table for trip/mileage registration vehicle management. Stores registered vehicles per tenant with license plate, type classification, and odometer tracking.",
+  "timestamp": "20260714120000",
+  "up": [
+    "CREATE TABLE IF NOT EXISTS zzp_vehicles (id INT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(50) NOT NULL, license_plate VARCHAR(20) NOT NULL, make VARCHAR(100) DEFAULT NULL, model VARCHAR(100) DEFAULT NULL, year_built INT DEFAULT NULL, vin VARCHAR(17) DEFAULT NULL COMMENT 'Vehicle Identification Number (optional)', vehicle_type ENUM('private_for_business', 'business') NOT NULL, odometer_unit ENUM('km', 'miles') NOT NULL DEFAULT 'km', owner_lease_company VARCHAR(255) DEFAULT NULL, start_odometer INT NOT NULL COMMENT 'Odometer at registration', start_date DATE NOT NULL COMMENT 'Date of registration/start tracking', is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, created_by VARCHAR(255) DEFAULT NULL, INDEX idx_administration (administration), INDEX idx_admin_active (administration, is_active), UNIQUE INDEX idx_admin_plate (administration, license_plate)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS zzp_vehicles"
+  ],
+  "version": "1.0"
+}

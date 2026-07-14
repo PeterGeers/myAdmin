@@ -61,9 +61,9 @@ const ZZPDebtors: React.FC = () => {
         getPayables(),
         getAging(),
       ]);
-      if (recvResp.success) setReceivables(recvResp.data?.by_contact ?? recvResp.data ?? []);
-      if (payResp.success) setPayables(payResp.data?.by_contact ?? payResp.data ?? []);
-      if (agingResp.success) setAging(agingResp.data);
+      if (recvResp.success) setReceivables((recvResp.data as Record<string, unknown>)?.by_contact as typeof receivables ?? recvResp.data ?? []);
+      if (payResp.success) setPayables((payResp.data as Record<string, unknown>)?.by_contact as typeof payables ?? payResp.data ?? []);
+      if (agingResp.success) setAging((agingResp.data ?? null) as AgingData | null);
     } catch {
       toast({ title: 'Error loading debtor data', status: 'error' });
     } finally {
