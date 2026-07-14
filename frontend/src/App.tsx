@@ -61,6 +61,7 @@ function AppContent() {
   const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState<PageType>(() => {
     // Map URL paths to pages for PWA deep-link support
+    // Supports both dev (/) and production (/myAdmin/) base paths
     const urlPageMap: Record<string, PageType> = {
       '/zzp/ritten/quick': 'zzp-trip-quick',
       '/zzp/ritten': 'zzp-trips',
@@ -74,7 +75,11 @@ function AppContent() {
       '/banking': 'banking',
       '/budget': 'budget',
     };
-    const path = window.location.pathname;
+    // Strip base path (/myAdmin) if present
+    const basePath = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
+    const path = window.location.pathname.startsWith(basePath)
+      ? window.location.pathname.slice(basePath.length) || '/'
+      : window.location.pathname;
     return urlPageMap[path] || 'menu';
   });
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
