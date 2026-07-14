@@ -16,7 +16,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.1
 import logging
 from typing import List, Optional
 
-from db_exceptions import DatabaseError, IntegrityError
+from db_exceptions import IntegrityError
 
 logger = logging.getLogger(__name__)
 

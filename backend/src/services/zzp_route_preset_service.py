@@ -20,7 +20,6 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.3
 import logging
 from typing import List, Optional
 
-from db_exceptions import DatabaseError, IntegrityError
 from dialect_helpers import dialect
 
 logger = logging.getLogger(__name__)
