@@ -29,7 +29,6 @@ secret:
     - "**/.terraform/**"
     - "**/*.example"
     - "**/*-example.*"
-    - "**/*.md"
 
   # Ignore known test/placeholder secrets
   ignored_matches:
