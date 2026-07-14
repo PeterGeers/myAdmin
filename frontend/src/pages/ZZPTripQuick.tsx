@@ -107,10 +107,12 @@ const ZZPTripQuick: React.FC = () => {
     fetchLastTrip();
   }, [selectedVehicleId, vehicles]);
 
-  const handlePresetSelect = useCallback((preset: RoutePreset) => {
+  const handlePresetSelect = useCallback((preset: RoutePreset, reversed: boolean) => {
     setSelectedPresetId(preset.id);
-    setStartAddress(preset.from_address);
-    setEndAddress(preset.to_address);
+    const fromAddr = reversed ? preset.to_address : preset.from_address;
+    const toAddr = reversed ? preset.from_address : preset.to_address;
+    setStartAddress(fromAddr);
+    setEndAddress(toAddr);
     if (preset.default_category) setTripCategory(preset.default_category);
     if (preset.default_purpose) setTripPurpose(preset.default_purpose);
     // Pre-fill predicted end odometer from typical distance

@@ -228,7 +228,7 @@ class RoutePresetService:
         return self._format_preset(rows[0]) if rows else None
 
     def _get_max_route_presets(self, tenant: str) -> int:
-        """Fetch max_route_presets parameter with fallback to default 5."""
+        """Fetch max_route_presets parameter with fallback to default 10."""
         if self.parameter_service:
             value = self.parameter_service.get_param(
                 "zzp_ritten", "max_route_presets", tenant=tenant
@@ -244,7 +244,7 @@ class RoutePresetService:
         if registry_key in params:
             return int(params[registry_key]["default"])
 
-        return 5
+        return 10
 
     @staticmethod
     def _format_preset(row: dict) -> dict:
