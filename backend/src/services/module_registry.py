@@ -129,7 +129,7 @@ MODULE_REGISTRY: Dict[str, dict] = {
             # Rittenregistratie parameters (namespace: zzp_ritten)
             "zzp_ritten.max_route_presets": {
                 "type": "number",
-                "default": 5,
+                "default": 10,
             },
             "zzp_ritten.bijtelling_warning_threshold": {
                 "type": "number",
