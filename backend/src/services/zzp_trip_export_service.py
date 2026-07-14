@@ -16,7 +16,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.5
 
 import io
 import logging
-from typing import List, Optional
+from typing import List
 
 import pandas as pd
 from openpyxl import Workbook

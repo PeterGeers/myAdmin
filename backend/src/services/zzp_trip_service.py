@@ -20,7 +20,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from db_exceptions import DatabaseError, IntegrityError
+from db_exceptions import IntegrityError
 from dialect_helpers import dialect
 from services.field_config_mixin import FieldConfigMixin
 
