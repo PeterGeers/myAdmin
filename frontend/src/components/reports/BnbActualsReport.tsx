@@ -36,6 +36,7 @@ export interface BnbAmounts {
   amountChannelFee: number;
   amountTouristTax: number;
   amountVat: number;
+  [key: string]: number;
 }
 
 /** A row of BNB data from the API. */
@@ -114,13 +115,14 @@ const BnbActualsReport: React.FC = () => {
     const groupField = viewType === 'listing' ? 'listing' : 'channel';
     
     // Extract unique headers from actual data instead of using filter options
-    const headers = Array.from(new Set(data.map(row => row[groupField]))).sort();
+    const headers = Array.from(new Set(data.map(row => String(row[groupField] ?? '')))).sort();
     
     // Group data by period first, then by listing/channel
     const periodData = data.reduce((acc, row) => {
-      const year = row.year;
-      const quarter = row.q || 1;
-      const month = row.m || 1;
+      const year = String(row.year ?? '');
+      const quarter = String(row.q || 1);
+      const month = String(row.m || 1);
+      const groupKey = String(row[groupField] ?? '');
       
       if (!acc[year]) acc[year] = {};
       
@@ -132,17 +134,17 @@ const BnbActualsReport: React.FC = () => {
         }
       }
       
-      if (!acc[year][quarter][month][row[groupField]]) {
-        acc[year][quarter][month][row[groupField]] = {
+      if (!acc[year][quarter][month][groupKey]) {
+        acc[year][quarter][month][groupKey] = {
           amountGross: 0, amountNett: 0, amountChannelFee: 0, amountTouristTax: 0, amountVat: 0
         };
       }
       
-      acc[year][quarter][month][row[groupField]].amountGross += Number(row.amountGross) || 0;
-      acc[year][quarter][month][row[groupField]].amountNett += Number(row.amountNett) || 0;
-      acc[year][quarter][month][row[groupField]].amountChannelFee += Number(row.amountChannelFee) || 0;
-      acc[year][quarter][month][row[groupField]].amountTouristTax += Number(row.amountTouristTax) || 0;
-      acc[year][quarter][month][row[groupField]].amountVat += Number(row.amountVat) || 0;
+      acc[year][quarter][month][groupKey].amountGross += Number(row.amountGross) || 0;
+      acc[year][quarter][month][groupKey].amountNett += Number(row.amountNett) || 0;
+      acc[year][quarter][month][groupKey].amountChannelFee += Number(row.amountChannelFee) || 0;
+      acc[year][quarter][month][groupKey].amountTouristTax += Number(row.amountTouristTax) || 0;
+      acc[year][quarter][month][groupKey].amountVat += Number(row.amountVat) || 0;
       
       return acc;
     }, {} as PeriodData);

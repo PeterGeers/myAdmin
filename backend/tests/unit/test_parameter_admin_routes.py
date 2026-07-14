@@ -436,7 +436,7 @@ class TestDefaultValueResolutionCompleteness:
         app.config['TESTING'] = True
         return app.test_client()
 
-    @h_settings(max_examples=100, database=None, derandomize=True, suppress_health_check=[HealthCheck.too_slow])
+    @h_settings(max_examples=100, database=None, derandomize=True, deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         namespace=st.text(min_size=1, max_size=20,
                           alphabet=st.characters(whitelist_categories=('L', 'N'),

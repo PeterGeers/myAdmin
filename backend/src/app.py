@@ -65,6 +65,7 @@ from routes.product_routes import product_bp
 from routes.zzp_routes import zzp_bp
 from routes.zzp_time_routes import zzp_time_bp
 from routes.zzp_debtor_routes import zzp_debtor_bp
+from routes.zzp_trip_routes import zzp_trip_bp
 from routes.storage import storage_bp
 from routes.verification_routes import verification_bp
 from routes.tenant_function_routes import tenant_function_bp
@@ -165,6 +166,7 @@ app.register_blueprint(product_bp)  # Shared product registry (ZZP)
 app.register_blueprint(zzp_bp)  # ZZP module routes
 app.register_blueprint(zzp_time_bp)  # ZZP time tracking routes
 app.register_blueprint(zzp_debtor_bp)  # ZZP debtor/creditor routes
+app.register_blueprint(zzp_trip_bp)  # ZZP trip/vehicle routes
 app.register_blueprint(
     storage_bp
 )  # S3 storage endpoints (pre-signed URLs, logo upload)
@@ -262,6 +264,11 @@ set_banking_test_mode(flag)
 from routes.budget_routes import set_test_mode as set_budget_test_mode  # noqa: E402
 
 set_budget_test_mode(flag)
+
+# Set test mode flag for zzp_trip_bp
+from routes.zzp_trip_routes import set_test_mode as set_zzp_trip_test_mode  # noqa: E402
+
+set_zzp_trip_test_mode(flag)
 
 # Set config for str_bp - import here, call later after UPLOAD_FOLDER is defined
 from routes.str_routes import set_config as set_str_config  # noqa: E402

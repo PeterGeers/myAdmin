@@ -25,6 +25,8 @@ import type {
   DataSourceModule,
   SaveModelResponse,
   ExportResponse,
+  AggregateMeasure,
+  DisplayMode,
 } from '../types/pivot';
 
 const BASE = '/api/pivot';
@@ -67,14 +69,14 @@ export function toBackendConfig(config: PivotConfig): Record<string, any> {
  */
 export function fromBackendConfig(def: Record<string, unknown>): PivotConfig {
   return {
-    dataSource: def.data_source ?? def.dataSource ?? '',
-    groupColumns: def.group_columns ?? def.groupColumns ?? [],
-    aggregateMeasures: def.aggregate_measures ?? def.aggregateMeasures ?? [],
-    filters: def.filters ?? {},
-    columnPivot: def.column_pivot ?? def.columnPivot ?? null,
-    columnNestLevels: def.column_nest_levels ?? def.columnNestLevels ?? [],
-    displayMode: def.display_mode ?? def.displayMode ?? 'flat',
-    includeRollup: def.include_rollup ?? def.includeRollup ?? false,
+    dataSource: (def.data_source ?? def.dataSource ?? '') as string,
+    groupColumns: (def.group_columns ?? def.groupColumns ?? []) as string[],
+    aggregateMeasures: (def.aggregate_measures ?? def.aggregateMeasures ?? []) as AggregateMeasure[],
+    filters: (def.filters ?? {}) as Record<string, unknown>,
+    columnPivot: (def.column_pivot ?? def.columnPivot ?? null) as string | null,
+    columnNestLevels: (def.column_nest_levels ?? def.columnNestLevels ?? []) as string[],
+    displayMode: (def.display_mode ?? def.displayMode ?? 'flat') as DisplayMode,
+    includeRollup: (def.include_rollup ?? def.includeRollup ?? false) as boolean,
   };
 }
 
@@ -177,7 +179,7 @@ export async function loadPivotModel(id: number): Promise<PivotModel> {
   // Convert snake_case definition from backend to camelCase PivotConfig
   return {
     ...raw,
-    definition: fromBackendConfig(raw.definition as Record<string, unknown>),
+    definition: fromBackendConfig(raw.definition as unknown as Record<string, unknown>),
   };
 }
 

@@ -201,7 +201,7 @@ export default function ParameterManagement({ tenant }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      let parsedValue: string | number | boolean | object = formValue;
+      let parsedValue: string | number | boolean | Record<string, unknown> | unknown[] = formValue;
       if (formType === 'number') parsedValue = Number(formValue);
       else if (formType === 'boolean') parsedValue = formValue === 'true';
       else if (formType === 'json') parsedValue = JSON.parse(formValue);
@@ -227,7 +227,7 @@ export default function ParameterManagement({ tenant }: Props) {
     if (!editing) return;
     setSaving(true);
     try {
-      let parsedValue: string | number | boolean | object = formValue;
+      let parsedValue: string | number | boolean | Record<string, unknown> | unknown[] = formValue;
       if (formType === 'number') parsedValue = Number(formValue);
       else if (formType === 'boolean') parsedValue = formValue === 'true';
       else if (formType === 'json') parsedValue = JSON.parse(formValue);

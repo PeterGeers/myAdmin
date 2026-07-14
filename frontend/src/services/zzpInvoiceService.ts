@@ -2,12 +2,26 @@
  * API service for ZZP invoice management.
  */
 import { authenticatedGet, authenticatedPost, authenticatedPut, buildEndpoint } from './apiService';
-import { InvoiceFilters, InvoiceInput } from '../types/zzp';
+import { Invoice, InvoiceFilters, InvoiceInput } from '../types/zzp';
 
-/** Base API response shape. */
-interface ApiResponse {
+/** Response containing a list of invoices. */
+export interface InvoiceListResponse {
   success: boolean;
-  data?: Record<string, unknown> | Array<Record<string, unknown>>;
+  data: Invoice[];
+  error?: string;
+}
+
+/** Response containing a single invoice. */
+export interface InvoiceItemResponse {
+  success: boolean;
+  data: Invoice;
+  error?: string;
+}
+
+/** Response containing generic record data (e.g., ledger accounts). */
+export interface GenericListResponse {
+  success: boolean;
+  data: Record<string, unknown>[];
   error?: string;
 }
 
@@ -26,7 +40,7 @@ export interface EmailPreviewResponse {
 
 const BASE = '/api/zzp/invoices';
 
-export async function getInvoices(filters?: InvoiceFilters): Promise<ApiResponse> {
+export async function getInvoices(filters?: InvoiceFilters): Promise<InvoiceListResponse> {
   const params = new URLSearchParams();
   if (filters) {
     Object.entries(filters).forEach(([k, v]) => {
@@ -38,17 +52,17 @@ export async function getInvoices(filters?: InvoiceFilters): Promise<ApiResponse
   return resp.json();
 }
 
-export async function getInvoice(id: number): Promise<ApiResponse> {
+export async function getInvoice(id: number): Promise<InvoiceItemResponse> {
   const resp = await authenticatedGet(buildEndpoint(`${BASE}/${id}`));
   return resp.json();
 }
 
-export async function createInvoice(data: InvoiceInput): Promise<ApiResponse> {
+export async function createInvoice(data: InvoiceInput): Promise<InvoiceItemResponse> {
   const resp = await authenticatedPost(buildEndpoint(BASE), data);
   return resp.json();
 }
 
-export async function updateInvoice(id: number, data: InvoiceInput): Promise<ApiResponse> {
+export async function updateInvoice(id: number, data: InvoiceInput): Promise<InvoiceItemResponse> {
   const resp = await authenticatedPut(buildEndpoint(`${BASE}/${id}`), data);
   return resp.json();
 }
@@ -67,17 +81,17 @@ export async function sendInvoice(id: number, options?: { output_destination?: s
   return resp.json();
 }
 
-export async function createCreditNote(invoiceId: number): Promise<ApiResponse> {
+export async function createCreditNote(invoiceId: number): Promise<InvoiceItemResponse> {
   const resp = await authenticatedPost(buildEndpoint(`${BASE}/${invoiceId}/credit`), {});
   return resp.json();
 }
 
-export async function getInvoicePdf(id: number): Promise<ApiResponse> {
+export async function getInvoicePdf(id: number): Promise<InvoiceItemResponse> {
   const resp = await authenticatedGet(buildEndpoint(`${BASE}/${id}/pdf`));
   return resp.json();
 }
 
-export async function copyLastInvoice(contactId: number): Promise<ApiResponse> {
+export async function copyLastInvoice(contactId: number): Promise<InvoiceItemResponse> {
   const resp = await authenticatedPost(buildEndpoint(`${BASE}/copy-last/${contactId}`), {});
   return resp.json();
 }
@@ -86,7 +100,7 @@ export async function copyLastInvoice(contactId: number): Promise<ApiResponse> {
  * Fetch accounts flagged as ZZP invoice ledger for the revenue account dropdown.
  * GET /api/zzp/accounts/invoice-ledgers
  */
-export async function getInvoiceLedgerAccounts(): Promise<ApiResponse> {
+export async function getInvoiceLedgerAccounts(): Promise<GenericListResponse> {
   const resp = await authenticatedGet(buildEndpoint('/api/zzp/accounts/invoice-ledgers'));
   return resp.json();
 }
@@ -99,7 +113,7 @@ export async function createInvoiceFromTimeEntries(
   contactId: number,
   entryIds: number[],
   data?: Record<string, unknown>,
-): Promise<ApiResponse> {
+): Promise<InvoiceItemResponse> {
   const resp = await authenticatedPost(
     buildEndpoint(`${BASE}/from-time-entries`),
     { contact_id: contactId, entry_ids: entryIds, data: data || {} },
@@ -148,5 +162,23 @@ export async function getInvoicePreview(
  */
 export async function getEmailPreview(id: number): Promise<EmailPreviewResponse> {
   const resp = await authenticatedGet(buildEndpoint(`${BASE}/${id}/email-preview`));
+  return resp.json();
+}
+
+/** Input for creating an invoice from trips. */
+export interface CreateInvoiceFromTripsInput {
+  contact_id: number;
+  trip_ids: number[];
+  km_rate: number;
+  invoice_date: string;
+  payment_terms_days: number;
+}
+
+/**
+ * Create an invoice from selected trips.
+ * POST /api/zzp/invoices/from-trips
+ */
+export async function createInvoiceFromTrips(data: CreateInvoiceFromTripsInput): Promise<InvoiceItemResponse> {
+  const resp = await authenticatedPost(buildEndpoint(`${BASE}/from-trips`), data);
   return resp.json();
 }

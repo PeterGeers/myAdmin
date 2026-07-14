@@ -130,11 +130,27 @@ export interface RolesResponse extends ApiResponse {
   roles?: Array<{ name: string; description?: string }>;
 }
 
+export interface TenantDetailResponse extends ApiResponse {
+  tenant?: Record<string, unknown>;
+}
+
+export interface UserCreateResponse extends ApiResponse {
+  username?: string;
+}
+
+export interface CredentialResponse extends ApiResponse {
+  credential_type?: string;
+}
+
+export interface AccessCheckResponse extends ApiResponse {
+  accessible?: boolean;
+}
+
 // ============================================================================
 // User Management API
 // ============================================================================
 
-export async function createUser(userData: UserData): Promise<ApiResponse> {
+export async function createUser(userData: UserData): Promise<UserCreateResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/users`, {
     method: 'POST',
@@ -194,7 +210,7 @@ export async function getAvailableRoles(): Promise<RolesResponse> {
 // Credentials Management API
 // ============================================================================
 
-export async function uploadCredentials(file: File, credentialType: string): Promise<ApiResponse> {
+export async function uploadCredentials(file: File, credentialType: string): Promise<CredentialResponse> {
   const session = await fetchAuthSession();
   const token = session.tokens?.idToken?.toString();
   const tenant = localStorage.getItem('selectedTenant') || '';
@@ -220,7 +236,7 @@ export async function listCredentials(): Promise<{ credentials: CredentialInfo[]
   return handleResponse(response);
 }
 
-export async function testCredentials(credentialType?: string): Promise<ApiResponse> {
+export async function testCredentials(credentialType?: string): Promise<AccessCheckResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/credentials/test`, {
     method: 'POST',
@@ -276,7 +292,7 @@ export async function updateStorageConfig(config: StorageConfig, validate: boole
   return handleResponse(response);
 }
 
-export async function testFolder(folderId: string): Promise<ApiResponse> {
+export async function testFolder(folderId: string): Promise<AccessCheckResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/storage/test`, {
     method: 'POST',
@@ -318,7 +334,7 @@ export async function getTenantDetails(): Promise<{ tenant: TenantDetails }> {
   return handleResponse(response);
 }
 
-export async function updateTenantDetails(details: Partial<TenantDetails>): Promise<ApiResponse> {
+export async function updateTenantDetails(details: Partial<TenantDetails>): Promise<TenantDetailResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/api/tenant-admin/details`, {
     method: 'PUT',

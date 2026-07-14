@@ -790,6 +790,126 @@ def test_create_invoice_from_time_entries_wrong_contact_raises_valueerror():
             'T1', 1, [10], {}, 'test', time_tracking_service=time_svc)
 
 
+# ── create_invoice_from_trips ───────────────────────────────
+
+
+def test_create_invoice_from_trips_creates_invoice_and_marks_billed():
+    db, conn, cursor = _mock_db_for_create()
+    tax_svc = Mock(get_tax_rate=Mock(return_value={'rate': 21.0}))
+    trip_svc = Mock()
+    trip_svc.get_trip = Mock(side_effect=[
+        {'id': 10, 'contact_id': 5, 'trip_date': '2026-07-10',
+         'start_address': 'Amsterdam', 'end_address': 'Utrecht',
+         'distance_km': 45, 'is_billed': False, 'is_cancelled': False},
+        {'id': 12, 'contact_id': 5, 'trip_date': '2026-07-12',
+         'start_address': 'Amsterdam', 'end_address': 'Rotterdam',
+         'distance_km': 78, 'is_billed': False, 'is_cancelled': False},
+    ])
+    trip_svc.mark_as_billed = Mock(return_value=2)
+
+    svc = ZZPInvoiceService(
+        db=db, tax_rate_service=tax_svc,
+        parameter_service=Mock(get_param=Mock(return_value=None)))
+
+    result = svc.create_invoice_from_trips(
+        'T1', contact_id=5, trip_ids=[10, 12], km_rate=0.35,
+        data={'invoice_date': '2026-07-31', 'payment_terms_days': 14},
+        created_by='test', trip_service=trip_svc)
+
+    assert result is not None
+    trip_svc.mark_as_billed.assert_called_once_with('T1', [10, 12], result['id'])
+
+
+def test_create_invoice_from_trips_line_description_format():
+    db, conn, cursor = _mock_db_for_create()
+    tax_svc = Mock(get_tax_rate=Mock(return_value={'rate': 21.0}))
+    trip_svc = Mock()
+    trip_svc.get_trip = Mock(return_value={
+        'id': 10, 'contact_id': 5, 'trip_date': '2026-07-10',
+        'start_address': 'Keizersgracht 100, Amsterdam',
+        'end_address': 'Stationsplein 1, Utrecht',
+        'distance_km': 45, 'is_billed': False, 'is_cancelled': False,
+    })
+    trip_svc.mark_as_billed = Mock(return_value=1)
+
+    svc = ZZPInvoiceService(
+        db=db, tax_rate_service=tax_svc,
+        parameter_service=Mock(get_param=Mock(return_value=None)))
+
+    # Capture the lines passed to create_invoice
+    original_create = svc.create_invoice
+    captured_lines = []
+
+    def mock_create(tenant, data, created_by):
+        captured_lines.extend(data.get('lines', []))
+        return original_create(tenant, data, created_by)
+
+    svc.create_invoice = mock_create
+
+    svc.create_invoice_from_trips(
+        'T1', contact_id=5, trip_ids=[10], km_rate=0.35,
+        data={'invoice_date': '2026-07-31'},
+        created_by='test', trip_service=trip_svc)
+
+    assert len(captured_lines) == 1
+    line = captured_lines[0]
+    assert line['description'] == '2026-07-10 Keizersgracht 100, Amsterdam → Stationsplein 1, Utrecht'
+    assert line['quantity'] == 45.0
+    assert line['unit_price'] == 0.35
+
+
+def test_create_invoice_from_trips_different_contact_raises_valueerror():
+    trip_svc = Mock()
+    trip_svc.get_trip = Mock(return_value={
+        'id': 10, 'contact_id': 99, 'trip_date': '2026-07-10',
+        'start_address': 'A', 'end_address': 'B',
+        'distance_km': 20, 'is_billed': False, 'is_cancelled': False,
+    })
+    svc = _make_service()
+    with pytest.raises(ValueError, match="different contact"):
+        svc.create_invoice_from_trips(
+            'T1', contact_id=5, trip_ids=[10], km_rate=0.35,
+            data={}, created_by='test', trip_service=trip_svc)
+
+
+def test_create_invoice_from_trips_already_billed_raises_valueerror():
+    trip_svc = Mock()
+    trip_svc.get_trip = Mock(return_value={
+        'id': 10, 'contact_id': 5, 'trip_date': '2026-07-10',
+        'start_address': 'A', 'end_address': 'B',
+        'distance_km': 20, 'is_billed': True, 'is_cancelled': False,
+    })
+    svc = _make_service()
+    with pytest.raises(ValueError, match="already billed"):
+        svc.create_invoice_from_trips(
+            'T1', contact_id=5, trip_ids=[10], km_rate=0.35,
+            data={}, created_by='test', trip_service=trip_svc)
+
+
+def test_create_invoice_from_trips_cancelled_trip_raises_valueerror():
+    trip_svc = Mock()
+    trip_svc.get_trip = Mock(return_value={
+        'id': 10, 'contact_id': 5, 'trip_date': '2026-07-10',
+        'start_address': 'A', 'end_address': 'B',
+        'distance_km': 20, 'is_billed': False, 'is_cancelled': True,
+    })
+    svc = _make_service()
+    with pytest.raises(ValueError, match="cancelled"):
+        svc.create_invoice_from_trips(
+            'T1', contact_id=5, trip_ids=[10], km_rate=0.35,
+            data={}, created_by='test', trip_service=trip_svc)
+
+
+def test_create_invoice_from_trips_not_found_raises_valueerror():
+    trip_svc = Mock()
+    trip_svc.get_trip = Mock(return_value=None)
+    svc = _make_service()
+    with pytest.raises(ValueError, match="not found"):
+        svc.create_invoice_from_trips(
+            'T1', contact_id=5, trip_ids=[99], km_rate=0.35,
+            data={}, created_by='test', trip_service=trip_svc)
+
+
 # ── copy_last_invoice ───────────────────────────────────────
 
 

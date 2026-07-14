@@ -53,6 +53,7 @@ const PDFUploadForm: React.FC = () => {
     allFolders,
     filteredFolders,
     searchTerm,
+    setSearchTerm,
     showCreateFolder,
     setShowCreateFolder,
     newFolderName,
@@ -507,7 +508,7 @@ const PDFUploadForm: React.FC = () => {
       {duplicateInfo && (
         <DuplicateWarningDialog
           isOpen={showDuplicateDialog}
-          duplicateInfo={duplicateInfo}
+          duplicateInfo={duplicateInfo as React.ComponentProps<typeof DuplicateWarningDialog>['duplicateInfo']}
           onContinue={handleDuplicateContinue}
           onCancel={handleDuplicateCancel}
           isLoading={duplicateLoading}

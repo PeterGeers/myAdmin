@@ -404,7 +404,7 @@ const CheckReferenceTab: React.FC<TabProps> = ({ bp }) => (
                   <Tr key={index} onClick={() => bp.fetchReferenceDetails(row.ReferenceNumber)} _hover={{ bg: 'gray.700', cursor: 'pointer' }} bg={bp.selectedReference === row.ReferenceNumber ? 'gray.600' : 'transparent'}>
                     <Td color="white" fontSize="xs" maxW="200px" isTruncated title={row.ReferenceNumber}>{row.ReferenceNumber}</Td>
                     <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
-                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(Number(row.total_amount))}</Td>
                   </Tr>
                 ))}
               </Tbody>
@@ -430,8 +430,8 @@ const CheckReferenceTab: React.FC<TabProps> = ({ bp }) => (
                     {(bp.processedRefDetails).map((transaction, index) => (
                       <Tr key={index}>
                         <Td color="white" fontSize="xs">{transaction.TransactionNumber || '-'}</Td>
-                        <Td color="white" fontSize="xs">{new Date(transaction.TransactionDate).toISOString().split('T')[0]}</Td>
-                        <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.Amount)}</Td>
+                        <Td color="white" fontSize="xs">{transaction.TransactionDate ? new Date(transaction.TransactionDate).toISOString().split('T')[0] : '-'}</Td>
+                        <Td color="white" fontSize="xs" isNumeric>{formatAmount(Number(transaction.Amount ?? 0))}</Td>
                         <Td color="white" fontSize="xs" maxW="300px" isTruncated title={transaction.TransactionDescription}>{transaction.TransactionDescription}</Td>
                       </Tr>
                     ))}
@@ -498,12 +498,12 @@ const StrChannelRevenueTab: React.FC<TabProps> = ({ bp }) => (
               <Tbody>
                 {(bp.strChannelPreview).map((row, index) => (
                   <Tr key={index}>
-                    <Td color="white" fontSize="xs">{row.ReferenceNumber}</Td>
-                    <Td color="white" fontSize="xs">{row.Reknum}</Td>
-                    <Td color="white" fontSize="xs" isNumeric>{row.transaction_count}</Td>
-                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(row.total_amount)}</Td>
+                    <Td color="white" fontSize="xs">{String(row.ReferenceNumber ?? '')}</Td>
+                    <Td color="white" fontSize="xs">{String(row.Reknum ?? '')}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{String(row.transaction_count ?? '')}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(Number(row.total_amount ?? 0))}</Td>
                     <Td color="white" fontSize="xs">
-                      {new Date(row.first_date).toLocaleDateString('nl-NL')} - {new Date(row.last_date).toLocaleDateString('nl-NL')}
+                      {row.first_date ? new Date(String(row.first_date)).toLocaleDateString('nl-NL') : '-'} - {row.last_date ? new Date(String(row.last_date)).toLocaleDateString('nl-NL') : '-'}
                     </Td>
                   </Tr>
                 ))}
@@ -547,7 +547,7 @@ const StrChannelRevenueTab: React.FC<TabProps> = ({ bp }) => (
                   <Tr key={index}>
                     <Td color="white" fontSize="xs">{transaction.TransactionDate}</Td>
                     <Td color="white" fontSize="xs" maxW="200px" isTruncated title={transaction.TransactionDescription}>{transaction.TransactionDescription}</Td>
-                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(transaction.TransactionAmount)}</Td>
+                    <Td color="white" fontSize="xs" isNumeric>{formatAmount(Number(transaction.TransactionAmount ?? 0))}</Td>
                     <Td color="white" fontSize="xs">{transaction.Debet}</Td>
                     <Td color="white" fontSize="xs">{transaction.Credit}</Td>
                     <Td color="white" fontSize="xs">{transaction.ReferenceNumber}</Td>

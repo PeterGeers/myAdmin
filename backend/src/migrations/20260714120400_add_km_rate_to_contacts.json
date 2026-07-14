@@ -1,0 +1,12 @@
+{
+  "name": "add_km_rate_to_contacts",
+  "description": "Add km_rate column to contacts table for per-client trip billing rate. Allows each client to have a configurable per-km rate (e.g., €0.35/km) used when generating invoices from trips.",
+  "timestamp": "20260714120400",
+  "up": [
+    "ALTER TABLE contacts ADD COLUMN km_rate DECIMAL(10,4) DEFAULT NULL COMMENT 'Per-km billing rate for trip invoicing'"
+  ],
+  "down": [
+    "ALTER TABLE contacts DROP COLUMN km_rate"
+  ],
+  "version": "1.0"
+}

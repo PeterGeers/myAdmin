@@ -153,9 +153,12 @@ function groupBy(
   const map = new Map<string | number | null, PivotRow[]>();
 
   for (const row of rows) {
-    const value = row[column];
+    const rawValue = row[column];
     // Skip rollup rows (null values for this group column)
-    if (value == null) continue;
+    if (rawValue == null) continue;
+
+    // Coerce boolean values to string for grouping key
+    const value: string | number = typeof rawValue === 'boolean' ? String(rawValue) : rawValue;
 
     const existing = map.get(value);
     if (existing) {
@@ -181,7 +184,7 @@ function computeAggregates(
   for (const col of aggregateColumns) {
     const fn = options?.aggregateFunctions?.[col] ?? 'SUM';
     result[col] = applyAggregation(
-      rows.map((r) => r[col]),
+      rows.map((r) => r[col]).filter((v): v is string | number | null | undefined => typeof v !== 'boolean'),
       fn,
     );
   }

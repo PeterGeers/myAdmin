@@ -7,7 +7,7 @@ version: 2
 secret:
   # Don't show actual secret values in output (security)
   show_secrets: false
-  
+
   # Paths to exclude from scanning
   ignored_paths:
     - "**/.venv/**"
@@ -28,10 +28,9 @@ secret:
     - "**/terraform.tfstate*"
     - "**/.terraform/**"
     - "**/*.example"
-    - "**/example.*"
     - "**/*-example.*"
     - "**/*.md"
-  
+
   # Ignore known test/placeholder secrets
   ignored_matches:
     - name: "Test API Keys"
