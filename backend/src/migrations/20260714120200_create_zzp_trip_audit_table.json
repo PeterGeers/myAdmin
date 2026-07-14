@@ -1,0 +1,12 @@
+{
+  "name": "create_zzp_trip_audit_table",
+  "description": "Create zzp_trip_audit table for immutable correction history. Stores audit trail entries for trip modifications including changed fields (JSON), correction reasons, and version tracking. INSERT-only table with foreign key to zzp_trips.",
+  "timestamp": "20260714120200",
+  "up": [
+    "CREATE TABLE IF NOT EXISTS zzp_trip_audit (id INT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(50) NOT NULL, trip_id INT NOT NULL, version INT NOT NULL, action ENUM('created', 'updated', 'cancelled') NOT NULL, changed_fields JSON DEFAULT NULL COMMENT '{\"field\": {\"old\": x, \"new\": y}}', correction_reason TEXT DEFAULT NULL, changed_by VARCHAR(255) NOT NULL, changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (trip_id) REFERENCES zzp_trips(id), INDEX idx_administration (administration), INDEX idx_trip_id (trip_id), INDEX idx_admin_trip (administration, trip_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS zzp_trip_audit"
+  ],
+  "version": "1.0"
+}

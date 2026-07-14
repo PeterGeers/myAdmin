@@ -13,15 +13,19 @@ De ZZP-module vereist dat de FIN-module (Financiële Administratie) actief is vo
 
 ![ZZP functies](../assets/images/ZZP/nl_freelance_functions.png){ width="600" }
 
-| Taak                                      | Beschrijving                                         |
-| ----------------------------------------- | ---------------------------------------------------- |
-| [Contacten beheren](contacts.md)          | Klanten en leveranciers registreren en beheren       |
-| [Producten & diensten](products.md)       | Je product- en dienstencatalogus bijhouden           |
-| [Facturen aanmaken](creating-invoices.md) | Conceptfacturen opstellen met regelitems             |
-| [Facturen versturen](sending-invoices.md) | PDF genereren, boeken in FIN en per e-mail versturen |
-| [Creditnota's](credit-notes.md)           | Eerder verstuurde facturen corrigeren of crediteren  |
-| [Urenregistratie](time-tracking.md)       | Gewerkte uren bijhouden per klant en project         |
-| [Debiteuren & crediteuren](debtors.md)    | Openstaande vorderingen en schulden beheren          |
+| Taak                                                | Beschrijving                                         |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| [Contacten beheren](contacts.md)                    | Klanten en leveranciers registreren en beheren       |
+| [Producten & diensten](products.md)                 | Je product- en dienstencatalogus bijhouden           |
+| [Facturen aanmaken](creating-invoices.md)           | Conceptfacturen opstellen met regelitems             |
+| [Facturen versturen](sending-invoices.md)           | PDF genereren, boeken in FIN en per e-mail versturen |
+| [Creditnota's](credit-notes.md)                     | Eerder verstuurde facturen corrigeren of crediteren  |
+| [Urenregistratie](time-tracking.md)                 | Gewerkte uren bijhouden per klant en project         |
+| [Debiteuren & crediteuren](debtors.md)              | Openstaande vorderingen en schulden beheren          |
+| [Rittenregistratie](rittenregistratie.md)           | Zakelijke en privé kilometers bijhouden              |
+| [Voertuigen](voertuigen.md)                         | Voertuigen registreren en beheren                    |
+| [Importeren & exporteren](importeren-exporteren.md) | Ritten importeren uit CSV/Excel en exporteren        |
+| [Snelle invoer (mobiel)](snelle-invoer.md)          | Ritten registreren vanaf je telefoon                 |
 
 ## Typische workflow
 

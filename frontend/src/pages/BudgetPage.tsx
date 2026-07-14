@@ -24,7 +24,7 @@ import { useFilterableTable } from '../hooks/useFilterableTable';
 import { FilterableHeader } from '../components/filters/FilterableHeader';
 import BudgetLineModal from './BudgetLineModal';
 import BudgetNewVersionModal from './BudgetNewVersionModal';
-import { BudgetVersion, BudgetLine, PeriodMode } from '../types/budget';
+import { BudgetVersion, BudgetLine, PeriodMode, DimensionType } from '../types/budget';
 import {
   listVersions,
   listLines,
@@ -222,14 +222,14 @@ const BudgetPage: React.FC = () => {
               account_code: values.account_code,
               period_mode: 'Monthly' as const,
               amounts: values.amounts as [number, number, number, number, number, number, number, number, number, number, number, number],
-              detail_dimension_type: values.dimension_type || null,
+              detail_dimension_type: (values.dimension_type || null) as DimensionType | null,
               detail_dimension_value: values.dimension_value || null,
             }
           : {
               account_code: values.account_code,
               period_mode: 'Annual' as const,
               annual_amount: values.annual_amount,
-              detail_dimension_type: values.dimension_type || null,
+              detail_dimension_type: (values.dimension_type || null) as DimensionType | null,
               detail_dimension_value: values.dimension_value || null,
             };
         await createLine(selectedVersionId, data);

@@ -121,7 +121,7 @@ const TenantAwareComponent: React.FC = () => {
       // 3. Validate data ownership
       const validation = validateBankingDataOwnership(
         iban, 
-        lookupData, 
+        lookupData as unknown as Parameters<typeof validateBankingDataOwnership>[1], 
         selectedFile.name
       );
       

@@ -126,6 +126,40 @@ MODULE_REGISTRY: Dict[str, dict] = {
                     "is_billable": "optional",
                 },
             },
+            # Rittenregistratie parameters (namespace: zzp_ritten)
+            "zzp_ritten.max_route_presets": {
+                "type": "number",
+                "default": 5,
+            },
+            "zzp_ritten.bijtelling_warning_threshold": {
+                "type": "number",
+                "default": 400,
+            },
+            "zzp_ritten.bijtelling_limit": {
+                "type": "number",
+                "default": 500,
+            },
+            "zzp_ritten.large_distance_warning": {
+                "type": "number",
+                "default": 300,
+            },
+            "zzp_ritten.default_km_rate": {
+                "type": "number",
+                "default": 0.23,
+            },
+            "zzp_ritten.trip_categories": {
+                "type": "json",
+                "default": ["Zakelijk", "Privé", "Woon-werk"],
+            },
+            "zzp_ritten.trip_purposes": {
+                "type": "json",
+                "default": [
+                    "Klantbezoek",
+                    "Vergadering",
+                    "Materiaal ophalen",
+                    "Overig",
+                ],
+            },
         },
         "required_tax_rates": ["btw"],
         "required_roles": ["ZZP_CRUD", "ZZP_Read", "ZZP_Export"],

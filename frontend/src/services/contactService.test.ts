@@ -15,6 +15,7 @@ import {
   deleteContact,
   getContactTypes,
 } from './contactService';
+import type { Contact } from '../types/zzp';
 
 // Mock AWS Amplify
 vi.mock('aws-amplify/auth');
@@ -128,7 +129,7 @@ describe('contactService', () => {
       const mockBody = { success: true, id: 10 };
       vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockBody }));
 
-      const data = { name: 'New Contact', contact_type: 'supplier' };
+      const data = { company_name: 'New Contact', contact_type: 'supplier' } as Partial<Contact>;
       const result = await createContact(data);
 
       expect(global.fetch).toHaveBeenCalledWith(
@@ -151,7 +152,7 @@ describe('contactService', () => {
       const mockBody = { success: true };
       vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse({ body: mockBody }));
 
-      const data = { name: 'Updated Name', email: 'new@example.com' };
+      const data = { company_name: 'Updated Name' } as Partial<Contact>;
       const result = await updateContact(3, data);
 
       expect(global.fetch).toHaveBeenCalledWith(

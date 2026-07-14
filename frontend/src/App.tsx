@@ -34,7 +34,11 @@ const ZZPContacts = lazy(() => import('./pages/ZZPContacts'));
 const ZZPProducts = lazy(() => import('./pages/ZZPProducts'));
 const ZZPInvoices = lazy(() => import('./pages/ZZPInvoices'));
 const ZZPTimeTracking = lazy(() => import('./pages/ZZPTimeTracking'));
+const ZZPTrips = lazy(() => import('./pages/ZZPTrips'));
+const ZZPVehicles = lazy(() => import('./pages/ZZPVehicles'));
 const ZZPDebtors = lazy(() => import('./pages/ZZPDebtors'));
+const ZZPTripQuick = lazy(() => import('./pages/ZZPTripQuick'));
+const ZZPTripImport = lazy(() => import('./pages/ZZPTripImport'));
 
 // Admin pages (named exports)
 const TenantAdminDashboard = lazy(() =>
@@ -51,7 +55,7 @@ const SysAdminDashboard = lazy(() =>
 // Admin pages (default exports)
 const PasskeySettings = lazy(() => import('./components/settings/PasskeySettings'));
 
-type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-debtors' | 'budget';
+type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | 'str-pricing' | 'powerbi' | 'fin-reports' | 'str-reports' | 'system-admin' | 'tenant-admin' | 'settings' | 'assets' | 'zzp-invoices' | 'zzp-contacts' | 'zzp-products' | 'zzp-time-tracking' | 'zzp-trips' | 'zzp-trip-quick' | 'zzp-trip-import' | 'zzp-vehicles' | 'zzp-debtors' | 'budget';
 
 function AppContent() {
   const { t } = useTranslation();
@@ -105,7 +109,7 @@ function AppContent() {
         setCurrentPage('menu');
       }
       // If on ZZP page but no ZZP access, redirect to menu
-      if ((currentPage === 'zzp-invoices' || currentPage === 'zzp-contacts' || currentPage === 'zzp-products' || currentPage === 'zzp-time-tracking' || currentPage === 'zzp-debtors') && !hasZZP) {
+      if ((currentPage === 'zzp-invoices' || currentPage === 'zzp-contacts' || currentPage === 'zzp-products' || currentPage === 'zzp-time-tracking' || currentPage === 'zzp-trips' || currentPage === 'zzp-trip-quick' || currentPage === 'zzp-trip-import' || currentPage === 'zzp-vehicles' || currentPage === 'zzp-debtors') && !hasZZP) {
         setCurrentPage('menu');
       }
     }
@@ -359,6 +363,56 @@ function AppContent() {
           </ProtectedRoute>
         );
 
+      case 'zzp-trips':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`🚗 ${t('zzp:trips.title')}`)}
+              <ZZPTrips />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'zzp-trip-import':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_CRUD']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`📥 ${t('zzp:trips.import.title', 'Ritten Importeren')}`)}
+              <ZZPTripImport />
+            </Box>
+          </ProtectedRoute>
+        );
+
+      case 'zzp-trip-quick':
+        // Standalone layout — no sidebar, no page header chrome
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <ZZPTripQuick />
+          </ProtectedRoute>
+        );
+
+      case 'zzp-vehicles':
+        return (
+          <ProtectedRoute
+            requiredRoles={['ZZP_Read', 'ZZP_CRUD']}
+            onLoginSuccess={() => setCurrentPage('menu')}
+          >
+            <Box minH="100vh" bg="gray.900">
+              {renderPageHeader(`🚙 Voertuigen`)}
+              <ZZPVehicles />
+            </Box>
+          </ProtectedRoute>
+        );
+
       case 'zzp-debtors':
         return (
           <ProtectedRoute
@@ -489,6 +543,9 @@ function AppContent() {
                       </Button>
                       <Button size="lg" w="full" colorScheme="green" onClick={() => setCurrentPage('zzp-time-tracking')}>
                         ⏱️ {t('zzp:timeTracking.title')}
+                      </Button>
+                      <Button size="lg" w="full" colorScheme="orange" variant="outline" onClick={() => setCurrentPage('zzp-trips')}>
+                        🚗 {t('zzp:trips.title')}
                       </Button>
                       <Button size="lg" w="full" colorScheme="yellow" onClick={() => setCurrentPage('zzp-debtors')}>
                         💰 {t('zzp:debtors.title')}

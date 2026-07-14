@@ -55,8 +55,8 @@ export function TenantDetails({ tenant }: TenantDetailsProps) {
         bank_name: formData.bank_name,
       };
       const response = await updateTenantDetails(updateData);
-      setDetails(response.tenant);
-      setFormData(response.tenant);
+      setDetails((response.tenant as unknown as TenantDetailsType) ?? null);
+      setFormData((response.tenant as unknown as Partial<TenantDetailsType>) ?? {});
       toast({ title: 'Tenant details updated', status: 'success', duration: 3000 });
     } catch (error) {
       toast({ title: 'Error updating tenant details', description: error instanceof Error ? error.message : 'Unknown error', status: 'error', duration: 5000 });

@@ -1,6 +1,10 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "name": "Rittenregistratie",
+  "short_name": "Ritten",
+  "start_url": "/zzp/ritten/quick",
+  "display": "standalone",
+  "background_color": "#1A202C",
+  "theme_color": "#ED8936",
   "icons": [
     {
       "src": "favicon.ico",
@@ -17,9 +21,5 @@
       "type": "image/png",
       "sizes": "512x512"
     }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  ]
 }

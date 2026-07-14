@@ -697,6 +697,92 @@ class ZZPInvoiceService(FieldConfigMixin):
 
         return invoice
 
+    # ── Invoice from Trips (Rittenregistratie Req 6) ────────
+
+    def create_invoice_from_trips(
+        self,
+        tenant: str,
+        contact_id: int,
+        trip_ids: list,
+        km_rate: float,
+        data: dict,
+        created_by: str,
+        trip_service=None,
+    ) -> dict:
+        """Create a draft invoice from selected trips.
+
+        Maps each trip to an invoice line:
+        description = "{trip_date} {start_address} → {end_address}",
+        quantity = distance_km, unit_price = km_rate.
+        Marks trips as billed after invoice creation.
+
+        Args:
+            tenant: Administration/tenant identifier.
+            contact_id: The client contact to invoice.
+            trip_ids: List of trip IDs to include.
+            km_rate: Price per km (unit_price for each line).
+            data: Additional invoice data (invoice_date, payment_terms_days, etc.).
+            created_by: User email creating the invoice.
+            trip_service: TripService instance for fetching and marking trips.
+
+        Raises:
+            RuntimeError: If trip_service is not provided.
+            ValueError: If a trip is not found, already billed, cancelled,
+                        or belongs to a different contact.
+        """
+        if not trip_service:
+            raise RuntimeError("TripService required")
+
+        trips = []
+        for tid in trip_ids:
+            trip = trip_service.get_trip(tenant, int(tid))
+            if not trip:
+                raise ValueError(f"Trip {tid} not found")
+            if trip.get("is_billed"):
+                raise ValueError(f"Trip {tid} is already billed")
+            if trip.get("is_cancelled"):
+                raise ValueError(f"Trip {tid} is cancelled")
+            if trip.get("contact_id") != contact_id:
+                raise ValueError(f"Trip {tid} belongs to a different contact")
+            trips.append(trip)
+
+        # Build invoice lines from trips
+        lines = []
+        for trip in trips:
+            trip_date = trip.get("trip_date", "")
+            if hasattr(trip_date, "isoformat"):
+                trip_date = trip_date.isoformat()
+            start_addr = trip.get("start_address", "")
+            end_addr = trip.get("end_address", "")
+            description = f"{trip_date} {start_addr} → {end_addr}"
+
+            lines.append(
+                {
+                    "description": description,
+                    "quantity": float(trip.get("distance_km", 0)),
+                    "unit_price": float(km_rate),
+                    "vat_code": "high",
+                }
+            )
+
+        invoice_data = {
+            "contact_id": contact_id,
+            "invoice_date": data.get("invoice_date", date.today().isoformat()),
+            "payment_terms_days": data.get("payment_terms_days"),
+            "currency": data.get("currency"),
+            "notes": data.get("notes"),
+            "lines": lines,
+        }
+        # Remove None values
+        invoice_data = {k: v for k, v in invoice_data.items() if v is not None}
+
+        invoice = self.create_invoice(tenant, invoice_data, created_by=created_by)
+
+        # Mark trips as billed
+        trip_service.mark_as_billed(tenant, trip_ids, invoice["id"])
+
+        return invoice
+
     # ── Copy Last Invoice / Recurring (Req 13) ──────────────
 
     def copy_last_invoice(self, tenant: str, contact_id: int, created_by: str) -> dict:

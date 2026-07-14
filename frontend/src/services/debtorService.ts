@@ -4,10 +4,14 @@
 import { authenticatedGet, authenticatedPost, buildEndpoint } from './apiService';
 
 /** Base API response shape for debtor endpoints. */
-interface DebtorApiResponse {
+export interface DebtorApiResponse {
   success: boolean;
   data?: Record<string, unknown> | Array<Record<string, unknown>>;
   total_outstanding?: number;
+  updated?: number;
+  matched?: number;
+  partial?: number;
+  unmatched?: number;
   error?: string;
 }
 

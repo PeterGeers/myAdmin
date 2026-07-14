@@ -18,7 +18,7 @@ import {
 import { Formik, Field, FieldProps } from 'formik';
 import * as Yup from 'yup';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
-import { BudgetVersion } from '../types/budget';
+import { BudgetVersion, DimensionType } from '../types/budget';
 import { createVersion, copyBudget, createLine } from '../services/budgetService';
 import { authenticatedPost } from '../services/apiService';
 
@@ -136,7 +136,7 @@ const BudgetNewVersionModal: React.FC<BudgetNewVersionModalProps> = ({
                 account_code: line.account_code,
                 period_mode: 'Monthly',
                 amounts: line.amounts as [number, number, number, number, number, number, number, number, number, number, number, number],
-                detail_dimension_type: line.detail_dimension_type || null,
+                detail_dimension_type: (line.detail_dimension_type || null) as DimensionType | null,
                 detail_dimension_value: line.detail_dimension_value || null,
                 notes: line.reasoning || null,
               });

@@ -20,6 +20,7 @@ export interface Transaction {
   Ref3: string;
   Ref4: string;
   Administration: string;
+  pattern_filled?: boolean;
 }
 
 export interface CreditCardAccount {
