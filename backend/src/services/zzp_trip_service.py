@@ -183,6 +183,21 @@ class TripService(FieldConfigMixin):
         if warnings:
             result["warnings"] = warnings
 
+        # Auto-learn route preset (Requirement 3 — track route frequency)
+        try:
+            from services.zzp_route_preset_service import RoutePresetService
+            preset_service = RoutePresetService(self.db, self.parameter_service)
+            preset_service.increment_usage(
+                tenant,
+                data["start_address"].strip(),
+                data["end_address"].strip(),
+                default_category=data.get("trip_category"),
+                default_purpose=data.get("trip_purpose"),
+                typical_distance_km=end_odometer - start_odometer,
+            )
+        except Exception as e:
+            logger.warning(f"Route preset auto-learn failed (non-blocking): {e}")
+
         return result
 
     # Fields that can be updated via update_trip (excludes distance_km which is generated)

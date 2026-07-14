@@ -73,24 +73,29 @@ export const RoutePresetCards: React.FC<RoutePresetCardsProps> = ({
             }
           }}
         >
-          <Text fontSize="xs" color="gray.300" noOfLines={1}>
+          <Text fontSize="sm" fontWeight="medium" color="white" noOfLines={1}>
             {preset.from_address}
           </Text>
-          <Text fontSize="xs" color="gray.400" mt={0.5}>
+          <Text fontSize="sm" color="orange.200" mt={0.5}>
             → {preset.to_address}
           </Text>
           <HStack mt={2} spacing={2} flexWrap="wrap">
             {preset.default_category && (
               <Badge
                 colorScheme={getCategoryColor(preset.default_category)}
-                fontSize="2xs"
+                fontSize="xs"
                 variant="subtle"
               >
                 {preset.default_category}
               </Badge>
             )}
+            {preset.default_purpose && (
+              <Text fontSize="xs" color="gray.300">
+                {preset.default_purpose}
+              </Text>
+            )}
             {preset.typical_distance_km && (
-              <Text fontSize="2xs" color="gray.500">
+              <Text fontSize="xs" color="gray.400">
                 ~{preset.typical_distance_km} km
               </Text>
             )}
