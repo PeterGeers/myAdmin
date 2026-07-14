@@ -20,6 +20,10 @@ export interface ParsedInvoiceData {
   invoice_number?: string;
   date?: string;
   amount?: number;
+  name?: string;
+  url?: string;
+  folder?: string;
+  txt?: string;
   [key: string]: unknown;
 }
 
@@ -27,6 +31,10 @@ export interface ParsedInvoiceData {
 export interface VendorData {
   name?: string;
   account?: string;
+  date?: string;
+  total_amount?: string | number;
+  vat_amount?: string | number;
+  description?: string;
   [key: string]: unknown;
 }
 
@@ -35,19 +43,56 @@ export interface DuplicateInfo {
   has_duplicates?: boolean;
   matches?: Array<Record<string, unknown>>;
   decision_id?: string;
-  existingTransaction?: Record<string, unknown>;
-  newTransaction?: Record<string, unknown>;
+  existingTransaction?: {
+    id: string;
+    transactionDate: string;
+    transactionDescription: string;
+    transactionAmount: number;
+    debet: string;
+    credit: string;
+    referenceNumber: string;
+    ref1?: string;
+    ref2?: string;
+    ref3?: string;
+    ref4?: string;
+  };
+  newTransaction?: {
+    id: string;
+    transactionDate: string;
+    transactionDescription: string;
+    transactionAmount: number;
+    debet: string;
+    credit: string;
+    referenceNumber: string;
+    ref1?: string;
+    ref2?: string;
+    ref3?: string;
+    ref4?: string;
+  };
   matchCount?: number;
   [key: string]: unknown;
 }
 
 /** A prepared transaction from the upload response. */
 export interface PreparedTransaction {
+  ID?: number;
   date?: string;
   description?: string;
   amount?: number;
   debet?: number;
   credit?: number;
+  TransactionNumber?: string;
+  TransactionDate?: string;
+  TransactionDescription?: string;
+  TransactionAmount?: number;
+  ReferenceNumber?: string;
+  Debet?: string;
+  Credit?: string;
+  Administration?: string;
+  Ref1?: string;
+  Ref2?: string;
+  Ref3?: string;
+  Ref4?: string;
   duplicate_info?: DuplicateInfo;
   [key: string]: unknown;
 }
@@ -75,6 +120,7 @@ export interface UsePDFUploadReturn {
   allFolders: string[];
   filteredFolders: string[];
   searchTerm: string;
+  setSearchTerm: (term: string) => void;
   showCreateFolder: boolean;
   setShowCreateFolder: (show: boolean) => void;
   newFolderName: string;
@@ -271,24 +317,24 @@ export function usePDFUpload(): UsePDFUploadReturn {
         if (txnWithDuplicate?.duplicate_info) {
           setPendingTransactions(preparedTxns);
           const dupInfo = txnWithDuplicate.duplicate_info;
-          const existingTxn = (dupInfo as Record<string, unknown>).existing_transactions?.[0];
+          const existingTxn = ((dupInfo as Record<string, unknown>).existing_transactions as Record<string, unknown>[] | undefined)?.[0];
           if (existingTxn) {
             setDuplicateInfo({
               existingTransaction: {
-                id: existingTxn.ID?.toString() || '',
-                transactionDate: existingTxn.TransactionDate || '',
-                transactionDescription: existingTxn.TransactionDescription || '',
-                transactionAmount: parseFloat(existingTxn.TransactionAmount) || 0,
-                debet: existingTxn.Debet || '', credit: existingTxn.Credit || '',
-                referenceNumber: existingTxn.ReferenceNumber || '',
-                ref1: existingTxn.Ref1 || '', ref2: existingTxn.Ref2 || '',
-                ref3: existingTxn.Ref3 || '', ref4: existingTxn.Ref4 || ''
+                id: String(existingTxn.ID ?? ''),
+                transactionDate: String(existingTxn.TransactionDate ?? ''),
+                transactionDescription: String(existingTxn.TransactionDescription ?? ''),
+                transactionAmount: parseFloat(String(existingTxn.TransactionAmount)) || 0,
+                debet: String(existingTxn.Debet ?? ''), credit: String(existingTxn.Credit ?? ''),
+                referenceNumber: String(existingTxn.ReferenceNumber ?? ''),
+                ref1: String(existingTxn.Ref1 ?? ''), ref2: String(existingTxn.Ref2 ?? ''),
+                ref3: String(existingTxn.Ref3 ?? ''), ref4: String(existingTxn.Ref4 ?? '')
               },
               newTransaction: {
                 id: txnWithDuplicate.ID?.toString() || 'new',
                 transactionDate: txnWithDuplicate.TransactionDate || '',
                 transactionDescription: txnWithDuplicate.TransactionDescription || '',
-                transactionAmount: parseFloat(txnWithDuplicate.TransactionAmount as string) || 0,
+                transactionAmount: Number(txnWithDuplicate.TransactionAmount) || 0,
                 debet: txnWithDuplicate.Debet || '', credit: txnWithDuplicate.Credit || '',
                 referenceNumber: txnWithDuplicate.ReferenceNumber || '',
                 ref1: txnWithDuplicate.Ref1 || '', ref2: txnWithDuplicate.Ref2 || '',
@@ -312,21 +358,21 @@ export function usePDFUpload(): UsePDFUploadReturn {
           const existingTxn = (dupData.existing_transactions as Record<string, unknown>[])[0];
           setDuplicateInfo({
             existingTransaction: {
-              id: existingTxn.id?.toString() || '',
-              transactionDate: existingTxn.date || '',
-              transactionDescription: existingTxn.description || '',
-              transactionAmount: parseFloat(existingTxn.amount as string) || 0,
+              id: String(existingTxn.id ?? ''),
+              transactionDate: String(existingTxn.date ?? ''),
+              transactionDescription: String(existingTxn.description ?? ''),
+              transactionAmount: parseFloat(String(existingTxn.amount)) || 0,
               debet: '', credit: '',
               referenceNumber: values.folderId || '',
               ref1: '', ref2: '',
-              ref3: existingTxn.file_url || '',
-              ref4: existingTxn.filename || ''
+              ref3: String(existingTxn.file_url ?? ''),
+              ref4: String(existingTxn.filename ?? '')
             },
             newTransaction: {
               id: 'new',
-              transactionDate: existingTxn.date || '',
+              transactionDate: String(existingTxn.date ?? ''),
               transactionDescription: `New upload: ${values.file!.name}`,
-              transactionAmount: parseFloat(existingTxn.amount as string) || 0,
+              transactionAmount: parseFloat(String(existingTxn.amount)) || 0,
               debet: '', credit: '',
               referenceNumber: values.folderId || '',
               ref1: '', ref2: '', ref3: '',
@@ -494,6 +540,7 @@ export function usePDFUpload(): UsePDFUploadReturn {
     allFolders,
     filteredFolders,
     searchTerm,
+    setSearchTerm,
     showCreateFolder,
     setShowCreateFolder,
     newFolderName,

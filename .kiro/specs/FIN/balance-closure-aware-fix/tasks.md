@@ -166,7 +166,7 @@ This task list implements the closure-aware fix for balance sheet accounts (VW='
   - Run: `cd backend && source .venv/bin/activate && pytest tests/integration/test_closure_aware_integration.py -v`
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
 
-- [ ] 6. Checkpoint — Ensure all tests pass
+- [x] 6. Checkpoint — Ensure all tests pass
   - Run full test suite: `cd backend && source .venv/bin/activate && pytest tests/unit/test_closure_aware_bug_condition.py tests/unit/test_closure_aware_preservation.py tests/unit/test_closure_helpers.py tests/integration/test_closure_aware_integration.py -v`
   - Verify: bug condition test passes (bug is fixed)
   - Verify: preservation tests pass (no regressions)

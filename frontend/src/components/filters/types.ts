@@ -488,6 +488,10 @@ export interface FilterableHeaderProps {
   placeholder?: string;
   /** Right-align for numeric columns */
   isNumeric?: boolean;
+  /** Optional width constraint for the column (e.g., "60px", "120px") */
+  w?: string;
+  /** Optional max-width constraint for the column */
+  maxW?: string;
 }
 
 /**

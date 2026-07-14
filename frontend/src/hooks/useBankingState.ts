@@ -13,7 +13,7 @@ import { useTenant } from '../context/TenantContext';
 import { useTypedTranslation } from './useTypedTranslation';
 import { useAccountLookup } from './useAccountLookup';
 import { useFilterableTable } from './useFilterableTable';
-import type { Transaction, LookupData } from '../components/BankingProcessor.types';
+import type { Transaction, LookupData, CreditCardAccount } from '../components/BankingProcessor.types';
 import type { RefSummaryRow, TransactionRow } from './useBankingUpload';
 
 // ---------------------------------------------------------------------------
@@ -29,23 +29,31 @@ interface CreditCardAccountRaw {
   administration?: string;
 }
 
-/** Lookup data with optional credit card accounts from backend */
-interface BankingLookupData {
-  credit_card_accounts?: CreditCardAccountRaw[];
+/** Raw lookup data shape from the backend (before mapping) */
+interface BankingLookupDataRaw {
+  accounts: string[];
+  descriptions: string[];
+  bank_accounts: Array<{ rekeningNummer: string; Account: string; administration: string }>;
+  credit_card_accounts: CreditCardAccountRaw[];
+  exchange_rate_account: string | null;
   [key: string]: unknown;
 }
 
 /** Map backend credit_card_accounts fields to frontend interface */
-export const mapLookupData = (data: BankingLookupData): BankingLookupData => {
-  if (data.credit_card_accounts) {
-    data.credit_card_accounts = data.credit_card_accounts.map((cc) => ({
-      iban: cc.cc_bank_iban || cc.iban || '',
-      Account: cc.Account,
-      card_number: cc.card_number || '',
-      administration: cc.administration,
-    }));
-  }
-  return data;
+export const mapLookupData = (data: BankingLookupDataRaw): LookupData => {
+  const mappedCreditCards: CreditCardAccount[] = (data.credit_card_accounts || []).map((cc) => ({
+    iban: cc.cc_bank_iban || cc.iban || '',
+    Account: cc.Account || '',
+    card_number: cc.card_number || '',
+    administration: cc.administration || '',
+  }));
+  return {
+    accounts: data.accounts,
+    descriptions: data.descriptions,
+    bank_accounts: data.bank_accounts,
+    credit_card_accounts: mappedCreditCards,
+    exchange_rate_account: data.exchange_rate_account,
+  };
 };
 
 /** Format a number as Dutch-locale currency */

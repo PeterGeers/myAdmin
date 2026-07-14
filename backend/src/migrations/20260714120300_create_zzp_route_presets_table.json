@@ -1,0 +1,12 @@
+{
+  "name": "create_zzp_route_presets_table",
+  "description": "Create zzp_route_presets table for storing frequently-used routes for quick trip entry. Supports both user-created and auto-learned presets with usage tracking for suggestion ordering.",
+  "timestamp": "20260714120300",
+  "up": [
+    "CREATE TABLE IF NOT EXISTS zzp_route_presets (id INT AUTO_INCREMENT PRIMARY KEY, administration VARCHAR(50) NOT NULL, from_address VARCHAR(500) NOT NULL, to_address VARCHAR(500) NOT NULL, default_category VARCHAR(50) DEFAULT NULL COMMENT 'Zakelijk, Privé, Woon-werk', default_purpose VARCHAR(255) DEFAULT NULL, contact_id INT DEFAULT NULL, typical_distance_km INT DEFAULT NULL, use_count INT DEFAULT 0, last_used_at TIMESTAMP DEFAULT NULL, is_manual BOOLEAN DEFAULT FALSE COMMENT 'User-created vs auto-learned', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (contact_id) REFERENCES contacts(id), INDEX idx_administration (administration), INDEX idx_admin_usage (administration, use_count DESC, last_used_at DESC)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  ],
+  "down": [
+    "DROP TABLE IF EXISTS zzp_route_presets"
+  ],
+  "version": "1.0"
+}

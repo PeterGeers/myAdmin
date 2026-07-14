@@ -59,8 +59,9 @@ const sampleTransaction: Transaction = {
   Ref1: 'groceries',
   Ref2: '',
   Ref3: '',
+  Ref4: '',
   Administration: 'TestTenant',
-  pattern_filled: { Debet: true, Credit: false },
+  pattern_filled: true,
 };
 
 describe('BankingProcessorTable', () => {

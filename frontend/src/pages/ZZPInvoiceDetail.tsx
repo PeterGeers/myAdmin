@@ -35,6 +35,8 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
   invoiceId, onClose, onSaved,
 }) => {
   const { t } = useTypedTranslation('zzp');
+  // Wrap t for sub-components expecting (key: string, fallback?: string) => string
+  const tProp = (key: string, fallback?: string) => t(key, fallback ?? '') as string;
   const toast = useToast();
   const { isVisible, isRequired, loading: configLoading } = useFieldConfig('invoices');
 
@@ -94,9 +96,10 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
       if (prodResp.success) setProducts(prodResp.data);
       if (contResp.success) setContacts(contResp.data);
       if (ledgerResp.success) {
-        setLedgerAccounts(ledgerResp.data);
-        if (!invoiceId && ledgerResp.data.length > 0) {
-          setRevenueAccount(ledgerResp.data[0].account_code);
+        const ledgerData = ledgerResp.data as { account_code: string; account_name: string }[];
+        setLedgerAccounts(ledgerData);
+        if (!invoiceId && ledgerData.length > 0) {
+          setRevenueAccount(ledgerData[0].account_code);
         }
       }
     } catch {
@@ -452,7 +455,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         onCreditNote={handleCreditNote}
         onSendReminder={handleSendReminder}
         onClose={onClose}
-        t={t}
+        t={tProp}
       />
 
       <Divider borderColor="gray.600" mb={4} />
@@ -480,7 +483,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         onExchangeRateChange={setExchangeRate}
         onNotesChange={setNotes}
         onRevenueAccountChange={setRevenueAccount}
-        t={t}
+        t={tProp}
       />
 
       <Divider borderColor="gray.600" mb={4} />
@@ -509,7 +512,7 @@ const ZZPInvoiceDetail: React.FC<ZZPInvoiceDetailProps> = ({
         currency={currency}
         isNew={isNew}
         formatCurrency={formatCurrency}
-        t={t}
+        t={tProp}
       />
 
       {/* Sent info */}

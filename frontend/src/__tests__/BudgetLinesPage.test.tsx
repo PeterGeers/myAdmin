@@ -16,7 +16,7 @@ import * as chakra from '@chakra-ui/react';
 vi.mock('../services/budgetService');
 
 // Stabilize useToast so it returns the same function reference across renders.
-const stableToast = vi.fn();
+const stableToast = vi.fn() as unknown as ReturnType<typeof chakra.useToast>;
 vi.spyOn(chakra, 'useToast').mockReturnValue(stableToast);
 
 const mockListVersions = vi.mocked(budgetService.listVersions);
@@ -112,7 +112,7 @@ describe('BudgetLinesPage', () => {
     });
     mockCopyBudget.mockResolvedValue({
       success: true,
-      data: { version_id: 6 },
+      data: { version_id: 6, lines_copied: 10, excluded_accounts: [] },
     });
   });
 

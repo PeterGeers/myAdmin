@@ -78,6 +78,10 @@ nav:
       - Creditnota's: zzp/credit-notes.md
       - Urenregistratie: zzp/time-tracking.md
       - Debiteuren & crediteuren: zzp/debtors.md
+      - Rittenregistratie: zzp/rittenregistratie.md
+      - Voertuigen: zzp/voertuigen.md
+      - Importeren & exporteren (ritten): zzp/importeren-exporteren.md
+      - Snelle invoer (mobiel): zzp/snelle-invoer.md
   - STR:
       - Overzicht: str/index.md
       - Boekingen importeren: str/importing-bookings.md

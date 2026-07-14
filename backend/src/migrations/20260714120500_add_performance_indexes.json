@@ -1,0 +1,22 @@
+{
+  "name": "add_performance_indexes",
+  "description": "Add additional database indexes for common query patterns: trip listing by date range, summary aggregation by vehicle+category, unbilled trips, gap detection with date, audit trail lookup with version, and route preset suggestion ordering by last_used_at.",
+  "timestamp": "20260714120500",
+  "up": [
+    "CREATE INDEX IF NOT EXISTS idx_zzp_trips_admin_date ON zzp_trips (administration, trip_date)",
+    "CREATE INDEX IF NOT EXISTS idx_zzp_trips_admin_vehicle_category ON zzp_trips (administration, vehicle_id, trip_category, trip_date)",
+    "CREATE INDEX IF NOT EXISTS idx_zzp_trips_admin_billable_contact ON zzp_trips (administration, is_billable, is_billed, contact_id)",
+    "CREATE INDEX IF NOT EXISTS idx_zzp_trips_vehicle_date_odometer ON zzp_trips (vehicle_id, trip_date, start_odometer)",
+    "CREATE INDEX IF NOT EXISTS idx_zzp_trip_audit_admin_trip_version ON zzp_trip_audit (administration, trip_id, version)",
+    "CREATE INDEX IF NOT EXISTS idx_zzp_route_presets_admin_usage ON zzp_route_presets (administration, last_used_at, use_count)"
+  ],
+  "down": [
+    "DROP INDEX IF EXISTS idx_zzp_trips_admin_date ON zzp_trips",
+    "DROP INDEX IF EXISTS idx_zzp_trips_admin_vehicle_category ON zzp_trips",
+    "DROP INDEX IF EXISTS idx_zzp_trips_admin_billable_contact ON zzp_trips",
+    "DROP INDEX IF EXISTS idx_zzp_trips_vehicle_date_odometer ON zzp_trips",
+    "DROP INDEX IF EXISTS idx_zzp_trip_audit_admin_trip_version ON zzp_trip_audit",
+    "DROP INDEX IF EXISTS idx_zzp_route_presets_admin_usage ON zzp_route_presets"
+  ],
+  "version": "1.0"
+}

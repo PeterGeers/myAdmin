@@ -10,7 +10,6 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-// @ts-expect-error — Chakra UI mock alias doesn't ship type declarations in test environment
 import * as chakra from '@chakra-ui/react';
 import { render, screen, waitFor, fireEvent } from '@/test-utils';
 import BudgetPage from '../pages/BudgetPage';
@@ -19,7 +18,7 @@ import * as budgetService from '../services/budgetService';
 vi.mock('../services/budgetService');
 
 // Stabilize useToast
-const stableToast = vi.fn();
+const stableToast = vi.fn() as unknown as ReturnType<typeof chakra.useToast>;
 vi.spyOn(chakra, 'useToast').mockReturnValue(stableToast);
 
 // Mock sub-components to keep tests fast

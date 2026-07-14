@@ -140,6 +140,253 @@
     "overdue61_90": "61-90 dagen",
     "overdue90plus": "90+ dagen"
   },
+  "trips": {
+    "title": "Rittenregistratie",
+    "quickEntry": "Snelle invoer",
+    "newTrip": "Nieuwe rit",
+    "editTrip": "Rit bewerken",
+    "tripDetails": "Ritdetails",
+    "registerTrip": "Registreer rit",
+    "startTrip": "Start rit",
+    "stopTrip": "Stop rit",
+    "tripRunning": "Rit actief",
+    "noTrips": "Geen ritten gevonden",
+    "labels": {
+      "vehicle": "Voertuig",
+      "date": "Datum",
+      "startTime": "Vertrektijd",
+      "endTime": "Aankomsttijd",
+      "startAddress": "Vertrekadres",
+      "endAddress": "Bestemming",
+      "startOdometer": "Begin km-stand",
+      "endOdometer": "Eind km-stand",
+      "distance": "Afstand (km)",
+      "category": "Categorie",
+      "purpose": "Doel",
+      "client": "Klant",
+      "project": "Project",
+      "notes": "Opmerkingen",
+      "routeDescription": "Routebeschrijving",
+      "billable": "Factureerbaar",
+      "billed": "Gefactureerd",
+      "kmRate": "Kilometertarief",
+      "amount": "Bedrag",
+      "correctionReason": "Reden correctie",
+      "cancelReason": "Reden annulering",
+      "previousOdometer": "Vorige stand: {{km}}"
+    },
+    "categories": {
+      "zakelijk": "Zakelijk",
+      "prive": "Privé",
+      "woonWerk": "Woon-werk"
+    },
+    "purposes": {
+      "klantbezoek": "Klantbezoek",
+      "vergadering": "Vergadering",
+      "materiaalOphalen": "Materiaal ophalen",
+      "overig": "Overig"
+    },
+    "status": {
+      "billed": "Gefactureerd",
+      "unbilled": "Ongefactureerd",
+      "billable": "Factureerbaar",
+      "cancelled": "Geannuleerd",
+      "gapFill": "Niet geregistreerd",
+      "corrected": "Gecorrigeerd"
+    },
+    "gaps": {
+      "title": "Niet geregistreerd",
+      "warning": "Er ontbreken {{km}} km tussen de vorige rit en deze rit",
+      "acceptGapFill": "Gap-fill accepteren",
+      "unresolvedGaps": "Onafgehandelde hiaten",
+      "fillGap": "Hiaat invullen",
+      "gapDetected": "Hiaat gedetecteerd: {{km}} km",
+      "largeDistanceWarning": "Let op: afstand van {{km}} km is ongebruikelijk groot"
+    },
+    "gapFill": {
+      "bannerMessage": "Er ontbreken {{km}} km ({{from}} → {{to}})",
+      "accept": "Accepteer als privé",
+      "dismiss": "Negeer",
+      "accepted": "Gap-fill rit aangemaakt",
+      "error": "Fout bij aanmaken gap-fill rit"
+    },
+    "bijtelling": {
+      "title": "Bijtelling privé-km",
+      "warning": "Let op: nog {{remaining}} km privé over dit jaar",
+      "warningMessage": "Let op: u nadert de 500 km privé-grens",
+      "exceeded": "Limiet overschreden — bijtelling is van toepassing",
+      "remainingKm": "Nog {{remaining}} km privé beschikbaar",
+      "threshold": "Drempelwaarde bereikt",
+      "limit": "Limiet",
+      "used": "Gebruikt",
+      "remaining": "Resterend",
+      "status": "Bijtelling status",
+      "exempt": "Vrijgesteld",
+      "liable": "Bijtellingsplichtig"
+    },
+    "summary": {
+      "title": "Overzicht",
+      "totalKm": "Totaal km",
+      "zakelijkKm": "Zakelijk km",
+      "priveKm": "Privé km",
+      "woonWerkKm": "Woon-werk km",
+      "taxDeduction": "Aftrek",
+      "period": "Periode",
+      "yearly": "Jaarlijks",
+      "monthly": "Maandelijks",
+      "quarterly": "Per kwartaal"
+    },
+    "billing": {
+      "invoiceSelected": "Factureer geselecteerd",
+      "selectTrips": "Selecteer ritten om te factureren",
+      "noUnbilled": "Geen ongefactureerde ritten voor dit contact",
+      "createInvoice": "Factuur aanmaken",
+      "tripsInvoiced": "{{count}} rit(ten) gefactureerd",
+      "billedProtected": "Kan een gefactureerde rit niet bewerken"
+    },
+    "invoice": {
+      "button": "Factureer",
+      "noContact": "Geen klant gekoppeld aan geselecteerde ritten",
+      "multipleContacts": "Geselecteerde ritten hebben verschillende klanten",
+      "created": "Factuur aangemaakt",
+      "error": "Fout bij aanmaken factuur"
+    },
+    "toast": {
+      "created": "Rit aangemaakt",
+      "updated": "Rit bijgewerkt",
+      "cancelled": "Rit geannuleerd",
+      "gapWarning": "Km-gat gedetecteerd",
+      "error": "Er is een fout opgetreden"
+    },
+    "actions": {
+      "cancelTrip": "Rit annuleren",
+      "confirmCancel": "Bevestig"
+    },
+    "cancelConfirm": {
+      "message": "Weet je zeker dat je deze rit wilt annuleren? Dit kan niet ongedaan worden gemaakt."
+    },
+    "placeholders": {
+      "correctionReason": "Reden voor correctie...",
+      "cancelReason": "Reden voor annulering..."
+    },
+    "export": {
+      "title": "Exporteren",
+      "pdf": "PDF",
+      "csv": "CSV",
+      "excel": "Excel (XLSX)",
+      "year": "Jaar",
+      "generating": "Bezig met genereren...",
+      "downloadReady": "Download gereed"
+    },
+    "import": {
+      "title": "Ritten importeren",
+      "uploadFile": "Bestand uploaden",
+      "selectVehicle": "Selecteer voertuig",
+      "columnMapping": "Kolomtoewijzing",
+      "preview": "Voorbeeld",
+      "commit": "Importeren",
+      "template": "Download sjabloon",
+      "fileTypes": "CSV of Excel (.xlsx)",
+      "dragDrop": "Sleep bestand hierheen of klik om te selecteren",
+      "mapping": {
+        "date": "Datum",
+        "startAddress": "Vertrekadres",
+        "endAddress": "Bestemming",
+        "startKm": "Begin KM",
+        "endKm": "Eind KM",
+        "purpose": "Doel",
+        "category": "Categorie",
+        "client": "Klant",
+        "notes": "Opmerkingen"
+      },
+      "results": {
+        "totalRows": "Totaal rijen",
+        "valid": "Geldig",
+        "warnings": "Waarschuwingen",
+        "errors": "Fouten",
+        "skipErrors": "Fout-rijen overslaan",
+        "importSuccess": "{{count}} ritten succesvol geïmporteerd",
+        "duplicateDetected": "Dubbele rit gedetecteerd"
+      }
+    },
+    "presets": {
+      "title": "Favoriete routes",
+      "newPreset": "Nieuwe route",
+      "editPreset": "Route bewerken",
+      "fromAddress": "Van",
+      "toAddress": "Naar",
+      "typicalDistance": "Gebruikelijke afstand",
+      "useCount": "Aantal keer gebruikt",
+      "noPresets": "Nog geen favoriete routes"
+    },
+    "vehicles": {
+      "title": "Voertuigen",
+      "newVehicle": "Nieuw voertuig",
+      "editVehicle": "Voertuig bewerken",
+      "licensePlate": "Kenteken",
+      "make": "Merk",
+      "model": "Model",
+      "yearBuilt": "Bouwjaar",
+      "vin": "Chassisnummer (VIN)",
+      "vehicleType": "Type voertuig",
+      "odometerUnit": "Eenheid",
+      "ownerLeaseCompany": "Eigenaar/leasemaatschappij",
+      "startOdometer": "Begin km-stand",
+      "startDate": "Startdatum",
+      "deactivate": "Deactiveren",
+      "deactivateConfirm": "Weet je zeker dat je dit voertuig wilt deactiveren?",
+      "types": {
+        "privateForBusiness": "Privé voor zakelijk gebruik",
+        "business": "Zakelijk voertuig"
+      },
+      "units": {
+        "km": "Kilometer",
+        "miles": "Mijl"
+      }
+    },
+    "audit": {
+      "title": "Correctiehistorie",
+      "version": "Versie",
+      "action": "Actie",
+      "changedBy": "Gewijzigd door",
+      "changedAt": "Gewijzigd op",
+      "changedFields": "Gewijzigde velden",
+      "oldValue": "Oude waarde",
+      "newValue": "Nieuwe waarde",
+      "actions": {
+        "created": "Aangemaakt",
+        "updated": "Gewijzigd",
+        "cancelled": "Geannuleerd",
+        "imported": "Geïmporteerd"
+      }
+    },
+    "validation": {
+      "endOdometerGreater": "Eind km-stand moet hoger zijn dan begin km-stand",
+      "startOdometerRequired": "Begin km-stand is verplicht",
+      "endOdometerRequired": "Eind km-stand is verplicht",
+      "dateRequired": "Datum is verplicht",
+      "startAddressRequired": "Vertrekadres is verplicht",
+      "endAddressRequired": "Bestemming is verplicht",
+      "categoryRequired": "Categorie is verplicht",
+      "purposeRequired": "Doel is verplicht",
+      "vehicleRequired": "Voertuig is verplicht",
+      "correctionReasonRequired": "Reden voor correctie is verplicht",
+      "cancelReasonRequired": "Reden voor annulering is verplicht",
+      "invalidDate": "Ongeldige datum",
+      "futureDateNotAllowed": "Datum mag niet in de toekomst liggen",
+      "licensePlateRequired": "Kenteken is verplicht",
+      "licensePlateDuplicate": "Dit kenteken is al geregistreerd"
+    },
+    "filters": {
+      "allVehicles": "Alle voertuigen",
+      "allCategories": "Alle categorieën",
+      "allClients": "Alle klanten",
+      "dateFrom": "Van",
+      "dateTo": "Tot",
+      "showGapFill": "Toon hiaten",
+      "billingStatus": "Factuurstatus"
+    }
+  },
   "common": {
     "save": "Opslaan",
     "cancel": "Annuleren",

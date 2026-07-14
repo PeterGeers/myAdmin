@@ -39,7 +39,7 @@ describe('Debtor Service', () => {
     mockGet.mockResolvedValue(json({ success: true, data: aging }));
     const r = await getAging();
     expect(mockGet).toHaveBeenCalledWith('/api/zzp/debtors/aging');
-    expect(r.data.total_outstanding).toBe(5000);
+    expect((r.data as Record<string, unknown>).total_outstanding).toBe(5000);
   });
 
   it('sendReminder posts to correct endpoint', async () => {
@@ -52,13 +52,13 @@ describe('Debtor Service', () => {
     mockPost.mockResolvedValue(json({ success: true, data: { matched: 3 } }));
     const r = await runPaymentCheck();
     expect(mockPost).toHaveBeenCalledWith('/api/zzp/payment-check/run', {});
-    expect(r.data.matched).toBe(3);
+    expect((r.data as Record<string, unknown>).matched).toBe(3);
   });
 
   it('getPaymentCheckStatus calls correct endpoint', async () => {
     mockGet.mockResolvedValue(json({ success: true, data: { last_run: '2026-04-15' } }));
     const r = await getPaymentCheckStatus();
     expect(mockGet).toHaveBeenCalledWith('/api/zzp/payment-check/status');
-    expect(r.data.last_run).toBe('2026-04-15');
+    expect((r.data as Record<string, unknown>).last_run).toBe('2026-04-15');
   });
 });

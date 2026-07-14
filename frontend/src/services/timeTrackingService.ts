@@ -15,11 +15,13 @@ interface ApiListResponse {
 interface ApiItemResponse {
   success: boolean;
   data: TimeEntry;
+  error?: string;
 }
 
 interface ApiDeleteResponse {
   success: boolean;
   message?: string;
+  error?: string;
 }
 
 interface ApiSummaryResponse {
