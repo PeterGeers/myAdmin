@@ -59,7 +59,24 @@ type PageType = 'login' | 'menu' | 'pdf' | 'banking' | 'str' | 'str-invoice' | '
 
 function AppContent() {
   const { t } = useTranslation();
-  const [currentPage, setCurrentPage] = useState<PageType>('menu');
+  const [currentPage, setCurrentPage] = useState<PageType>(() => {
+    // Map URL paths to pages for PWA deep-link support
+    const urlPageMap: Record<string, PageType> = {
+      '/zzp/ritten/quick': 'zzp-trip-quick',
+      '/zzp/ritten': 'zzp-trips',
+      '/zzp/ritten/import': 'zzp-trip-import',
+      '/zzp/voertuigen': 'zzp-vehicles',
+      '/zzp/facturen': 'zzp-invoices',
+      '/zzp/contacten': 'zzp-contacts',
+      '/zzp/producten': 'zzp-products',
+      '/zzp/urenregistratie': 'zzp-time-tracking',
+      '/zzp/debiteuren': 'zzp-debtors',
+      '/banking': 'banking',
+      '/budget': 'budget',
+    };
+    const path = window.location.pathname;
+    return urlPageMap[path] || 'menu';
+  });
   const [status, setStatus] = useState({ mode: 'Production', database: '', folder: '' });
   const { isAuthenticated, loading, user, logout, refreshUserRoles } = useAuth();
   const { hasFIN, hasSTR, hasZZP, loading: modulesLoading } = useTenantModules();
@@ -98,26 +115,31 @@ function AppContent() {
   }, []);
 
   // Redirect to menu if user loses module access after tenant switch
+  // Only redirect when authenticated and modules have been loaded (not during initial no-tenant state)
   useEffect(() => {
-    if (!modulesLoading) {
+    if (!modulesLoading && isAuthenticated && (hasFIN || hasSTR || hasZZP)) {
+      const isZZPPage = currentPage === 'zzp-invoices' || currentPage === 'zzp-contacts' || currentPage === 'zzp-products' || currentPage === 'zzp-time-tracking' || currentPage === 'zzp-trips' || currentPage === 'zzp-trip-quick' || currentPage === 'zzp-trip-import' || currentPage === 'zzp-vehicles' || currentPage === 'zzp-debtors';
+      const isSTRPage = currentPage === 'str' || currentPage === 'str-invoice' || currentPage === 'str-pricing' || currentPage === 'str-reports';
+      const isFINPage = currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets' || currentPage === 'budget';
+
       // If on STR page but no STR access, redirect to menu
-      if ((currentPage === 'str' || currentPage === 'str-invoice' || currentPage === 'str-pricing' || currentPage === 'str-reports') && !hasSTR) {
+      if (isSTRPage && !hasSTR) {
         setCurrentPage('menu');
       }
       // If on FIN page but no FIN access, redirect to menu
-      if ((currentPage === 'pdf' || currentPage === 'banking' || currentPage === 'powerbi' || currentPage === 'fin-reports' || currentPage === 'assets' || currentPage === 'budget') && !hasFIN) {
+      if (isFINPage && !hasFIN) {
         setCurrentPage('menu');
       }
       // If on ZZP page but no ZZP access, redirect to menu
-      if ((currentPage === 'zzp-invoices' || currentPage === 'zzp-contacts' || currentPage === 'zzp-products' || currentPage === 'zzp-time-tracking' || currentPage === 'zzp-trips' || currentPage === 'zzp-trip-quick' || currentPage === 'zzp-trip-import' || currentPage === 'zzp-vehicles' || currentPage === 'zzp-debtors') && !hasZZP) {
+      if (isZZPPage && !hasZZP) {
         setCurrentPage('menu');
       }
     }
-  }, [hasSTR, hasFIN, hasZZP, modulesLoading, currentPage]);
+  }, [hasSTR, hasFIN, hasZZP, modulesLoading, isAuthenticated, currentPage]);
 
   // Show login page if not authenticated
   if (!isAuthenticated && !loading) {
-    return <Login onLoginSuccess={() => { refreshUserRoles(); setCurrentPage('menu'); }} />;
+    return <Login onLoginSuccess={() => { refreshUserRoles(); }} />;
   }
 
   // Show loading state while checking authentication
