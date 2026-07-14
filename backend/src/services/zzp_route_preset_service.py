@@ -168,7 +168,9 @@ class RoutePresetService:
         )
         return True
 
-    def increment_usage(self, tenant: str, from_address: str, to_address: str) -> None:
+    def increment_usage(self, tenant: str, from_address: str, to_address: str,
+                        default_category: str = None, default_purpose: str = None,
+                        typical_distance_km: int = None) -> None:
         """UPSERT route usage: increment use_count if exists, else create with use_count=1.
 
         This is called automatically when a trip is created to track route frequency.
@@ -187,24 +189,30 @@ class RoutePresetService:
         )
 
         if rows:
-            # Update: increment use_count and refresh last_used_at
+            # Update: increment use_count, refresh last_used_at, update category/purpose/distance
             self.db.execute_query(
                 f"""UPDATE zzp_route_presets
                     SET use_count = use_count + 1,
-                        last_used_at = {dialect.current_timestamp()}
+                        last_used_at = {dialect.current_timestamp()},
+                        default_category = COALESCE(%s, default_category),
+                        default_purpose = COALESCE(%s, default_purpose),
+                        typical_distance_km = COALESCE(%s, typical_distance_km)
                     WHERE id = %s AND administration = %s""",
-                (rows[0]["id"], tenant),
+                (default_category, default_purpose, typical_distance_km,
+                 rows[0]["id"], tenant),
                 fetch=False,
                 commit=True,
             )
         else:
-            # Insert: new auto-learned preset
+            # Insert: new auto-learned preset with all metadata
             self.db.execute_query(
                 f"""INSERT INTO zzp_route_presets
-                    (administration, from_address, to_address, use_count,
+                    (administration, from_address, to_address, default_category,
+                     default_purpose, typical_distance_km, use_count,
                      last_used_at, is_manual)
-                    VALUES (%s, %s, %s, %s, {dialect.current_timestamp()}, %s)""",
-                (tenant, from_addr, to_addr, 1, False),
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, {dialect.current_timestamp()}, %s)""",
+                (tenant, from_addr, to_addr, default_category, default_purpose,
+                 typical_distance_km, 1, False),
                 fetch=False,
                 commit=True,
             )

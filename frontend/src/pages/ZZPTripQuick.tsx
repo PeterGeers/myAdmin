@@ -12,7 +12,6 @@ import {
   Input,
   useToast,
   Spinner,
-  Badge,
 } from '@chakra-ui/react';
 import { createTrip, getTrips } from '../services/tripService';
 import { getVehicles } from '../services/vehicleService';
@@ -43,12 +42,6 @@ const ZZPTripQuick: React.FC = () => {
   const [tripCategory, setTripCategory] = useState<string>('Zakelijk');
   const [tripPurpose, setTripPurpose] = useState<string>('');
   const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
-
-  // Timer state
-  const [timerMode, setTimerMode] = useState(false);
-  const [startTime, setStartTime] = useState<string | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -114,52 +107,18 @@ const ZZPTripQuick: React.FC = () => {
     fetchLastTrip();
   }, [selectedVehicleId, vehicles]);
 
-  // Timer interval
-  useEffect(() => {
-    if (timerMode) {
-      timerRef.current = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [timerMode]);
-
-  const formatElapsed = (seconds: number): string => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
   const handlePresetSelect = useCallback((preset: RoutePreset) => {
     setSelectedPresetId(preset.id);
     setStartAddress(preset.from_address);
     setEndAddress(preset.to_address);
     if (preset.default_category) setTripCategory(preset.default_category);
     if (preset.default_purpose) setTripPurpose(preset.default_purpose);
-  }, []);
-
-  const handleStartTrip = () => {
-    const now = new Date().toLocaleTimeString('nl-NL', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    setStartTime(now);
-    setTimerMode(true);
-    setElapsedSeconds(0);
-  };
-
-  const handleStopTrip = () => {
-    setTimerMode(false);
-    // Focus on end odometer input for quick entry
-    setTimeout(() => endOdometerRef.current?.focus(), 100);
-  };
+    // Pre-fill predicted end odometer from typical distance
+    if (preset.typical_distance_km && startOdometer) {
+      const predicted = Number(startOdometer) + preset.typical_distance_km;
+      setEndOdometer(String(predicted));
+    }
+  }, [startOdometer]);
 
   const handleSubmit = async () => {
     // Validation
@@ -190,10 +149,6 @@ const ZZPTripQuick: React.FC = () => {
         distance_km: endKm - startKm,
         trip_category: tripCategory,
         trip_purpose: tripPurpose || `${startAddress} → ${endAddress}`,
-        start_time: startTime || null,
-        end_time: timerMode
-          ? null
-          : new Date().toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }),
       };
 
       await createTrip(tripData);
@@ -212,9 +167,6 @@ const ZZPTripQuick: React.FC = () => {
       setEndAddress('');
       setTripPurpose('');
       setSelectedPresetId(null);
-      setStartTime(null);
-      setTimerMode(false);
-      setElapsedSeconds(0);
     } catch (err) {
       toast({
         title: 'Fout bij registreren',
@@ -303,7 +255,8 @@ const ZZPTripQuick: React.FC = () => {
               placeholder="Van"
               bg="gray.700"
               borderColor="gray.600"
-              size="sm"
+              color="white"
+              size="md"
               minH="44px"
             />
             <Input
@@ -312,7 +265,8 @@ const ZZPTripQuick: React.FC = () => {
               placeholder="Naar"
               bg="gray.700"
               borderColor="gray.600"
-              size="sm"
+              color="white"
+              size="md"
               minH="44px"
             />
           </HStack>
@@ -329,100 +283,85 @@ const ZZPTripQuick: React.FC = () => {
               isReadOnly
               bg="gray.900"
               borderColor="gray.600"
-              color="gray.400"
-              size="sm"
-              minH="44px"
+              color="gray.300"
+              size="lg"
+              minH="60px"
+              fontSize="2xl"
               aria-label="Start km-stand"
             />
             <Input
               ref={endOdometerRef}
               value={endOdometer}
-              onChange={(e) => setEndOdometer(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                if (Number(val) <= 999999) setEndOdometer(val);
+              }}
               placeholder="Eind"
               bg="gray.700"
               borderColor="gray.600"
-              type="number"
-              size="sm"
-              minH="44px"
+              color="white"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              size="lg"
+              minH="60px"
+              fontSize="2xl"
+              fontWeight="bold"
               aria-label="Eind km-stand"
             />
           </HStack>
-          {lastTrip && (
-            <Text fontSize="xs" color="gray.500" mt={1}>
-              Vorige: {lastTrip.end_odometer} km ({lastTrip.end_address})
-            </Text>
-          )}
+          <Flex justify="space-between" align="center" mt={1}>
+            {lastTrip && (
+              <Text fontSize="xs" color="gray.500">
+                Vorige: {lastTrip.end_odometer} km ({lastTrip.end_address})
+              </Text>
+            )}
+            {endOdometer && startOdometer && Number(endOdometer) > Number(startOdometer) && (
+              <Text fontSize="2xl" fontWeight="bold" color="orange.300">
+                {Number(endOdometer) - Number(startOdometer)} km
+              </Text>
+            )}
+          </Flex>
         </FormControl>
 
-        {/* Category */}
+        {/* Category + Purpose */}
         <FormControl>
           <FormLabel fontSize="sm" color="gray.400">
-            Categorie
+            Categorie & Ritdoel
           </FormLabel>
-          <Select
-            value={tripCategory}
-            onChange={(e) => setTripCategory(e.target.value)}
-            bg="gray.700"
-            borderColor="gray.600"
-            size="sm"
-            minH="44px"
-          >
-            <option value="Zakelijk" style={{ background: '#2D3748' }}>Zakelijk</option>
-            <option value="Woon-werk" style={{ background: '#2D3748' }}>Woon-werk</option>
-            <option value="Privé" style={{ background: '#2D3748' }}>Privé</option>
-          </Select>
-        </FormControl>
-
-        {/* Start/Stop timer */}
-        <Box>
-          {!timerMode ? (
-            <Button
-              w="full"
+          <HStack>
+            <Select
+              value={tripCategory}
+              onChange={(e) => setTripCategory(e.target.value)}
+              bg="gray.700"
+              borderColor="gray.600"
+              color="white"
               size="md"
-              variant="outline"
-              colorScheme="green"
-              onClick={handleStartTrip}
               minH="44px"
-              leftIcon={<Text>▶</Text>}
+              flex={1}
             >
-              Start Rit
-            </Button>
-          ) : (
-            <VStack spacing={2}>
-              <Flex
-                w="full"
-                align="center"
-                justify="space-between"
-                bg="gray.900"
-                p={3}
-                borderRadius="md"
-              >
-                <HStack>
-                  <Badge colorScheme="green" variant="subtle" fontSize="xs">
-                    ACTIEF
-                  </Badge>
-                  <Text fontSize="sm" color="gray.400">
-                    Start: {startTime}
-                  </Text>
-                </HStack>
-                <Text fontSize="lg" fontWeight="mono" color="green.300">
-                  {formatElapsed(elapsedSeconds)}
-                </Text>
-              </Flex>
-              <Button
-                w="full"
-                size="md"
-                colorScheme="red"
-                variant="outline"
-                onClick={handleStopTrip}
-                minH="44px"
-                leftIcon={<Text>⏹</Text>}
-              >
-                Stop Rit
-              </Button>
-            </VStack>
-          )}
-        </Box>
+              <option value="Zakelijk" style={{ background: '#2D3748' }}>Zakelijk</option>
+              <option value="Woon-werk" style={{ background: '#2D3748' }}>Woon-werk</option>
+              <option value="Privé" style={{ background: '#2D3748' }}>Privé</option>
+            </Select>
+            <Select
+              value={tripPurpose}
+              onChange={(e) => setTripPurpose(e.target.value)}
+              bg="gray.700"
+              borderColor="gray.600"
+              color="white"
+              size="md"
+              minH="44px"
+              flex={1}
+              placeholder="Ritdoel"
+            >
+              <option value="Klantbezoek" style={{ background: '#2D3748' }}>Klantbezoek</option>
+              <option value="Vergadering" style={{ background: '#2D3748' }}>Vergadering</option>
+              <option value="Materiaal ophalen" style={{ background: '#2D3748' }}>Materiaal ophalen</option>
+              <option value="Overig" style={{ background: '#2D3748' }}>Overig</option>
+            </Select>
+          </HStack>
+        </FormControl>
       </VStack>
 
       {/* Primary action */}
@@ -441,13 +380,6 @@ const ZZPTripQuick: React.FC = () => {
       >
         REGISTREER RIT
       </Button>
-
-      {/* Distance preview */}
-      {endOdometer && startOdometer && Number(endOdometer) > Number(startOdometer) && (
-        <Text textAlign="center" mt={2} fontSize="sm" color="gray.400">
-          Afstand: {Number(endOdometer) - Number(startOdometer)} km
-        </Text>
-      )}
     </Box>
   );
 };
