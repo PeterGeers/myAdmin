@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 # client_id: alphanumeric + hyphen/underscore, max 20 chars
 CLIENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,20}$")
 
+# Basic email validation: local@domain with at least one dot in domain
+EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
+
 
 class ContactService(FieldConfigMixin):
     """Shared contact CRUD scoped by tenant."""
@@ -269,15 +272,27 @@ class ContactService(FieldConfigMixin):
         )
         return rows or []
 
+    @staticmethod
+    def _validate_email(email: str) -> None:
+        """Validate email format. Raises ValueError if invalid."""
+        if not email or not email.strip():
+            raise ValueError("Email address cannot be empty")
+        if not EMAIL_PATTERN.match(email.strip()):
+            raise ValueError(f"Invalid email address: '{email}'")
+
     def _save_emails(self, contact_id: int, emails: List[dict], tenant: str) -> None:
         for em in emails:
+            email = em.get("email", "").strip()
+            if not email:
+                continue  # skip blank rows
+            self._validate_email(email)
             self.db.execute_query(
                 """INSERT INTO contact_emails (contact_id, administration, email, email_type, is_primary)
                    VALUES (%s, %s, %s, %s, %s)""",
                 (
                     contact_id,
                     tenant,
-                    em["email"],
+                    email,
                     em.get("email_type", "general"),
                     em.get("is_primary", False),
                 ),

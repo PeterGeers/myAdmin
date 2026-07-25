@@ -4,12 +4,12 @@
  * Reference: .kiro/steering/ui-patterns.md, .kiro/specs/zzp-module/design.md §6.3
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody,
   ModalFooter, ModalCloseButton, Button, FormControl, FormLabel,
   Input, Select, IconButton, HStack, VStack, Table, Thead, Tbody,
-  Tr, Th, Td, Text, useToast, useDisclosure, Badge,
+  Tr, Th, Td, Text, useToast, useDisclosure, Badge, FormErrorMessage,
 } from '@chakra-ui/react';
 import { AddIcon, DeleteIcon, EmailIcon } from '@chakra-ui/icons';
 import { Formik, Form, Field } from 'formik';
@@ -65,6 +65,21 @@ export const ContactModal: React.FC<ContactModalProps> = ({
     company_name: Yup.string().required(t('contacts.companyName') + ' is required'),
   });
 
+  const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
+  const validateEmail = (email: string): string | null => {
+    if (!email || !email.trim()) return null; // blank rows are skipped
+    if (!EMAIL_REGEX.test(email.trim())) return t('contacts.invalidEmail', 'Invalid email address');
+    return null;
+  };
+
+  const emailErrors = useMemo(
+    () => emails.map(em => validateEmail(em.email || '')),
+    [emails]
+  );
+
+  const hasEmailErrors = emailErrors.some(err => err !== null);
+
   const addEmail = () => {
     setEmails([...emails, { email: '', email_type: 'general', is_primary: false }]);
   };
@@ -76,8 +91,13 @@ export const ContactModal: React.FC<ContactModalProps> = ({
   };
 
   const handleSubmit = async (values: typeof initialValues, { setSubmitting }: any) => {
+    if (hasEmailErrors) {
+      toast({ title: t('contacts.fixEmailErrors', 'Fix invalid email addresses'), status: 'warning' });
+      setSubmitting(false);
+      return;
+    }
     try {
-      const data: any = { ...values, emails };
+      const data: any = { ...values, emails: emails.filter(e => e.email?.trim()) };
       const resp = isEdit
         ? await updateContact(contact!.id, data)
         : await createContact(data);
@@ -215,9 +235,14 @@ export const ContactModal: React.FC<ContactModalProps> = ({
                 {emails.map((em, idx) => (
                   <Tr key={idx}>
                     <Td>
-                      <Input size="sm" bg="gray.700" color="white" borderColor="gray.600"
-                        placeholder="email@example.com"
-                        value={em.email || ''} onChange={e => updateEmail(idx, 'email', e.target.value)} />
+                      <FormControl isInvalid={!!emailErrors[idx]}>
+                        <Input size="sm" bg="gray.700" color="white" borderColor={emailErrors[idx] ? 'red.400' : 'gray.600'}
+                          placeholder="email@example.com"
+                          value={em.email || ''} onChange={e => updateEmail(idx, 'email', e.target.value)} />
+                        {emailErrors[idx] && (
+                          <FormErrorMessage fontSize="xs">{emailErrors[idx]}</FormErrorMessage>
+                        )}
+                      </FormControl>
                     </Td>
                     <Td>
                       <Select size="sm" bg="gray.700" color="white" borderColor="gray.600"
