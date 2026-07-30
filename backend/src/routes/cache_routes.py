@@ -37,26 +37,30 @@ def cache_warmup(user_email, user_roles) -> ResponseReturnValue:
 
         # Check if cache is already loaded
         if cache.data is not None:
+            stats = cache.get_stats()
             return jsonify(
                 {
                     "success": True,
                     "message": "Cache already loaded",
-                    "record_count": len(cache.data),
+                    "record_count": stats["total_rows"],
+                    "tenants_loaded": stats["tenants_loaded"],
                     "last_refresh": cache.last_loaded.isoformat()
                     if cache.last_loaded
                     else None,
                 }
             )
 
-        # Load the cache
+        # Load the cache (legacy: all tenants)
         db = DatabaseManager(test_mode=flag)
         cache.get_data(db)
 
+        stats = cache.get_stats()
         return jsonify(
             {
                 "success": True,
                 "message": "Cache loaded successfully",
-                "record_count": len(cache.data),
+                "record_count": stats["total_rows"],
+                "tenants_loaded": stats["tenants_loaded"],
                 "last_refresh": cache.last_loaded.isoformat()
                 if cache.last_loaded
                 else None,
@@ -76,15 +80,16 @@ def cache_status(user_email, user_roles) -> ResponseReturnValue:
     """Get cache status and statistics"""
     try:
         cache = get_cache()
+        stats = cache.get_stats()
 
         return jsonify(
             {
                 "success": True,
-                "cache_active": cache.data is not None,
-                "last_refresh": cache.last_loaded.isoformat()
-                if cache.last_loaded
-                else None,
-                "record_count": len(cache.data) if cache.data is not None else 0,
+                "cache_active": stats["loaded"],
+                "last_refresh": stats["last_loaded"],
+                "record_count": stats["total_rows"],
+                "tenants_loaded": stats["tenants_loaded"],
+                "memory_mb": stats["memory_mb"],
                 "auto_refresh_enabled": True,
                 "refresh_threshold_minutes": 30,
             }
@@ -104,13 +109,15 @@ def cache_refresh(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
 
         # Force refresh by invalidating and then getting data
         cache.invalidate()
-        cache.get_data(db)  # This will trigger a refresh
+        cache.get_data(db)  # This will trigger a legacy refresh
 
+        stats = cache.get_stats()
         return jsonify(
             {
                 "success": True,
                 "message": "Cache refreshed successfully",
-                "record_count": len(cache.data),
+                "record_count": stats["total_rows"],
+                "tenants_loaded": stats["tenants_loaded"],
                 "last_refresh": cache.last_loaded.isoformat()
                 if cache.last_loaded
                 else None,
@@ -150,7 +157,7 @@ def bnb_cache_status(user_email, user_roles) -> ResponseReturnValue:
     """Get BNB cache status and statistics"""
     try:
         bnb_cache = get_bnb_cache()
-        status = bnb_cache.get_status()
+        status = bnb_cache.get_stats()
 
         return jsonify({"success": True, **status})
     except Exception as e:
@@ -165,9 +172,9 @@ def bnb_cache_refresh(user_email, user_roles) -> ResponseReturnValue:
         bnb_cache = get_bnb_cache()
         db = DatabaseManager(test_mode=flag)
 
-        # Force refresh
+        # Force refresh (all tenants)
         bnb_cache.refresh(db)
-        status = bnb_cache.get_status()
+        status = bnb_cache.get_stats()
 
         return jsonify(
             {"success": True, "message": "BNB cache refreshed successfully", **status}

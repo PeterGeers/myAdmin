@@ -209,13 +209,13 @@ class TemplatePdfRenderer:
             # Try to generate report using the actual generator
             try:
                 from report_generators.aangifte_ib_generator import generate_table_rows
-                from cache.mutaties_cache import MutatiesCache
+                from mutaties_cache import MutatiesCache
 
                 # Initialize cache
                 cache = MutatiesCache()
 
                 # Get report data from cache
-                df = cache.get_data(self.db)
+                df = cache.get_data(self.db, tenant=self.administration)
 
                 # Filter by year and administration
                 df_filtered = df[

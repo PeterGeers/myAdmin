@@ -175,7 +175,7 @@ class BTWProcessor:
         """
         try:
             cache = get_cache()
-            df = cache.get_data(self.db)
+            df = cache.get_data(self.db, tenant=administration)
 
             vat_accounts = self._get_vat_accounts(administration, f"{year}-01-01")
             # Filter for opening balance transactions in the specified year
@@ -211,7 +211,7 @@ class BTWProcessor:
         """
         try:
             cache = get_cache()
-            df = cache.get_data(self.db)
+            df = cache.get_data(self.db, tenant=administration)
 
             vat_accounts = self._get_vat_accounts(administration, end_date)
             # Filter by date range (current year up to end_date, excluding opening balance)
@@ -244,7 +244,7 @@ class BTWProcessor:
         try:
             # Get cache instance
             cache = get_cache()
-            df = cache.get_data(self.db)
+            df = cache.get_data(self.db, tenant=administration)
 
             # Filter by year and quarter
             df_filtered = df[

@@ -10,6 +10,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 import os
+import psutil
 
 system_health_bp = Blueprint("system_health", __name__)
 
@@ -161,7 +162,82 @@ def health() -> ResponseReturnValue:
             }
         )
 
+    # Cache statistics
+    health_info["caches"] = _collect_cache_stats()
+
+    # Process memory info
+    health_info["process"] = _collect_process_stats()
+
     return jsonify(health_info)
+
+
+def _collect_cache_stats() -> dict:
+    """Collect stats from all cache singletons. Wrapped in try/except per cache."""
+    caches = {}
+
+    # MutatiesCache stats
+    try:
+        from mutaties_cache import get_cache
+        mutaties_cache = get_cache()
+        stats = mutaties_cache.get_stats()
+        caches["mutaties"] = {
+            "tenants_loaded": stats.get("tenants_loaded", 0),
+            "total_rows": stats.get("total_rows", 0),
+            "memory_mb": stats.get("memory_mb", 0.0),
+        }
+    except Exception:
+        caches["mutaties"] = {"error": "unavailable"}
+
+    # BnbCache stats
+    try:
+        from bnb_cache import get_bnb_cache
+        bnb_cache = get_bnb_cache()
+        stats = bnb_cache.get_stats()
+        caches["bnb"] = {
+            "tenants_loaded": stats.get("tenants_loaded", 0),
+            "total_rows": stats.get("total_rows", 0),
+            "memory_mb": stats.get("memory_mb", 0.0),
+        }
+    except Exception:
+        caches["bnb"] = {"error": "unavailable"}
+
+    # QueryCache stats
+    try:
+        from duplicate_query_optimizer import get_query_optimizer
+        optimizer = get_query_optimizer()
+        stats = optimizer.cache.get_stats()
+        caches["query_cache"] = {
+            "entries": stats.get("total_entries", 0),
+            "max_size": stats.get("max_size", 0),
+            "hit_rate_percent": stats.get("hit_rate_percent", 0.0),
+        }
+    except Exception:
+        caches["query_cache"] = {"error": "unavailable"}
+
+    return caches
+
+
+def _collect_process_stats() -> dict:
+    """Collect process RSS and alert threshold."""
+    alert_threshold_mb = int(
+        os.environ.get("MEMORY_ALERT_THRESHOLD_MB", "512")
+    )
+
+    try:
+        rss_bytes = psutil.Process().memory_info().rss
+        rss_mb = round(rss_bytes / 1024 / 1024, 1)
+    except Exception:
+        rss_mb = 0.0
+
+    result = {
+        "rss_mb": rss_mb,
+        "alert_threshold_mb": alert_threshold_mb,
+    }
+
+    if rss_mb > alert_threshold_mb:
+        result["memory_alert"] = True
+
+    return result
 
 
 @system_health_bp.route("/api/google-drive/token-health", methods=["GET"])

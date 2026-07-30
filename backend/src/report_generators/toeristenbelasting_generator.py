@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_toeristenbelasting_report(
-    cache: Any, bnb_cache: Any, db: Any, year: int
+    cache: Any, bnb_cache: Any, db: Any, year: int, tenant: str = None
 ) -> Dict[str, Any]:
     """
     Generate Toeristenbelasting (Tourist Tax) declaration report data.
@@ -105,7 +105,7 @@ def generate_toeristenbelasting_report(
         periode_tm = f"31-12-{year}"
 
         # Step 3: Get BNB booking data
-        bnb_data = _get_bnb_data(bnb_cache, db, year)
+        bnb_data = _get_bnb_data(bnb_cache, db, year, tenant=tenant)
 
         # Step 4: Calculate rental statistics
         rental_stats = _calculate_rental_statistics(
@@ -113,7 +113,7 @@ def generate_toeristenbelasting_report(
         )
 
         # Step 5: Get financial data
-        financial_data = _get_financial_data(cache, db, year, bnb_data)
+        financial_data = _get_financial_data(cache, db, year, bnb_data, tenant=tenant)
 
         # Step 6: Calculate taxable revenue
         taxable_revenue = _calculate_taxable_revenue(financial_data)
@@ -166,7 +166,7 @@ def _get_configuration() -> Dict[str, Any]:
 
 
 def _get_bnb_data(
-    bnb_cache: Any, db: Any, year: int
+    bnb_cache: Any, db: Any, year: int, tenant: str = None
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Get BNB booking data for the year.
@@ -175,6 +175,7 @@ def _get_bnb_data(
         bnb_cache: BNB cache instance
         db: Database instance
         year: Report year
+        tenant: Optional tenant identifier (administration)
 
     Returns:
         Dictionary with booking lists:
@@ -186,13 +187,13 @@ def _get_bnb_data(
     """
     try:
         # Get all bookings for the year
-        all_bookings = bnb_cache.query_by_year(db, year)
+        all_bookings = bnb_cache.query_by_year(db, year, tenant=tenant)
 
         # Get cancelled bookings
-        cancelled_bookings = bnb_cache.query_cancelled_by_year(db, year)
+        cancelled_bookings = bnb_cache.query_cancelled_by_year(db, year, tenant=tenant)
 
         # Get realised bookings
-        realised_bookings = bnb_cache.query_realised_by_year(db, year)
+        realised_bookings = bnb_cache.query_realised_by_year(db, year, tenant=tenant)
 
         logger.info(
             f"BNB data for {year}: {len(all_bookings)} total, "
@@ -303,7 +304,7 @@ def _get_financial_data(
     )
 
     # Get total revenue from account 8003
-    total_revenue_8003 = abs(_get_total_revenue_8003(cache, db, year))
+    total_revenue_8003 = abs(_get_total_revenue_8003(cache, db, year, tenant=tenant))
 
     # Calculate revenue excluding VAT and tourist tax
     ontvangsten_excl_btw_excl_toeristenbelasting = (
@@ -314,7 +315,7 @@ def _get_financial_data(
     ontvangsten_logies_inwoners = 0
 
     # Get service fees from account 4007 (make positive)
-    kortingen_provisie_commissie = abs(_get_service_fees(cache, db, year))
+    kortingen_provisie_commissie = abs(_get_service_fees(cache, db, year, tenant=tenant))
 
     # Calculate no-show revenue: amountGross - amountVat for cancelled bookings
     no_show_omzet = sum(
@@ -351,7 +352,7 @@ def _get_tourist_tax_from_account(
     try:
         from datetime import date as date_type
 
-        df = cache.get_data(db)
+        df = cache.get_data(db, tenant=tenant)
 
         # Filter by year and account 8003
         df_filtered = df[(df["jaar"] == int(year)) & (df["Reknum"] == "8003")].copy()
@@ -378,7 +379,7 @@ def _get_tourist_tax_from_account(
         return 0
 
 
-def _get_total_revenue_8003(cache: Any, db: Any, year: int) -> float:
+def _get_total_revenue_8003(cache: Any, db: Any, year: int, tenant: str = None) -> float:
     """
     Get total revenue from account 8003.
 
@@ -386,12 +387,13 @@ def _get_total_revenue_8003(cache: Any, db: Any, year: int) -> float:
         cache: Cache instance
         db: Database instance
         year: Report year
+        tenant: Optional tenant filter
 
     Returns:
         Total revenue amount
     """
     try:
-        df = cache.get_data(db)
+        df = cache.get_data(db, tenant=tenant)
 
         # Filter by year and account 8003
         df_filtered = df[(df["jaar"] == int(year)) & (df["Reknum"] == "8003")].copy()
@@ -403,7 +405,7 @@ def _get_total_revenue_8003(cache: Any, db: Any, year: int) -> float:
         return 0
 
 
-def _get_service_fees(cache: Any, db: Any, year: int) -> float:
+def _get_service_fees(cache: Any, db: Any, year: int, tenant: str = None) -> float:
     """
     Get service fees from account 4007 (Service Fee bookingssites).
 
@@ -411,12 +413,13 @@ def _get_service_fees(cache: Any, db: Any, year: int) -> float:
         cache: Cache instance
         db: Database instance
         year: Report year
+        tenant: Optional tenant filter
 
     Returns:
         Service fees amount
     """
     try:
-        df = cache.get_data(db)
+        df = cache.get_data(db, tenant=tenant)
 
         # Filter by year and account 4007
         df_filtered = df[(df["jaar"] == int(year)) & (df["Reknum"] == "4007")].copy()

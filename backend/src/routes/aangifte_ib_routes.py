@@ -57,18 +57,18 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
 
-        # Ensure cache is loaded (will auto-refresh if needed)
-        cache.get_data(db)
+        # Ensure cache is loaded for this tenant (will auto-refresh if needed)
+        cache.get_data(db, tenant=tenant)
 
         # Compute closure-aware start year for balance sheet cumulation
         start_year = get_closure_aware_start_year(db, administration)
 
         # Query from cache (much faster than SQL)
         summary_data = cache.query_aangifte_ib(
-            year, administration, user_tenants=user_tenants, start_year=start_year
+            year, administration, tenant=tenant, user_tenants=user_tenants, start_year=start_year
         )
         # Get ALL available years from database (not just cached years)
-        available_years = cache.get_available_years(db)
+        available_years = cache.get_available_years(db, tenant=tenant)
         # Only show administrations user has access to
         available_administrations = [
             admin
@@ -120,15 +120,15 @@ def aangifte_ib_details(
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
 
-        # Ensure cache is loaded (will auto-refresh if needed)
-        cache.get_data(db)
+        # Ensure cache is loaded for this tenant (will auto-refresh if needed)
+        cache.get_data(db, tenant=tenant)
 
         # Compute closure-aware start year for balance sheet cumulation
         start_year = get_closure_aware_start_year(db, administration)
 
         # Query from cache (much faster than SQL) with tenant filtering
         details_data = cache.query_aangifte_ib_details(
-            year, administration, parent, aangifte, user_tenants, start_year=start_year
+            year, administration, parent, aangifte, user_tenants, tenant=tenant, start_year=start_year
         )
 
         return jsonify(
@@ -198,8 +198,8 @@ def aangifte_ib_export(
         cache = get_cache()
         db = DatabaseManager(test_mode=flag)
 
-        # Ensure cache is loaded
-        cache.get_data(db)
+        # Ensure cache is loaded for this tenant
+        cache.get_data(db, tenant=tenant)
 
         # Use report_generators to generate table rows
         from report_generators import generate_table_rows

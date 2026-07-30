@@ -14,7 +14,7 @@ class ToeristenbelastingProcessor:
         self.test_mode = test_mode
         self.db = DatabaseManager(test_mode=test_mode)
 
-    def generate_toeristenbelasting_report(self, year):
+    def generate_toeristenbelasting_report(self, year, tenant=None):
         """Generate Toeristenbelasting (Tourist Tax) declaration report using TemplateService"""
         try:
             # Get caches
@@ -24,7 +24,8 @@ class ToeristenbelastingProcessor:
             # Generate report data using the generator
             report_result = (
                 toeristenbelasting_generator.generate_toeristenbelasting_report(
-                    cache=cache, bnb_cache=bnb_cache, db=self.db, year=year
+                    cache=cache, bnb_cache=bnb_cache, db=self.db, year=year,
+                    tenant=tenant
                 )
             )
 

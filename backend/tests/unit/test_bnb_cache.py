@@ -48,9 +48,10 @@ class TestIsValid:
         assert cache.is_valid() is False
 
     def test_is_valid_no_last_refresh_returns_false(self):
-        """Test cache with data but no last_refresh is invalid."""
+        """Test cache with no data at all is invalid."""
         cache = BnbCache()
-        cache.data = pd.DataFrame({'col': [1, 2, 3]})
+        # With new per-tenant architecture, setting .data auto-sets last_loaded.
+        # An empty cache (no tenant data) is invalid.
         assert cache.is_valid() is False
 
     def test_is_valid_fresh_data_returns_true(self):
